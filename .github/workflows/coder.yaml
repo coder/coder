@@ -66,6 +66,3 @@ jobs:
 
       - name: "make ${{ matrix.style }}"
         run: "make --output-sync -j ${{ matrix.style }}"
-
-      - name: Check for unstaged files...
-        run: ./ci/scripts/check_unstaged.sh
