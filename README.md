@@ -1,3 +1,5 @@
+[![coder](https://github.com/coder/coder/actions/workflows/coder.yaml/badge.svg)](https://github.com/coder/coder/actions/workflows/coder.yaml)
+
 # Coder v2
 
 This repository contains source code for Coder V2. Additional documentation:
