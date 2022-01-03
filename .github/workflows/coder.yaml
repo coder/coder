@@ -3,14 +3,14 @@ name: coder
 on:
   push:
     branches:
-      - master
+      - main
       - "release/*"
     tags:
       - "*"
 
   pull_request:
     branches:
-      - master
+      - main
       - "release/*"
 
   workflow_dispatch:
