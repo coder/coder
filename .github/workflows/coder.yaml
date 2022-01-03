@@ -83,7 +83,7 @@ jobs:
 
       # Check that go is available
       # TODO: Implement actual test run
-      - run: go --version
+      - run: go version
 
   test-js:
     name: "test/js"
