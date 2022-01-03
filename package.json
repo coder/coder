@@ -4,7 +4,6 @@
   "description": "Coder V2 (Workspaces V2)",
   "main": "index.js",
   "repository": "https://github.com/coder/coder",
-  "author": "Kyle Carberry <kyle@coder.com>",
   "private": true,
   "scripts": {
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
