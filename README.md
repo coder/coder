@@ -1,4 +1,5 @@
 [![coder](https://github.com/coder/coder/actions/workflows/coder.yaml/badge.svg)](https://github.com/coder/coder/actions/workflows/coder.yaml)
+[![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
 # Coder v2
 
