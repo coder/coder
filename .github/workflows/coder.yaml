@@ -30,9 +30,7 @@ permissions:
 jobs:
   style:
     name: "style/${{ matrix.style }}"
-    runs-on:
-      - self-hosted
-      - v3
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         style:
