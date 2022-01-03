@@ -1,0 +1,28 @@
+###############################################################################
+#                                 NOTICE                                      #
+# If you change this file, kindly copy-pasta your change into .prettierignore #
+# and .eslintignore as well. See the following discussions to understand why  #
+# we have to resort to this duplication (at least for now):                   #
+#                                                                             #
+# https://github.com/prettier/prettier/issues/8048                            #
+# https://github.com/prettier/prettier/issues/8506                            #
+# https://github.com/prettier/prettier/issues/8679                            #
+###############################################################################
+
+.cache
+vendor
+product/coder/cmd/coderd/config.toml
+code-server
+coverage
+product/coder/pkg/api/manager.test
+product/coder/deploy/build/
+product/licensor/deploy/bin
+yarn-error.log
+node_modules
+.DS_Store
+.idea
+.dbstash
+.dbtemp
+core.node.*
+report.*
+.eslintcache
