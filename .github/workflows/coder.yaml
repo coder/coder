@@ -87,13 +87,7 @@ jobs:
 
   test-js:
     name: "test/js"
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 
