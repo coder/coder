@@ -64,3 +64,43 @@ jobs:
 
       - name: "make ${{ matrix.style }}"
         run: "make --output-sync -j ${{ matrix.style }}"
+
+  test-go:
+    name: "test/go"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      # Check that go is available
+      # TODO: Implement actual test run
+      - run: go --version
+
+  test-js:
+    name: "test/js"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+
+      # Check that node is available
+      # TODO: Implement actual test run
+      - run: node --version
