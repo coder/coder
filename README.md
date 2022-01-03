@@ -1,6 +1,7 @@
 # Coder v2
 
 This repository contains source code for Coder V2. Additional documentation:
+
 - [Workspaces V2 RFC](https://www.notion.so/coderhq/b48040da8bfe46eca1f32749b69420dd?v=a4e7d23495094644b939b08caba8e381&p=e908a8cd54804ddd910367abf03c8d0a)
 
 ## Directory Structure
