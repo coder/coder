@@ -1,3 +1,5 @@
+//go:build linux
+
 package postgres_test
 
 import (
