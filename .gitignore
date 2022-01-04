@@ -9,20 +9,5 @@
 # https://github.com/prettier/prettier/issues/8679                            #
 ###############################################################################
 
-.cache
-vendor
-product/coder/cmd/coderd/config.toml
-code-server
-coverage
-product/coder/pkg/api/manager.test
-product/coder/deploy/build/
-product/licensor/deploy/bin
-yarn-error.log
 node_modules
-.DS_Store
-.idea
-.dbstash
-.dbtemp
-core.node.*
-report.*
 .eslintcache
