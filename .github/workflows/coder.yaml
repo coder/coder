@@ -81,9 +81,7 @@ jobs:
         with:
           go-version: "^1.17"
 
-      # Check that go is available
-      # TODO: Implement actual test run
-      - run: go version
+      - run: go test -v ./...
 
   test-js:
     name: "test/js"
