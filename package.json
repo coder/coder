@@ -1,8 +1,6 @@
 {
   "name": "coder-v2",
-  "version": "0.0.1",
   "description": "Coder V2 (Workspaces V2)",
-  "main": "index.js",
   "repository": "https://github.com/coder/coder",
   "private": true,
   "scripts": {
