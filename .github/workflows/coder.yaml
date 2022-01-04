@@ -28,8 +28,8 @@ permissions:
   statuses: none
 
 jobs:
-  lint:
-    name: lint/golangci
+  style-lint-golangci:
+    name: style/lint/golangci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
