@@ -1,0 +1,3 @@
+[submodule "m"]
+	path = m
+	url = https://github.com/coder/m

@@ -11,3 +11,6 @@
 
 node_modules
 .eslintcache
+yarn-error.log
+
+site/dist
