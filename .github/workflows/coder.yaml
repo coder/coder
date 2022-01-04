@@ -93,18 +93,14 @@ jobs:
 
       - run: go install gotest.tools/gotestsum@latest
 
-      - run: |
-          gotestsum \
-            --jsonfile="gotests.json" \
-            --packages="./..." \
-            -- \
-            -covermode=atomic \
-            -coverprofile="gotests.coverage"
-      
+      # Windows is not happy with backslashed commands.
+      - run: gotestsum --jsonfile="gotests.json" --packages="./..." -- -covermode=atomic -coverprofile="gotests.coverage"
+
       - uses: codecov/codecov-action@v2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
+          flags: ${{ matrix.os }}
           fail_ci_if_error: true
 
   test-js:
