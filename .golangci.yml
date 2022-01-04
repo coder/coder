@@ -1,0 +1,258 @@
+# See https://golangci-lint.run/usage/configuration/
+# Over time we should try tightening some of these.
+
+linters-settings:
+  gocognit:
+    min-complexity: 46 # Min code complexity (def 30).
+
+  goconst:
+    min-len: 4 # Min length of string consts (def 3).
+    min-occurrences: 3 # Min number of const occurrences (def 3).
+
+  gocritic:
+    enabled-checks:
+      # - appendAssign
+      # - appendCombine
+      - argOrder
+      # - assignOp
+      # - badCall
+      - badCond
+      - badLock
+      - badRegexp
+      - boolExprSimplify
+      # - builtinShadow
+      - builtinShadowDecl
+      - captLocal
+      - caseOrder
+      - codegenComment
+      # - commentedOutCode
+      - commentedOutImport
+      # - commentFormatting
+      - defaultCaseOrder
+      - deferUnlambda
+      # - deprecatedComment
+      # - docStub
+      - dupArg
+      - dupBranchBody
+      - dupCase
+      - dupImport
+      - dupSubExpr
+      # - elseif
+      - emptyFallthrough
+      # - emptyStringTest
+      # - equalFold
+      # - evalOrder
+      # - exitAfterDefer
+      # - exposedSyncMutex
+      # - filepathJoin
+      - flagDeref
+      - flagName
+      - hexLiteral
+      # - httpNoBody
+      # - hugeParam
+      # - ifElseChain
+      # - importShadow
+      - indexAlloc
+      - initClause
+      # - ioutilDeprecated
+      - mapKey
+      - methodExprCall
+      # - nestingReduce
+      - newDeref
+      - nilValReturn
+      # - octalLiteral
+      - offBy1
+      # - paramTypeCombine
+      # - preferStringWriter
+      # - preferWriteByte
+      # - ptrToRefParam
+      # - rangeExprCopy
+      # - rangeValCopy
+      - regexpMust
+      - regexpPattern
+      # - regexpSimplify
+      - ruleguard
+      - singleCaseSwitch
+      - sloppyLen
+      # - sloppyReassign
+      - sloppyTypeAssert
+      - sortSlice
+      # - sprintfQuotedString
+      - sqlQuery
+      # - stringConcatSimplify
+      # - stringXbytes
+      # - suspiciousSorting
+      - switchTrue
+      - truncateCmp
+      - typeAssertChain
+      # - typeDefFirst
+      - typeSwitchVar
+      # - typeUnparen
+      - underef
+      # - unlabelStmt
+      # - unlambda
+      # - unnamedResult
+      # - unnecessaryBlock
+      # - unnecessaryDefer
+      # - unslice
+      - valSwap
+      - weakCond
+      # - whyNoLint
+      # - wrapperFunc
+      # - yodaStyleExpr
+    settings:
+      ruleguard:
+        failOn: all
+        rules: "${configDir}/lib/go/lintrules/*.go"
+
+  goimports:
+    local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder
+
+  gocyclo:
+    min-complexity: 50
+
+  importas:
+    no-unaliased: true
+    alias:
+      - pkg: k8s.io/api/(\w+)/(v[\w\d]+)
+        alias: ${1}${2}
+
+      - pkg: k8s.io/apimachinery/pkg/apis/meta/(v[\w\d]+)
+        alias: meta${1}
+
+      - pkg: k8s.io/client-go/kubernetes/typed/(\w+)/(v[\w\d]+)
+        alias: ${1}${2}client
+
+      - pkg: k8s.io/metrics/pkg/apis/metrics/(v[\w\d]+)
+        alias: metrics${1}
+
+      - pkg: github.com/docker/docker/api/types
+        alias: dockertypes
+
+      - pkg: github.com/docker/docker/client
+        alias: dockerclient
+
+  misspell:
+    locale: US
+
+  nestif:
+    min-complexity: 4 # Min complexity of if statements (def 5, goal 4)
+
+  revive:
+    # see https://github.com/mgechev/revive#available-rules for details.
+    ignore-generated-header: true
+    severity: warning
+    rules:
+      - name: atomic
+      - name: bare-return
+      - name: blank-imports
+      - name: bool-literal-in-expr
+      - name: call-to-gc
+      - name: confusing-naming
+      - name: confusing-results
+      - name: constant-logical-expr
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: deep-exit
+      - name: defer
+      - name: dot-imports
+      - name: duplicated-imports
+      - name: early-return
+      - name: empty-block
+      - name: empty-lines
+      - name: error-naming
+      - name: error-return
+      - name: error-strings
+      - name: errorf
+      - name: exported
+      - name: flag-parameter
+      - name: get-return
+      - name: identical-branches
+      - name: if-return
+      - name: import-shadowing
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: modifies-parameter
+      - name: modifies-value-receiver
+      - name: package-comments
+      - name: range
+      - name: range-val-address
+      - name: range-val-in-closure
+      - name: receiver-naming
+      - name: redefines-builtin-id
+      - name: string-of-int
+      - name: struct-tag
+      - name: superfluous-else
+      - name: time-naming
+      - name: unconditional-recursion
+      - name: unexported-naming
+      - name: unexported-return
+      - name: unhandled-error
+      - name: unnecessary-stmt
+      - name: unreachable-code
+      - name: unused-parameter
+      - name: unused-receiver
+      - name: var-declaration
+      - name: var-naming
+      - name: waitgroup-by-value
+
+issues:
+  # Rules listed here: https://github.com/securego/gosec#available-rules
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        # We use assertions rather than explicitly checking errors in tests
+        - errcheck
+
+  fix: true
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  concurrency: 4
+  skip-dirs:
+    - node_modules
+  timeout: 5m
+
+# Over time, add more and more linters from
+# https://golangci-lint.run/usage/linters/ as the code improves.
+linters:
+  disable-all: true
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - deadcode
+    - dogsled
+    - errcheck
+    - errname
+    - errorlint
+    - exportloopref
+    - forcetypeassert
+    - gocritic
+    - gocyclo
+    - goimports
+    - gomodguard
+    - gosec
+    - gosimple
+    - govet
+    - importas
+    - ineffassign
+    # - ireturn
+    - makezero
+    - misspell
+    - nilnil
+    - noctx
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - structcheck
+    - tenv
+    - typecheck
+    - unconvert
+    - unused
+    - varcheck
+    - varnamelen
+    - wastedassign
