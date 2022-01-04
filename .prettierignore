@@ -1,0 +1,7 @@
+###############################################################################
+# COPY PASTA OF .gitignore
+# https://github.com/prettier/prettier/issues/8048
+# https://github.com/prettier/prettier/issues/8506
+# https://github.com/prettier/prettier/issues/8679
+###############################################################################
+node_modules

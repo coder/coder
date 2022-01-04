@@ -1,0 +1,13 @@
+{
+  "name": "coder-v2",
+  "description": "Coder V2 (Workspaces V2)",
+  "repository": "https://github.com/coder/coder",
+  "private": true,
+  "scripts": {
+    "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
+    "format:write": "prettier --write '**/*.{css,htmljs,json,jsx,md,ts,tsx,yaml,yml}'"
+  },
+  "devDependencies": {
+    "prettier": "2.5.1"
+  }
+}

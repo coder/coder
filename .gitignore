@@ -1,0 +1,13 @@
+###############################################################################
+#                                 NOTICE                                      #
+# If you change this file, kindly copy-pasta your change into .prettierignore #
+# and .eslintignore as well. See the following discussions to understand why  #
+# we have to resort to this duplication (at least for now):                   #
+#                                                                             #
+# https://github.com/prettier/prettier/issues/8048                            #
+# https://github.com/prettier/prettier/issues/8506                            #
+# https://github.com/prettier/prettier/issues/8679                            #
+###############################################################################
+
+node_modules
+.eslintcache

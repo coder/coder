@@ -1,0 +1,100 @@
+name: coder
+
+on:
+  push:
+    branches:
+      - main
+      - "release/*"
+    tags:
+      - "*"
+
+  pull_request:
+    branches:
+      - main
+      - "release/*"
+
+  workflow_dispatch:
+
+permissions:
+  actions: none
+  checks: none
+  contents: read
+  deployments: none
+  issues: none
+  packages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+
+jobs:
+  style:
+    name: "style/${{ matrix.style }}"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        style:
+          - fmt
+      fail-fast: false
+    permissions:
+      actions: write # for cancel-workflow-action
+      contents: read
+    steps:
+      - name: Cancel previous runs
+        if: github.event_name == 'pull_request'
+        uses: styfle/cancel-workflow-action@0.9.1
+
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v2
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+
+      - name: Install node_modules
+        run: yarn install
+
+      - name: "make ${{ matrix.style }}"
+        run: "make --output-sync -j ${{ matrix.style }}"
+
+  test-go:
+    name: "test/go"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      # Check that go is available
+      # TODO: Implement actual test run
+      - run: go version
+
+  test-js:
+    name: "test/js"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+
+      # Check that node is available
+      # TODO: Implement actual test run
+      - run: node --version
