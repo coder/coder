@@ -1,7 +1,7 @@
 const path = require('path');
 
 module.exports = {
-  entry: './site/index.ts',
+  entry: './site/index.tsx',
   module: {
     rules: [
       {
@@ -14,6 +14,7 @@ module.exports = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
     alias: {
+      '@v1': path.resolve(__dirname, '..', 'm'),
       'lib/coderapi': path.resolve(__dirname, '..', 'm', 'lib', 'ts', 'coderapi', 'src')
     },
     modules: [

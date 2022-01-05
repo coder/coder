@@ -8,10 +8,12 @@
     "allowJs": true,
     "downlevelIteration": true,
     "esModuleInterop": true,
-
-        "resolveJsonModule": true,
-        "isolatedModules": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "paths": {
+      "@v1/*": [
+        "./../m/*"
+      ],
       "lib/ts/*": [
         "./../m/lib/ts/*"
       ],
