@@ -1,0 +1,20 @@
+# sqlc is used to generate types from sql schema language.
+# It was chosen to ensure type-safety when interacting with
+# the database.
+version: "1"
+packages:
+  - name: "database"
+    path: "."
+    queries: "./query.sql"
+    schema: "./dump.sql"
+    engine: "postgresql"
+    emit_interface: true
+    emit_json_tags: true
+    emit_db_tags: true
+    # We replace the generated db file with our own
+    # to add support for transactions. This file is
+    # deleted after generation.
+    output_db_file_name: db_tmp.go
+overrides:
+  - db_type: citext
+    go_type: string

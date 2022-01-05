@@ -5,3 +5,4 @@
 # https://github.com/prettier/prettier/issues/8679
 ###############################################################################
 node_modules
+vendor
