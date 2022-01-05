@@ -28,6 +28,16 @@ permissions:
   statuses: none
 
 jobs:
+  style-lint-golangci:
+    name: style/lint/golangci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: latest
+
   style:
     name: "style/${{ matrix.style }}"
     runs-on: ubuntu-latest
@@ -81,9 +91,17 @@ jobs:
         with:
           go-version: "^1.17"
 
-      # Check that go is available
-      # TODO: Implement actual test run
-      - run: go version
+      - run: go install gotest.tools/gotestsum@latest
+
+      # Windows is not happy with backslashed commands.
+      - run: gotestsum --jsonfile="gotests.json" --packages="./..." -- -covermode=atomic -coverprofile="gotests.coverage"
+
+      - uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./gotests.coverage
+          flags: ${{ matrix.os }}
+          fail_ci_if_error: true
 
   test-js:
     name: "test/js"
