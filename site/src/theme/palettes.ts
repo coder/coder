@@ -9,7 +9,6 @@ declare module "@material-ui/core/styles/createPalette" {
     }
   }
 
-  // TODO: Is there a nice way to reuse the members here between `Palette`/`PaletteOptions`?
   interface PaletteOptions {
     navbar: {
       main: string
