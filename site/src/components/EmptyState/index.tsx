@@ -1,15 +1,15 @@
-import React from "react";
-import { makeStyles } from "@material-ui/core/styles";
-import Box from "@material-ui/core/Box";
-import Button, { ButtonProps } from "@material-ui/core/Button";
-import Typography from "@material-ui/core/Typography";
+import React from "react"
+import { makeStyles } from "@material-ui/core/styles"
+import Box from "@material-ui/core/Box"
+import Button, { ButtonProps } from "@material-ui/core/Button"
+import Typography from "@material-ui/core/Typography"
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
-  message: React.ReactNode;
+  message: React.ReactNode
   /** Longer optional description to display below the message */
-  description?: React.ReactNode;
-  button?: ButtonProps;
+  description?: React.ReactNode
+  button?: ButtonProps
 }
 
 /**
@@ -21,13 +21,11 @@ export interface EmptyStateProps {
  * that you can directly pass props through to to customize the shape and layout of it.
  */
 export const EmptyState: React.FC<EmptyStateProps> = (props) => {
-  const { message, description, button, ...boxProps } = props;
-  const styles = useStyles();
+  const { message, description, button, ...boxProps } = props
+  const styles = useStyles()
 
-  const descClassName = `${styles.description}`;
-  const buttonClassName = `${styles.button} ${
-    button && button.className ? button.className : ""
-  }`;
+  const descClassName = `${styles.description}`
+  const buttonClassName = `${styles.button} ${button && button.className ? button.className : ""}`
 
   return (
     <Box className={styles.root} {...boxProps}>
@@ -35,25 +33,14 @@ export const EmptyState: React.FC<EmptyStateProps> = (props) => {
         {message}
       </Typography>
       {description && (
-        <Typography
-          variant="body2"
-          color="textSecondary"
-          className={descClassName}
-        >
+        <Typography variant="body2" color="textSecondary" className={descClassName}>
           {description}
         </Typography>
       )}
-      {button && (
-        <Button
-          variant="contained"
-          color="primary"
-          {...button}
-          className={buttonClassName}
-        />
-      )}
+      {button && <Button variant="contained" color="primary" {...button} className={buttonClassName} />}
     </Box>
-  );
-};
+  )
+}
 
 const useStyles = makeStyles(
   (theme) => ({
@@ -83,5 +70,5 @@ const useStyles = makeStyles(
       opacity: 0.5,
     },
   }),
-  { name: "EmptyState" }
-);
+  { name: "EmptyState" },
+)
