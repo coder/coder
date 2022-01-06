@@ -1,12 +1,28 @@
 import { Palette } from "@material-ui/core/styles/createPalette"
+/**
+ * Augment MUI Palette with Coder-specific design system
+ */
+declare module "@material-ui/core/styles/createPalette" {
+  interface Palette {
+    navbar: {
+      main: string
+    }
+  }
 
+  // TODO: Is there a nice way to reuse the members here between `Palette`/`PaletteOptions`?
+  interface PaletteOptions {
+    navbar: {
+      main: string
+    }
+  }
+}
 /**
  * CustomPalette implements a minimal subset of MUI Palette interface for our
  * light and dark themes.
  */
 export type CustomPalette = Pick<
   Palette,
-  "action" | "background" | "divider" | "error" | "info" | "primary" | "secondary" | "text" | "type"
+  "action" | "background" | "divider" | "error" | "info" | "navbar" | "primary" | "secondary" | "text" | "type"
 >
 
 /**
@@ -33,6 +49,9 @@ export const lightPalette: CustomPalette = {
     light: "#000",
     dark: "#000",
     contrastText: "#FFF",
+  },
+  navbar: {
+    main: "#242424",
   },
   secondary: {
     main: "#F7CD6F",
@@ -75,6 +94,9 @@ export const darkPalette: CustomPalette = {
   secondary: lightPalette.secondary,
   info: lightPalette.info,
   error: lightPalette.error,
+  navbar: {
+    main: "rgb(8, 9, 10)",
+  },
   background: {
     default: "rgb(24, 26, 27)",
     paper: "rgb(31, 33, 35)",
