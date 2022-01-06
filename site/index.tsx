@@ -105,7 +105,6 @@ function component() {
               </Box>
             </Paper>
           </Route>
-          <Route path="/workspaces"><div>Workspaces</div></Route>
         </Switch>
       </Router>
     </>
