@@ -14,15 +14,6 @@ module.exports = {
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
-    alias: {
-      '@v1': path.resolve(__dirname, '..', 'm'),
-      'lib/coderapi': path.resolve(__dirname, '..', 'm', 'lib', 'ts', 'coderapi', 'src')
-    },
-    modules: [
-      'node_modules',
-      path.resolve(__dirname, '..', 'm'),
-      path.resolve(__dirname, '..', 'm', 'lib'),
-      path.resolve(__dirname, '..', 'm', 'product', 'coder', 'site')]
   },
   output: {
     filename: 'bundle.js',

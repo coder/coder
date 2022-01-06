@@ -83,8 +83,6 @@ const useStyles = makeStyles(
   { name: "CdrEmptyState" },
 )
 
-
-
 function component() {
   const element = document.createElement('div');
 

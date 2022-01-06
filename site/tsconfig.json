@@ -10,28 +10,5 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "paths": {
-      "@v1/*": [
-        "./../m/*"
-      ],
-      "lib/ts/*": [
-        "./../m/lib/ts/*"
-      ],
-      "product/*": [
-        "./../m/product/*"
-      ],
-      "lib/coderapi/legacy": [
-        "./../m/lib/ts/coderapi/src/legacy/index.ts"
-      ],
-      "lib/coderapi/legacy/*": [
-        "./../m/lib/ts/coderapi/src/legacy/*"
-      ],
-      "lib/coderapi": [
-        "./../m/lib/ts/coderapi/src/index.ts"
-      ],
-      "lib/coderapi/*": [
-        "./../m/lib/ts/coderapi/src/*"
-      ],
-    }
   }
 }
