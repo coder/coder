@@ -13,3 +13,6 @@ node_modules
 vendor
 .eslintcache
 yarn-error.log
+
+# Front-end ignore
+site/dist/
