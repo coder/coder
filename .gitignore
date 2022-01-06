@@ -12,3 +12,4 @@
 node_modules
 vendor
 .eslintcache
+yarn-error.log
