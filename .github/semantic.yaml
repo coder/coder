@@ -7,24 +7,6 @@
 # https://www.notion.so/coderhq/Conventional-commits-1d51287f58b64026bb29393f277734ed
 ###############################################################################
 
-# Scopes are optionally supplied after a 'type'. For example, in
-#
-# feat(cdr): autostart ui
-#
-# '(cdr)' is the scope. Scopes are used to signify where the change occurred.
-scopes:
-  # The Coder product (front/back/deploy) (path: product/coder)
-  - cdr
-
-  # The Coder CLI (path: product/coder/service/cli)
-  - cli
-
-  # The Coder product e2e suite (path: product/coder/e2e)
-  - e2e
-
-  # A change to a shared library module (path: lib/)
-  - lib
-
 # We only check that the PR title is semantic. The PR title is automatically
 # applied to the "Squash & Merge" flow as the suggested commit message, so this
 # should suffice unless someone drastically alters the message in that flow.
