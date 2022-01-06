@@ -5,11 +5,9 @@
   "private": true,
   "scripts": {
     "build": "webpack build --config site/webpack.config.js",
+    "build:watch": "webpack build --config site/webpack.config.js --watch",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:write": "prettier --write '**/*.{css,htmljs,json,jsx,md,ts,tsx,yaml,yml}'"
-  },
-  "dependencies": {
-    "formik": "2.2.9"
   },
   "devDependencies": {
     "@material-ui/core": "4.9.4",
