@@ -29,6 +29,8 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		options.Transport = TransportStdio()
 	}
 
+	// dRPC is a drop-in replacement for gRPC with less generated code, and faster transports.
+	// See: https://www.storj.io/blog/introducing-drpc-our-replacement-for-grpc
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterProvisioner(mux, server)
 	if err != nil {
