@@ -6,9 +6,10 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/coder/coder/database/postgres"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/database/postgres"
 
 	_ "github.com/lib/pq"
 )
