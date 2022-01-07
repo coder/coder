@@ -1,23 +1,70 @@
 import React from "react"
 import { fade, makeStyles } from "@material-ui/core/styles"
-import Button from "@material-ui/core/Button"
 import { Link, useLocation } from "react-router-dom"
-import { Logo } from "./../Icons/Logo"
+import { Logo, WorkspacesIcon } from "./../Icons"
+import { BorderedMenu } from "./BorderedMenu"
+
+import ListSubheader from "@material-ui/core/ListSubheader"
+
+import { NavMenuEntry, NavMenuEntryProps } from "./NavMenuEntry"
+import { Button, List, Popover } from "@material-ui/core"
+
+const placeholderItems: NavMenuEntryProps[] = [
+  {
+    icon: WorkspacesIcon,
+    path: "/workspaces",
+    label: "workspaces",
+    selected: false,
+  },
+]
+
+/*export interface NavMenuEntryProps {
+  Icon: typeof SvgIcon
+  path: string
+  label?: string,
+  selected: boolean
+  className?: string
+  onClick?: () => void
+}*/
 
 export const Navbar: React.FC = () => {
   const styles = useStyles()
-  return <div className={styles.root}>
-    <Link to="/">
-      <Button className={styles.logo} variant="text">
-        <Logo fill="white" opacity={1} />
-      </Button>
-    </Link>
-  </div>
+  return (
+    <div className={styles.root}>
+      <div className={styles.fixed}>
+        <Link to="/">
+          <Button className={styles.logo} variant="text">
+            <Logo fill="white" opacity={1} />
+          </Button>
+        </Link>
+      </div>
+      <div className={styles.fullWidth}>
+        <div className={styles.title}>Hello, World - Coder v2</div>
+      </div>
+      <div className={styles.fixed}>
+        <List>
+          <ListSubheader>Manage</ListSubheader>
+          {/*<BorderedMenu
+          id={"test"}
+          open={true}
+        >
+          {placeholderItems.map((entry) => (
+            <NavMenuEntry key={entry.label} {...entry} />
+          ))}
+          </BorderedMenu>*/}
+        </List>
+      </div>
+    </div>
+  )
 }
 
 const useStyles = makeStyles((theme) => ({
   root: {
     position: "relative",
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     height: "56px",
     background: theme.palette.navbar.main,
     marginTop: 0,
@@ -27,15 +74,25 @@ const useStyles = makeStyles((theme) => ({
     },
     borderBottom: `1px solid #383838`,
   },
+  fixed: {
+    flex: "0",
+  },
+  fullWidth: {
+    flex: "1",
+  },
   logo: {
+    flex: "0",
     height: "56px",
     paddingLeft: theme.spacing(4),
     paddingRight: theme.spacing(2),
-    margin: "0 auto",
     borderRadius: 0,
     "& svg": {
       display: "block",
       width: 125,
     },
+  },
+  title: {
+    flex: "1",
+    textAlign: "center",
   },
 }))
