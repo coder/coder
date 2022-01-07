@@ -18,3 +18,7 @@ coverage:
       default:
         target: 80%
         informational: yes
+
+ignore:
+  # This is generated code.
+  - provisionersdk/proto

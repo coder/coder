@@ -38,6 +38,22 @@ jobs:
         with:
           version: latest
 
+  gen:
+    name: "style/gen"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: "3.6.1"
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+      - run: go install github.com/kyleconroy/sqlc/cmd/sqlc@latest
+      - run: go install github.com/storj/drpc/cmd/protoc-gen-go-drpc@v0.0.20
+      - run: "make --output-sync -j gen"
+
   style:
     name: "style/${{ matrix.style }}"
     runs-on: ubuntu-latest
