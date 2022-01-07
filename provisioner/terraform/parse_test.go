@@ -14,14 +14,21 @@ import (
 )
 
 func TestParse(t *testing.T) {
+	t.Parallel()
+
+	// Create an in-memory provisioner to communicate with.
 	client, server := provisionersdk.TransportPipe()
-	defer client.Close()
-	defer server.Close()
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+		cancelFunc()
+	})
 	go func() {
-		err := Serve(ctx, &provisionersdk.ServeOptions{
-			Transport: server,
+		err := Serve(ctx, &ServeOptions{
+			ServeOptions: &provisionersdk.ServeOptions{
+				Transport: server,
+			},
 		})
 		require.NoError(t, err)
 	}()
@@ -32,7 +39,7 @@ func TestParse(t *testing.T) {
 		Files    map[string]string
 		Response *proto.Parse_Response
 	}{{
-		Name: "basic",
+		Name: "single-variable",
 		Files: map[string]string{
 			"main.tf": `variable "A" {
 				description = "Testing!"
@@ -45,7 +52,7 @@ func TestParse(t *testing.T) {
 			}},
 		},
 	}, {
-		Name: "default-value",
+		Name: "default-variable-value",
 		Files: map[string]string{
 			"main.tf": `variable "A" {
 				default = "wow"
@@ -58,7 +65,7 @@ func TestParse(t *testing.T) {
 			}},
 		},
 	}, {
-		Name: "validation",
+		Name: "variable-validation",
 		Files: map[string]string{
 			"main.tf": `variable "A" {
 				validation {
@@ -73,7 +80,11 @@ func TestParse(t *testing.T) {
 			}},
 		},
 	}} {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			// Write all files to the temporary test directory.
 			directory := t.TempDir()
 			for path, content := range tc.Files {
 				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0644)
@@ -85,9 +96,9 @@ func TestParse(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			// Ensure the want and got are equivalent!
 			want, err := json.Marshal(tc.Response)
 			require.NoError(t, err)
-
 			got, err := json.Marshal(response)
 			require.NoError(t, err)
 

@@ -49,7 +49,8 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 	}
 
 	if len(variable.Validations) > 0 && variable.Validations[0].Condition != nil {
-		// Only use the first validation for now.
+		// Terraform can contain multiple validation blocks, but it's used sparingly
+		// from what it appears.
 		validation := variable.Validations[0]
 		filedata, err := os.ReadFile(variable.Pos.Filename)
 		if err != nil {

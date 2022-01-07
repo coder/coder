@@ -14,14 +14,20 @@ import (
 )
 
 func TestProvision(t *testing.T) {
+	t.Parallel()
+
 	client, server := provisionersdk.TransportPipe()
-	defer client.Close()
-	defer server.Close()
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+		cancelFunc()
+	})
 	go func() {
-		err := Serve(ctx, &provisionersdk.ServeOptions{
-			Transport: server,
+		err := Serve(ctx, &ServeOptions{
+			ServeOptions: &provisionersdk.ServeOptions{
+				Transport: server,
+			},
 		})
 		require.NoError(t, err)
 	}()
@@ -66,13 +72,16 @@ func TestProvision(t *testing.T) {
 			}},
 		},
 	}, {
-		Name: "invalid-source",
+		Name: "invalid-sourcecode",
 		Files: map[string]string{
 			"main.tf": `a`,
 		},
 		Error: true,
 	}} {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
 			directory := t.TempDir()
 			for path, content := range tc.Files {
 				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0644)

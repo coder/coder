@@ -27,8 +27,8 @@ func (t *terraform) Provision(ctx context.Context, request *proto.Provision_Requ
 	if err != nil {
 		return nil, xerrors.Errorf("get terraform version: %w", err)
 	}
-	if !version.GreaterThanOrEqual(t.minimumVersion) {
-		return nil, xerrors.Errorf("terraform version %q is too old. required >= %q", version.String(), t.minimumVersion.String())
+	if !version.GreaterThanOrEqual(minimumTerraformVersion) {
+		return nil, xerrors.Errorf("terraform version %q is too old. required >= %q", version.String(), minimumTerraformVersion.String())
 	}
 
 	err = terraform.Init(ctx)
