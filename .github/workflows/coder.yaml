@@ -51,6 +51,7 @@ jobs:
         with:
           go-version: "^1.17"
       - run: go install github.com/kyleconroy/sqlc/cmd/sqlc@latest
+      - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.20
       - run: "make --output-sync -j gen"
       - run: ./scripts/check_unstaged.sh
