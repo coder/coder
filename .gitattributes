@@ -1,2 +1,2 @@
 # Generated files
-provisionersdk/proto/*.go
+provisionersdk/proto/*.go linguist-generated=true

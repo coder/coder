@@ -44,6 +44,10 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 			return nil
 		}
 		if errors.Is(err, io.ErrClosedPipe) {
+			// This may occur if the transport on either end is
+			// closed before the context. It's fine to return
+			// nil here, since the server has nothing to
+			// communicate with.
 			return nil
 		}
 		return xerrors.Errorf("serve transport: %w", err)

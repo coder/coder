@@ -36,4 +36,14 @@ func TestProvisionerSDK(t *testing.T) {
 		_, err := api.Parse(context.Background(), &proto.Parse_Request{})
 		require.Equal(t, drpcerr.Unimplemented, int(drpcerr.Code(err)))
 	})
+	t.Run("ServeClosedPipe", func(t *testing.T) {
+		client, server := provisionersdk.TransportPipe()
+		_ = client.Close()
+		_ = server.Close()
+
+		err := provisionersdk.Serve(context.Background(), &proto.DRPCProvisionerUnimplementedServer{}, &provisionersdk.ServeOptions{
+			Transport: server,
+		})
+		require.NoError(t, err)
+	})
 }
