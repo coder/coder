@@ -1,13 +1,12 @@
 import React from "react"
-import { fade, makeStyles } from "@material-ui/core/styles"
-import { Link, useLocation } from "react-router-dom"
+import { makeStyles } from "@material-ui/core/styles"
+import { Link } from "react-router-dom"
 import { Logo, WorkspacesIcon } from "./../Icons"
-import { BorderedMenu } from "./BorderedMenu"
 
 import ListSubheader from "@material-ui/core/ListSubheader"
 
-import { NavMenuEntry, NavMenuEntryProps } from "./NavMenuEntry"
-import { Button, List, Popover } from "@material-ui/core"
+import { NavMenuEntryProps } from "./NavMenuEntry"
+import { Button, List } from "@material-ui/core"
 
 const placeholderItems: NavMenuEntryProps[] = [
   {
@@ -44,14 +43,6 @@ export const Navbar: React.FC = () => {
       <div className={styles.fixed}>
         <List>
           <ListSubheader>Manage</ListSubheader>
-          {/*<BorderedMenu
-          id={"test"}
-          open={true}
-        >
-          {placeholderItems.map((entry) => (
-            <NavMenuEntry key={entry.label} {...entry} />
-          ))}
-          </BorderedMenu>*/}
         </List>
       </div>
     </div>

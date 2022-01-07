@@ -1,38 +1,15 @@
 import React from "react"
 import ReactDOM from "react-dom"
-import CssBaseline from "@material-ui/core/CssBaseline"
-import Box from "@material-ui/core/Box"
-import Paper from "@material-ui/core/Paper"
 
-import { dark } from "./theme"
+import { App } from "./app"
 
-import ThemeProvider from "@material-ui/styles/ThemeProvider"
-
-import { EmptyState } from "./components/EmptyState"
-
-import { Workspaces } from "./pages"
-
-import { BrowserRouter as Router, Switch, Route } from "react-router-dom"
+// This is the entry point for the app - where everything start.
+// In the future, we'll likely bring in more bootstrapping logic -
+// like: https://github.com/coder/m/blob/50898bd4803df7639bd181e484c74ac5d84da474/product/coder/site/pages/_app.tsx#L32
 
 function render() {
   const element = document.getElementById("root")
-
-  const component = (
-    <>
-      <ThemeProvider theme={dark}>
-        <CssBaseline />
-        <Router>
-          <Switch>
-            <Route path="/">
-              <Workspaces />
-            </Route>
-          </Switch>
-        </Router>
-      </ThemeProvider>
-    </>
-  )
-
-  ReactDOM.render(component, element)
+  ReactDOM.render(<App />, element)
 }
 
 render()

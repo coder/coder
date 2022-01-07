@@ -1,10 +1,8 @@
 import ListItemIcon from "@material-ui/core/ListItemIcon"
-import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
 import { SvgIcon, Typography } from "@material-ui/core"
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
-import { Link } from "react-router-dom"
 
 export interface NavMenuEntryProps {
   icon: typeof SvgIcon
