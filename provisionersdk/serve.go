@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"context"
 	"errors"
+	"io"
 
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
@@ -40,6 +41,9 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 	err = srv.ServeOne(ctx, options.Transport)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+		if errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		}
 		return xerrors.Errorf("serve transport: %w", err)
