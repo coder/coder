@@ -1,30 +1,9 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import { Link } from "react-router-dom"
-import { Logo, WorkspacesIcon } from "./../Icons"
+import { Button, List, ListSubheader } from "@material-ui/core"
 
-import ListSubheader from "@material-ui/core/ListSubheader"
-
-import { NavMenuEntryProps } from "./NavMenuEntry"
-import { Button, List } from "@material-ui/core"
-
-const placeholderItems: NavMenuEntryProps[] = [
-  {
-    icon: WorkspacesIcon,
-    path: "/workspaces",
-    label: "workspaces",
-    selected: false,
-  },
-]
-
-/*export interface NavMenuEntryProps {
-  Icon: typeof SvgIcon
-  path: string
-  label?: string,
-  selected: boolean
-  className?: string
-  onClick?: () => void
-}*/
+import { Logo } from "./../Icons"
 
 export const Navbar: React.FC = () => {
   const styles = useStyles()
