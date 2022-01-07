@@ -10,7 +10,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Parse parses Terraform variables from source-code.
+// Parse extracts Terraform variables from source-code.
 func (t *terraform) Parse(ctx context.Context, request *proto.Parse_Request) (*proto.Parse_Response, error) {
 	module, diags := tfconfig.LoadModule(request.Directory)
 	if diags.HasErrors() {
@@ -18,7 +18,7 @@ func (t *terraform) Parse(ctx context.Context, request *proto.Parse_Request) (*p
 	}
 	parameters := make([]*proto.ParameterSchema, 0, len(module.Variables))
 	for _, v := range module.Variables {
-		schema, err := convertVariable(v)
+		schema, err := convertVariableToParameter(v)
 		if err != nil {
 			return nil, xerrors.Errorf("convert variable %q: %w", v.Name, err)
 		}
@@ -31,8 +31,8 @@ func (t *terraform) Parse(ctx context.Context, request *proto.Parse_Request) (*p
 	}, nil
 }
 
-// convertVariable converts a Terraform variable to a provisioner parameter.
-func convertVariable(variable *tfconfig.Variable) (*proto.ParameterSchema, error) {
+// Converts a Terraform variable to a provisioner parameter.
+func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSchema, error) {
 	schema := &proto.ParameterSchema{
 		Name:                variable.Name,
 		Description:         variable.Description,
