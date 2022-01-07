@@ -93,7 +93,6 @@ jobs:
 
       - run: go install gotest.tools/gotestsum@latest
 
-      # Windows is not happy with backslashed commands.
       - run:
           gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
