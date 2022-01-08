@@ -38,6 +38,28 @@ jobs:
         with:
           version: latest
 
+  gen:
+    name: "style/gen"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: "3.6.1"
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+      - run:
+          curl -sSL
+          https://github.com/kyleconroy/sqlc/releases/download/v1.11.0/sqlc_1.11.0_linux_amd64.tar.gz
+          | sudo tar -C /usr/bin -xz sqlc
+
+      - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+      - run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+      - run: "make --output-sync -j gen"
+      - run: ./scripts/check_unstaged.sh
+
   style:
     name: "style/${{ matrix.style }}"
     runs-on: ubuntu-latest
@@ -95,7 +117,7 @@ jobs:
 
       - run:
           gotestsum --jsonfile="gotests.json" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage"
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=1m
 
       - uses: codecov/codecov-action@v2
         with:

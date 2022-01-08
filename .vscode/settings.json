@@ -1,4 +1,7 @@
 {
+  "files.exclude": {
+    "**/node_modules": true
+  },
   "go.lintTool": "golangci-lint",
   "go.lintFlags": ["--fast"],
   "go.lintOnSave": "package",
