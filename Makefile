@@ -22,8 +22,18 @@ endif
 fmt: fmt/prettier
 .PHONY: fmt
 
-gen: database/generate provisionersdk/proto
+gen: database/generate peerbroker/proto provisionersdk/proto
 .PHONY: gen
+
+# Generates the protocol files.
+peerbroker/proto: peerbroker/proto/peerbroker.proto
+	cd peerbroker/proto && protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./peerbroker.proto
+.PHONY: peerbroker/proto
 
 # Generates the protocol files.
 provisionersdk/proto: provisionersdk/proto/provisioner.proto

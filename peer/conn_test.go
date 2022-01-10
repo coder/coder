@@ -2,6 +2,7 @@ package peer_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -191,6 +192,15 @@ func TestConn(t *testing.T) {
 		require.NoError(t, err)
 		err = server.Close()
 		require.NoError(t, err)
+	})
+
+	t.Run("CloseWithError", func(t *testing.T) {
+		conn, err := peer.Client([]webrtc.ICEServer{}, nil)
+		require.NoError(t, err)
+		expectedErr := errors.New("wow")
+		_ = conn.CloseWithError(expectedErr)
+		_, err = conn.Dial(context.Background(), "", nil)
+		require.ErrorIs(t, err, expectedErr)
 	})
 
 	t.Run("PingConcurrent", func(t *testing.T) {
