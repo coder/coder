@@ -6,9 +6,7 @@
 const path = require("path")
 
 module.exports = {
-  env: {
-
-  },
+  env: {},
   experimental: {
     // Allows us to import TS files from outside product/coder/site.
     externalDir: true,

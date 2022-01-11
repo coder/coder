@@ -4,5 +4,12 @@
 # https://github.com/prettier/prettier/issues/8506
 # https://github.com/prettier/prettier/issues/8679
 ###############################################################################
+
 node_modules
 vendor
+.eslintcache
+yarn-error.log
+
+# Front-end ignore
+.next/
+site/.next/

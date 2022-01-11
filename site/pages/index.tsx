@@ -4,7 +4,6 @@ import { AddToQueue as AddWorkspaceIcon } from "@material-ui/icons"
 
 import { EmptyState, Page, SplitButton } from "../components"
 
-
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
 
@@ -46,7 +45,6 @@ const WorkspacesPage: React.FC = () => {
     </Page>
   )
 }
-
 
 const useStyles = makeStyles((theme) => ({
   header: {
