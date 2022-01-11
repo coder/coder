@@ -14,7 +14,7 @@ This repository contains source code for Coder V2. Additional documentation:
 
 ## Front-End Plan
 
-For the v2 prototyping, we're planning on 2 phases:
+For the front-end team, we're planning on 2 phases to the 'v2' work:
 
 ### Phase 1 ###
 
