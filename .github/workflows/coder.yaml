@@ -113,6 +113,18 @@ jobs:
         with:
           go-version: "^1.17"
 
+      - uses: actions/cache@v2
+        with:
+          # Go mod cache, Linux build cache, Mac build cache, Windows build cache
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - run: go install gotest.tools/gotestsum@latest
 
       - run:

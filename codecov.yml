@@ -21,4 +21,5 @@ coverage:
 
 ignore:
   # This is generated code.
+  - peerbroker/proto
   - provisionersdk/proto

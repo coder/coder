@@ -337,6 +337,12 @@ func (c *Conn) LocalSessionDescription() <-chan webrtc.SessionDescription {
 	return c.localSessionDescriptionChannel
 }
 
+// SetConfiguration applies options to the WebRTC connection.
+// Generally used for updating transport options, like ICE servers.
+func (c *Conn) SetConfiguration(configuration webrtc.Configuration) error {
+	return c.rtc.SetConfiguration(configuration)
+}
+
 // SetRemoteSessionDescription sets the remote description for the WebRTC connection.
 func (c *Conn) SetRemoteSessionDescription(s webrtc.SessionDescription) {
 	if c.isClosed() {
@@ -387,6 +393,9 @@ func (c *Conn) dialChannel(ctx context.Context, label string, opts *ChannelOpts)
 	}
 	if opts.OpenOnDisconnect && !opts.Negotiated {
 		return nil, xerrors.New("OpenOnDisconnect is only allowed for Negotiated channels")
+	}
+	if c.isClosed() {
+		return nil, xerrors.Errorf("closed: %w", c.closeError)
 	}
 
 	dc, err := c.rtc.CreateDataChannel(label, &webrtc.DataChannelInit{
@@ -444,6 +453,11 @@ func (c *Conn) Closed() <-chan struct{} {
 // Close closes the connection and frees all associated resources.
 func (c *Conn) Close() error {
 	return c.closeWithError(nil)
+}
+
+// CloseWithError closes the connection; subsequent reads/writes will return the error err.
+func (c *Conn) CloseWithError(err error) error {
+	return c.closeWithError(err)
 }
 
 func (c *Conn) isClosed() bool {
