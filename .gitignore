@@ -15,4 +15,5 @@ vendor
 yarn-error.log
 
 # Front-end ignore
-site/dist/
+.next/
+site/.next/

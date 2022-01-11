@@ -4,23 +4,17 @@ import { AddToQueue as AddWorkspaceIcon } from "@material-ui/icons"
 
 import { EmptyState, Page, SplitButton } from "../components"
 
-import { CreateWorkspace } from "./CreateWorkspace"
 
-export const Workspaces: React.FC = () => {
+const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
-  const [open, setOpen] = useState(false)
 
-  const startCreateWorkspace = () => {
-    setOpen(true)
-  }
-
-  const handleClose = () => {
-    setOpen(false)
+  const createWorkspace = () => {
+    alert("create")
   }
 
   const button = {
     children: "New Workspace",
-    onClick: startCreateWorkspace,
+    onClick: createWorkspace,
   }
 
   return (
@@ -28,7 +22,7 @@ export const Workspaces: React.FC = () => {
       <div className={styles.header}>
         <SplitButton<string>
           color="primary"
-          onClick={startCreateWorkspace}
+          onClick={createWorkspace}
           options={[
             {
               label: "New workspace",
@@ -49,25 +43,10 @@ export const Workspaces: React.FC = () => {
           <EmptyState message="No workspaces available." button={button} />
         </Box>
       </Paper>
-
-      <CreateDialog open={open} handleClose={handleClose} />
     </Page>
   )
 }
 
-const CreateDialog: React.FC<{ open: boolean; handleClose: () => void }> = ({ open, handleClose }) => {
-  return (
-    <Dialog fullWidth={true} maxWidth={"lg"} open={open} onClose={handleClose}>
-      <DialogTitle>New Workspace</DialogTitle>
-      <DialogContent>
-        <CreateWorkspace />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
-  )
-}
 
 const useStyles = makeStyles((theme) => ({
   header: {
@@ -80,3 +59,5 @@ const useStyles = makeStyles((theme) => ({
     width: "100%",
   },
 }))
+
+export default WorkspacesPage

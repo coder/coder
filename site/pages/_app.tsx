@@ -1,3 +1,4 @@
+
 import React from "react"
 import { BrowserRouter as Router, Switch, Route } from "react-router-dom"
 
@@ -5,7 +6,7 @@ import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 
 import { dark } from "../theme"
-import { Workspaces } from "../pages"
+import { AppProps } from "next/app"
 
 /**
  * <App /> is the root rendering logic of the application - setting up our router
@@ -13,17 +14,13 @@ import { Workspaces } from "../pages"
  * @returns
  */
 
-export const App: React.FC = () => {
+const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
   return (
     <ThemeProvider theme={dark}>
       <CssBaseline />
-      <Router>
-        <Switch>
-          <Route path="/">
-            <Workspaces />
-          </Route>
-        </Switch>
-      </Router>
+      <Component {...pageProps} />
     </ThemeProvider>
   )
 }
+
+export default MyApp

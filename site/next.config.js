@@ -13,9 +13,6 @@ module.exports = {
     // Allows us to import TS files from outside product/coder/site.
     externalDir: true,
   },
-  images: {
-    loader: "imgix",
-  },
   webpack: (config, { dev, isServer, webpack }) => {
     // Inject CODERD_HOST environment variable for clients
     if (!isServer) {

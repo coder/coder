@@ -1,7 +1,8 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
-import { Link } from "react-router-dom"
 import { Button, List, ListSubheader } from "@material-ui/core"
+
+import Link from "next/link"
 
 import { Logo } from "../Icons"
 
@@ -10,7 +11,7 @@ export const Navbar: React.FC = () => {
   return (
     <div className={styles.root}>
       <div className={styles.fixed}>
-        <Link to="/">
+        <Link href="/">
           <Button className={styles.logo} variant="text">
             <Logo fill="white" opacity={1} />
           </Button>
