@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 )
 
-// Listen consumes the transport as the server-side of the PeerBroker gRPC service.
+// Listen consumes the transport as the server-side of the PeerBroker dRPC service.
 // The Accept function must be serviced, or new connections will hang.
 func Listen(transport drpc.Transport, opts *peer.ConnOpts) (*Listener, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
