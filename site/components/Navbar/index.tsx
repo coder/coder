@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { Link } from "react-router-dom"
 import { Button, List, ListSubheader } from "@material-ui/core"
 
-import { Logo } from "./../Icons"
+import { Logo } from "../Icons"
 
 export const Navbar: React.FC = () => {
   const styles = useStyles()

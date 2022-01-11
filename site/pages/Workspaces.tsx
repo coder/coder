@@ -2,7 +2,7 @@ import React, { useState } from "react"
 import { Dialog, DialogActions, Button, DialogTitle, DialogContent, makeStyles, Box, Paper } from "@material-ui/core"
 import { AddToQueue as AddWorkspaceIcon } from "@material-ui/icons"
 
-import { EmptyState, Page, SplitButton } from "./../components"
+import { EmptyState, Page, SplitButton } from "../components"
 
 import { CreateWorkspace } from "./CreateWorkspace"
 

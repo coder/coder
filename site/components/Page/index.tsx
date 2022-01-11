@@ -2,7 +2,7 @@ import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 
 import { Footer } from "./Footer"
-import { Navbar } from "./../Navbar"
+import { Navbar } from "../Navbar"
 
 export const Page: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // TODO: More interesting styling here!
