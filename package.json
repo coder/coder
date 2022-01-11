@@ -4,8 +4,8 @@
   "repository": "https://github.com/coder/coder",
   "private": true,
   "scripts": {
-    "build": "webpack build --config site/webpack.config.js",
-    "build:watch": "webpack build --config site/webpack.config.js --watch",
+     "build": "NODE_ENV=production next build",
+    "build:dev": "next build",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
   },
@@ -18,6 +18,7 @@
     "@types/react-dom": "17.0.11",
     "@types/react-router-dom": "5.1.8",
     "@types/superagent": "4.1.14",
+    "next": "12.0.7",
     "prettier": "2.5.1",
     "react": "17.0.2",
     "react-dom": "17.0.2",
