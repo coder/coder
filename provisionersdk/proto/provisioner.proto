@@ -1,0 +1,61 @@
+
+syntax = "proto3";
+option go_package = "github.com/coder/coder/provisioner/proto";
+
+package provisioner;
+
+// ParameterSchema represents validation and type information for a parsed parameter.
+message ParameterSchema {
+    string name = 1;
+    string description = 2;
+    string default_value = 3;
+    bool sensitive = 4;
+
+    enum TypeSystem {
+        HCL = 0;
+    }
+    TypeSystem validation_type_system = 5;
+    string validation_value_type = 6;
+    string validation_error = 7;
+    string validation_condition = 8;
+}
+
+// ParameterValue holds the value of a parameter.
+message ParameterValue {
+    string name = 1;
+    string value = 2;
+}
+
+// Parse consumes source-code from a directory to produce inputs.
+message Parse {
+    message Request {
+        string directory = 1;
+    }
+    message Response {
+        repeated ParameterSchema parameter_schemas = 1;
+    }
+}
+
+// Resource is a provisioned unit.
+message Resource {
+    string name = 1;
+    string type = 2;
+}
+
+// Provision consumes source-code from a directory to produce resources.
+message Provision {
+    message Request {
+        string directory = 1;
+        repeated ParameterValue parameter_values = 2;
+        bytes state = 3;
+    }
+    message Response {
+        bytes state = 1; 
+        repeated Resource resources = 2;
+    }
+}
+
+service Provisioner {
+    rpc Parse(Parse.Request) returns (Parse.Response);
+    rpc Provision(Provision.Request) returns (Provision.Response);
+}

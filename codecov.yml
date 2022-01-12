@@ -16,5 +16,10 @@ coverage:
   status:
     project:
       default:
-        target: 80%
+        target: 75%
         informational: yes
+
+ignore:
+  # This is generated code.
+  - peerbroker/proto
+  - provisionersdk/proto
