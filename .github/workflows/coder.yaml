@@ -148,6 +148,6 @@ jobs:
         with:
           node-version: "14"
 
-      # Check that node is available
-      # TODO: Implement actual test run
-      - run: node --version
+      - run: yarn install
+
+      - run: yarn build
