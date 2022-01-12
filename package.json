@@ -9,5 +9,9 @@
   },
   "devDependencies": {
     "prettier": "2.5.1"
+  },
+  "dependencies": {
+    "@xstate/react": "^1.6.3",
+    "xstate": "^4.27.0"
   }
 }

@@ -2,7 +2,37 @@
 # yarn lockfile v1
 
 
+"@xstate/react@^1.6.3":
+  version "1.6.3"
+  resolved "https://registry.yarnpkg.com/@xstate/react/-/react-1.6.3.tgz#706f3beb7bc5879a78088985c8fd43b9dab7f725"
+  integrity sha512-NCUReRHPGvvCvj2yLZUTfR0qVp6+apc8G83oXSjN4rl89ZjyujiKrTff55bze/HrsvCsP/sUJASf2n0nzMF1KQ==
+  dependencies:
+    use-isomorphic-layout-effect "^1.0.0"
+    use-subscription "^1.3.0"
+
+object-assign@^4.1.1:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/object-assign/-/object-assign-4.1.1.tgz#2109adc7965887cfc05cbbd442cac8bfbb360863"
+  integrity sha1-IQmtx5ZYh8/AXLvUQsrIv7s2CGM=
+
 prettier@2.5.1:
   version "2.5.1"
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.5.1.tgz#fff75fa9d519c54cf0fce328c1017d94546bc56a"
   integrity sha512-vBZcPRUR5MZJwoyi3ZoyQlc1rXeEck8KgeC9AwwOn+exuxLxq5toTRDTSaVrXHxelDMHy9zlicw8u66yxoSUFg==
+
+use-isomorphic-layout-effect@^1.0.0:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/use-isomorphic-layout-effect/-/use-isomorphic-layout-effect-1.1.1.tgz#7bb6589170cd2987a152042f9084f9effb75c225"
+  integrity sha512-L7Evj8FGcwo/wpbv/qvSfrkHFtOpCzvM5yl2KVyDJoylVuSvzphiiasmjgQPttIGBAy2WKiBNR98q8w7PiNgKQ==
+
+use-subscription@^1.3.0:
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/use-subscription/-/use-subscription-1.5.1.tgz#73501107f02fad84c6dd57965beb0b75c68c42d1"
+  integrity sha512-Xv2a1P/yReAjAbhylMfFplFKj9GssgTwN7RlcTxBujFQcloStWNDQdc4g4NRWH9xS4i/FDk04vQBptAXoF3VcA==
+  dependencies:
+    object-assign "^4.1.1"
+
+xstate@^4.27.0:
+  version "4.27.0"
+  resolved "https://registry.yarnpkg.com/xstate/-/xstate-4.27.0.tgz#f3c918ac4229bd5e6dec2231e991ba55c6bfa559"
+  integrity sha512-ohOwDM9tViC/zSSmY9261CHblDPqiaAk5vyjVbi69uJv9fGWMzlm0VDQwM2OvC61GKfXVBeuWSMkL7LPUsTpfA==
