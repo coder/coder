@@ -30,6 +30,12 @@ CREATE TABLE api_keys (
     devurl_token boolean DEFAULT false NOT NULL
 );
 
+CREATE TABLE licenses (
+    id integer NOT NULL,
+    license jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
 CREATE TABLE organization_members (
     organization_id text NOT NULL,
     user_id text NOT NULL,

@@ -3,6 +3,7 @@
 package database
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -63,6 +64,12 @@ type ApiKey struct {
 	OidcIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
 	OidcExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
 	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
+}
+
+type License struct {
+	ID        int32           `db:"id" json:"id"`
+	License   json.RawMessage `db:"license" json:"license"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
 type Organization struct {

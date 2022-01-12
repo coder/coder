@@ -84,3 +84,9 @@ CREATE TABLE IF NOT EXISTS api_keys (
     oidc_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     devurl_token boolean DEFAULT false NOT NULL
 );
+
+CREATE TABLE licenses (
+    id integer NOT NULL,
+    license jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
