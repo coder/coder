@@ -18,3 +18,5 @@ packages:
 overrides:
   - db_type: citext
     go_type: string
+rename:
+  userstatus: UserStatus

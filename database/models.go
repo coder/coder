@@ -2,4 +2,115 @@
 
 package database
 
-import ()
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+type LoginType string
+
+const (
+	LoginTypeBuiltIn LoginType = "built-in"
+	LoginTypeSaml    LoginType = "saml"
+	LoginTypeOidc    LoginType = "oidc"
+)
+
+func (e *LoginType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LoginType(s)
+	case string:
+		*e = LoginType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LoginType: %T", src)
+	}
+	return nil
+}
+
+type UserStatus string
+
+const (
+	UserstatusActive         UserStatus = "active"
+	UserstatusDormant        UserStatus = "dormant"
+	UserstatusDecommissioned UserStatus = "decommissioned"
+)
+
+func (e *UserStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserStatus(s)
+	case string:
+		*e = UserStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserStatus: %T", src)
+	}
+	return nil
+}
+
+type ApiKey struct {
+	ID               string    `db:"id" json:"id"`
+	HashedSecret     []byte    `db:"hashed_secret" json:"hashed_secret"`
+	UserID           string    `db:"user_id" json:"user_id"`
+	Application      bool      `db:"application" json:"application"`
+	Name             string    `db:"name" json:"name"`
+	LastUsed         time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt        time.Time `db:"expires_at" json:"expires_at"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	LoginType        LoginType `db:"login_type" json:"login_type"`
+	OidcAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
+	OidcRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
+	OidcIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
+	OidcExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
+	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
+}
+
+type License struct {
+	ID        int32           `db:"id" json:"id"`
+	License   json.RawMessage `db:"license" json:"license"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+type Organization struct {
+	ID                     string    `db:"id" json:"id"`
+	Name                   string    `db:"name" json:"name"`
+	Description            string    `db:"description" json:"description"`
+	CreatedAt              time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
+	Default                bool      `db:"default" json:"default"`
+	AutoOffThreshold       int64     `db:"auto_off_threshold" json:"auto_off_threshold"`
+	CpuProvisioningRate    float32   `db:"cpu_provisioning_rate" json:"cpu_provisioning_rate"`
+	MemoryProvisioningRate float32   `db:"memory_provisioning_rate" json:"memory_provisioning_rate"`
+	WorkspaceAutoOff       bool      `db:"workspace_auto_off" json:"workspace_auto_off"`
+}
+
+type OrganizationMember struct {
+	OrganizationID string    `db:"organization_id" json:"organization_id"`
+	UserID         string    `db:"user_id" json:"user_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	Roles          []string  `db:"roles" json:"roles"`
+}
+
+type User struct {
+	ID                  string     `db:"id" json:"id"`
+	Email               string     `db:"email" json:"email"`
+	Name                string     `db:"name" json:"name"`
+	Revoked             bool       `db:"revoked" json:"revoked"`
+	LoginType           LoginType  `db:"login_type" json:"login_type"`
+	HashedPassword      []byte     `db:"hashed_password" json:"hashed_password"`
+	CreatedAt           time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time  `db:"updated_at" json:"updated_at"`
+	TemporaryPassword   bool       `db:"temporary_password" json:"temporary_password"`
+	AvatarHash          string     `db:"avatar_hash" json:"avatar_hash"`
+	SshKeyRegeneratedAt time.Time  `db:"ssh_key_regenerated_at" json:"ssh_key_regenerated_at"`
+	Username            string     `db:"username" json:"username"`
+	DotfilesGitUri      string     `db:"dotfiles_git_uri" json:"dotfiles_git_uri"`
+	Roles               []string   `db:"roles" json:"roles"`
+	Status              UserStatus `db:"status" json:"status"`
+	Relatime            time.Time  `db:"relatime" json:"relatime"`
+	GpgKeyRegeneratedAt time.Time  `db:"gpg_key_regenerated_at" json:"gpg_key_regenerated_at"`
+	Decomissioned       bool       `db:"_decomissioned" json:"_decomissioned"`
+	Shell               string     `db:"shell" json:"shell"`
+}
