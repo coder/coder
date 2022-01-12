@@ -5,7 +5,6 @@ module.exports = {
   projects: [
     {
       coverageReporters: ["text", "lcov"],
-
       displayName: "test",
       preset: "ts-jest",
       roots: [
@@ -21,9 +20,9 @@ module.exports = {
     },
   ],
   collectCoverageFrom: [
-    "<rootDir>/site/src/**/*.js",
-    "<rootDir>/site/src/**/*.ts",
-    "<rootDir>/site/src/**/*.tsx",
-    "!<rootDir>/site/src/**/*.stories.tsx",
+    "<rootDir>/site/**/*.js",
+    "<rootDir>/site/**/*.ts",
+    "<rootDir>/site/**/*.tsx",
+    "!<rootDir>/site/**/*.stories.tsx",
   ]
 }
