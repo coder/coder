@@ -8,7 +8,9 @@
     "build:dev": "next build site",
     "dev": "next dev site",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
-    "test": "jest --selectProjects test"
+    "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
+    "test": "jest --selectProjects test",
+    "test:coverage": "jest --selectProjects test --collectCoverage"
   },
   "devDependencies": {
     "@material-ui/core": "4.9.4",

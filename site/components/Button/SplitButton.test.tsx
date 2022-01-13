@@ -6,7 +6,7 @@ namespace Helpers {
   export type SplitButtonOptions = "a" | "b" | "c"
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
-  export const callback = (selectedOption: SplitButtonOptions): void => { }
+  export const callback = (selectedOption: SplitButtonOptions): void => {}
 
   export const options: SplitButtonProps<SplitButtonOptions>["options"] = [
     {

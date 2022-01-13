@@ -7,9 +7,7 @@ module.exports = {
       coverageReporters: ["text", "lcov"],
       displayName: "test",
       preset: "ts-jest",
-      roots: [
-        "<rootDir>/site",
-      ],
+      roots: ["<rootDir>/site"],
       transform: {
         "^.+\\.tsx?$": "ts-jest",
       },
@@ -24,5 +22,7 @@ module.exports = {
     "<rootDir>/site/**/*.ts",
     "<rootDir>/site/**/*.tsx",
     "!<rootDir>/site/**/*.stories.tsx",
-  ]
+    "!<rootDir>/site/next-env.d.ts",
+    "!<rootDir>/site/.next/**/*.*",
+  ],
 }

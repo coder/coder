@@ -5,6 +5,6 @@
     "jsx": "react",
     "downlevelIteration": true,
     "strict": true,
-    "esModuleInterop": true,
+    "esModuleInterop": true
   }
 }
