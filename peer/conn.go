@@ -116,6 +116,7 @@ type Conn struct {
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
+	remoteSessionDescriptionMutex   sync.Mutex
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -228,6 +229,11 @@ func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
 	flushCandidates := c.proxyICECandidates()
 
+	// Locks while the negotiation for a remote session
+	// description is taking place.
+	c.remoteSessionDescriptionMutex.Lock()
+	defer c.remoteSessionDescriptionMutex.Unlock()
+
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
 		if err != nil {
@@ -328,6 +334,9 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
+	// Prevents candidates from being added before an offer<->answer has occurred.
+	c.remoteSessionDescriptionMutex.Lock()
+	defer c.remoteSessionDescriptionMutex.Unlock()
 	return c.rtc.AddICECandidate(i)
 }
 

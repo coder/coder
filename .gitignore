@@ -12,3 +12,8 @@
 node_modules
 vendor
 .eslintcache
+yarn-error.log
+
+# Front-end ignore
+.next/
+site/.next/

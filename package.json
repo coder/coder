@@ -4,10 +4,25 @@
   "repository": "https://github.com/coder/coder",
   "private": true,
   "scripts": {
+    "build": "NODE_ENV=production next build site",
+    "build:dev": "next build site",
+    "dev": "next dev site",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
-    "format:write": "prettier --write '**/*.{css,htmljs,json,jsx,md,ts,tsx,yaml,yml}'"
+    "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
   },
   "devDependencies": {
-    "prettier": "2.5.1"
+    "@material-ui/core": "4.9.4",
+    "@material-ui/icons": "4.5.1",
+    "@material-ui/lab": "4.0.0-alpha.42",
+    "@types/node": "14.18.4",
+    "@types/react": "17.0.38",
+    "@types/react-dom": "17.0.11",
+    "@types/superagent": "4.1.14",
+    "next": "12.0.7",
+    "prettier": "2.5.1",
+    "react": "17.0.2",
+    "react-dom": "17.0.2",
+    "ts-loader": "9.2.6",
+    "typescript": "4.5.4"
   }
 }
