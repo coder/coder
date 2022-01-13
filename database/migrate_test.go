@@ -25,6 +25,7 @@ func TestMigrate(t *testing.T) {
 	defer closeFn()
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)
+	defer db.Close()
 	err = database.Migrate(context.Background(), "postgres", db)
 	require.NoError(t, err)
 }
