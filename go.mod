@@ -5,6 +5,9 @@ go 1.17
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
+// Required until https://github.com/pion/ice/pull/411 is merged.
+replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220113174531-3e2410788467
+
 require (
 	cdr.dev/slog v1.4.1
 	github.com/golang-migrate/migrate/v4 v4.15.1
@@ -67,7 +70,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.0.2 // indirect
-	github.com/pion/dtls/v2 v2.0.13 // indirect
+	github.com/pion/dtls/v2 v2.1.0 // indirect
 	github.com/pion/ice/v2 v2.1.18 // indirect
 	github.com/pion/interceptor v0.1.4 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
@@ -89,8 +92,8 @@ require (
 	github.com/zclconf/go-cty v1.9.1 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
-	golang.org/x/net v0.0.0-20211215060638-4ddde0e984e9 // indirect
+	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3 // indirect
+	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f // indirect
 	golang.org/x/sys v0.0.0-20211013075003-97ac67df715c // indirect
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b // indirect
 	golang.org/x/text v0.3.7 // indirect
