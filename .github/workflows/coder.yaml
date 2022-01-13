@@ -144,6 +144,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v2
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+
       - uses: actions/setup-node@v2
         with:
           node-version: "14"
