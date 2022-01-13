@@ -184,7 +184,7 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 				Candidate: clientToServerMessage.GetIceCandidate(),
 			})
 			if err != nil {
-				return peerConn.CloseWithError(xerrors.Errorf("add remote candidate: %+v: %w", clientToServerMessage.GetIceCandidate(), err))
+				return peerConn.CloseWithError(xerrors.Errorf("add remote candidate: %w", err))
 			}
 		default:
 			return peerConn.CloseWithError(xerrors.Errorf("unhandled message: %s", reflect.TypeOf(clientToServerMessage).String()))
