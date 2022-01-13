@@ -24,8 +24,6 @@ func Root() *cobra.Command {
 				Logger:   slog.Make(sloghuman.Sink(os.Stderr)),
 				Database: database.NewInMemory(),
 			})
-			mux := http.NewServeMux()
-			mux.Handle("/api/v1", handler)
 
 			listener, err := net.Listen("tcp", address)
 			if err != nil {
@@ -36,7 +34,7 @@ func Root() *cobra.Command {
 			errCh := make(chan error)
 			go func() {
 				defer close(errCh)
-				errCh <- http.Serve(listener, mux)
+				errCh <- http.Serve(listener, handler)
 			}()
 
 			select {
