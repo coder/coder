@@ -157,6 +157,6 @@ jobs:
       - uses: codecov/codecov-action@v2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage
+          files: ./coverage/lcov.info
           flags: unittest-js
           fail_ci_if_error: true
