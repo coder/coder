@@ -6,7 +6,7 @@ go 1.17
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
 // Required until https://github.com/pion/ice/pull/411 is merged.
-replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220113174531-3e2410788467
+replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220113224934-e3297ead83b2
 
 require (
 	cdr.dev/slog v1.4.1
