@@ -152,7 +152,7 @@ jobs:
 
       - run: yarn build
 
-      - run: yarn test
+      - run: yarn test:coverage
 
       - uses: codecov/codecov-action@v2
         with:
