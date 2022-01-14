@@ -1,7 +1,4 @@
-const maxWorkers = process.env.CI ? 16 : 2
-
 module.exports = {
-  maxWorkers,
   projects: [
     {
       coverageReporters: ["text", "lcov"],
