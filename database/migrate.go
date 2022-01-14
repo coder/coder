@@ -16,7 +16,7 @@ import (
 var migrations embed.FS
 
 // Migrate runs SQL migrations to ensure the database schema is up-to-date.
-func Migrate(ctx context.Context, dbName string, db *sql.DB) error {
+func Migrate(ctx context.Context, db *sql.DB) error {
 	sourceDriver, err := iofs.New(migrations, "migrations")
 	if err != nil {
 		return xerrors.Errorf("create iofs: %w", err)
@@ -25,7 +25,7 @@ func Migrate(ctx context.Context, dbName string, db *sql.DB) error {
 	if err != nil {
 		return xerrors.Errorf("wrap postgres connection: %w", err)
 	}
-	m, err := migrate.NewWithInstance("", sourceDriver, dbName, dbDriver)
+	m, err := migrate.NewWithInstance("", sourceDriver, "", dbDriver)
 	if err != nil {
 		return xerrors.Errorf("migrate: %w", err)
 	}
