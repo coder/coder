@@ -130,7 +130,7 @@ jobs:
       - run:
           gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=3 -race
+          -count=3 -race -parallel=2
 
       - uses: codecov/codecov-action@v2
         with:
