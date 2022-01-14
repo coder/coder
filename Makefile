@@ -25,6 +25,21 @@ fmt: fmt/prettier
 gen: database/generate peerbroker/proto provisionersdk/proto
 .PHONY: gen
 
+build/go/coderd:
+	go build -tags=embed -o build/coderd cmd/coderd/main.go
+.PHONE: build/go/coderd
+
+build/go: build/go/coderd
+.PHONY: build/go
+
+build/ui: 
+	yarn build
+	yarn export
+.PHONY: build/ui
+
+build: build/go/coderd build/ui
+.PHONY: build
+
 # Generates the protocol files.
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	cd peerbroker/proto && protoc \

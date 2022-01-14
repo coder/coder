@@ -1,0 +1,426 @@
+//go:build embed
+// +build embed
+
+// We use build tags so tests, linting, and other Go tooling
+// can compile properly without building the site.
+
+package site
+
+import (
+	"bytes"
+	"embed"
+	"fmt"
+	"io"
+	"io/fs"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"text/template" // html/template escapes some nonces
+	"time"
+
+	"github.com/justinas/nosurf"
+	"github.com/unrolled/secure"
+	"golang.org/x/xerrors"
+)
+
+// The `embed` package ignores recursively including directories
+// that prefix with `_`. Wildcarding nested is janky, but seems to
+// work quite well for edge-cases.
+//go:embed out/_next/*/*/*/*
+//go:embed out/_next/*/*/*
+//go:embed out
+var site embed.FS
+
+// Handler returns an HTTP handler for serving the static site.
+func Handler() http.Handler {
+	f, err := fs.Sub(site, "out")
+	if err != nil {
+		// This can't happen... Go would throw a compilation error.
+		panic(err)
+	}
+
+	// html files are handled by a text/template. Non-html files
+	// are served by the default file server.
+	files, err := htmlFiles(f)
+	if err != nil {
+		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
+	}
+
+	return secureHeaders(&handler{
+		fs:        f,
+		htmlFiles: files,
+		h:         http.FileServer(http.FS(f)), // All other non-html static files
+	})
+}
+
+type handler struct {
+	fs fs.FS
+	// htmlFiles is the text/template for all *.html files.
+	// This is needed to support Content Security Policy headers.
+	// Due to material UI, we are forced to use a nonce to allow inline
+	// scripts, and that nonce is passed through a template.
+	// We only do this for html files to reduce the amount of in memory caching
+	// of duplicate files as `fs`.
+	htmlFiles *htmlTemplates
+	h         http.Handler
+}
+
+// filePath returns the filepath of the requested file.
+func (h *handler) filePath(p string) string {
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return strings.TrimPrefix(path.Clean(p), "/")
+}
+
+func (h *handler) exists(path string) bool {
+	f, err := h.fs.Open(path)
+	if err == nil {
+		_ = f.Close()
+	}
+	return err == nil
+}
+
+type htmlState struct {
+	CSP  cspState
+	CSRF csrfState
+	App  appState
+}
+
+type cspState struct {
+	Nonce string
+}
+
+type csrfState struct {
+	Token string
+}
+
+type appState struct {
+	IntercomAppID string
+	// Controls the ability to configure telemetry via the API.
+	// Admins should still be able to update this value.
+	DisableTelemetryConfig bool
+	// Controls the ability to configure the access URL via the API.
+	// Admins should still be able to update this value.
+	DisableAccessURLConfig bool
+}
+
+// intercomAppID returns the intercom app id set as an env var.
+// TODO: @emryk: Should we cache this?
+func intercomAppID() string {
+	return os.Getenv("INTERCOM_APP_ID")
+}
+
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// reqFile is the static file requested
+	reqFile := h.filePath(r.URL.Path)
+	state := htmlState{
+		App: appState{
+			IntercomAppID:          intercomAppID(),
+			DisableTelemetryConfig: os.Getenv("DISABLE_TELEMETRY_CONFIG") == "true",
+			DisableAccessURLConfig: os.Getenv("DISABLE_ACCESSURL_CONFIG") == "true",
+		},
+		// Nonce is the CSP nonce for the given request (if there is one present)
+		CSP: cspState{Nonce: secure.CSPNonce(r.Context())},
+		// Token is the CSRF token for the given request
+		CSRF: csrfState{Token: nosurf.Token(r)},
+	}
+
+	// First check if it's a file we have in our templates
+	if h.serveHtml(w, r, reqFile, state) {
+		return
+	}
+
+	// If the original file path exists we serve it.
+	if h.exists(reqFile) {
+		h.h.ServeHTTP(w, r)
+		return
+	}
+
+	// Serve the file assuming it's an html file
+	// This matches paths like `/app/terminal.html`
+	r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
+	r.URL.Path += ".html"
+
+	reqFile = h.filePath(r.URL.Path)
+	// All html files should be served by the htmlFile templates
+	if h.serveHtml(w, r, reqFile, state) {
+		return
+	}
+
+	// If we don't have the file... we should redirect to `/`
+	// for our single-page-app.
+	r.URL.Path = "/"
+	if h.serveHtml(w, r, "", state) {
+		return
+	}
+
+	// This will send a correct 404
+	h.h.ServeHTTP(w, r)
+}
+
+func (h *handler) serveHtml(w http.ResponseWriter, r *http.Request, reqPath string, state htmlState) bool {
+	if data, err := h.htmlFiles.renderWithState(reqPath, state); err == nil {
+		if reqPath == "" {
+			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
+			reqPath = "index.html"
+		}
+		http.ServeContent(w, r, reqPath, time.Time{}, bytes.NewReader(data))
+		return true
+	}
+	return false
+}
+
+type htmlTemplates struct {
+	tpls *template.Template
+}
+
+// renderWithState will render the file using the given nonce if the file exists
+// as a template. If it does not, it will return an error.
+func (t *htmlTemplates) renderWithState(path string, state htmlState) ([]byte, error) {
+	var buf bytes.Buffer
+	if path == "" {
+		path = "index.html"
+	}
+	err := t.tpls.ExecuteTemplate(&buf, path, state)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+// CSPDirectives is a map of all csp fetch directives to their values.
+// Each directive is a set of values that is joined by a space (' ').
+// All directives are semi-colon separated as a single string for the csp header.
+type CSPDirectives map[CSPFetchDirective][]string
+
+func (s CSPDirectives) Append(d CSPFetchDirective, values ...string) {
+	if _, ok := s[d]; !ok {
+		s[d] = make([]string, 0)
+	}
+	s[d] = append(s[d], values...)
+}
+
+// CSPFetchDirective is the list of all constant fetch directives that
+// can be used/appended to.
+type CSPFetchDirective string
+
+const (
+	CSPDirectiveDefaultSrc  = "default-src"
+	CSPDirectiveConnectSrc  = "connect-src"
+	CSPDirectiveChildSrc    = "child-src"
+	CSPDirectiveScriptSrc   = "script-src"
+	CSPDirectiveFontSrc     = "font-src"
+	CSPDirectiveStyleSrc    = "style-src"
+	CSPDirectiveObjectSrc   = "object-src"
+	CSPDirectiveManifestSrc = "manifest-src"
+	CSPDirectiveFrameSrc    = "frame-src"
+	CSPDirectiveImgSrc      = "img-src"
+	CSPDirectiveReportURI   = "report-uri"
+	CSPDirectiveFormAction  = "form-action"
+	CSPDirectiveMediaSrc    = "media-src"
+	CSPFrameAncestors       = "frame-ancestors"
+)
+
+// secureHeaders is only needed for statically served files. We do not need this for api endpoints.
+// It adds various headers to enforce browser security features.
+func secureHeaders(next http.Handler) http.Handler {
+	// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
+	// This site helps eval your policy for syntax and other common issues: https://csp-evaluator.withgoogle.com/
+	// If we ever want to render something like a PDF, we need to adjust "object-src"
+	//
+	//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
+	cspSrcs := CSPDirectives{
+		// All omitted fetch csp srcs default to this.
+		CSPDirectiveDefaultSrc: {"'self'"},
+		CSPDirectiveConnectSrc: {"'self' ws: wss:"},
+		CSPDirectiveChildSrc:   {"'self'"},
+		CSPDirectiveScriptSrc:  {"'self'"},
+		CSPDirectiveFontSrc:    {"'self'"},
+		CSPDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
+		// object-src is needed to support code-server
+		CSPDirectiveObjectSrc: {"'self'"},
+		// blob: for loading the pwa manifest for code-server
+		CSPDirectiveManifestSrc: {"'self' blob:"},
+		CSPDirectiveFrameSrc:    {"'self'"},
+		// data: for loading base64 encoded icons for generic applications.
+		CSPDirectiveImgSrc:     {"'self' https://cdn.coder.com data:"},
+		CSPDirectiveFormAction: {"'self'"},
+		CSPDirectiveMediaSrc:   {"'self'"},
+		// Report all violations back to the server to log
+		CSPDirectiveReportURI: {"/api/private/csp/reports"},
+		CSPFrameAncestors:     {"'none'"},
+
+		// Only scripts can manipulate the dom. This prevents someone from
+		// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
+		// TODO: @emyrk we need to make FE changes to enable this. We get 'TrustedHTML' and 'TrustedURL' errors
+		//		that require FE changes to work.
+		// "require-trusted-types-for" : []string{"'script'"},
+	}
+
+	// Whitelist intercom assets if the app id is set.
+	if intercomAppID() != "" {
+		cspWhitelistIntercom(cspSrcs)
+	}
+
+	cspWhitelistSentry(cspSrcs)
+
+	var csp strings.Builder
+	for src, vals := range cspSrcs {
+		fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
+	}
+
+	// Permissions-Policy can be used to disabled various browser features that we do not use.
+	// This can prevent an embedded iframe from accessing these features.
+	// If we support arbitrary iframes such as generic applications, we might need to add permissions
+	// based on the app here.
+	permissions := strings.Join([]string{
+		// =() means it is disabled
+		"accelerometer=()",
+		"autoplay=()",
+		"battery=()",
+		"camera=()",
+		"document-domain=()",
+		"geolocation=()",
+		"gyroscope=()",
+		"magnetometer=()",
+		"microphone=()",
+		"midi=()",
+		"payment=()",
+		"usb=()",
+		"vr=()",
+		"screen-wake-lock=()",
+		"xr-spatial-tracking=()",
+	}, ", ")
+
+	return secure.New(secure.Options{
+		// Set to ContentSecurityPolicyReportOnly for testing, as all errors are printed to the console log
+		// but are not enforced.
+		ContentSecurityPolicy: csp.String(),
+
+		PermissionsPolicy: permissions,
+
+		// Prevent the browser from sending Referer header with requests
+		ReferrerPolicy: "no-referrer",
+	}).Handler(next)
+}
+
+// cspWhitelistSentry adds whitelisted asset sources for sentry.io to work
+func cspWhitelistSentry(cspSrcs CSPDirectives) {
+	// All whitelist assets found here
+	// https://docs.sentry.io/platforms/javascript/install/cdn/#content-security-policy
+	cspSrcs.Append(CSPDirectiveConnectSrc,
+		"https://*.sentry.io")
+}
+
+// cspWhitelistIntercom adds whitelisted asset sources for intercom to work to the
+// csp header. This is verbose, but an easy way to ensure the app does not violate any
+// csp policies.
+func cspWhitelistIntercom(cspSrcs CSPDirectives) {
+	// All whitelist assets found here
+	// https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
+	cspSrcs.Append(CSPDirectiveScriptSrc,
+		"https://app.intercom.io",
+		"https://widget.intercom.io",
+		"https://js.intercomcdn.com")
+
+	cspSrcs.Append(CSPDirectiveConnectSrc,
+		"https://api.intercom.io",
+		"https://api-iam.intercom.io",
+		"https://api-ping.intercom.io",
+		"https://nexus-websocket-a.intercom.io",
+		"https://nexus-websocket-b.intercom.io",
+		"wss://nexus-websocket-a.intercom.io",
+		"wss://nexus-websocket-b.intercom.io",
+		"https://uploads.intercomcdn.com",
+		"https://uploads.intercomusercontent.com")
+
+	cspSrcs.Append(CSPDirectiveChildSrc,
+		"https://intercom-sheets.com",
+		"https://www.intercom-reporting.com ",
+		"https://www.youtube.com",
+		"https://player.vimeo.com",
+		"https://fast.wistia.net")
+
+	cspSrcs.Append(CSPDirectiveFontSrc,
+		"https://js.intercomcdn.com",
+		"http://fonts.intercomcdn.com")
+
+	cspSrcs.Append(CSPDirectiveFormAction,
+		"https://intercom.help",
+		"https://api-iam.intercom.io")
+
+	cspSrcs.Append(CSPDirectiveMediaSrc,
+		"https://js.intercomcdn.com")
+
+	cspSrcs.Append(CSPDirectiveImgSrc,
+		"blob:",
+		"data:",
+		"https://js.intercomcdn.com",
+		"https://static.intercomassets.com",
+		"https://downloads.intercomcdn.com",
+		"https://uploads.intercomusercontent.com",
+		"https://gifs.intercomcdn.com ",
+		"https://video-messages.intercomcdn.com",
+		"https://messenger-apps.intercom.io",
+		"https://*.intercom-attachments-5.com",
+		"https://*.intercom-attachments-6.com",
+		"https://*.intercom-attachments-9.com")
+
+	cspSrcs.Append(CSPDirectiveScriptSrc,
+		"https://app.intercom.io",
+		"https://widget.intercom.io",
+		"https://js.intercomcdn.com")
+}
+
+// htmlFiles recursively walks the file system passed finding all *.html files.
+// The template returned has all html files parsed.
+func htmlFiles(files fs.FS) (*htmlTemplates, error) {
+	// root is the collection of html templates. All templates are named by their pathing.
+	// So './404.html' is named '404.html'. './subdir/index.html' is 'subdir/index.html'
+	root := template.New("")
+
+	rootPath := "."
+	err := fs.WalkDir(files, rootPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(d.Name()) != ".html" {
+			return nil
+		}
+
+		file, err := files.Open(path)
+		if err != nil {
+			return err
+		}
+
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return err
+		}
+
+		tPath := strings.TrimPrefix(path, rootPath+string(filepath.Separator))
+		_, err = root.New(tPath).Parse(string(data))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &htmlTemplates{
+		tpls: root,
+	}, nil
+}
