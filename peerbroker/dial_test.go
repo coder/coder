@@ -18,7 +18,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestDial(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Connect", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		client, server := provisionersdk.TransportPipe()
 		defer client.Close()

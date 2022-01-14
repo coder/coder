@@ -84,7 +84,7 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 		for {
 			serverToClientMessage, err := stream.Recv()
 			if err != nil {
-				_ = peerConn.CloseWithError(err)
+				_ = peerConn.CloseWithError(xerrors.Errorf("recv: %w", err))
 				return
 			}
 
