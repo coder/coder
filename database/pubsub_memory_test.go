@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/database"
 )
 
 func TestPubsubMemory(t *testing.T) {

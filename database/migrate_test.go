@@ -7,10 +7,11 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/database/postgres"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/database"
+	"github.com/coder/coder/database/postgres"
 )
 
 func TestMain(m *testing.M) {
@@ -25,6 +26,7 @@ func TestMigrate(t *testing.T) {
 	defer closeFn()
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)
-	err = database.Migrate(context.Background(), "postgres", db)
+	defer db.Close()
+	err = database.Migrate(context.Background(), db)
 	require.NoError(t, err)
 }
