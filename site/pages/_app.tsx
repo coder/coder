@@ -9,6 +9,13 @@ import { makeStyles } from "@material-ui/core"
 import { Navbar } from "../components/Navbar"
 import { Footer } from "../components/Page"
 
+/**
+ * `Contents` is the wrapper around the core app UI,
+ * containing common UI elements like the footer and navbar.
+ *
+ * This can't be inlined in `MyApp` because it requires styling,
+ * and `useStyles` needs to be inside a `<ThemeProvider />`
+ */
 const Contents: React.FC<AppProps> = ({ Component, pageProps }) => {
   const styles = useStyles()
 
