@@ -136,7 +136,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
-          flags: ${{ matrix.os }}
+          flags: unittest-go-${{ matrix.os }}
           fail_ci_if_error: true
 
   test-js:
@@ -161,3 +161,12 @@ jobs:
       - run: yarn install
 
       - run: yarn build
+
+      - run: yarn test:coverage
+
+      - uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittest-js
+          fail_ci_if_error: true
