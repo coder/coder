@@ -1,8 +1,8 @@
-import React, { useState } from "react"
-import { Dialog, DialogActions, Button, DialogTitle, DialogContent, makeStyles, Box, Paper } from "@material-ui/core"
+import React from "react"
+import { makeStyles, Box, Paper } from "@material-ui/core"
 import { AddToQueue as AddWorkspaceIcon } from "@material-ui/icons"
 
-import { EmptyState, Page, SplitButton } from "../components"
+import { EmptyState, SplitButton } from "../components"
 
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
@@ -17,7 +17,7 @@ const WorkspacesPage: React.FC = () => {
   }
 
   return (
-    <Page>
+    <>
       <div className={styles.header}>
         <SplitButton<string>
           color="primary"
@@ -37,12 +37,12 @@ const WorkspacesPage: React.FC = () => {
         />
       </div>
 
-      <Paper style={{ maxWidth: "1380px", margin: "1em auto" }}>
+      <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
         <Box pt={4} pb={4}>
           <EmptyState message="No workspaces available." button={button} />
         </Box>
       </Paper>
-    </Page>
+    </>
   )
 }
 
