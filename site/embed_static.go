@@ -86,7 +86,6 @@ func (h *handler) exists(path string) bool {
 type htmlState struct {
 	CSP  cspState
 	CSRF csrfState
-	App  appState
 }
 
 type cspState struct {
@@ -97,31 +96,10 @@ type csrfState struct {
 	Token string
 }
 
-type appState struct {
-	IntercomAppID string
-	// Controls the ability to configure telemetry via the API.
-	// Admins should still be able to update this value.
-	DisableTelemetryConfig bool
-	// Controls the ability to configure the access URL via the API.
-	// Admins should still be able to update this value.
-	DisableAccessURLConfig bool
-}
-
-// intercomAppID returns the intercom app id set as an env var.
-// TODO: @emryk: Should we cache this?
-func intercomAppID() string {
-	return os.Getenv("INTERCOM_APP_ID")
-}
-
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// reqFile is the static file requested
 	reqFile := h.filePath(r.URL.Path)
 	state := htmlState{
-		App: appState{
-			IntercomAppID:          intercomAppID(),
-			DisableTelemetryConfig: os.Getenv("DISABLE_TELEMETRY_CONFIG") == "true",
-			DisableAccessURLConfig: os.Getenv("DISABLE_ACCESSURL_CONFIG") == "true",
-		},
 		// Nonce is the CSP nonce for the given request (if there is one present)
 		CSP: cspState{Nonce: secure.CSPNonce(r.Context())},
 		// Token is the CSRF token for the given request
@@ -261,13 +239,6 @@ func secureHeaders(next http.Handler) http.Handler {
 		// "require-trusted-types-for" : []string{"'script'"},
 	}
 
-	// Whitelist intercom assets if the app id is set.
-	if intercomAppID() != "" {
-		cspWhitelistIntercom(cspSrcs)
-	}
-
-	cspWhitelistSentry(cspSrcs)
-
 	var csp strings.Builder
 	for src, vals := range cspSrcs {
 		fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
@@ -306,74 +277,6 @@ func secureHeaders(next http.Handler) http.Handler {
 		// Prevent the browser from sending Referer header with requests
 		ReferrerPolicy: "no-referrer",
 	}).Handler(next)
-}
-
-// cspWhitelistSentry adds whitelisted asset sources for sentry.io to work
-func cspWhitelistSentry(cspSrcs CSPDirectives) {
-	// All whitelist assets found here
-	// https://docs.sentry.io/platforms/javascript/install/cdn/#content-security-policy
-	cspSrcs.Append(CSPDirectiveConnectSrc,
-		"https://*.sentry.io")
-}
-
-// cspWhitelistIntercom adds whitelisted asset sources for intercom to work to the
-// csp header. This is verbose, but an easy way to ensure the app does not violate any
-// csp policies.
-func cspWhitelistIntercom(cspSrcs CSPDirectives) {
-	// All whitelist assets found here
-	// https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
-	cspSrcs.Append(CSPDirectiveScriptSrc,
-		"https://app.intercom.io",
-		"https://widget.intercom.io",
-		"https://js.intercomcdn.com")
-
-	cspSrcs.Append(CSPDirectiveConnectSrc,
-		"https://api.intercom.io",
-		"https://api-iam.intercom.io",
-		"https://api-ping.intercom.io",
-		"https://nexus-websocket-a.intercom.io",
-		"https://nexus-websocket-b.intercom.io",
-		"wss://nexus-websocket-a.intercom.io",
-		"wss://nexus-websocket-b.intercom.io",
-		"https://uploads.intercomcdn.com",
-		"https://uploads.intercomusercontent.com")
-
-	cspSrcs.Append(CSPDirectiveChildSrc,
-		"https://intercom-sheets.com",
-		"https://www.intercom-reporting.com ",
-		"https://www.youtube.com",
-		"https://player.vimeo.com",
-		"https://fast.wistia.net")
-
-	cspSrcs.Append(CSPDirectiveFontSrc,
-		"https://js.intercomcdn.com",
-		"http://fonts.intercomcdn.com")
-
-	cspSrcs.Append(CSPDirectiveFormAction,
-		"https://intercom.help",
-		"https://api-iam.intercom.io")
-
-	cspSrcs.Append(CSPDirectiveMediaSrc,
-		"https://js.intercomcdn.com")
-
-	cspSrcs.Append(CSPDirectiveImgSrc,
-		"blob:",
-		"data:",
-		"https://js.intercomcdn.com",
-		"https://static.intercomassets.com",
-		"https://downloads.intercomcdn.com",
-		"https://uploads.intercomusercontent.com",
-		"https://gifs.intercomcdn.com ",
-		"https://video-messages.intercomcdn.com",
-		"https://messenger-apps.intercom.io",
-		"https://*.intercom-attachments-5.com",
-		"https://*.intercom-attachments-6.com",
-		"https://*.intercom-attachments-9.com")
-
-	cspSrcs.Append(CSPDirectiveScriptSrc,
-		"https://app.intercom.io",
-		"https://widget.intercom.io",
-		"https://js.intercomcdn.com")
 }
 
 // htmlFiles recursively walks the file system passed finding all *.html files.
