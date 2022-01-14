@@ -89,6 +89,7 @@ func TestConn(t *testing.T) {
 
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
+		defer sch.Close()
 
 		_ = cch.Close()
 		_, err = sch.Read(make([]byte, 4))
@@ -102,6 +103,7 @@ func TestConn(t *testing.T) {
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
+		defer sch.Close()
 
 		err = wan.Stop()
 		require.NoError(t, err)
@@ -117,6 +119,7 @@ func TestConn(t *testing.T) {
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
+		defer sch.Close()
 		go func() {
 			for i := 0; i < 1024; i++ {
 				_, err := cch.Write(make([]byte, 4096))
