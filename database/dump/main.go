@@ -25,7 +25,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = database.Migrate(context.Background(), "postgres", db)
+	err = database.Migrate(context.Background(), db)
 	if err != nil {
 		panic(err)
 	}

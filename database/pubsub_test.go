@@ -7,10 +7,11 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/database/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/database"
+	"github.com/coder/coder/database/postgres"
 )
 
 func TestPubsub(t *testing.T) {
