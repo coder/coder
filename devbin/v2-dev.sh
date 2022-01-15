@@ -8,4 +8,4 @@ cd "$(PROJECT_ROOT)"
 # Do initial build - a dev build for coderd that doesn't require front-end assets
 make dev/go/coderd
 
-(trap 'kill 0' SIGINT; ./build/main & yarn dev)
+(trap 'kill 0' SIGINT; CODERV2_HOST=http://127.0.0.1:3000 yarn dev & ./build/coderd)
