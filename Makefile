@@ -25,9 +25,16 @@ fmt: fmt/prettier
 gen: database/generate peerbroker/proto provisionersdk/proto
 .PHONY: gen
 
+# Lightweight build for coderd that doesn't require building the front-end
+# first. This lets us quickly spin up an API process for development,
+# while using `next dev` to handle the front-end.
+dev/go/coderd:
+	go build -o build/coderd cmd/coderd/main.go
+.PHONY: dev/build/go/coderd-dev
+
 build/go/coderd:
 	go build -tags=embed -o build/coderd cmd/coderd/main.go
-.PHONE: build/go/coderd
+.PHONY: build/go/coderd
 
 build/go: build/go/coderd
 .PHONY: build/go
