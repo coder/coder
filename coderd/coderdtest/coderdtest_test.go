@@ -7,8 +7,10 @@ import (
 	"go.uber.org/goleak"
 )
 
-func TestNew(t *testing.T) {
-	defer goleak.VerifyNone(t)
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
+func TestNew(t *testing.T) {
 	_ = coderdtest.New(t)
 }
