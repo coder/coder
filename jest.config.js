@@ -22,6 +22,6 @@ module.exports = {
     "!<rootDir>/site/.next/**/*.*",
     "!<rootDir>/site/next-env.d.ts",
     "!<rootDir>/site/next.config.js",
-    "!<rootDir>/site/scripts/**/*.*"
+    "!<rootDir>/site/scripts/**/*.*",
   ],
 }
