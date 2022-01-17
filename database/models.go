@@ -13,7 +13,7 @@ type LoginType string
 const (
 	LoginTypeBuiltIn LoginType = "built-in"
 	LoginTypeSaml    LoginType = "saml"
-	LoginTypeOidc    LoginType = "oidc"
+	LoginTypeOIDC    LoginType = "oidc"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -48,7 +48,7 @@ func (e *UserStatus) Scan(src interface{}) error {
 	return nil
 }
 
-type ApiKey struct {
+type APIKey struct {
 	ID               string    `db:"id" json:"id"`
 	HashedSecret     []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID           string    `db:"user_id" json:"user_id"`
@@ -59,10 +59,10 @@ type ApiKey struct {
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 	LoginType        LoginType `db:"login_type" json:"login_type"`
-	OidcAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
-	OidcRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
-	OidcIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
-	OidcExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
+	OIDCAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
+	OIDCRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
+	OIDCIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
+	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
 	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
 }
 

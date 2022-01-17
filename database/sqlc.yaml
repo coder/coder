@@ -19,4 +19,10 @@ overrides:
   - db_type: citext
     go_type: string
 rename:
+  api_key: APIKey
+  login_type_oidc: LoginTypeOIDC
+  oidc_access_token: OIDCAccessToken
+  oidc_expiry: OIDCExpiry
+  oidc_id_token: OIDCIDToken
+  oidc_refresh_token: OIDCRefreshToken
   userstatus: UserStatus
