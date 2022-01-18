@@ -18,29 +18,15 @@ app
   .prepare()
   .then(() => {
     const server = express()
-    const paths: { [key: string]: Record<string, unknown> } = {
-      "/proxy": {
+    server.use(
+      "/api",
+      createProxyMiddleware("/api", {
         target: process.env.CODERV2_HOST,
         ws: true,
         secure: false,
         changeOrigin: true,
-      },
-      "/api": {
-        target: process.env.CODERV2_HOST,
-        ws: true,
-        secure: false,
-        changeOrigin: true,
-      },
-      "/auth": {
-        target: process.env.CODERV2_HOST,
-        ws: false,
-        secure: false,
-        changeOrigin: true,
-      },
-    }
-    Object.keys(paths).forEach((k) => {
-      server.use(k, createProxyMiddleware(k, paths[k]))
-    })
+      }),
+    )
     server.all("*", (req, res) => handle(req, res))
     server.listen(port)
   })
