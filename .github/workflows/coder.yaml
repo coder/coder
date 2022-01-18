@@ -36,7 +36,6 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
-          args: --build-tags=embed
           version: latest
 
   gen:
@@ -129,7 +128,7 @@ jobs:
       - run: go install gotest.tools/gotestsum@latest
 
       - run:
-          gotestsum --jsonfile="gotests.json" --packages="./..." -- -tags=embed
+          gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=3 -race -parallel=2
 

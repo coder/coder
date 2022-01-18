@@ -1,9 +1,3 @@
-//go:build embed
-// +build embed
-
-// We use build tags so tests, linting, and other Go tooling
-// can compile properly without building the site.
-
 package site
 
 import (

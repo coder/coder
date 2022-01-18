@@ -27,7 +27,7 @@ gen: database/generate peerbroker/proto provisionersdk/proto
 
 bin/coderd:
 	mkdir -p bin
-	go build -tags=embed -o bin/coderd cmd/coderd/main.go
+	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
 site/out: 
