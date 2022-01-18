@@ -30,15 +30,12 @@ bin/coderd:
 	go build -tags=embed -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
-build/go: bin/coderd
-.PHONY: build/go
-
-build/ui: 
+site/out: 
 	yarn build
 	yarn export
-.PHONY: build/ui
+.PHONY: site/out
 
-build: build/ui bin/coderd
+build: site/out bin/coderd
 .PHONY: build
 
 # Generates the protocol files.
