@@ -169,37 +169,37 @@ func (t *htmlTemplates) renderWithState(path string, state htmlState) ([]byte, e
 	return buf.Bytes(), nil
 }
 
-// CSPDirectives is a map of all csp fetch directives to their values.
+// cspDirectives is a map of all csp fetch directives to their values.
 // Each directive is a set of values that is joined by a space (' ').
 // All directives are semi-colon separated as a single string for the csp header.
-type CSPDirectives map[CSPFetchDirective][]string
+type cspDirectives map[cspFetchDirective][]string
 
-func (s CSPDirectives) Append(d CSPFetchDirective, values ...string) {
+func (s cspDirectives) append(d cspFetchDirective, values ...string) {
 	if _, ok := s[d]; !ok {
 		s[d] = make([]string, 0)
 	}
 	s[d] = append(s[d], values...)
 }
 
-// CSPFetchDirective is the list of all constant fetch directives that
+// cspFetchDirective is the list of all constant fetch directives that
 // can be used/appended to.
-type CSPFetchDirective string
+type cspFetchDirective string
 
 const (
-	CSPDirectiveDefaultSrc  = "default-src"
-	CSPDirectiveConnectSrc  = "connect-src"
-	CSPDirectiveChildSrc    = "child-src"
-	CSPDirectiveScriptSrc   = "script-src"
-	CSPDirectiveFontSrc     = "font-src"
-	CSPDirectiveStyleSrc    = "style-src"
-	CSPDirectiveObjectSrc   = "object-src"
-	CSPDirectiveManifestSrc = "manifest-src"
-	CSPDirectiveFrameSrc    = "frame-src"
-	CSPDirectiveImgSrc      = "img-src"
-	CSPDirectiveReportURI   = "report-uri"
-	CSPDirectiveFormAction  = "form-action"
-	CSPDirectiveMediaSrc    = "media-src"
-	CSPFrameAncestors       = "frame-ancestors"
+	cspDirectiveDefaultSrc  = "default-src"
+	cspDirectiveConnectSrc  = "connect-src"
+	cspDirectiveChildSrc    = "child-src"
+	cspDirectiveScriptSrc   = "script-src"
+	cspDirectiveFontSrc     = "font-src"
+	cspDirectiveStyleSrc    = "style-src"
+	cspDirectiveObjectSrc   = "object-src"
+	cspDirectiveManifestSrc = "manifest-src"
+	cspDirectiveFrameSrc    = "frame-src"
+	cspDirectiveImgSrc      = "img-src"
+	cspDirectiveReportURI   = "report-uri"
+	cspDirectiveFormAction  = "form-action"
+	cspDirectiveMediaSrc    = "media-src"
+	cspFrameAncestors       = "frame-ancestors"
 )
 
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
@@ -210,26 +210,26 @@ func secureHeaders(next http.Handler) http.Handler {
 	// If we ever want to render something like a PDF, we need to adjust "object-src"
 	//
 	//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
-	cspSrcs := CSPDirectives{
+	cspSrcs := cspDirectives{
 		// All omitted fetch csp srcs default to this.
-		CSPDirectiveDefaultSrc: {"'self'"},
-		CSPDirectiveConnectSrc: {"'self' ws: wss:"},
-		CSPDirectiveChildSrc:   {"'self'"},
-		CSPDirectiveScriptSrc:  {"'self'"},
-		CSPDirectiveFontSrc:    {"'self'"},
-		CSPDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
+		cspDirectiveDefaultSrc: {"'self'"},
+		cspDirectiveConnectSrc: {"'self' ws: wss:"},
+		cspDirectiveChildSrc:   {"'self'"},
+		cspDirectiveScriptSrc:  {"'self'"},
+		cspDirectiveFontSrc:    {"'self'"},
+		cspDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
 		// object-src is needed to support code-server
-		CSPDirectiveObjectSrc: {"'self'"},
+		cspDirectiveObjectSrc: {"'self'"},
 		// blob: for loading the pwa manifest for code-server
-		CSPDirectiveManifestSrc: {"'self' blob:"},
-		CSPDirectiveFrameSrc:    {"'self'"},
+		cspDirectiveManifestSrc: {"'self' blob:"},
+		cspDirectiveFrameSrc:    {"'self'"},
 		// data: for loading base64 encoded icons for generic applications.
-		CSPDirectiveImgSrc:     {"'self' https://cdn.coder.com data:"},
-		CSPDirectiveFormAction: {"'self'"},
-		CSPDirectiveMediaSrc:   {"'self'"},
+		cspDirectiveImgSrc:     {"'self' https://cdn.coder.com data:"},
+		cspDirectiveFormAction: {"'self'"},
+		cspDirectiveMediaSrc:   {"'self'"},
 		// Report all violations back to the server to log
-		CSPDirectiveReportURI: {"/api/private/csp/reports"},
-		CSPFrameAncestors:     {"'none'"},
+		cspDirectiveReportURI: {"/api/private/csp/reports"},
+		cspFrameAncestors:     {"'none'"},
 
 		// Only scripts can manipulate the dom. This prevents someone from
 		// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
