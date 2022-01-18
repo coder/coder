@@ -21,4 +21,4 @@ coverage/
 
 # Build
 bin/
-out/
+site/out/
