@@ -128,8 +128,8 @@ jobs:
       - run: go install gotest.tools/gotestsum@latest
 
       - run:
-          gotestsum --jsonfile="gotests.json" --packages="./..." --
-          -tags=embed -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+          gotestsum --jsonfile="gotests.json" --packages="./..." -- -tags=embed
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=3 -race -parallel=2
 
       - uses: codecov/codecov-action@v2
