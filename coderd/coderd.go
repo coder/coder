@@ -19,7 +19,6 @@ type Options struct {
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
 	r := chi.NewRouter()
-
 	r.Route("/api/v2", func(r chi.Router) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			render.JSON(w, r, struct {
@@ -29,8 +28,6 @@ func New(options *Options) http.Handler {
 			})
 		})
 	})
-
 	r.NotFound(site.Handler().ServeHTTP)
-
 	return r
 }
