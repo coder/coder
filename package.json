@@ -6,7 +6,7 @@
   "scripts": {
     "build": "NODE_ENV=production next build site",
     "build:dev": "next build site",
-    "dev": "ts-node site/scripts/dev.ts",
+    "dev": "ts-node site/dev.ts",
     "export": "next export site",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
