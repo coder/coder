@@ -1,3 +1,11 @@
+bin/coderd:
+	mkdir -p bin
+	go build -o bin/coderd cmd/coderd/main.go
+.PHONY: bin/coderd
+
+build: site/out bin/coderd
+.PHONY: build
+
 # Runs migrations to output a dump of the database.
 database/dump.sql: $(wildcard database/migrations/*.sql)
 	go run database/dump/main.go
@@ -25,19 +33,6 @@ fmt: fmt/prettier
 gen: database/generate peerbroker/proto provisionersdk/proto
 .PHONY: gen
 
-bin/coderd:
-	mkdir -p bin
-	go build -o bin/coderd cmd/coderd/main.go
-.PHONY: bin/coderd
-
-site/out: 
-	yarn build
-	yarn export
-.PHONY: site/out
-
-build: site/out bin/coderd
-.PHONY: build
-
 # Generates the protocol files.
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	cd peerbroker/proto && protoc \
@@ -57,3 +52,8 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisioner.proto
 .PHONY: provisionersdk/proto
+
+site/out: 
+	yarn build
+	yarn export
+.PHONY: site/out
