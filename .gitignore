@@ -18,3 +18,7 @@ yarn-error.log
 .next/
 site/.next/
 coverage/
+
+# Build
+bin/
+site/out/

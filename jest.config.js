@@ -20,6 +20,7 @@ module.exports = {
     "<rootDir>/site/**/*.tsx",
     "!<rootDir>/site/**/*.stories.tsx",
     "!<rootDir>/site/.next/**/*.*",
+    "!<rootDir>/site/dev.ts",
     "!<rootDir>/site/next-env.d.ts",
     "!<rootDir>/site/next.config.js",
   ],

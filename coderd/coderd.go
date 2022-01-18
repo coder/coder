@@ -5,6 +5,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/site"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
 )
@@ -27,5 +28,6 @@ func New(options *Options) http.Handler {
 			})
 		})
 	})
+	r.NotFound(site.Handler().ServeHTTP)
 	return r
 }
