@@ -36,6 +36,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
+          args: --build-tags=embed
           version: latest
 
   gen:
