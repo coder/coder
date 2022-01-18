@@ -20,5 +20,5 @@ site/.next/
 coverage/
 
 # Build
-build/
+bin/
 out/
