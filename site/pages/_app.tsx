@@ -17,17 +17,26 @@ const SafeHydrate: React.FC = ({ children }) => (
 )
 
 /**
+ * ClientRender is a component that only allows its children to be rendered
+ * client-side. This check is performed by querying the existence of the window
+ * global.
+ */
+const ClientRender: React.FC = ({ children }) => (
+  <div suppressHydrationWarning>{typeof window === "undefined" ? null : children}</div>
+)
+
+/**
  * <App /> is the root rendering logic of the application - setting up our router
  * and any contexts / global state management.
  */
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
   return (
-    <SafeHydrate>
+    <ClientRender>
       <ThemeProvider theme={light}>
         <CssBaseline />
         <Component {...pageProps} />
       </ThemeProvider>
-    </SafeHydrate>
+    </ClientRender>
   )
 }
 
