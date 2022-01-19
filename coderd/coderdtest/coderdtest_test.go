@@ -3,8 +3,9 @@ package coderdtest_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/coderdtest"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/coderd/coderdtest"
 )
 
 func TestMain(m *testing.M) {

@@ -25,13 +25,15 @@ func New(options *Options) http.Handler {
 
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
+		// The base route!
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
 				Message: "👋",
 			})
 		})
+		r.Post("/user", users.createInitialUser)
+		// Require an API key and authenticated user for this group.
 		r.Group(func(r chi.Router) {
-			// Require an API key and authenticated user to call this route.
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractUser(options.Database),

@@ -43,6 +43,42 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	return i, err
 }
 
+const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
+SELECT id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell FROM users WHERE username = $1 OR email = $2 LIMIT 1
+`
+
+type GetUserByEmailOrUsernameParams struct {
+	Username string `db:"username" json:"username"`
+	Email    string `db:"email" json:"email"`
+}
+
+func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Revoked,
+		&i.LoginType,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TemporaryPassword,
+		&i.AvatarHash,
+		&i.SshKeyRegeneratedAt,
+		&i.Username,
+		&i.DotfilesGitUri,
+		pq.Array(&i.Roles),
+		&i.Status,
+		&i.Relatime,
+		&i.GpgKeyRegeneratedAt,
+		&i.Decomissioned,
+		&i.Shell,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell FROM users WHERE id = $1 LIMIT 1
 `
@@ -72,6 +108,17 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.Shell,
 	)
 	return i, err
+}
+
+const getUserCount = `-- name: GetUserCount :one
+SELECT COUNT(*) FROM users
+`
+
+func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const insertAPIKey = `-- name: InsertAPIKey :one

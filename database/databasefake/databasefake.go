@@ -34,6 +34,15 @@ func (q *fakeQuerier) GetAPIKeyByID(ctx context.Context, id string) (database.AP
 	return database.APIKey{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
+	for _, user := range q.users {
+		if user.Email == arg.Email || user.Username == arg.Username {
+			return user, nil
+		}
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetUserByID(ctx context.Context, id string) (database.User, error) {
 	for _, user := range q.users {
 		if user.ID == id {
@@ -41,6 +50,10 @@ func (q *fakeQuerier) GetUserByID(ctx context.Context, id string) (database.User
 		}
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetUserCount(ctx context.Context) (int64, error) {
+	return int64(len(q.users)), nil
 }
 
 func (q *fakeQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {

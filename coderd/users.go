@@ -1,26 +1,108 @@
 package coderd
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/render"
+	"github.com/google/uuid"
 
+	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
 
 type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	Username  string    `json:"username"`
+	ID        string    `json:"id" validate:"required"`
+	Email     string    `json:"email" validate:"required"`
+	CreatedAt time.Time `json:"created_at" validate:"required"`
+	Username  string    `json:"username" validate:"required"`
+}
+
+type CreateUserRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,username"`
+	Password string `json:"password" validate:"required"`
+}
+
+type LoginWithPasswordRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
+
+type LoginWithPasswordResponse struct {
+	SessionToken string `json:"session_token" validate:"required"`
 }
 
 type users struct {
 	Database database.Store
 }
 
+// Creates the initial user for a Coder deployment.
+func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
+	var createUser CreateUserRequest
+	if !httpapi.Read(rw, r, &createUser) {
+		return
+	}
+	userCount, err := users.Database.GetUserCount(r.Context())
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user count: %s", err.Error()),
+		})
+		return
+	}
+	if userCount != 0 {
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+			Message: "the initial user has already been created",
+		})
+		return
+	}
+	user, err := users.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+		Email:    createUser.Email,
+		Username: createUser.Username,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user: %s", err.Error()),
+		})
+		return
+	}
+	hashedPassword, err := userpassword.Hash(createUser.Password)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("hash password: %s", err.Error()),
+		})
+		return
+	}
+
+	user, err = users.Database.InsertUser(context.Background(), database.InsertUserParams{
+		ID:             uuid.NewString(),
+		Email:          createUser.Email,
+		HashedPassword: []byte(hashedPassword),
+		Username:       createUser.Username,
+		LoginType:      database.LoginTypeBuiltIn,
+		CreatedAt:      database.Now(),
+		UpdatedAt:      database.Now(),
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("create user: %s", err.Error()),
+		})
+		return
+	}
+	render.Status(r, http.StatusCreated)
+	render.JSON(rw, r, user)
+}
+
+// Returns the currently authenticated user.
 func (users *users) getAuthenticatedUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.User(r)
 
@@ -29,5 +111,63 @@ func (users *users) getAuthenticatedUser(rw http.ResponseWriter, r *http.Request
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		Username:  user.Username,
+	})
+}
+
+func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
+	var loginWithPassword LoginWithPasswordRequest
+	if !httpapi.Read(rw, r, loginWithPassword) {
+		return
+	}
+	user, err := users.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+		Email: loginWithPassword.Email,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "invalid email or password",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user: %s", err.Error()),
+		})
+		return
+	}
+	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("compare: %s", err.Error()),
+		})
+	}
+	if !equal {
+		// This message is the same as above to remove ease in detecting whether
+		// users are registered or not. Attackers still could with a timing attack.
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "invalid email or password",
+		})
+		return
+	}
+
+	// key, secret := (&database.APIKey{
+	// 	UserID:           actor.ID,
+	// 	ExpiresAt:        expiresAt,
+	// 	LoginType:        actor.LoginType,
+	// 	OIDCAccessToken:  oidcCfg.AccessToken,
+	// 	OIDCRefreshToken: oidcCfg.RefreshToken,
+	// 	OIDCIDToken:      oidcCfg.IDToken,
+	// 	// OIDCExpiry indicates when we need to fetch a new OIDC token.
+	// 	OIDCExpiry:  oidcCfg.Expiry,
+	// 	DevurlToken: devurlToken,
+	// }).Fill()
+
+	users.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+		ID:           uuid.NewString(),
+		UserID:       user.ID,
+		ExpiresAt:    database.Now().Add(24 * time.Hour),
+		CreatedAt:    database.Now(),
+		UpdatedAt:    database.Now(),
+		HashedSecret: []byte(""),
+		LoginType:    database.LoginTypeBuiltIn,
 	})
 }
