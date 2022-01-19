@@ -10,7 +10,7 @@ import Box from "@material-ui/core/Box"
 
 const CreateSelectProjectPage: React.FC = () => {
   const router = useRouter()
-  const requestState = useRequestor(() => Api.Project.get("test-org"))
+  const requestState = useRequestor(() => Api.Project.getAllProjectsInOrg("test-org"))
 
   const cancel = () => {
     router.back()

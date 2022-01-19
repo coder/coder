@@ -9,7 +9,7 @@ export interface Project {
 }
 
 export namespace Project {
-  export const get = (_org: string): Promise<Project[]> => {
+  export const getAllProjectsInOrg = (_org: string): Promise<Project[]> => {
     const project1: Project = {
       id: "test-terraform-1",
       icon: "https://www.datocms-assets.com/2885/1620155117-brandhcterraformverticalcolorwhite.svg",
