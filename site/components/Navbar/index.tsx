@@ -17,9 +17,7 @@ export const Navbar: React.FC = () => {
           </Button>
         </Link>
       </div>
-      <div className={styles.fullWidth}>
-        <div className={styles.title}>Coder v2</div>
-      </div>
+      <div className={styles.fullWidth} />
       <div className={styles.fixed}>
         <List>
           <ListSubheader>Manage</ListSubheader>

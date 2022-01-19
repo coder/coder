@@ -3,7 +3,7 @@ import React from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 
-import { dark } from "../theme"
+import { light } from "../theme"
 import { AppProps } from "next/app"
 import { makeStyles } from "@material-ui/core"
 import { Navbar } from "../components/Navbar"
@@ -56,7 +56,7 @@ const SafeHydrate: React.FC = ({ children }) => (
 const MyApp: React.FC<AppProps> = (appProps) => {
   return (
     <SafeHydrate>
-      <ThemeProvider theme={dark}>
+      <ThemeProvider theme={light}>
         <CssBaseline />
         <Contents {...appProps} />
       </ThemeProvider>
