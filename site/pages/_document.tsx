@@ -12,7 +12,6 @@ class MyDocument extends Document {
     return (
       <Html>
         <Head>
-          {/* Meta tags */}
           <meta charSet="utf-8" />
           <meta name="theme-color" content="#17172E" />
           <meta name="application-name" content="Coder" />

@@ -41,11 +41,11 @@ const Contents: React.FC<AppProps> = ({ Component, pageProps }) => {
 }
 
 /**
- * SafeHydrate is a component that only allows its children to be rendered
+ * ClientRender is a component that only allows its children to be rendered
  * client-side. This check is performed by querying the existence of the window
  * global.
  */
-const SafeHydrate: React.FC = ({ children }) => (
+const ClientRender: React.FC = ({ children }) => (
   <div suppressHydrationWarning>{typeof window === "undefined" ? null : children}</div>
 )
 
@@ -55,12 +55,12 @@ const SafeHydrate: React.FC = ({ children }) => (
  */
 const MyApp: React.FC<AppProps> = (appProps) => {
   return (
-    <SafeHydrate>
+    <ClientRender>
       <ThemeProvider theme={dark}>
         <CssBaseline />
         <Contents {...appProps} />
       </ThemeProvider>
-    </SafeHydrate>
+    </ClientRender>
   )
 }
 
