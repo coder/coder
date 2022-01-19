@@ -1,4 +1,7 @@
+import Typography from "@material-ui/core/Typography"
 import React from "react"
+
+import { Title } from "../../../components/FullScreenForm"
 
 const CreateSelectProjectPage: React.FC = () => {
 
@@ -7,12 +10,12 @@ const CreateSelectProjectPage: React.FC = () => {
   }
 
   const button = {
-    children: "New Workspace",
+    children: "Next",
     onClick: createWorkspace,
   }
 
   return (
-    <div>Create Page</div>
+    <Title title={"Select Project"} organization={"test-org"} />
   )
 }
 
