@@ -19,9 +19,6 @@ func TestString(t *testing.T) {
 		rs, err := cryptorand.String(10)
 		require.NoError(t, err, "unexpected error from String")
 		t.Logf("value: %v <- random?", rs)
-
-		rs = cryptorand.MustString(10)
-		t.Logf("value: %v <- random?", rs)
 	}
 }
 
@@ -29,11 +26,10 @@ func TestStringCharset(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		Name           string
-		Charset        string
-		HelperFunc     func(int) (string, error)
-		MustHelperFunc func(int) string
-		Length         int
+		Name       string
+		Charset    string
+		HelperFunc func(int) (string, error)
+		Length     int
 	}{
 		{
 			Name:    "MultiByte-20",
@@ -51,11 +47,10 @@ func TestStringCharset(t *testing.T) {
 			Length:  10,
 		},
 		{
-			Name:           "Empty",
-			Charset:        cryptorand.Default,
-			Length:         0,
-			HelperFunc:     cryptorand.String,
-			MustHelperFunc: cryptorand.MustString,
+			Name:       "Empty",
+			Charset:    cryptorand.Default,
+			Length:     0,
+			HelperFunc: cryptorand.String,
 		},
 		{
 			Name:    "Numeric",
@@ -83,11 +78,10 @@ func TestStringCharset(t *testing.T) {
 			Length:  10,
 		},
 		{
-			Name:           "Hex",
-			Charset:        cryptorand.Hex,
-			Length:         15,
-			HelperFunc:     cryptorand.HexString,
-			MustHelperFunc: cryptorand.MustHexString,
+			Name:       "Hex",
+			Charset:    cryptorand.Hex,
+			Length:     15,
+			HelperFunc: cryptorand.HexString,
 		},
 		{
 			Name:    "Human",
@@ -111,18 +105,6 @@ func TestStringCharset(t *testing.T) {
 			}
 		})
 
-		t.Run(test.Name+"Must", func(t *testing.T) {
-			t.Parallel()
-
-			for i := 0; i < 5; i++ {
-				rs := cryptorand.MustStringCharset(test.Charset, test.Length)
-				require.Equal(t, test.Length, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
-				if i == 0 {
-					t.Logf("value: %v <- random?", rs)
-				}
-			}
-		})
-
 		if test.HelperFunc != nil {
 			t.Run(test.Name+"HelperFunc", func(t *testing.T) {
 				t.Parallel()
@@ -130,20 +112,6 @@ func TestStringCharset(t *testing.T) {
 				for i := 0; i < 5; i++ {
 					rs, err := test.HelperFunc(test.Length)
 					require.NoError(t, err, "unexpected error from HelperFunc")
-					require.Equal(t, test.Length, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
-					if i == 0 {
-						t.Logf("value: %v <- random?", rs)
-					}
-				}
-			})
-		}
-
-		if test.MustHelperFunc != nil {
-			t.Run(test.Name+"MustHelperFunc", func(t *testing.T) {
-				t.Parallel()
-
-				for i := 0; i < 5; i++ {
-					rs := test.MustHelperFunc(test.Length)
 					require.Equal(t, test.Length, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
 					if i == 0 {
 						t.Logf("value: %v <- random?", rs)
@@ -160,10 +128,6 @@ func TestSha1String(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		rs, err := cryptorand.Sha1String()
 		require.NoError(t, err, "unexpected error from String")
-		require.Equal(t, 40, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
-		t.Logf("value: %v <- random?", rs)
-
-		rs = cryptorand.MustSha1String()
 		require.Equal(t, 40, utf8.RuneCountInString(rs), "expected RuneCountInString to match requested")
 		t.Logf("value: %v <- random?", rs)
 	}

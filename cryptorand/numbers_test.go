@@ -17,10 +17,6 @@ func TestInt63(t *testing.T) {
 		require.NoError(t, err, "unexpected error from Int63")
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0, "values must be positive")
-
-		v = cryptorand.MustInt63()
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
 	}
 }
 
@@ -31,9 +27,6 @@ func TestUint64(t *testing.T) {
 		v, err := cryptorand.Uint64()
 		require.NoError(t, err, "unexpected error from Uint64")
 		t.Logf("value: %v <- random?", v)
-
-		v = cryptorand.MustUint64()
-		t.Logf("value: %v <- random?", v)
 	}
 }
 
@@ -43,10 +36,6 @@ func TestInt31(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		v, err := cryptorand.Int31()
 		require.NoError(t, err, "unexpected error from Int31")
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
-
-		v = cryptorand.MustInt31()
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0, "values must be positive")
 	}
@@ -75,9 +64,6 @@ func TestUint32(t *testing.T) {
 		v, err := cryptorand.Uint32()
 		require.NoError(t, err, "unexpected error from Uint32")
 		t.Logf("value: %v <- random?", v)
-
-		v = cryptorand.MustUint32()
-		t.Logf("value: %v <- random?", v)
 	}
 }
 
@@ -87,10 +73,6 @@ func TestInt(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		v, err := cryptorand.Int()
 		require.NoError(t, err, "unexpected error from Int")
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
-
-		v = cryptorand.MustInt()
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0, "values must be positive")
 	}
@@ -105,11 +87,6 @@ func TestInt63n(t *testing.T) {
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0, "values must be positive")
 		require.True(t, v < 1<<35, "values must be less than 1<<35")
-
-		v = cryptorand.MustInt63n(1 << 40)
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
-		require.True(t, v < 1<<40, "values must be less than 1<<40")
 	}
 }
 
@@ -122,11 +99,6 @@ func TestInt31n(t *testing.T) {
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0, "values must be positive")
 		require.True(t, v < 100, "values must be less than 100")
-
-		v = cryptorand.MustInt31n(500)
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
-		require.True(t, v < 500, "values must be less than 500")
 	}
 }
 
@@ -139,16 +111,6 @@ func TestIntn(t *testing.T) {
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0, "values must be positive")
 		require.True(t, v < 100, "values must be less than 100")
-
-		v = cryptorand.MustIntn(500)
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
-		require.True(t, v < 500, "values must be less than 500")
-
-		v = cryptorand.MustIntn(1 << 40)
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0, "values must be positive")
-		require.True(t, v < 1<<40, "values must be less than 1<<40")
 	}
 }
 
@@ -158,11 +120,6 @@ func TestFloat64(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		v, err := cryptorand.Float64()
 		require.NoError(t, err, "unexpected error from Float64")
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0.0, "values must be positive")
-		require.True(t, v < 1.0, "values must be less than 1.0")
-
-		v = cryptorand.MustFloat64()
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0.0, "values must be positive")
 		require.True(t, v < 1.0, "values must be less than 1.0")
@@ -178,11 +135,6 @@ func TestFloat32(t *testing.T) {
 		t.Logf("value: %v <- random?", v)
 		require.True(t, v >= 0.0, "values must be positive")
 		require.True(t, v < 1.0, "values must be less than 1.0")
-
-		v = cryptorand.MustFloat32()
-		t.Logf("value: %v <- random?", v)
-		require.True(t, v >= 0.0, "values must be positive")
-		require.True(t, v < 1.0, "values must be less than 1.0")
 	}
 }
 
@@ -192,14 +144,9 @@ func TestBool(t *testing.T) {
 	const iterations = 10000
 	trueCount := 0
 
-	for i := 0; i < iterations; i += 2 {
+	for i := 0; i < iterations; i += 1 {
 		v, err := cryptorand.Bool()
 		require.NoError(t, err, "unexpected error from Bool")
-		if v {
-			trueCount++
-		}
-
-		v = cryptorand.MustBool()
 		if v {
 			trueCount++
 		}
