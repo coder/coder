@@ -22,7 +22,7 @@ func TestUsers(t *testing.T) {
 		var cerr *codersdk.Error
 		require.ErrorAs(t, err, &cerr)
 		require.Equal(t, cerr.StatusCode(), http.StatusConflict)
-		require.Greater(t, 0, cerr.Error())
+		require.Greater(t, 0, len(cerr.Error()))
 	})
 
 	t.Run("Get", func(t *testing.T) {
