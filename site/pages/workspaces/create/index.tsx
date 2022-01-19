@@ -16,7 +16,7 @@ const CreateSelectProjectPage: React.FC = () => {
     router.back()
   }
 
-  const next = (projectId: string) => () => {
+  const select = (projectId: string) => () => {
     router.push(`/workspaces/create/${projectId}`)
   }
 
@@ -33,7 +33,7 @@ const CreateSelectProjectPage: React.FC = () => {
       body = (
         <>
           {requestState.payload.map((project) => {
-            return <ProjectIcon title={project.name} icon={project.icon} onClick={() => alert("clicked")} />
+            return <ProjectIcon title={project.name} icon={project.icon} onClick={select(project.id)} />
           })}
         </>
       )
@@ -46,16 +46,6 @@ const CreateSelectProjectPage: React.FC = () => {
       props: {
         variant: "outlined",
         onClick: cancel,
-      },
-    },
-    {
-      title: "Next",
-      props: {
-        variant: "contained",
-        color: "primary",
-        disabled: false,
-        type: "submit",
-        onClick: next("test1"),
       },
     },
   ]

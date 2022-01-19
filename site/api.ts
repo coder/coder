@@ -1,6 +1,9 @@
+import { SvgIcon } from "@material-ui/core"
+import { Logo } from "./components/Icons"
+
 export interface Project {
   id: string
-  icon: string
+  icon?: string
   name: string
   description: string
 }
@@ -16,7 +19,6 @@ export namespace Project {
 
     const project2: Project = {
       id: "test-echo-1",
-      icon: "https://www.datocms-assets.com/2885/1620155117-brandhcterraformverticalcolorwhite.svg",
       name: "Echo Project",
       description: "Project built on echo provisioner",
     }

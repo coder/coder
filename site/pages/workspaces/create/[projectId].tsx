@@ -35,7 +35,11 @@ const CreateProjectPage: React.FC = () => {
     },
   ]
 
-  return <FormPage title={"Create Project"} organization={"test-org"} buttons={buttons}></FormPage>
+  return (
+    <FormPage title={"Create Project"} organization={"test-org"} buttons={buttons}>
+      <div>TODO: Dynamic form fields</div>
+    </FormPage>
+  )
 }
 
 export default CreateProjectPage
