@@ -3,8 +3,9 @@ package userpassword_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/userpassword"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/userpassword"
 )
 
 func TestUserPassword(t *testing.T) {

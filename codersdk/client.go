@@ -44,19 +44,20 @@ type Client struct {
 	httpClient   *http.Client
 }
 
-func (c *Client) SessionToken() string {
-	return c.sessionToken
-}
-
-func (c *Client) setSessionToken(token string) {
+func (c *Client) setSessionToken(token string) error {
 	if c.httpClient.Jar == nil {
-		c.httpClient.Jar = &cookiejar.Jar{}
+		var err error
+		c.httpClient.Jar, err = cookiejar.New(nil)
+		if err != nil {
+			return err
+		}
 	}
 	c.httpClient.Jar.SetCookies(c.url, []*http.Cookie{{
 		Name:  httpmw.AuthCookie,
 		Value: token,
 	}})
 	c.sessionToken = token
+	return nil
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
@@ -102,9 +103,6 @@ func readBodyAsError(res *http.Response) error {
 		}
 		return xerrors.Errorf("decode body: %w", err)
 	}
-	for _, er := range m.Errors {
-		fmt.Printf("WE GOT THIS: %q %q\n", er.Field, er.Code)
-	}
 	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,
@@ -122,5 +120,5 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("")
+	return fmt.Sprintf("status code %d: %s", e.statusCode, e.Message)
 }

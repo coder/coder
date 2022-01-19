@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
@@ -57,7 +59,7 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if userCount != 0 {
-		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
+		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: "the initial user has already been created",
 		})
 		return
@@ -116,7 +118,7 @@ func (users *users) getAuthenticatedUser(rw http.ResponseWriter, r *http.Request
 
 func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 	var loginWithPassword LoginWithPasswordRequest
-	if !httpapi.Read(rw, r, loginWithPassword) {
+	if !httpapi.Read(rw, r, &loginWithPassword) {
 		return
 	}
 	user, err := users.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
@@ -149,25 +151,50 @@ func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// key, secret := (&database.APIKey{
-	// 	UserID:           actor.ID,
-	// 	ExpiresAt:        expiresAt,
-	// 	LoginType:        actor.LoginType,
-	// 	OIDCAccessToken:  oidcCfg.AccessToken,
-	// 	OIDCRefreshToken: oidcCfg.RefreshToken,
-	// 	OIDCIDToken:      oidcCfg.IDToken,
-	// 	// OIDCExpiry indicates when we need to fetch a new OIDC token.
-	// 	OIDCExpiry:  oidcCfg.Expiry,
-	// 	DevurlToken: devurlToken,
-	// }).Fill()
+	id, secret, err := generateAPIKeyIDSecret()
+	hashed := sha256.Sum256([]byte(secret))
 
-	users.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:           uuid.NewString(),
+	_, err = users.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+		ID:           id,
 		UserID:       user.ID,
 		ExpiresAt:    database.Now().Add(24 * time.Hour),
 		CreatedAt:    database.Now(),
 		UpdatedAt:    database.Now(),
-		HashedSecret: []byte(""),
+		HashedSecret: hashed[:],
 		LoginType:    database.LoginTypeBuiltIn,
 	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert api key: %s", err.Error()),
+		})
+		return
+	}
+
+	sessionToken := fmt.Sprintf("%s-%s", id, secret)
+	http.SetCookie(rw, &http.Cookie{
+		Name:     httpmw.AuthCookie,
+		Value:    sessionToken,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(rw, r, LoginWithPasswordResponse{
+		SessionToken: sessionToken,
+	})
+}
+
+func generateAPIKeyIDSecret() (string, string, error) {
+	// Length of an API Key ID.
+	id, err := cryptorand.String(10)
+	if err != nil {
+		return "", "", err
+	}
+	// Length of an API Key secret.
+	secret, err := cryptorand.String(22)
+	if err != nil {
+		return "", "", err
+	}
+	return id, secret, nil
 }

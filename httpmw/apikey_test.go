@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,24 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
 
-func randomString(n int) string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-
-	s := make([]rune, n)
-	for i := range s {
-		s[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(s)
-}
-
 func randomAPIKeyParts() (string, string) {
-	return randomString(10), randomString(22)
+	id, _ := cryptorand.String(10)
+	secret, _ := cryptorand.String(22)
+	return id, secret
 }
 
 func TestAPIKey(t *testing.T) {
