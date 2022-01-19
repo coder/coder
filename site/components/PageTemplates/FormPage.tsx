@@ -4,7 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { ButtonProps } from "@material-ui/core/Button"
 import React from "react"
 
-import { Title } from "./../Form"
+import { Title } from "../Form"
 
 const useStyles = makeStyles(() => ({
   form: {
@@ -20,6 +20,10 @@ const useStyles = makeStyles(() => ({
     padding: "2em",
     flex: "1",
     overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "flex-start",
+    alignItems: "center",
   },
   footer: {
     display: "flex",

@@ -4,7 +4,7 @@ import { makeStyles, Box, Paper } from "@material-ui/core"
 import { AddToQueue as AddWorkspaceIcon } from "@material-ui/icons"
 
 import { EmptyState, SplitButton } from "../../components"
-import { AppPage } from "../../components/Page"
+import { AppPage } from "../../components/PageTemplates"
 
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()

@@ -1,7 +1,7 @@
 import React from "react"
 import { useRouter } from "next/router"
 
-import { FormPage, FormButton } from "../../../components/Page"
+import { FormPage, FormButton } from "../../../components/PageTemplates"
 
 const CreateProjectPage: React.FC = () => {
   const router = useRouter()
