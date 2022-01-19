@@ -18,11 +18,7 @@ export const Navbar: React.FC = () => {
         </Link>
       </div>
       <div className={styles.fullWidth} />
-      <div className={styles.fixed}>
-        <List>
-          <ListSubheader>Manage</ListSubheader>
-        </List>
-      </div>
+      <div className={styles.fixed} />
     </div>
   )
 }

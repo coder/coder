@@ -1,19 +1,22 @@
 export interface Project {
   id: string
+  icon: string
   name: string
   description: string
 }
 
 export namespace Project {
-  export const get = async (org: string): Promise<Project[]> => {
+  export const get = (org: string): Promise<Project[]> => {
     const project1: Project = {
       id: "test-terraform-1",
+      icon: "https://www.datocms-assets.com/2885/1620155117-brandhcterraformverticalcolorwhite.svg",
       name: "Terraform Project 1",
       description: "Simple terraform project that deploys a kubernetes provider",
     }
 
     const project2: Project = {
       id: "test-echo-1",
+      icon: "https://www.datocms-assets.com/2885/1620155117-brandhcterraformverticalcolorwhite.svg",
       name: "Echo Project",
       description: "Project built on echo provisioner",
     }

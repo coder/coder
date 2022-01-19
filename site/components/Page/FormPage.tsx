@@ -17,6 +17,7 @@ const useStyles = makeStyles(() => ({
     marginTop: "1em",
   },
   body: {
+    padding: "2em",
     flex: "1",
     overflowY: "auto",
   },
@@ -58,7 +59,6 @@ export const FormPage: React.FC<FormPageProps> = ({ title, organization, childre
         {actualButtons.map(({ props, title }) => {
           return (
             <Button {...props} className={styles.button}>
-              {" "}
               {title}
             </Button>
           )

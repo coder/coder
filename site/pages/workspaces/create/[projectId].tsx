@@ -1,20 +1,41 @@
 import React from "react"
 import { useRouter } from "next/router"
 
+import { FormPage, FormButton } from "../../../components/Page"
+
 const CreateProjectPage: React.FC = () => {
   const router = useRouter()
   const { projectId } = router.query
 
-  const createWorkspace = () => {
-    alert("create")
+  const cancel = () => {
+    router.back()
   }
 
-  const button = {
-    children: "New Workspace",
-    onClick: createWorkspace,
+  const submit = () => {
+    alert("Submitting workspace")
   }
 
-  return <div>Create Page: {projectId}</div>
+  const buttons: FormButton[] = [
+    {
+      title: "Cancel",
+      props: {
+        variant: "outlined",
+        onClick: cancel,
+      },
+    },
+    {
+      title: "Submit",
+      props: {
+        variant: "contained",
+        color: "primary",
+        disabled: false,
+        type: "submit",
+        onClick: submit,
+      },
+    },
+  ]
+
+  return <FormPage title={"Create Project"} organization={"test-org"} buttons={buttons}></FormPage>
 }
 
 export default CreateProjectPage
