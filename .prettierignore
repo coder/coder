@@ -13,4 +13,5 @@ yarn-error.log
 # Front-end ignore
 .next/
 site/.next/
+site/out/
 coverage/

@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/site"
 )
 
 // Options are requires parameters for Coder to start.
@@ -41,5 +42,6 @@ func New(options *Options) http.Handler {
 			r.Get("/user", users.getAuthenticatedUser)
 		})
 	})
+	r.NotFound(site.Handler().ServeHTTP)
 	return r
 }

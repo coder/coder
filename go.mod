@@ -19,6 +19,7 @@ require (
 	github.com/hashicorp/hc-install v0.3.1
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
+	github.com/justinas/nosurf v1.1.1
 	github.com/lib/pq v1.10.4
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
@@ -27,6 +28,7 @@ require (
 	github.com/pion/webrtc/v3 v3.1.13
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
+	github.com/unrolled/secure v1.0.9
 	go.uber.org/atomic v1.7.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce
