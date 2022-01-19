@@ -36,9 +36,7 @@ func newProjectService() *projectService {
 }
 
 func (ps *projectService) getProjects(w http.ResponseWriter, r *http.Request) {
-
 	// Construct a couple hard-coded projects to return the UI
-
 	terraformProject := Project{
 		Id:          "test_terraform_project_id",
 		Name:        "Terraform",
@@ -79,6 +77,11 @@ func (ps *projectService) getProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	xjson.Write(w, http.StatusOK, projects)
+}
+
+func (ps *projectService) getProjectById(w http.ResponseWriter, r *http.Request) {
+	// TODO: Get a project by id
+	xjson.Write(w, http.StatusNotFound, nil)
 }
 
 func (ps *projectService) createProject(w http.ResponseWriter, r *http.Request) {

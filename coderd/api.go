@@ -1,17 +1,17 @@
 package coderd
 
-import "context"
-
 // API offers an HTTP API. Routes are located in routes.go.
 type API struct {
 	// Services.
-	projectService *projectService
+	projectService   *projectService
+	workspaceService *workspaceService
 }
 
 // New returns an instantiated API.
-func NewAPI(ctx context.Context) *API {
+func NewAPI() *API {
 	api := &API{
-		projectService: newProjectService(),
+		projectService:   newProjectService(),
+		workspaceService: newWorkspaceService(),
 	}
 	return api
 }

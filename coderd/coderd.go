@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"net/http"
 
 	"cdr.dev/slog"
@@ -24,7 +23,7 @@ const (
 
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
-	api := NewAPI(context.Background())
+	api := NewAPI()
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +42,17 @@ func New(options *Options) http.Handler {
 				// TODO: Extract organization and add to context
 				r.Get("/", api.projectService.getProjects)
 				r.Post("/", api.projectService.createProject)
+
+				r.Get("/{projectId}", api.projectService.getProjectById)
+				// TODO: Get project by id
+			})
+		})
+
+		// Workspaces endpoint
+		r.Route("/workspaces", func(r chi.Router) {
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Get("/", api.workspaceService.getWorkspaces)
+				r.Get("/{projectId}", api.workspaceService.getWorkspaceById)
 			})
 		})
 
