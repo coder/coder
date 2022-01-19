@@ -25,4 +25,8 @@ export namespace Project {
 
     return Promise.resolve([project1, project2])
   }
+
+  export const createProject = (name: string): Promise<string> => {
+    return Promise.resolve("test-workspace")
+  }
 }

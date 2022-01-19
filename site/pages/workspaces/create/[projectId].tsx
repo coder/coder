@@ -1,5 +1,8 @@
 import React from "react"
 import { useRouter } from "next/router"
+import { useFormik } from "formik"
+
+import * as API from "../../../api"
 
 import { FormPage, FormButton } from "../../../components/PageTemplates"
 
@@ -7,12 +10,23 @@ const CreateProjectPage: React.FC = () => {
   const router = useRouter()
   const { projectId } = router.query
 
+
+  const form = useFormik({
+    initialValues: {
+      name: ""
+    },
+    onSubmit: async ({ name }) => {
+      return API.Project.createProject(name)
+    },
+  })
+
   const cancel = () => {
     router.back()
   }
 
-  const submit = () => {
-    alert("Submitting workspace")
+  const submit = async () => {
+    const workspaceId = await form.submitForm()
+    router.push(`/workspaces/${workspaceId}`)
   }
 
   const buttons: FormButton[] = [
