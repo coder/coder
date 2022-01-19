@@ -23,13 +23,14 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export const Title: React.FC<TitleProps> = ({ title, organization }) => {
-
   const styles = useStyles()
 
-  return <div className={styles.title} >
-    <Typography variant="h3">{title}</Typography>
-    <Typography variant="caption">
-      In <strong>{organization}</strong> organization
-    </Typography>
-  </div>
+  return (
+    <div className={styles.title}>
+      <Typography variant="h3">{title}</Typography>
+      <Typography variant="caption">
+        In <strong>{organization}</strong> organization
+      </Typography>
+    </div>
+  )
 }
