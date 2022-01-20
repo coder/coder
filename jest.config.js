@@ -23,6 +23,6 @@ module.exports = {
     "!<rootDir>/site/dev.ts",
     "!<rootDir>/site/next-env.d.ts",
     "!<rootDir>/site/next.config.js",
-    "!<rootDir>/site/out/**/*.*"
+    "!<rootDir>/site/out/**/*.*",
   ],
 }
