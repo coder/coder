@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/router"
 
+import { FullScreenLoader } from "../Loader/FullScreenLoader"
 import * as API from "./../../api"
 
 export const AuthenticatedRouter: React.FC = ({ children }) => {
@@ -21,7 +22,7 @@ export const AuthenticatedRouter: React.FC = ({ children }) => {
   }, [])
 
   if (!isAuthenticated) {
-    return <div>loading</div>
+    return <FullScreenLoader />
   }
   return <>{children}</>
 }
