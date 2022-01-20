@@ -1,7 +1,7 @@
 import React from "react"
 import { useRouter } from "next/router"
 import { useFormik } from "formik"
-import { firstOrOnly } from "./../../../util"
+import { firstOrOnly, subForm, FormikLike } from "./../../../util"
 
 import * as API from "../../../api"
 
@@ -24,6 +24,7 @@ namespace CreateProjectForm {
 }
 
 const FormTextField = formTextFieldFactory<CreateProjectForm.Schema>()
+const ParameterTextField = formTextFieldFactory<Record<string, string>>()
 
 namespace Helpers {
   /**
@@ -68,6 +69,8 @@ const CreateProjectPage: React.FC = () => {
     },
   })
 
+  const parametersForm: FormikLike<Record<string, string>> = subForm(form, "parameters")
+
   const cancel = () => {
     router.push(`/workspaces/create`)
   }
@@ -78,7 +81,7 @@ const CreateProjectPage: React.FC = () => {
   }
 
   return (
-    <LoadingPage
+    <LoadingPage<API.Project>
       request={projectToLoad}
       render={(project) => {
         const buttons: FormButton[] = [
@@ -125,9 +128,9 @@ const CreateProjectPage: React.FC = () => {
               {parametersWithMetadata.map((param) => {
                 return (
                   <FormRow>
-                    <FormTextField
-                      form={form}
-                      formFieldName={"parameters." + param.id}
+                    <ParameterTextField
+                      form={parametersForm}
+                      formFieldName={param.id}
                       fullWidth
                       label={param.name}
                       helperText={param.description}

@@ -35,7 +35,6 @@ export interface FormTextFieldProps<T>
       | "SelectProps"
       | "style"
       | "type"
-      | "variant"
     >,
     FormFieldProps<T> {
   /**

@@ -29,7 +29,7 @@ const useStyles = makeStyles(() => ({
  * Finally, if the request succeeds, we use the Render Prop pattern to pass it off:
  * https://reactjs.org/docs/render-props.html
  */
-export const LoadingPage: React.FC<LoadingPageProps<T>> = <T,>(props: LoadingPageProps<T>) => {
+export const LoadingPage = <T,>(props: LoadingPageProps<T>): React.ReactElement<any, any> => {
   const styles = useStyles()
 
   const { request, render } = props
