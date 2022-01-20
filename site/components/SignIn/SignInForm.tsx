@@ -77,7 +77,7 @@ export const SignInForm: React.FC = () => {
     validationSchema,
     onSubmit: async ({ email, password }, helpers) => {
       try {
-        const _response = await API.login(email, password)
+        await API.login(email, password)
         router.push("/")
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")
