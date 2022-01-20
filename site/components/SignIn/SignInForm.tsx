@@ -72,7 +72,7 @@ export interface SignInProps {
 
 export const SignInForm: React.FC<SignInProps> = ({
   loginHandler = (email: string, password: string) => API.login(email, password),
-  onLoginSuccess = () => router.push("/")
+  onLoginSuccess = () => router.push("/"),
 }) => {
   const router = useRouter()
   const styles = useStyles()

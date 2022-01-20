@@ -7,12 +7,16 @@ export const useStyles = makeStyles(() => ({
     top: "0",
     left: "0",
     right: "0",
-    bottom: "0"
-  }
+    bottom: "0",
+  },
 }))
 
 export const FullScreenLoader: React.FC = () => {
   const styles = useStyles()
 
-  return <div className={styles.root}><CircularProgress /></div>
+  return (
+    <div className={styles.root}>
+      <CircularProgress />
+    </div>
+  )
 }
