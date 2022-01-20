@@ -3,7 +3,6 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/coderd"
@@ -49,7 +48,6 @@ func (c *Client) LoginWithPassword(ctx context.Context, req coderd.LoginWithPass
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		fmt.Printf("Are we reading here?\n")
 		return coderd.LoginWithPasswordResponse{}, readBodyAsError(res)
 	}
 	var resp coderd.LoginWithPasswordResponse
@@ -57,5 +55,5 @@ func (c *Client) LoginWithPassword(ctx context.Context, req coderd.LoginWithPass
 	if err != nil {
 		return coderd.LoginWithPasswordResponse{}, err
 	}
-	return coderd.LoginWithPasswordResponse{}, nil
+	return resp, nil
 }
