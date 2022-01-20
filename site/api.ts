@@ -2,11 +2,22 @@ import { SvgIcon } from "@material-ui/core"
 import { Logo } from "./components/Icons"
 import { wait } from "./util"
 
+export type ProjectParameterType = "string" | "number"
+
+export interface ProjectParameter {
+  id: string
+  name: string
+  description: string
+  defaultValue?: string
+  type: ProjectParameterType
+}
+
 export interface Project {
   id: string
   icon?: string
   name: string
   description: string
+  parameters: ProjectParameter[]
 }
 
 export namespace Project {
@@ -15,12 +26,35 @@ export namespace Project {
     icon: "https://www.datocms-assets.com/2885/1620155117-brandhcterraformverticalcolorwhite.svg",
     name: "Terraform Project 1",
     description: "Simple terraform project that deploys a kubernetes provider",
+    parameters: [
+      {
+        id: "namespace",
+        name: "Namespace",
+        description: "The kubernetes namespace that will own the workspace pod.",
+        defaultValue: "default",
+        type: "string",
+      },
+      {
+        id: "cpu_cores",
+        name: "CPU Cores",
+        description: "Number of CPU cores to allocate for pod.",
+        type: "number",
+      },
+    ],
   }
 
   const testProject2: Project = {
     id: "test-echo-1",
     name: "Echo Project",
     description: "Project built on echo provisioner",
+    parameters: [
+      {
+        id: "echo_string",
+        name: "Echo string",
+        description: "String that will be echoed out during build.",
+        type: "string",
+      },
+    ],
   }
 
   const allProjects = [testProject1, testProject2]
@@ -51,7 +85,15 @@ export namespace Project {
 export namespace Workspace {
   export type WorkspaceId = string
 
-  export const createWorkspace = (name: string, projectTemplate: string): Promise<WorkspaceId> => {
+  export const createWorkspace = (
+    name: string,
+    projectTemplate: string,
+    parameters: Record<string, string>,
+  ): Promise<WorkspaceId> => {
+    alert(
+      `Creating workspace named ${name} for project ${projectTemplate} with parameters: ${JSON.stringify(parameters)}`,
+    )
+
     return Promise.resolve("test-workspace")
   }
 }

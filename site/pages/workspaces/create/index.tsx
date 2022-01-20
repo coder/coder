@@ -14,7 +14,7 @@ const CreateSelectProjectPage: React.FC = () => {
   const requestState = useRequestor(() => Api.Project.getAllProjectsInOrg("test-org"))
 
   const cancel = () => {
-    router.back()
+    router.push(`/workspaces`)
   }
 
   const select = (projectId: string) => () => {

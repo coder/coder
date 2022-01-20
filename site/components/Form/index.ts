@@ -1,2 +1,3 @@
-export * from "./Title"
+export * from "./FormTitle"
+export * from "./FormRow"
 export * from "./FormSection"

@@ -25,13 +25,13 @@ export const LoadingPage: React.FC<LoadingPageProps<T>> = <T,>(props: LoadingPag
 
   const { request, children } = props
   const { state } = request
+
   switch (state) {
     case "error":
-      return <div>{request.error.toString()}</div>
+      return <div className={styles.fullScreenLoader}>{request.error.toString()}</div>
     case "loading":
       return (
         <div className={styles.fullScreenLoader}>
-          {" "}
           <CircularProgress />
         </div>
       )

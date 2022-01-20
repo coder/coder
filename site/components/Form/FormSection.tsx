@@ -23,9 +23,9 @@ export const useStyles = makeStyles((theme) => ({
     flex: "0 0 200px",
     display: "flex",
     flexDirection: "column",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "flex-start",
-    marginTop: theme.spacing(2),
+    marginTop: theme.spacing(5),
     marginBottom: theme.spacing(2),
   },
   descriptionText: {
