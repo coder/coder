@@ -1,22 +1,40 @@
 import React from "react"
 import { useRouter } from "next/router"
 import { useFormik } from "formik"
+import { firstOrOnly } from "./../../../util"
 
 import * as API from "../../../api"
 
 import { FormPage, FormButton } from "../../../components/PageTemplates"
+import { useRequestor } from "../../../hooks/useRequest"
+import { FormSection } from "../../../components/Form"
+import { formTextFieldFactory } from "../../../components/Form/FormTextField"
+
+namespace CreateProjectForm {
+  export interface Schema {
+    name: string
+    parameters: any[]
+  }
+
+  export const initial: Schema = {
+    name: "",
+    parameters: [],
+  }
+}
+
+const FormTextField = formTextFieldFactory<CreateProjectForm.Schema>()
 
 const CreateProjectPage: React.FC = () => {
   const router = useRouter()
-  const { projectId } = router.query
-
+  const { projectId: routeProjectId } = router.query
+  const projectId = firstOrOnly(routeProjectId)
+  // const projectToLoad = useRequestor(() => API.Project.getProject("test-org", projectId))
 
   const form = useFormik({
-    initialValues: {
-      name: ""
-    },
+    enableReinitialize: true,
+    initialValues: CreateProjectForm.initial,
     onSubmit: async ({ name }) => {
-      return API.Project.createProject(name)
+      return API.Workspace.createWorkspace(name, projectId)
     },
   })
 
@@ -51,7 +69,17 @@ const CreateProjectPage: React.FC = () => {
 
   return (
     <FormPage title={"Create Project"} organization={"test-org"} buttons={buttons}>
-      <div>TODO: Dynamic form fields</div>
+      <FormSection title="General">
+        <FormTextField
+          form={form}
+          formFieldName="name"
+          fullWidth
+          helperText="A unique name describing your workspace."
+          label="Workspace Name"
+          placeholder="my-dev"
+          required
+        />
+      </FormSection>
     </FormPage>
   )
 }

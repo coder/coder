@@ -1,1 +1,2 @@
-export { Title } from "./Title"
+export * from "./Title"
+export * from "./FormSection"

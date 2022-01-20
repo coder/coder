@@ -10,11 +10,8 @@ export interface TitleProps {
 const useStyles = makeStyles((theme) => ({
   title: {
     textAlign: "center",
-    marginBottom: theme.spacing(10),
-
-    [theme.breakpoints.down("sm")]: {
-      gridColumn: 1,
-    },
+    marginTop: theme.spacing(5),
+    marginBottom: theme.spacing(5),
 
     "& h3": {
       marginBottom: theme.spacing(1),
