@@ -2,14 +2,17 @@ import React from "react"
 import { screen } from "@testing-library/react"
 
 import { render } from "../../test_helpers"
-import { Footer } from "./Footer"
+import { AppPage } from "./AppPage"
 
-describe("Footer", () => {
+describe("AppPage", () => {
   it("renders content", async () => {
     // When
-    render(<Footer />)
+    render(<AppPage><div>Hello, World</div>H</AppPage>)
 
     // Then
+    // Content should render
+    await screen.findByText("Hello, World", { exact: false })
+    // Footer should render
     await screen.findByText("Copyright", { exact: false })
   })
 })
