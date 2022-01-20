@@ -15,7 +15,7 @@ export const login = async (email: string, password: string): Promise<LoginRespo
   })
 
   const body = await response.json()
-  if (response.status !== 201) {
+  if (!response.ok) {
     throw new Error(body.message)
   }
 
@@ -35,6 +35,12 @@ export namespace User {
       method: "GET",
     })
 
-    return await response.json()
+    const body = await response.json()
+
+    if (!response.ok) {
+      throw new Error(body.message0)
+    }
+
+    return body
   }
 }
