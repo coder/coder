@@ -105,6 +105,8 @@ func (c *Channel) init() {
 	// write operations to block once the threshold is set.
 	c.dc.SetBufferedAmountLowThreshold(bufferedAmountLowThreshold)
 	c.dc.OnBufferedAmountLow(func() {
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
