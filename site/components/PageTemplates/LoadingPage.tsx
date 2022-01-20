@@ -4,7 +4,8 @@ import { RequestState } from "../../hooks/useRequest"
 
 export interface LoadingPageProps<T> {
   request: RequestState<T>
-  children: (state: T) => React.ReactElement<any, any>
+  // Render Prop pattern: https://reactjs.org/docs/render-props.html
+  render: (state: T) => React.ReactElement<any, any>
 }
 
 const useStyles = makeStyles(() => ({
@@ -20,10 +21,18 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
+/**
+ * `<LoadingPage />` is a helper component that manages loading state when making requests.
+ *
+ * While a request is in-flight, the component will show a loading spinner.
+ * If a request fails, an error display will show.
+ * Finally, if the request succeeds, we use the Render Prop pattern to pass it off:
+ * https://reactjs.org/docs/render-props.html
+ */
 export const LoadingPage: React.FC<LoadingPageProps<T>> = <T,>(props: LoadingPageProps<T>) => {
   const styles = useStyles()
 
-  const { request, children } = props
+  const { request, render } = props
   const { state } = request
 
   switch (state) {
@@ -36,6 +45,6 @@ export const LoadingPage: React.FC<LoadingPageProps<T>> = <T,>(props: LoadingPag
         </div>
       )
     case "success":
-      return children(request.payload)
+      return render(request.payload)
   }
 }

@@ -22,8 +22,9 @@ const CreateSelectProjectPage: React.FC = () => {
   }
 
   return (
-    <LoadingPage request={requestState}>
-      {(projects) => {
+    <LoadingPage
+      request={requestState}
+      render={(projects) => {
         const buttons: FormButton[] = [
           {
             title: "Cancel",
@@ -48,7 +49,7 @@ const CreateSelectProjectPage: React.FC = () => {
           </FormPage>
         )
       }}
-    </LoadingPage>
+    />
   )
 }
 

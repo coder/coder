@@ -26,6 +26,12 @@ namespace CreateProjectForm {
 const FormTextField = formTextFieldFactory<CreateProjectForm.Schema>()
 
 namespace Helpers {
+  /**
+   * Convert an array for project paremeters to an id -> value dictionary
+   *
+   * @param parameters An array of `ProjectParameter`
+   * @returns A `Record<string, string>`, where the key is a parameter id, and the value is the default value
+   */
   export const projectParametersToValues = (parameters: API.ProjectParameter[]) => {
     const parameterValues: Record<string, string> = {}
     return parameters.reduce((acc, curr) => {
@@ -38,17 +44,21 @@ namespace Helpers {
 }
 
 const CreateProjectPage: React.FC = () => {
+  // Grab the `projectId` from a route
   const router = useRouter()
   const { projectId: routeProjectId } = router.query
+  // ...there can be more than one specified, but we don't handle that case.
   const projectId = firstOrOnly(routeProjectId)
 
   const projectToLoad = useRequestor(() => API.Project.getProject("test-org", projectId), [projectId])
 
+  // When the project is loaded, we need to pluck the default parameters out and hand them off to formik
   const parametersWithMetadata = projectToLoad.state === "success" ? projectToLoad.payload.parameters : []
   const parameters = Helpers.projectParametersToValues(parametersWithMetadata)
 
   const form = useFormik({
     enableReinitialize: true,
+    // TODO: Set up validation, based on form fields that come from ProjectParameters
     initialValues: {
       name: "",
       parameters,
@@ -68,8 +78,9 @@ const CreateProjectPage: React.FC = () => {
   }
 
   return (
-    <LoadingPage request={projectToLoad}>
-      {(project) => {
+    <LoadingPage
+      request={projectToLoad}
+      render={(project) => {
         const buttons: FormButton[] = [
           {
             title: "Back",
@@ -130,7 +141,7 @@ const CreateProjectPage: React.FC = () => {
           </FormPage>
         )
       }}
-    </LoadingPage>
+    />
   )
 }
 

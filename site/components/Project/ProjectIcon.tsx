@@ -15,6 +15,14 @@ const useStyles = makeStyles((theme) => ({
     cursor: "pointer",
     transition: "box-shadow 250ms ease-in-out",
     backgroundColor: "lightgrey",
+    flex: "0",
+    margin: "1em",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    border: `1px solid ${theme.palette.primary.main}`,
+    borderRadius: "4px",
     "&:hover": {
       boxShadow: theme.shadows[8],
     },
@@ -52,22 +60,9 @@ export const ProjectIcon: React.FC<ProjectIconProps> = ({ icon, title, onClick }
   }
 
   return (
-    <Box
-      css={{
-        flex: "0",
-        margin: "1em",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        border: "1px solid black",
-        borderRadius: "4px",
-      }}
-      className={styles.container}
-      onClick={onClick}
-    >
+    <div className={styles.container} onClick={onClick}>
       {iconComponent}
       <ProjectName>{title}</ProjectName>
-    </Box>
+    </div>
   )
 }
