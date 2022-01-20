@@ -1,5 +1,6 @@
 import { SvgIcon } from "@material-ui/core"
 import { Logo } from "./components/Icons"
+import { wait } from "./util"
 
 export interface Project {
   id: string
@@ -24,11 +25,14 @@ export namespace Project {
 
   const allProjects = [testProject1, testProject2]
 
-  export const getAllProjectsInOrg = (_org: string): Promise<Project[]> => {
-    return Promise.resolve(allProjects)
+  export const getAllProjectsInOrg = async (_org: string): Promise<Project[]> => {
+    await wait(250)
+    return allProjects
   }
 
   export const getProject = async (_org: string, projectId: string): Promise<Project> => {
+    await wait(250)
+
     const matchingProjects = allProjects.filter((p) => p.id === projectId)
 
     if (matchingProjects.length === 0) {
@@ -38,8 +42,9 @@ export namespace Project {
     return matchingProjects[0]
   }
 
-  export const createWorkspace = (name: string): Promise<string> => {
-    return Promise.resolve("test-workspace")
+  export const createWorkspace = async (name: string): Promise<string> => {
+    await wait(250)
+    return "test-workspace"
   }
 }
 

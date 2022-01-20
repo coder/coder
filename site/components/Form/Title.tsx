@@ -4,7 +4,7 @@ import React from "react"
 
 export interface TitleProps {
   title: string
-  organization: string
+  detail: React.ReactNode
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -19,15 +19,13 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const Title: React.FC<TitleProps> = ({ title, organization }) => {
+export const Title: React.FC<TitleProps> = ({ title, detail }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.title}>
       <Typography variant="h3">{title}</Typography>
-      <Typography variant="caption">
-        In <strong>{organization}</strong> organization
-      </Typography>
+      <Typography variant="caption">{detail}</Typography>
     </div>
   )
 }

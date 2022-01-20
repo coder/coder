@@ -44,11 +44,11 @@ export interface FormButton {
 
 export interface FormPageProps {
   title: string
-  organization: string
+  detail?: React.ReactNode
   buttons?: FormButton[]
 }
 
-export const FormPage: React.FC<FormPageProps> = ({ title, organization, children, buttons }) => {
+export const FormPage: React.FC<FormPageProps> = ({ title, detail, children, buttons }) => {
   const styles = useStyles()
 
   const actualButtons = buttons || []
@@ -56,7 +56,7 @@ export const FormPage: React.FC<FormPageProps> = ({ title, organization, childre
   return (
     <div className={styles.form}>
       <div className={styles.header}>
-        <Title title={title} organization={organization} />
+        <Title title={title} detail={detail} />
       </div>
       <div className={styles.body}>{children}</div>
       <div className={styles.footer}>

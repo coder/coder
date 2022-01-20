@@ -7,6 +7,7 @@ import * as Api from "./../../../api"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import { ProjectIcon } from "../../../components/Project/ProjectIcon"
 import Box from "@material-ui/core/Box"
+import { LoadingPage } from "../../../components/PageTemplates/LoadingPage"
 
 const CreateSelectProjectPage: React.FC = () => {
   const router = useRouter()
@@ -20,42 +21,34 @@ const CreateSelectProjectPage: React.FC = () => {
     router.push(`/workspaces/create/${projectId}`)
   }
 
-  let body
-
-  switch (requestState.state) {
-    case "loading":
-      body = <CircularProgress />
-      break
-    case "error":
-      body = <>{requestState.error.toString()}</>
-      break
-    case "success":
-      body = (
-        <>
-          {requestState.payload.map((project) => {
-            return <ProjectIcon title={project.name} icon={project.icon} onClick={select(project.id)} />
-          })}
-        </>
-      )
-      break
-  }
-
-  const buttons: FormButton[] = [
-    {
-      title: "Cancel",
-      props: {
-        variant: "outlined",
-        onClick: cancel,
-      },
-    },
-  ]
-
   return (
-    <FormPage title={"Select Project"} organization={"test-org"} buttons={buttons}>
-      <Box style={{ display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center" }}>
-        {body}
-      </Box>
-    </FormPage>
+    <LoadingPage request={requestState}>
+      {(projects) => {
+        const buttons: FormButton[] = [
+          {
+            title: "Cancel",
+            props: {
+              variant: "outlined",
+              onClick: cancel,
+            },
+          },
+        ]
+        const detail = (
+          <>
+            In <strong> {"test-org"}</strong> organization
+          </>
+        )
+        return (
+          <FormPage title={"Select Project"} detail={detail} buttons={buttons}>
+            <Box style={{ display: "flex", flexDirection: "row", justifyContent: "center", alignItems: "center" }}>
+              {projects.map((project: Api.Project) => {
+                return <ProjectIcon title={project.name} icon={project.icon} onClick={select(project.id)} />
+              })}
+            </Box>
+          </FormPage>
+        )
+      }}
+    </LoadingPage>
   )
 }
 

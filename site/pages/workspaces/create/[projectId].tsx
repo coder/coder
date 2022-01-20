@@ -9,6 +9,7 @@ import { FormPage, FormButton } from "../../../components/PageTemplates"
 import { useRequestor } from "../../../hooks/useRequest"
 import { FormSection } from "../../../components/Form"
 import { formTextFieldFactory } from "../../../components/Form/FormTextField"
+import { LoadingPage } from "../../../components/PageTemplates/LoadingPage"
 
 namespace CreateProjectForm {
   export interface Schema {
@@ -27,8 +28,9 @@ const FormTextField = formTextFieldFactory<CreateProjectForm.Schema>()
 const CreateProjectPage: React.FC = () => {
   const router = useRouter()
   const { projectId: routeProjectId } = router.query
+  console.log(routeProjectId)
   const projectId = firstOrOnly(routeProjectId)
-  // const projectToLoad = useRequestor(() => API.Project.getProject("test-org", projectId))
+  const projectToLoad = useRequestor(() => API.Project.getProject("test-org", projectId), [projectId])
 
   const form = useFormik({
     enableReinitialize: true,
@@ -68,19 +70,30 @@ const CreateProjectPage: React.FC = () => {
   ]
 
   return (
-    <FormPage title={"Create Project"} organization={"test-org"} buttons={buttons}>
-      <FormSection title="General">
-        <FormTextField
-          form={form}
-          formFieldName="name"
-          fullWidth
-          helperText="A unique name describing your workspace."
-          label="Workspace Name"
-          placeholder="my-dev"
-          required
-        />
-      </FormSection>
-    </FormPage>
+    <LoadingPage request={projectToLoad}>
+      {(project) => {
+        const detail = (
+          <>
+            <strong>{project.name}</strong> in <strong> {"test-org"}</strong> organization
+          </>
+        )
+        return (
+          <FormPage title={"Create Project"} detail={detail} buttons={buttons}>
+            <FormSection title="General">
+              <FormTextField
+                form={form}
+                formFieldName="name"
+                fullWidth
+                helperText="A unique name describing your workspace."
+                label="Workspace Name"
+                placeholder={project.id}
+                required
+              />
+            </FormSection>
+          </FormPage>
+        )
+      }}
+    </LoadingPage>
   )
 }
 

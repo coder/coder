@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import isReady from "next/router"
 
 export type RequestState<TPayload> =
   | {
@@ -13,20 +14,35 @@ export type RequestState<TPayload> =
       payload: TPayload
     }
 
-export const useRequestor = <TPayload>(fn: () => Promise<TPayload>) => {
+export const useRequestor = <TPayload>(fn: () => Promise<TPayload>, deps: any[] = []) => {
   const [requestState, setRequestState] = useState<RequestState<TPayload>>({ state: "loading" })
 
   useEffect(() => {
+    // Initially, some parameters might not be available - make sure all query parameters are set
+    // as a courtesy to users of this hook.
+    if (!isReady) {
+      return
+    }
+
+    let cancelled = false
     const f = async () => {
       try {
         const response = await fn()
-        setRequestState({ state: "success", payload: response })
+        if (!cancelled) {
+          setRequestState({ state: "success", payload: response })
+        }
       } catch (err) {
-        setRequestState({ state: "error", error: err })
+        if (!cancelled) {
+          setRequestState({ state: "error", error: err })
+        }
       }
     }
     f()
-  })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isReady, ...deps])
 
   return requestState
 }
