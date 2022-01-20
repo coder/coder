@@ -65,7 +65,15 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const SignInForm: React.FC = () => {
+export interface SignInProps {
+  loginHandler?: (email: string, password: string) => Promise<void>
+  onLoginSuccess?: () => void
+}
+
+export const SignInForm: React.FC<SignInProps> = ({
+  loginHandler = (email: string, password: string) => API.login(email, password),
+  onLoginSuccess = () => router.push("/")
+}) => {
   const router = useRouter()
   const styles = useStyles()
 
@@ -77,8 +85,8 @@ export const SignInForm: React.FC = () => {
     validationSchema,
     onSubmit: async ({ email, password }, helpers) => {
       try {
-        await API.login(email, password)
-        router.push("/")
+        await loginHandler(email, password)
+        onLoginSuccess()
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")
       }
