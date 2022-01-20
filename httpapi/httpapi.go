@@ -79,7 +79,7 @@ func Write(w http.ResponseWriter, status int, response Response) {
 }
 
 // Read decodes JSON from the HTTP request into the value provided.
-// It uses go-validator to
+// It uses go-validator to validate the incoming request body.
 func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
