@@ -5,16 +5,6 @@ import ThemeProvider from "@material-ui/styles/ThemeProvider"
 
 import { light } from "../theme"
 import { AppProps } from "next/app"
-import { makeStyles } from "@material-ui/core"
-
-/**
- * SafeHydrate is a component that only allows its children to be rendered
- * client-side. This check is performed by querying the existence of the window
- * global.
- */
-const SafeHydrate: React.FC = ({ children }) => (
-  <div suppressHydrationWarning>{typeof window === "undefined" ? null : children}</div>
-)
 
 /**
  * ClientRender is a component that only allows its children to be rendered
