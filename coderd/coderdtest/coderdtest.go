@@ -36,7 +36,7 @@ func New(t *testing.T) Server {
 	require.NoError(t, err)
 	t.Cleanup(srv.Close)
 
-	client := codersdk.New(u, &codersdk.Options{})
+	client := codersdk.New(u)
 	_, err = client.CreateInitialUser(context.Background(), coderd.CreateUserRequest{
 		Email:    "testuser@coder.com",
 		Username: "testuser",
@@ -44,10 +44,12 @@ func New(t *testing.T) Server {
 	})
 	require.NoError(t, err)
 
-	err = client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 		Email:    "testuser@coder.com",
 		Password: "testpassword",
 	})
+	require.NoError(t, err)
+	err = client.SetSessionToken(login.SessionToken)
 	require.NoError(t, err)
 
 	return Server{

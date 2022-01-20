@@ -13,6 +13,7 @@ import (
 
 type userContextKey struct{}
 
+// User returns the user from the ExtractUser handler.
 func User(r *http.Request) database.User {
 	user, ok := r.Context().Value(userContextKey{}).(database.User)
 	if !ok {
@@ -21,9 +22,12 @@ func User(r *http.Request) database.User {
 	return user
 }
 
+// ExtractUser consumes an API key and queries the user attached to it.
+// It attaches the user to the request context.
 func ExtractUser(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// The user handler depends on API Key to get the authenticated user.
 			apiKey := APIKey(r)
 
 			user, err := db.GetUserByID(r.Context(), apiKey.UserID)

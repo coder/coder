@@ -28,6 +28,7 @@ type OAuth2Config interface {
 
 type apiKeyContextKey struct{}
 
+// APIKey returns the API key from the ExtractAPIKey handler.
 func APIKey(r *http.Request) database.APIKey {
 	apiKey, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey)
 	if !ok {

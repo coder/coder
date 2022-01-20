@@ -47,11 +47,13 @@ func init() {
 	})
 }
 
+// Response represents a generic HTTP response.
 type Response struct {
 	Message string  `json:"message" validate:"required"`
 	Errors  []Error `json:"errors,omitempty" validate:"required"`
 }
 
+// Error represents a scoped error to a user input.
 type Error struct {
 	Field string `json:"field" validate:"required"`
 	Code  string `json:"code" validate:"required"`

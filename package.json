@@ -9,7 +9,7 @@
     "dev": "ts-node site/dev.ts",
     "export": "next export site",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
-    "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
+    "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}' && sql-formatter -l postgresql ./database/query.sql -o ./database/query.sql",
     "test": "jest --selectProjects test",
     "test:coverage": "jest --selectProjects test --collectCoverage"
   },
@@ -31,6 +31,7 @@
     "prettier": "2.5.1",
     "react": "17.0.2",
     "react-dom": "17.0.2",
+    "sql-formatter": "^4.0.2",
     "ts-jest": "27.1.2",
     "ts-loader": "9.2.6",
     "ts-node": "10.4.0",

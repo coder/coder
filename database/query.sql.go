@@ -12,12 +12,13 @@ import (
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-    id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
+  id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
 FROM
-    api_keys
+  api_keys
 WHERE
-    id = $1
-LIMIT 1
+  id = $1
+LIMIT
+  1
 `
 
 func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, error) {
@@ -44,7 +45,15 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 }
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
-SELECT id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell FROM users WHERE username = $1 OR email = $2 LIMIT 1
+SELECT
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+FROM
+  users
+WHERE
+  username = $1
+  OR email = $2
+LIMIT
+  1
 `
 
 type GetUserByEmailOrUsernameParams struct {
@@ -80,7 +89,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell FROM users WHERE id = $1 LIMIT 1
+SELECT
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+FROM
+  users
+WHERE
+  id = $1
+LIMIT
+  1
 `
 
 func (q *sqlQuerier) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -111,7 +127,10 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id string) (User, error) {
 }
 
 const getUserCount = `-- name: GetUserCount :one
-SELECT COUNT(*) FROM users
+SELECT
+  COUNT(*)
+FROM
+  users
 `
 
 func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
@@ -122,7 +141,42 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 }
 
 const insertAPIKey = `-- name: InsertAPIKey :one
-INSERT INTO api_keys (id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
+INSERT INTO
+  api_keys (
+    id,
+    hashed_secret,
+    user_id,
+    application,
+    name,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    oidc_access_token,
+    oidc_refresh_token,
+    oidc_id_token,
+    oidc_expiry,
+    devurl_token
+  )
+VALUES
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15
+  ) RETURNING id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
 `
 
 type InsertAPIKeyParams struct {
@@ -183,7 +237,19 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 }
 
 const insertUser = `-- name: InsertUser :one
-INSERT INTO users (id, email, name, login_type, hashed_password, created_at, updated_at, username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+INSERT INTO
+  users (
+    id,
+    email,
+    name,
+    login_type,
+    hashed_password,
+    created_at,
+    updated_at,
+    username
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
 `
 
 type InsertUserParams struct {
@@ -234,7 +300,16 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 }
 
 const updateAPIKeyByID = `-- name: UpdateAPIKeyByID :exec
-UPDATE api_keys SET last_used = $2, expires_at = $3, oidc_access_token = $4, oidc_refresh_token = $5, oidc_expiry = $6 WHERE id = $1
+UPDATE
+  api_keys
+SET
+  last_used = $2,
+  expires_at = $3,
+  oidc_access_token = $4,
+  oidc_refresh_token = $5,
+  oidc_expiry = $6
+WHERE
+  id = $1
 `
 
 type UpdateAPIKeyByIDParams struct {

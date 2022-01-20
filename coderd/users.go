@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
+// User is the JSON representation of a Coder user.
 type User struct {
 	ID        string    `json:"id" validate:"required"`
 	Email     string    `json:"email" validate:"required"`
@@ -26,17 +27,20 @@ type User struct {
 	Username  string    `json:"username" validate:"required"`
 }
 
+// CreateUserRequest enables callers to create a new user.
 type CreateUserRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required,username"`
 	Password string `json:"password" validate:"required"`
 }
 
+// LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
 }
 
+// LoginWithPasswordResponse contains a session token for the newly authenticated user.
 type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
@@ -51,6 +55,7 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
+	// This should only function for the first user.
 	userCount, err := users.Database.GetUserCount(r.Context())
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -58,6 +63,7 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// If a user already exists, the initial admin user no longer can be created.
 	if userCount != 0 {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: "the initial user has already been created",
@@ -116,6 +122,7 @@ func (users *users) getAuthenticatedUser(rw http.ResponseWriter, r *http.Request
 	})
 }
 
+// Authenticates the user with an email and password.
 func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 	var loginWithPassword LoginWithPasswordRequest
 	if !httpapi.Read(rw, r, &loginWithPassword) {
@@ -170,6 +177,7 @@ func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", id, secret)
 	http.SetCookie(rw, &http.Cookie{
 		Name:     httpmw.AuthCookie,
@@ -185,6 +193,7 @@ func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Generates a new ID and secret for an API key.
 func generateAPIKeyIDSecret() (string, string, error) {
 	// Length of an API Key ID.
 	id, err := cryptorand.String(10)

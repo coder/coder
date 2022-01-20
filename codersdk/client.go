@@ -17,34 +17,22 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-type Options struct {
-	SessionToken string
-	HTTPClient   *http.Client
-}
-
-func New(url *url.URL, options *Options) *Client {
-	if options == nil {
-		options = &Options{}
-	}
-	if options.HTTPClient == nil {
-		// Don't use http.DefaultClient because we override
-		// all the cookies!
-		options.HTTPClient = &http.Client{}
-	}
+// New creates a Coder client for the provided URL.
+func New(url *url.URL) *Client {
 	return &Client{
-		url:          url,
-		sessionToken: options.SessionToken,
-		httpClient:   options.HTTPClient,
+		url:        url,
+		httpClient: &http.Client{},
 	}
 }
 
+// Client is an HTTP caller for methods to the Coder API.
 type Client struct {
-	url          *url.URL
-	sessionToken string
-	httpClient   *http.Client
+	url        *url.URL
+	httpClient *http.Client
 }
 
-func (c *Client) setSessionToken(token string) error {
+// SetSessionToken applies the provided token to the current client.
+func (c *Client) SetSessionToken(token string) error {
 	if c.httpClient.Jar == nil {
 		var err error
 		c.httpClient.Jar, err = cookiejar.New(nil)
@@ -56,10 +44,11 @@ func (c *Client) setSessionToken(token string) error {
 		Name:  httpmw.AuthCookie,
 		Value: token,
 	}})
-	c.sessionToken = token
 	return nil
 }
 
+// request performs an HTTP request with the body provided.
+// The caller is responsible for closing the response body.
 func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	url, err := c.url.Parse(path)
 	if err != nil {
@@ -91,6 +80,8 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 	return resp, err
 }
 
+// readBodyAsError reads the response as an httpapi.Message, and
+// wraps it in a codersdk.Error type for easy marshalling.
 func readBodyAsError(res *http.Response) error {
 	var m httpapi.Response
 	err := json.NewDecoder(res.Body).Decode(&m)
@@ -109,6 +100,7 @@ func readBodyAsError(res *http.Response) error {
 	}
 }
 
+// Error represents an unaccepted or invalid request to the API.
 type Error struct {
 	httpapi.Response
 

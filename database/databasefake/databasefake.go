@@ -15,6 +15,7 @@ func New() database.Store {
 	}
 }
 
+// fakeQuerier replicates database functionality to enable quick testing.
 type fakeQuerier struct {
 	apiKeys []database.APIKey
 	users   []database.User

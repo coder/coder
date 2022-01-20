@@ -33,7 +33,7 @@ func TestUsers(t *testing.T) {
 	t.Run("LoginNoEmail", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		_, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    "hello@io.io",
 			Password: "wowie",
 		})
@@ -46,7 +46,7 @@ func TestUsers(t *testing.T) {
 		user, err := server.Client.User(context.Background(), "")
 		require.NoError(t, err)
 
-		err = server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		_, err = server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    user.Email,
 			Password: "bananas",
 		})
