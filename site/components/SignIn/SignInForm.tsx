@@ -1,10 +1,10 @@
 import { makeStyles, useTheme } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
-
 import { useRouter } from "next/router"
+
+import * as API from "./../../api"
 import { Button } from "../Button"
 import { formTextFieldFactory } from "../Form"
-import { useUserContext } from "product/coder/site/src/contexts"
 import React from "react"
 import * as Yup from "yup"
 import { Welcome } from "./Welcome"
@@ -67,8 +67,12 @@ const useStyles = makeStyles((theme) => ({
 
 export const SignInForm: React.FC = () => {
   const router = useRouter()
-  const { setUser } = useUserContext()
+  //const { setUser } = useUserContext()
   const styles = useStyles()
+
+  const setUser = (user: API.User) => {
+    alert("USER: " + JSON.stringify(user))
+  }
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
     initialValues: {
@@ -77,76 +81,63 @@ export const SignInForm: React.FC = () => {
     },
     validationSchema,
     onSubmit: async ({ email, password }, helpers) => {
-      const res = await loginWithBasicAuth(null, { email, password })
-      if (res.error) {
-        return helpers.setFieldError("password", res.error.msg)
+      try {
+        const _response = await API.login(email, password)
+        const user = await API.User.current()
+        setUser(user)
+      } catch (err) {
+        helpers.setFieldError("password", err)
       }
-
-      const userRes = await fetchPersonalUser()
-      if (userRes.error) {
-        return helpers.setFieldError("password", userRes.error.msg)
-      }
-      setUser(userRes.body)
     },
   })
 
-  /**
-   * renderSignInForm returns the form for the currently selected
-   * authentication provider.
-   */
-  const renderSignInForm = () => {
-      return (
-        <form onSubmit={form.handleSubmit}>
-          <div>
-            <FormTextField
-              autoComplete="email"
-              autoFocus
-              eventTransform={(email: string) => email.trim()}
-              form={form}
-              formFieldName="email"
-              fullWidth
-              inputProps={{
-                id: "signin-form-inpt-email",
-              }}
-              margin="none"
-              placeholder="Email"
-              variant="outlined"
-            />
-            <FormTextField
-              autoComplete="current-password"
-              form={form}
-              formFieldName="password"
-              fullWidth
-              inputProps={{
-                id: "signin-form-inpt-password",
-              }}
-              isPassword
-              margin="none"
-              placeholder="Password"
-              variant="outlined"
-            />
-          </div>
-          <div className={styles.submitBtn}>
-            <Button
-              color="primary"
-              disabled={form.isSubmitting}
-              fullWidth
-              id="signin-form-submit"
-              loading={form.isSubmitting}
-              type="submit"
-              variant="contained"
-            >
-              Sign In
-            </Button>
-          </div>
-        </form>
-      )
-  }
-
   return (
     <>
-      <Welcome variant="general" />
-      {renderSignInForm()}
+      <Welcome />
+      <form onSubmit={form.handleSubmit}>
+        <div>
+          <FormTextField
+            autoComplete="email"
+            autoFocus
+            eventTransform={(email: string) => email.trim()}
+            form={form}
+            formFieldName="email"
+            fullWidth
+            inputProps={{
+              id: "signin-form-inpt-email",
+            }}
+            margin="none"
+            placeholder="Email"
+            variant="outlined"
+          />
+          <FormTextField
+            autoComplete="current-password"
+            form={form}
+            formFieldName="password"
+            fullWidth
+            inputProps={{
+              id: "signin-form-inpt-password",
+            }}
+            isPassword
+            margin="none"
+            placeholder="Password"
+            variant="outlined"
+          />
+        </div>
+        <div className={styles.submitBtn}>
+          <Button
+            color="primary"
+            disabled={form.isSubmitting}
+            fullWidth
+            id="signin-form-submit"
+            loading={form.isSubmitting}
+            type="submit"
+            variant="contained"
+          >
+            Sign In
+          </Button>
+        </div>
+      </form>
     </>
   )
 }
