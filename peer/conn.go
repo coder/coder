@@ -42,6 +42,7 @@ func Server(servers []webrtc.ICEServer, opts *ConnOpts) (*Conn, error) {
 }
 
 // newWithClientOrServer constructs a new connection with the client option.
+// nolint:revive
 func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOpts) (*Conn, error) {
 	if opts == nil {
 		opts = &ConnOpts{}
@@ -60,7 +61,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 	if err != nil {
 		return nil, xerrors.Errorf("create peer connection: %w", err)
 	}
-	c := &Conn{
+	conn := &Conn{
 		pingChannelID:                   1,
 		pingEchoChannelID:               2,
 		opts:                            opts,
@@ -77,13 +78,13 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 	if client {
 		// If we're the client, we want to flip the echo and
 		// ping channel IDs so pings don't accidentally hit each other.
-		c.pingChannelID, c.pingEchoChannelID = c.pingEchoChannelID, c.pingChannelID
+		conn.pingChannelID, conn.pingEchoChannelID = conn.pingEchoChannelID, conn.pingChannelID
 	}
-	err = c.init()
+	err = conn.init()
 	if err != nil {
 		return nil, xerrors.Errorf("init: %w", err)
 	}
-	return c, nil
+	return conn, nil
 }
 
 type ConnOpts struct {
@@ -142,6 +143,10 @@ func (c *Conn) init() error {
 		}
 	})
 	c.rtc.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
+		// Close must be locked here otherwise log output can appear
+		// after the connection has been closed.
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
@@ -211,12 +216,12 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 					if c.isClosed() {
 						return
 					}
-					_ = c.closeWithError(xerrors.Errorf("read ping echo channel: %w", err))
+					_ = c.CloseWithError(xerrors.Errorf("read ping echo channel: %w", err))
 					return
 				}
 				_, err = c.pingEchoChan.Write(data[:bytesRead])
 				if err != nil {
-					_ = c.closeWithError(xerrors.Errorf("write ping echo channel: %w", err))
+					_ = c.CloseWithError(xerrors.Errorf("write ping echo channel: %w", err))
 					return
 				}
 			}
@@ -237,12 +242,12 @@ func (c *Conn) negotiate() {
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
 		if err != nil {
-			_ = c.closeWithError(xerrors.Errorf("create offer: %w", err))
+			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
 			return
 		}
 		err = c.rtc.SetLocalDescription(offer)
 		if err != nil {
-			_ = c.closeWithError(xerrors.Errorf("set local description: %w", err))
+			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
 		select {
@@ -261,19 +266,19 @@ func (c *Conn) negotiate() {
 
 	err := c.rtc.SetRemoteDescription(remoteDescription)
 	if err != nil {
-		_ = c.closeWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
+		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
 		return
 	}
 
 	if !c.offerrer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
 		if err != nil {
-			_ = c.closeWithError(xerrors.Errorf("create answer: %w", err))
+			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
 			return
 		}
 		err = c.rtc.SetLocalDescription(answer)
 		if err != nil {
-			_ = c.closeWithError(xerrors.Errorf("set local description: %w", err))
+			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
 		if c.isClosed() {
@@ -296,20 +301,20 @@ func (c *Conn) proxyICECandidates() func() {
 		queue   = []webrtc.ICECandidateInit{}
 		flushed = false
 	)
-	c.rtc.OnICECandidate(func(i *webrtc.ICECandidate) {
-		if i == nil {
+	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
+		if iceCandidate == nil {
 			return
 		}
 		mut.Lock()
 		defer mut.Unlock()
 		if !flushed {
-			queue = append(queue, i.ToJSON())
+			queue = append(queue, iceCandidate.ToJSON())
 			return
 		}
 		select {
 		case <-c.closed:
 			return
-		case c.localCandidateChannel <- i.ToJSON():
+		case c.localCandidateChannel <- iceCandidate.ToJSON():
 		}
 	})
 	return func() {
@@ -353,7 +358,7 @@ func (c *Conn) SetConfiguration(configuration webrtc.Configuration) error {
 }
 
 // SetRemoteSessionDescription sets the remote description for the WebRTC connection.
-func (c *Conn) SetRemoteSessionDescription(s webrtc.SessionDescription) {
+func (c *Conn) SetRemoteSessionDescription(sessionDescription webrtc.SessionDescription) {
 	if c.isClosed() {
 		return
 	}
@@ -361,7 +366,7 @@ func (c *Conn) SetRemoteSessionDescription(s webrtc.SessionDescription) {
 	defer c.closeMutex.Unlock()
 	select {
 	case <-c.closed:
-	case c.remoteSessionDescriptionChannel <- s:
+	case c.remoteSessionDescriptionChannel <- sessionDescription:
 	}
 }
 
@@ -407,7 +412,7 @@ func (c *Conn) dialChannel(ctx context.Context, label string, opts *ChannelOpts)
 		return nil, xerrors.Errorf("closed: %w", c.closeError)
 	}
 
-	dc, err := c.rtc.CreateDataChannel(label, &webrtc.DataChannelInit{
+	dataChannel, err := c.rtc.CreateDataChannel(label, &webrtc.DataChannelInit{
 		ID:         id,
 		Negotiated: &opts.Negotiated,
 		Ordered:    &ordered,
@@ -416,7 +421,7 @@ func (c *Conn) dialChannel(ctx context.Context, label string, opts *ChannelOpts)
 	if err != nil {
 		return nil, xerrors.Errorf("create data channel: %w", err)
 	}
-	return newChannel(c, dc, opts), nil
+	return newChannel(c, dataChannel, opts), nil
 }
 
 // Ping returns the duration it took to round-trip data.
@@ -461,12 +466,7 @@ func (c *Conn) Closed() <-chan struct{} {
 
 // Close closes the connection and frees all associated resources.
 func (c *Conn) Close() error {
-	return c.closeWithError(nil)
-}
-
-// CloseWithError closes the connection; subsequent reads/writes will return the error err.
-func (c *Conn) CloseWithError(err error) error {
-	return c.closeWithError(err)
+	return c.CloseWithError(nil)
 }
 
 func (c *Conn) isClosed() bool {
@@ -478,7 +478,8 @@ func (c *Conn) isClosed() bool {
 	}
 }
 
-func (c *Conn) closeWithError(err error) error {
+// CloseWithError closes the connection; subsequent reads/writes will return the error err.
+func (c *Conn) CloseWithError(err error) error {
 	c.closeMutex.Lock()
 	defer c.closeMutex.Unlock()
 

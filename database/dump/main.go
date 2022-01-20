@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
@@ -25,7 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = database.Migrate(context.Background(), db)
+	err = database.Migrate(db)
 	if err != nil {
 		panic(err)
 	}
@@ -82,7 +81,7 @@ func main() {
 	if !ok {
 		panic("couldn't get caller path")
 	}
-	err = ioutil.WriteFile(filepath.Join(mainPath, "..", "..", "dump.sql"), []byte(dump), 0644)
+	err = ioutil.WriteFile(filepath.Join(mainPath, "..", "..", "dump.sql"), []byte(dump), 0600)
 	if err != nil {
 		panic(err)
 	}

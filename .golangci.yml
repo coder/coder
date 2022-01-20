@@ -100,10 +100,6 @@ linters-settings:
       # - whyNoLint
       # - wrapperFunc
       # - yodaStyleExpr
-    settings:
-      ruleguard:
-        failOn: all
-        rules: "${configDir}/lib/go/lintrules/*.go"
 
   goimports:
     local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder
@@ -113,24 +109,6 @@ linters-settings:
 
   importas:
     no-unaliased: true
-    alias:
-      - pkg: k8s.io/api/(\w+)/(v[\w\d]+)
-        alias: ${1}${2}
-
-      - pkg: k8s.io/apimachinery/pkg/apis/meta/(v[\w\d]+)
-        alias: meta${1}
-
-      - pkg: k8s.io/client-go/kubernetes/typed/(\w+)/(v[\w\d]+)
-        alias: ${1}${2}client
-
-      - pkg: k8s.io/metrics/pkg/apis/metrics/(v[\w\d]+)
-        alias: metrics${1}
-
-      - pkg: github.com/docker/docker/api/types
-        alias: dockertypes
-
-      - pkg: github.com/docker/docker/client
-        alias: dockerclient
 
   misspell:
     locale: US
@@ -195,6 +173,20 @@ linters-settings:
       - name: var-declaration
       - name: var-naming
       - name: waitgroup-by-value
+  varnamelen:
+    ignore-names:
+      - err
+      - rw
+      - r
+      - i
+      - db
+    # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
+    # Entries must be in the form of "<variable name> <type>" or "<variable name> *<type>" for
+    # variables, or "const <name>" for constants.
+    ignore-decls:
+      - rw http.ResponseWriter
+      - r *http.Request
+      - t testing.T
 
 issues:
   # Rules listed here: https://github.com/securego/gosec#available-rules
@@ -222,7 +214,6 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
-    - contextcheck
     - deadcode
     - dogsled
     - errcheck
@@ -239,7 +230,6 @@ linters:
     - govet
     - importas
     - ineffassign
-    # - ireturn
     - makezero
     - misspell
     - nilnil

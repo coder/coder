@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUsers(t *testing.T) {

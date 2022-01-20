@@ -19,9 +19,9 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-func randomAPIKeyParts() (string, string) {
-	id, _ := cryptorand.String(10)
-	secret, _ := cryptorand.String(22)
+func randomAPIKeyParts() (id string, secret string) {
+	id, _ = cryptorand.String(10)
+	secret, _ = cryptorand.String(22)
 	return id, secret
 }
 
@@ -41,7 +41,9 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusUnauthorized, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("InvalidFormat", func(t *testing.T) {
@@ -56,7 +58,9 @@ func TestAPIKey(t *testing.T) {
 		})
 
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusUnauthorized, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("InvalidIDLength", func(t *testing.T) {
@@ -71,7 +75,9 @@ func TestAPIKey(t *testing.T) {
 		})
 
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusUnauthorized, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("InvalidSecretLength", func(t *testing.T) {
@@ -86,7 +92,9 @@ func TestAPIKey(t *testing.T) {
 		})
 
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusUnauthorized, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -102,7 +110,9 @@ func TestAPIKey(t *testing.T) {
 		})
 
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusUnauthorized, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("InvalidSecret", func(t *testing.T) {
@@ -125,7 +135,9 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusUnauthorized, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("Expired", func(t *testing.T) {
@@ -147,7 +159,9 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusUnauthorized, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("Valid", func(t *testing.T) {
@@ -177,7 +191,9 @@ func TestAPIKey(t *testing.T) {
 				Message: "it worked!",
 			})
 		})).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusOK, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
 		require.NoError(t, err)
@@ -207,7 +223,9 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusOK, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
 		require.NoError(t, err)
@@ -237,7 +255,9 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusOK, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
 		require.NoError(t, err)
@@ -268,7 +288,9 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		httpmw.ExtractAPIKey(db, nil)(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusOK, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
 		require.NoError(t, err)
@@ -310,7 +332,9 @@ func TestAPIKey(t *testing.T) {
 				},
 			},
 		})(successHandler).ServeHTTP(rw, r)
-		require.Equal(t, http.StatusOK, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
 		require.NoError(t, err)
@@ -325,7 +349,7 @@ type oauth2Config struct {
 	tokenSource *oauth2TokenSource
 }
 
-func (o *oauth2Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
+func (o *oauth2Config) TokenSource(_ context.Context, _ *oauth2.Token) oauth2.TokenSource {
 	return o.tokenSource
 }
 

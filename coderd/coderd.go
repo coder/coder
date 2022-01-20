@@ -39,7 +39,7 @@ func New(options *Options) http.Handler {
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractUser(options.Database),
 			)
-			r.Get("/user", users.getAuthenticatedUser)
+			r.Get("/user", users.authenticatedUser)
 		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)

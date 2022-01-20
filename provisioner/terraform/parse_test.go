@@ -37,7 +37,7 @@ func TestParse(t *testing.T) {
 	}()
 	api := proto.NewDRPCProvisionerClient(drpcconn.New(client))
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		Name     string
 		Files    map[string]string
 		Response *proto.Parse_Response
@@ -83,13 +83,13 @@ func TestParse(t *testing.T) {
 			}},
 		},
 	}} {
-		tc := tc
-		t.Run(tc.Name, func(t *testing.T) {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 
 			// Write all files to the temporary test directory.
 			directory := t.TempDir()
-			for path, content := range tc.Files {
+			for path, content := range testCase.Files {
 				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0600)
 				require.NoError(t, err)
 			}
@@ -100,7 +100,7 @@ func TestParse(t *testing.T) {
 			require.NoError(t, err)
 
 			// Ensure the want and got are equivalent!
-			want, err := json.Marshal(tc.Response)
+			want, err := json.Marshal(testCase.Response)
 			require.NoError(t, err)
 			got, err := json.Marshal(response)
 			require.NoError(t, err)

@@ -32,11 +32,11 @@ func New(t *testing.T) Server {
 		Database: db,
 	})
 	srv := httptest.NewServer(handler)
-	u, err := url.Parse(srv.URL)
+	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	t.Cleanup(srv.Close)
 
-	client := codersdk.New(u)
+	client := codersdk.New(serverURL)
 	_, err = client.CreateInitialUser(context.Background(), coderd.CreateUserRequest{
 		Email:    "testuser@coder.com",
 		Username: "testuser",
@@ -54,6 +54,6 @@ func New(t *testing.T) Server {
 
 	return Server{
 		Client: client,
-		URL:    u,
+		URL:    serverURL,
 	}
 }

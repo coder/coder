@@ -28,7 +28,7 @@ var site embed.FS
 
 // Handler returns an HTTP handler for serving the static site.
 func Handler() http.Handler {
-	f, err := fs.Sub(site, "out")
+	filesystem, err := fs.Sub(site, "out")
 	if err != nil {
 		// This can't happen... Go would throw a compilation error.
 		panic(err)
@@ -36,15 +36,15 @@ func Handler() http.Handler {
 
 	// html files are handled by a text/template. Non-html files
 	// are served by the default file server.
-	files, err := htmlFiles(f)
+	files, err := htmlFiles(filesystem)
 	if err != nil {
 		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
 	}
 
 	return secureHeaders(&handler{
-		fs:        f,
+		fs:        filesystem,
 		htmlFiles: files,
-		h:         http.FileServer(http.FS(f)), // All other non-html static files
+		h:         http.FileServer(http.FS(filesystem)), // All other non-html static files
 	})
 }
 
@@ -61,15 +61,15 @@ type handler struct {
 }
 
 // filePath returns the filepath of the requested file.
-func (h *handler) filePath(p string) string {
+func (*handler) filePath(p string) string {
 	if !strings.HasPrefix(p, "/") {
 		p = "/" + p
 	}
 	return strings.TrimPrefix(path.Clean(p), "/")
 }
 
-func (h *handler) exists(path string) bool {
-	f, err := h.fs.Open(path)
+func (h *handler) exists(filePath string) bool {
+	f, err := h.fs.Open(filePath)
 	if err == nil {
 		_ = f.Close()
 	}
@@ -89,7 +89,7 @@ type csrfState struct {
 	Token string
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// reqFile is the static file requested
 	reqFile := h.filePath(r.URL.Path)
 	state := htmlState{
@@ -100,13 +100,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// First check if it's a file we have in our templates
-	if h.serveHtml(w, r, reqFile, state) {
+	if h.serveHTML(rw, r, reqFile, state) {
 		return
 	}
 
 	// If the original file path exists we serve it.
 	if h.exists(reqFile) {
-		h.h.ServeHTTP(w, r)
+		h.h.ServeHTTP(rw, r)
 		return
 	}
 
@@ -117,28 +117,28 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	reqFile = h.filePath(r.URL.Path)
 	// All html files should be served by the htmlFile templates
-	if h.serveHtml(w, r, reqFile, state) {
+	if h.serveHTML(rw, r, reqFile, state) {
 		return
 	}
 
 	// If we don't have the file... we should redirect to `/`
 	// for our single-page-app.
 	r.URL.Path = "/"
-	if h.serveHtml(w, r, "", state) {
+	if h.serveHTML(rw, r, "", state) {
 		return
 	}
 
 	// This will send a correct 404
-	h.h.ServeHTTP(w, r)
+	h.h.ServeHTTP(rw, r)
 }
 
-func (h *handler) serveHtml(w http.ResponseWriter, r *http.Request, reqPath string, state htmlState) bool {
+func (h *handler) serveHTML(rw http.ResponseWriter, r *http.Request, reqPath string, state htmlState) bool {
 	if data, err := h.htmlFiles.renderWithState(reqPath, state); err == nil {
 		if reqPath == "" {
 			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
 			reqPath = "index.html"
 		}
-		http.ServeContent(w, r, reqPath, time.Time{}, bytes.NewReader(data))
+		http.ServeContent(rw, r, reqPath, time.Time{}, bytes.NewReader(data))
 		return true
 	}
 	return false
@@ -150,12 +150,12 @@ type htmlTemplates struct {
 
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
-func (t *htmlTemplates) renderWithState(path string, state htmlState) ([]byte, error) {
+func (t *htmlTemplates) renderWithState(filePath string, state htmlState) ([]byte, error) {
 	var buf bytes.Buffer
-	if path == "" {
-		path = "index.html"
+	if filePath == "" {
+		filePath = "index.html"
 	}
-	err := t.tpls.ExecuteTemplate(&buf, path, state)
+	err := t.tpls.ExecuteTemplate(&buf, filePath, state)
 	if err != nil {
 		return nil, err
 	}
@@ -167,13 +167,6 @@ func (t *htmlTemplates) renderWithState(path string, state htmlState) ([]byte, e
 // Each directive is a set of values that is joined by a space (' ').
 // All directives are semi-colon separated as a single string for the csp header.
 type cspDirectives map[cspFetchDirective][]string
-
-func (s cspDirectives) append(d cspFetchDirective, values ...string) {
-	if _, ok := s[d]; !ok {
-		s[d] = make([]string, 0)
-	}
-	s[d] = append(s[d], values...)
-}
 
 // cspFetchDirective is the list of all constant fetch directives that
 // can be used/appended to.
@@ -234,7 +227,7 @@ func secureHeaders(next http.Handler) http.Handler {
 
 	var csp strings.Builder
 	for src, vals := range cspSrcs {
-		fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
+		_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
 	}
 
 	// Permissions-Policy can be used to disabled various browser features that we do not use.
@@ -280,16 +273,16 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 	root := template.New("")
 
 	rootPath := "."
-	err := fs.WalkDir(files, rootPath, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(files, rootPath, func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if d.IsDir() {
+		if dirEntry.IsDir() {
 			return nil
 		}
 
-		if filepath.Ext(d.Name()) != ".html" {
+		if filepath.Ext(dirEntry.Name()) != ".html" {
 			return nil
 		}
 

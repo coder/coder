@@ -122,7 +122,7 @@ func (p *pgPubsub) listenReceive(ctx context.Context, notif *pq.Notification) {
 }
 
 // NewPubsub creates a new Pubsub implementation using a PostgreSQL connection.
-func NewPubsub(ctx context.Context, db *sql.DB, connectURL string) (Pubsub, error) {
+func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub, error) {
 	// Creates a new listener using pq.
 	errCh := make(chan error)
 	listener := pq.NewListener(connectURL, time.Second*10, time.Minute, func(event pq.ListenerEventType, err error) {
@@ -144,12 +144,12 @@ func NewPubsub(ctx context.Context, db *sql.DB, connectURL string) (Pubsub, erro
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	pg := &pgPubsub{
-		db:         db,
+	pgPubsub := &pgPubsub{
+		db:         database,
 		pgListener: listener,
 		listeners:  make(map[string]map[string]Listener),
 	}
-	go pg.listen(ctx)
+	go pgPubsub.listen(ctx)
 
-	return pg, nil
+	return pgPubsub, nil
 }

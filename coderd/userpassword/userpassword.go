@@ -35,14 +35,14 @@ func Compare(hashed string, password string) (bool, error) {
 	if len(parts[0]) != 0 {
 		return false, xerrors.Errorf("hash prefix is invalid")
 	}
-	if string(parts[1]) != hashScheme {
+	if parts[1] != hashScheme {
 		return false, xerrors.Errorf("hash isn't %q scheme: %q", hashScheme, parts[1])
 	}
-	iter, err := strconv.Atoi(string(parts[2]))
+	iter, err := strconv.Atoi(parts[2])
 	if err != nil {
 		return false, xerrors.Errorf("parse iter from hash: %w", err)
 	}
-	salt, err := base64.RawStdEncoding.DecodeString(string(parts[3]))
+	salt, err := base64.RawStdEncoding.DecodeString(parts[3])
 	if err != nil {
 		return false, xerrors.Errorf("decode salt: %w", err)
 	}

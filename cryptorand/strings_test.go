@@ -8,8 +8,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/coder/coder/cryptorand"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/cryptorand"
 )
 
 func TestString(t *testing.T) {

@@ -18,9 +18,9 @@ import (
 )
 
 // New creates a Coder client for the provided URL.
-func New(url *url.URL) *Client {
+func New(serverURL *url.URL) *Client {
 	return &Client{
-		url:        url,
+		url:        serverURL,
 		httpClient: &http.Client{},
 	}
 }
@@ -50,7 +50,7 @@ func (c *Client) SetSessionToken(token string) error {
 // request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
 func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
-	url, err := c.url.Parse(path)
+	serverURL, err := c.url.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
@@ -65,7 +65,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url.String(), &buf)
+	req, err := http.NewRequestWithContext(ctx, method, serverURL.String(), &buf)
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
@@ -81,7 +81,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 }
 
 // readBodyAsError reads the response as an httpapi.Message, and
-// wraps it in a codersdk.Error type for easy marshalling.
+// wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
 	var m httpapi.Response
 	err := json.NewDecoder(res.Body).Decode(&m)
