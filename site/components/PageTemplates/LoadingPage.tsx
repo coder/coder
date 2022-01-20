@@ -1,6 +1,6 @@
 import { Box, CircularProgress, makeStyles } from "@material-ui/core"
 import React from "react"
-import { RequestState } from "../../hooks/useRequest"
+import { RequestState } from "../../hooks/useRequestor"
 
 export interface LoadingPageProps<T> {
   request: RequestState<T>

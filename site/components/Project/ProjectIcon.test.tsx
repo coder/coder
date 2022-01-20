@@ -7,7 +7,14 @@ import { ProjectIcon } from "./ProjectIcon"
 describe("ProjectIcon", () => {
   it("renders content", async () => {
     // When
-    render(<ProjectIcon title="Test Title" onClick={() => { return }} />)
+    render(
+      <ProjectIcon
+        title="Test Title"
+        onClick={() => {
+          return
+        }}
+      />,
+    )
 
     // Then
     await screen.findByText("Test Title", { exact: false })

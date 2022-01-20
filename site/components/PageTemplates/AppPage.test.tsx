@@ -7,7 +7,11 @@ import { AppPage } from "./AppPage"
 describe("AppPage", () => {
   it("renders content", async () => {
     // When
-    render(<AppPage><div>Hello, World</div>H</AppPage>)
+    render(
+      <AppPage>
+        <div>Hello, World</div>H
+      </AppPage>,
+    )
 
     // Then
     // Content should render

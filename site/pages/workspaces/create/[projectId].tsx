@@ -4,7 +4,7 @@ import { useFormik } from "formik"
 import { firstOrOnly, subForm, FormikLike } from "./../../../util"
 import * as API from "../../../api"
 import { FormPage, FormButton } from "../../../components/PageTemplates"
-import { useRequestor } from "../../../hooks/useRequest"
+import { useRequestor } from "../../../hooks/useRequestor"
 import { FormSection, FormRow, formTextFieldFactory } from "../../../components/Form"
 import { LoadingPage } from "../../../components/PageTemplates/LoadingPage"
 

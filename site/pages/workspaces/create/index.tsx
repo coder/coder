@@ -2,7 +2,7 @@ import React from "react"
 
 import { useRouter } from "next/router"
 import { FormPage, FormButton } from "../../../components/PageTemplates"
-import { useRequestor } from "../../../hooks/useRequest"
+import { useRequestor } from "../../../hooks/useRequestor"
 import * as Api from "./../../../api"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import { ProjectIcon } from "../../../components/Project/ProjectIcon"
