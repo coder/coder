@@ -2,13 +2,10 @@ import React from "react"
 import { useRouter } from "next/router"
 import { useFormik } from "formik"
 import { firstOrOnly, subForm, FormikLike } from "./../../../util"
-
 import * as API from "../../../api"
-
 import { FormPage, FormButton } from "../../../components/PageTemplates"
 import { useRequestor } from "../../../hooks/useRequest"
-import { FormSection, FormRow } from "../../../components/Form"
-import { formTextFieldFactory } from "../../../components/Form/FormTextField"
+import { FormSection, FormRow, formTextFieldFactory } from "../../../components/Form"
 import { LoadingPage } from "../../../components/PageTemplates/LoadingPage"
 
 namespace CreateProjectForm {
