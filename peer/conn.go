@@ -143,9 +143,10 @@ func (c *Conn) init() error {
 		}
 	})
 	c.rtc.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
-		if c.isClosed() {
-			return
-		}
+		// Close must be locked here otherwise log output can appear
+		// after the connection has been closed.
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
 
 		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
 			slog.F("state", pcs),
