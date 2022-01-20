@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 	"storj.io/drpc/drpcconn"
+
+	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/provisionersdk/proto"
 
 	"github.com/hashicorp/hc-install/product"
 	"github.com/hashicorp/hc-install/releases"

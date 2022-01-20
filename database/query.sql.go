@@ -5,13 +5,330 @@ package database
 
 import (
 	"context"
+	"time"
+
+	"github.com/lib/pq"
 )
 
-const exampleQuery = `-- name: ExampleQuery :exec
-SELECT 'example query'
+const getAPIKeyByID = `-- name: GetAPIKeyByID :one
+SELECT
+  id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
+FROM
+  api_keys
+WHERE
+  id = $1
+LIMIT
+  1
 `
 
-func (q *sqlQuerier) ExampleQuery(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, exampleQuery)
+func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, getAPIKeyByID, id)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.Application,
+		&i.Name,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.OIDCAccessToken,
+		&i.OIDCRefreshToken,
+		&i.OIDCIDToken,
+		&i.OIDCExpiry,
+		&i.DevurlToken,
+	)
+	return i, err
+}
+
+const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
+SELECT
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+FROM
+  users
+WHERE
+  username = $1
+  OR email = $2
+LIMIT
+  1
+`
+
+type GetUserByEmailOrUsernameParams struct {
+	Username string `db:"username" json:"username"`
+	Email    string `db:"email" json:"email"`
+}
+
+func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Revoked,
+		&i.LoginType,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TemporaryPassword,
+		&i.AvatarHash,
+		&i.SshKeyRegeneratedAt,
+		&i.Username,
+		&i.DotfilesGitUri,
+		pq.Array(&i.Roles),
+		&i.Status,
+		&i.Relatime,
+		&i.GpgKeyRegeneratedAt,
+		&i.Decomissioned,
+		&i.Shell,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+FROM
+  users
+WHERE
+  id = $1
+LIMIT
+  1
+`
+
+func (q *sqlQuerier) GetUserByID(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Revoked,
+		&i.LoginType,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TemporaryPassword,
+		&i.AvatarHash,
+		&i.SshKeyRegeneratedAt,
+		&i.Username,
+		&i.DotfilesGitUri,
+		pq.Array(&i.Roles),
+		&i.Status,
+		&i.Relatime,
+		&i.GpgKeyRegeneratedAt,
+		&i.Decomissioned,
+		&i.Shell,
+	)
+	return i, err
+}
+
+const getUserCount = `-- name: GetUserCount :one
+SELECT
+  COUNT(*)
+FROM
+  users
+`
+
+func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const insertAPIKey = `-- name: InsertAPIKey :one
+INSERT INTO
+  api_keys (
+    id,
+    hashed_secret,
+    user_id,
+    application,
+    name,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    oidc_access_token,
+    oidc_refresh_token,
+    oidc_id_token,
+    oidc_expiry,
+    devurl_token
+  )
+VALUES
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15
+  ) RETURNING id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
+`
+
+type InsertAPIKeyParams struct {
+	ID               string    `db:"id" json:"id"`
+	HashedSecret     []byte    `db:"hashed_secret" json:"hashed_secret"`
+	UserID           string    `db:"user_id" json:"user_id"`
+	Application      bool      `db:"application" json:"application"`
+	Name             string    `db:"name" json:"name"`
+	LastUsed         time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt        time.Time `db:"expires_at" json:"expires_at"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	LoginType        LoginType `db:"login_type" json:"login_type"`
+	OIDCAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
+	OIDCRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
+	OIDCIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
+	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
+	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
+}
+
+func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, insertAPIKey,
+		arg.ID,
+		arg.HashedSecret,
+		arg.UserID,
+		arg.Application,
+		arg.Name,
+		arg.LastUsed,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.LoginType,
+		arg.OIDCAccessToken,
+		arg.OIDCRefreshToken,
+		arg.OIDCIDToken,
+		arg.OIDCExpiry,
+		arg.DevurlToken,
+	)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.Application,
+		&i.Name,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.OIDCAccessToken,
+		&i.OIDCRefreshToken,
+		&i.OIDCIDToken,
+		&i.OIDCExpiry,
+		&i.DevurlToken,
+	)
+	return i, err
+}
+
+const insertUser = `-- name: InsertUser :one
+INSERT INTO
+  users (
+    id,
+    email,
+    name,
+    login_type,
+    hashed_password,
+    created_at,
+    updated_at,
+    username
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+`
+
+type InsertUserParams struct {
+	ID             string    `db:"id" json:"id"`
+	Email          string    `db:"email" json:"email"`
+	Name           string    `db:"name" json:"name"`
+	LoginType      LoginType `db:"login_type" json:"login_type"`
+	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	Username       string    `db:"username" json:"username"`
+}
+
+func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, insertUser,
+		arg.ID,
+		arg.Email,
+		arg.Name,
+		arg.LoginType,
+		arg.HashedPassword,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Username,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Revoked,
+		&i.LoginType,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TemporaryPassword,
+		&i.AvatarHash,
+		&i.SshKeyRegeneratedAt,
+		&i.Username,
+		&i.DotfilesGitUri,
+		pq.Array(&i.Roles),
+		&i.Status,
+		&i.Relatime,
+		&i.GpgKeyRegeneratedAt,
+		&i.Decomissioned,
+		&i.Shell,
+	)
+	return i, err
+}
+
+const updateAPIKeyByID = `-- name: UpdateAPIKeyByID :exec
+UPDATE
+  api_keys
+SET
+  last_used = $2,
+  expires_at = $3,
+  oidc_access_token = $4,
+  oidc_refresh_token = $5,
+  oidc_expiry = $6
+WHERE
+  id = $1
+`
+
+type UpdateAPIKeyByIDParams struct {
+	ID               string    `db:"id" json:"id"`
+	LastUsed         time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt        time.Time `db:"expires_at" json:"expires_at"`
+	OIDCAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
+	OIDCRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
+	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
+}
+
+func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateAPIKeyByID,
+		arg.ID,
+		arg.LastUsed,
+		arg.ExpiresAt,
+		arg.OIDCAccessToken,
+		arg.OIDCRefreshToken,
+		arg.OIDCExpiry,
+	)
 	return err
 }

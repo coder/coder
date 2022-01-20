@@ -7,7 +7,13 @@ import (
 )
 
 type querier interface {
-	ExampleQuery(ctx context.Context) error
+	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
+	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
+	GetUserByID(ctx context.Context, id string) (User, error)
+	GetUserCount(ctx context.Context) (int64, error)
+	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
+	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
+	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 }
 
 var _ querier = (*sqlQuerier)(nil)

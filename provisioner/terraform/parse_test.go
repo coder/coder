@@ -9,10 +9,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/stretchr/testify/require"
 	"storj.io/drpc/drpcconn"
+
+	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestParse(t *testing.T) {
@@ -89,7 +90,7 @@ func TestParse(t *testing.T) {
 			// Write all files to the temporary test directory.
 			directory := t.TempDir()
 			for path, content := range tc.Files {
-				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0644)
+				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0600)
 				require.NoError(t, err)
 			}
 

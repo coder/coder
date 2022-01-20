@@ -6,9 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 // Provision executes `terraform apply`.

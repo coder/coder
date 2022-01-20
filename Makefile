@@ -27,7 +27,14 @@ else
 endif
 .PHONY: fmt/prettier
 
-fmt: fmt/prettier
+fmt/sql:
+	npx sql-formatter \
+		--language postgresql \
+		--lines-between-queries 2 \
+		./database/query.sql \
+		--output ./database/query.sql
+
+fmt: fmt/prettier fmt/sql
 .PHONY: fmt
 
 gen: database/generate peerbroker/proto provisionersdk/proto

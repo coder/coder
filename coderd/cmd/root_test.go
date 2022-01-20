@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/coderd/cmd"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/cmd"
 )
 
 func TestRoot(t *testing.T) {
