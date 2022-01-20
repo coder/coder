@@ -147,6 +147,9 @@ func (c *Conn) init() error {
 		// after the connection has been closed.
 		c.closeMutex.Lock()
 		defer c.closeMutex.Unlock()
+		if c.isClosed() {
+			return
+		}
 
 		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
 			slog.F("state", pcs),
