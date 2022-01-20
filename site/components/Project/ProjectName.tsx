@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, makeStyles, Typography } from "@material-ui/core"
+import { makeStyles, Typography } from "@material-ui/core"
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -25,7 +25,7 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export const ProjectName: React.FC = ({ children }) => {
-  const styles = useStyles2()
+  const styles = useStyles()
 
   return (
     <Typography className={styles.root} noWrap variant="body2">
