@@ -21,5 +21,7 @@ coverage:
 
 ignore:
   # This is generated code.
+  - database/models.go
+  - database/query.sql.go
   - peerbroker/proto
   - provisionersdk/proto
