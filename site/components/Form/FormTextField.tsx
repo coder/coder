@@ -59,7 +59,7 @@ export interface FormTextFieldProps<T>
    */
   displayValueOverride?: string
 
-  variant: "outlined" | "filled" | "standard"
+  variant?: "outlined" | "filled" | "standard"
 }
 
 /**
@@ -102,6 +102,7 @@ export const formTextFieldFactory = <T,>(): React.FC<FormTextFieldProps<T>> => {
     InputProps,
     onChange,
     type,
+    variant = "outlined",
     ...rest
   }) => {
     const isError = form.touched[formFieldName] && Boolean(form.errors[formFieldName])
