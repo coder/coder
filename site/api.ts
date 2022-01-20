@@ -1,6 +1,11 @@
-import { SvgIcon } from "@material-ui/core"
-import { Logo } from "./components/Icons"
 import { wait } from "./util"
+
+// TEMPORARY
+// This is all placeholder / stub code until we have a real API to work with!
+//
+// The implementations below that are hard-coded will switch to using `fetch`
+// once the routes are available.
+// TEMPORARY
 
 export type ProjectParameterType = "string" | "number"
 
