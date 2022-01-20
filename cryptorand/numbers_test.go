@@ -5,8 +5,9 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/coder/coder/cryptorand"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/cryptorand"
 )
 
 func TestInt63(t *testing.T) {
@@ -144,7 +145,7 @@ func TestBool(t *testing.T) {
 	const iterations = 10000
 	trueCount := 0
 
-	for i := 0; i < iterations; i += 1 {
+	for i := 0; i < iterations; i++ {
 		v, err := cryptorand.Bool()
 		require.NoError(t, err, "unexpected error from Bool")
 		if v {

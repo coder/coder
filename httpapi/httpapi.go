@@ -31,7 +31,7 @@ func init() {
 		}
 		return name
 	})
-	validate.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+	err := validate.RegisterValidation("username", func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
 		if !ok {
@@ -45,6 +45,9 @@ func init() {
 		}
 		return usernameRegex.MatchString(str)
 	})
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Response represents a generic HTTP response.
@@ -60,20 +63,20 @@ type Error struct {
 }
 
 // Write outputs a standardized format to an HTTP response body.
-func Write(w http.ResponseWriter, status int, response Response) {
+func Write(rw http.ResponseWriter, status int, response Response) {
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)
 	err := enc.Encode(response)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_, err = w.Write(buf.Bytes())
+	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+	rw.WriteHeader(status)
+	_, err = rw.Write(buf.Bytes())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }

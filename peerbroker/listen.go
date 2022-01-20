@@ -161,7 +161,6 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 				Type: webrtc.SDPType(clientToServerMessage.GetOffer().SdpType),
 				SDP:  clientToServerMessage.GetOffer().Sdp,
 			})
-			break
 		case clientToServerMessage.GetServers() != nil:
 			// Convert protobuf ICE servers to the WebRTC type.
 			iceServers := make([]webrtc.ICEServer, 0, len(clientToServerMessage.GetServers().Servers))

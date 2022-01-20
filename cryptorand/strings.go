@@ -53,7 +53,7 @@ func StringCharset(charSetStr string, size int) (string, error) {
 	buf.Grow(size)
 
 	for i := 0; i < size; i++ {
-		c, err := UnbiasedModulo32(
+		count, err := UnbiasedModulo32(
 			binary.BigEndian.Uint32(ibuf[i*4:(i+1)*4]),
 			int32(len(charSet)),
 		)
@@ -61,7 +61,7 @@ func StringCharset(charSetStr string, size int) (string, error) {
 			return "", err
 		}
 
-		_, _ = buf.WriteRune(charSet[c])
+		_, _ = buf.WriteRune(charSet[count])
 	}
 
 	return buf.String(), nil

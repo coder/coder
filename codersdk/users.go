@@ -26,7 +26,7 @@ func (c *Client) CreateInitialUser(ctx context.Context, req coderd.CreateUserReq
 
 // User returns a user for the ID provided.
 // If the ID string is empty, the current user will be returned.
-func (c *Client) User(ctx context.Context, id string) (coderd.User, error) {
+func (c *Client) User(ctx context.Context, _ string) (coderd.User, error) {
 	res, err := c.request(ctx, http.MethodGet, "/api/v2/user", nil)
 	if err != nil {
 		return coderd.User{}, err

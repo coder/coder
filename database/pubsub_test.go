@@ -32,9 +32,9 @@ func TestPubsub(t *testing.T) {
 		defer pubsub.Close()
 		event := "test"
 		data := "testing"
-		ch := make(chan []byte)
+		messageChannel := make(chan []byte)
 		cancelFunc, err = pubsub.Subscribe(event, func(ctx context.Context, message []byte) {
-			ch <- message
+			messageChannel <- message
 		})
 		require.NoError(t, err)
 		defer cancelFunc()
@@ -42,7 +42,7 @@ func TestPubsub(t *testing.T) {
 			err = pubsub.Publish(event, []byte(data))
 			require.NoError(t, err)
 		}()
-		message := <-ch
+		message := <-messageChannel
 		assert.Equal(t, string(message), data)
 	})
 }

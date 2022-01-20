@@ -58,22 +58,22 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 				})
 				return
 			}
-			id := parts[0]
-			secret := parts[1]
+			keyID := parts[0]
+			keySecret := parts[1]
 			// Ensuring key lengths are valid.
-			if len(id) != 10 {
+			if len(keyID) != 10 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("invalid %q cookie api key id", AuthCookie),
 				})
 				return
 			}
-			if len(secret) != 22 {
+			if len(keySecret) != 22 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("invalid %q cookie api key secret", AuthCookie),
 				})
 				return
 			}
-			key, err := db.GetAPIKeyByID(r.Context(), id)
+			key, err := db.GetAPIKeyByID(r.Context(), keyID)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
@@ -86,7 +86,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 				})
 				return
 			}
-			hashed := sha256.Sum256([]byte(secret))
+			hashed := sha256.Sum256([]byte(keySecret))
 
 			// Checking to see if the secret is valid.
 			if subtle.ConstantTimeCompare(key.HashedSecret, hashed[:]) != 1 {

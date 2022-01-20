@@ -22,11 +22,11 @@ type fakeQuerier struct {
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
-func (q *fakeQuerier) InTx(ctx context.Context, fn func(database.Store) error) error {
+func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
 	return fn(q)
 }
 
-func (q *fakeQuerier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
+func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
 	for _, apiKey := range q.apiKeys {
 		if apiKey.ID == id {
 			return apiKey, nil
@@ -35,7 +35,7 @@ func (q *fakeQuerier) GetAPIKeyByID(ctx context.Context, id string) (database.AP
 	return database.APIKey{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
+func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	for _, user := range q.users {
 		if user.Email == arg.Email || user.Username == arg.Username {
 			return user, nil
@@ -44,7 +44,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserByID(ctx context.Context, id string) (database.User, error) {
+func (q *fakeQuerier) GetUserByID(_ context.Context, id string) (database.User, error) {
 	for _, user := range q.users {
 		if user.ID == id {
 			return user, nil
@@ -53,11 +53,12 @@ func (q *fakeQuerier) GetUserByID(ctx context.Context, id string) (database.User
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserCount(ctx context.Context) (int64, error) {
+func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
+func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
+	//nolint:gosimple
 	key := database.APIKey{
 		ID:               arg.ID,
 		HashedSecret:     arg.HashedSecret,
@@ -79,7 +80,7 @@ func (q *fakeQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKe
 	return key, nil
 }
 
-func (q *fakeQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
+func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
 	user := database.User{
 		ID:             arg.ID,
 		Email:          arg.Email,
@@ -94,7 +95,7 @@ func (q *fakeQuerier) InsertUser(ctx context.Context, arg database.InsertUserPar
 	return user, nil
 }
 
-func (q *fakeQuerier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
+func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	for index, apiKey := range q.apiKeys {
 		if apiKey.ID != arg.ID {
 			continue

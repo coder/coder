@@ -70,7 +70,7 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	user, err := users.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+	_, err = users.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
 		Email:    createUser.Email,
 		Username: createUser.Username,
 	})
@@ -91,7 +91,7 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err = users.Database.InsertUser(context.Background(), database.InsertUserParams{
+	user, err := users.Database.InsertUser(context.Background(), database.InsertUserParams{
 		ID:             uuid.NewString(),
 		Email:          createUser.Email,
 		HashedPassword: []byte(hashedPassword),
@@ -111,7 +111,7 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Returns the currently authenticated user.
-func (users *users) getAuthenticatedUser(rw http.ResponseWriter, r *http.Request) {
+func (*users) authenticatedUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.User(r)
 
 	render.JSON(rw, r, User{
@@ -158,11 +158,17 @@ func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, secret, err := generateAPIKeyIDSecret()
-	hashed := sha256.Sum256([]byte(secret))
+	keyID, keySecret, err := generateAPIKeyIDSecret()
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("generate api key parts: %s", err.Error()),
+		})
+		return
+	}
+	hashed := sha256.Sum256([]byte(keySecret))
 
 	_, err = users.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:           id,
+		ID:           keyID,
 		UserID:       user.ID,
 		ExpiresAt:    database.Now().Add(24 * time.Hour),
 		CreatedAt:    database.Now(),
@@ -178,7 +184,7 @@ func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// This format is consumed by the APIKey middleware.
-	sessionToken := fmt.Sprintf("%s-%s", id, secret)
+	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
 	http.SetCookie(rw, &http.Cookie{
 		Name:     httpmw.AuthCookie,
 		Value:    sessionToken,
@@ -194,14 +200,14 @@ func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Generates a new ID and secret for an API key.
-func generateAPIKeyIDSecret() (string, string, error) {
+func generateAPIKeyIDSecret() (id string, secret string, err error) {
 	// Length of an API Key ID.
-	id, err := cryptorand.String(10)
+	id, err = cryptorand.String(10)
 	if err != nil {
 		return "", "", err
 	}
 	// Length of an API Key secret.
-	secret, err := cryptorand.String(22)
+	secret, err = cryptorand.String(22)
 	if err != nil {
 		return "", "", err
 	}

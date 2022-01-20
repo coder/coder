@@ -10,11 +10,11 @@ type peerAddr struct{}
 // Statically checks if we properly implement net.Addr.
 var _ net.Addr = &peerAddr{}
 
-func (a *peerAddr) Network() string {
+func (*peerAddr) Network() string {
 	return "peer"
 }
 
-func (a *peerAddr) String() string {
+func (*peerAddr) String() string {
 	return "peer/unknown-addr"
 }
 
@@ -46,14 +46,14 @@ func (c *fakeNetConn) RemoteAddr() net.Addr {
 	return c.addr
 }
 
-func (c *fakeNetConn) SetDeadline(_ time.Time) error {
+func (*fakeNetConn) SetDeadline(_ time.Time) error {
 	return nil
 }
 
-func (c *fakeNetConn) SetReadDeadline(_ time.Time) error {
+func (*fakeNetConn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
 
-func (c *fakeNetConn) SetWriteDeadline(_ time.Time) error {
+func (*fakeNetConn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
