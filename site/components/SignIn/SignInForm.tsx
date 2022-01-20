@@ -3,11 +3,11 @@ import { FormikContextType, useFormik } from "formik"
 import { useRouter } from "next/router"
 
 import * as API from "./../../api"
-import { Button } from "../Button"
 import { formTextFieldFactory } from "../Form"
 import React from "react"
 import * as Yup from "yup"
 import { Welcome } from "./Welcome"
+import Button from "@material-ui/core/Button"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -67,12 +67,7 @@ const useStyles = makeStyles((theme) => ({
 
 export const SignInForm: React.FC = () => {
   const router = useRouter()
-  //const { setUser } = useUserContext()
   const styles = useStyles()
-
-  const setUser = (user: API.User) => {
-    alert("USER: " + JSON.stringify(user))
-  }
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
     initialValues: {
@@ -83,10 +78,9 @@ export const SignInForm: React.FC = () => {
     onSubmit: async ({ email, password }, helpers) => {
       try {
         const _response = await API.login(email, password)
-        const user = await API.User.current()
-        setUser(user)
+        router.push("/")
       } catch (err) {
-        helpers.setFieldError("password", err)
+        helpers.setFieldError("password", "The username or password is incorrect.")
       }
     },
   })
@@ -130,7 +124,6 @@ export const SignInForm: React.FC = () => {
             disabled={form.isSubmitting}
             fullWidth
             id="signin-form-submit"
-            loading={form.isSubmitting}
             type="submit"
             variant="contained"
           >

@@ -1,6 +1,5 @@
-
 interface LoginResponse {
-  'session_token': string
+  session_token: string
 }
 
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
@@ -12,10 +11,15 @@ export const login = async (email: string, password: string): Promise<LoginRespo
     body: JSON.stringify({
       email,
       password,
-    })
+    }),
   })
 
-  return await response.json()
+  const body = await response.json()
+  if (response.status !== 201) {
+    throw new Error(body.message)
+  }
+
+  return body
 }
 
 export interface User {

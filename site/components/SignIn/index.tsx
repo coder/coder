@@ -1,1 +1,1 @@
-export * as "./SignInForm"
+export * from "./SignInForm"

@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { CoderIcon } from "../Icons/Coder"
+import { CoderIcon } from "../Icons"
 import React from "react"
 import Typography from "@material-ui/core/Typography"
 
