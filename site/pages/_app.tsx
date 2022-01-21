@@ -1,11 +1,43 @@
 import React from "react"
-
 import CssBaseline from "@material-ui/core/CssBaseline"
+import { makeStyles } from "@material-ui/core/styles"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 
 import { light } from "../theme"
 import { AppProps } from "next/app"
-import { makeStyles } from "@material-ui/core"
+import { Navbar } from "../components/Navbar"
+import { Footer } from "../components/Page"
+
+/**
+ * `Contents` is the wrapper around the core app UI,
+ * containing common UI elements like the footer and navbar.
+ *
+ * This can't be inlined in `MyApp` because it requires styling,
+ * and `useStyles` needs to be inside a `<ThemeProvider />`
+ */
+const Contents: React.FC<AppProps> = ({ Component, pageProps }) => {
+  const styles = useStyles()
+
+  const header = (
+    <div className={styles.header}>
+      <Navbar />
+    </div>
+  )
+
+  const footer = (
+    <div className={styles.footer}>
+      <Footer />
+    </div>
+  )
+
+  return (
+    <div className={styles.root}>
+      {header}
+      <Component {...pageProps} />
+      {footer}
+    </div>
+  )
+}
 
 /**
  * ClientRender is a component that only allows its children to be rendered
@@ -31,7 +63,7 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   root: {
     display: "flex",
     flexDirection: "column",
