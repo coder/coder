@@ -8,9 +8,11 @@ import { EmptyState, SplitButton } from "../components"
 import { Navbar } from "../components/Navbar"
 import { Footer } from "../components/Page"
 import { AuthenticatedRouter } from "../components/Routing"
+import { useUser } from "../contexts/UserContext"
 
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
+  const { me } = useUser(true)
 
   const createWorkspace = () => {
     alert("create")
@@ -22,36 +24,34 @@ const WorkspacesPage: React.FC = () => {
   }
 
   return (
-    <AuthenticatedRouter>
-      <div className={styles.root}>
-        <Navbar />
-        <div className={styles.header}>
-          <SplitButton<string>
-            color="primary"
-            onClick={createWorkspace}
-            options={[
-              {
-                label: "New workspace",
-                value: "custom",
-              },
-              {
-                label: "New workspace from template",
-                value: "template",
-              },
-            ]}
-            startIcon={<AddWorkspaceIcon />}
-            textTransform="none"
-          />
-        </div>
-
-        <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
-          <Box pt={4} pb={4}>
-            <EmptyState message="No workspaces available." button={button} />
-          </Box>
-        </Paper>
-        <Footer />
+    <div className={styles.root}>
+      <Navbar user={me} />
+      <div className={styles.header}>
+        <SplitButton<string>
+          color="primary"
+          onClick={createWorkspace}
+          options={[
+            {
+              label: "New workspace",
+              value: "custom",
+            },
+            {
+              label: "New workspace from template",
+              value: "template",
+            },
+          ]}
+          startIcon={<AddWorkspaceIcon />}
+          textTransform="none"
+        />
       </div>
-    </AuthenticatedRouter>
+
+      <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
+        <Box pt={4} pb={4}>
+          <EmptyState message="No workspaces available." button={button} />
+        </Box>
+      </Paper>
+      <Footer />
+    </div>
   )
 }
 

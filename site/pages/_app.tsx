@@ -1,8 +1,9 @@
 import React from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
+import { HTTPError, SWRConfig } from "swr"
 import { AppProps } from "next/app"
-
+import { UserProvider } from "../contexts/UserContext"
 import { light } from "../theme"
 
 /**
@@ -21,10 +22,26 @@ const ClientRender: React.FC = ({ children }) => (
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
   return (
     <ClientRender>
-      <ThemeProvider theme={light}>
-        <CssBaseline />
-        <Component {...pageProps} />
-      </ThemeProvider>
+      <SWRConfig
+        value={{
+          fetcher: async (url: string) => {
+            const res = await fetch(url)
+            if (!res.ok) {
+              const err = new Error((await res.json()).error?.msg || res.statusText) as HTTPError
+              err.status = res.status
+              throw err
+            }
+            return res.json()
+          },
+        }}
+      >
+        <UserProvider>
+          <ThemeProvider theme={light}>
+            <CssBaseline />
+            <Component {...pageProps} />
+          </ThemeProvider>
+        </UserProvider>
+      </SWRConfig>
     </ClientRender>
   )
 }
