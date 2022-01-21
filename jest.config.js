@@ -17,7 +17,7 @@ module.exports = {
       displayName: "lint",
       runner: "jest-runner-eslint",
       testMatch: ["<rootDir>/site/**/*.js", "<rootDir>/site/**/*.ts", "<rootDir>/site/**/*.tsx"],
-      testPathIgnorePatterns: ["/.next/", "/out/"]
+      testPathIgnorePatterns: ["/.next/", "/out/"],
     },
   ],
   collectCoverageFrom: [
