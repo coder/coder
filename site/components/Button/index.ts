@@ -1,1 +1,2 @@
-export { SplitButton } from "./SplitButton"
+export * from "./SplitButton"
+export * from "./LoadingButton"

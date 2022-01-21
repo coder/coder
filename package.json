@@ -40,18 +40,28 @@
     "eslint-plugin-react": "7.28.0",
     "eslint-plugin-react-hooks": "4.3.0",
     "express": "4.17.2",
+    "formik": "2.2.9",
     "http-proxy-middleware": "2.0.1",
     "jest": "27.4.7",
     "jest-runner-eslint": "1.0.0",
     "next": "12.0.7",
+    "next-router-mock": "^0.6.5",
     "prettier": "2.5.1",
     "react": "17.0.2",
     "react-dom": "17.0.2",
     "sql-formatter": "^4.0.2",
+    "swr": "1.1.2",
     "ts-jest": "27.1.2",
     "ts-loader": "9.2.6",
     "ts-node": "10.4.0",
-    "typescript": "4.5.4"
+    "typescript": "4.5.4",
+    "yup": "0.32.11"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "browserslist": [
+    "chrome 66",
+    "firefox 63",
+    "edge 79",
+    "safari 13.1"
+  ]
 }

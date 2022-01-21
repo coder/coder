@@ -1,43 +1,10 @@
 import React from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
-import { makeStyles } from "@material-ui/core/styles"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-
-import { dark } from "../theme"
+import { SWRConfig } from "swr"
 import { AppProps } from "next/app"
-import { Navbar } from "../components/Navbar"
-import { Footer } from "../components/Page"
-
-/**
- * `Contents` is the wrapper around the core app UI,
- * containing common UI elements like the footer and navbar.
- *
- * This can't be inlined in `MyApp` because it requires styling,
- * and `useStyles` needs to be inside a `<ThemeProvider />`
- */
-const Contents: React.FC<AppProps> = ({ Component, pageProps }) => {
-  const styles = useStyles()
-
-  const header = (
-    <div className={styles.header}>
-      <Navbar />
-    </div>
-  )
-
-  const footer = (
-    <div className={styles.footer}>
-      <Footer />
-    </div>
-  )
-
-  return (
-    <div className={styles.root}>
-      {header}
-      <Component {...pageProps} />
-      {footer}
-    </div>
-  )
-}
+import { UserProvider } from "../contexts/UserContext"
+import { light } from "../theme"
 
 /**
  * ClientRender is a component that only allows its children to be rendered
@@ -52,32 +19,30 @@ const ClientRender: React.FC = ({ children }) => (
  * <App /> is the root rendering logic of the application - setting up our router
  * and any contexts / global state management.
  */
-const MyApp: React.FC<AppProps> = (appProps) => {
+const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
   return (
     <ClientRender>
-      <ThemeProvider theme={dark}>
-        <CssBaseline />
-        <Contents {...appProps} />
-      </ThemeProvider>
+      <SWRConfig
+        value={{
+          fetcher: async (url: string) => {
+            const res = await fetch(url)
+            if (!res.ok) {
+              const err = new Error((await res.json()).error?.message || res.statusText)
+              throw err
+            }
+            return res.json()
+          },
+        }}
+      >
+        <UserProvider>
+          <ThemeProvider theme={light}>
+            <CssBaseline />
+            <Component {...pageProps} />
+          </ThemeProvider>
+        </UserProvider>
+      </SWRConfig>
     </ClientRender>
   )
 }
-
-const useStyles = makeStyles(() => ({
-  root: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  header: {
-    flex: 0,
-  },
-  body: {
-    height: "100%",
-    flex: 1,
-  },
-  footer: {
-    flex: 0,
-  },
-}))
 
 export default MyApp

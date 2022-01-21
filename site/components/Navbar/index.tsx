@@ -3,12 +3,16 @@ import Button from "@material-ui/core/Button"
 import List from "@material-ui/core/List"
 import ListSubheader from "@material-ui/core/ListSubheader"
 import { makeStyles } from "@material-ui/core/styles"
-
 import Link from "next/link"
 
+import { User } from "../../contexts/UserContext"
 import { Logo } from "../Icons"
 
-export const Navbar: React.FC = () => {
+export interface NavbarProps {
+  user?: User
+}
+
+export const Navbar: React.FC<NavbarProps> = () => {
   const styles = useStyles()
   return (
     <div className={styles.root}>
@@ -35,6 +39,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     position: "relative",
     display: "flex",
+    flex: "0",
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",

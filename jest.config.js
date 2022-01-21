@@ -5,6 +5,7 @@ module.exports = {
       displayName: "test",
       preset: "ts-jest",
       roots: ["<rootDir>/site"],
+      setupFilesAfterEnv: ["<rootDir>/_jest/setupTests.ts"],
       transform: {
         "^.+\\.tsx?$": "ts-jest",
       },
@@ -26,8 +27,10 @@ module.exports = {
     "<rootDir>/site/**/*.tsx",
     "!<rootDir>/site/**/*.stories.tsx",
     "!<rootDir>/site/.next/**/*.*",
+    "!<rootDir>/site/api.ts",
     "!<rootDir>/site/dev.ts",
     "!<rootDir>/site/next-env.d.ts",
     "!<rootDir>/site/next.config.js",
+    "!<rootDir>/site/out/**/*.*",
   ],
 }

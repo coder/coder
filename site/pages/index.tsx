@@ -5,9 +5,18 @@ import Paper from "@material-ui/core/Paper"
 import AddWorkspaceIcon from "@material-ui/icons/AddToQueue"
 
 import { EmptyState, SplitButton } from "../components"
+import { Navbar } from "../components/Navbar"
+import { Footer } from "../components/Page"
+import { useUser } from "../contexts/UserContext"
+import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
+  const { me } = useUser(true)
+
+  if (!me) {
+    return <FullScreenLoader />
+  }
 
   const createWorkspace = () => {
     alert("create")
@@ -19,7 +28,8 @@ const WorkspacesPage: React.FC = () => {
   }
 
   return (
-    <>
+    <div className={styles.root}>
+      <Navbar user={me} />
       <div className={styles.header}>
         <SplitButton<string>
           color="primary"
@@ -44,11 +54,16 @@ const WorkspacesPage: React.FC = () => {
           <EmptyState message="No workspaces available." button={button} />
         </Box>
       </Paper>
-    </>
+      <Footer />
+    </div>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
+  root: {
+    display: "flex",
+    flexDirection: "column",
+  },
   header: {
     display: "flex",
     flexDirection: "row-reverse",
