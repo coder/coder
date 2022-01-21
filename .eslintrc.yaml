@@ -19,13 +19,7 @@ parserOptions:
   ecmaVersion: 2018
   project:
     - "./tsconfig.json"
-    - "./lib/ts/coderapi/tsconfig.json"
-    - "./lib/ts/domutils/tsconfig.json"
-    - "./lib/ts/ui/tsconfig.json"
-    - "./product/coder.com/site/tsconfig.json"
-    - "./product/coder/e2e/tsconfig.json"
-    - "./product/coder/site/tsconfig.json"
-    - "./product/cportal/site/tsconfig.json"
+    - "./site/tsconfig.json"
   sourceType: module
   ecmaFeatures:
     jsx: true
