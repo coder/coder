@@ -27,7 +27,7 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
           fetcher: async (url: string) => {
             const res = await fetch(url)
             if (!res.ok) {
-              const err = new Error((await res.json()).error?.msg || res.statusText)
+              const err = new Error((await res.json()).error?.message || res.statusText)
               throw err
             }
             return res.json()
