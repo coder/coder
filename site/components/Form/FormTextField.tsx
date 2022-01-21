@@ -26,31 +26,31 @@ export interface FormFieldProps<T> {
  */
 export interface FormTextFieldProps<T>
   extends Pick<
-  TextFieldProps,
-  | "autoComplete"
-  | "autoFocus"
-  | "children"
-  | "className"
-  | "disabled"
-  | "fullWidth"
-  | "helperText"
-  | "id"
-  | "InputLabelProps"
-  | "InputProps"
-  | "inputProps"
-  | "label"
-  | "margin"
-  | "multiline"
-  | "onChange"
-  | "placeholder"
-  | "required"
-  | "rows"
-  | "select"
-  | "SelectProps"
-  | "style"
-  | "type"
-  >,
-  FormFieldProps<T> {
+      TextFieldProps,
+      | "autoComplete"
+      | "autoFocus"
+      | "children"
+      | "className"
+      | "disabled"
+      | "fullWidth"
+      | "helperText"
+      | "id"
+      | "InputLabelProps"
+      | "InputProps"
+      | "inputProps"
+      | "label"
+      | "margin"
+      | "multiline"
+      | "onChange"
+      | "placeholder"
+      | "required"
+      | "rows"
+      | "select"
+      | "SelectProps"
+      | "style"
+      | "type"
+    >,
+    FormFieldProps<T> {
   /**
    * eventTransform is an optional transformer on the event data before it is
    * processed by formik.
