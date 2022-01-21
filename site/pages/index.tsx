@@ -7,7 +7,6 @@ import AddWorkspaceIcon from "@material-ui/icons/AddToQueue"
 import { EmptyState, SplitButton } from "../components"
 import { Navbar } from "../components/Navbar"
 import { Footer } from "../components/Page"
-import { AuthenticatedRouter } from "../components/Routing"
 import { useUser } from "../contexts/UserContext"
 import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 
