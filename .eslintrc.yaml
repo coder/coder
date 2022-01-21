@@ -1,0 +1,122 @@
+---
+env:
+  browser: true
+  commonjs: true
+  es6: true
+  jest: true
+  node: true
+extends:
+  - eslint:recommended
+  - plugin:@typescript-eslint/recommended
+  - plugin:import/recommended
+  - plugin:import/typescript
+  - plugin:react/recommended
+  - plugin:jsx-a11y/strict
+  - plugin:compat/recommended
+  - prettier
+parser: "@typescript-eslint/parser"
+parserOptions:
+  ecmaVersion: 2018
+  project:
+    - "./tsconfig.json"
+    - "./site/tsconfig.json"
+  sourceType: module
+  ecmaFeatures:
+    jsx: true
+  tsconfigRootDir: "./"
+plugins:
+  - "@typescript-eslint"
+  - import
+  - react-hooks
+  - jest
+  - no-storage
+root: true
+rules:
+  "@typescript-eslint/brace-style":
+    ["error", "1tbs", { "allowSingleLine": false }]
+  "@typescript-eslint/camelcase": "off"
+  "@typescript-eslint/explicit-function-return-type": "off"
+  "@typescript-eslint/explicit-module-boundary-types": "error"
+  "@typescript-eslint/method-signature-style": ["error", "property"]
+  "@typescript-eslint/no-invalid-void-type": error
+  # We're disabling the `no-namespace` rule to use a pattern of defining an interface,
+  # and then defining functions that operate on that data via namespace. This is helpful for
+  # dealing with immutable objects. This is a common pattern that shows up in some other
+  # large TypeScript projects, like VSCode.
+  # More details: https://github.com/coder/m/pull/9720#discussion_r697609528
+  "@typescript-eslint/no-namespace": "off"
+  "@typescript-eslint/no-unnecessary-boolean-literal-compare": error
+  "@typescript-eslint/no-unnecessary-condition": warn
+  "@typescript-eslint/no-unnecessary-type-assertion": warn
+  "@typescript-eslint/no-unused-vars":
+    - error
+    - argsIgnorePattern: "^_"
+      varsIgnorePattern: "^_"
+  "@typescript-eslint/no-use-before-define": "off"
+  "@typescript-eslint/object-curly-spacing": ["error", "always"]
+  "@typescript-eslint/triple-slash-reference": "off"
+  "brace-style": "off"
+  "curly": ["error", "all"]
+  eqeqeq: error
+  import/default: "off"
+  import/namespace: "off"
+  import/newline-after-import:
+    - error
+    - count: 1
+  import/no-named-as-default: "off"
+  import/no-named-as-default-member: "off"
+  import/prefer-default-export: "off"
+  jest/no-focused-tests: "error"
+  jsx-a11y/label-has-for: "off"
+  jsx-a11y/no-autofocus: "off"
+  no-console:
+    - warn
+    - allow:
+        - warn
+        - error
+        - info
+        - debug
+  no-dupe-class-members: "off"
+  no-restricted-imports:
+    - error
+    - paths:
+        - name: "@material-ui/core"
+          message:
+            "Use path imports to avoid pulling in unused modules. See:
+            https://material-ui.com/guides/minimizing-bundle-size/"
+        - name: "@material-ui/icons"
+          message:
+            "Use path imports to avoid pulling in unused modules. See:
+            https://material-ui.com/guides/minimizing-bundle-size/"
+        - name: "@material-ui/styles"
+          message:
+            "Use path imports to avoid pulling in unused modules. See:
+            https://material-ui.com/guides/minimizing-bundle-size/"
+        - name: "@material-ui/core/Tooltip"
+          message: "Use the custom Tooltip on componens/Tooltip"
+  no-storage/no-browser-storage: error
+  no-unused-vars: "off"
+  "object-curly-spacing": "off"
+  react-hooks/exhaustive-deps: warn
+  react-hooks/rules-of-hooks: error
+  react/jsx-no-script-url:
+    - error
+    - - name: Link
+        props:
+          - to
+      - name: Button
+        props:
+          - href
+      - name: IconButton
+        props:
+          - href
+  react/prop-types: "off"
+  react/jsx-boolean-value: ["error", "never"]
+  react/jsx-curly-brace-presence:
+    - error
+    - children: ignore
+settings:
+  react:
+    version: detect
+  import/resolver:
+    typescript: {}

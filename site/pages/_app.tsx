@@ -1,11 +1,10 @@
 import React from "react"
-
 import CssBaseline from "@material-ui/core/CssBaseline"
+import { makeStyles } from "@material-ui/core/styles"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 
 import { dark } from "../theme"
 import { AppProps } from "next/app"
-import { makeStyles } from "@material-ui/core"
 import { Navbar } from "../components/Navbar"
 import { Footer } from "../components/Page"
 
@@ -64,7 +63,7 @@ const MyApp: React.FC<AppProps> = (appProps) => {
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   root: {
     display: "flex",
     flexDirection: "column",

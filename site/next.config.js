@@ -10,7 +10,7 @@ module.exports = {
     // Allows us to import TS files from outside product/coder/site.
     externalDir: true,
   },
-  webpack: (config, { dev, isServer, webpack }) => {
+  webpack: (config, { isServer, webpack }) => {
     // Inject CODERD_HOST environment variable for clients
     if (!isServer) {
       config.plugins.push(

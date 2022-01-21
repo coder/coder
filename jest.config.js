@@ -13,6 +13,12 @@ module.exports = {
       testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes"],
       moduleDirectories: ["node_modules", "<rootDir>"],
     },
+    {
+      displayName: "lint",
+      runner: "jest-runner-eslint",
+      testMatch: ["<rootDir>/site/**/*.js", "<rootDir>/site/**/*.ts", "<rootDir>/site/**/*.tsx"],
+      testPathIgnorePatterns: ["/.next/", "/out/"],
+    },
   ],
   collectCoverageFrom: [
     "<rootDir>/site/**/*.js",
