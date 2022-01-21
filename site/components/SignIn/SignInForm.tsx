@@ -1,12 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
 import { useRouter } from "next/router"
-
-import * as API from "./../../api"
-import { formTextFieldFactory } from "../Form"
 import React from "react"
+import { useSWRConfig } from "swr"
 import * as Yup from "yup"
+
 import { Welcome } from "./Welcome"
+import { formTextFieldFactory } from "../Form"
+import * as API from "./../../api"
 import { LoadingButton } from "./../Button"
 
 /**
@@ -74,6 +75,7 @@ export const SignInForm: React.FC<SignInProps> = ({
 }) => {
   const router = useRouter()
   const styles = useStyles()
+  const { mutate } = useSWRConfig()
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
     initialValues: {
@@ -84,6 +86,8 @@ export const SignInForm: React.FC<SignInProps> = ({
     onSubmit: async ({ email, password }, helpers) => {
       try {
         await loginHandler(email, password)
+        // Tell SWR to invalidate the cache for the user endpoint
+        mutate("/api/v2/user")
         router.push("/")
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")

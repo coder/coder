@@ -21,26 +21,3 @@ export const login = async (email: string, password: string): Promise<LoginRespo
 
   return body
 }
-
-export interface User {
-  id: string
-  email: string
-  created_at: string
-  username: string
-}
-
-export namespace User {
-  export const current = async (): Promise<User> => {
-    const response = await fetch("/api/v2/user", {
-      method: "GET",
-    })
-
-    const body = await response.json()
-
-    if (!response.ok) {
-      throw new Error(body.message0)
-    }
-
-    return body
-  }
-}

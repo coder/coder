@@ -1,5 +1,5 @@
 import { useRouter } from "next/router"
-import React, { useContext } from "react"
+import React, { useContext, useEffect } from "react"
 import useSWR from "swr"
 
 export interface User {
@@ -19,14 +19,19 @@ const UserContext = React.createContext<UserContext>({})
 export const useUser = (redirectOnError = false): UserContext => {
   const ctx = useContext(UserContext)
   const router = useRouter()
-  if (redirectOnError && ctx.error) {
-    router.push({
-      pathname: "/login",
-      query: {
-        redirect: router.asPath,
-      },
-    })
-  }
+
+  const requestError = ctx.error
+  useEffect(() => {
+    if (redirectOnError && requestError) {
+      router.push({
+        pathname: "/login",
+        query: {
+          redirect: router.asPath,
+        },
+      })
+    }
+  }, [redirectOnError, requestError])
+
   return ctx
 }
 

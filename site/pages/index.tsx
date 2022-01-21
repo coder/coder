@@ -9,10 +9,15 @@ import { Navbar } from "../components/Navbar"
 import { Footer } from "../components/Page"
 import { AuthenticatedRouter } from "../components/Routing"
 import { useUser } from "../contexts/UserContext"
+import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
   const { me } = useUser(true)
+
+  if (!me) {
+    return <FullScreenLoader />
+  }
 
   const createWorkspace = () => {
     alert("create")
