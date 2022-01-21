@@ -1,9 +1,15 @@
 import React from "react"
-import { render, screen } from "@testing-library/react"
+import singletonRouter from "next/router"
+import mockRouter from "next-router-mock"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 
 import { SignInForm } from "./SignInForm"
 
 describe("SignInForm", () => {
+  beforeEach(() => {
+    mockRouter.setCurrentUrl("/login")
+  })
+
   it("renders content", async () => {
     // When
     render(<SignInForm />)
@@ -18,10 +24,14 @@ describe("SignInForm", () => {
 
     // When
     // Render the component
-    render(<SignInForm loginHandler={loginHandler} />)
+    const { container } = render(<SignInForm loginHandler={loginHandler} />)
+    const inputs = container.querySelectorAll("input")
+    // Set username / password
+    fireEvent.change(inputs[0], { target: { value: "test@coder.com" } })
+    fireEvent.change(inputs[1], { target: { value: "password" } })
     // Click sign-in
     const elem = await screen.findByText("Sign In")
-    elem.click()
+    act(() => elem.click())
 
     // Then
     // Should see an error message
@@ -29,19 +39,23 @@ describe("SignInForm", () => {
     expect(errorMessage).toBeDefined()
   })
 
-  it("calls on login success when login completes", async () => {
+  it("redirects when login is complete", async () => {
     // Given
     const loginHandler = (_email: string, _password: string) => Promise.resolve()
-    const onLoginSuccess = jest.fn()
 
     // When
     // Render the component
-    render(<SignInForm loginHandler={loginHandler} onLoginSuccess={onLoginSuccess} />)
+    const { container } = render(<SignInForm loginHandler={loginHandler} />)
+    // Set user / password
+    const inputs = container.querySelectorAll("input")
+    fireEvent.change(inputs[0], { target: { value: "test@coder.com" } })
+    fireEvent.change(inputs[1], { target: { value: "password" } })
     // Click sign-in
     const elem = await screen.findByText("Sign In")
-    elem.click()
+    act(() => elem.click())
 
     // Then
-    expect(onLoginSuccess).toHaveBeenCalledTimes(1)
+    // Should redirect because login was successfully
+    await waitFor(() => expect(singletonRouter).toMatchObject({ asPath: "/" }))
   })
 })
