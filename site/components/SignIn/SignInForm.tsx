@@ -7,7 +7,7 @@ import { formTextFieldFactory } from "../Form"
 import React from "react"
 import * as Yup from "yup"
 import { Welcome } from "./Welcome"
-import Button from "@material-ui/core/Button"
+import { LoadingButton } from "./../Button"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -127,16 +127,16 @@ export const SignInForm: React.FC<SignInProps> = ({
           />
         </div>
         <div className={styles.submitBtn}>
-          <Button
+          <LoadingButton
             color="primary"
-            disabled={form.isSubmitting}
+            loading={form.isSubmitting}
             fullWidth
             id="signin-form-submit"
             type="submit"
             variant="contained"
           >
             Sign In
-          </Button>
+          </LoadingButton>
         </div>
       </form>
     </>
