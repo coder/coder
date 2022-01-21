@@ -1,7 +1,7 @@
 import React from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-import { HTTPError, SWRConfig } from "swr"
+import { SWRConfig } from "swr"
 import { AppProps } from "next/app"
 import { UserProvider } from "../contexts/UserContext"
 import { light } from "../theme"
@@ -27,8 +27,7 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
           fetcher: async (url: string) => {
             const res = await fetch(url)
             if (!res.ok) {
-              const err = new Error((await res.json()).error?.msg || res.statusText) as HTTPError
-              err.status = res.status
+              const err = new Error((await res.json()).error?.msg || res.statusText)
               throw err
             }
             return res.json()
