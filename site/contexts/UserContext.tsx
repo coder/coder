@@ -22,7 +22,7 @@ export const useUser = (redirectOnError = false): UserContext => {
 
   const requestError = ctx.error
   useEffect(() => {
-    if (redirectOnError && requestError) {
+    if (redirectOnError && !!requestError) {
       router.push({
         pathname: "/login",
         query: {
