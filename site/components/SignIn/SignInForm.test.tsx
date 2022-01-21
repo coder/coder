@@ -20,7 +20,7 @@ describe("SignInForm", () => {
     // Render the component
     render(<SignInForm loginHandler={loginHandler} />)
     // Click sign-in
-    const elem = await screen.findByRole("button")
+    const elem = await screen.findByText("Sign In")
     elem.click()
 
     // Then
@@ -38,7 +38,7 @@ describe("SignInForm", () => {
     // Render the component
     render(<SignInForm loginHandler={loginHandler} onLoginSuccess={onLoginSuccess} />)
     // Click sign-in
-    const elem = await screen.findByRole("button")
+    const elem = await screen.findByText("Sign In")
     elem.click()
 
     // Then
