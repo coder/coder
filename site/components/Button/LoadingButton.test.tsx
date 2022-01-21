@@ -14,7 +14,7 @@ describe("LoadingButton", () => {
 
   it("shows spinner if loading is set to true", async () => {
     // When
-    render(<LoadingButton loading={true}>Sign in</LoadingButton>)
+    render(<LoadingButton loading>Sign in</LoadingButton>)
 
     // Then
     const spinnerElement = await screen.findByRole("progressbar")

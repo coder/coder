@@ -5,7 +5,7 @@ import { PasswordField } from "./PasswordField"
 describe("PasswordField", () => {
   it("renders", async () => {
     // When
-    render(<PasswordField helperText={"Enter password"} />)
+    render(<PasswordField helperText="Enter password" />)
 
     // Then
     const element = await screen.findByText("Enter password")
