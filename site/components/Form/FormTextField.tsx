@@ -1,7 +1,22 @@
 import TextField, { TextFieldProps } from "@material-ui/core/TextField"
 import React from "react"
 import { PasswordField } from "./PasswordField"
-import { FormFieldProps } from "./types"
+import { FormikContextType } from "formik"
+
+/**
+ * FormFieldProps are required props for creating form fields using a factory.
+ */
+export interface FormFieldProps<T> {
+  /**
+   * form is a reference to a form or subform and is used to compute common
+   * states such as error and helper text
+   */
+  form: FormikContextType<T>
+  /**
+   * formFieldName is a field name associated with the form schema.
+   */
+  formFieldName: keyof T
+}
 
 /**
  * FormTextFieldProps extends form-related MUI TextFieldProps with Formik
@@ -11,31 +26,31 @@ import { FormFieldProps } from "./types"
  */
 export interface FormTextFieldProps<T>
   extends Pick<
-      TextFieldProps,
-      | "autoComplete"
-      | "autoFocus"
-      | "children"
-      | "className"
-      | "disabled"
-      | "fullWidth"
-      | "helperText"
-      | "id"
-      | "InputLabelProps"
-      | "InputProps"
-      | "inputProps"
-      | "label"
-      | "margin"
-      | "multiline"
-      | "onChange"
-      | "placeholder"
-      | "required"
-      | "rows"
-      | "select"
-      | "SelectProps"
-      | "style"
-      | "type"
-    >,
-    FormFieldProps<T> {
+  TextFieldProps,
+  | "autoComplete"
+  | "autoFocus"
+  | "children"
+  | "className"
+  | "disabled"
+  | "fullWidth"
+  | "helperText"
+  | "id"
+  | "InputLabelProps"
+  | "InputProps"
+  | "inputProps"
+  | "label"
+  | "margin"
+  | "multiline"
+  | "onChange"
+  | "placeholder"
+  | "required"
+  | "rows"
+  | "select"
+  | "SelectProps"
+  | "style"
+  | "type"
+  >,
+  FormFieldProps<T> {
   /**
    * eventTransform is an optional transformer on the event data before it is
    * processed by formik.
@@ -117,6 +132,7 @@ export const formTextFieldFactory = <T,>(): React.FC<FormTextFieldProps<T>> => {
     return (
       <Component
         {...rest}
+        variant={variant}
         disabled={disabled || form.isSubmitting}
         error={isError}
         helperText={isError ? form.errors[formFieldName] : helperText}
