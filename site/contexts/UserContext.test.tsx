@@ -25,6 +25,8 @@ namespace Helpers {
       <SWRConfig
         value={{
           fetcher: simulatedRequest,
+          // Reset cache for every test
+          provider: () => new Map(),
         }}
       >
         <UserProvider>
@@ -51,7 +53,7 @@ describe("UserContext", () => {
     mockRouter.setCurrentUrl("/")
   })
 
-  /*it("shouldn't redirect if user fails to load and redirectOnFailure is false", async () => {
+  it("shouldn't redirect if user fails to load and redirectOnFailure is false", async () => {
     // When
     render(Helpers.renderUserContext(failingRequest, false))
 
@@ -71,7 +73,7 @@ describe("UserContext", () => {
     // Then
     // Verify we route to the login page
     await waitFor(() => expect(singletonRouter).toMatchObject({ asPath: "/login?redirect=%2F" }))
-  })*/
+  })
 
   it("should not redirect if user loads and redirectOnFailure is true", async () => {
     // When
