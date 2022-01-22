@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi"
+
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
-	"github.com/go-chi/chi"
 )
 
 type userParamContextKey struct{}

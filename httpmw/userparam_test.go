@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
 	"github.com/coder/coder/httpmw"
-	"github.com/go-chi/chi"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUserParam(t *testing.T) {
@@ -55,8 +56,9 @@ func TestUserParam(t *testing.T) {
 		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
-
-		require.Equal(t, http.StatusBadRequest, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
 	t.Run("NotMe", func(t *testing.T) {
@@ -72,8 +74,9 @@ func TestUserParam(t *testing.T) {
 		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
-
-		require.Equal(t, http.StatusBadRequest, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
 	t.Run("Me", func(t *testing.T) {
@@ -89,7 +92,8 @@ func TestUserParam(t *testing.T) {
 		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
-
-		require.Equal(t, http.StatusOK, rw.Result().StatusCode)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 }

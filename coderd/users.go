@@ -110,6 +110,9 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 			UpdatedAt:      database.Now(),
 			Roles:          []string{"organization-admin"},
 		})
+		if err != nil {
+			return xerrors.Errorf("create organization member: %w", err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -123,8 +126,9 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, user)
 }
 
-// Returns the currently authenticated user.
-func (*users) getUser(rw http.ResponseWriter, r *http.Request) {
+// Returns the parameterized user requested. All validation
+// is completed in the middleware for this route.
+func (*users) user(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	render.JSON(rw, r, User{
@@ -135,10 +139,11 @@ func (*users) getUser(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (u *users) getUserOrganizations(rw http.ResponseWriter, r *http.Request) {
+// Returns organizations the parameterized user has access to.
+func (users *users) userOrganizations(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	organizations, err := u.Database.GetOrganizationsByUserID(r.Context(), user.ID)
+	organizations, err := users.Database.GetOrganizationsByUserID(r.Context(), user.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

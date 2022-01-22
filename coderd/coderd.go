@@ -40,8 +40,8 @@ func New(options *Options) http.Handler {
 					httpmw.ExtractAPIKey(options.Database, nil),
 					httpmw.ExtractUserParam(options.Database),
 				)
-				r.Get("/{user}", users.getUser)
-				r.Get("/{user}/organizations", users.getUserOrganizations)
+				r.Get("/{user}", users.user)
+				r.Get("/{user}/organizations", users.userOrganizations)
 			})
 		})
 	})

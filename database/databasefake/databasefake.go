@@ -61,7 +61,7 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
+func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
 	for _, organization := range q.organizations {
 		if organization.Name == name {
 			return organization, nil
@@ -70,7 +70,7 @@ func (q *fakeQuerier) GetOrganizationByName(ctx context.Context, name string) (d
 	return database.Organization{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetOrganizationsByUserID(ctx context.Context, userID string) ([]database.Organization, error) {
+func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID string) ([]database.Organization, error) {
 	organizations := make([]database.Organization, 0)
 	for _, organizationMember := range q.organizationMembers {
 		if organizationMember.UserID != userID {
@@ -112,7 +112,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	return key, nil
 }
 
-func (q *fakeQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
+func (q *fakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	organization := database.Organization{
 		ID:        arg.ID,
 		Name:      arg.Name,
@@ -123,7 +123,8 @@ func (q *fakeQuerier) InsertOrganization(ctx context.Context, arg database.Inser
 	return organization, nil
 }
 
-func (q *fakeQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
+func (q *fakeQuerier) InsertOrganizationMember(_ context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
+	//nolint:gosimple
 	organizationMember := database.OrganizationMember{
 		OrganizationID: arg.OrganizationID,
 		UserID:         arg.UserID,
