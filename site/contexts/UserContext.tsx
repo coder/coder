@@ -23,7 +23,9 @@ export const useUser = (redirectOnError = false): UserContext => {
   const requestError = ctx.error
   useEffect(() => {
     if (redirectOnError && requestError) {
-      router.push({
+      // 'void' means we are ignoring handling the promise returned
+      // from router.push (and lets the linter know we're OK with that!)
+      void router.push({
         pathname: "/login",
         query: {
           redirect: router.asPath,
