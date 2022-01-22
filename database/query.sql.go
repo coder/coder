@@ -243,13 +243,14 @@ INSERT INTO
     email,
     name,
     login_type,
+    revoked,
     hashed_password,
     created_at,
     updated_at,
     username
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+  ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
 `
 
 type InsertUserParams struct {
