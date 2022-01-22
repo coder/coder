@@ -210,7 +210,6 @@ func logout(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, cookie)
-
 	render.Status(r, http.StatusOK)
 }
 

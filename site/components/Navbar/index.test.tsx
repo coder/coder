@@ -5,7 +5,9 @@ import { render, MockUser } from "../../test_helpers"
 import { Navbar } from "./index"
 
 describe("Navbar", () => {
-  const noop = () => { return; }
+  const noop = () => {
+    return
+  }
   it("renders content", async () => {
     // When
     render(<Navbar onSignOut={noop} />)
@@ -18,7 +20,7 @@ describe("Navbar", () => {
     // Given
     const mockUser = {
       ...MockUser,
-      username: "bryan"
+      username: "bryan",
     }
 
     // When
