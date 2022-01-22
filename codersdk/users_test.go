@@ -15,10 +15,11 @@ import (
 func TestUsers(t *testing.T) {
 	t.Run("MultipleInitial", func(t *testing.T) {
 		server := coderdtest.New(t)
-		_, err := server.Client.CreateInitialUser(context.Background(), coderd.CreateUserRequest{
-			Email:    "wowie@coder.com",
-			Username: "tester",
-			Password: "moo",
+		_, err := server.Client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
+			Email:        "wowie@coder.com",
+			Organization: "somethin",
+			Username:     "tester",
+			Password:     "moo",
 		})
 		var cerr *codersdk.Error
 		require.ErrorAs(t, err, &cerr)

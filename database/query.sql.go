@@ -44,6 +44,68 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	return i, err
 }
 
+const getOrganizationByName = `-- name: GetOrganizationByName :one
+SELECT id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off FROM organizations WHERE name = $1 LIMIT 1
+`
+
+func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationByName, name)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Default,
+		&i.AutoOffThreshold,
+		&i.CpuProvisioningRate,
+		&i.MemoryProvisioningRate,
+		&i.WorkspaceAutoOff,
+	)
+	return i, err
+}
+
+const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
+SELECT id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off FROM organizations WHERE id = (
+  SELECT organization_id FROM organization_members WHERE user_id = $1
+)
+`
+
+func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Organization
+	for rows.Next() {
+		var i Organization
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Default,
+			&i.AutoOffThreshold,
+			&i.CpuProvisioningRate,
+			&i.MemoryProvisioningRate,
+			&i.WorkspaceAutoOff,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
   id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
@@ -232,6 +294,73 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.OIDCIDToken,
 		&i.OIDCExpiry,
 		&i.DevurlToken,
+	)
+	return i, err
+}
+
+const insertOrganization = `-- name: InsertOrganization :one
+INSERT INTO organizations (id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+`
+
+type InsertOrganizationParams struct {
+	ID          string    `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, insertOrganization,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Default,
+		&i.AutoOffThreshold,
+		&i.CpuProvisioningRate,
+		&i.MemoryProvisioningRate,
+		&i.WorkspaceAutoOff,
+	)
+	return i, err
+}
+
+const insertOrganizationMember = `-- name: InsertOrganizationMember :one
+INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles) VALUES ($1, $2, $3, $4, $5) RETURNING organization_id, user_id, created_at, updated_at, roles
+`
+
+type InsertOrganizationMemberParams struct {
+	OrganizationID string    `db:"organization_id" json:"organization_id"`
+	UserID         string    `db:"user_id" json:"user_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	Roles          []string  `db:"roles" json:"roles"`
+}
+
+func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error) {
+	row := q.db.QueryRowContext(ctx, insertOrganizationMember,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		pq.Array(arg.Roles),
+	)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		pq.Array(&i.Roles),
 	)
 	return i, err
 }

@@ -87,7 +87,7 @@ export const SignInForm: React.FC<SignInProps> = ({
       try {
         await loginHandler(email, password)
         // Tell SWR to invalidate the cache for the user endpoint
-        mutate("/api/v2/user")
+        mutate("/api/v2/users/me")
         router.push("/")
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")
