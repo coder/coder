@@ -7,12 +7,13 @@ import Link from "next/link"
 
 import { User } from "../../contexts/UserContext"
 import { Logo } from "../Icons"
+import { UserDropdown } from "./UserDropdown"
 
 export interface NavbarProps {
   user?: User
 }
 
-export const Navbar: React.FC<NavbarProps> = () => {
+export const Navbar: React.FC<NavbarProps> = ({ user }) => {
   const styles = useStyles()
   return (
     <div className={styles.root}>
@@ -23,14 +24,8 @@ export const Navbar: React.FC<NavbarProps> = () => {
           </Button>
         </Link>
       </div>
-      <div className={styles.fullWidth}>
-        <div className={styles.title}>Coder v2</div>
-      </div>
-      <div className={styles.fixed}>
-        <List>
-          <ListSubheader>Manage</ListSubheader>
-        </List>
-      </div>
+      <div className={styles.fullWidth} />
+      <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={() => alert("sign out")} />}</div>
     </div>
   )
 }
