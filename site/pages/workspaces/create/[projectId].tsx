@@ -1,7 +1,7 @@
 import React from "react"
 import { useRouter } from "next/router"
-import { useFormik } from "formik"
-import { firstOrOnly, subForm, FormikLike } from "./../../../util"
+import { useFormik, FormikContext } from "formik"
+import { firstOrOnly } from "./../../../util"
 import * as API from "../../../api"
 import { FormPage, FormButton } from "../../../components/PageTemplates"
 import { useRequestor } from "../../../hooks/useRequestor"
@@ -66,8 +66,6 @@ const CreateProjectPage: React.FC = () => {
     },
   })
 
-  const parametersForm: FormikLike<Record<string, string>> = subForm(form, "parameters")
-
   const cancel = () => {
     router.push(`/workspaces/create`)
   }
@@ -126,8 +124,8 @@ const CreateProjectPage: React.FC = () => {
                 return (
                   <FormRow>
                     <ParameterTextField
-                      form={parametersForm}
-                      formFieldName={param.id}
+                      form={form}
+                      formFieldName={"parameters." + param.id}
                       fullWidth
                       label={param.name}
                       helperText={param.description}
