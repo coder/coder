@@ -1,9 +1,9 @@
-import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 
 import { User } from "../../contexts/UserContext"
+import { UserAvatar } from "./UserAvatar"
 
 interface UserProfileCardProps {
   user: User
@@ -15,7 +15,7 @@ export const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {
   return (
     <div className={styles.root}>
       <div className={styles.avatarContainer}>
-        <Avatar className={styles.avatar}>T</Avatar>
+        <UserAvatar className={styles.avatar} user={user} />
       </div>
       <Typography className={styles.userName}>{user.username}</Typography>
       <Typography className={styles.userEmail}>{user.email}</Typography>

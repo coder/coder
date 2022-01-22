@@ -1,5 +1,5 @@
-import Avatar from "@material-ui/core/Avatar"
 import Badge from "@material-ui/core/Badge"
+import Divider from "@material-ui/core/Divider"
 import ListItemIcon from "@material-ui/core/ListItemIcon"
 import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
@@ -12,7 +12,7 @@ import { BorderedMenu } from "./BorderedMenu"
 import { UserProfileCard } from "../User/UserProfileCard"
 
 import { User } from "../../contexts/UserContext"
-import Divider from "@material-ui/core/Divider"
+import { UserAvatar } from "../User"
 
 export interface UserDropdownProps {
   user: User
@@ -37,7 +37,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
           <div className={styles.inner}>
             {user && (
               <Badge overlap="circle">
-                <Avatar>T</Avatar>
+                <UserAvatar user={user} />
               </Badge>
             )}
             {anchorEl ? (
