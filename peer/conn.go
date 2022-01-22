@@ -503,7 +503,7 @@ func (c *Conn) CloseWithError(err error) error {
 	// closing an already closed connection isn't an issue for us.
 	_ = c.rtc.Close()
 
-	// Waits for all DataChannels' to exit before officially labeling as closed.
+	// Waits for all DataChannels to exit before officially labeling as closed.
 	// All logging, goroutines, and async functionality is cleaned up after this.
 	c.dcClosedWaitGroup.Wait()
 
