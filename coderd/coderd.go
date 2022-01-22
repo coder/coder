@@ -33,6 +33,7 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/user", users.createInitialUser)
 		r.Post("/login", users.loginWithPassword)
+		r.Post("/logout", logout)
 		// Require an API key and authenticated user for this group.
 		r.Group(func(r chi.Router) {
 			r.Use(
