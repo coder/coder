@@ -73,42 +73,43 @@ func Int() (int, error) {
 	return int(i), nil
 }
 
-// Int63n returns a non-negative random integer in [0,n) as a int64.
-func Int63n(n int64) (int64, error) {
-	if n <= 0 {
+// Int63n returns a non-negative random integer in [0,max) as a int64.
+func Int63n(max int64) (int64, error) {
+	if max <= 0 {
 		panic("invalid argument to Int63n")
 	}
 
-	max := int64((1 << 63) - 1 - (1<<63)%uint64(n))
+	trueMax := int64((1 << 63) - 1 - (1<<63)%uint64(max))
 	i, err := Int63()
 	if err != nil {
 		return 0, err
 	}
 
-	for i > max {
+	for i > trueMax {
 		i, err = Int63()
 		if err != nil {
 			return 0, err
 		}
 	}
 
-	return i % n, nil
+	return i % max, nil
 }
 
-// Int31n returns a non-negative integer in [0,n) as a int32.
-func Int31n(n int32) (int32, error) {
+// Int31n returns a non-negative integer in [0,max) as a int32.
+func Int31n(max int32) (int32, error) {
 	i, err := Uint32()
 	if err != nil {
 		return 0, err
 	}
 
-	return UnbiasedModulo32(i, n)
+	return UnbiasedModulo32(i, max)
 }
 
 // UnbiasedModulo32 uniformly modulos v by n over a sufficiently large data
 // set, regenerating v if necessary. n must be > 0. All input bits in v must be
 // fully random, you cannot cast a random uint8/uint16 for input into this
 // function.
+//nolint:varnamelen
 func UnbiasedModulo32(v uint32, n int32) (int32, error) {
 	prod := uint64(v) * uint64(n)
 	low := uint32(prod)
@@ -127,14 +128,14 @@ func UnbiasedModulo32(v uint32, n int32) (int32, error) {
 	return int32(prod >> 32), nil
 }
 
-// Intn returns a non-negative integer in [0,n) as a int.
-func Intn(n int) (int, error) {
-	if n <= 0 {
+// Intn returns a non-negative integer in [0,max) as a int.
+func Intn(max int) (int, error) {
+	if max <= 0 {
 		panic("n must be a positive nonzero number")
 	}
 
-	if n <= 1<<31-1 {
-		i, err := Int31n(int32(n))
+	if max <= 1<<31-1 {
+		i, err := Int31n(int32(max))
 		if err != nil {
 			return 0, err
 		}
@@ -142,7 +143,7 @@ func Intn(n int) (int, error) {
 		return int(i), nil
 	}
 
-	i, err := Int63n(int64(n))
+	i, err := Int63n(int64(max))
 	if err != nil {
 		return 0, err
 	}

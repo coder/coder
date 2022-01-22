@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 // Parse extracts Terraform variables from source-code.
-func (t *terraform) Parse(ctx context.Context, request *proto.Parse_Request) (*proto.Parse_Response, error) {
+func (*terraform) Parse(_ context.Context, request *proto.Parse_Request) (*proto.Parse_Response, error) {
 	module, diags := tfconfig.LoadModule(request.Directory)
 	if diags.HasErrors() {
 		return nil, xerrors.Errorf("load module: %w", diags.Err())

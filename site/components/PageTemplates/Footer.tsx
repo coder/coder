@@ -26,6 +26,7 @@ const useFooterStyles = makeStyles((theme) => ({
   root: {
     textAlign: "center",
     marginBottom: theme.spacing(5),
+    flex: "0",
   },
   copyRight: {
     backgroundColor: theme.palette.background.default,

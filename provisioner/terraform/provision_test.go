@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 	"storj.io/drpc/drpcconn"
+
+	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/provisionersdk/proto"
 
 	"github.com/hashicorp/hc-install/product"
 	"github.com/hashicorp/hc-install/releases"
@@ -47,7 +48,7 @@ func TestProvision(t *testing.T) {
 	}()
 	api := proto.NewDRPCProvisionerClient(drpcconn.New(client))
 
-	for _, tc := range []struct {
+	for _, testCase := range []struct {
 		Name     string
 		Files    map[string]string
 		Request  *proto.Provision_Request
@@ -92,25 +93,25 @@ func TestProvision(t *testing.T) {
 		},
 		Error: true,
 	}} {
-		tc := tc
-		t.Run(tc.Name, func(t *testing.T) {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 
 			directory := t.TempDir()
-			for path, content := range tc.Files {
-				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0644)
+			for path, content := range testCase.Files {
+				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0600)
 				require.NoError(t, err)
 			}
 
 			request := &proto.Provision_Request{
 				Directory: directory,
 			}
-			if tc.Request != nil {
-				request.ParameterValues = tc.Request.ParameterValues
-				request.State = tc.Request.State
+			if testCase.Request != nil {
+				request.ParameterValues = testCase.Request.ParameterValues
+				request.State = testCase.Request.State
 			}
 			response, err := api.Provision(ctx, request)
-			if tc.Error {
+			if testCase.Error {
 				require.Error(t, err)
 				return
 			}
@@ -120,7 +121,7 @@ func TestProvision(t *testing.T) {
 			resourcesGot, err := json.Marshal(response.Resources)
 			require.NoError(t, err)
 
-			resourcesWant, err := json.Marshal(tc.Response.Resources)
+			resourcesWant, err := json.Marshal(testCase.Response.Resources)
 			require.NoError(t, err)
 
 			require.Equal(t, string(resourcesWant), string(resourcesGot))

@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/peerbroker"
-	"github.com/coder/coder/peerbroker/proto"
-	"github.com/coder/coder/provisionersdk"
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"storj.io/drpc/drpcconn"
+
+	"github.com/coder/coder/peerbroker"
+	"github.com/coder/coder/peerbroker/proto"
+	"github.com/coder/coder/provisionersdk"
 )
 
 func TestMain(m *testing.M) {

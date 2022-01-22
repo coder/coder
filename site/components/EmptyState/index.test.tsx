@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import { render } from "../../test_helpers"
 import React from "react"
-import { EmptyState, EmptyStateProps } from "./index"
+import { EmptyState } from "./index"
 
 describe("EmptyState", () => {
   it("renders (smoke test)", async () => {

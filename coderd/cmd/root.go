@@ -5,12 +5,13 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/database"
-	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
+	"github.com/coder/coder/database/databasefake"
 )
 
 func Root() *cobra.Command {
@@ -22,7 +23,7 @@ func Root() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			handler := coderd.New(&coderd.Options{
 				Logger:   slog.Make(sloghuman.Sink(os.Stderr)),
-				Database: database.NewInMemory(),
+				Database: databasefake.New(),
 			})
 
 			listener, err := net.Listen("tcp", address)

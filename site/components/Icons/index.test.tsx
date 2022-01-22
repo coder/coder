@@ -1,12 +1,12 @@
 import React from "react"
-import { SvgIcon } from "@material-ui/core"
+import SvgIcon from "@material-ui/core/SvgIcon"
 import { render } from "./../../test_helpers"
 
 import * as Icons from "./index"
 
 const getAllIcons = (): [string, typeof SvgIcon][] => {
   let k: keyof typeof Icons
-  let ret: [string, typeof SvgIcon][] = []
+  const ret: [string, typeof SvgIcon][] = []
   for (k in Icons) {
     ret.push([k, Icons[k]])
   }

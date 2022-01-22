@@ -21,7 +21,7 @@ import (
 type Store interface {
 	querier
 
-	InTx(context.Context, func(Store) error) error
+	InTx(func(Store) error) error
 }
 
 // DBTX represents a database connection or transaction.
@@ -46,16 +46,16 @@ type sqlQuerier struct {
 }
 
 // InTx performs database operations inside a transaction.
-func (q *sqlQuerier) InTx(ctx context.Context, fn func(Store) error) error {
+func (q *sqlQuerier) InTx(function func(Store) error) error {
 	if q.sdb == nil {
 		return nil
 	}
-	tx, err := q.sdb.Begin()
+	transaction, err := q.sdb.Begin()
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
-		rerr := tx.Rollback()
+		rerr := transaction.Rollback()
 		if rerr == nil || errors.Is(rerr, sql.ErrTxDone) {
 			// no need to do anything, tx committed successfully
 			return
@@ -63,11 +63,11 @@ func (q *sqlQuerier) InTx(ctx context.Context, fn func(Store) error) error {
 		// couldn't roll back for some reason, extend returned error
 		err = xerrors.Errorf("defer (%s): %w", rerr.Error(), err)
 	}()
-	err = fn(&sqlQuerier{db: tx})
+	err = function(&sqlQuerier{db: transaction})
 	if err != nil {
 		return xerrors.Errorf("execute transaction: %w", err)
 	}
-	err = tx.Commit()
+	err = transaction.Commit()
 	if err != nil {
 		return xerrors.Errorf("commit transaction: %w", err)
 	}

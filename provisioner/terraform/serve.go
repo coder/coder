@@ -4,9 +4,10 @@ import (
 	"context"
 	"os/exec"
 
-	"github.com/coder/coder/provisionersdk"
 	"github.com/hashicorp/go-version"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/provisionersdk"
 )
 
 var (

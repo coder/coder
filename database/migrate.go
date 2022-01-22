@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"embed"
 	"errors"
@@ -16,7 +15,7 @@ import (
 var migrations embed.FS
 
 // Migrate runs SQL migrations to ensure the database schema is up-to-date.
-func Migrate(ctx context.Context, db *sql.DB) error {
+func Migrate(db *sql.DB) error {
 	sourceDriver, err := iofs.New(migrations, "migrations")
 	if err != nil {
 		return xerrors.Errorf("create iofs: %w", err)

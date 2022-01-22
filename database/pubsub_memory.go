@@ -52,7 +52,7 @@ func (m *memoryPubsub) Publish(event string, message []byte) error {
 	return nil
 }
 
-func (m *memoryPubsub) Close() error {
+func (*memoryPubsub) Close() error {
 	return nil
 }
 

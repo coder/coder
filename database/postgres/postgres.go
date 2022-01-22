@@ -3,7 +3,6 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/ory/dockertest/v3"
@@ -32,13 +31,16 @@ func Open() (string, func(), error) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	if err != nil {
-		log.Fatalf("Could not start resource: %s", err)
+		return "", nil, xerrors.Errorf("could not start resource: %w", err)
 	}
 	hostAndPort := resource.GetHostPort("5432/tcp")
 	dbURL := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", hostAndPort)
 
 	// Docker should hard-kill the container after 120 seconds.
-	resource.Expire(120)
+	err = resource.Expire(120)
+	if err != nil {
+		return "", nil, xerrors.Errorf("could not expire resource: %w", err)
+	}
 
 	pool.MaxWait = 120 * time.Second
 	err = pool.Retry(func() error {

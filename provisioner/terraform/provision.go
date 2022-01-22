@@ -6,17 +6,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 // Provision executes `terraform apply`.
 func (t *terraform) Provision(ctx context.Context, request *proto.Provision_Request) (*proto.Provision_Response, error) {
 	statefilePath := filepath.Join(request.Directory, "terraform.tfstate")
-	err := os.WriteFile(statefilePath, request.State, 0644)
+	err := os.WriteFile(statefilePath, request.State, 0600)
 	if err != nil {
-		return nil, xerrors.Errorf("write statefile %q: %w", err)
+		return nil, xerrors.Errorf("write statefile %q: %w", statefilePath, err)
 	}
 
 	terraform, err := tfexec.NewTerraform(request.Directory, t.binaryPath)

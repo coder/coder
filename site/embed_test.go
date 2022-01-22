@@ -1,7 +1,9 @@
 package site
 
 import (
+	"context"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -13,8 +15,11 @@ func TestIndexPageRenders(t *testing.T) {
 
 	srv := httptest.NewServer(Handler())
 
-	resp, err := srv.Client().Get(srv.URL)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err, "get index")
+	defer resp.Body.Close()
 	data, _ := io.ReadAll(resp.Body)
 	require.NotEmpty(t, data, "index should have contents")
 }

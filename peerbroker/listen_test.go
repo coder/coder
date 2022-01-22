@@ -5,11 +5,12 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"storj.io/drpc/drpcconn"
+
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/stretchr/testify/require"
-	"storj.io/drpc/drpcconn"
 )
 
 func TestListen(t *testing.T) {

@@ -67,13 +67,13 @@ func TestConn(t *testing.T) {
 		_, err := server.Ping()
 		require.NoError(t, err)
 		// Create a channel that closes on disconnect.
-		ch, err := server.Dial(context.Background(), "wow", nil)
+		channel, err := server.Dial(context.Background(), "wow", nil)
 		assert.NoError(t, err)
 		err = wan.Stop()
 		require.NoError(t, err)
 		// Once the connection is marked as disconnected, this
 		// channel will be closed.
-		_, err = ch.Read(make([]byte, 4))
+		_, err = channel.Read(make([]byte, 4))
 		assert.ErrorIs(t, err, peer.ErrClosed)
 		err = wan.Start()
 		require.NoError(t, err)
@@ -154,26 +154,26 @@ func TestConn(t *testing.T) {
 			_, _ = io.Copy(nc2, nc1)
 		}()
 		go func() {
-			s := http.Server{
+			server := http.Server{
 				Handler: http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 					rw.WriteHeader(200)
 				}),
 			}
-			defer s.Close()
-			_ = s.Serve(srv)
+			defer server.Close()
+			_ = server.Serve(srv)
 		}()
 
-		dt := http.DefaultTransport.(*http.Transport).Clone()
+		defaultTransport := http.DefaultTransport.(*http.Transport).Clone()
 		var cch *peer.Channel
-		dt.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			cch, err = client.Dial(context.Background(), "hello", &peer.ChannelOpts{})
+		defaultTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			cch, err = client.Dial(ctx, "hello", &peer.ChannelOpts{})
 			if err != nil {
 				return nil, err
 			}
 			return cch.NetConn(), nil
 		}
 		c := http.Client{
-			Transport: dt,
+			Transport: defaultTransport,
 		}
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "http://localhost/", nil)
 		require.NoError(t, err)
@@ -183,7 +183,7 @@ func TestConn(t *testing.T) {
 		require.Equal(t, resp.StatusCode, 200)
 		// Triggers any connections to close.
 		// This test below ensures the DataChannel actually closes.
-		dt.CloseIdleConnections()
+		defaultTransport.CloseIdleConnections()
 		err = cch.Close()
 		require.ErrorIs(t, err, peer.ErrClosed)
 	})
@@ -226,13 +226,13 @@ func TestConn(t *testing.T) {
 }
 
 func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.Router) {
-	lf := logging.NewDefaultLoggerFactory()
-	lf.DefaultLogLevel = logging.LogLevelDisabled
+	loggingFactory := logging.NewDefaultLoggerFactory()
+	loggingFactory.DefaultLogLevel = logging.LogLevelDisabled
 	vnetMutex.Lock()
 	defer vnetMutex.Unlock()
 	wan, err := vnet.NewRouter(&vnet.RouterConfig{
 		CIDR:          "1.2.3.0/24",
-		LoggerFactory: lf,
+		LoggerFactory: loggingFactory,
 	})
 	require.NoError(t, err)
 	c1Net := vnet.NewNet(&vnet.NetConfig{
@@ -250,25 +250,25 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	c1SettingEngine.SetVNet(c1Net)
 	c1SettingEngine.SetPrflxAcceptanceMinWait(0)
 	c1SettingEngine.SetICETimeouts(disconnectedTimeout, failedTimeout, keepAliveInterval)
-	c1, err := peer.Client([]webrtc.ICEServer{}, &peer.ConnOpts{
+	channel1, err := peer.Client([]webrtc.ICEServer{}, &peer.ConnOpts{
 		SettingEngine: c1SettingEngine,
 		Logger:        slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		c1.Close()
+		channel1.Close()
 	})
 	c2SettingEngine := webrtc.SettingEngine{}
 	c2SettingEngine.SetVNet(c2Net)
 	c2SettingEngine.SetPrflxAcceptanceMinWait(0)
 	c2SettingEngine.SetICETimeouts(disconnectedTimeout, failedTimeout, keepAliveInterval)
-	c2, err := peer.Server([]webrtc.ICEServer{}, &peer.ConnOpts{
+	channel2, err := peer.Server([]webrtc.ICEServer{}, &peer.ConnOpts{
 		SettingEngine: c2SettingEngine,
 		Logger:        slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		c2.Close()
+		channel2.Close()
 	})
 
 	err = wan.Start()
@@ -280,11 +280,11 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	go func() {
 		for {
 			select {
-			case c := <-c2.LocalCandidate():
-				_ = c1.AddRemoteCandidate(c)
-			case c := <-c2.LocalSessionDescription():
-				c1.SetRemoteSessionDescription(c)
-			case <-c2.Closed():
+			case c := <-channel2.LocalCandidate():
+				_ = channel1.AddRemoteCandidate(c)
+			case c := <-channel2.LocalSessionDescription():
+				channel1.SetRemoteSessionDescription(c)
+			case <-channel2.Closed():
 				return
 			}
 		}
@@ -293,15 +293,15 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	go func() {
 		for {
 			select {
-			case c := <-c1.LocalCandidate():
-				_ = c2.AddRemoteCandidate(c)
-			case c := <-c1.LocalSessionDescription():
-				c2.SetRemoteSessionDescription(c)
-			case <-c1.Closed():
+			case c := <-channel1.LocalCandidate():
+				_ = channel2.AddRemoteCandidate(c)
+			case c := <-channel1.LocalSessionDescription():
+				channel2.SetRemoteSessionDescription(c)
+			case <-channel1.Closed():
 				return
 			}
 		}
 	}()
 
-	return c1, c2, wan
+	return channel1, channel2, wan
 }

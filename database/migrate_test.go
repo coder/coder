@@ -3,7 +3,6 @@
 package database_test
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 
@@ -27,6 +26,6 @@ func TestMigrate(t *testing.T) {
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)
 	defer db.Close()
-	err = database.Migrate(context.Background(), db)
+	err = database.Migrate(db)
 	require.NoError(t, err)
 }

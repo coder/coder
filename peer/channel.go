@@ -28,7 +28,7 @@ const (
 // the channel on open. The datachannel should not be manually
 // mutated after being passed to this function.
 func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOpts) *Channel {
-	c := &Channel{
+	channel := &Channel{
 		opts: opts,
 		conn: conn,
 		dc:   dc,
@@ -37,8 +37,8 @@ func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOpts) *Channel 
 		closed:   make(chan struct{}),
 		sendMore: make(chan struct{}, 1),
 	}
-	c.init()
-	return c
+	channel.init()
+	return channel
 }
 
 type ChannelOpts struct {
@@ -109,6 +109,8 @@ func (c *Channel) init() {
 			return
 		}
 		select {
+		case <-c.closed:
+			return
 		case c.sendMore <- struct{}{}:
 		default:
 		}
@@ -167,7 +169,7 @@ func (c *Channel) init() {
 // Read blocks until data is received.
 //
 // This will block until the underlying DataChannel has been opened.
-func (c *Channel) Read(b []byte) (n int, err error) {
+func (c *Channel) Read(bytes []byte) (int, error) {
 	if c.isClosed() {
 		return 0, c.closeError
 	}
@@ -178,7 +180,7 @@ func (c *Channel) Read(b []byte) (n int, err error) {
 		}
 	}
 
-	n, err = c.rwc.Read(b)
+	bytesRead, err := c.rwc.Read(bytes)
 	if err != nil {
 		if c.isClosed() {
 			return 0, c.closeError
@@ -189,9 +191,9 @@ func (c *Channel) Read(b []byte) (n int, err error) {
 		if xerrors.Is(err, io.EOF) {
 			err = c.closeWithError(ErrClosed)
 		}
-		return
+		return bytesRead, err
 	}
-	return
+	return bytesRead, err
 }
 
 // Write sends data to the underlying DataChannel.
@@ -202,8 +204,8 @@ func (c *Channel) Read(b []byte) (n int, err error) {
 //
 // If the Channel is setup to close on disconnect, any buffered
 // data will be lost.
-func (c *Channel) Write(b []byte) (n int, err error) {
-	if len(b) > maxMessageLength {
+func (c *Channel) Write(bytes []byte) (n int, err error) {
+	if len(bytes) > maxMessageLength {
 		return 0, xerrors.Errorf("outbound packet larger than maximum message size: %d", maxMessageLength)
 	}
 
@@ -220,7 +222,7 @@ func (c *Channel) Write(b []byte) (n int, err error) {
 		}
 	}
 
-	if c.dc.BufferedAmount()+uint64(len(b)) >= maxBufferedAmount {
+	if c.dc.BufferedAmount()+uint64(len(bytes)) >= maxBufferedAmount {
 		<-c.sendMore
 	}
 	// TODO (@kyle): There's an obvious race-condition here.
@@ -230,7 +232,7 @@ func (c *Channel) Write(b []byte) (n int, err error) {
 	// See: https://github.com/pion/sctp/issues/181
 	time.Sleep(time.Microsecond)
 
-	return c.rwc.Write(b)
+	return c.rwc.Write(bytes)
 }
 
 // Close gracefully closes the DataChannel.

@@ -38,6 +38,28 @@ jobs:
         with:
           version: latest
 
+  style-lint-typescript:
+    name: "style/lint/typescript"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v2
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+
+      - name: Install node_modules
+        run: yarn install
+
+      - name: "yarn lint"
+        run: yarn lint
+
   gen:
     name: "style/gen"
     runs-on: ubuntu-latest

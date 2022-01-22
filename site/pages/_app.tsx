@@ -1,10 +1,11 @@
 import React from "react"
-
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 
-import { light } from "../theme"
+import { SWRConfig } from "swr"
 import { AppProps } from "next/app"
+import { UserProvider } from "../contexts/UserContext"
+import { light } from "../theme"
 
 /**
  * ClientRender is a component that only allows its children to be rendered
@@ -22,10 +23,25 @@ const ClientRender: React.FC = ({ children }) => (
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
   return (
     <ClientRender>
-      <ThemeProvider theme={light}>
-        <CssBaseline />
-        <Component {...pageProps} />
-      </ThemeProvider>
+      <SWRConfig
+        value={{
+          fetcher: async (url: string) => {
+            const res = await fetch(url)
+            if (!res.ok) {
+              const err = new Error((await res.json()).error?.message || res.statusText)
+              throw err
+            }
+            return res.json()
+          },
+        }}
+      >
+        <UserProvider>
+          <ThemeProvider theme={light}>
+            <CssBaseline />
+            <Component {...pageProps} />
+          </ThemeProvider>
+        </UserProvider>
+      </SWRConfig>
     </ClientRender>
   )
 }
