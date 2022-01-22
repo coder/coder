@@ -83,7 +83,7 @@ export namespace Project {
 
   export const createWorkspace = async (name: string): Promise<string> => {
     await wait(250)
-    return "test-workspace"
+    return name
   }
 }
 

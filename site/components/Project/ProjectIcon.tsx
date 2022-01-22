@@ -1,5 +1,6 @@
 import React from "react"
-import { Box, makeStyles } from "@material-ui/core"
+import { makeStyles } from "@material-ui/core/styles"
+import Box from "@material-ui/core/Box"
 import { ProjectName } from "./ProjectName"
 
 export interface ProjectIconProps {

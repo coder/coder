@@ -1,7 +1,5 @@
-import FormHelperText from "@material-ui/core/FormHelperText"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import { Style } from "@material-ui/icons"
 import React from "react"
 
 export interface FormSectionProps {

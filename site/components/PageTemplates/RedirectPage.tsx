@@ -9,7 +9,8 @@ export const RedirectPage: React.FC<RedirectPageProps> = ({ path }) => {
   const router = useRouter()
 
   useEffect(() => {
-    router.push(path)
+    // 'void' - we're OK with this promise being fire-and-forget
+    void router.push(path)
   })
 
   return null

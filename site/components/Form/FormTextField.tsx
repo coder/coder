@@ -19,21 +19,6 @@ export interface FormFieldProps<T> {
 }
 
 /**
- * FormFieldProps are required props for creating form fields using a factory.
- */
-export interface FormFieldProps<T> {
-  /**
-   * form is a reference to a form or subform and is used to compute common
-   * states such as error and helper text
-   */
-  form: FormikLike<T>
-  /**
-   * formFieldName is a field name associated with the form schema.
-   */
-  formFieldName: keyof T
-}
-
-/**
  * FormTextFieldProps extends form-related MUI TextFieldProps with Formik
  * props. The passed in form is used to compute error states and configure
  * change handlers. `formFieldName` represents the key of a Formik value

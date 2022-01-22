@@ -3,18 +3,19 @@ import isReady from "next/router"
 
 export type RequestState<TPayload> =
   | {
-      state: "loading"
-    }
+    state: "loading"
+  }
   | {
-      state: "error"
-      error: Error
-    }
+    state: "error"
+    error: Error
+  }
   | {
-      state: "success"
-      payload: TPayload
-    }
+    state: "success"
+    payload: TPayload
+  }
 
-export const useRequestor = <TPayload>(fn: () => Promise<TPayload>, deps: any[] = []) => {
+// TODO: Replace with `useSWR`
+export const useRequestor = <TPayload>(fn: () => Promise<TPayload>, deps: any[] = []): RequestState<TPayload> => {
   const [requestState, setRequestState] = useState<RequestState<TPayload>>({ state: "loading" })
 
   useEffect(() => {

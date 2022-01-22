@@ -1,7 +1,9 @@
 import React from "react"
 import { useRouter } from "next/router"
-import { makeStyles, Box, Paper } from "@material-ui/core"
-import { AddToQueue as AddWorkspaceIcon } from "@material-ui/icons"
+import { makeStyles } from "@material-ui/core/styles"
+import Box from "@material-ui/core/Box"
+import Paper from "@material-ui/core/Paper"
+import AddWorkspaceIcon from "@material-ui/icons/AddToQueue"
 
 import { EmptyState, SplitButton } from "../../components"
 import { AppPage } from "../../components/PageTemplates"
