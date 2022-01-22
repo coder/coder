@@ -1,7 +1,5 @@
 import React from "react"
 import Button from "@material-ui/core/Button"
-import List from "@material-ui/core/List"
-import ListSubheader from "@material-ui/core/ListSubheader"
 import { makeStyles } from "@material-ui/core/styles"
 import Link from "next/link"
 
@@ -11,9 +9,10 @@ import { UserDropdown } from "./UserDropdown"
 
 export interface NavbarProps {
   user?: User
+  onSignOut: () => void
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ user }) => {
+export const Navbar: React.FC<NavbarProps> = ({ user, onSignOut }) => {
   const styles = useStyles()
   return (
     <div className={styles.root}>
@@ -25,7 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
         </Link>
       </div>
       <div className={styles.fullWidth} />
-      <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={() => alert("sign out")} />}</div>
+      <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
     </div>
   )
 }

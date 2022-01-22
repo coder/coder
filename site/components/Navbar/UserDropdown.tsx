@@ -4,7 +4,6 @@ import ListItemIcon from "@material-ui/core/ListItemIcon"
 import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
-//import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
 import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
 import React, { useState } from "react"
@@ -14,8 +13,6 @@ import { UserProfileCard } from "../User/UserProfileCard"
 
 import { User } from "../../contexts/UserContext"
 import Divider from "@material-ui/core/Divider"
-
-const navHeight = 56
 
 export interface UserDropdownProps {
   user: User
@@ -33,13 +30,10 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
     setAnchorEl(undefined)
   }
 
-  // TODO: what does this do?
-  const isSelected = false
-
   return (
     <>
       <div>
-        <MenuItem onClick={handleDropdownClick} selected={isSelected}>
+        <MenuItem onClick={handleDropdownClick}>
           <div className={styles.inner}>
             {user && (
               <Badge overlap="circle">
@@ -73,7 +67,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
       >
         {user && (
           <div className={styles.userInfo}>
-            <UserProfileCard user={user} onAvatarClick={onPopoverClose} />
+            <UserProfileCard user={user} />
 
             <Divider className={styles.divider} />
 

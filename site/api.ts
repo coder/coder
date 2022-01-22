@@ -14,7 +14,12 @@ export const login = async (email: string, password: string): Promise<LoginRespo
     }),
   })
 
-  return await readOrThrowResponse(response)
+  const body = await response.json()
+  if (!response.ok) {
+    throw new Error(body.message)
+  }
+
+  return body
 }
 
 export const logout = async (): Promise<void> => {
@@ -22,14 +27,10 @@ export const logout = async (): Promise<void> => {
     method: "POST",
   })
 
-  return await readOrThrowResponse(response)
-}
-
-const readOrThrowResponse = async (response: Response): Promise<any> => {
-  const body = await response.json()
   if (!response.ok) {
+    const body = await response.json()
     throw new Error(body.message)
   }
 
-  return body
+  return
 }
