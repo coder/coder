@@ -113,6 +113,7 @@ type Conn struct {
 	dcDisconnectListeners atomic.Uint32
 	dcFailedChannel       chan struct{}
 	dcFailedListeners     atomic.Uint32
+	dcClosedWaitGroup     sync.WaitGroup
 
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
@@ -125,11 +126,10 @@ type Conn struct {
 	pingEchoChan  *Channel
 	pingEchoOnce  sync.Once
 	pingEchoError error
-
-	pingMutex sync.Mutex
-	pingOnce  sync.Once
-	pingChan  *Channel
-	pingError error
+	pingMutex     sync.Mutex
+	pingOnce      sync.Once
+	pingChan      *Channel
+	pingError     error
 }
 
 func (c *Conn) init() error {
@@ -502,5 +502,10 @@ func (c *Conn) CloseWithError(err error) error {
 	// this call will return an error that isn't typed. We don't check the error because
 	// closing an already closed connection isn't an issue for us.
 	_ = c.rtc.Close()
+
+	// Waits for all DataChannels to exit before officially labeling as closed.
+	// All logging, goroutines, and async functionality is cleaned up after this.
+	c.dcClosedWaitGroup.Wait()
+
 	return err
 }

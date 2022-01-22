@@ -86,13 +86,14 @@ INSERT INTO
     email,
     name,
     login_type,
+    revoked,
     hashed_password,
     created_at,
     updated_at,
     username
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+  ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

@@ -2,8 +2,10 @@ package coderdtest
 
 import (
 	"context"
+	"database/sql"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,7 +13,9 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
+	"github.com/coder/coder/database/postgres"
 )
 
 // Server represents a test instance of coderd.
@@ -27,6 +31,20 @@ type Server struct {
 func New(t *testing.T) Server {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
+	if os.Getenv("DB") != "" {
+		connectionURL, close, err := postgres.Open()
+		require.NoError(t, err)
+		t.Cleanup(close)
+		sqlDB, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sqlDB.Close()
+		})
+		err = database.Migrate(sqlDB)
+		require.NoError(t, err)
+		db = database.New(sqlDB)
+	}
+
 	handler := coderd.New(&coderd.Options{
 		Logger:   slogtest.Make(t, nil),
 		Database: db,

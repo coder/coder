@@ -149,10 +149,18 @@ jobs:
 
       - run: go install gotest.tools/gotestsum@latest
 
-      - run:
+      - name: Test with Mock Database
+        run:
           gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=3 -race -parallel=2
+
+      - name: Test with PostgreSQL Database
+        if: runner.os == 'Linux'
+        run:
+          DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+          -count=1 -race -parallel=2
 
       - uses: codecov/codecov-action@v2
         with:

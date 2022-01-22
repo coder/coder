@@ -135,6 +135,7 @@ func (c *Channel) init() {
 
 	c.conn.dcDisconnectListeners.Add(1)
 	c.conn.dcFailedListeners.Add(1)
+	c.conn.dcClosedWaitGroup.Add(1)
 	go func() {
 		var err error
 		// A DataChannel can disconnect multiple times, so this needs to loop.
@@ -274,6 +275,7 @@ func (c *Channel) closeWithError(err error) error {
 	close(c.sendMore)
 	c.conn.dcDisconnectListeners.Sub(1)
 	c.conn.dcFailedListeners.Sub(1)
+	c.conn.dcClosedWaitGroup.Done()
 
 	if c.rwc != nil {
 		_ = c.rwc.Close()
