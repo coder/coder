@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { wait } from "./util"
 
 // TEMPORARY
@@ -103,8 +102,7 @@ export namespace Workspace {
     return Promise.resolve("test-workspace")
   }
 }
-||||||| 36b7b20
-=======
+
 interface LoginResponse {
   session_token: string
 }
@@ -128,4 +126,3 @@ export const login = async (email: string, password: string): Promise<LoginRespo
 
   return body
 }
->>>>>>> main

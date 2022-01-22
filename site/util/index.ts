@@ -1,2 +1,2 @@
-export * from "./firstOrOnly"
+export * from "./array"
 export * from "./promise"
