@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/database"
 )
 
@@ -111,6 +113,20 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 		return project, nil
 	}
 	return database.Project{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetProjectHistoryByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ProjectHistory, error) {
+	history := make([]database.ProjectHistory, 0)
+	for _, projectHistory := range q.projectHistory {
+		if projectHistory.ProjectID.String() != projectID.String() {
+			continue
+		}
+		history = append(history, projectHistory)
+	}
+	if len(history) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return history, nil
 }
 
 func (q *fakeQuerier) GetProjectsByOrganizationIDs(_ context.Context, ids []string) ([]database.Project, error) {

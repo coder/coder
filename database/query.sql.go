@@ -187,6 +187,48 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 	return i, err
 }
 
+const getProjectHistoryByProjectID = `-- name: GetProjectHistoryByProjectID :many
+SELECT
+  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+FROM
+  project_history
+WHERE
+  project_id = $1
+`
+
+func (q *sqlQuerier) GetProjectHistoryByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectHistory, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectHistoryByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectHistory
+	for rows.Next() {
+		var i ProjectHistory
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Description,
+			&i.StorageMethod,
+			&i.StorageSource,
+			&i.ImportJobID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProjectsByOrganizationIDs = `-- name: GetProjectsByOrganizationIDs :many
 SELECT
   id, created_at, updated_at, organization_id, name, provisioner, active_version_id

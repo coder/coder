@@ -1,6 +1,8 @@
 package codersdk_test
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"testing"
 
@@ -66,6 +68,45 @@ func TestProjects(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = server.Client.Project(context.Background(), user.Organization, "bananas")
+		require.NoError(t, err)
+	})
+
+	t.Run("Versions", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "bananas",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
+		require.NoError(t, err)
+	})
+
+	t.Run("CreateVersion", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "bananas",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		var buffer bytes.Buffer
+		writer := tar.NewWriter(&buffer)
+		err = writer.WriteHeader(&tar.Header{
+			Name: "file",
+			Size: 1 << 10,
+		})
+		require.NoError(t, err)
+		_, err = writer.Write(make([]byte, 1<<10))
+		require.NoError(t, err)
+		_, err = server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+			Name:          "hello",
+			StorageMethod: database.ProjectStorageMethodInlineArchive,
+			StorageSource: buffer.Bytes(),
+		})
 		require.NoError(t, err)
 	})
 }

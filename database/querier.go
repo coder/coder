@@ -4,6 +4,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type querier interface {
@@ -12,6 +14,7 @@ type querier interface {
 	GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error)
 	GetOrganizationsByUserID(ctx context.Context, userID string) ([]Organization, error)
 	GetProjectByOrganizationAndName(ctx context.Context, arg GetProjectByOrganizationAndNameParams) (Project, error)
+	GetProjectHistoryByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectHistory, error)
 	GetProjectsByOrganizationIDs(ctx context.Context, ids []string) ([]Project, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)

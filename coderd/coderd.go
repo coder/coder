@@ -59,6 +59,10 @@ func New(options *Options) http.Handler {
 				r.Route("/{project}", func(r chi.Router) {
 					r.Use(httpmw.ExtractProjectParameter(options.Database))
 					r.Get("/", projects.project)
+					r.Route("/versions", func(r chi.Router) {
+						r.Get("/", projects.projectVersions)
+						r.Post("/", projects.createProjectVersion)
+					})
 				})
 			})
 		})

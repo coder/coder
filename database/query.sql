@@ -96,6 +96,14 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
+-- name: GetProjectHistoryByProjectID :many
+SELECT
+  *
+FROM
+  project_history
+WHERE
+  project_id = $1;
+
 -- name: InsertAPIKey :one
 INSERT INTO
   api_keys (
