@@ -30,7 +30,7 @@ type ProjectVersion struct {
 	ProjectID     uuid.UUID                     `json:"project_id"`
 	CreatedAt     time.Time                     `json:"created_at"`
 	UpdatedAt     time.Time                     `json:"updated_at"`
-	Name          string                        `json"name"`
+	Name          string                        `json:"name"`
 	StorageMethod database.ProjectStorageMethod `json:"storage_method"`
 }
 

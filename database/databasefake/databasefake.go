@@ -115,7 +115,7 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 	return database.Project{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectHistoryByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.ProjectHistory, error) {
+func (q *fakeQuerier) GetProjectHistoryByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectHistory, error) {
 	history := make([]database.ProjectHistory, 0)
 	for _, projectHistory := range q.projectHistory {
 		if projectHistory.ProjectID.String() != projectID.String() {
