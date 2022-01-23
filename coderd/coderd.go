@@ -44,6 +44,17 @@ func New(options *Options) http.Handler {
 				r.Get("/{user}/organizations", users.userOrganizations)
 			})
 		})
+		r.Route("/projects", func(r chi.Router) {
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationParam(options.Database))
+				r.Get("/", nil)  // List projects
+				r.Post("/", nil) // Create project
+				r.Route("/{project}", func(r chi.Router) {
+					r.Get("/", nil)   // Get a single project
+					r.Patch("/", nil) // Update a project
+				})
+			})
+		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)
 	return r

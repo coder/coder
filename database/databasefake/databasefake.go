@@ -105,7 +105,7 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 		if project.OrganizationID != arg.OrganizationID {
 			continue
 		}
-		if strings.EqualFold(project.Name, arg.Name) {
+		if !strings.EqualFold(project.Name, arg.Name) {
 			continue
 		}
 		return project, nil

@@ -22,9 +22,10 @@ import (
 func TestOrganizationParam(t *testing.T) {
 	t.Parallel()
 
-	setupAuthentication := func(db database.Store, r *http.Request) database.User {
+	setupAuthentication := func(db database.Store) (*http.Request, database.User) {
 		var (
 			id, secret = randomAPIKeyParts()
+			r          = httptest.NewRequest("GET", "/", nil)
 			hashed     = sha256.Sum256([]byte(secret))
 		)
 		r.AddCookie(&http.Cookie{
@@ -54,18 +55,23 @@ func TestOrganizationParam(t *testing.T) {
 			ExpiresAt:    database.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
-		return user
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
+		return r, user
 	}
 
 	t.Run("None", func(t *testing.T) {
 		var (
-			db = databasefake.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
-			_  = setupAuthentication(db, r)
+			db   = databasefake.New()
+			rw   = httptest.NewRecorder()
+			r, _ = setupAuthentication(db)
+			rtr  = chi.NewRouter()
 		)
-		httpmw.ExtractAPIKey(db, nil)(httpmw.ExtractOrganizationParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		}))).ServeHTTP(rw, r)
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
+		rtr.Get("/", nil)
+		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -73,16 +79,18 @@ func TestOrganizationParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		var (
-			db = databasefake.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
-			_  = setupAuthentication(db, r)
+			db   = databasefake.New()
+			rw   = httptest.NewRecorder()
+			r, _ = setupAuthentication(db)
+			rtr  = chi.NewRouter()
 		)
-		routeContext := chi.NewRouteContext()
-		routeContext.URLParams.Add("organization", "example")
-		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractAPIKey(db, nil)(httpmw.ExtractOrganizationParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		}))).ServeHTTP(rw, r)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", "nothin")
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
+		rtr.Get("/", nil)
+		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
@@ -90,10 +98,10 @@ func TestOrganizationParam(t *testing.T) {
 
 	t.Run("NotInOrganization", func(t *testing.T) {
 		var (
-			db = databasefake.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
-			_  = setupAuthentication(db, r)
+			db   = databasefake.New()
+			rw   = httptest.NewRecorder()
+			r, _ = setupAuthentication(db)
+			rtr  = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.NewString(),
@@ -102,11 +110,13 @@ func TestOrganizationParam(t *testing.T) {
 			UpdatedAt: database.Now(),
 		})
 		require.NoError(t, err)
-		routeContext := chi.NewRouteContext()
-		routeContext.URLParams.Add("organization", organization.Name)
-		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractAPIKey(db, nil)(httpmw.ExtractOrganizationParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		}))).ServeHTTP(rw, r)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.Name)
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
+		rtr.Get("/", nil)
+		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -114,10 +124,10 @@ func TestOrganizationParam(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		var (
-			db   = databasefake.New()
-			r    = httptest.NewRequest("GET", "/", nil)
-			rw   = httptest.NewRecorder()
-			user = setupAuthentication(db, r)
+			db      = databasefake.New()
+			rw      = httptest.NewRecorder()
+			r, user = setupAuthentication(db)
+			rtr     = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.NewString(),
@@ -133,15 +143,19 @@ func TestOrganizationParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
-		routeContext := chi.NewRouteContext()
-		routeContext.URLParams.Add("organization", organization.Name)
-		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
-		httpmw.ExtractAPIKey(db, nil)(httpmw.ExtractOrganizationParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.Name)
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.OrganizationParam(r)
 			_ = httpmw.OrganizationMemberParam(r)
-		}))).ServeHTTP(rw, r)
+			rw.WriteHeader(http.StatusOK)
+		})
+		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 }
