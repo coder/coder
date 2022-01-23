@@ -90,6 +90,7 @@ func TestUserParam(t *testing.T) {
 		routeContext.URLParams.Add("user", "me")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeContext))
 		httpmw.ExtractUserParam(db)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			_ = httpmw.UserParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 		res := rw.Result()
