@@ -22,10 +22,18 @@ func TestUsers(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Get", func(t *testing.T) {
+	t.Run("User", func(t *testing.T) {
 		server := coderdtest.New(t)
 		_ = server.RandomInitialUser(t)
 		_, err := server.Client.User(context.Background(), "")
 		require.NoError(t, err)
+	})
+
+	t.Run("UserOrganizations", func(t *testing.T) {
+		server := coderdtest.New(t)
+		_ = server.RandomInitialUser(t)
+		orgs, err := server.Client.UserOrganizations(context.Background(), "")
+		require.NoError(t, err)
+		require.Len(t, orgs, 1)
 	})
 }
