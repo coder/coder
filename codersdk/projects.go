@@ -29,6 +29,20 @@ func (c *Client) Projects(ctx context.Context, organization string) ([]coderd.Pr
 	return projects, json.NewDecoder(res.Body).Decode(&projects)
 }
 
+// Project returns a single project.
+func (c *Client) Project(ctx context.Context, organization, project string) (coderd.Project, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s", organization, project), nil)
+	if err != nil {
+		return coderd.Project{}, nil
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.Project{}, readBodyAsError(res)
+	}
+	var resp coderd.Project
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // CreateProject creates a new project inside an organization.
 func (c *Client) CreateProject(ctx context.Context, organization string, request coderd.CreateProjectRequest) (coderd.Project, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s", organization), request)

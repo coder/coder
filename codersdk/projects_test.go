@@ -48,4 +48,24 @@ func TestProjects(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+
+	t.Run("UnauthenticatedSingle", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_, err := server.Client.Project(context.Background(), "wow", "example")
+		require.Error(t, err)
+	})
+
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "bananas",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.Project(context.Background(), user.Organization, "bananas")
+		require.NoError(t, err)
+	})
 }

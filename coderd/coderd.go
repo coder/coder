@@ -56,6 +56,10 @@ func New(options *Options) http.Handler {
 				r.Use(httpmw.ExtractOrganizationParam(options.Database))
 				r.Get("/", projects.allProjectsForOrganization)
 				r.Post("/", projects.createProject)
+				r.Route("/{project}", func(r chi.Router) {
+					r.Use(httpmw.ExtractProjectParameter(options.Database))
+					r.Get("/", projects.project)
+				})
 			})
 		})
 	})

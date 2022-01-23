@@ -118,3 +118,11 @@ func (p *projects) createProject(rw http.ResponseWriter, r *http.Request) {
 	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, project)
 }
+
+// project returns a single project parsed from the URL path.
+func (*projects) project(rw http.ResponseWriter, r *http.Request) {
+	project := httpmw.ProjectParam(r)
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, project)
+}

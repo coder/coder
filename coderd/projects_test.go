@@ -69,4 +69,17 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, projects, 1)
 	})
+
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "someproject",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.Project(context.Background(), user.Organization, project.Name)
+		require.NoError(t, err)
+	})
 }
