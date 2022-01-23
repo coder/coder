@@ -192,8 +192,8 @@ func (q *fakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjectParams) (database.Project, error) {
 	project := database.Project{
 		ID:             arg.ID,
-		Created:        arg.Created,
-		Updated:        arg.Updated,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
 		OrganizationID: arg.OrganizationID,
 		Name:           arg.Name,
 		Provisioner:    arg.Provisioner,
@@ -207,8 +207,8 @@ func (q *fakeQuerier) InsertProjectHistory(_ context.Context, arg database.Inser
 	history := database.ProjectHistory{
 		ID:            arg.ID,
 		ProjectID:     arg.ProjectID,
-		Created:       arg.Created,
-		Updated:       arg.Updated,
+		CreatedAt:     arg.CreatedAt,
+		UpdatedAt:     arg.UpdatedAt,
 		Name:          arg.Name,
 		Description:   arg.Description,
 		StorageMethod: arg.StorageMethod,
@@ -223,6 +223,7 @@ func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.Ins
 	//nolint:gosimple
 	param := database.ProjectParameter{
 		ID:                       arg.ID,
+		CreatedAt:                arg.CreatedAt,
 		ProjectHistoryID:         arg.ProjectHistoryID,
 		Name:                     arg.Name,
 		Description:              arg.Description,

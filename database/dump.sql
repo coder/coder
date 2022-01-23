@@ -72,8 +72,8 @@ CREATE TABLE organizations (
 
 CREATE TABLE project (
     id uuid NOT NULL,
-    created timestamp with time zone NOT NULL,
-    updated timestamp with time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
     organization_id text NOT NULL,
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
@@ -83,8 +83,8 @@ CREATE TABLE project (
 CREATE TABLE project_history (
     id uuid NOT NULL,
     project_id uuid NOT NULL,
-    created timestamp with time zone NOT NULL,
-    updated timestamp with time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     description character varying(1048576) NOT NULL,
     storage_method project_storage_method NOT NULL,
@@ -94,6 +94,7 @@ CREATE TABLE project_history (
 
 CREATE TABLE project_parameter (
     id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
     project_history_id uuid NOT NULL,
     name character varying(64) NOT NULL,
     description character varying(8192) DEFAULT ''::character varying NOT NULL,

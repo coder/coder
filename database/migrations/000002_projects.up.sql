@@ -4,8 +4,8 @@ CREATE TYPE provisioner_type AS ENUM ('terraform', 'cdr-basic');
 -- requires for development.
 CREATE TABLE project (
     id uuid NOT NULL UNIQUE,
-    created timestamptz NOT NULL,
-    updated timestamptz NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
     -- Projects must be scoped to an organization.
     organization_id text NOT NULL,
     name varchar(64) NOT NULL,
@@ -27,8 +27,8 @@ CREATE TABLE project_history (
     id uuid NOT NULL UNIQUE,
     -- This should be indexed.
     project_id uuid NOT NULL REFERENCES project (id),
-    created timestamptz NOT NULL,
-    updated timestamptz NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
     -- Name is generated for ease of differentiation.
     -- eg. TheCozyRabbit16
     name varchar(64) NOT NULL,
@@ -59,6 +59,7 @@ CREATE TYPE parameter_type_system AS ENUM ('hcl');
 -- Needs to be made consistent with the examples below.
 CREATE TABLE project_parameter (
     id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
     project_history_id uuid NOT NULL REFERENCES project_history(id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
     -- 8KB limit

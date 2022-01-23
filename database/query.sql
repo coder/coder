@@ -156,8 +156,8 @@ VALUES
 INSERT INTO
   project (
     id,
-    created,
-    updated,
+    created_at,
+    updated_at,
     organization_id,
     name,
     provisioner
@@ -170,8 +170,8 @@ INSERT INTO
   project_history (
     id,
     project_id,
-    created,
-    updated,
+    created_at,
+    updated_at,
     name,
     description,
     storage_method,
@@ -185,6 +185,7 @@ VALUES
 INSERT INTO
   project_parameter (
     id,
+    created_at,
     project_history_id,
     name,
     description,
@@ -200,7 +201,23 @@ INSERT INTO
     validation_value_type
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15
+  ) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO

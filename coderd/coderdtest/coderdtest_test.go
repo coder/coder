@@ -13,6 +13,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	server := coderdtest.New(t)
 	_ = server.RandomInitialUser(t)
 }

@@ -80,6 +80,7 @@ func TestProjectParam(t *testing.T) {
 	}
 
 	t.Run("None", func(t *testing.T) {
+		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
@@ -98,6 +99,7 @@ func TestProjectParam(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
@@ -118,6 +120,7 @@ func TestProjectParam(t *testing.T) {
 	})
 
 	t.Run("Project", func(t *testing.T) {
+		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(

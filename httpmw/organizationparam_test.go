@@ -60,6 +60,7 @@ func TestOrganizationParam(t *testing.T) {
 	}
 
 	t.Run("None", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db   = databasefake.New()
 			rw   = httptest.NewRecorder()
@@ -78,6 +79,7 @@ func TestOrganizationParam(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db   = databasefake.New()
 			rw   = httptest.NewRecorder()
@@ -97,6 +99,7 @@ func TestOrganizationParam(t *testing.T) {
 	})
 
 	t.Run("NotInOrganization", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db   = databasefake.New()
 			rw   = httptest.NewRecorder()
@@ -123,6 +126,7 @@ func TestOrganizationParam(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db      = databasefake.New()
 			rw      = httptest.NewRecorder()

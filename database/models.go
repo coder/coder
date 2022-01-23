@@ -153,8 +153,8 @@ type OrganizationMember struct {
 
 type Project struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
-	Created         time.Time       `db:"created" json:"created"`
-	Updated         time.Time       `db:"updated" json:"updated"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
 	OrganizationID  string          `db:"organization_id" json:"organization_id"`
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
@@ -164,8 +164,8 @@ type Project struct {
 type ProjectHistory struct {
 	ID            uuid.UUID            `db:"id" json:"id"`
 	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	Created       time.Time            `db:"created" json:"created"`
-	Updated       time.Time            `db:"updated" json:"updated"`
+	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
 	Name          string               `db:"name" json:"name"`
 	Description   string               `db:"description" json:"description"`
 	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
@@ -175,6 +175,7 @@ type ProjectHistory struct {
 
 type ProjectParameter struct {
 	ID                       uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
 	ProjectHistoryID         uuid.UUID           `db:"project_history_id" json:"project_history_id"`
 	Name                     string              `db:"name" json:"name"`
 	Description              string              `db:"description" json:"description"`

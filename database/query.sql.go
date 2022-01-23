@@ -157,7 +157,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string
 
 const getProjectByOrganizationAndName = `-- name: GetProjectByOrganizationAndName :one
 SELECT
-  id, created, updated, organization_id, name, provisioner, active_version_id
+  id, created_at, updated_at, organization_id, name, provisioner, active_version_id
 FROM
   project
 WHERE
@@ -177,8 +177,8 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 	var i Project
 	err := row.Scan(
 		&i.ID,
-		&i.Created,
-		&i.Updated,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.OrganizationID,
 		&i.Name,
 		&i.Provisioner,
@@ -189,7 +189,7 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 
 const getProjectsByOrganizationIDs = `-- name: GetProjectsByOrganizationIDs :many
 SELECT
-  id, created, updated, organization_id, name, provisioner, active_version_id
+  id, created_at, updated_at, organization_id, name, provisioner, active_version_id
 FROM
   project
 WHERE
@@ -207,8 +207,8 @@ func (q *sqlQuerier) GetProjectsByOrganizationIDs(ctx context.Context, ids []str
 		var i Project
 		if err := rows.Scan(
 			&i.ID,
-			&i.Created,
-			&i.Updated,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 			&i.OrganizationID,
 			&i.Name,
 			&i.Provisioner,
@@ -502,20 +502,20 @@ const insertProject = `-- name: InsertProject :one
 INSERT INTO
   project (
     id,
-    created,
-    updated,
+    created_at,
+    updated_at,
     organization_id,
     name,
     provisioner
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING id, created, updated, organization_id, name, provisioner, active_version_id
+  ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, organization_id, name, provisioner, active_version_id
 `
 
 type InsertProjectParams struct {
 	ID             uuid.UUID       `db:"id" json:"id"`
-	Created        time.Time       `db:"created" json:"created"`
-	Updated        time.Time       `db:"updated" json:"updated"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
 	OrganizationID string          `db:"organization_id" json:"organization_id"`
 	Name           string          `db:"name" json:"name"`
 	Provisioner    ProvisionerType `db:"provisioner" json:"provisioner"`
@@ -524,8 +524,8 @@ type InsertProjectParams struct {
 func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams) (Project, error) {
 	row := q.db.QueryRowContext(ctx, insertProject,
 		arg.ID,
-		arg.Created,
-		arg.Updated,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 		arg.OrganizationID,
 		arg.Name,
 		arg.Provisioner,
@@ -533,8 +533,8 @@ func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams)
 	var i Project
 	err := row.Scan(
 		&i.ID,
-		&i.Created,
-		&i.Updated,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.OrganizationID,
 		&i.Name,
 		&i.Provisioner,
@@ -548,8 +548,8 @@ INSERT INTO
   project_history (
     id,
     project_id,
-    created,
-    updated,
+    created_at,
+    updated_at,
     name,
     description,
     storage_method,
@@ -557,14 +557,14 @@ INSERT INTO
     import_job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, project_id, created, updated, name, description, storage_method, storage_source, import_job_id
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
 `
 
 type InsertProjectHistoryParams struct {
 	ID            uuid.UUID            `db:"id" json:"id"`
 	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	Created       time.Time            `db:"created" json:"created"`
-	Updated       time.Time            `db:"updated" json:"updated"`
+	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
 	Name          string               `db:"name" json:"name"`
 	Description   string               `db:"description" json:"description"`
 	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
@@ -576,8 +576,8 @@ func (q *sqlQuerier) InsertProjectHistory(ctx context.Context, arg InsertProject
 	row := q.db.QueryRowContext(ctx, insertProjectHistory,
 		arg.ID,
 		arg.ProjectID,
-		arg.Created,
-		arg.Updated,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 		arg.Name,
 		arg.Description,
 		arg.StorageMethod,
@@ -588,8 +588,8 @@ func (q *sqlQuerier) InsertProjectHistory(ctx context.Context, arg InsertProject
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
-		&i.Created,
-		&i.Updated,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
 		&i.StorageMethod,
@@ -603,6 +603,7 @@ const insertProjectParameter = `-- name: InsertProjectParameter :one
 INSERT INTO
   project_parameter (
     id,
+    created_at,
     project_history_id,
     name,
     description,
@@ -618,11 +619,28 @@ INSERT INTO
     validation_value_type
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, project_history_id, name, description, default_source, allow_override_source, default_destination, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15
+  ) RETURNING id, created_at, project_history_id, name, description, default_source, allow_override_source, default_destination, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
 `
 
 type InsertProjectParameterParams struct {
 	ID                       uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
 	ProjectHistoryID         uuid.UUID           `db:"project_history_id" json:"project_history_id"`
 	Name                     string              `db:"name" json:"name"`
 	Description              string              `db:"description" json:"description"`
@@ -641,6 +659,7 @@ type InsertProjectParameterParams struct {
 func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProjectParameterParams) (ProjectParameter, error) {
 	row := q.db.QueryRowContext(ctx, insertProjectParameter,
 		arg.ID,
+		arg.CreatedAt,
 		arg.ProjectHistoryID,
 		arg.Name,
 		arg.Description,
@@ -658,6 +677,7 @@ func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProje
 	var i ProjectParameter
 	err := row.Scan(
 		&i.ID,
+		&i.CreatedAt,
 		&i.ProjectHistoryID,
 		&i.Name,
 		&i.Description,
