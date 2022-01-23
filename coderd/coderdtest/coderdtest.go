@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
 	"github.com/coder/coder/database/postgres"
@@ -27,7 +28,37 @@ type Server struct {
 	URL    *url.URL
 }
 
-// New constructs a new coderd test instance.
+// RandomInitialUser generates a random initial user and authenticates
+// it with the client on the Server struct.
+func (s *Server) RandomInitialUser(t *testing.T) coderd.CreateInitialUserRequest {
+	username, err := cryptorand.String(12)
+	require.NoError(t, err)
+	password, err := cryptorand.String(12)
+	require.NoError(t, err)
+	organization, err := cryptorand.String(12)
+	require.NoError(t, err)
+
+	req := coderd.CreateInitialUserRequest{
+		Email:        "testuser@coder.com",
+		Username:     username,
+		Password:     password,
+		Organization: organization,
+	}
+	_, err = s.Client.CreateInitialUser(context.Background(), req)
+	require.NoError(t, err)
+
+	login, err := s.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		Email:    "testuser@coder.com",
+		Password: password,
+	})
+	require.NoError(t, err)
+	err = s.Client.SetSessionToken(login.SessionToken)
+	require.NoError(t, err)
+	return req
+}
+
+// New constructs a new coderd test instance. This returned Server
+// should contain no side-effects.
 func New(t *testing.T) Server {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
@@ -54,24 +85,8 @@ func New(t *testing.T) Server {
 	require.NoError(t, err)
 	t.Cleanup(srv.Close)
 
-	client := codersdk.New(serverURL)
-	_, err = client.CreateInitialUser(context.Background(), coderd.CreateUserRequest{
-		Email:    "testuser@coder.com",
-		Username: "testuser",
-		Password: "testpassword",
-	})
-	require.NoError(t, err)
-
-	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-		Email:    "testuser@coder.com",
-		Password: "testpassword",
-	})
-	require.NoError(t, err)
-	err = client.SetSessionToken(login.SessionToken)
-	require.NoError(t, err)
-
 	return Server{
-		Client: client,
+		Client: codersdk.New(serverURL),
 		URL:    serverURL,
 	}
 }

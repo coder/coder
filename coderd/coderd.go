@@ -31,15 +31,18 @@ func New(options *Options) http.Handler {
 				Message: "👋",
 			})
 		})
-		r.Post("/user", users.createInitialUser)
 		r.Post("/login", users.loginWithPassword)
-		// Require an API key and authenticated user for this group.
-		r.Group(func(r chi.Router) {
-			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
-				httpmw.ExtractUser(options.Database),
-			)
-			r.Get("/user", users.authenticatedUser)
+		r.Route("/users", func(r chi.Router) {
+			r.Post("/", users.createInitialUser)
+
+			r.Group(func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractAPIKey(options.Database, nil),
+					httpmw.ExtractUserParam(options.Database),
+				)
+				r.Get("/{user}", users.user)
+				r.Get("/{user}/organizations", users.userOrganizations)
+			})
 		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)

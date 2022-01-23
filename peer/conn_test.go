@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	disconnectedTimeout = time.Second
+	disconnectedTimeout = 5 * time.Second
 	failedTimeout       = disconnectedTimeout * 5
 	keepAliveInterval   = time.Millisecond * 2
 )

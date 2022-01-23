@@ -41,6 +41,14 @@ SELECT
 FROM
   users;
 
+-- name: GetOrganizationByName :one
+SELECT * FROM organizations WHERE name = $1 LIMIT 1;
+
+-- name: GetOrganizationsByUserID :many
+SELECT * FROM organizations WHERE id = (
+  SELECT organization_id FROM organization_members WHERE user_id = $1
+);
+
 -- name: InsertAPIKey :one
 INSERT INTO
   api_keys (
@@ -78,6 +86,12 @@ VALUES
     $14,
     $15
   ) RETURNING *;
+
+-- name: InsertOrganization :one
+INSERT INTO organizations (id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING *;
+
+-- name: InsertOrganizationMember :one
+INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles) VALUES ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO

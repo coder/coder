@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"crypto/sha256"
 	"database/sql"
 	"errors"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/cryptorand"
@@ -27,11 +27,12 @@ type User struct {
 	Username  string    `json:"username" validate:"required"`
 }
 
-// CreateUserRequest enables callers to create a new user.
-type CreateUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
+// CreateInitialUserRequest enables callers to create a new user.
+type CreateInitialUserRequest struct {
+	Email        string `json:"email" validate:"required,email"`
+	Username     string `json:"username" validate:"required,username"`
+	Password     string `json:"password" validate:"required"`
+	Organization string `json:"organization" validate:"required,username"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -51,7 +52,7 @@ type users struct {
 
 // Creates the initial user for a Coder deployment.
 func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
-	var createUser CreateUserRequest
+	var createUser CreateInitialUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
@@ -70,19 +71,6 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	_, err = users.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-		Email:    createUser.Email,
-		Username: createUser.Username,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get user: %s", err.Error()),
-		})
-		return
-	}
 	hashedPassword, err := userpassword.Hash(createUser.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -91,28 +79,57 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := users.Database.InsertUser(context.Background(), database.InsertUserParams{
-		ID:             uuid.NewString(),
-		Email:          createUser.Email,
-		HashedPassword: []byte(hashedPassword),
-		Username:       createUser.Username,
-		LoginType:      database.LoginTypeBuiltIn,
-		CreatedAt:      database.Now(),
-		UpdatedAt:      database.Now(),
+	// Create the user, organization, and membership to the user.
+	var user database.User
+	err = users.Database.InTx(func(s database.Store) error {
+		user, err = users.Database.InsertUser(r.Context(), database.InsertUserParams{
+			ID:             uuid.NewString(),
+			Email:          createUser.Email,
+			HashedPassword: []byte(hashedPassword),
+			Username:       createUser.Username,
+			LoginType:      database.LoginTypeBuiltIn,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+		})
+		if err != nil {
+			return xerrors.Errorf("create user: %w", err)
+		}
+		organization, err := users.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+			ID:        uuid.NewString(),
+			Name:      createUser.Organization,
+			CreatedAt: database.Now(),
+			UpdatedAt: database.Now(),
+		})
+		if err != nil {
+			return xerrors.Errorf("create organization: %w", err)
+		}
+		_, err = users.Database.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+			OrganizationID: organization.ID,
+			UserID:         user.ID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			Roles:          []string{"organization-admin"},
+		})
+		if err != nil {
+			return xerrors.Errorf("create organization member: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("create user: %s", err.Error()),
+			Message: err.Error(),
 		})
 		return
 	}
+
 	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, user)
 }
 
-// Returns the currently authenticated user.
-func (*users) authenticatedUser(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.User(r)
+// Returns the parameterized user requested. All validation
+// is completed in the middleware for this route.
+func (*users) user(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
 
 	render.JSON(rw, r, User{
 		ID:        user.ID,
@@ -120,6 +137,27 @@ func (*users) authenticatedUser(rw http.ResponseWriter, r *http.Request) {
 		CreatedAt: user.CreatedAt,
 		Username:  user.Username,
 	})
+}
+
+// Returns organizations the parameterized user has access to.
+func (users *users) userOrganizations(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	organizations, err := users.Database.GetOrganizationsByUserID(r.Context(), user.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organizations: %s", err.Error()),
+		})
+		return
+	}
+
+	publicOrganizations := make([]Organization, 0, len(organizations))
+	for _, organization := range organizations {
+		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, publicOrganizations)
 }
 
 // Authenticates the user with an email and password.

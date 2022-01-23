@@ -13,5 +13,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestNew(t *testing.T) {
-	_ = coderdtest.New(t)
+	server := coderdtest.New(t)
+	_ = server.RandomInitialUser(t)
 }

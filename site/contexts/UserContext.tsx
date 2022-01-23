@@ -38,7 +38,7 @@ export const useUser = (redirectOnError = false): UserContext => {
 }
 
 export const UserProvider: React.FC = (props) => {
-  const { data, error } = useSWR("/api/v2/user")
+  const { data, error } = useSWR("/api/v2/users/me")
 
   return (
     <UserContext.Provider
