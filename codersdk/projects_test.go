@@ -24,8 +24,10 @@ func TestProjects(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
+		user := server.RandomInitialUser(t)
 		_, err := server.Client.Projects(context.Background(), "")
+		require.NoError(t, err)
+		_, err = server.Client.Projects(context.Background(), user.Organization)
 		require.NoError(t, err)
 	})
 
