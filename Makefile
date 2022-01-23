@@ -11,7 +11,7 @@ database/dump.sql: $(wildcard database/migrations/*.sql)
 	go run database/dump/main.go
 
 # Generates Go code for querying the database.
-database/generate: database/dump.sql database/query.sql
+database/generate: fmt/sql database/dump.sql database/query.sql
 	cd database && sqlc generate && rm db_tmp.go
 	cd database && gofmt -w -r 'Querier -> querier' *.go
 	cd database && gofmt -w -r 'Queries -> sqlQuerier' *.go
@@ -27,12 +27,13 @@ else
 endif
 .PHONY: fmt/prettier
 
-fmt/sql:
+fmt/sql: ./database/query.sql
 	npx sql-formatter \
 		--language postgresql \
 		--lines-between-queries 2 \
 		./database/query.sql \
 		--output ./database/query.sql
+	sed -i 's/@ /@/g' ./database/query.sql
 
 fmt: fmt/prettier fmt/sql
 .PHONY: fmt
