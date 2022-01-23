@@ -22,6 +22,12 @@ func TestUsers(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("NoUser", func(t *testing.T) {
+		server := coderdtest.New(t)
+		_, err := server.Client.User(context.Background(), "")
+		require.Error(t, err)
+	})
+
 	t.Run("User", func(t *testing.T) {
 		server := coderdtest.New(t)
 		_ = server.RandomInitialUser(t)
