@@ -11,7 +11,9 @@ import (
 )
 
 func TestUsers(t *testing.T) {
+	t.Parallel()
 	t.Run("CreateInitial", func(t *testing.T) {
+		t.Parallel()
 		server := coderdtest.New(t)
 		_, err := server.Client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
 			Email:        "wowie@coder.com",
@@ -23,12 +25,14 @@ func TestUsers(t *testing.T) {
 	})
 
 	t.Run("NoUser", func(t *testing.T) {
+		t.Parallel()
 		server := coderdtest.New(t)
 		_, err := server.Client.User(context.Background(), "")
 		require.Error(t, err)
 	})
 
 	t.Run("User", func(t *testing.T) {
+		t.Parallel()
 		server := coderdtest.New(t)
 		_ = server.RandomInitialUser(t)
 		_, err := server.Client.User(context.Background(), "")
@@ -36,6 +40,7 @@ func TestUsers(t *testing.T) {
 	})
 
 	t.Run("UserOrganizations", func(t *testing.T) {
+		t.Parallel()
 		server := coderdtest.New(t)
 		_ = server.RandomInitialUser(t)
 		orgs, err := server.Client.UserOrganizations(context.Background(), "")

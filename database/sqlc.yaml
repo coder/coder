@@ -25,4 +25,5 @@ rename:
   oidc_expiry: OIDCExpiry
   oidc_id_token: OIDCIDToken
   oidc_refresh_token: OIDCRefreshToken
+  parameter_type_system_hcl: ParameterTypeSystemHCL
   userstatus: UserStatus

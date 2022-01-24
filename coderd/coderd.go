@@ -20,6 +20,9 @@ type Options struct {
 
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
+	projects := &projects{
+		Database: options.Database,
+	}
 	users := &users{
 		Database: options.Database,
 	}
@@ -42,6 +45,25 @@ func New(options *Options) http.Handler {
 				)
 				r.Get("/{user}", users.user)
 				r.Get("/{user}/organizations", users.userOrganizations)
+			})
+		})
+		r.Route("/projects", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+			)
+			r.Get("/", projects.allProjects)
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationParam(options.Database))
+				r.Get("/", projects.allProjectsForOrganization)
+				r.Post("/", projects.createProject)
+				r.Route("/{project}", func(r chi.Router) {
+					r.Use(httpmw.ExtractProjectParameter(options.Database))
+					r.Get("/", projects.project)
+					r.Route("/versions", func(r chi.Router) {
+						r.Get("/", projects.projectVersions)
+						r.Post("/", projects.createProjectVersion)
+					})
+				})
 			})
 		})
 	})

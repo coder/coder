@@ -3,9 +3,12 @@
 package database
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type LoginType string
@@ -24,6 +27,61 @@ func (e *LoginType) Scan(src interface{}) error {
 		*e = LoginType(s)
 	default:
 		return fmt.Errorf("unsupported scan type for LoginType: %T", src)
+	}
+	return nil
+}
+
+type ParameterTypeSystem string
+
+const (
+	ParameterTypeSystemHCL ParameterTypeSystem = "hcl"
+)
+
+func (e *ParameterTypeSystem) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ParameterTypeSystem(s)
+	case string:
+		*e = ParameterTypeSystem(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ParameterTypeSystem: %T", src)
+	}
+	return nil
+}
+
+type ProjectStorageMethod string
+
+const (
+	ProjectStorageMethodInlineArchive ProjectStorageMethod = "inline-archive"
+)
+
+func (e *ProjectStorageMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProjectStorageMethod(s)
+	case string:
+		*e = ProjectStorageMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProjectStorageMethod: %T", src)
+	}
+	return nil
+}
+
+type ProvisionerType string
+
+const (
+	ProvisionerTypeTerraform ProvisionerType = "terraform"
+	ProvisionerTypeCdrBasic  ProvisionerType = "cdr-basic"
+)
+
+func (e *ProvisionerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerType(s)
+	case string:
+		*e = ProvisionerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerType: %T", src)
 	}
 	return nil
 }
@@ -91,6 +149,46 @@ type OrganizationMember struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 	Roles          []string  `db:"roles" json:"roles"`
+}
+
+type Project struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID  string          `db:"organization_id" json:"organization_id"`
+	Name            string          `db:"name" json:"name"`
+	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID uuid.NullUUID   `db:"active_version_id" json:"active_version_id"`
+}
+
+type ProjectHistory struct {
+	ID            uuid.UUID            `db:"id" json:"id"`
+	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
+	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
+	Name          string               `db:"name" json:"name"`
+	Description   string               `db:"description" json:"description"`
+	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource []byte               `db:"storage_source" json:"storage_source"`
+	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
+}
+
+type ProjectParameter struct {
+	ID                       uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
+	ProjectHistoryID         uuid.UUID           `db:"project_history_id" json:"project_history_id"`
+	Name                     string              `db:"name" json:"name"`
+	Description              string              `db:"description" json:"description"`
+	DefaultSource            sql.NullString      `db:"default_source" json:"default_source"`
+	AllowOverrideSource      bool                `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestination       sql.NullString      `db:"default_destination" json:"default_destination"`
+	AllowOverrideDestination bool                `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string              `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string              `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string              `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string              `db:"validation_value_type" json:"validation_value_type"`
 }
 
 type User struct {

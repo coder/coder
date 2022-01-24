@@ -18,6 +18,7 @@ require (
 	github.com/hashicorp/terraform-exec v0.15.0
 	github.com/justinas/nosurf v1.1.1
 	github.com/lib/pq v1.10.4
+	github.com/moby/moby v20.10.12+incompatible
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2

@@ -18,7 +18,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestProvisionerSDK(t *testing.T) {
+	t.Parallel()
 	t.Run("Serve", func(t *testing.T) {
+		t.Parallel()
 		client, server := provisionersdk.TransportPipe()
 		defer client.Close()
 		defer server.Close()
@@ -37,6 +39,7 @@ func TestProvisionerSDK(t *testing.T) {
 		require.Equal(t, drpcerr.Unimplemented, int(drpcerr.Code(err)))
 	})
 	t.Run("ServeClosedPipe", func(t *testing.T) {
+		t.Parallel()
 		client, server := provisionersdk.TransportPipe()
 		_ = client.Close()
 		_ = server.Close()

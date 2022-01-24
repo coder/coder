@@ -35,6 +35,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("NoCookie", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db = databasefake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -47,6 +48,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("InvalidFormat", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db = databasefake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -64,6 +66,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("InvalidIDLength", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db = databasefake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -81,6 +84,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("InvalidSecretLength", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db = databasefake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -98,6 +102,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()
@@ -116,6 +121,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("InvalidSecret", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()
@@ -141,6 +147,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("Expired", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()
@@ -165,6 +172,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()
@@ -203,6 +211,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("ValidUpdateLastUsed", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()
@@ -235,6 +244,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("ValidUpdateExpiry", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()
@@ -267,6 +277,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("OIDCNotExpired", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()
@@ -300,6 +311,7 @@ func TestAPIKey(t *testing.T) {
 	})
 
 	t.Run("OIDCRefresh", func(t *testing.T) {
+		t.Parallel()
 		var (
 			db         = databasefake.New()
 			id, secret = randomAPIKeyParts()

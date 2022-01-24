@@ -42,12 +42,67 @@ FROM
   users;
 
 -- name: GetOrganizationByName :one
-SELECT * FROM organizations WHERE name = $1 LIMIT 1;
+SELECT
+  *
+FROM
+  organizations
+WHERE
+  name = $1
+LIMIT
+  1;
 
 -- name: GetOrganizationsByUserID :many
-SELECT * FROM organizations WHERE id = (
-  SELECT organization_id FROM organization_members WHERE user_id = $1
-);
+SELECT
+  *
+FROM
+  organizations
+WHERE
+  id = (
+    SELECT
+      organization_id
+    FROM
+      organization_members
+    WHERE
+      user_id = $1
+  );
+
+-- name: GetOrganizationMemberByUserID :one
+SELECT
+  *
+FROM
+  organization_members
+WHERE
+  organization_id = $1
+  AND user_id = $2
+LIMIT
+  1;
+
+-- name: GetProjectByOrganizationAndName :one
+SELECT
+  *
+FROM
+  project
+WHERE
+  organization_id = $1
+  AND name = $2
+LIMIT
+  1;
+
+-- name: GetProjectsByOrganizationIDs :many
+SELECT
+  *
+FROM
+  project
+WHERE
+  organization_id = ANY(@ids :: text [ ]);
+
+-- name: GetProjectHistoryByProjectID :many
+SELECT
+  *
+FROM
+  project_history
+WHERE
+  project_id = $1;
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -88,10 +143,89 @@ VALUES
   ) RETURNING *;
 
 -- name: InsertOrganization :one
-INSERT INTO organizations (id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING *;
+INSERT INTO
+  organizations (id, name, description, created_at, updated_at)
+VALUES
+  ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertOrganizationMember :one
-INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles) VALUES ($1, $2, $3, $4, $5) RETURNING *;
+INSERT INTO
+  organization_members (
+    organization_id,
+    user_id,
+    created_at,
+    updated_at,
+    roles
+  )
+VALUES
+  ($1, $2, $3, $4, $5) RETURNING *;
+
+-- name: InsertProject :one
+INSERT INTO
+  project (
+    id,
+    created_at,
+    updated_at,
+    organization_id,
+    name,
+    provisioner
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: InsertProjectHistory :one
+INSERT INTO
+  project_history (
+    id,
+    project_id,
+    created_at,
+    updated_at,
+    name,
+    description,
+    storage_method,
+    storage_source,
+    import_job_id
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+
+-- name: InsertProjectParameter :one
+INSERT INTO
+  project_parameter (
+    id,
+    created_at,
+    project_history_id,
+    name,
+    description,
+    default_source,
+    allow_override_source,
+    default_destination,
+    allow_override_destination,
+    default_refresh,
+    redisplay_value,
+    validation_error,
+    validation_condition,
+    validation_type_system,
+    validation_value_type
+  )
+VALUES
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15
+  ) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO

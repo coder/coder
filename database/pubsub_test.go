@@ -18,6 +18,7 @@ func TestPubsub(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Postgres", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
@@ -44,5 +45,21 @@ func TestPubsub(t *testing.T) {
 		}()
 		message := <-messageChannel
 		assert.Equal(t, string(message), data)
+	})
+
+	t.Run("PostgresCloseCancel", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+		connectionURL, close, err := postgres.Open()
+		require.NoError(t, err)
+		defer close()
+		db, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer db.Close()
+		pubsub, err := database.NewPubsub(ctx, db, connectionURL)
+		require.NoError(t, err)
+		defer pubsub.Close()
+		cancelFunc()
 	})
 }

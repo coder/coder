@@ -211,6 +211,7 @@ func TestConn(t *testing.T) {
 	})
 
 	t.Run("CloseWithError", func(t *testing.T) {
+		t.Parallel()
 		conn, err := peer.Client([]webrtc.ICEServer{}, nil)
 		require.NoError(t, err)
 		expectedErr := errors.New("wow")

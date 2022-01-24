@@ -5,8 +5,10 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
@@ -45,7 +47,14 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
-SELECT id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off FROM organizations WHERE name = $1 LIMIT 1
+SELECT
+  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+FROM
+  organizations
+WHERE
+  name = $1
+LIMIT
+  1
 `
 
 func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
@@ -66,10 +75,50 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 	return i, err
 }
 
+const getOrganizationMemberByUserID = `-- name: GetOrganizationMemberByUserID :one
+SELECT
+  organization_id, user_id, created_at, updated_at, roles
+FROM
+  organization_members
+WHERE
+  organization_id = $1
+  AND user_id = $2
+LIMIT
+  1
+`
+
+type GetOrganizationMemberByUserIDParams struct {
+	OrganizationID string `db:"organization_id" json:"organization_id"`
+	UserID         string `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationMemberByUserID, arg.OrganizationID, arg.UserID)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		pq.Array(&i.Roles),
+	)
+	return i, err
+}
+
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
-SELECT id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off FROM organizations WHERE id = (
-  SELECT organization_id FROM organization_members WHERE user_id = $1
-)
+SELECT
+  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+FROM
+  organizations
+WHERE
+  id = (
+    SELECT
+      organization_id
+    FROM
+      organization_members
+    WHERE
+      user_id = $1
+  )
 `
 
 func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string) ([]Organization, error) {
@@ -92,6 +141,120 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string
 			&i.CpuProvisioningRate,
 			&i.MemoryProvisioningRate,
 			&i.WorkspaceAutoOff,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProjectByOrganizationAndName = `-- name: GetProjectByOrganizationAndName :one
+SELECT
+  id, created_at, updated_at, organization_id, name, provisioner, active_version_id
+FROM
+  project
+WHERE
+  organization_id = $1
+  AND name = $2
+LIMIT
+  1
+`
+
+type GetProjectByOrganizationAndNameParams struct {
+	OrganizationID string `db:"organization_id" json:"organization_id"`
+	Name           string `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg GetProjectByOrganizationAndNameParams) (Project, error) {
+	row := q.db.QueryRowContext(ctx, getProjectByOrganizationAndName, arg.OrganizationID, arg.Name)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Provisioner,
+		&i.ActiveVersionID,
+	)
+	return i, err
+}
+
+const getProjectHistoryByProjectID = `-- name: GetProjectHistoryByProjectID :many
+SELECT
+  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+FROM
+  project_history
+WHERE
+  project_id = $1
+`
+
+func (q *sqlQuerier) GetProjectHistoryByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectHistory, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectHistoryByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectHistory
+	for rows.Next() {
+		var i ProjectHistory
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Description,
+			&i.StorageMethod,
+			&i.StorageSource,
+			&i.ImportJobID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProjectsByOrganizationIDs = `-- name: GetProjectsByOrganizationIDs :many
+SELECT
+  id, created_at, updated_at, organization_id, name, provisioner, active_version_id
+FROM
+  project
+WHERE
+  organization_id = ANY($1 :: text [ ])
+`
+
+func (q *sqlQuerier) GetProjectsByOrganizationIDs(ctx context.Context, ids []string) ([]Project, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectsByOrganizationIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Project
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Provisioner,
+			&i.ActiveVersionID,
 		); err != nil {
 			return nil, err
 		}
@@ -299,7 +462,10 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 }
 
 const insertOrganization = `-- name: InsertOrganization :one
-INSERT INTO organizations (id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+INSERT INTO
+  organizations (id, name, description, created_at, updated_at)
+VALUES
+  ($1, $2, $3, $4, $5) RETURNING id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
 `
 
 type InsertOrganizationParams struct {
@@ -335,7 +501,16 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 }
 
 const insertOrganizationMember = `-- name: InsertOrganizationMember :one
-INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles) VALUES ($1, $2, $3, $4, $5) RETURNING organization_id, user_id, created_at, updated_at, roles
+INSERT INTO
+  organization_members (
+    organization_id,
+    user_id,
+    created_at,
+    updated_at,
+    roles
+  )
+VALUES
+  ($1, $2, $3, $4, $5) RETURNING organization_id, user_id, created_at, updated_at, roles
 `
 
 type InsertOrganizationMemberParams struct {
@@ -361,6 +536,203 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		pq.Array(&i.Roles),
+	)
+	return i, err
+}
+
+const insertProject = `-- name: InsertProject :one
+INSERT INTO
+  project (
+    id,
+    created_at,
+    updated_at,
+    organization_id,
+    name,
+    provisioner
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, organization_id, name, provisioner, active_version_id
+`
+
+type InsertProjectParams struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID string          `db:"organization_id" json:"organization_id"`
+	Name           string          `db:"name" json:"name"`
+	Provisioner    ProvisionerType `db:"provisioner" json:"provisioner"`
+}
+
+func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams) (Project, error) {
+	row := q.db.QueryRowContext(ctx, insertProject,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationID,
+		arg.Name,
+		arg.Provisioner,
+	)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Provisioner,
+		&i.ActiveVersionID,
+	)
+	return i, err
+}
+
+const insertProjectHistory = `-- name: InsertProjectHistory :one
+INSERT INTO
+  project_history (
+    id,
+    project_id,
+    created_at,
+    updated_at,
+    name,
+    description,
+    storage_method,
+    storage_source,
+    import_job_id
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+`
+
+type InsertProjectHistoryParams struct {
+	ID            uuid.UUID            `db:"id" json:"id"`
+	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
+	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
+	Name          string               `db:"name" json:"name"`
+	Description   string               `db:"description" json:"description"`
+	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource []byte               `db:"storage_source" json:"storage_source"`
+	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
+}
+
+func (q *sqlQuerier) InsertProjectHistory(ctx context.Context, arg InsertProjectHistoryParams) (ProjectHistory, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectHistory,
+		arg.ID,
+		arg.ProjectID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Name,
+		arg.Description,
+		arg.StorageMethod,
+		arg.StorageSource,
+		arg.ImportJobID,
+	)
+	var i ProjectHistory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Description,
+		&i.StorageMethod,
+		&i.StorageSource,
+		&i.ImportJobID,
+	)
+	return i, err
+}
+
+const insertProjectParameter = `-- name: InsertProjectParameter :one
+INSERT INTO
+  project_parameter (
+    id,
+    created_at,
+    project_history_id,
+    name,
+    description,
+    default_source,
+    allow_override_source,
+    default_destination,
+    allow_override_destination,
+    default_refresh,
+    redisplay_value,
+    validation_error,
+    validation_condition,
+    validation_type_system,
+    validation_value_type
+  )
+VALUES
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15
+  ) RETURNING id, created_at, project_history_id, name, description, default_source, allow_override_source, default_destination, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+`
+
+type InsertProjectParameterParams struct {
+	ID                       uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
+	ProjectHistoryID         uuid.UUID           `db:"project_history_id" json:"project_history_id"`
+	Name                     string              `db:"name" json:"name"`
+	Description              string              `db:"description" json:"description"`
+	DefaultSource            sql.NullString      `db:"default_source" json:"default_source"`
+	AllowOverrideSource      bool                `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestination       sql.NullString      `db:"default_destination" json:"default_destination"`
+	AllowOverrideDestination bool                `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string              `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string              `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string              `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string              `db:"validation_value_type" json:"validation_value_type"`
+}
+
+func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProjectParameterParams) (ProjectParameter, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectParameter,
+		arg.ID,
+		arg.CreatedAt,
+		arg.ProjectHistoryID,
+		arg.Name,
+		arg.Description,
+		arg.DefaultSource,
+		arg.AllowOverrideSource,
+		arg.DefaultDestination,
+		arg.AllowOverrideDestination,
+		arg.DefaultRefresh,
+		arg.RedisplayValue,
+		arg.ValidationError,
+		arg.ValidationCondition,
+		arg.ValidationTypeSystem,
+		arg.ValidationValueType,
+	)
+	var i ProjectParameter
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ProjectHistoryID,
+		&i.Name,
+		&i.Description,
+		&i.DefaultSource,
+		&i.AllowOverrideSource,
+		&i.DefaultDestination,
+		&i.AllowOverrideDestination,
+		&i.DefaultRefresh,
+		&i.RedisplayValue,
+		&i.ValidationError,
+		&i.ValidationCondition,
+		&i.ValidationTypeSystem,
+		&i.ValidationValueType,
 	)
 	return i, err
 }

@@ -14,9 +14,11 @@ import (
 )
 
 func TestListen(t *testing.T) {
+	t.Parallel()
 	// Ensures connections blocked on Accept() are
 	// closed if the listener is.
 	t.Run("NoAcceptClosed", func(t *testing.T) {
+		t.Parallel()
 		ctx := context.Background()
 		client, server := provisionersdk.TransportPipe()
 		defer client.Close()
@@ -37,6 +39,7 @@ func TestListen(t *testing.T) {
 
 	// Ensures Accept() properly exits when Close() is called.
 	t.Run("AcceptClosed", func(t *testing.T) {
+		t.Parallel()
 		client, server := provisionersdk.TransportPipe()
 		defer client.Close()
 		defer server.Close()
