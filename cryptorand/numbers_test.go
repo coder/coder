@@ -47,6 +47,9 @@ func TestUnbiasedModulo32(t *testing.T) {
 	const mod = 7
 	dist := [mod]uint32{}
 
+	_, err := cryptorand.UnbiasedModulo32(0, mod)
+	require.NoError(t, err)
+
 	for i := 0; i < 1000; i++ {
 		b := [4]byte{}
 		_, _ = rand.Read(b[:])

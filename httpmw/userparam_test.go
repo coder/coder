@@ -18,6 +18,7 @@ import (
 )
 
 func TestUserParam(t *testing.T) {
+	t.Parallel()
 	setup := func(t *testing.T) (database.Store, *httptest.ResponseRecorder, *http.Request) {
 		var (
 			db         = databasefake.New()
@@ -47,6 +48,7 @@ func TestUserParam(t *testing.T) {
 	}
 
 	t.Run("None", func(t *testing.T) {
+		t.Parallel()
 		db, rw, r := setup(t)
 
 		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
@@ -62,6 +64,7 @@ func TestUserParam(t *testing.T) {
 	})
 
 	t.Run("NotMe", func(t *testing.T) {
+		t.Parallel()
 		db, rw, r := setup(t)
 
 		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
@@ -80,6 +83,7 @@ func TestUserParam(t *testing.T) {
 	})
 
 	t.Run("Me", func(t *testing.T) {
+		t.Parallel()
 		db, rw, r := setup(t)
 
 		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {

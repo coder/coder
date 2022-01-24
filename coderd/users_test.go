@@ -37,6 +37,7 @@ func TestUsers(t *testing.T) {
 	})
 
 	t.Run("Login", func(t *testing.T) {
+		t.Parallel()
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
 		_, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{

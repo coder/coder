@@ -13,7 +13,9 @@ import (
 )
 
 func TestWrite(t *testing.T) {
+	t.Parallel()
 	t.Run("NoErrors", func(t *testing.T) {
+		t.Parallel()
 		rw := httptest.NewRecorder()
 		httpapi.Write(rw, http.StatusOK, httpapi.Response{
 			Message: "wow",
@@ -27,7 +29,9 @@ func TestWrite(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
+	t.Parallel()
 	t.Run("EmptyStruct", func(t *testing.T) {
+		t.Parallel()
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/", bytes.NewBufferString("{}"))
 		v := struct{}{}
@@ -35,6 +39,7 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("NoBody", func(t *testing.T) {
+		t.Parallel()
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("POST", "/", nil)
 		var v json.RawMessage
@@ -42,6 +47,7 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("Validate", func(t *testing.T) {
+		t.Parallel()
 		type toValidate struct {
 			Value string `json:"value" validate:"required"`
 		}
@@ -54,6 +60,7 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("ValidateFailure", func(t *testing.T) {
+		t.Parallel()
 		type toValidate struct {
 			Value string `json:"value" validate:"required"`
 		}
@@ -72,6 +79,7 @@ func TestRead(t *testing.T) {
 }
 
 func TestReadUsername(t *testing.T) {
+	t.Parallel()
 	// Tests whether usernames are valid or not.
 	testCases := []struct {
 		Username string
@@ -121,7 +129,9 @@ func TestReadUsername(t *testing.T) {
 		Username string `json:"username" validate:"username"`
 	}
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.Username, func(t *testing.T) {
+			t.Parallel()
 			rw := httptest.NewRecorder()
 			data, err := json.Marshal(toValidate{testCase.Username})
 			require.NoError(t, err)

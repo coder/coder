@@ -234,6 +234,7 @@ linters:
     - misspell
     - nilnil
     - noctx
+    - paralleltest
     - revive
     - rowserrcheck
     - sqlclosecheck

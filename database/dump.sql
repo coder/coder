@@ -6,6 +6,19 @@ CREATE TYPE login_type AS ENUM (
     'oidc'
 );
 
+CREATE TYPE parameter_type_system AS ENUM (
+    'hcl'
+);
+
+CREATE TYPE project_storage_method AS ENUM (
+    'inline-archive'
+);
+
+CREATE TYPE provisioner_type AS ENUM (
+    'terraform',
+    'cdr-basic'
+);
+
 CREATE TYPE userstatus AS ENUM (
     'active',
     'dormant',
@@ -57,6 +70,46 @@ CREATE TABLE organizations (
     workspace_auto_off boolean DEFAULT false NOT NULL
 );
 
+CREATE TABLE project (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    organization_id text NOT NULL,
+    name character varying(64) NOT NULL,
+    provisioner provisioner_type NOT NULL,
+    active_version_id uuid
+);
+
+CREATE TABLE project_history (
+    id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    description character varying(1048576) NOT NULL,
+    storage_method project_storage_method NOT NULL,
+    storage_source bytea NOT NULL,
+    import_job_id uuid NOT NULL
+);
+
+CREATE TABLE project_parameter (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    project_history_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
+    description character varying(8192) DEFAULT ''::character varying NOT NULL,
+    default_source text,
+    allow_override_source boolean NOT NULL,
+    default_destination text,
+    allow_override_destination boolean NOT NULL,
+    default_refresh text NOT NULL,
+    redisplay_value boolean NOT NULL,
+    validation_error character varying(256) NOT NULL,
+    validation_condition character varying(512) NOT NULL,
+    validation_type_system parameter_type_system NOT NULL,
+    validation_value_type character varying(64) NOT NULL
+);
+
 CREATE TABLE users (
     id text NOT NULL,
     email text NOT NULL,
@@ -78,4 +131,28 @@ CREATE TABLE users (
     _decomissioned boolean DEFAULT false NOT NULL,
     shell text DEFAULT ''::text NOT NULL
 );
+
+ALTER TABLE ONLY project_history
+    ADD CONSTRAINT project_history_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project_history
+    ADD CONSTRAINT project_history_project_id_name_key UNIQUE (project_id, name);
+
+ALTER TABLE ONLY project
+    ADD CONSTRAINT project_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project
+    ADD CONSTRAINT project_organization_id_name_key UNIQUE (organization_id, name);
+
+ALTER TABLE ONLY project_parameter
+    ADD CONSTRAINT project_parameter_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project_parameter
+    ADD CONSTRAINT project_parameter_project_history_id_name_key UNIQUE (project_history_id, name);
+
+ALTER TABLE ONLY project_history
+    ADD CONSTRAINT project_history_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
+
+ALTER TABLE ONLY project_parameter
+    ADD CONSTRAINT project_parameter_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id) ON DELETE CASCADE;
 

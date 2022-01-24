@@ -10,6 +10,7 @@ import (
 )
 
 func TestRoot(t *testing.T) {
+	t.Parallel()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go cancelFunc()
 	err := cmd.Root().ExecuteContext(ctx)
