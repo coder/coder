@@ -34,11 +34,13 @@ type ProjectVersion struct {
 	StorageMethod database.ProjectStorageMethod `json:"storage_method"`
 }
 
+// CreateProjectRequest enables callers to create a new Project.
 type CreateProjectRequest struct {
 	Name        string                   `json:"name" validate:"username,required"`
 	Provisioner database.ProvisionerType `json:"provisioner" validate:"oneof=terraform cdr-basic,required"`
 }
 
+// CreateProjectVersionRequest enables callers to create a new Project Version.
 type CreateProjectVersionRequest struct {
 	Name          string                        `json:"name,omitempty" validate:"username"`
 	StorageMethod database.ProjectStorageMethod `json:"storage_method" validate:"oneof=inline-archive,required"`
@@ -148,6 +150,7 @@ func (*projects) project(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, project)
 }
 
+// projectVersions lists versions for a single project.
 func (p *projects) projectVersions(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
@@ -208,6 +211,9 @@ func (p *projects) createProjectVersion(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+
+	// TODO: A job to process the new version should occur here.
+
 	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, convertProjectHistory(history))
 }
