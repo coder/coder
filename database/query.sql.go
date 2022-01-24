@@ -53,7 +53,7 @@ SELECT
 FROM
   organizations
 WHERE
-  name = $1
+  LOWER(name) = LOWER($1)
 LIMIT
   1
 `
@@ -163,7 +163,7 @@ FROM
   project
 WHERE
   organization_id = $1
-  AND name = $2
+  AND LOWER(name) = LOWER($2)
 LIMIT
   1
 `
@@ -276,7 +276,7 @@ SELECT
 FROM
   users
 WHERE
-  username = $1
+  LOWER(username) = LOWER($1)
   OR email = $2
 LIMIT
   1
@@ -405,6 +405,37 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 	return items, nil
 }
 
+const getWorkspaceByProjectIDAndName = `-- name: GetWorkspaceByProjectIDAndName :one
+SELECT
+  id, created_at, updated_at, owner_id, project_id, name
+FROM
+  workspace
+WHERE
+  owner_id = $1
+  AND project_id = $2
+  AND LOWER(name) = LOWER($3)
+`
+
+type GetWorkspaceByProjectIDAndNameParams struct {
+	OwnerID   string    `db:"owner_id" json:"owner_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceByProjectIDAndName(ctx context.Context, arg GetWorkspaceByProjectIDAndNameParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByProjectIDAndName, arg.OwnerID, arg.ProjectID, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.ProjectID,
+		&i.Name,
+	)
+	return i, err
+}
+
 const getWorkspaceHistoryByWorkspaceID = `-- name: GetWorkspaceHistoryByWorkspaceID :many
 SELECT
   id, created_at, updated_at, completed_at, workspace_id, project_history_id, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
@@ -524,7 +555,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByHistoryID(ctx context.Context, works
 
 const getWorkspacesByProjectAndUserID = `-- name: GetWorkspacesByProjectAndUserID :many
 SELECT
-  id, created_at, updated_at, owner_id, project_id, project_history_id, name
+  id, created_at, updated_at, owner_id, project_id, name
 FROM
   workspace
 WHERE
@@ -552,7 +583,6 @@ func (q *sqlQuerier) GetWorkspacesByProjectAndUserID(ctx context.Context, arg Ge
 			&i.UpdatedAt,
 			&i.OwnerID,
 			&i.ProjectID,
-			&i.ProjectHistoryID,
 			&i.Name,
 		); err != nil {
 			return nil, err
@@ -570,7 +600,7 @@ func (q *sqlQuerier) GetWorkspacesByProjectAndUserID(ctx context.Context, arg Ge
 
 const getWorkspacesByUserID = `-- name: GetWorkspacesByUserID :many
 SELECT
-  id, created_at, updated_at, owner_id, project_id, project_history_id, name
+  id, created_at, updated_at, owner_id, project_id, name
 FROM
   workspace
 WHERE
@@ -592,7 +622,6 @@ func (q *sqlQuerier) GetWorkspacesByUserID(ctx context.Context, ownerID string) 
 			&i.UpdatedAt,
 			&i.OwnerID,
 			&i.ProjectID,
-			&i.ProjectHistoryID,
 			&i.Name,
 		); err != nil {
 			return nil, err
@@ -1052,21 +1081,19 @@ INSERT INTO
     updated_at,
     owner_id,
     project_id,
-    project_history_id,
     name
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, owner_id, project_id, project_history_id, name
+  ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, owner_id, project_id, name
 `
 
 type InsertWorkspaceParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	OwnerID          string    `db:"owner_id" json:"owner_id"`
-	ProjectID        uuid.UUID `db:"project_id" json:"project_id"`
-	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
-	Name             string    `db:"name" json:"name"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	OwnerID   string    `db:"owner_id" json:"owner_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
@@ -1076,7 +1103,6 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.UpdatedAt,
 		arg.OwnerID,
 		arg.ProjectID,
-		arg.ProjectHistoryID,
 		arg.Name,
 	)
 	var i Workspace
@@ -1086,7 +1112,6 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.UpdatedAt,
 		&i.OwnerID,
 		&i.ProjectID,
-		&i.ProjectHistoryID,
 		&i.Name,
 	)
 	return i, err

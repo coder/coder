@@ -82,7 +82,7 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	agents := make([]database.WorkspaceAgent, 0)
 	for _, workspaceAgent := range q.workspaceAgent {
 		for _, id := range ids {
@@ -96,6 +96,23 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids [
 	}
 	return agents, nil
 }
+
+func (q *fakeQuerier) GetWorkspaceByProjectIDAndName(ctx context.Context, arg database.GetWorkspaceByProjectIDAndNameParams) (database.Workspace, error) {
+	for _, workspace := range q.workspace {
+		if workspace.ProjectID.String() != arg.ProjectID.String() {
+			continue
+		}
+		if workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+		if !strings.EqualFold(workspace.Name, arg.Name) {
+			continue
+		}
+		return workspace, nil
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceResourcesByHistoryID(_ context.Context, workspaceHistoryID uuid.UUID) ([]database.WorkspaceResource, error) {
 	resources := make([]database.WorkspaceResource, 0)
 	for _, workspaceResource := range q.workspaceResource {
@@ -367,13 +384,12 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	//nolint:gosimple
 	workspace := database.Workspace{
-		ID:               arg.ID,
-		CreatedAt:        arg.CreatedAt,
-		UpdatedAt:        arg.UpdatedAt,
-		OwnerID:          arg.OwnerID,
-		ProjectID:        arg.ProjectID,
-		ProjectHistoryID: arg.ProjectHistoryID,
-		Name:             arg.Name,
+		ID:        arg.ID,
+		CreatedAt: arg.CreatedAt,
+		UpdatedAt: arg.UpdatedAt,
+		OwnerID:   arg.OwnerID,
+		ProjectID: arg.ProjectID,
+		Name:      arg.Name,
 	}
 	q.workspace = append(q.workspace, workspace)
 	return workspace, nil

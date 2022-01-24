@@ -30,8 +30,8 @@ SELECT
 FROM
   users
 WHERE
-  username = $1
-  OR email = $2
+  LOWER(username) = LOWER(@username)
+  OR email = @email
 LIMIT
   1;
 
@@ -47,7 +47,7 @@ SELECT
 FROM
   organizations
 WHERE
-  name = $1
+  LOWER(name) = LOWER(@name)
 LIMIT
   1;
 
@@ -83,8 +83,8 @@ SELECT
 FROM
   project
 WHERE
-  organization_id = $1
-  AND name = $2
+  organization_id = @organization_id
+  AND LOWER(name) = LOWER(@name)
 LIMIT
   1;
 
@@ -111,6 +111,16 @@ FROM
   workspace
 WHERE
   owner_id = $1;
+
+-- name: GetWorkspaceByProjectIDAndName :one
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  owner_id = @owner_id
+  AND project_id = @project_id
+  AND LOWER(name) = LOWER(@name);
 
 -- name: GetWorkspacesByProjectAndUserID :many
 SELECT
@@ -303,11 +313,10 @@ INSERT INTO
     updated_at,
     owner_id,
     project_id,
-    project_history_id,
     name
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: InsertWorkspaceAgent :one
 INSERT INTO

@@ -26,6 +26,9 @@ func New(options *Options) http.Handler {
 	users := &users{
 		Database: options.Database,
 	}
+	workspaces := &workspaces{
+		Database: options.Database,
+	}
 
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
@@ -62,6 +65,21 @@ func New(options *Options) http.Handler {
 					r.Route("/versions", func(r chi.Router) {
 						r.Get("/", projects.projectVersions)
 						r.Post("/", projects.createProjectVersion)
+					})
+				})
+			})
+		})
+		r.Route("/workspaces", func(r chi.Router) {
+			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Get("/", workspaces.allWorkspaces)
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationParam(options.Database))
+				r.Route("/{project}", func(r chi.Router) {
+					r.Use(httpmw.ExtractProjectParameter(options.Database))
+					r.Get("/", workspaces.allWorkspacesForProject)
+					r.Post("/", workspaces.createWorkspace)
+					r.Route("/{workspace}", func(r chi.Router) {
+
 					})
 				})
 			})

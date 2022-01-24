@@ -20,6 +20,7 @@ type querier interface {
 	GetUserByID(ctx context.Context, id string) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)
 	GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error)
+	GetWorkspaceByProjectIDAndName(ctx context.Context, arg GetWorkspaceByProjectIDAndNameParams) (Workspace, error)
 	GetWorkspaceHistoryByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceHistory, error)
 	GetWorkspaceHistoryByWorkspaceIDWithoutAfter(ctx context.Context, workspaceID uuid.UUID) (WorkspaceHistory, error)
 	GetWorkspaceResourcesByHistoryID(ctx context.Context, workspaceHistoryID uuid.UUID) ([]WorkspaceResource, error)

@@ -154,7 +154,6 @@ CREATE TABLE workspace (
     updated_at timestamp with time zone NOT NULL,
     owner_id text NOT NULL,
     project_id uuid NOT NULL,
-    project_history_id uuid NOT NULL,
     name character varying(64) NOT NULL
 );
 
@@ -259,9 +258,6 @@ ALTER TABLE ONLY workspace_log
 
 ALTER TABLE ONLY workspace_log
     ADD CONSTRAINT workspace_log_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workspace
-    ADD CONSTRAINT workspace_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id);
 
 ALTER TABLE ONLY workspace
     ADD CONSTRAINT workspace_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);

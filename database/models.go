@@ -258,13 +258,12 @@ type User struct {
 }
 
 type Workspace struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	OwnerID          string    `db:"owner_id" json:"owner_id"`
-	ProjectID        uuid.UUID `db:"project_id" json:"project_id"`
-	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
-	Name             string    `db:"name" json:"name"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	OwnerID   string    `db:"owner_id" json:"owner_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
 }
 
 type WorkspaceAgent struct {
