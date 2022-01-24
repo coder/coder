@@ -47,6 +47,24 @@ func (c *Client) SetSessionToken(token string) error {
 	return nil
 }
 
+// ClearSessionToken clears tokens and authentication context in the current cline.t
+func (c *Client) ClearSessionToken() error {
+	//  If there is no cookie jar defined, just leave it be
+	if c.httpClient.Jar == nil {
+		return nil
+	}
+
+	// Otherwise, just clear it out
+	var err error
+	c.httpClient.Jar, err = cookiejar.New(nil)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
 func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
