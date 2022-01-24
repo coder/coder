@@ -10,15 +10,19 @@ import (
 // New returns an in-memory fake of the database.
 func New() database.Store {
 	return &fakeQuerier{
-		apiKeys: make([]database.APIKey, 0),
-		users:   make([]database.User, 0),
+		apiKeys:             make([]database.APIKey, 0),
+		organizations:       make([]database.Organization, 0),
+		organizationMembers: make([]database.OrganizationMember, 0),
+		users:               make([]database.User, 0),
 	}
 }
 
 // fakeQuerier replicates database functionality to enable quick testing.
 type fakeQuerier struct {
-	apiKeys []database.APIKey
-	users   []database.User
+	apiKeys             []database.APIKey
+	organizations       []database.Organization
+	organizationMembers []database.OrganizationMember
+	users               []database.User
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -57,6 +61,34 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
+func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
+	for _, organization := range q.organizations {
+		if organization.Name == name {
+			return organization, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID string) ([]database.Organization, error) {
+	organizations := make([]database.Organization, 0)
+	for _, organizationMember := range q.organizationMembers {
+		if organizationMember.UserID != userID {
+			continue
+		}
+		for _, organization := range q.organizations {
+			if organization.ID != organizationMember.OrganizationID {
+				continue
+			}
+			organizations = append(organizations, organization)
+		}
+	}
+	if len(organizations) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return organizations, nil
+}
+
 func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	//nolint:gosimple
 	key := database.APIKey{
@@ -78,6 +110,30 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
+}
+
+func (q *fakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
+	organization := database.Organization{
+		ID:        arg.ID,
+		Name:      arg.Name,
+		CreatedAt: arg.CreatedAt,
+		UpdatedAt: arg.UpdatedAt,
+	}
+	q.organizations = append(q.organizations, organization)
+	return organization, nil
+}
+
+func (q *fakeQuerier) InsertOrganizationMember(_ context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
+	//nolint:gosimple
+	organizationMember := database.OrganizationMember{
+		OrganizationID: arg.OrganizationID,
+		UserID:         arg.UserID,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		Roles:          arg.Roles,
+	}
+	q.organizationMembers = append(q.organizationMembers, organizationMember)
+	return organizationMember, nil
 }
 
 func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {

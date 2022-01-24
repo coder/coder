@@ -23,5 +23,7 @@ ignore:
   # This is generated code.
   - database/models.go
   - database/query.sql.go
+  # All coderd tests fail if this doesn't work.
+  - database/databasefake
   - peerbroker/proto
   - provisionersdk/proto

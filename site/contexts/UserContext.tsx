@@ -30,7 +30,9 @@ export const useUser = (redirectOnError = false): UserContext => {
   const requestError = ctx.error
   useEffect(() => {
     if (redirectOnError && requestError) {
-      router.push({
+      // 'void' means we are ignoring handling the promise returned
+      // from router.push (and lets the linter know we're OK with that!)
+      void router.push({
         pathname: "/login",
         query: {
           redirect: router.asPath,
@@ -44,12 +46,12 @@ export const useUser = (redirectOnError = false): UserContext => {
 
 export const UserProvider: React.FC = (props) => {
   const router = useRouter()
-  const { data, error, mutate } = useSWR("/api/v2/user")
+  const { data, error, mutate } = useSWR("/api/v2/users/me")
 
   const signOut = async () => {
     await API.logout()
     // Tell SWR to invalidate the cache for the user endpoint
-    mutate("/api/v2/user")
+    mutate("/api/v2/users/me")
     router.push({
       pathname: "/login",
       query: {
