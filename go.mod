@@ -5,9 +5,6 @@ go 1.17
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
-// Required until https://github.com/pion/ice/pull/411 is merged.
-replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220113224934-e3297ead83b2
-
 require (
 	cdr.dev/slog v1.4.1
 	github.com/go-chi/chi v1.5.4
@@ -84,7 +81,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.0.2 // indirect
 	github.com/pion/dtls/v2 v2.1.0 // indirect
-	github.com/pion/ice/v2 v2.1.18 // indirect
+	github.com/pion/ice/v2 v2.1.19 // indirect
 	github.com/pion/interceptor v0.1.4 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
