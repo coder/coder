@@ -71,6 +71,13 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("UnauthenticatedVersions", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_, err := server.Client.ProjectVersions(context.Background(), "org", "project")
+		require.Error(t, err)
+	})
+
 	t.Run("Versions", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
@@ -82,6 +89,17 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		_, err = server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
+	})
+
+	t.Run("CreateVersionUnauthenticated", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_, err := server.Client.CreateProjectVersion(context.Background(), "org", "project", coderd.CreateProjectVersionRequest{
+			Name:          "hello",
+			StorageMethod: database.ProjectStorageMethodInlineArchive,
+			StorageSource: []byte{},
+		})
+		require.Error(t, err)
 	})
 
 	t.Run("CreateVersion", func(t *testing.T) {
