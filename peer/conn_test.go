@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -22,13 +23,25 @@ import (
 	"github.com/coder/coder/peer"
 )
 
-const (
-	disconnectedTimeout = 5 * time.Second
-	failedTimeout       = disconnectedTimeout * 5
-	keepAliveInterval   = time.Millisecond * 2
-)
-
 var (
+	disconnectedTimeout = func() time.Duration {
+		// Connection state is unfortunately time-based. When resources are
+		// contended, a connection can take greater than this timeout to
+		// handshake, which results in a test flake.
+		//
+		// During local testing resources are rarely contended. Reducing this
+		// timeout leads to faster local development.
+		//
+		// In CI resources are frequently contended, so increasing this value
+		// results in less flakes.
+		if os.Getenv("CI") == "true" {
+			return 4 * time.Second
+		}
+		return 100 * time.Millisecond
+	}()
+	failedTimeout     = disconnectedTimeout * 4
+	keepAliveInterval = time.Millisecond * 2
+
 	// There's a global race in the vnet library allocation code.
 	// This mutex locks around the creation of the vnet.
 	vnetMutex = sync.Mutex{}
