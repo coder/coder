@@ -18,9 +18,13 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
-		project:          make([]database.Project, 0),
-		projectHistory:   make([]database.ProjectHistory, 0),
-		projectParameter: make([]database.ProjectParameter, 0),
+		project:           make([]database.Project, 0),
+		projectHistory:    make([]database.ProjectHistory, 0),
+		projectParameter:  make([]database.ProjectParameter, 0),
+		workspace:         make([]database.Workspace, 0),
+		workspaceResource: make([]database.WorkspaceResource, 0),
+		workspaceHistory:  make([]database.WorkspaceHistory, 0),
+		workspaceAgent:    make([]database.WorkspaceAgent, 0),
 	}
 }
 
@@ -33,9 +37,13 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
-	project          []database.Project
-	projectHistory   []database.ProjectHistory
-	projectParameter []database.ProjectParameter
+	project           []database.Project
+	projectHistory    []database.ProjectHistory
+	projectParameter  []database.ProjectParameter
+	workspace         []database.Workspace
+	workspaceResource []database.WorkspaceResource
+	workspaceHistory  []database.WorkspaceHistory
+	workspaceAgent    []database.WorkspaceAgent
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -72,6 +80,89 @@ func (q *fakeQuerier) GetUserByID(_ context.Context, id string) (database.User, 
 
 func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
+}
+
+func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
+	agents := make([]database.WorkspaceAgent, 0)
+	for _, workspaceAgent := range q.workspaceAgent {
+		for _, id := range ids {
+			if workspaceAgent.WorkspaceResourceID.String() == id.String() {
+				agents = append(agents, workspaceAgent)
+			}
+		}
+	}
+	if len(agents) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return agents, nil
+}
+func (q *fakeQuerier) GetWorkspaceResourcesByHistoryID(_ context.Context, workspaceHistoryID uuid.UUID) ([]database.WorkspaceResource, error) {
+	resources := make([]database.WorkspaceResource, 0)
+	for _, workspaceResource := range q.workspaceResource {
+		if workspaceResource.WorkspaceHistoryID.String() == workspaceHistoryID.String() {
+			resources = append(resources, workspaceResource)
+		}
+	}
+	if len(resources) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return resources, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceHistory, error) {
+	for _, workspaceHistory := range q.workspaceHistory {
+		if workspaceHistory.WorkspaceID.String() != workspaceID.String() {
+			continue
+		}
+		if !workspaceHistory.AfterID.Valid {
+			return workspaceHistory, nil
+		}
+	}
+	return database.WorkspaceHistory{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceHistory, error) {
+	history := make([]database.WorkspaceHistory, 0)
+	for _, workspaceHistory := range q.workspaceHistory {
+		if workspaceHistory.WorkspaceID.String() == workspaceID.String() {
+			history = append(history, workspaceHistory)
+		}
+	}
+	if len(history) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return history, nil
+}
+
+func (q *fakeQuerier) GetWorkspacesByProjectAndUserID(_ context.Context, arg database.GetWorkspacesByProjectAndUserIDParams) ([]database.Workspace, error) {
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspace {
+		if workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+		if workspace.ProjectID.String() != arg.ProjectID.String() {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	if len(workspaces) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaces, nil
+}
+
+func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, ownerID string) ([]database.Workspace, error) {
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspace {
+		if workspace.OwnerID != ownerID {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	if len(workspaces) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaces, nil
 }
 
 func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
@@ -271,6 +362,64 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	}
 	q.users = append(q.users, user)
 	return user, nil
+}
+
+func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
+	//nolint:gosimple
+	workspace := database.Workspace{
+		ID:               arg.ID,
+		CreatedAt:        arg.CreatedAt,
+		UpdatedAt:        arg.UpdatedAt,
+		OwnerID:          arg.OwnerID,
+		ProjectID:        arg.ProjectID,
+		ProjectHistoryID: arg.ProjectHistoryID,
+		Name:             arg.Name,
+	}
+	q.workspace = append(q.workspace, workspace)
+	return workspace, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
+	//nolint:gosimple
+	workspaceAgent := database.WorkspaceAgent{
+		ID:                  arg.ID,
+		CreatedAt:           arg.CreatedAt,
+		UpdatedAt:           arg.UpdatedAt,
+		WorkspaceResourceID: arg.WorkspaceResourceID,
+		InstanceMetadata:    arg.InstanceMetadata,
+		ResourceMetadata:    arg.ResourceMetadata,
+	}
+	q.workspaceAgent = append(q.workspaceAgent, workspaceAgent)
+	return workspaceAgent, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.InsertWorkspaceHistoryParams) (database.WorkspaceHistory, error) {
+	workspaceHistory := database.WorkspaceHistory{
+		ID:               arg.ID,
+		CreatedAt:        arg.CreatedAt,
+		UpdatedAt:        arg.UpdatedAt,
+		WorkspaceID:      arg.WorkspaceID,
+		ProjectHistoryID: arg.ProjectHistoryID,
+		BeforeID:         arg.BeforeID,
+		Transition:       arg.Transition,
+		Initiator:        arg.Initiator,
+		ProvisionJobID:   arg.ProvisionJobID,
+	}
+	q.workspaceHistory = append(q.workspaceHistory, workspaceHistory)
+	return workspaceHistory, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
+	workspaceResource := database.WorkspaceResource{
+		ID:                  arg.ID,
+		CreatedAt:           arg.CreatedAt,
+		WorkspaceHistoryID:  arg.WorkspaceHistoryID,
+		Type:                arg.Type,
+		Name:                arg.Name,
+		WorkspaceAgentToken: arg.WorkspaceAgentToken,
+	}
+	q.workspaceResource = append(q.workspaceResource, workspaceResource)
+	return workspaceResource, nil
 }
 
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

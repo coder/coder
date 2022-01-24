@@ -104,6 +104,58 @@ FROM
 WHERE
   project_id = $1;
 
+-- name: GetWorkspacesByUserID :many
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  owner_id = $1;
+
+-- name: GetWorkspacesByProjectAndUserID :many
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  owner_id = $1
+  AND project_id = $2;
+
+-- name: GetWorkspaceHistoryByWorkspaceID :many
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  workspace_id = $1;
+
+-- name: GetWorkspaceHistoryByWorkspaceIDWithoutAfter :one
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  workspace_id = $1
+  AND workspace__after_id IS NULL
+LIMIT
+  1;
+
+-- name: GetWorkspaceResourcesByHistoryID :many
+SELECT
+  *
+FROM
+  workspace_resource
+WHERE
+  workspace_history_id = $1;
+
+-- name: GetWorkspaceAgentsByResourceIDs :many
+SELECT
+  *
+FROM
+  workspace_agent
+WHERE
+  workspace_resource_id = ANY(@ids :: uuid [ ]);
+
 -- name: InsertAPIKey :one
 INSERT INTO
   api_keys (
@@ -242,6 +294,62 @@ INSERT INTO
   )
 VALUES
   ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING *;
+
+-- name: InsertWorkspace :one
+INSERT INTO
+  workspace (
+    id,
+    created_at,
+    updated_at,
+    owner_id,
+    project_id,
+    project_history_id,
+    name
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+
+-- name: InsertWorkspaceAgent :one
+INSERT INTO
+  workspace_agent (
+    id,
+    workspace_resource_id,
+    created_at,
+    updated_at,
+    instance_metadata,
+    resource_metadata
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: InsertWorkspaceHistory :one
+INSERT INTO
+  workspace_history (
+    id,
+    created_at,
+    updated_at,
+    workspace_id,
+    project_history_id,
+    before_id,
+    transition,
+    initiator,
+    provision_job_id
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+
+-- name: InsertWorkspaceResource :one
+INSERT INTO
+  workspace_resource (
+    id,
+    created_at,
+    workspace_history_id,
+    type,
+    name,
+    workspace_agent_token
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

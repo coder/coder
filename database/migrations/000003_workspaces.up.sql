@@ -28,7 +28,7 @@ CREATE TABLE workspace_history (
     transition workspace_transition NOT NULL,
     initiator varchar(255) NOT NULL,
     -- State stored by the provisioner
-    provisioner_state bytea NOT NULL,
+    provisioner_state bytea,
     -- Job ID of the action
     provision_job_id uuid NOT NULL
 );
