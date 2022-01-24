@@ -72,6 +72,16 @@ func TestProjects(t *testing.T) {
 		require.Len(t, projects, 1)
 	})
 
+	t.Run("ListEmpty", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+
+		projects, err := server.Client.Projects(context.Background(), user.Organization)
+		require.NoError(t, err)
+		require.Len(t, projects, 0)
+	})
+
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
