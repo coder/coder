@@ -153,4 +153,21 @@ func TestProjects(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("CreateVersionInvalidArchive", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "someproject",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+			Name:          "moo",
+			StorageMethod: database.ProjectStorageMethodInlineArchive,
+			StorageSource: []byte{},
+		})
+		require.Error(t, err)
+	})
 }
