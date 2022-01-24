@@ -51,8 +51,8 @@ export const UserProvider: React.FC = (props) => {
   const signOut = async () => {
     await API.logout()
     // Tell SWR to invalidate the cache for the user endpoint
-    mutate("/api/v2/users/me")
-    router.push({
+    await mutate("/api/v2/users/me")
+    await router.push({
       pathname: "/login",
       query: {
         redirect: router.asPath,
