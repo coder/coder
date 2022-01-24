@@ -36,7 +36,7 @@ func OrganizationMemberParam(r *http.Request) database.OrganizationMember {
 }
 
 // ExtractOrganizationParam grabs an organization and user membership from the "organization" URL parameter.
-// This middleware requires the API key middleware for authentication.
+// This middleware requires the API key middleware higher in the call stack for authentication.
 func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
