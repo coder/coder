@@ -18,6 +18,7 @@ func TestPubsub(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Postgres", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
