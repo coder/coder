@@ -7,11 +7,22 @@ declare module "@material-ui/core/styles/createPalette" {
     navbar: {
       main: string
     }
+    // Styles for the 'hero' banner on several coder admin pages
+    hero: {
+      // Background color of the 'hero' banner
+      main: string
+      // Color for hero 'buttons'
+      button: string
+    }
   }
 
   interface PaletteOptions {
     navbar: {
       main: string
+    }
+    hero: {
+      main: string
+      button: string
     }
   }
 }
@@ -21,7 +32,7 @@ declare module "@material-ui/core/styles/createPalette" {
  */
 export type CustomPalette = Pick<
   Palette,
-  "action" | "background" | "divider" | "error" | "info" | "navbar" | "primary" | "secondary" | "text" | "type"
+  "action" | "background" | "divider" | "error" | "hero" | "info" | "navbar" | "primary" | "secondary" | "text" | "type"
 >
 
 /**
@@ -64,6 +75,10 @@ export const lightPalette: CustomPalette = {
     dark: "#912F42",
     contrastText: "#FFF",
   },
+  hero: {
+    main: "#242424",
+    button: "#747474",
+  },
   text: {
     primary: "#000",
     secondary: "#747474",
@@ -93,6 +108,10 @@ export const darkPalette: CustomPalette = {
   secondary: lightPalette.secondary,
   info: lightPalette.info,
   error: lightPalette.error,
+  hero: {
+    main: "#141414",
+    button: "#333333",
+  },
   navbar: {
     main: "rgb(8, 9, 10)",
   },
