@@ -18,13 +18,15 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
-		project:           make([]database.Project, 0),
-		projectHistory:    make([]database.ProjectHistory, 0),
-		projectParameter:  make([]database.ProjectParameter, 0),
-		workspace:         make([]database.Workspace, 0),
-		workspaceResource: make([]database.WorkspaceResource, 0),
-		workspaceHistory:  make([]database.WorkspaceHistory, 0),
-		workspaceAgent:    make([]database.WorkspaceAgent, 0),
+		project:            make([]database.Project, 0),
+		projectHistory:     make([]database.ProjectHistory, 0),
+		projectParameter:   make([]database.ProjectParameter, 0),
+		provisionerDaemons: make([]database.ProvisionerDaemon, 0),
+		provisionerJobs:    make([]database.ProvisionerJob, 0),
+		workspace:          make([]database.Workspace, 0),
+		workspaceResource:  make([]database.WorkspaceResource, 0),
+		workspaceHistory:   make([]database.WorkspaceHistory, 0),
+		workspaceAgent:     make([]database.WorkspaceAgent, 0),
 	}
 }
 
@@ -37,18 +39,45 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
-	project           []database.Project
-	projectHistory    []database.ProjectHistory
-	projectParameter  []database.ProjectParameter
-	workspace         []database.Workspace
-	workspaceResource []database.WorkspaceResource
-	workspaceHistory  []database.WorkspaceHistory
-	workspaceAgent    []database.WorkspaceAgent
+	project            []database.Project
+	projectHistory     []database.ProjectHistory
+	projectParameter   []database.ProjectParameter
+	provisionerDaemons []database.ProvisionerDaemon
+	provisionerJobs    []database.ProvisionerJob
+	workspace          []database.Workspace
+	workspaceResource  []database.WorkspaceResource
+	workspaceHistory   []database.WorkspaceHistory
+	workspaceAgent     []database.WorkspaceAgent
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
 func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
 	return fn(q)
+}
+
+func (q *fakeQuerier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
+	for index, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.Started.Valid {
+			continue
+		}
+		found := false
+		for _, provisionerType := range arg.Types {
+			if provisionerJob.Provisioner != provisionerType {
+				continue
+			}
+			found = true
+			break
+		}
+		if !found {
+			continue
+		}
+		provisionerJob.Started = arg.Started
+		provisionerJob.Updated = arg.Started.Time
+		provisionerJob.Worker = arg.Worker
+		q.provisionerJobs[index] = provisionerJob
+		return provisionerJob, nil
+	}
+	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -282,6 +311,26 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
+	for _, provisionerDaemon := range q.provisionerDaemons {
+		if provisionerDaemon.ID.String() != id.String() {
+			continue
+		}
+		return provisionerDaemon, nil
+	}
+	return database.ProvisionerDaemon{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+	for _, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.ID.String() != id.String() {
+			continue
+		}
+		return provisionerJob, nil
+	}
+	return database.ProvisionerJob{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	//nolint:gosimple
 	key := database.APIKey{
@@ -382,6 +431,32 @@ func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.Ins
 	return param, nil
 }
 
+func (q *fakeQuerier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	daemon := database.ProvisionerDaemon{
+		ID:           arg.ID,
+		Created:      arg.Created,
+		Name:         arg.Name,
+		Provisioners: arg.Provisioners,
+	}
+	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
+	return daemon, nil
+}
+
+func (q *fakeQuerier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
+	job := database.ProvisionerJob{
+		ID:          arg.ID,
+		Created:     arg.Created,
+		Updated:     arg.Updated,
+		Initiator:   arg.Initiator,
+		Provisioner: arg.Provisioner,
+		Project:     arg.Project,
+		Type:        arg.Type,
+		Input:       arg.Input,
+	}
+	q.provisionerJobs = append(q.provisionerJobs, job)
+	return job, nil
+}
+
 func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
 	user := database.User{
 		ID:             arg.ID,
@@ -465,6 +540,33 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		apiKey.OIDCRefreshToken = arg.OIDCRefreshToken
 		apiKey.OIDCExpiry = arg.OIDCExpiry
 		q.apiKeys[index] = apiKey
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
+	for index, daemon := range q.provisionerDaemons {
+		if arg.ID.String() != daemon.ID.String() {
+			continue
+		}
+		daemon.Updated = arg.Updated
+		daemon.Provisioners = arg.Provisioners
+		q.provisionerDaemons[index] = daemon
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
+	for index, job := range q.provisionerJobs {
+		if arg.ID.String() != job.ID.String() {
+			continue
+		}
+		job.Completed = arg.Completed
+		job.Cancelled = arg.Cancelled
+		job.Updated = arg.Updated
+		q.provisionerJobs[index] = job
 		return nil
 	}
 	return sql.ErrNoRows

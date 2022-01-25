@@ -13,6 +13,59 @@ import (
 	"github.com/lib/pq"
 )
 
+const acquireProvisionerJob = `-- name: AcquireProvisionerJob :one
+UPDATE
+  provisioner_job
+SET
+  started = $1,
+  updated = $1,
+  worker = $2
+WHERE
+  id = (
+    SELECT
+      id
+    FROM
+      provisioner_job AS nested
+    WHERE
+      nested.started IS NULL
+      AND nested.cancelled IS NULL
+      AND nested.completed IS NULL
+      AND nested.provisioner = ANY($3 :: provisioner_type [ ])
+    ORDER BY
+      nested.created FOR
+    UPDATE
+      SKIP LOCKED
+    LIMIT
+      1
+  ) RETURNING id, created, updated, started, cancelled, completed, initiator, worker, provisioner, project, type, input
+`
+
+type AcquireProvisionerJobParams struct {
+	Started sql.NullTime      `db:"started" json:"started"`
+	Worker  uuid.NullUUID     `db:"worker" json:"worker"`
+	Types   []ProvisionerType `db:"types" json:"types"`
+}
+
+func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, acquireProvisionerJob, arg.Started, arg.Worker, pq.Array(arg.Types))
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.Created,
+		&i.Updated,
+		&i.Started,
+		&i.Cancelled,
+		&i.Completed,
+		&i.Initiator,
+		&i.Worker,
+		&i.Provisioner,
+		&i.Project,
+		&i.Type,
+		&i.Input,
+	)
+	return i, err
+}
+
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
   id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
@@ -320,6 +373,57 @@ func (q *sqlQuerier) GetProjectsByOrganizationIDs(ctx context.Context, ids []str
 		return nil, err
 	}
 	return items, nil
+}
+
+const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
+SELECT
+  id, created, updated, name, provisioners
+FROM
+  provisioner_daemon
+WHERE
+  id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerDaemonByID, id)
+	var i ProvisionerDaemon
+	err := row.Scan(
+		&i.ID,
+		&i.Created,
+		&i.Updated,
+		&i.Name,
+		pq.Array(&i.Provisioners),
+	)
+	return i, err
+}
+
+const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
+SELECT
+  id, created, updated, started, cancelled, completed, initiator, worker, provisioner, project, type, input
+FROM
+  provisioner_job
+WHERE
+  id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobByID, id)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.Created,
+		&i.Updated,
+		&i.Started,
+		&i.Cancelled,
+		&i.Completed,
+		&i.Initiator,
+		&i.Worker,
+		&i.Provisioner,
+		&i.Project,
+		&i.Type,
+		&i.Input,
+	)
+	return i, err
 }
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
@@ -1059,6 +1163,94 @@ func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProje
 	return i, err
 }
 
+const insertProvisionerDaemon = `-- name: InsertProvisionerDaemon :one
+INSERT INTO
+  provisioner_daemon (id, created, name, provisioners)
+VALUES
+  ($1, $2, $3, $4) RETURNING id, created, updated, name, provisioners
+`
+
+type InsertProvisionerDaemonParams struct {
+	ID           uuid.UUID         `db:"id" json:"id"`
+	Created      time.Time         `db:"created" json:"created"`
+	Name         string            `db:"name" json:"name"`
+	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+}
+
+func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
+	row := q.db.QueryRowContext(ctx, insertProvisionerDaemon,
+		arg.ID,
+		arg.Created,
+		arg.Name,
+		pq.Array(arg.Provisioners),
+	)
+	var i ProvisionerDaemon
+	err := row.Scan(
+		&i.ID,
+		&i.Created,
+		&i.Updated,
+		&i.Name,
+		pq.Array(&i.Provisioners),
+	)
+	return i, err
+}
+
+const insertProvisionerJob = `-- name: InsertProvisionerJob :one
+INSERT INTO
+  provisioner_job (
+    id,
+    created,
+    updated,
+    initiator,
+    provisioner,
+    project,
+    type,
+    input
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created, updated, started, cancelled, completed, initiator, worker, provisioner, project, type, input
+`
+
+type InsertProvisionerJobParams struct {
+	ID          uuid.UUID          `db:"id" json:"id"`
+	Created     time.Time          `db:"created" json:"created"`
+	Updated     time.Time          `db:"updated" json:"updated"`
+	Initiator   uuid.UUID          `db:"initiator" json:"initiator"`
+	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
+	Project     uuid.UUID          `db:"project" json:"project"`
+	Type        ProvisionerJobType `db:"type" json:"type"`
+	Input       json.RawMessage    `db:"input" json:"input"`
+}
+
+func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
+	row := q.db.QueryRowContext(ctx, insertProvisionerJob,
+		arg.ID,
+		arg.Created,
+		arg.Updated,
+		arg.Initiator,
+		arg.Provisioner,
+		arg.Project,
+		arg.Type,
+		arg.Input,
+	)
+	var i ProvisionerJob
+	err := row.Scan(
+		&i.ID,
+		&i.Created,
+		&i.Updated,
+		&i.Started,
+		&i.Cancelled,
+		&i.Completed,
+		&i.Initiator,
+		&i.Worker,
+		&i.Provisioner,
+		&i.Project,
+		&i.Type,
+		&i.Input,
+	)
+	return i, err
+}
+
 const insertUser = `-- name: InsertUser :one
 INSERT INTO
   users (
@@ -1345,6 +1537,55 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 		arg.OIDCAccessToken,
 		arg.OIDCRefreshToken,
 		arg.OIDCExpiry,
+	)
+	return err
+}
+
+const updateProvisionerDaemonByID = `-- name: UpdateProvisionerDaemonByID :exec
+UPDATE
+  provisioner_daemon
+SET
+  updated = $2,
+  provisioners = $3
+WHERE
+  id = $1
+`
+
+type UpdateProvisionerDaemonByIDParams struct {
+	ID           uuid.UUID         `db:"id" json:"id"`
+	Updated      sql.NullTime      `db:"updated" json:"updated"`
+	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.Updated, pq.Array(arg.Provisioners))
+	return err
+}
+
+const updateProvisionerJobByID = `-- name: UpdateProvisionerJobByID :exec
+UPDATE
+  provisioner_job
+SET
+  updated = $2,
+  cancelled = $3,
+  completed = $4
+WHERE
+  id = $1
+`
+
+type UpdateProvisionerJobByIDParams struct {
+	ID        uuid.UUID    `db:"id" json:"id"`
+	Updated   time.Time    `db:"updated" json:"updated"`
+	Cancelled sql.NullTime `db:"cancelled" json:"cancelled"`
+	Completed sql.NullTime `db:"completed" json:"completed"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobByID,
+		arg.ID,
+		arg.Updated,
+		arg.Cancelled,
+		arg.Completed,
 	)
 	return err
 }

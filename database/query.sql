@@ -4,6 +4,32 @@
 -- Run "make gen" to generate models and query functions.
 ;
 
+-- name: AcquireProvisionerJob :one
+UPDATE
+  provisioner_job
+SET
+  started = @started,
+  updated = @started,
+  worker = @worker
+WHERE
+  id = (
+    SELECT
+      id
+    FROM
+      provisioner_job AS nested
+    WHERE
+      nested.started IS NULL
+      AND nested.cancelled IS NULL
+      AND nested.completed IS NULL
+      AND nested.provisioner = ANY(@types :: provisioner_type [ ])
+    ORDER BY
+      nested.created FOR
+    UPDATE
+      SKIP LOCKED
+    LIMIT
+      1
+  ) RETURNING *;
+
 -- name: GetAPIKeyByID :one
 SELECT
   *
@@ -119,6 +145,22 @@ SELECT
   *
 FROM
   project_history
+WHERE
+  id = $1;
+
+-- name: GetProvisionerDaemonByID :one
+SELECT
+  *
+FROM
+  provisioner_daemon
+WHERE
+  id = $1;
+
+-- name: GetProvisionerJobByID :one
+SELECT
+  *
+FROM
+  provisioner_job
 WHERE
   id = $1;
 
@@ -306,6 +348,27 @@ VALUES
     $15
   ) RETURNING *;
 
+-- name: InsertProvisionerDaemon :one
+INSERT INTO
+  provisioner_daemon (id, created, name, provisioners)
+VALUES
+  ($1, $2, $3, $4) RETURNING *;
+
+-- name: InsertProvisionerJob :one
+INSERT INTO
+  provisioner_job (
+    id,
+    created,
+    updated,
+    initiator,
+    provisioner,
+    project,
+    type,
+    input
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+
 -- name: InsertUser :one
 INSERT INTO
   users (
@@ -386,6 +449,25 @@ SET
   oidc_access_token = $4,
   oidc_refresh_token = $5,
   oidc_expiry = $6
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerDaemonByID :exec
+UPDATE
+  provisioner_daemon
+SET
+  updated = $2,
+  provisioners = $3
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerJobByID :exec
+UPDATE
+  provisioner_job
+SET
+  updated = $2,
+  cancelled = $3,
+  completed = $4
 WHERE
   id = $1;
 
