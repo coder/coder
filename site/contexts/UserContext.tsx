@@ -39,7 +39,7 @@ export const useUser = (redirectOnError = false): UserContext => {
         },
       })
     }
-  }, [redirectOnError, requestError, router])
+  }, [redirectOnError, requestError])
 
   return ctx
 }
