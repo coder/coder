@@ -100,7 +100,7 @@ func TestWorkspaces(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		_, err := server.Client.WorkspaceHistory(context.Background(), "", "blob")
-		require.NoError(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("LatestHistory", func(t *testing.T) {
