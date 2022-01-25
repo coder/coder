@@ -3,7 +3,12 @@ bin/coderd:
 	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
-build: site/out bin/coderd
+bin/provisionerd:
+	mkdir -p bin
+	go build -o bin/provisionerd cmd/provisionerd/main.go
+.PHONY: bin/provisionerd
+
+build: site/out bin/coderd bin/provisionerd
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
