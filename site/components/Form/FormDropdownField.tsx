@@ -53,33 +53,3 @@ const useStyles = makeStyles({
     opacity: 0.75,
   },
 })
-
-/*
-<TextField
-  autoComplete="off"
-  variant="outlined"
-  onChange={(ev) => handleSelectPool(ev.target.value)}
-  value={selectedPool ? selectedPool.name : ""}
-  disabled={fieldIsDisabled}
-  required
-  label="Workspace provider"
-  select
->
-  {poolsSorted.map((pool: UIResourcePoolWithRegion) => (
-    <MenuItem key={pool.name} value={pool.name}>
-      <Box alignItems="center" display="flex">
-        <ProviderIcon provider={pool} type={pool.type} />
-        <Box ml={1}>
-          <Typography>{pool.name}</Typography>
-        </Box>
-        {pool.region !== null && (
-          <Box ml={1}>
-            <Typography className={styles.hintText} variant="caption">
-              {pool.region}
-            </Typography>
-          </Box>
-        )}
-      </Box>
-    </MenuItem>
-  ))}
-</TextField>*/
