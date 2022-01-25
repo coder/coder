@@ -1,28 +1,49 @@
 import React from "react"
-import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import Table from "@material-ui/core/Table"
-import TableRow from "@material-ui/core/TableRow"
-import TableCell from "@material-ui/core/TableCell"
-
+import { router } from "next/router"
 import { EmptyState } from "../../components"
+import { Error } from "../../components/Error"
 import { Navbar } from "../../components/Navbar"
 import { Header } from "../../components/Header"
 import { Footer } from "../../components/Page"
+import { Column, Table } from "../../components/Table"
 import { useUser } from "../../contexts/UserContext"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+
+import { Project } from "./../../api"
+import useSWR from "swr"
 
 const ProjectsPage: React.FC = () => {
   const styles = useStyles()
   const { me } = useUser(true)
 
-  if (!me) {
+  const { data, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
+
+  // TODO: The API call is currently returning `null`, which isn't ideal
+  // - it breaks checking for data presence with SWR.
+  const projects = data || [
+    {
+      id: "test",
+      created_at: "a",
+      updated_at: "b",
+      organization_id: "c",
+      name: "Project 1",
+      provisioner: "e",
+      active_version_id: "f",
+    },
+  ]
+
+  if (error) {
+    return <Error error={error} />
+  }
+
+  if (!me || !projects) {
     return <FullScreenLoader />
   }
 
   const createProject = () => {
-    alert("createProject")
+    void router.push("/projects/create")
   }
 
   const action = {
@@ -30,31 +51,42 @@ const ProjectsPage: React.FC = () => {
     onClick: createProject,
   }
 
+  const columns: Column<Project>[] = [
+    {
+      key: "name",
+      name: "Name",
+    },
+  ]
+
+  const emptyState = (
+    <EmptyState
+      button={{
+        children: "Create Project",
+        //icon: AddPhotoIcon,
+        onClick: createProject,
+      }}
+      message="No projects have been created yet"
+      description="Create a project to get started."
+    />
+  )
+
+  const tableProps = {
+    title: "All Projects",
+    columns: columns,
+    emptyState: emptyState,
+    data: projects,
+  }
+
+  const subTitle = `${projects.length} total`
+
   return (
     <div className={styles.root}>
       <Navbar user={me} />
 
-      <Header title="Projects" description="View available projects" subTitle="0 total" action={action} />
+      <Header title="Projects" subTitle={subTitle} action={action} />
 
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
-        <Table>
-          <TableRow>
-            <TableCell colSpan={999}>
-              <Box p={4}>
-                <EmptyState
-                  button={{
-                    children: "Create Project",
-                    //icon: AddPhotoIcon,
-                    onClick: createProject,
-                  }}
-                  message="No projects have been created yet"
-                  description="Create a project to get started."
-                />
-              </Box>
-            </TableCell>
-          </TableRow>
-
-        </Table>
+        <Table {...tableProps} />
       </Paper>
 
       <Footer />
@@ -66,15 +98,6 @@ const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "column",
-  },
-  header: {
-    display: "flex",
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    margin: "1em auto",
-    maxWidth: "1380px",
-    padding: theme.spacing(2, 6.25, 0),
-    width: "100%",
   },
 }))
 

@@ -18,7 +18,7 @@ export interface HeaderAction {
 }
 
 export interface HeaderProps {
-  description: string
+  description?: string
   title: string
   subTitle: string
   action?: HeaderAction
