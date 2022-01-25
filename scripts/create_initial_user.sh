@@ -4,8 +4,8 @@ set -euo pipefail
 
 EMAIL="${EMAIL:-admin@coder.com}"
 USERNAME="${USERNAME:-admin}"
-ORGANIZATION="${ORGANIZATION:-default}"
-PASSWORD="${PASSWORD:-p@ssword1}"
+ORGANIZATION="${ORGANIZATION:-ACME-Corp}"
+PASSWORD="${PASSWORD:-password}"
 
 curl -X POST \
 -d "{\"email\": \"$EMAIL\", \"username\": \"$USERNAME\", \"organization\": \"$ORGANIZATION\", \"password\": \"$PASSWORD\"}" \
