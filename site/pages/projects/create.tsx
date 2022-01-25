@@ -23,8 +23,6 @@ const CreateProjectPage: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <div>{JSON.stringify(organizations)}</div>
-
       <CreateProjectForm
         provisioners={provisioners}
         organizations={organizations}
