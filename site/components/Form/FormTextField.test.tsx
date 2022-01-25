@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react"
 import { useFormik } from "formik"
 import React from "react"
 import * as yup from "yup"
-import { formTextFieldFactory, FormTextFieldProps } from "./FormTextField"
+import { FormTextField, FormTextFieldProps } from "./FormTextField"
 
 namespace Helpers {
   export interface FormValues {
@@ -10,8 +10,6 @@ namespace Helpers {
   }
 
   export const requiredValidationMsg = "required"
-
-  const FormTextField = formTextFieldFactory<FormValues>()
 
   export const Component: React.FC<Omit<FormTextFieldProps<FormValues>, "form" | "formFieldName">> = (props) => {
     const form = useFormik<FormValues>({
@@ -26,7 +24,7 @@ namespace Helpers {
       }),
     })
 
-    return <FormTextField {...props} form={form} formFieldName="name" />
+    return <FormTextField<FormValues> {...props} form={form} formFieldName="name" />
   }
 }
 
