@@ -28,6 +28,18 @@ export const provisioners: Provisioner[] = [
   },
 ]
 
+// This must be kept in sync with the `Project` struct in the back-end
+export interface Project {
+  id: string
+  created_at: string
+  updated_at: string
+  organization_id: string
+  name: string
+  provisioner: string
+  active_version_id: string
+}
+
+>>>>>>> main
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
   const response = await fetch("/api/v2/login", {
     method: "POST",
