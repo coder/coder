@@ -76,6 +76,30 @@ func TestUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, orgs, 1)
 	})
+
+	t.Run("CreateUser", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_ = server.RandomInitialUser(t)
+		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
+			Email:    "wow@ok.io",
+			Username: "tomato",
+			Password: "bananas",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("CreateUserConflict", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
+			Email:    "wow@ok.io",
+			Username: user.Username,
+			Password: "bananas",
+		})
+		require.Error(t, err)
+	})
 }
 
 func TestLogout(t *testing.T) {

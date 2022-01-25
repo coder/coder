@@ -57,9 +57,9 @@ func (c *Client) CreateProject(ctx context.Context, organization string, request
 	return project, json.NewDecoder(res.Body).Decode(&project)
 }
 
-// ProjectVersions lists history for a project.
-func (c *Client) ProjectVersions(ctx context.Context, organization, project string) ([]coderd.ProjectVersion, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/versions", organization, project), nil)
+// ProjectHistory lists history for a project.
+func (c *Client) ProjectHistory(ctx context.Context, organization, project string) ([]coderd.ProjectHistory, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history", organization, project), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -67,20 +67,20 @@ func (c *Client) ProjectVersions(ctx context.Context, organization, project stri
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var projectVersions []coderd.ProjectVersion
+	var projectVersions []coderd.ProjectHistory
 	return projectVersions, json.NewDecoder(res.Body).Decode(&projectVersions)
 }
 
-// CreateProjectVersion inserts a new version for the project.
-func (c *Client) CreateProjectVersion(ctx context.Context, organization, project string, request coderd.CreateProjectVersionRequest) (coderd.ProjectVersion, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s/%s/versions", organization, project), request)
+// CreateProjectHistory inserts a new version for the project.
+func (c *Client) CreateProjectHistory(ctx context.Context, organization, project string, request coderd.CreateProjectVersionRequest) (coderd.ProjectHistory, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s/%s/history", organization, project), request)
 	if err != nil {
-		return coderd.ProjectVersion{}, err
+		return coderd.ProjectHistory{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return coderd.ProjectVersion{}, readBodyAsError(res)
+		return coderd.ProjectHistory{}, readBodyAsError(res)
 	}
-	var projectVersion coderd.ProjectVersion
+	var projectVersion coderd.ProjectHistory
 	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
 }

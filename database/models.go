@@ -11,6 +11,29 @@ import (
 	"github.com/google/uuid"
 )
 
+type LogLevel string
+
+const (
+	LogLevelTrace LogLevel = "trace"
+	LogLevelDebug LogLevel = "debug"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
+	LogLevelError LogLevel = "error"
+	LogLevelFatal LogLevel = "fatal"
+)
+
+func (e *LogLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LogLevel(s)
+	case string:
+		*e = LogLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LogLevel: %T", src)
+	}
+	return nil
+}
+
 type LoginType string
 
 const (
@@ -102,6 +125,27 @@ func (e *UserStatus) Scan(src interface{}) error {
 		*e = UserStatus(s)
 	default:
 		return fmt.Errorf("unsupported scan type for UserStatus: %T", src)
+	}
+	return nil
+}
+
+type WorkspaceTransition string
+
+const (
+	WorkspaceTransitionCreate WorkspaceTransition = "create"
+	WorkspaceTransitionStart  WorkspaceTransition = "start"
+	WorkspaceTransitionStop   WorkspaceTransition = "stop"
+	WorkspaceTransitionDelete WorkspaceTransition = "delete"
+)
+
+func (e *WorkspaceTransition) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceTransition(s)
+	case string:
+		*e = WorkspaceTransition(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceTransition: %T", src)
 	}
 	return nil
 }
@@ -211,4 +255,56 @@ type User struct {
 	GpgKeyRegeneratedAt time.Time  `db:"gpg_key_regenerated_at" json:"gpg_key_regenerated_at"`
 	Decomissioned       bool       `db:"_decomissioned" json:"_decomissioned"`
 	Shell               string     `db:"shell" json:"shell"`
+}
+
+type Workspace struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	OwnerID   string    `db:"owner_id" json:"owner_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+type WorkspaceAgent struct {
+	ID                  uuid.UUID       `db:"id" json:"id"`
+	WorkspaceResourceID uuid.UUID       `db:"workspace_resource_id" json:"workspace_resource_id"`
+	CreatedAt           time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	InstanceMetadata    json.RawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata    json.RawMessage `db:"resource_metadata" json:"resource_metadata"`
+}
+
+type WorkspaceHistory struct {
+	ID               uuid.UUID           `db:"id" json:"id"`
+	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time           `db:"updated_at" json:"updated_at"`
+	CompletedAt      sql.NullTime        `db:"completed_at" json:"completed_at"`
+	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	ProjectHistoryID uuid.UUID           `db:"project_history_id" json:"project_history_id"`
+	BeforeID         uuid.NullUUID       `db:"before_id" json:"before_id"`
+	AfterID          uuid.NullUUID       `db:"after_id" json:"after_id"`
+	Transition       WorkspaceTransition `db:"transition" json:"transition"`
+	Initiator        string              `db:"initiator" json:"initiator"`
+	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
+	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
+}
+
+type WorkspaceLog struct {
+	WorkspaceID        uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	WorkspaceHistoryID uuid.UUID       `db:"workspace_history_id" json:"workspace_history_id"`
+	Created            time.Time       `db:"created" json:"created"`
+	LoggedBy           sql.NullString  `db:"logged_by" json:"logged_by"`
+	Level              LogLevel        `db:"level" json:"level"`
+	Log                json.RawMessage `db:"log" json:"log"`
+}
+
+type WorkspaceResource struct {
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
+	WorkspaceHistoryID  uuid.UUID     `db:"workspace_history_id" json:"workspace_history_id"`
+	Type                string        `db:"type" json:"type"`
+	Name                string        `db:"name" json:"name"`
+	WorkspaceAgentToken string        `db:"workspace_agent_token" json:"workspace_agent_token"`
+	WorkspaceAgentID    uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 }

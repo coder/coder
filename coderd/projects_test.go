@@ -104,7 +104,7 @@ func TestProjects(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		versions, err := server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
+		versions, err := server.Client.ProjectHistory(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, versions, 0)
 	})
@@ -127,13 +127,12 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<10))
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
-			Name:          "moo",
+		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})
 		require.NoError(t, err)
-		versions, err := server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
+		versions, err := server.Client.ProjectHistory(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, versions, 1)
 	})
@@ -156,8 +155,7 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<21))
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
-			Name:          "moo",
+		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})
@@ -173,8 +171,7 @@ func TestProjects(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
-			Name:          "moo",
+		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: []byte{},
 		})
