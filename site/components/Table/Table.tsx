@@ -1,7 +1,5 @@
 import React from "react"
 import Box from "@material-ui/core/Box"
-import { makeStyles } from "@material-ui/core/styles"
-import Paper from "@material-ui/core/Paper"
 import MuiTable from "@material-ui/core/Table"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
@@ -23,23 +21,20 @@ export interface TableProps<T> {
   emptyState?: React.ReactElement
 }
 
-export const Table = <T,>({ columns, data, emptyState }: TableProps<T>): React.ReactElement => {
+export const Table = <T,>({ columns, data, emptyState, title }: TableProps<T>): React.ReactElement => {
   const columnNames = columns.map(({ name }) => name)
 
   let body: JSX.Element
   if (data.length > 0) {
-    const rows = data.map((item: T) => {
+    const rows = data.map((item: T, index) => {
       const cells = columns.map((column) => {
-
         if (column.renderer) {
-          return <TableCell>{column.renderer(item[column.key], item)}</TableCell>
+          return <TableCell key={String(column.key)}>{column.renderer(item[column.key], item)}</TableCell>
         } else {
-          return <TableCell>{item[column.key].toString()}</TableCell>
+          return <TableCell key={String(column.key)}>{item[column.key].toString()}</TableCell>
         }
-
-        return <TableCell>{item[column.key].toString()}</TableCell>
       })
-      return <TableRow>{cells}</TableRow>
+      return <TableRow key={index}>{cells}</TableRow>
     })
     body = <>{rows}</>
   } else {
@@ -55,7 +50,7 @@ export const Table = <T,>({ columns, data, emptyState }: TableProps<T>): React.R
   return (
     <MuiTable>
       <TableHead>
-        <TableTitle title={"All Projects"} />
+        {title && <TableTitle title={title} />}
         <TableHeaders columns={columnNames} />
       </TableHead>
       {body}

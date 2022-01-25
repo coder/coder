@@ -18,7 +18,7 @@ import useSWR from "swr"
 const ProjectsPage: React.FC = () => {
   const styles = useStyles()
   const router = useRouter()
-  const { me } = useUser(true)
+  const { me, signOut } = useUser(true)
   const { data, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
 
   // TODO: The API call is currently returning `null`, which isn't ideal
@@ -58,7 +58,7 @@ const ProjectsPage: React.FC = () => {
       name: "Name",
       renderer: (nameField: string, data: Project) => {
         return <Link href={`/projects/${data.organization_id}/${data.id}`}>{nameField}</Link>
-      }
+      },
     },
   ]
 
@@ -85,7 +85,7 @@ const ProjectsPage: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <Navbar user={me} />
+      <Navbar user={me} onSignOut={signOut} />
 
       <Header title="Projects" subTitle={subTitle} action={action} />
 
@@ -98,7 +98,7 @@ const ProjectsPage: React.FC = () => {
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   root: {
     display: "flex",
     flexDirection: "column",
