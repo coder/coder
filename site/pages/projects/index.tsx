@@ -4,7 +4,7 @@ import Paper from "@material-ui/core/Paper"
 import { useRouter } from "next/router"
 import Link from "next/link"
 import { EmptyState } from "../../components"
-import { Error } from "../../components/Error"
+import { ErrorSummary } from "../../components/ErrorSummary"
 import { Navbar } from "../../components/Navbar"
 import { Header } from "../../components/Header"
 import { Footer } from "../../components/Page"
@@ -26,7 +26,7 @@ const ProjectsPage: React.FC = () => {
   const projects = data || []
 
   if (error) {
-    return <Error error={error} />
+    return <ErrorSummary error={error} />
   }
 
   if (!me || !projects) {
