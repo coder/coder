@@ -214,6 +214,32 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 	return i, err
 }
 
+const getProjectHistoryByID = `-- name: GetProjectHistoryByID :one
+SELECT
+  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+FROM
+  project_history
+WHERE
+  id = $1
+`
+
+func (q *sqlQuerier) GetProjectHistoryByID(ctx context.Context, id uuid.UUID) (ProjectHistory, error) {
+	row := q.db.QueryRowContext(ctx, getProjectHistoryByID, id)
+	var i ProjectHistory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Description,
+		&i.StorageMethod,
+		&i.StorageSource,
+		&i.ImportJobID,
+	)
+	return i, err
+}
+
 const getProjectHistoryByProjectID = `-- name: GetProjectHistoryByProjectID :many
 SELECT
   id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
@@ -1319,6 +1345,37 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 		arg.OIDCAccessToken,
 		arg.OIDCRefreshToken,
 		arg.OIDCExpiry,
+	)
+	return err
+}
+
+const updateWorkspaceHistoryByID = `-- name: UpdateWorkspaceHistoryByID :exec
+UPDATE
+  workspace_history
+SET
+  updated_at = $2,
+  completed_at = $3,
+  after_id = $4,
+  provisioner_state = $5
+WHERE
+  id = $1
+`
+
+type UpdateWorkspaceHistoryByIDParams struct {
+	ID               uuid.UUID     `db:"id" json:"id"`
+	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
+	CompletedAt      sql.NullTime  `db:"completed_at" json:"completed_at"`
+	AfterID          uuid.NullUUID `db:"after_id" json:"after_id"`
+	ProvisionerState []byte        `db:"provisioner_state" json:"provisioner_state"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceHistoryByID(ctx context.Context, arg UpdateWorkspaceHistoryByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceHistoryByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.CompletedAt,
+		arg.AfterID,
+		arg.ProvisionerState,
 	)
 	return err
 }

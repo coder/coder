@@ -114,6 +114,14 @@ FROM
 WHERE
   project_id = $1;
 
+-- name: GetProjectHistoryByID :one
+SELECT
+  *
+FROM
+  project_history
+WHERE
+  id = $1;
+
 -- name: GetWorkspacesByUserID :many
 SELECT
   *
@@ -378,5 +386,16 @@ SET
   oidc_access_token = $4,
   oidc_refresh_token = $5,
   oidc_expiry = $6
+WHERE
+  id = $1;
+
+-- name: UpdateWorkspaceHistoryByID :exec
+UPDATE
+  workspace_history
+SET
+  updated_at = $2,
+  completed_at = $3,
+  after_id = $4,
+  provisioner_state = $5
 WHERE
   id = $1;

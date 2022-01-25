@@ -62,9 +62,9 @@ func New(options *Options) http.Handler {
 				r.Route("/{project}", func(r chi.Router) {
 					r.Use(httpmw.ExtractProjectParam(options.Database))
 					r.Get("/", projects.project)
-					r.Route("/versions", func(r chi.Router) {
-						r.Get("/", projects.projectVersions)
-						r.Post("/", projects.createProjectVersion)
+					r.Route("/history", func(r chi.Router) {
+						r.Get("/", projects.projectHistory)
+						r.Post("/", projects.createProjectHistory)
 					})
 				})
 			})
@@ -90,6 +90,11 @@ func New(options *Options) http.Handler {
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
 			r.Get("/", workspaces.workspace)
+			r.Route("/history", func(r chi.Router) {
+				r.Post("/", workspaces.createWorkspaceBuild)
+				r.Get("/", workspaces.allWorkspaceHistory)
+				r.Get("/latest", workspaces.latestWorkspaceHistory)
+			})
 		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)

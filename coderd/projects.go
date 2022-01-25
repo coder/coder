@@ -24,8 +24,8 @@ import (
 // abstracted for ease of change later on.
 type Project database.Project
 
-// ProjectVersion is the JSON representation of a Coder project version.
-type ProjectVersion struct {
+// ProjectHistory is the JSON representation of a Coder project version.
+type ProjectHistory struct {
 	ID            uuid.UUID                     `json:"id"`
 	ProjectID     uuid.UUID                     `json:"project_id"`
 	CreatedAt     time.Time                     `json:"created_at"`
@@ -42,7 +42,6 @@ type CreateProjectRequest struct {
 
 // CreateProjectVersionRequest enables callers to create a new Project Version.
 type CreateProjectVersionRequest struct {
-	Name          string                        `json:"name,omitempty" validate:"username"`
 	StorageMethod database.ProjectStorageMethod `json:"storage_method" validate:"oneof=inline-archive,required"`
 	StorageSource []byte                        `json:"storage_source" validate:"max=1048576,required"`
 }
@@ -150,8 +149,8 @@ func (*projects) project(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, project)
 }
 
-// projectVersions lists versions for a single project.
-func (p *projects) projectVersions(rw http.ResponseWriter, r *http.Request) {
+// projectHistory lists versions for a single project.
+func (p *projects) projectHistory(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
 	history, err := p.Database.GetProjectHistoryByProjectID(r.Context(), project.ID)
@@ -164,7 +163,7 @@ func (p *projects) projectVersions(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	versions := make([]ProjectVersion, 0)
+	versions := make([]ProjectHistory, 0)
 	for _, version := range history {
 		versions = append(versions, convertProjectHistory(version))
 	}
@@ -172,7 +171,7 @@ func (p *projects) projectVersions(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, versions)
 }
 
-func (p *projects) createProjectVersion(rw http.ResponseWriter, r *http.Request) {
+func (p *projects) createProjectHistory(rw http.ResponseWriter, r *http.Request) {
 	var createProjectVersion CreateProjectVersionRequest
 	if !httpapi.Read(rw, r, &createProjectVersion) {
 		return
@@ -218,8 +217,8 @@ func (p *projects) createProjectVersion(rw http.ResponseWriter, r *http.Request)
 	render.JSON(rw, r, convertProjectHistory(history))
 }
 
-func convertProjectHistory(history database.ProjectHistory) ProjectVersion {
-	return ProjectVersion{
+func convertProjectHistory(history database.ProjectHistory) ProjectHistory {
+	return ProjectHistory{
 		ID:        history.ID,
 		ProjectID: history.ProjectID,
 		CreatedAt: history.CreatedAt,

@@ -10,23 +10,6 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
-// Workspace returns a single workspace by owner and name.
-func (c *Client) Workspace(ctx context.Context, owner, name string) (coderd.Workspace, error) {
-	if owner == "" {
-		owner = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace/%s/%s", owner, name), nil)
-	if err != nil {
-		return coderd.Workspace{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return coderd.Workspace{}, readBodyAsError(res)
-	}
-	var workspace coderd.Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
-}
-
 // Workspaces returns all workspaces for an owner.
 // If owner is empty, all workspaces the caller has access to will be returned.
 func (c *Client) Workspaces(ctx context.Context, owner, project string) ([]coderd.Workspace, error) {
@@ -52,8 +35,60 @@ func (c *Client) Workspaces(ctx context.Context, owner, project string) ([]coder
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
-func (c *Client) CreateWorkspace(ctx context.Context, owner, project string, request coderd.CreateWorkspaceRequest) (coderd.Workspace, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s", owner, project), request)
+// Workspace returns a single workspace by owner and name.
+func (c *Client) Workspace(ctx context.Context, owner, name string) (coderd.Workspace, error) {
+	if owner == "" {
+		owner = "me"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace/%s/%s", owner, name), nil)
+	if err != nil {
+		return coderd.Workspace{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.Workspace{}, readBodyAsError(res)
+	}
+	var workspace coderd.Workspace
+	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// WorkspaceHistory returns historical data for workspace builds.
+func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace string) ([]coderd.WorkspaceHistory, error) {
+	if owner == "" {
+		owner = "me"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace/%s/%s/history", owner, workspace), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var workspaceHistory []coderd.WorkspaceHistory
+	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
+}
+
+// LatestWorkspaceHistory returns the newest build for a workspace.
+func (c *Client) LatestWorkspaceHistory(ctx context.Context, owner, workspace string) (coderd.WorkspaceHistory, error) {
+	if owner == "" {
+		owner = "me"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace/%s/%s/history/latest", owner, workspace), nil)
+	if err != nil {
+		return coderd.WorkspaceHistory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.WorkspaceHistory{}, readBodyAsError(res)
+	}
+	var workspaceHistory coderd.WorkspaceHistory
+	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
+}
+
+// CreateWorkspace creates a new workspace for the project specified.
+func (c *Client) CreateWorkspace(ctx context.Context, organization, project string, request coderd.CreateWorkspaceRequest) (coderd.Workspace, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s", organization, project), request)
 	if err != nil {
 		return coderd.Workspace{}, err
 	}
@@ -63,4 +98,21 @@ func (c *Client) CreateWorkspace(ctx context.Context, owner, project string, req
 	}
 	var workspace coderd.Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// CreateWorkspaceVersion queues a new build to occur for a workspace.
+func (c *Client) CreateWorkspaceVersion(ctx context.Context, owner, workspace string, request coderd.CreateWorkspaceBuildRequest) (coderd.WorkspaceHistory, error) {
+	if owner == "" {
+		owner = "me"
+	}
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspace/%s/%s/history", owner, workspace), request)
+	if err != nil {
+		return coderd.WorkspaceHistory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return coderd.WorkspaceHistory{}, readBodyAsError(res)
+	}
+	var workspaceHistory coderd.WorkspaceHistory
+	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
 }

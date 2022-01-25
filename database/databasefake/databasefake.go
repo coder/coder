@@ -243,6 +243,16 @@ func (q *fakeQuerier) GetProjectHistoryByProjectID(_ context.Context, projectID 
 	return history, nil
 }
 
+func (q *fakeQuerier) GetProjectHistoryByID(_ context.Context, projectHistoryID uuid.UUID) (database.ProjectHistory, error) {
+	for _, projectHistory := range q.projectHistory {
+		if projectHistory.ID.String() != projectHistoryID.String() {
+			continue
+		}
+		return projectHistory, nil
+	}
+	return database.ProjectHistory{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetProjectsByOrganizationIDs(_ context.Context, ids []string) ([]database.Project, error) {
 	projects := make([]database.Project, 0)
 	for _, project := range q.project {
@@ -455,6 +465,21 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		apiKey.OIDCRefreshToken = arg.OIDCRefreshToken
 		apiKey.OIDCExpiry = arg.OIDCExpiry
 		q.apiKeys[index] = apiKey
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceHistoryByID(_ context.Context, arg database.UpdateWorkspaceHistoryByIDParams) error {
+	for index, workspaceHistory := range q.workspaceHistory {
+		if workspaceHistory.ID.String() != arg.ID.String() {
+			continue
+		}
+		workspaceHistory.UpdatedAt = arg.UpdatedAt
+		workspaceHistory.CompletedAt = arg.CompletedAt
+		workspaceHistory.AfterID = arg.AfterID
+		workspaceHistory.ProvisionerState = arg.ProvisionerState
+		q.workspaceHistory[index] = workspaceHistory
 		return nil
 	}
 	return sql.ErrNoRows
