@@ -18,7 +18,7 @@ function create_initial_user() {
   curl -X POST \
   -d "{\"email\": \"$EMAIL\", \"username\": \"$USERNAME\", \"organization\": \"$ORGANIZATION\", \"password\": \"$PASSWORD\"}" \
   -H 'Content-Type:application/json' \
-  http://localhost:3000/api/v2/users
+  http://localhost:3000/api/v2/user
 }
 
 # Do initial build - a dev build for coderd.

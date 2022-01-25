@@ -14,5 +14,13 @@
     "uncoveredBorderColor": "rgba(128,64,64,0.25)",
     "coveredGutterStyle": "blockgreen",
     "uncoveredGutterStyle": "blockred"
+  },
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": "database/query.sql",
+        "cmd": "make gen"
+      }
+    ]
   }
 }

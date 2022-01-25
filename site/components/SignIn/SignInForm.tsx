@@ -6,7 +6,7 @@ import { useSWRConfig } from "swr"
 import * as Yup from "yup"
 
 import { Welcome } from "./Welcome"
-import { formTextFieldFactory } from "../Form"
+import { FormTextField } from "../Form"
 import * as API from "./../../api"
 import { LoadingButton } from "./../Button"
 
@@ -24,8 +24,6 @@ const validationSchema = Yup.object({
   email: Yup.string().required("Email is required."),
   password: Yup.string(),
 })
-
-const FormTextField = formTextFieldFactory<BuiltInAuthFormValues>()
 
 const useStyles = makeStyles((theme) => ({
   loginBtnWrapper: {
