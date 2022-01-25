@@ -28,7 +28,25 @@ func TestWorkspaces(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("List", func(t *testing.T) {
+	t.Run("ListByUser", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "tomato",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      "wooow",
+			ProjectID: project.ID,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.WorkspacesByUser(context.Background(), "me")
+		require.NoError(t, err)
+	})
+
+	t.Run("ListByProject", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
@@ -44,6 +62,13 @@ func TestWorkspaces(t *testing.T) {
 		require.NoError(t, err)
 		_, err = server.Client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
+	})
+
+	t.Run("ListByProjectError", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_, err := server.Client.WorkspacesByProject(context.Background(), "", "")
+		require.Error(t, err)
 	})
 
 	t.Run("CreateError", func(t *testing.T) {

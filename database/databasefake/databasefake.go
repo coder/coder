@@ -213,7 +213,7 @@ func (q *fakeQuerier) GetProjectByID(_ context.Context, id uuid.UUID) (database.
 			return project, nil
 		}
 	}
-	return database.Project{}, nil
+	return database.Project{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg database.GetProjectByOrganizationAndNameParams) (database.Project, error) {

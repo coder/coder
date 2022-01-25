@@ -109,6 +109,46 @@ func TestWorkspaces(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("CreateInvalidProject", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_ = server.RandomInitialUser(t)
+		_, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			ProjectID: uuid.New(),
+			Name:      "moo",
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("CreateNotInProjectOrganization", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		initial := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), initial.Organization, coderd.CreateProjectRequest{
+			Name:        "banana",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
+			Email:    "hello@ok.io",
+			Username: "example",
+			Password: "wowowow",
+		})
+		require.NoError(t, err)
+		token, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+			Email:    "hello@ok.io",
+			Password: "wowowow",
+		})
+		require.NoError(t, err)
+		err = server.Client.SetSessionToken(token.SessionToken)
+		require.NoError(t, err)
+		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			ProjectID: project.ID,
+			Name:      "moo",
+		})
+		require.Error(t, err)
+	})
+
 	t.Run("CreateAlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)

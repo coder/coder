@@ -39,14 +39,14 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/login", users.loginWithPassword)
 		r.Post("/logout", users.logout)
+		r.Post("/user", users.createInitialUser)
 		r.Route("/users", func(r chi.Router) {
-			r.Post("/", users.createInitialUser)
-
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+			)
+			r.Post("/", users.createUser)
 			r.Group(func(r chi.Router) {
-				r.Use(
-					httpmw.ExtractAPIKey(options.Database, nil),
-					httpmw.ExtractUserParam(options.Database),
-				)
+				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/{user}", users.user)
 				r.Get("/{user}/organizations", users.userOrganizations)
 			})
@@ -79,6 +79,7 @@ func New(options *Options) http.Handler {
 			r.Get("/", workspaces.listAllWorkspaces)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Get("/", workspaces.listAllWorkspaces)
 				r.Post("/", workspaces.createWorkspaceForUser)
 				r.Route("/{workspace}", func(r chi.Router) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
