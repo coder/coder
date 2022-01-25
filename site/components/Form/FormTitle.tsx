@@ -2,9 +2,9 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 
-export interface TitleProps {
+export interface FormTitleProps {
   title: string
-  detail: React.ReactNode
+  detail?: React.ReactNode
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -19,13 +19,13 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const Title: React.FC<TitleProps> = ({ title, detail }) => {
+export const FormTitle: React.FC<FormTitleProps> = ({ title, detail }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.title}>
       <Typography variant="h3">{title}</Typography>
-      <Typography variant="caption">{detail}</Typography>
+      {detail && <Typography variant="caption">{detail}</Typography>}
     </div>
   )
 }

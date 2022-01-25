@@ -1,54 +1,36 @@
 import React from "react"
-import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
-import Paper from "@material-ui/core/Paper"
-import AddWorkspaceIcon from "@material-ui/icons/AddToQueue"
+import useSWR from "swr"
 
+import { provisioners } from "../../api"
 import { useUser } from "../../contexts/UserContext"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+import { CreateProjectForm } from "../../forms/CreateProjectForm"
 
 const CreateProjectPage: React.FC = () => {
   const styles = useStyles()
-  const { me, signOut } = useUser(true)
+  const { me } = useUser(true)
+  const { data: organizations, error } = useSWR("/api/v2/users/me/organizations")
 
-  if (!me) {
+  if (error) {
+    // TODO: Merge with error component in other PR
+    return <div>{"Error"}</div>
+  }
+
+  if (!me || !organizations) {
     return <FullScreenLoader />
-  }
-
-  const createWorkspace = () => {
-    alert("create")
-  }
-
-  const button = {
-    children: "New Workspace",
-    onClick: createWorkspace,
   }
 
   return (
     <div className={styles.root}>
-      <div className={styles.header}>
-        <SplitButton<string>
-          color="primary"
-          onClick={createWorkspace}
-          options={[
-            {
-              label: "New workspace",
-              value: "custom",
-            },
-            {
-              label: "New workspace from template",
-              value: "template",
-            },
-          ]}
-          startIcon={<AddWorkspaceIcon />}
-          textTransform="none"
-        />
-      </div>
+      <div>{JSON.stringify(organizations)}</div>
 
-      <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
-        <Box pt={4} pb={4}>
-        </Box>
-      </Paper>
+      <CreateProjectForm
+        provisioners={provisioners}
+        organizations={organizations}
+        onSubmit={(request) => alert(JSON.stringify(request))}
+        onCancel={() => alert("Cancelled")}
+      />
     </div>
   )
 }
@@ -57,6 +39,8 @@ const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "column",
+    height: "100vh",
+    backgroundColor: theme.palette.background.paper,
   },
 }))
 
