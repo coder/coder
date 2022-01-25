@@ -7,6 +7,7 @@ import TableCell from "@material-ui/core/TableCell"
 
 import { TableTitle } from "./TableTitle"
 import { TableHeaders } from "./TableHeaders"
+import TableBody from "@material-ui/core/TableBody"
 
 export interface Column<T> {
   /**
@@ -44,7 +45,6 @@ export interface TableProps<T> {
 
 export const Table = <T,>({ columns, data, emptyState, title }: TableProps<T>): React.ReactElement => {
   const columnNames = columns.map(({ name }) => name)
-
   const body = renderTableBody(data, columns, emptyState)
 
   return (
@@ -61,26 +61,28 @@ export const Table = <T,>({ columns, data, emptyState, title }: TableProps<T>): 
 /**
  * Helper function to render the table data, falling back to an empty state if available
  */
-const renderTableBody = <T,>(data: T[], columns: Column<T>[], emptyState: React.ReactElement) => {
+const renderTableBody = <T,>(data: T[], columns: Column<T>[], emptyState?: React.ReactElement) => {
   if (data.length > 0) {
     const rows = data.map((item: T, index) => {
       const cells = columns.map((column) => {
         if (column.renderer) {
           return <TableCell key={String(column.key)}>{column.renderer(item[column.key], item)}</TableCell>
         } else {
-          return <TableCell key={String(column.key)}>{item[column.key].toString()}</TableCell>
+          return <TableCell key={String(column.key)}>{String(item[column.key]).toString()}</TableCell>
         }
       })
       return <TableRow key={index}>{cells}</TableRow>
     })
-    return <>{rows}</>
+    return <TableBody>{rows}</TableBody>
   } else {
     return (
-      <TableRow>
-        <TableCell colSpan={999}>
-          <Box p={4}>{emptyState}</Box>
-        </TableCell>
-      </TableRow>
+      <TableBody>
+        <TableRow>
+          <TableCell colSpan={999}>
+            <Box p={4}>{emptyState}</Box>
+          </TableCell>
+        </TableRow>
+      </TableBody>
     )
   }
 }
