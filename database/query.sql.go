@@ -156,6 +156,32 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string
 	return items, nil
 }
 
+const getProjectByID = `-- name: GetProjectByID :one
+SELECT
+  id, created_at, updated_at, organization_id, name, provisioner, active_version_id
+FROM
+  project
+WHERE
+  id = $1
+LIMIT
+  1
+`
+
+func (q *sqlQuerier) GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error) {
+	row := q.db.QueryRowContext(ctx, getProjectByID, id)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Provisioner,
+		&i.ActiveVersionID,
+	)
+	return i, err
+}
+
 const getProjectByOrganizationAndName = `-- name: GetProjectByOrganizationAndName :one
 SELECT
   id, created_at, updated_at, organization_id, name, provisioner, active_version_id
@@ -405,25 +431,23 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 	return items, nil
 }
 
-const getWorkspaceByProjectIDAndName = `-- name: GetWorkspaceByProjectIDAndName :one
+const getWorkspaceByUserIDAndName = `-- name: GetWorkspaceByUserIDAndName :one
 SELECT
   id, created_at, updated_at, owner_id, project_id, name
 FROM
   workspace
 WHERE
   owner_id = $1
-  AND project_id = $2
-  AND LOWER(name) = LOWER($3)
+  AND LOWER(name) = LOWER($2)
 `
 
-type GetWorkspaceByProjectIDAndNameParams struct {
-	OwnerID   string    `db:"owner_id" json:"owner_id"`
-	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
-	Name      string    `db:"name" json:"name"`
+type GetWorkspaceByUserIDAndNameParams struct {
+	OwnerID string `db:"owner_id" json:"owner_id"`
+	Name    string `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetWorkspaceByProjectIDAndName(ctx context.Context, arg GetWorkspaceByProjectIDAndNameParams) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceByProjectIDAndName, arg.OwnerID, arg.ProjectID, arg.Name)
+func (q *sqlQuerier) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWorkspaceByUserIDAndNameParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByUserIDAndName, arg.OwnerID, arg.Name)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

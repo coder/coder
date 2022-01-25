@@ -77,6 +77,16 @@ WHERE
 LIMIT
   1;
 
+-- name: GetProjectByID :one
+SELECT
+  *
+FROM
+  project
+WHERE
+  id = $1
+LIMIT
+  1;
+
 -- name: GetProjectByOrganizationAndName :one
 SELECT
   *
@@ -112,14 +122,13 @@ FROM
 WHERE
   owner_id = $1;
 
--- name: GetWorkspaceByProjectIDAndName :one
+-- name: GetWorkspaceByUserIDAndName :one
 SELECT
   *
 FROM
   workspace
 WHERE
   owner_id = @owner_id
-  AND project_id = @project_id
   AND LOWER(name) = LOWER(@name);
 
 -- name: GetWorkspacesByProjectAndUserID :many

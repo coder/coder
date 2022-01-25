@@ -97,11 +97,8 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, ids []u
 	return agents, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceByProjectIDAndName(ctx context.Context, arg database.GetWorkspaceByProjectIDAndNameParams) (database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg database.GetWorkspaceByUserIDAndNameParams) (database.Workspace, error) {
 	for _, workspace := range q.workspace {
-		if workspace.ProjectID.String() != arg.ProjectID.String() {
-			continue
-		}
 		if workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -208,6 +205,15 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID string)
 		return nil, sql.ErrNoRows
 	}
 	return organizations, nil
+}
+
+func (q *fakeQuerier) GetProjectByID(_ context.Context, id uuid.UUID) (database.Project, error) {
+	for _, project := range q.project {
+		if project.ID.String() == id.String() {
+			return project, nil
+		}
+	}
+	return database.Project{}, nil
 }
 
 func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg database.GetProjectByOrganizationAndNameParams) (database.Project, error) {

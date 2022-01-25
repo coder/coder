@@ -85,14 +85,20 @@ func (w *workspaces) createWorkspace(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	project := httpmw.ProjectParam(r)
 
-	_, err := w.Database.GetWorkspaceByProjectIDAndName(r.Context(), database.GetWorkspaceByProjectIDAndNameParams{
-		OwnerID:   apiKey.UserID,
-		ProjectID: project.ID,
-		Name:      createWorkspace.Name,
+	workspace, err := w.Database.GetWorkspaceByUserIDAndName(r.Context(), database.GetWorkspaceByUserIDAndNameParams{
+		OwnerID: apiKey.UserID,
+		Name:    createWorkspace.Name,
 	})
 	if err == nil {
+		project, err := w.Database.GetProjectByID(r.Context(), workspace.ProjectID)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("find project for conflicting workspace name %q: %s", createWorkspace.Name, err),
+			})
+			return
+		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("workspace %q already exists", createWorkspace.Name),
+			Message: fmt.Sprintf("workspace %q already exists in the %q project", createWorkspace.Name, project.Name),
 			Errors: []httpapi.Error{{
 				Field: "name",
 				Code:  "exists",
@@ -107,7 +113,7 @@ func (w *workspaces) createWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspace, err := w.Database.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
+	workspace, err = w.Database.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
 		ID:        uuid.New(),
 		CreatedAt: database.Now(),
 		UpdatedAt: database.Now(),
