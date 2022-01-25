@@ -2,6 +2,8 @@ import { useRouter } from "next/router"
 import React, { useContext, useEffect } from "react"
 import useSWR from "swr"
 
+import * as API from "../api"
+
 export interface User {
   readonly id: string
   readonly username: string
@@ -12,9 +14,14 @@ export interface User {
 export interface UserContext {
   readonly error?: Error
   readonly me?: User
+  readonly signOut: () => Promise<void>
 }
 
-const UserContext = React.createContext<UserContext>({})
+const UserContext = React.createContext<UserContext>({
+  signOut: () => {
+    return Promise.reject("Sign out API not available")
+  },
+})
 
 export const useUser = (redirectOnError = false): UserContext => {
   const ctx = useContext(UserContext)
@@ -38,13 +45,27 @@ export const useUser = (redirectOnError = false): UserContext => {
 }
 
 export const UserProvider: React.FC = (props) => {
-  const { data, error } = useSWR("/api/v2/users/me")
+  const router = useRouter()
+  const { data, error, mutate } = useSWR("/api/v2/users/me")
+
+  const signOut = async () => {
+    await API.logout()
+    // Tell SWR to invalidate the cache for the user endpoint
+    await mutate("/api/v2/users/me")
+    await router.push({
+      pathname: "/login",
+      query: {
+        redirect: router.asPath,
+      },
+    })
+  }
 
   return (
     <UserContext.Provider
       value={{
         error: error,
         me: data,
+        signOut: signOut,
       }}
     >
       {props.children}
