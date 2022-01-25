@@ -19,7 +19,7 @@ export interface FormDropdownFieldProps<T> extends FormTextFieldProps<T> {
 export const formDropdownFieldFactory = <T,>(): React.FC<FormDropdownFieldProps<T>> => {
   const FormTextField = formTextFieldFactory<T>()
 
-  const component: React.FC<FormDropdownFieldProps<T>> = ({ items, ...props }) => {
+  const Component: React.FC<FormDropdownFieldProps<T>> = ({ items, ...props }) => {
     const styles = useStyles()
     return (
       <FormTextField select {...props}>
@@ -44,8 +44,8 @@ export const formDropdownFieldFactory = <T,>(): React.FC<FormDropdownFieldProps<
   }
 
   // Required when using an anonymous factory function
-  component.displayName = "FormDropdownField"
-  return component
+  Component.displayName = "FormDropdownField"
+  return Component
 }
 
 const useStyles = makeStyles({

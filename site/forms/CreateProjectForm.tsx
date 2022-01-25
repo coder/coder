@@ -76,7 +76,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
           fullWidth
           helperText="A unique name describing your project."
           label="Project Name"
-          placeholder={"my-project"}
+          placeholder="my-project"
           required
         />
       </FormSection>
@@ -84,7 +84,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
       <FormSection title="Organization">
         <FormDropdownField
           form={form}
-          formFieldName={"organizationId"}
+          formFieldName="organizationId"
           helperText="The organization owning this project."
           items={organizationDropDownItems}
           fullWidth
@@ -96,7 +96,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
       <FormSection title="Provider">
         <FormDropdownField
           form={form}
-          formFieldName={"provisioner"}
+          formFieldName="provisioner"
           helperText="The backing provisioner for this project."
           items={provisionerDropDownItems}
           fullWidth
@@ -112,10 +112,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
         <LoadingButton
           loading={form.isSubmitting}
           className={styles.button}
-          onClick={() => {
-            console.log("submit clicked: " + JSON.stringify(form.values))
-            form.submitForm()
-          }}
+          onClick={form.submitForm}
           variant="contained"
           color="primary"
           type="submit"
