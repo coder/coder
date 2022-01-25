@@ -13,6 +13,20 @@ import (
 // This initial user has superadmin privileges. If >0 users exist, this request
 // will fail.
 func (c *Client) CreateInitialUser(ctx context.Context, req coderd.CreateInitialUserRequest) (coderd.User, error) {
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/user", req)
+	if err != nil {
+		return coderd.User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return coderd.User{}, readBodyAsError(res)
+	}
+	var user coderd.User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// CreateUser creates a new user.
+func (c *Client) CreateUser(ctx context.Context, req coderd.CreateUserRequest) (coderd.User, error) {
 	res, err := c.request(ctx, http.MethodPost, "/api/v2/users", req)
 	if err != nil {
 		return coderd.User{}, err

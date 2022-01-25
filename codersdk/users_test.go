@@ -55,4 +55,16 @@ func TestUsers(t *testing.T) {
 		err := server.Client.Logout(context.Background())
 		require.NoError(t, err)
 	})
+
+	t.Run("CreateMultiple", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_ = server.RandomInitialUser(t)
+		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
+			Email:    "wow@ok.io",
+			Username: "example",
+			Password: "tomato",
+		})
+		require.NoError(t, err)
+	})
 }

@@ -15,7 +15,7 @@ import (
 
 type projectParamContextKey struct{}
 
-// ProjectParam returns the project from the ExtractProjectParameter handler.
+// ProjectParam returns the project from the ExtractProjectParam handler.
 func ProjectParam(r *http.Request) database.Project {
 	project, ok := r.Context().Value(projectParamContextKey{}).(database.Project)
 	if !ok {
@@ -24,8 +24,8 @@ func ProjectParam(r *http.Request) database.Project {
 	return project
 }
 
-// ExtractProjectParameter grabs a project from the "project" URL parameter.
-func ExtractProjectParameter(db database.Store) func(http.Handler) http.Handler {
+// ExtractProjectParam grabs a project from the "project" URL parameter.
+func ExtractProjectParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			organization := OrganizationParam(r)

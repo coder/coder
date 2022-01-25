@@ -30,8 +30,8 @@ SELECT
 FROM
   users
 WHERE
-  username = $1
-  OR email = $2
+  LOWER(username) = LOWER(@username)
+  OR email = @email
 LIMIT
   1;
 
@@ -47,7 +47,7 @@ SELECT
 FROM
   organizations
 WHERE
-  name = $1
+  LOWER(name) = LOWER(@name)
 LIMIT
   1;
 
@@ -77,14 +77,24 @@ WHERE
 LIMIT
   1;
 
+-- name: GetProjectByID :one
+SELECT
+  *
+FROM
+  project
+WHERE
+  id = $1
+LIMIT
+  1;
+
 -- name: GetProjectByOrganizationAndName :one
 SELECT
   *
 FROM
   project
 WHERE
-  organization_id = $1
-  AND name = $2
+  organization_id = @organization_id
+  AND LOWER(name) = LOWER(@name)
 LIMIT
   1;
 
@@ -103,6 +113,75 @@ FROM
   project_history
 WHERE
   project_id = $1;
+
+-- name: GetProjectHistoryByID :one
+SELECT
+  *
+FROM
+  project_history
+WHERE
+  id = $1;
+
+-- name: GetWorkspacesByUserID :many
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  owner_id = $1;
+
+-- name: GetWorkspaceByUserIDAndName :one
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  owner_id = @owner_id
+  AND LOWER(name) = LOWER(@name);
+
+-- name: GetWorkspacesByProjectAndUserID :many
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  owner_id = $1
+  AND project_id = $2;
+
+-- name: GetWorkspaceHistoryByWorkspaceID :many
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  workspace_id = $1;
+
+-- name: GetWorkspaceHistoryByWorkspaceIDWithoutAfter :one
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  workspace_id = $1
+  AND after_id IS NULL
+LIMIT
+  1;
+
+-- name: GetWorkspaceResourcesByHistoryID :many
+SELECT
+  *
+FROM
+  workspace_resource
+WHERE
+  workspace_history_id = $1;
+
+-- name: GetWorkspaceAgentsByResourceIDs :many
+SELECT
+  *
+FROM
+  workspace_agent
+WHERE
+  workspace_resource_id = ANY(@ids :: uuid [ ]);
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -243,6 +322,61 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING *;
 
+-- name: InsertWorkspace :one
+INSERT INTO
+  workspace (
+    id,
+    created_at,
+    updated_at,
+    owner_id,
+    project_id,
+    name
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: InsertWorkspaceAgent :one
+INSERT INTO
+  workspace_agent (
+    id,
+    workspace_resource_id,
+    created_at,
+    updated_at,
+    instance_metadata,
+    resource_metadata
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: InsertWorkspaceHistory :one
+INSERT INTO
+  workspace_history (
+    id,
+    created_at,
+    updated_at,
+    workspace_id,
+    project_history_id,
+    before_id,
+    transition,
+    initiator,
+    provision_job_id
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+
+-- name: InsertWorkspaceResource :one
+INSERT INTO
+  workspace_resource (
+    id,
+    created_at,
+    workspace_history_id,
+    type,
+    name,
+    workspace_agent_token
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
+
 -- name: UpdateAPIKeyByID :exec
 UPDATE
   api_keys
@@ -252,5 +386,14 @@ SET
   oidc_access_token = $4,
   oidc_refresh_token = $5,
   oidc_expiry = $6
+WHERE
+  id = $1;
+
+-- name: UpdateWorkspaceHistoryByID :exec
+UPDATE
+  workspace_history
+SET
+  updated_at = $2,
+  after_id = $3
 WHERE
   id = $1;
