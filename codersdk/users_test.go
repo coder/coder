@@ -47,4 +47,12 @@ func TestUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, orgs, 1)
 	})
+
+	t.Run("LogoutIsSuccessful", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_ = server.RandomInitialUser(t)
+		err := server.Client.Logout(context.Background())
+		require.NoError(t, err)
+	})
 }

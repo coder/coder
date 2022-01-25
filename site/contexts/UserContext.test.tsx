@@ -5,6 +5,7 @@ import { SWRConfig } from "swr"
 import { render, screen, waitFor } from "@testing-library/react"
 
 import { User, UserProvider, useUser } from "./UserContext"
+import { MockUser } from "../test_helpers"
 
 namespace Helpers {
   // Helper component that renders out the state of the `useUser` hook.
@@ -45,18 +46,11 @@ namespace Helpers {
       </SWRConfig>
     )
   }
-
-  export const mockUser: User = {
-    id: "test-user-id",
-    username: "TestUser",
-    email: "test@coder.com",
-    created_at: "",
-  }
 }
 
 describe("UserContext", () => {
   const failingRequest = () => Promise.reject("Failed to load user")
-  const successfulRequest = () => Promise.resolve(Helpers.mockUser)
+  const successfulRequest = () => Promise.resolve(MockUser)
 
   // Reset the router to '/' before every test
   beforeEach(() => {

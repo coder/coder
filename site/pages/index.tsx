@@ -12,7 +12,7 @@ import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
-  const { me } = useUser(true)
+  const { me, signOut } = useUser(true)
 
   if (!me) {
     return <FullScreenLoader />
@@ -29,7 +29,7 @@ const WorkspacesPage: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <Navbar user={me} />
+      <Navbar user={me} onSignOut={signOut} />
       <div className={styles.header}>
         <SplitButton<string>
           color="primary"
