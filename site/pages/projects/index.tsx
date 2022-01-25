@@ -2,6 +2,9 @@ import React from "react"
 import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
+import Table from "@material-ui/core/Table"
+import TableRow from "@material-ui/core/TableRow"
+import TableCell from "@material-ui/core/TableCell"
 
 import { EmptyState } from "../../components"
 import { Navbar } from "../../components/Navbar"
@@ -22,11 +25,6 @@ const ProjectsPage: React.FC = () => {
     alert("createProject")
   }
 
-  const button = {
-    children: "New Project",
-    onClick: createProject,
-  }
-
   const action = {
     text: "Create Project",
     onClick: createProject,
@@ -37,11 +35,28 @@ const ProjectsPage: React.FC = () => {
       <Navbar user={me} />
 
       <Header title="Projects" description="View available projects" subTitle="0 total" action={action} />
+
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
-        <Box pt={4} pb={4}>
-          <EmptyState message="No projects available." button={button} />
-        </Box>
+        <Table>
+          <TableRow>
+            <TableCell colSpan={999}>
+              <Box p={4}>
+                <EmptyState
+                  button={{
+                    children: "Create Project",
+                    //icon: AddPhotoIcon,
+                    onClick: createProject,
+                  }}
+                  message="No projects have been created yet"
+                  description="Create a project to get started."
+                />
+              </Box>
+            </TableCell>
+          </TableRow>
+
+        </Table>
       </Paper>
+
       <Footer />
     </div>
   )
