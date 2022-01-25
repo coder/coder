@@ -4,7 +4,7 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 
-import { FormTextField, FormTitle, FormSection, formDropdownFieldFactory, DropdownItem } from "../components/Form"
+import { DropdownItem, FormDropdownField, FormTextField, FormTitle, FormSection } from "../components/Form"
 import { LoadingButton } from "../components/Button"
 import { Organization, Project, Provisioner, CreateProjectRequest } from "./../api"
 
@@ -20,8 +20,6 @@ const validationSchema = Yup.object({
   organizationId: Yup.string().required("Organization is required."),
   name: Yup.string().required("Name is required"),
 })
-
-const FormDropdownField = formDropdownFieldFactory<CreateProjectRequest>()
 
 export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
   provisioners,
