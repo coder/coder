@@ -23,17 +23,7 @@ const ProjectsPage: React.FC = () => {
 
   // TODO: The API call is currently returning `null`, which isn't ideal
   // - it breaks checking for data presence with SWR.
-  const projects = data || [
-    {
-      id: "test",
-      created_at: "a",
-      updated_at: "b",
-      organization_id: "c",
-      name: "Project 1",
-      provisioner: "e",
-      active_version_id: "f",
-    },
-  ]
+  const projects = data || []
 
   if (error) {
     return <Error error={error} />
@@ -66,7 +56,6 @@ const ProjectsPage: React.FC = () => {
     <EmptyState
       button={{
         children: "Create Project",
-        //icon: AddPhotoIcon,
         onClick: createProject,
       }}
       message="No projects have been created yet"
@@ -86,13 +75,10 @@ const ProjectsPage: React.FC = () => {
   return (
     <div className={styles.root}>
       <Navbar user={me} onSignOut={signOut} />
-
       <Header title="Projects" subTitle={subTitle} action={action} />
-
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
         <Table {...tableProps} />
       </Paper>
-
       <Footer />
     </div>
   )

@@ -1,10 +1,8 @@
 import Button from "@material-ui/core/Button"
 import { lighten, makeStyles } from "@material-ui/core/styles"
-//import SvgIcon from "@material-ui/core/SvgIcon"
 import React from "react"
 
 export interface HeaderButtonProps {
-  //readonly icon: typeof SvgIcon
   readonly text: string
   readonly disabled?: boolean
   readonly onClick?: (event: MouseEvent) => void
@@ -13,7 +11,7 @@ export interface HeaderButtonProps {
 export const HeaderButton: React.FC<HeaderButtonProps> = (props) => {
   const styles = useStyles()
 
-  const btn = (
+  return (
     <Button
       className={styles.pageButton}
       variant="contained"
@@ -28,8 +26,6 @@ export const HeaderButton: React.FC<HeaderButtonProps> = (props) => {
       {props.text}
     </Button>
   )
-
-  return btn
 }
 
 const useStyles = makeStyles((theme) => ({

@@ -34,7 +34,6 @@ export const TableTitle: React.FC<TableTitleProps> = ({ title, details }) => {
 }
 
 const useStyles = makeStyles((theme) => ({
-  root: {},
   cell: {
     background: "none",
     paddingTop: theme.spacing(2),

@@ -5,22 +5,14 @@ import React from "react"
 import { HeaderButton } from "./HeaderButton"
 
 export interface HeaderAction {
-  // readonly icon: typeof SvgIcon
   readonly text: string
-  readonly disabled?: boolean
   readonly onClick?: (event: MouseEvent) => void
-  readonly tooltip?: string
-  readonly component?: React.ElementType
-  readonly menuItem?: boolean
-  readonly fileInput?: React.InputHTMLAttributes<HTMLInputElement>
-  // readonly style?: CSSProperties
-  //  readonly menu?: MenuItemProps[]
 }
 
 export interface HeaderProps {
   description?: string
   title: string
-  subTitle: string
+  subTitle?: string
   action?: HeaderAction
 }
 
@@ -94,20 +86,6 @@ const useStyles = makeStyles((theme) => ({
     whiteSpace: "nowrap",
     minWidth: 0,
     color: theme.palette.primary.contrastText,
-  },
-  titleParent: {
-    color: secondaryText,
-    transition: "color 100ms ease",
-    "&:hover": {
-      color: theme.palette.primary.contrastText,
-    },
-  },
-  titleArrow: {
-    position: "relative",
-    top: 2,
-    color: secondaryText,
-    fontSize: 28,
-    margin: `0 4px`,
   },
   description: {
     display: "block",
