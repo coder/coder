@@ -44,6 +44,19 @@ func (c *Client) LoginWithPassword(ctx context.Context, req coderd.LoginWithPass
 	return resp, nil
 }
 
+// Logout calls the /logout API
+// Call `ClearSessionToken()` to clear the session token of the client.
+func (c *Client) Logout(ctx context.Context) error {
+	// Since `LoginWithPassword` doesn't actually set a SessionToken
+	// (it requires a call to SetSessionToken), this is essentially a no-op
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/logout", nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	return nil
+}
+
 // User returns a user for the ID provided.
 // If the ID string is empty, the current user will be returned.
 func (c *Client) User(ctx context.Context, id string) (coderd.User, error) {

@@ -237,6 +237,20 @@ func (users *users) loginWithPassword(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Clear the user's session cookie
+func (*users) logout(rw http.ResponseWriter, r *http.Request) {
+	// Get a blank token cookie
+	cookie := &http.Cookie{
+		// MaxAge < 0 means to delete the cookie now
+		MaxAge: -1,
+		Name:   httpmw.AuthCookie,
+		Path:   "/",
+	}
+
+	http.SetCookie(rw, cookie)
+	render.Status(r, http.StatusOK)
+}
+
 // Generates a new ID and secret for an API key.
 func generateAPIKeyIDSecret() (id string, secret string, err error) {
 	// Length of an API Key ID.

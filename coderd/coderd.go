@@ -38,6 +38,7 @@ func New(options *Options) http.Handler {
 			})
 		})
 		r.Post("/login", users.loginWithPassword)
+		r.Post("/logout", users.logout)
 		r.Route("/users", func(r chi.Router) {
 			r.Post("/", users.createInitialUser)
 

@@ -11,3 +11,5 @@ export const WrapperComponent: React.FC = ({ children }) => {
 export const render = (component: React.ReactElement): RenderResult => {
   return wrappedRender(<WrapperComponent>{component}</WrapperComponent>)
 }
+
+export * from "./user"
