@@ -71,7 +71,6 @@ func New(options *Options) http.Handler {
 			})
 		})
 
-		// Routes specific to the workspace namespace.
 		// Listing operations specific to resources should go under
 		// their respective routes. eg. /orgs/<name>/workspaces
 		r.Route("/workspaces", func(r chi.Router) {
