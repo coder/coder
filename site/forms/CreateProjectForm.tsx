@@ -12,23 +12,17 @@ import {
   DropdownItem,
 } from "../components/Form"
 
-import { Organization, Provisioner } from "./../api"
-
-export interface CreateProjectRequest {
-  provisionerId: string
-  organizationId: string
-  name: string
-}
+import { Organization, Project, Provisioner, CreateProjectRequest } from "./../api"
 
 export interface CreateProjectFormProps {
   provisioners: Provisioner[]
   organizations: Organization[]
-  onSubmit: (request: CreateProjectRequest) => Promise<void>
+  onSubmit: (request: CreateProjectRequest) => Promise<Project>
   onCancel: () => void
 }
 
 const validationSchema = Yup.object({
-  provisionerId: Yup.string().required("Email is required."),
+  provisioner: Yup.string().required("Provisioner is required."),
   organizationId: Yup.string().required("Organization is required."),
   name: Yup.string().required("Name is required"),
 })
@@ -46,18 +40,20 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
 
   const form = useFormik<CreateProjectRequest>({
     initialValues: {
-      provisionerId: provisioners[0].id,
-      organizationId: organizations[0].id,
+      provisioner: provisioners[0].id,
+      organizationId: organizations[0].name,
       name: "",
     },
     enableReinitialize: true,
     validationSchema: validationSchema,
-    onSubmit: onSubmit,
+    onSubmit: (req) => {
+      return onSubmit(req)
+    },
   })
 
   const organizationDropDownItems: DropdownItem[] = organizations.map((org) => {
     return {
-      value: org.id,
+      value: org.name,
       name: org.name,
     }
   })
@@ -100,7 +96,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
       <FormSection title="Provider">
         <FormDropdownField
           form={form}
-          formFieldName={"provisionerId"}
+          formFieldName={"provisioner"}
           helperText="The backing provisioner for this project."
           items={provisionerDropDownItems}
           fullWidth
@@ -113,7 +109,16 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
         <Button className={styles.button} onClick={onCancel} variant="outlined">
           Cancel
         </Button>
-        <Button className={styles.button} onClick={form.submitForm} variant="contained" color="primary" type="submit">
+        <Button
+          className={styles.button}
+          onClick={() => {
+            console.log("submit clicked: " + JSON.stringify(form.values))
+            form.submitForm()
+          }}
+          variant="contained"
+          color="primary"
+          type="submit"
+        >
           Submit
         </Button>
       </div>

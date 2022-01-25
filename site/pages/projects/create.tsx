@@ -3,8 +3,9 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useRouter } from "next/router"
 import useSWR from "swr"
 
-import { provisioners } from "../../api"
+import * as API from "../../api"
 import { useUser } from "../../contexts/UserContext"
+import { ErrorSummary } from "../../components/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { CreateProjectForm } from "../../forms/CreateProjectForm"
 
@@ -15,8 +16,7 @@ const CreateProjectPage: React.FC = () => {
   const { data: organizations, error } = useSWR("/api/v2/users/me/organizations")
 
   if (error) {
-    // TODO: Merge with error component in other PR
-    return <div>{"Error"}</div>
+    return <ErrorSummary error={error} />
   }
 
   if (!me || !organizations) {
@@ -27,12 +27,18 @@ const CreateProjectPage: React.FC = () => {
     await router.push("/projects")
   }
 
+  const onSubmit = async (req: API.CreateProjectRequest) => {
+    const project = await API.Project.create(req)
+    await router.push("/projects")
+    return project
+  }
+
   return (
     <div className={styles.root}>
       <CreateProjectForm
-        provisioners={provisioners}
+        provisioners={API.provisioners}
         organizations={organizations}
-        onSubmit={(request) => alert(JSON.stringify(request))}
+        onSubmit={onSubmit}
         onCancel={onCancel}
       />
     </div>
