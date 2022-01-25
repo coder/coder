@@ -1,16 +1,10 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
-import { useFormik } from "formik"
+import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 
-import {
-  FormTitle,
-  FormSection,
-  formTextFieldFactory,
-  formDropdownFieldFactory,
-  DropdownItem,
-} from "../components/Form"
+import { FormTextField, FormTitle, FormSection, formDropdownFieldFactory, DropdownItem } from "../components/Form"
 import { LoadingButton } from "../components/Button"
 import { Organization, Project, Provisioner, CreateProjectRequest } from "./../api"
 
@@ -27,7 +21,6 @@ const validationSchema = Yup.object({
   name: Yup.string().required("Name is required"),
 })
 
-const FormTextField = formTextFieldFactory<CreateProjectRequest>()
 const FormDropdownField = formDropdownFieldFactory<CreateProjectRequest>()
 
 export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
@@ -38,7 +31,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
 }) => {
   const styles = useStyles()
 
-  const form = useFormik<CreateProjectRequest>({
+  const form: FormikContextType<CreateProjectRequest> = useFormik<CreateProjectRequest>({
     initialValues: {
       provisioner: provisioners[0].id,
       organizationId: organizations[0].name,

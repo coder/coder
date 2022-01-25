@@ -4,7 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 
-import { formTextFieldFactory, FormTextFieldProps } from "./FormTextField"
+import { FormTextField, FormTextFieldProps } from "./FormTextField"
 
 export interface DropdownItem {
   value: string
@@ -17,8 +17,6 @@ export interface FormDropdownFieldProps<T> extends FormTextFieldProps<T> {
 }
 
 export const formDropdownFieldFactory = <T,>(): React.FC<FormDropdownFieldProps<T>> => {
-  const FormTextField = formTextFieldFactory<T>()
-
   const Component: React.FC<FormDropdownFieldProps<T>> = ({ items, ...props }) => {
     const styles = useStyles()
     return (
