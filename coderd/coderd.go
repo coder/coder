@@ -39,6 +39,7 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/login", users.loginWithPassword)
 		r.Post("/logout", users.logout)
+		// Used for setup.
 		r.Post("/user", users.createInitialUser)
 		r.Route("/users", func(r chi.Router) {
 			r.Use(
