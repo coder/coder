@@ -76,6 +76,14 @@ func (w *workspaces) allWorkspacesForProject(rw http.ResponseWriter, r *http.Req
 	render.JSON(rw, r, apiWorkspaces)
 }
 
+// workspace returns a new workspace.
+func (*workspaces) workspace(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertWorkspace(workspace))
+}
+
 // createWorkspace creates a new workspace for the currently authenticated user.
 func (w *workspaces) createWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var createWorkspace CreateWorkspaceRequest

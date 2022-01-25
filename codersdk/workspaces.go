@@ -12,7 +12,10 @@ import (
 
 // Workspace returns a single workspace by owner and name.
 func (c *Client) Workspace(ctx context.Context, owner, name string) (coderd.Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s", owner, name), nil)
+	if owner == "" {
+		owner = "me"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace/%s/%s", owner, name), nil)
 	if err != nil {
 		return coderd.Workspace{}, err
 	}

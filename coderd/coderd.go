@@ -85,9 +85,11 @@ func New(options *Options) http.Handler {
 
 		r.Route("/workspace/{user}/{workspace}", func(r chi.Router) {
 			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractUserParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
+			r.Get("/", workspaces.workspace)
 		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)

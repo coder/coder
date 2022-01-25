@@ -73,6 +73,21 @@ func TestWorkspaces(t *testing.T) {
 		require.Len(t, workspaces, 1)
 	})
 
+	t.Run("CreateInvalidInput", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "banana",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.CreateWorkspace(context.Background(), user.Organization, project.Name, coderd.CreateWorkspaceRequest{
+			Name: "$$$",
+		})
+		require.Error(t, err)
+	})
+
 	t.Run("CreateAlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
@@ -91,16 +106,21 @@ func TestWorkspaces(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "banana",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		workspace, err := server.Client.CreateWorkspace(context.Background(), user.Organization, project.Name, coderd.CreateWorkspaceRequest{
+			Name: "wooow",
+		})
+		require.NoError(t, err)
+		_, err = server.Client.Workspace(context.Background(), "", workspace.Name)
+		require.NoError(t, err)
+	})
 }
-
-// /workspaces/<organization>/<project>/<name>
-
-// /workspaces/<organization>/<project>
-
-// /workspaces/<organization>/<project>/<name>
-
-// /workspaces/<organization>/<project>
-// This leans well towards collaboration!
-
-// /workspaces/<organization>
-// This leans well towards collaboration too!
