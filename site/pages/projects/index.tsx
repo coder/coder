@@ -1,7 +1,8 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import { router } from "next/router"
+import { useRouter } from "next/router"
+import Link from "next/link"
 import { EmptyState } from "../../components"
 import { Error } from "../../components/Error"
 import { Navbar } from "../../components/Navbar"
@@ -16,8 +17,8 @@ import useSWR from "swr"
 
 const ProjectsPage: React.FC = () => {
   const styles = useStyles()
+  const router = useRouter()
   const { me } = useUser(true)
-
   const { data, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
 
   // TODO: The API call is currently returning `null`, which isn't ideal
@@ -55,6 +56,9 @@ const ProjectsPage: React.FC = () => {
     {
       key: "name",
       name: "Name",
+      renderer: (nameField: string, data: Project) => {
+        return <Link href={`/projects/${data.organization_id}/${data.id}`}>{nameField}</Link>
+      }
     },
   ]
 

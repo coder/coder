@@ -13,6 +13,7 @@ import { TableHeaders } from "./TableHeaders"
 export interface Column<T> {
   key: keyof T
   name: string
+  renderer?: (field: T[keyof T], data: T) => React.ReactElement
 }
 
 export interface TableProps<T> {
@@ -29,6 +30,13 @@ export const Table = <T,>({ columns, data, emptyState }: TableProps<T>): React.R
   if (data.length > 0) {
     const rows = data.map((item: T) => {
       const cells = columns.map((column) => {
+
+        if (column.renderer) {
+          return <TableCell>{column.renderer(item[column.key], item)}</TableCell>
+        } else {
+          return <TableCell>{item[column.key].toString()}</TableCell>
+        }
+
         return <TableCell>{item[column.key].toString()}</TableCell>
       })
       return <TableRow>{cells}</TableRow>
