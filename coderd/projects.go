@@ -50,7 +50,7 @@ type projects struct {
 	Database database.Store
 }
 
-// allProjects lists all projects across organizations for a user.
+// Lists all projects the authenticated user has access to.
 func (p *projects) allProjects(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organizations, err := p.Database.GetOrganizationsByUserID(r.Context(), apiKey.UserID)
@@ -78,7 +78,7 @@ func (p *projects) allProjects(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, projects)
 }
 
-// allProjectsForOrganization lists all projects for a specific organization.
+// Lists all projects in an organization.
 func (p *projects) allProjectsForOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	projects, err := p.Database.GetProjectsByOrganizationIDs(r.Context(), []string{organization.ID})
@@ -95,7 +95,7 @@ func (p *projects) allProjectsForOrganization(rw http.ResponseWriter, r *http.Re
 	render.JSON(rw, r, projects)
 }
 
-// createProject makes a new project in an organization.
+// Creates a new project in an organization.
 func (p *projects) createProject(rw http.ResponseWriter, r *http.Request) {
 	var createProject CreateProjectRequest
 	if !httpapi.Read(rw, r, &createProject) {
@@ -141,7 +141,7 @@ func (p *projects) createProject(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, project)
 }
 
-// project returns a single project parsed from the URL path.
+// Returns a single project.
 func (*projects) project(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
@@ -149,7 +149,7 @@ func (*projects) project(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, project)
 }
 
-// allProjectHistory lists all history for a single project.
+// Lists history for a single project.
 func (p *projects) allProjectHistory(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
@@ -171,9 +171,9 @@ func (p *projects) allProjectHistory(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, apiHistory)
 }
 
-// createProjectHistory adds a new historical version of a project.
-// An import job is queued to parse the storage method provided.
-// Once completed, the import job will specify the version as latest.
+// Creates a new version of the project. An import job is queued to parse
+// the storage method provided. Once completed, the import job will specify
+// the version as latest.
 func (p *projects) createProjectHistory(rw http.ResponseWriter, r *http.Request) {
 	var createProjectVersion CreateProjectVersionRequest
 	if !httpapi.Read(rw, r, &createProjectVersion) {

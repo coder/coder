@@ -135,6 +135,7 @@ func (users *users) createInitialUser(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertUser(user))
 }
 
+// Creates a new user.
 func (users *users) createUser(rw http.ResponseWriter, r *http.Request) {
 	var createUser CreateUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
