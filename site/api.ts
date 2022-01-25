@@ -39,7 +39,6 @@ export interface Project {
   active_version_id: string
 }
 
->>>>>>> main
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
   const response = await fetch("/api/v2/login", {
     method: "POST",
