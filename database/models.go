@@ -90,6 +90,25 @@ func (e *ProjectStorageMethod) Scan(src interface{}) error {
 	return nil
 }
 
+type ProvisionerJobType string
+
+const (
+	ProvisionerJobTypeProjectImport      ProvisionerJobType = "project_import"
+	ProvisionerJobTypeWorkspaceProvision ProvisionerJobType = "workspace_provision"
+)
+
+func (e *ProvisionerJobType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerJobType(s)
+	case string:
+		*e = ProvisionerJobType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerJobType: %T", src)
+	}
+	return nil
+}
+
 type ProvisionerType string
 
 const (
@@ -233,6 +252,29 @@ type ProjectParameter struct {
 	ValidationCondition      string              `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string              `db:"validation_value_type" json:"validation_value_type"`
+}
+
+type ProvisionerDaemon struct {
+	ID           uuid.UUID         `db:"id" json:"id"`
+	Created      time.Time         `db:"created" json:"created"`
+	Updated      sql.NullTime      `db:"updated" json:"updated"`
+	Name         string            `db:"name" json:"name"`
+	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+}
+
+type ProvisionerJob struct {
+	ID          uuid.UUID          `db:"id" json:"id"`
+	Created     time.Time          `db:"created" json:"created"`
+	Updated     time.Time          `db:"updated" json:"updated"`
+	Started     sql.NullTime       `db:"started" json:"started"`
+	Cancelled   sql.NullTime       `db:"cancelled" json:"cancelled"`
+	Completed   sql.NullTime       `db:"completed" json:"completed"`
+	Initiator   uuid.UUID          `db:"initiator" json:"initiator"`
+	Worker      uuid.NullUUID      `db:"worker" json:"worker"`
+	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
+	Project     uuid.UUID          `db:"project" json:"project"`
+	Type        ProvisionerJobType `db:"type" json:"type"`
+	Input       json.RawMessage    `db:"input" json:"input"`
 }
 
 type User struct {

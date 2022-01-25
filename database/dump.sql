@@ -23,6 +23,11 @@ CREATE TYPE project_storage_method AS ENUM (
     'inline-archive'
 );
 
+CREATE TYPE provisioner_job_type AS ENUM (
+    'project_import',
+    'workspace_provision'
+);
+
 CREATE TYPE provisioner_type AS ENUM (
     'terraform',
     'cdr-basic'
@@ -126,6 +131,29 @@ CREATE TABLE project_parameter (
     validation_value_type character varying(64) NOT NULL
 );
 
+CREATE TABLE provisioner_daemon (
+    id uuid NOT NULL,
+    created timestamp with time zone NOT NULL,
+    updated timestamp with time zone,
+    name character varying(64) NOT NULL,
+    provisioners provisioner_type[] NOT NULL
+);
+
+CREATE TABLE provisioner_job (
+    id uuid NOT NULL,
+    created timestamp with time zone NOT NULL,
+    updated timestamp with time zone NOT NULL,
+    started timestamp with time zone,
+    cancelled timestamp with time zone,
+    completed timestamp with time zone,
+    initiator uuid NOT NULL,
+    worker uuid,
+    provisioner provisioner_type NOT NULL,
+    project uuid NOT NULL,
+    type provisioner_job_type NOT NULL,
+    input jsonb NOT NULL
+);
+
 CREATE TABLE users (
     id text NOT NULL,
     email text NOT NULL,
@@ -217,6 +245,15 @@ ALTER TABLE ONLY project_parameter
 
 ALTER TABLE ONLY project_parameter
     ADD CONSTRAINT project_parameter_project_history_id_name_key UNIQUE (project_history_id, name);
+
+ALTER TABLE ONLY provisioner_daemon
+    ADD CONSTRAINT provisioner_daemon_id_key UNIQUE (id);
+
+ALTER TABLE ONLY provisioner_daemon
+    ADD CONSTRAINT provisioner_daemon_name_key UNIQUE (name);
+
+ALTER TABLE ONLY provisioner_job
+    ADD CONSTRAINT provisioner_job_id_key UNIQUE (id);
 
 ALTER TABLE ONLY workspace_agent
     ADD CONSTRAINT workspace_agent_id_key UNIQUE (id);
