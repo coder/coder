@@ -49,6 +49,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "column",
+    alignItems: "center",
     height: "100vh",
     backgroundColor: theme.palette.background.paper,
   },

@@ -11,7 +11,7 @@ import {
   formDropdownFieldFactory,
   DropdownItem,
 } from "../components/Form"
-
+import { LoadingButton } from "../components/Button"
 import { Organization, Project, Provisioner, CreateProjectRequest } from "./../api"
 
 export interface CreateProjectFormProps {
@@ -109,7 +109,8 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
         <Button className={styles.button} onClick={onCancel} variant="outlined">
           Cancel
         </Button>
-        <Button
+        <LoadingButton
+          loading={form.isSubmitting}
           className={styles.button}
           onClick={() => {
             console.log("submit clicked: " + JSON.stringify(form.values))
@@ -120,7 +121,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
           type="submit"
         >
           Submit
-        </Button>
+        </LoadingButton>
       </div>
     </div>
   )
@@ -129,6 +130,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
 const useStyles = makeStyles(() => ({
   root: {
     maxWidth: "1380px",
+    width: "100%",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
