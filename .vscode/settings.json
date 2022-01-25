@@ -16,9 +16,11 @@
     "uncoveredGutterStyle": "blockred"
   },
   "emeraldwalk.runonsave": {
-    "commands": [{
-      "match": "database/query.sql",
-      "cmd": "make gen"
-    }]
+    "commands": [
+      {
+        "match": "database/query.sql",
+        "cmd": "make gen"
+      }
+    ]
   }
 }
