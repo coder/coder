@@ -538,7 +538,7 @@ FROM
   workspace_history
 WHERE
   workspace_id = $1
-  AND workspace__after_id IS NULL
+  AND after_id IS NULL
 LIMIT
   1
 `

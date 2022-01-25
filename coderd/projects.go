@@ -24,7 +24,7 @@ import (
 // abstracted for ease of change later on.
 type Project database.Project
 
-// ProjectHistory is the JSON representation of a Coder project version.
+// ProjectHistory is the JSON representation of Coder project version history.
 type ProjectHistory struct {
 	ID            uuid.UUID                     `json:"id"`
 	ProjectID     uuid.UUID                     `json:"project_id"`
@@ -149,8 +149,8 @@ func (*projects) project(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, project)
 }
 
-// projectHistory lists versions for a single project.
-func (p *projects) projectHistory(rw http.ResponseWriter, r *http.Request) {
+// allProjectHistory lists all history for a single project.
+func (p *projects) allProjectHistory(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
 	history, err := p.Database.GetProjectHistoryByProjectID(r.Context(), project.ID)
@@ -163,14 +163,17 @@ func (p *projects) projectHistory(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	versions := make([]ProjectHistory, 0)
+	apiHistory := make([]ProjectHistory, 0)
 	for _, version := range history {
-		versions = append(versions, convertProjectHistory(version))
+		apiHistory = append(apiHistory, convertProjectHistory(version))
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, versions)
+	render.JSON(rw, r, apiHistory)
 }
 
+// createProjectHistory adds a new historical version of a project.
+// An import job is queued to parse the storage method provided.
+// Once completed, the import job will specify the version as latest.
 func (p *projects) createProjectHistory(rw http.ResponseWriter, r *http.Request) {
 	var createProjectVersion CreateProjectVersionRequest
 	if !httpapi.Read(rw, r, &createProjectVersion) {
@@ -203,6 +206,8 @@ func (p *projects) createProjectHistory(rw http.ResponseWriter, r *http.Request)
 		Name:          namesgenerator.GetRandomName(1),
 		StorageMethod: createProjectVersion.StorageMethod,
 		StorageSource: createProjectVersion.StorageSource,
+		// TODO: Make this do something!
+		ImportJobID: uuid.New(),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
