@@ -66,34 +66,29 @@ func New(options *Options) http.Handler {
 						r.Get("/", projects.allProjectHistory)
 						r.Post("/", projects.createProjectHistory)
 					})
+					r.Get("/workspaces", workspaces.allWorkspacesForProject)
 				})
 			})
 		})
 
+		// Routes specific to the workspace namespace.
+		// Listing operations specific to resources should go under
+		// their respective routes. eg. /orgs/<name>/workspaces
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-			r.Get("/", workspaces.allWorkspaces)
-			r.Route("/{organization}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationParam(options.Database))
-				r.Route("/{project}", func(r chi.Router) {
-					r.Use(httpmw.ExtractProjectParam(options.Database))
-					r.Get("/", workspaces.allWorkspacesForProject)
-					r.Post("/", workspaces.createWorkspace)
+			r.Get("/", workspaces.listAllWorkspaces)
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Post("/", workspaces.createWorkspaceForUser)
+				r.Route("/{workspace}", func(r chi.Router) {
+					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
+					r.Get("/", workspaces.singleWorkspace)
+					r.Route("/history", func(r chi.Router) {
+						r.Post("/", workspaces.createWorkspaceHistory)
+						r.Get("/", workspaces.listAllWorkspaceHistory)
+						r.Get("/latest", workspaces.latestWorkspaceHistory)
+					})
 				})
-			})
-		})
-
-		r.Route("/workspace/{user}/{workspace}", func(r chi.Router) {
-			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
-				httpmw.ExtractUserParam(options.Database),
-				httpmw.ExtractWorkspaceParam(options.Database),
-			)
-			r.Get("/", workspaces.workspace)
-			r.Route("/history", func(r chi.Router) {
-				r.Post("/", workspaces.createWorkspaceBuild)
-				r.Get("/", workspaces.allWorkspaceHistory)
-				r.Get("/latest", workspaces.latestWorkspaceHistory)
 			})
 		})
 	})

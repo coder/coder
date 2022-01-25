@@ -22,7 +22,7 @@ func TestWorkspaces(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		_ = server.RandomInitialUser(t)
-		workspaces, err := server.Client.Workspaces(context.Background(), "", "")
+		workspaces, err := server.Client.WorkspacesByUser(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
@@ -33,8 +33,9 @@ func TestWorkspaces(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		workspace, err := client.CreateWorkspace(context.Background(), user.Organization, project.Name, coderd.CreateWorkspaceRequest{
-			Name: "hiii",
+		workspace, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      "hiii",
+			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
 		return project, workspace
@@ -63,7 +64,7 @@ func TestWorkspaces(t *testing.T) {
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
 		_, _ = setupProjectAndWorkspace(t, server.Client, user)
-		workspaces, err := server.Client.Workspaces(context.Background(), "", "")
+		workspaces, err := server.Client.WorkspacesByUser(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
@@ -77,7 +78,7 @@ func TestWorkspaces(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		workspaces, err := server.Client.Workspaces(context.Background(), user.Organization, project.Name)
+		workspaces, err := server.Client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
@@ -87,7 +88,7 @@ func TestWorkspaces(t *testing.T) {
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
 		project, _ := setupProjectAndWorkspace(t, server.Client, user)
-		workspaces, err := server.Client.Workspaces(context.Background(), user.Organization, project.Name)
+		workspaces, err := server.Client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
@@ -101,8 +102,9 @@ func TestWorkspaces(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.CreateWorkspace(context.Background(), user.Organization, project.Name, coderd.CreateWorkspaceRequest{
-			Name: "$$$",
+		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			ProjectID: project.ID,
+			Name:      "$$$",
 		})
 		require.Error(t, err)
 	})
@@ -112,8 +114,9 @@ func TestWorkspaces(t *testing.T) {
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-		_, err := server.Client.CreateWorkspace(context.Background(), user.Organization, project.Name, coderd.CreateWorkspaceRequest{
-			Name: workspace.Name,
+		_, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      workspace.Name,
+			ProjectID: project.ID,
 		})
 		require.Error(t, err)
 	})
@@ -136,7 +139,7 @@ func TestWorkspaces(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, history, 0)
 		projectVersion := setupProjectVersion(t, server.Client, user, project)
-		_, err = server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
+		_, err = server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
@@ -154,7 +157,7 @@ func TestWorkspaces(t *testing.T) {
 		_, err := server.Client.LatestWorkspaceHistory(context.Background(), "", workspace.Name)
 		require.Error(t, err)
 		projectVersion := setupProjectVersion(t, server.Client, user, project)
-		_, err = server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
+		_, err = server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
@@ -170,7 +173,7 @@ func TestWorkspaces(t *testing.T) {
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		projectHistory := setupProjectVersion(t, server.Client, user, project)
 
-		_, err := server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
+		_, err := server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectHistory.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
@@ -184,13 +187,13 @@ func TestWorkspaces(t *testing.T) {
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		projectHistory := setupProjectVersion(t, server.Client, user, project)
 
-		_, err := server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
+		_, err := server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectHistory.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
 		require.NoError(t, err)
 
-		_, err = server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
+		_, err = server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectHistory.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
@@ -203,7 +206,7 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		_, workspace := setupProjectAndWorkspace(t, server.Client, user)
 
-		_, err := server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
+		_, err := server.Client.CreateWorkspaceVersion(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: uuid.New(),
 			Transition:       database.WorkspaceTransitionCreate,
 		})
