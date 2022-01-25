@@ -111,8 +111,8 @@ func (c *Client) CreateWorkspace(ctx context.Context, user string, request coder
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-// CreateWorkspaceVersion queues a new build to occur for a workspace.
-func (c *Client) CreateWorkspaceVersion(ctx context.Context, owner, workspace string, request coderd.CreateWorkspaceHistoryRequest) (coderd.WorkspaceHistory, error) {
+// CreateWorkspaceHistory queues a new build to occur for a workspace.
+func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace string, request coderd.CreateWorkspaceHistoryRequest) (coderd.WorkspaceHistory, error) {
 	if owner == "" {
 		owner = "me"
 	}

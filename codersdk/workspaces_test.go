@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd"
@@ -49,6 +50,94 @@ func TestWorkspaces(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		_, err := server.Client.CreateWorkspace(context.Background(), "no", coderd.CreateWorkspaceRequest{})
+		require.Error(t, err)
+	})
+
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "tomato",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      "wooow",
+			ProjectID: project.ID,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.Workspace(context.Background(), "", workspace.Name)
+		require.NoError(t, err)
+	})
+
+	t.Run("SingleError", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_, err := server.Client.Workspace(context.Background(), "", "blob")
+		require.Error(t, err)
+	})
+
+	t.Run("History", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "tomato",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      "wooow",
+			ProjectID: project.ID,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.WorkspaceHistory(context.Background(), "", workspace.Name)
+		require.NoError(t, err)
+	})
+
+	t.Run("HistoryError", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		_, err := server.Client.WorkspaceHistory(context.Background(), "", "blob")
+		require.NoError(t, err)
+	})
+
+	t.Run("LatestHistory", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "tomato",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      "wooow",
+			ProjectID: project.ID,
+		})
+		require.NoError(t, err)
+		_, err = server.Client.LatestWorkspaceHistory(context.Background(), "", workspace.Name)
+		require.Error(t, err)
+	})
+
+	t.Run("CreateHistory", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "tomato",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      "wooow",
+			ProjectID: project.ID,
+		})
+		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectHistoryID: uuid.New(),
+			Transition:       database.WorkspaceTransitionCreate,
+		})
 		require.Error(t, err)
 	})
 }
