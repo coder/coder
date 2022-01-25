@@ -98,7 +98,7 @@ func TestUsers(t *testing.T) {
 			Username: user.Username,
 			Password: "bananas",
 		})
-		require.NoError(t, err)
+		require.Error(t, err)
 	})
 }
 
