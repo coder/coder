@@ -134,6 +134,7 @@ func TestWorkspaces(t *testing.T) {
 			Name:      "wooow",
 			ProjectID: project.ID,
 		})
+		require.NoError(t, err)
 		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: uuid.New(),
 			Transition:       database.WorkspaceTransitionCreate,
