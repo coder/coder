@@ -18,7 +18,7 @@ describe("Header", () => {
 
   it("renders button if specified", async () => {
     // When
-    render(<Header title={"Title"} action={{ text: "Button Test" }} />)
+    render(<Header title="Title" action={{ text: "Button Test" }} />)
 
     // Then
     const buttonElement = await screen.findByRole("button")
