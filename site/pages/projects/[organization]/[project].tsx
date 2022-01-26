@@ -29,11 +29,9 @@ const ProjectPage: React.FC = () => {
   const { data: projectInfo, error: projectError } = useSWR<Project, Error>(
     () => `/api/v2/projects/${organization}/${project}`,
   )
-  let { data: workspaces, error: workspacesError } = useSWR<Workspace[], Error>(
+  const { data: workspaces, error: workspacesError } = useSWR<Workspace[], Error>(
     () => `/api/v2/projects/${organization}/${project}/workspaces`,
   )
-
-  workspaces = [MockWorkspace]
 
   if (projectError) {
     return <ErrorSummary error={projectError} />

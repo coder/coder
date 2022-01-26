@@ -29,7 +29,7 @@ const CreateProjectPage: React.FC = () => {
 
   const onSubmit = async (req: API.CreateProjectRequest) => {
     const project = await API.Project.create(req)
-    await router.push("/projects")
+    await router.push(`/projects/${req.organizationId}/${project.name}`)
     return project
   }
 
