@@ -1,23 +1,20 @@
 import React from "react"
-import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
 import Link from "next/link"
 import { useRouter } from "next/router"
 import useSWR from "swr"
 
-import { Project, Workspace } from "../../../api"
-import { Header } from "../../../components/Header"
-import { FullScreenLoader } from "../../../components/Loader/FullScreenLoader"
-import { Navbar } from "../../../components/Navbar"
-import { Footer } from "../../../components/Page"
-import { Column, Table } from "../../../components/Table"
-import { useUser } from "../../../contexts/UserContext"
-import { ErrorSummary } from "../../../components/ErrorSummary"
-import { firstOrItem } from "../../../util/array"
-import { EmptyState } from "../../../components/EmptyState"
-
-import { MockWorkspace } from "../../../test_helpers"
+import { Project, Workspace } from "../../../../api"
+import { Header } from "../../../../components/Header"
+import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
+import { Navbar } from "../../../../components/Navbar"
+import { Footer } from "../../../../components/Page"
+import { Column, Table } from "../../../../components/Table"
+import { useUser } from "../../../../contexts/UserContext"
+import { ErrorSummary } from "../../../../components/ErrorSummary"
+import { firstOrItem } from "../../../../util/array"
+import { EmptyState } from "../../../../components/EmptyState"
 
 const ProjectPage: React.FC = () => {
   const styles = useStyles()
@@ -65,7 +62,7 @@ const ProjectPage: React.FC = () => {
       key: "name",
       name: "Name",
       renderer: (nameField: string, data: Workspace) => {
-        return <Link href={`/projects/${organization}/${project}/workspaces/${data.id}`}>{nameField}</Link>
+        return <Link href={`/projects/${organization}/${project}/${data.id}`}>{nameField}</Link>
       },
     },
   ]
