@@ -1,6 +1,6 @@
 
 syntax = "proto3";
-option go_package = "github.com/coder/coder/provisioner/proto";
+option go_package = "github.com/coder/coder/provisionersdk/proto";
 
 package provisioner;
 
@@ -55,7 +55,16 @@ message Provision {
     }
 }
 
+message Metadata {
+    message Request {
+    }
+    message Response {
+        string id = 1;
+    }
+}
+
 service Provisioner {
+    rpc Metadata(Metadata.Request) returns (Metadata.Response);
     rpc Parse(Parse.Request) returns (Parse.Response);
     rpc Provision(Provision.Request) returns (Provision.Response);
 }
