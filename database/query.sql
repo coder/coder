@@ -8,9 +8,9 @@
 UPDATE
   provisioner_job
 SET
-  started = @started,
-  updated = @started,
-  worker = @worker
+  started_at = @started_at,
+  updated_at = @started_at,
+  worker_id = @worker_id
 WHERE
   id = (
     SELECT
@@ -18,9 +18,9 @@ WHERE
     FROM
       provisioner_job AS nested
     WHERE
-      nested.started IS NULL
-      AND nested.cancelled IS NULL
-      AND nested.completed IS NULL
+      nested.started_at IS NULL
+      AND nested.cancelled_at IS NULL
+      AND nested.completed_at IS NULL
       AND nested.provisioner = ANY(@types :: provisioner_type [ ])
     ORDER BY
       nested.created FOR
@@ -67,6 +67,14 @@ SELECT
 FROM
   users;
 
+-- name: GetOrganizationByID :one
+SELECT
+  *
+FROM
+  organizations
+WHERE
+  id = $1;
+
 -- name: GetOrganizationByName :one
 SELECT
   *
@@ -102,6 +110,15 @@ WHERE
   AND user_id = $2
 LIMIT
   1;
+
+-- name: GetParameterValuesByScope :many
+SELECT
+  *
+FROM
+  parameter_value
+WHERE
+  scope = $1
+  AND scope_id = $2;
 
 -- name: GetProjectByID :one
 SELECT
@@ -164,6 +181,16 @@ FROM
 WHERE
   id = $1;
 
+-- name: GetWorkspaceByID :one
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  id = $1
+LIMIT
+  1;
+
 -- name: GetWorkspacesByUserID :many
 SELECT
   *
@@ -189,6 +216,16 @@ FROM
 WHERE
   owner_id = $1
   AND project_id = $2;
+
+-- name: GetWorkspaceHistoryByID :one
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  id = $1
+LIMIT
+  1;
 
 -- name: GetWorkspaceHistoryByWorkspaceID :many
 SELECT
@@ -350,7 +387,7 @@ VALUES
 
 -- name: InsertProvisionerDaemon :one
 INSERT INTO
-  provisioner_daemon (id, created, name, provisioners)
+  provisioner_daemon (id, created_at, name, provisioners)
 VALUES
   ($1, $2, $3, $4) RETURNING *;
 
@@ -358,12 +395,12 @@ VALUES
 INSERT INTO
   provisioner_job (
     id,
-    created,
-    updated,
-    initiator,
+    created_at,
+    updated_at,
+    initiator_id,
     provisioner,
-    project,
     type,
+    project_id,
     input
   )
 VALUES
@@ -456,7 +493,7 @@ WHERE
 UPDATE
   provisioner_daemon
 SET
-  updated = $2,
+  updated_at = $2,
   provisioners = $3
 WHERE
   id = $1;
@@ -465,9 +502,10 @@ WHERE
 UPDATE
   provisioner_job
 SET
-  updated = $2,
-  cancelled = $3,
-  completed = $4
+  updated_at = $2,
+  cancelled_at = $3,
+  completed_at = $4,
+  error = $5
 WHERE
   id = $1;
 

@@ -54,6 +54,27 @@ func (e *LoginType) Scan(src interface{}) error {
 	return nil
 }
 
+type ParameterScope string
+
+const (
+	ParameterScopeOrganization ParameterScope = "organization"
+	ParameterScopeProject      ParameterScope = "project"
+	ParameterScopeUser         ParameterScope = "user"
+	ParameterScopeWorkspace    ParameterScope = "workspace"
+)
+
+func (e *ParameterScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ParameterScope(s)
+	case string:
+		*e = ParameterScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ParameterScope: %T", src)
+	}
+	return nil
+}
+
 type ParameterTypeSystem string
 
 const (
@@ -214,6 +235,17 @@ type OrganizationMember struct {
 	Roles          []string  `db:"roles" json:"roles"`
 }
 
+type ParameterValue struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	Name        string         `db:"name" json:"name"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	Scope       ParameterScope `db:"scope" json:"scope"`
+	ScopeID     string         `db:"scope_id" json:"scope_id"`
+	Source      sql.NullString `db:"source" json:"source"`
+	Destination sql.NullString `db:"destination" json:"destination"`
+}
+
 type Project struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
@@ -256,25 +288,26 @@ type ProjectParameter struct {
 
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `db:"id" json:"id"`
-	Created      time.Time         `db:"created" json:"created"`
-	Updated      sql.NullTime      `db:"updated" json:"updated"`
+	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
+	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
 
 type ProvisionerJob struct {
 	ID          uuid.UUID          `db:"id" json:"id"`
-	Created     time.Time          `db:"created" json:"created"`
-	Updated     time.Time          `db:"updated" json:"updated"`
-	Started     sql.NullTime       `db:"started" json:"started"`
-	Cancelled   sql.NullTime       `db:"cancelled" json:"cancelled"`
-	Completed   sql.NullTime       `db:"completed" json:"completed"`
-	Initiator   uuid.UUID          `db:"initiator" json:"initiator"`
-	Worker      uuid.NullUUID      `db:"worker" json:"worker"`
+	CreatedAt   time.Time          `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time          `db:"updated_at" json:"updated_at"`
+	StartedAt   sql.NullTime       `db:"started_at" json:"started_at"`
+	CancelledAt sql.NullTime       `db:"cancelled_at" json:"cancelled_at"`
+	CompletedAt sql.NullTime       `db:"completed_at" json:"completed_at"`
+	Error       sql.NullString     `db:"error" json:"error"`
+	InitiatorID string             `db:"initiator_id" json:"initiator_id"`
 	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
-	Project     uuid.UUID          `db:"project" json:"project"`
 	Type        ProvisionerJobType `db:"type" json:"type"`
+	ProjectID   uuid.UUID          `db:"project_id" json:"project_id"`
 	Input       json.RawMessage    `db:"input" json:"input"`
+	WorkerID    uuid.NullUUID      `db:"worker_id" json:"worker_id"`
 }
 
 type User struct {

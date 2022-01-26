@@ -18,6 +18,7 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
+		parameterValues:    make([]database.ParameterValue, 0),
 		project:            make([]database.Project, 0),
 		projectHistory:     make([]database.ProjectHistory, 0),
 		projectParameter:   make([]database.ProjectParameter, 0),
@@ -39,6 +40,7 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
+	parameterValues    []database.ParameterValue
 	project            []database.Project
 	projectHistory     []database.ProjectHistory
 	projectParameter   []database.ProjectParameter
@@ -55,9 +57,9 @@ func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
 	return fn(q)
 }
 
-func (q *fakeQuerier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
+func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	for index, provisionerJob := range q.provisionerJobs {
-		if provisionerJob.Started.Valid {
+		if provisionerJob.StartedAt.Valid {
 			continue
 		}
 		found := false
@@ -71,9 +73,9 @@ func (q *fakeQuerier) AcquireProvisionerJob(ctx context.Context, arg database.Ac
 		if !found {
 			continue
 		}
-		provisionerJob.Started = arg.Started
-		provisionerJob.Updated = arg.Started.Time
-		provisionerJob.Worker = arg.Worker
+		provisionerJob.StartedAt = arg.StartedAt
+		provisionerJob.UpdatedAt = arg.StartedAt.Time
+		provisionerJob.WorkerID = arg.WorkerID
 		q.provisionerJobs[index] = provisionerJob
 		return provisionerJob, nil
 	}
@@ -126,6 +128,15 @@ func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, ids []u
 	return agents, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
+	for _, workspace := range q.workspace {
+		if workspace.ID.String() == id.String() {
+			return workspace, nil
+		}
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg database.GetWorkspaceByUserIDAndNameParams) (database.Workspace, error) {
 	for _, workspace := range q.workspace {
 		if workspace.OwnerID != arg.OwnerID {
@@ -150,6 +161,15 @@ func (q *fakeQuerier) GetWorkspaceResourcesByHistoryID(_ context.Context, worksp
 		return nil, sql.ErrNoRows
 	}
 	return resources, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceHistoryByID(_ context.Context, id uuid.UUID) (database.WorkspaceHistory, error) {
+	for _, history := range q.workspaceHistory {
+		if history.ID.String() == id.String() {
+			return history, nil
+		}
+	}
+	return database.WorkspaceHistory{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceHistory, error) {
@@ -208,6 +228,15 @@ func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, ownerID string) (
 	return workspaces, nil
 }
 
+func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id string) (database.Organization, error) {
+	for _, organization := range q.organizations {
+		if organization.ID == id {
+			return organization, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
 	for _, organization := range q.organizations {
 		if organization.Name == name {
@@ -234,6 +263,23 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID string)
 		return nil, sql.ErrNoRows
 	}
 	return organizations, nil
+}
+
+func (q *fakeQuerier) GetParameterValuesByScope(_ context.Context, arg database.GetParameterValuesByScopeParams) ([]database.ParameterValue, error) {
+	parameterValues := make([]database.ParameterValue, 0)
+	for _, parameterValue := range q.parameterValues {
+		if parameterValue.Scope != arg.Scope {
+			continue
+		}
+		if parameterValue.ScopeID != arg.ScopeID {
+			continue
+		}
+		parameterValues = append(parameterValues, parameterValue)
+	}
+	if len(parameterValues) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return parameterValues, nil
 }
 
 func (q *fakeQuerier) GetProjectByID(_ context.Context, id uuid.UUID) (database.Project, error) {
@@ -311,7 +357,7 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
+func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
 	for _, provisionerDaemon := range q.provisionerDaemons {
 		if provisionerDaemon.ID.String() != id.String() {
 			continue
@@ -321,7 +367,7 @@ func (q *fakeQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID
 	return database.ProvisionerDaemon{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.ID.String() != id.String() {
 			continue
@@ -431,10 +477,10 @@ func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.Ins
 	return param, nil
 }
 
-func (q *fakeQuerier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	daemon := database.ProvisionerDaemon{
 		ID:           arg.ID,
-		Created:      arg.Created,
+		CreatedAt:    arg.CreatedAt,
 		Name:         arg.Name,
 		Provisioners: arg.Provisioners,
 	}
@@ -442,14 +488,14 @@ func (q *fakeQuerier) InsertProvisionerDaemon(ctx context.Context, arg database.
 	return daemon, nil
 }
 
-func (q *fakeQuerier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
+func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	job := database.ProvisionerJob{
 		ID:          arg.ID,
-		Created:     arg.Created,
-		Updated:     arg.Updated,
-		Initiator:   arg.Initiator,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		InitiatorID: arg.InitiatorID,
 		Provisioner: arg.Provisioner,
-		Project:     arg.Project,
+		ProjectID:   arg.ProjectID,
 		Type:        arg.Type,
 		Input:       arg.Input,
 	}
@@ -545,12 +591,12 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
+func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
 	for index, daemon := range q.provisionerDaemons {
 		if arg.ID.String() != daemon.ID.String() {
 			continue
 		}
-		daemon.Updated = arg.Updated
+		daemon.UpdatedAt = arg.UpdatedAt
 		daemon.Provisioners = arg.Provisioners
 		q.provisionerDaemons[index] = daemon
 		return nil
@@ -558,14 +604,15 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg datab
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
+func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	for index, job := range q.provisionerJobs {
 		if arg.ID.String() != job.ID.String() {
 			continue
 		}
-		job.Completed = arg.Completed
-		job.Cancelled = arg.Cancelled
-		job.Updated = arg.Updated
+		job.CompletedAt = arg.CompletedAt
+		job.CancelledAt = arg.CancelledAt
+		job.UpdatedAt = arg.UpdatedAt
+		job.Error = arg.Error
 		q.provisionerJobs[index] = job
 		return nil
 	}

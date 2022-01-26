@@ -19,16 +19,17 @@ func TransportStdio() drpc.Transport {
 func TransportPipe() (drpc.Transport, drpc.Transport) {
 	clientReader, serverWriter := io.Pipe()
 	serverReader, clientWriter := io.Pipe()
-	clientTransport := &transport{clientReader, clientWriter}
-	serverTransport := &transport{serverReader, serverWriter}
+	clientTransport := &transport{clientReader, clientWriter, nil}
+	serverTransport := &transport{serverReader, serverWriter, nil}
 
 	return clientTransport, serverTransport
 }
 
 // transport wraps an input and output to pipe data.
 type transport struct {
-	in  io.ReadCloser
-	out io.Writer
+	in    io.Reader
+	out   io.Writer
+	close func()
 }
 
 func (s *transport) Read(data []byte) (int, error) {
@@ -40,5 +41,8 @@ func (s *transport) Write(data []byte) (int, error) {
 }
 
 func (s *transport) Close() error {
-	return s.in.Close()
+	if s.close != nil {
+		s.close()
+	}
+	return nil
 }

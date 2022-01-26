@@ -15,6 +15,13 @@ CREATE TYPE login_type AS ENUM (
     'oidc'
 );
 
+CREATE TYPE parameter_scope AS ENUM (
+    'organization',
+    'project',
+    'user',
+    'workspace'
+);
+
 CREATE TYPE parameter_type_system AS ENUM (
     'hcl'
 );
@@ -91,6 +98,17 @@ CREATE TABLE organizations (
     workspace_auto_off boolean DEFAULT false NOT NULL
 );
 
+CREATE TABLE parameter_value (
+    id uuid NOT NULL,
+    name character varying(64) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    scope parameter_scope NOT NULL,
+    scope_id text NOT NULL,
+    source text,
+    destination text
+);
+
 CREATE TABLE project (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -133,25 +151,26 @@ CREATE TABLE project_parameter (
 
 CREATE TABLE provisioner_daemon (
     id uuid NOT NULL,
-    created timestamp with time zone NOT NULL,
-    updated timestamp with time zone,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL
 );
 
 CREATE TABLE provisioner_job (
     id uuid NOT NULL,
-    created timestamp with time zone NOT NULL,
-    updated timestamp with time zone NOT NULL,
-    started timestamp with time zone,
-    cancelled timestamp with time zone,
-    completed timestamp with time zone,
-    initiator uuid NOT NULL,
-    worker uuid,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    started_at timestamp with time zone,
+    cancelled_at timestamp with time zone,
+    completed_at timestamp with time zone,
+    error text,
+    initiator_id text NOT NULL,
     provisioner provisioner_type NOT NULL,
-    project uuid NOT NULL,
     type provisioner_job_type NOT NULL,
-    input jsonb NOT NULL
+    project_id uuid NOT NULL,
+    input jsonb NOT NULL,
+    worker_id uuid
 );
 
 CREATE TABLE users (
@@ -228,6 +247,12 @@ CREATE TABLE workspace_resource (
     workspace_agent_id uuid
 );
 
+ALTER TABLE ONLY parameter_value
+    ADD CONSTRAINT parameter_value_id_key UNIQUE (id);
+
+ALTER TABLE ONLY parameter_value
+    ADD CONSTRAINT parameter_value_name_scope_scope_id_key UNIQUE (name, scope, scope_id);
+
 ALTER TABLE ONLY project_history
     ADD CONSTRAINT project_history_id_key UNIQUE (id);
 
@@ -280,6 +305,9 @@ ALTER TABLE ONLY project_history
 
 ALTER TABLE ONLY project_parameter
     ADD CONSTRAINT project_parameter_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_job
+    ADD CONSTRAINT provisioner_job_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent
     ADD CONSTRAINT workspace_agent_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resource(id) ON DELETE CASCADE;

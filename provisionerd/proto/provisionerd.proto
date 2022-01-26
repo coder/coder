@@ -9,6 +9,12 @@ import "provisionersdk/proto/provisioner.proto";
 // Empty indicates a successful request/response.
 message Empty {}
 
+message ParameterValue {
+    string destination = 1;
+    string name = 2;
+    string value = 3;
+}
+
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
     message WorkspaceProvision {
@@ -23,15 +29,14 @@ message AcquiredJob {
     }
     string job_id = 1;
     int64 created_at = 2;
-    string provisioner_type = 3;
+    string provisioner = 3;
     string organization_name = 4;
     string project_name = 5;
     string user_name = 6;
     bytes project_source_archive = 7;
-    string provisioner = 8;
     oneof type {
-        WorkspaceProvision workspace_provision = 9;
-        ProjectImport project_import = 10;
+        WorkspaceProvision workspace_provision = 8;
+        ProjectImport project_import = 9;
     }
 }
 
@@ -79,9 +84,10 @@ message Log {
     }
     LogSource source = 1;
     LogLevel level = 2;
+    int64 created_at = 3;
     oneof type {
-        WorkspaceProvision workspace_provision = 3;
-        ProjectImport project_import = 4;
+        WorkspaceProvision workspace_provision = 4;
+        ProjectImport project_import = 5;
     }
 }
 

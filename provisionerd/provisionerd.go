@@ -8,118 +8,145 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionerd/proto"
 	provisionersdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/retry"
 )
 
+// Dialer returns a gRPC client to communicate with.
+// The provisioner daemon handles intermittent connection failures
+// for upgrades to coderd.
 type Dialer func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error)
 
-type Options struct {
-	Dialer Dialer
-	Logger slog.Logger
+// Provisioners maps provisioner ID to implementation.
+type Provisioners map[string]provisionersdkproto.DRPCProvisionerClient
 
-	Provisioners map[string]provisionersdkproto.DRPCProvisionerClient
+type Options struct {
+	AcquireInterval time.Duration
+	Logger          slog.Logger
 }
 
-func New(dialer Dialer, opts *Options) {
+func New(apiDialer Dialer, provisioners Provisioners, opts *Options) *API {
+	if opts.AcquireInterval == 0 {
+		opts.AcquireInterval = 5 * time.Second
+	}
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	api := &API{
+		dialer:       apiDialer,
+		provisioners: provisioners,
+		opts:         opts,
+
+		closeContext:       ctx,
+		closeContextCancel: ctxCancel,
+		closed:             make(chan struct{}),
+		// acquireTicker: time.NewTicker(opts.AcquireInterval),
+
+		// ctx:       ctx,
+		// ctxCancel: ctxCancel,
+	}
+	go api.connect()
+	return api
 }
 
 type API struct {
-	dialer Dialer
-	opts   *Options
+	provisioners Provisioners
+	opts         *Options
 
-	acquireTicker time.Ticker
-	apiClient     proto.DRPCProvisionerDaemonClient
+	dialer       Dialer
+	connectMutex sync.Mutex
+	client       proto.DRPCProvisionerDaemonClient
+	updateStream proto.DRPCProvisionerDaemon_UpdateJobClient
 
-	activeJob      *proto.AcquiredJob
-	activeJobMutex sync.Mutex
+	closeContext       context.Context
+	closeContextCancel context.CancelFunc
 
 	closed     chan struct{}
 	closeMutex sync.Mutex
 	closeError error
 
-	jobStream proto.DRPCProvisionerDaemon_UpdateJobClient
+	activeJob *proto.AcquiredJob
+	logQueue  []proto.Log
 }
 
-func (s *API) init() {
+// connect establishes a connection
+func (a *API) connect() {
+	a.connectMutex.Lock()
+	defer a.connectMutex.Unlock()
+
+	var err error
+	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(a.closeContext); {
+		a.client, err = a.dialer(a.closeContext)
+		if err != nil {
+			// Warn
+			a.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			continue
+		}
+		a.updateStream, err = a.client.UpdateJob(a.closeContext)
+		if err != nil {
+			a.opts.Logger.Warn(context.Background(), "create update job stream", slog.Error(err))
+			continue
+		}
+		break
+	}
+
 	go func() {
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		select {
+		case <-a.closed:
+			return
+		case <-a.updateStream.Context().Done():
+			// We use the update stream to detect when the connection
+			// has been interrupted. This works well, because logs need
+			// to buffer if a job is running in the background.
+			a.opts.Logger.Debug(context.Background(), "update stream ended", slog.Error(a.updateStream.Context().Err()))
+			a.connect()
+		}
+	}()
+
+	go func() {
+		ticker := time.NewTicker(a.opts.AcquireInterval)
+		defer ticker.Stop()
 		for {
 			select {
-			case <-s.closed:
+			case <-a.updateStream.Context().Done():
 				return
-			case <-s.acquireTicker.C:
-				s.acquireJob(ctx)
+			case <-ticker.C:
+				// Acquire new jobs!
 			}
 		}
 	}()
 }
 
-func (s *API) acquireJob(ctx context.Context) {
-	s.activeJobMutex.Lock()
-	defer s.activeJobMutex.Unlock()
-	if s.activeJob != nil {
-		s.opts.Logger.Debug(ctx, "skipping job acquire. job is active")
-		return
-	}
-
-	acquiredJob, err := s.apiClient.AcquireJob(ctx, &proto.Empty{})
-	if err != nil {
-		s.opts.Logger.Error(ctx, "acquire job", slog.Error(err))
-		return
-	}
-
-	s.activeJob = acquiredJob
-	// createdAt := time.UnixMilli(s.activeJob.CreatedAt)
-
-}
-
-func (s *API) hasActiveJob() bool {
-	s.activeJobMutex.Lock()
-	defer s.activeJobMutex.Unlock()
-	return s.activeJob != nil
-}
-
-func (s *API) isClosed() bool {
+// isClosed returns whether the API is closed or not.
+func (a *API) isClosed() bool {
 	select {
-	case <-s.closed:
+	case <-a.closed:
 		return true
 	default:
 		return false
 	}
 }
 
-func (s *API) closeWithError(err error) error {
-	s.closeMutex.Lock()
-	defer s.closeMutex.Unlock()
+// Close ends the provisioner. It will mark any active jobs as canceled.
+func (a *API) Close() error {
+	return a.closeWithError(nil)
+}
 
-	if s.isClosed() {
-		return s.closeError
+// closeWithError closes the provisioner; subsequent reads/writes will return the error err.
+func (a *API) closeWithError(err error) error {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+
+	if a.isClosed() {
+		return a.closeError
 	}
 
-	s.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
-	s.closeError = err
-	close(s.closed)
-	s.acquireTicker.Stop()
+	a.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
+	a.closeError = err
+	close(a.closed)
+	a.closeContextCancel()
+
+	if a.updateStream != nil {
+		_ = a.client.DRPCConn().Close()
+		_ = a.updateStream.Close()
+	}
 
 	return err
 }
-
-// func dial() {
-// 	for r := retry.New(time.Second, time.Second*10); r.Wait(context.Background()); {
-// 		// It should log on every connection retry.
-// 	}
-
-// 	var r proto.DRPCProvisionerDaemonClient
-// 	stream, err := r.UpdateJob(context.Background())
-// 	if err != nil {
-// 		stream.Send(&proto.JobUpdate{
-// 			Logs: []*proto.Log{{
-// 				Source: proto.LogSource_DAEMON,
-// 				Level: proto.LogLevel_INFO,
-// 			}},
-// 			JobId: ,
-// 		})
-// 	}
-// 	logs, _ := r.JobLogs(context.Background())
-// 	logs.Send()
-// }

@@ -10,6 +10,7 @@ import (
 type Scheme string
 
 const (
+	SchemeText        = "text"
 	SchemeEnvironment = "env"
 	SchemeVariable    = "var"
 )
@@ -30,6 +31,8 @@ func Parse(rawURI string) (URI, error) {
 		Value: parts[1],
 	}
 	switch parts[0] {
+	case SchemeText:
+		uri.Scheme = SchemeText
 	case SchemeEnvironment:
 		uri.Scheme = SchemeEnvironment
 	case SchemeVariable:
