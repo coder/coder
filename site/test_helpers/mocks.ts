@@ -1,5 +1,5 @@
 import { User } from "../contexts/UserContext"
-import { Provisioner, Organization, Project } from "../api"
+import { Provisioner, Organization, Project, Workspace } from "../api"
 
 export const MockUser: User = {
   id: "test-user-id",
@@ -28,4 +28,13 @@ export const MockOrganization: Organization = {
   name: "Test Organization",
   created_at: "",
   updated_at: "",
+}
+
+export const MockWorkspace: Workspace = {
+  id: "test-workspace",
+  name: "Test-Workspace",
+  created_at: "",
+  updated_at: "",
+  project_id: "project-id",
+  owner_id: "test-user-id",
 }
