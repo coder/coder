@@ -12,7 +12,7 @@ import { Column, Table } from "../../components/Table"
 import { useUser } from "../../contexts/UserContext"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
-import { Project } from "./../../api"
+import { Organization, Project } from "./../../api"
 import useSWR from "swr"
 
 const ProjectsPage: React.FC = () => {
@@ -20,6 +20,7 @@ const ProjectsPage: React.FC = () => {
   const router = useRouter()
   const { me, signOut } = useUser(true)
   const { data, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
+  const { data: orgs, error: orgsError } = useSWR<Organization[], Error>("/api/v2/users/me/organizations")
 
   // TODO: The API call is currently returning `null`, which isn't ideal
   // - it breaks checking for data presence with SWR.
@@ -29,7 +30,11 @@ const ProjectsPage: React.FC = () => {
     return <ErrorSummary error={error} />
   }
 
-  if (!me || !projects) {
+  if (orgsError) {
+    return <ErrorSummary error={error} />
+  }
+
+  if (!me || !projects || !orgs) {
     return <FullScreenLoader />
   }
 
@@ -42,12 +47,21 @@ const ProjectsPage: React.FC = () => {
     onClick: createProject,
   }
 
+  // Create a dictionary of organization ID -> organization Name
+  // Needed to properly construct links to dive into a project
+  const orgDictionary = orgs.reduce((acc: Record<string, string>, curr: Organization) => {
+    return {
+      ...acc,
+      [curr.id]: curr.name,
+    }
+  }, {})
+
   const columns: Column<Project>[] = [
     {
       key: "name",
       name: "Name",
       renderer: (nameField: string, data: Project) => {
-        return <Link href={`/projects/${data.organization_id}/${data.id}`}>{nameField}</Link>
+        return <Link href={`/projects/${orgDictionary[data.organization_id]}/${nameField}`}>{nameField}</Link>
       },
     },
   ]
