@@ -67,6 +67,16 @@ export namespace Project {
   }
 }
 
+// Must be kept in sync with backend Workspace struct
+export interface Workspace {
+  id: string
+  created_at: string
+  updated_at: string
+  owner_id: string
+  project_id: string
+  name: string
+}
+
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
   const response = await fetch("/api/v2/login", {
     method: "POST",
