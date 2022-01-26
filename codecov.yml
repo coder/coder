@@ -14,6 +14,9 @@ coverage:
         branches:
           - "main"
   status:
+    patch:
+      default:
+        informational: yes
     project:
       default:
         target: 70%
