@@ -141,6 +141,9 @@ func (c *Conn) init() error {
 		if iceCandidate == nil {
 			return
 		}
+		// ICE Candidates on a remote peer are reset when an offer
+		// is received. We must wait until the offer<->answer has
+		// been negotiated to flush candidates.
 		c.pendingCandidatesMutex.Lock()
 		defer c.pendingCandidatesMutex.Unlock()
 		if c.rtc.RemoteDescription() == nil {
