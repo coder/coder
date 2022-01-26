@@ -67,6 +67,11 @@ export namespace Project {
   }
 }
 
+export interface CreateWorkspaceRequest {
+  name: string
+  project_id: string
+}
+
 // Must be kept in sync with backend Workspace struct
 export interface Workspace {
   id: string
@@ -75,6 +80,27 @@ export interface Workspace {
   owner_id: string
   project_id: string
   name: string
+}
+
+export namespace Workspace {
+  export const create = async (request: CreateWorkspaceRequest): Promise<Workspace> => {
+    const response = await fetch(`/api/v2/workspaces/me`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    })
+
+    const body = await response.json()
+    await mutate("/api/v2/workspaces")
+    await mutate("/api/v2/projects")
+    if (!response.ok) {
+      throw new Error(body.message)
+    }
+
+    return body
+  }
 }
 
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
