@@ -1,7 +1,6 @@
 import React from "react"
 
 import { Redirect } from "../components"
-import { ErrorSummary } from "../components/ErrorSummary"
 import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 import { useUser } from "../contexts/UserContext"
 
