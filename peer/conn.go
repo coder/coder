@@ -72,9 +72,8 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		dcDisconnectChannel:             make(chan struct{}),
 		dcFailedChannel:                 make(chan struct{}),
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
+		localCandidateBuffer:            make([]webrtc.ICECandidateInit, 0),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
-		pendingLocalCandidates:          make([]webrtc.ICECandidateInit, 0),
-		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
 		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
 	}
 	if client {
@@ -121,13 +120,8 @@ type Conn struct {
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
 
-	pendingLocalCandidatesFlushed atomic.Bool
-	pendingLocalCandidatesMutex   sync.Mutex
-	pendingLocalCandidates        []webrtc.ICECandidateInit
-
-	pendingRemoteCandidatesFlushed atomic.Bool
-	pendingRemoteCandidatesMutex   sync.Mutex
-	pendingRemoteCandidates        []webrtc.ICECandidateInit
+	localCandidateMutex  sync.Mutex
+	localCandidateBuffer []webrtc.ICECandidateInit
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -147,15 +141,11 @@ func (c *Conn) init() error {
 		if iceCandidate == nil {
 			return
 		}
-		// ICE Candidates on a remote peer are reset when an offer
-		// is received. We must wait until the offer<->answer has
-		// been negotiated to flush candidates.
-		c.pendingLocalCandidatesMutex.Lock()
-		defer c.pendingLocalCandidatesMutex.Unlock()
-		if !c.pendingLocalCandidatesFlushed.Load() {
-			c.opts.Logger.Debug(context.Background(), "adding local candidate to flush queue")
-			c.pendingLocalCandidates = append(c.pendingLocalCandidates, iceCandidate.ToJSON())
-			return
+		c.localCandidateMutex.Lock()
+		defer c.localCandidateMutex.Unlock()
+		if c.rtc.RemoteDescription() == nil {
+			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer")
+			c.localCandidateBuffer = append(c.localCandidateBuffer, iceCandidate.ToJSON())
 		}
 		c.opts.Logger.Debug(context.Background(), "adding local candidate")
 		select {
@@ -262,8 +252,6 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
-	c.pendingLocalCandidatesFlushed.Store(false)
-	c.pendingRemoteCandidatesFlushed.Store(false)
 
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -317,31 +305,14 @@ func (c *Conn) negotiate() {
 		}
 	}
 
-	c.pendingLocalCandidatesFlushed.Store(true)
-	c.pendingLocalCandidatesMutex.Lock()
-	defer c.pendingLocalCandidatesMutex.Unlock()
-	for _, pendingCandidate := range c.pendingLocalCandidates {
+	for _, localCandidate := range c.localCandidateBuffer {
 		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
 		select {
 		case <-c.closed:
 			return
-		case c.localCandidateChannel <- pendingCandidate:
+		case c.localCandidateChannel <- localCandidate:
 		}
 	}
-	c.pendingLocalCandidates = make([]webrtc.ICECandidateInit, 0)
-
-	c.pendingRemoteCandidatesMutex.Lock()
-	defer c.pendingRemoteCandidatesMutex.Unlock()
-	c.pendingRemoteCandidatesFlushed.Store(true)
-	for _, pendingCandidate := range c.pendingRemoteCandidates {
-		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
-		err = c.rtc.AddICECandidate(pendingCandidate)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("add remote candidate: %w", err))
-			return
-		}
-	}
-	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
 	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 }
 
@@ -353,13 +324,6 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
-	c.pendingRemoteCandidatesMutex.Lock()
-	defer c.pendingRemoteCandidatesMutex.Unlock()
-	if !c.pendingRemoteCandidatesFlushed.Load() {
-		c.opts.Logger.Debug(context.Background(), "adding remote candidate to flush queue")
-		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
-		return nil
-	}
 	c.opts.Logger.Debug(context.Background(), "adding remote candidate")
 	return c.rtc.AddICECandidate(i)
 }
