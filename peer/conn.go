@@ -280,8 +280,11 @@ func (c *Conn) negotiate() {
 	case remoteDescription = <-c.remoteSessionDescriptionChannel:
 	}
 
+	// Must lock new candidates from being sent while the description is being flushed.
+	c.pendingCandidatesMutex.Lock()
 	err := c.rtc.SetRemoteDescription(remoteDescription)
 	if err != nil {
+		c.pendingCandidatesMutex.Unlock()
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
 		return
 	}
@@ -291,8 +294,11 @@ func (c *Conn) negotiate() {
 		// time. If candidates flush before this point, a connection could fail.
 		c.flushPendingCandidates()
 	}
+	c.pendingCandidatesMutex.Unlock()
 
 	if !c.offerrer {
+		c.pendingCandidatesMutex.Lock()
+
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
@@ -314,13 +320,13 @@ func (c *Conn) negotiate() {
 
 		// Wait until the local description is set to flush candidates.
 		c.flushPendingCandidates()
+		c.pendingCandidatesMutex.Unlock()
 	}
 }
 
 // flushPendingCandidates writes all local candidates to the candidate send channel.
 // The localCandidateChannel is expected to be serviced, otherwise this could block.
 func (c *Conn) flushPendingCandidates() {
-	c.pendingCandidatesMutex.Lock()
 	for _, localCandidate := range c.pendingCandidates {
 		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
 		select {
@@ -331,7 +337,6 @@ func (c *Conn) flushPendingCandidates() {
 	}
 	c.pendingCandidates = make([]webrtc.ICECandidateInit, 0)
 	c.opts.Logger.Debug(context.Background(), "flushed candidates")
-	c.pendingCandidatesMutex.Unlock()
 }
 
 // LocalCandidate returns a channel that emits when a local candidate
