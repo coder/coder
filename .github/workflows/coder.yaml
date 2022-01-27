@@ -152,8 +152,8 @@ jobs:
       - name: Test with Mock Database
         run:
           gotestsum --jsonfile="gotests.json" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=3 -race -parallel=2
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m
+          -count=100 -race -parallel=2
 
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
