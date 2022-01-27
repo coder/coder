@@ -297,7 +297,9 @@ func (c *Conn) negotiate() {
 	c.pendingCandidatesMutex.Unlock()
 
 	if !c.offerrer {
+		// Lock new candidates from processing until we set the local description.
 		c.pendingCandidatesMutex.Lock()
+		defer c.pendingCandidatesMutex.Unlock()
 
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
 		if err != nil {
@@ -320,7 +322,6 @@ func (c *Conn) negotiate() {
 
 		// Wait until the local description is set to flush candidates.
 		c.flushPendingCandidates()
-		c.pendingCandidatesMutex.Unlock()
 	}
 }
 
