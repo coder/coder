@@ -72,7 +72,6 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		dcDisconnectChannel:             make(chan struct{}),
 		dcFailedChannel:                 make(chan struct{}),
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
-		pendingLocalCandidates:          make([]webrtc.ICECandidateInit, 0),
 		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
 		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
@@ -121,7 +120,6 @@ type Conn struct {
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
 
-	pendingLocalCandidates   []webrtc.ICECandidateInit
 	pendingRemoteCandidates  []webrtc.ICECandidateInit
 	pendingCandidatesMutex   sync.Mutex
 	pendingCandidatesFlushed bool
@@ -142,14 +140,6 @@ func (c *Conn) init() error {
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
 		if iceCandidate == nil {
-			return
-		}
-		c.pendingCandidatesMutex.Lock()
-		defer c.pendingCandidatesMutex.Unlock()
-
-		if !c.pendingCandidatesFlushed {
-			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer")
-			c.pendingLocalCandidates = append(c.pendingLocalCandidates, iceCandidate.ToJSON())
 			return
 		}
 		c.opts.Logger.Debug(context.Background(), "adding local candidate")
@@ -290,12 +280,20 @@ func (c *Conn) negotiate() {
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
 		return
 	}
-	// ICE candidates reset when an offer/answer is set for the first
-	// time. If candidates flush before this point, a connection could fail.
-	err = c.flushPendingCandidates()
-	if err != nil {
-		_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
+	// The ICE transport resets when the remote description is updated.
+	// Adding ICE candidates before this point causes a failed connection,
+	// because the candidate would be lost.
+	c.pendingCandidatesMutex.Lock()
+	for _, pendingCandidate := range c.pendingRemoteCandidates {
+		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
+		err := c.rtc.AddICECandidate(pendingCandidate)
+		if err != nil {
+			c.pendingCandidatesMutex.Unlock()
+			_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
+			return
+		}
 	}
+	c.pendingCandidatesMutex.Unlock()
 
 	if !c.offerrer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
@@ -323,29 +321,7 @@ func (c *Conn) negotiate() {
 // flushPendingCandidates writes all local candidates to the candidate send channel.
 // The localCandidateChannel is expected to be serviced, otherwise this could block.
 func (c *Conn) flushPendingCandidates() error {
-	c.pendingCandidatesMutex.Lock()
-	defer c.pendingCandidatesMutex.Unlock()
-	for _, pendingCandidate := range c.pendingLocalCandidates {
-		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
-		select {
-		case <-c.closed:
-			return nil
-		case c.localCandidateChannel <- pendingCandidate:
-		}
-	}
 
-	for _, pendingCandidate := range c.pendingRemoteCandidates {
-		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
-		err := c.rtc.AddICECandidate(pendingCandidate)
-		if err != nil {
-			return err
-		}
-	}
-
-	c.pendingLocalCandidates = make([]webrtc.ICECandidateInit, 0)
-	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
-	c.pendingCandidatesFlushed = true
-	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 	return nil
 }
 
