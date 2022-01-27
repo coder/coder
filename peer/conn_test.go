@@ -35,11 +35,11 @@ var (
 		// In CI resources are frequently contended, so increasing this value
 		// results in less flakes.
 		if os.Getenv("CI") == "true" {
-			return 4 * time.Second
+			return 3 * time.Second
 		}
 		return 100 * time.Millisecond
 	}()
-	failedTimeout     = disconnectedTimeout * 4
+	failedTimeout     = disconnectedTimeout * 3
 	keepAliveInterval = time.Millisecond * 2
 
 	// There's a global race in the vnet library allocation code.
