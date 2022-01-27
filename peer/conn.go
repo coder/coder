@@ -119,7 +119,6 @@ type Conn struct {
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
-	remoteSessionDescriptionMutex   sync.Mutex
 
 	localCandidateMutex  sync.Mutex
 	localCandidateBuffer []webrtc.ICECandidateInit
@@ -142,8 +141,15 @@ func (c *Conn) init() error {
 		if iceCandidate == nil {
 			return
 		}
-		if c.rtc.RemoteDescription() == nil {
-			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer")
+		if !c.offerrer && c.rtc.LocalDescription() == nil {
+			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer with local description")
+			c.localCandidateMutex.Lock()
+			defer c.localCandidateMutex.Unlock()
+			c.localCandidateBuffer = append(c.localCandidateBuffer, iceCandidate.ToJSON())
+			return
+		}
+		if c.offerrer && c.rtc.RemoteDescription() == nil {
+			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer with remote description")
 			c.localCandidateMutex.Lock()
 			defer c.localCandidateMutex.Unlock()
 			c.localCandidateBuffer = append(c.localCandidateBuffer, iceCandidate.ToJSON())
@@ -254,8 +260,6 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
-	c.remoteSessionDescriptionMutex.Lock()
-	defer c.remoteSessionDescriptionMutex.Unlock()
 
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -331,10 +335,7 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
-	c.opts.Logger.Debug(context.Background(), "locked on remote candidate")
-	c.remoteSessionDescriptionMutex.Lock()
-	defer c.remoteSessionDescriptionMutex.Unlock()
-	c.opts.Logger.Debug(context.Background(), "added remote candidate")
+	c.opts.Logger.Debug(context.Background(), "adding remote candidate")
 	return c.rtc.AddICECandidate(i)
 }
 
