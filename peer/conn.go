@@ -287,18 +287,14 @@ func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "setting remote description")
 	err := c.rtc.SetRemoteDescription(remoteDescription)
 	if err != nil {
-		c.pendingCandidatesMutex.Unlock()
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
 		return
 	}
-
-	if c.offerrer {
-		// ICE candidates reset when an offer/answer is set for the first
-		// time. If candidates flush before this point, a connection could fail.
-		err = c.flushPendingCandidates()
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
-		}
+	// ICE candidates reset when an offer/answer is set for the first
+	// time. If candidates flush before this point, a connection could fail.
+	err = c.flushPendingCandidates()
+	if err != nil {
+		_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
 	}
 
 	if !c.offerrer {
@@ -320,12 +316,6 @@ func (c *Conn) negotiate() {
 		case <-c.closed:
 			return
 		case c.localSessionDescriptionChannel <- answer:
-		}
-
-		// Wait until the local description is set to flush candidates.
-		err = c.flushPendingCandidates()
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
 		}
 	}
 }
