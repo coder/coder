@@ -350,7 +350,7 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
 	c.pendingRemoteCandidatesMutex.Lock()
 	defer c.pendingRemoteCandidatesMutex.Unlock()
-	if c.rtc.RemoteDescription() == nil {
+	if c.rtc.LocalDescription() == nil {
 		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
 		return nil
 	}
