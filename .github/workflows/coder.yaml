@@ -151,7 +151,7 @@ jobs:
 
       - name: Test with Mock Database
         run:
-          gotestsum --jsonfile="gotests.json" --packages="./..." --
+          gotestsum --jsonfile="gotests.json" --packages="./peer" --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m
           -count=100 -race -parallel=2
 
