@@ -50,7 +50,12 @@ var (
 func TestMain(m *testing.M) {
 	// pion/ice doesn't properly close immediately. The solution for this isn't yet known. See:
 	// https://github.com/pion/ice/pull/413
-	goleak.VerifyTestMain(m, goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func1 "))
+	goleak.VerifyTestMain(m,
+		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func1"),
+		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func2"),
+		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).taskLoop"),
+		goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
+	)
 }
 
 func TestConn(t *testing.T) {
