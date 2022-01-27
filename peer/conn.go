@@ -120,8 +120,9 @@ type Conn struct {
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
 
-	pendingCandidates      []webrtc.ICECandidateInit
-	pendingCandidatesMutex sync.Mutex
+	pendingCandidates        []webrtc.ICECandidateInit
+	pendingCandidatesMutex   sync.Mutex
+	pendingCandidatesFlushed bool
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -144,7 +145,7 @@ func (c *Conn) init() error {
 		c.pendingCandidatesMutex.Lock()
 		defer c.pendingCandidatesMutex.Unlock()
 
-		if c.rtc.RemoteDescription() == nil {
+		if !c.pendingCandidatesFlushed {
 			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer")
 			c.pendingCandidates = append(c.pendingCandidates, iceCandidate.ToJSON())
 			return
@@ -280,8 +281,6 @@ func (c *Conn) negotiate() {
 	case remoteDescription = <-c.remoteSessionDescriptionChannel:
 	}
 
-	// Must lock new candidates from being sent while the description is being flushed.
-	c.pendingCandidatesMutex.Lock()
 	err := c.rtc.SetRemoteDescription(remoteDescription)
 	if err != nil {
 		c.pendingCandidatesMutex.Unlock()
@@ -294,13 +293,8 @@ func (c *Conn) negotiate() {
 		// time. If candidates flush before this point, a connection could fail.
 		c.flushPendingCandidates()
 	}
-	c.pendingCandidatesMutex.Unlock()
 
 	if !c.offerrer {
-		// Lock new candidates from processing until we set the local description.
-		c.pendingCandidatesMutex.Lock()
-		defer c.pendingCandidatesMutex.Unlock()
-
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
@@ -328,15 +322,18 @@ func (c *Conn) negotiate() {
 // flushPendingCandidates writes all local candidates to the candidate send channel.
 // The localCandidateChannel is expected to be serviced, otherwise this could block.
 func (c *Conn) flushPendingCandidates() {
-	for _, localCandidate := range c.pendingCandidates {
+	c.pendingCandidatesMutex.Lock()
+	defer c.pendingCandidatesMutex.Unlock()
+	for _, pendingCandidate := range c.pendingCandidates {
 		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
 		select {
 		case <-c.closed:
 			return
-		case c.localCandidateChannel <- localCandidate:
+		case c.localCandidateChannel <- pendingCandidate:
 		}
 	}
 	c.pendingCandidates = make([]webrtc.ICECandidateInit, 0)
+	c.pendingCandidatesFlushed = true
 	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 }
 
