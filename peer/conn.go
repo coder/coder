@@ -71,7 +71,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		dcOpenChannel:                   make(chan *webrtc.DataChannel),
 		dcDisconnectChannel:             make(chan struct{}),
 		dcFailedChannel:                 make(chan struct{}),
-		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
+		localCandidateChannel:           make(chan webrtc.ICECandidateInit, 16),
 		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
 		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
@@ -281,6 +281,22 @@ func (c *Conn) negotiate() {
 		return
 	}
 
+	// The ICE transport resets when the remote description is updated.
+	// Adding ICE candidates before this point causes a failed connection,
+	// because the candidate would be lost.
+	c.pendingCandidatesMutex.Lock()
+	defer c.pendingCandidatesMutex.Unlock()
+	for _, pendingCandidate := range c.pendingRemoteCandidates {
+		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
+		err := c.rtc.AddICECandidate(pendingCandidate)
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
+			return
+		}
+	}
+	c.pendingCandidatesFlushed = true
+	c.opts.Logger.Debug(context.Background(), "flushed remote candidates")
+
 	if !c.offerrer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
 		if err != nil {
@@ -302,22 +318,6 @@ func (c *Conn) negotiate() {
 		case c.localSessionDescriptionChannel <- answer:
 		}
 	}
-
-	// The ICE transport resets when the remote description is updated.
-	// Adding ICE candidates before this point causes a failed connection,
-	// because the candidate would be lost.
-	c.pendingCandidatesMutex.Lock()
-	defer c.pendingCandidatesMutex.Unlock()
-	for _, pendingCandidate := range c.pendingRemoteCandidates {
-		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
-		err := c.rtc.AddICECandidate(pendingCandidate)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
-			return
-		}
-	}
-	c.pendingCandidatesFlushed = true
-	c.opts.Logger.Debug(context.Background(), "flushed remote candidates")
 }
 
 // LocalCandidate returns a channel that emits when a local candidate
