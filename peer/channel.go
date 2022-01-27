@@ -281,6 +281,7 @@ func (c *Channel) closeWithError(err error) error {
 	c.conn.dcDisconnectListeners.Sub(1)
 	c.conn.dcFailedListeners.Sub(1)
 	c.conn.dcClosedWaitGroup.Done()
+
 	return err
 }
 
