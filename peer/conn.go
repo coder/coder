@@ -119,6 +119,7 @@ type Conn struct {
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
+	remoteSessionDescriptionMutex   sync.Mutex
 
 	localCandidateMutex  sync.Mutex
 	localCandidateBuffer []webrtc.ICECandidateInit
@@ -253,6 +254,8 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
+	c.remoteSessionDescriptionMutex.Lock()
+	defer c.remoteSessionDescriptionMutex.Unlock()
 
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -286,7 +289,6 @@ func (c *Conn) negotiate() {
 	}
 
 	c.localCandidateMutex.Lock()
-	defer c.localCandidateMutex.Unlock()
 	for _, localCandidate := range c.localCandidateBuffer {
 		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
 		select {
@@ -296,6 +298,7 @@ func (c *Conn) negotiate() {
 		}
 	}
 	c.localCandidateBuffer = make([]webrtc.ICECandidateInit, 0)
+	c.localCandidateMutex.Unlock()
 	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 
 	if !c.offerrer {
@@ -328,6 +331,8 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
+	c.remoteSessionDescriptionMutex.Lock()
+	defer c.remoteSessionDescriptionMutex.Unlock()
 	c.opts.Logger.Debug(context.Background(), "adding remote candidate")
 	return c.rtc.AddICECandidate(i)
 }
