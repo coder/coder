@@ -152,9 +152,11 @@ func (c *Conn) init() error {
 		c.pendingLocalCandidatesMutex.Lock()
 		defer c.pendingLocalCandidatesMutex.Unlock()
 		if c.rtc.RemoteDescription() == nil {
+			c.opts.Logger.Debug(context.Background(), "adding local candidate to flush queue")
 			c.pendingLocalCandidates = append(c.pendingLocalCandidates, iceCandidate.ToJSON())
 			return
 		}
+		c.opts.Logger.Debug(context.Background(), "adding local candidate")
 		select {
 		case <-c.closed:
 			break
@@ -319,6 +321,7 @@ func (c *Conn) negotiate() {
 	c.pendingLocalCandidatesMutex.Lock()
 	defer c.pendingLocalCandidatesMutex.Unlock()
 	for _, pendingCandidate := range c.pendingLocalCandidates {
+		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
 		select {
 		case <-c.closed:
 			return
@@ -330,6 +333,7 @@ func (c *Conn) negotiate() {
 	c.pendingRemoteCandidatesMutex.Lock()
 	defer c.pendingRemoteCandidatesMutex.Unlock()
 	for _, pendingCandidate := range c.pendingRemoteCandidates {
+		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
 		err = c.rtc.AddICECandidate(pendingCandidate)
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("add remote candidate: %w", err))
@@ -351,9 +355,11 @@ func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
 	c.pendingRemoteCandidatesMutex.Lock()
 	defer c.pendingRemoteCandidatesMutex.Unlock()
 	if c.rtc.LocalDescription() == nil {
+		c.opts.Logger.Debug(context.Background(), "adding remote candidate to flush queue")
 		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
 		return nil
 	}
+	c.opts.Logger.Debug(context.Background(), "adding remote candidate")
 	return c.rtc.AddICECandidate(i)
 }
 
