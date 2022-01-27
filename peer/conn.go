@@ -264,6 +264,7 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
 			return
 		}
+		c.opts.Logger.Debug(context.Background(), "setting local description")
 		err = c.rtc.SetLocalDescription(offer)
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
@@ -283,6 +284,7 @@ func (c *Conn) negotiate() {
 	case remoteDescription = <-c.remoteSessionDescriptionChannel:
 	}
 
+	c.opts.Logger.Debug(context.Background(), "setting remote description")
 	err := c.rtc.SetRemoteDescription(remoteDescription)
 	if err != nil {
 		c.pendingCandidatesMutex.Unlock()
@@ -305,6 +307,7 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
 			return
 		}
+		c.opts.Logger.Debug(context.Background(), "setting local description")
 		err = c.rtc.SetLocalDescription(answer)
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
@@ -350,6 +353,7 @@ func (c *Conn) flushPendingCandidates() error {
 	}
 
 	c.pendingLocalCandidates = make([]webrtc.ICECandidateInit, 0)
+	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
 	c.pendingCandidatesFlushed = true
 	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 	return nil
