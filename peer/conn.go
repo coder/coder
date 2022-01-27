@@ -293,6 +293,8 @@ func (c *Conn) negotiate() {
 			return
 		}
 	}
+	c.pendingCandidatesFlushed = true
+	c.opts.Logger.Debug(context.Background(), "flushed remote candidates")
 	c.pendingCandidatesMutex.Unlock()
 
 	if !c.offerrer {
