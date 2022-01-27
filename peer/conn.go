@@ -141,10 +141,11 @@ func (c *Conn) init() error {
 		if iceCandidate == nil {
 			return
 		}
+		c.pendingCandidatesMutex.Lock()
+		defer c.pendingCandidatesMutex.Unlock()
+
 		if c.rtc.RemoteDescription() == nil {
 			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer with remote description")
-			c.pendingCandidatesMutex.Lock()
-			defer c.pendingCandidatesMutex.Unlock()
 			c.pendingCandidates = append(c.pendingCandidates, iceCandidate.ToJSON())
 			return
 		}
