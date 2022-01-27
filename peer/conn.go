@@ -62,15 +62,17 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		return nil, xerrors.Errorf("create peer connection: %w", err)
 	}
 	conn := &Conn{
-		pingChannelID:                   1,
-		pingEchoChannelID:               2,
-		opts:                            opts,
-		rtc:                             rtc,
-		offerrer:                        client,
-		closed:                          make(chan struct{}),
-		dcOpenChannel:                   make(chan *webrtc.DataChannel),
-		dcDisconnectChannel:             make(chan struct{}),
-		dcFailedChannel:                 make(chan struct{}),
+		pingChannelID:       1,
+		pingEchoChannelID:   2,
+		opts:                opts,
+		rtc:                 rtc,
+		offerrer:            client,
+		closed:              make(chan struct{}),
+		dcOpenChannel:       make(chan *webrtc.DataChannel),
+		dcDisconnectChannel: make(chan struct{}),
+		dcFailedChannel:     make(chan struct{}),
+		// This channel needs to be bufferred otherwise slow consumers
+		// of this will cause a connection failure.
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit, 16),
 		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
