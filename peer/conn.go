@@ -146,6 +146,7 @@ func (c *Conn) init() error {
 		if c.rtc.RemoteDescription() == nil {
 			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer")
 			c.localCandidateBuffer = append(c.localCandidateBuffer, iceCandidate.ToJSON())
+			return
 		}
 		c.opts.Logger.Debug(context.Background(), "adding local candidate")
 		select {
@@ -315,6 +316,7 @@ func (c *Conn) negotiate() {
 		case c.localCandidateChannel <- localCandidate:
 		}
 	}
+	c.localCandidateBuffer = make([]webrtc.ICECandidateInit, 0)
 	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 }
 
