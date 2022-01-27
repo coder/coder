@@ -120,13 +120,14 @@ type Conn struct {
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
-	remoteSessionDescriptionMutex   sync.Mutex
 
-	pendingLocalCandidates      []webrtc.ICECandidateInit
-	pendingLocalCandidatesMutex sync.Mutex
+	pendingLocalCandidatesFlushed atomic.Bool
+	pendingLocalCandidatesMutex   sync.Mutex
+	pendingLocalCandidates        []webrtc.ICECandidateInit
 
-	pendingRemoteCandidates      []webrtc.ICECandidateInit
-	pendingRemoteCandidatesMutex sync.Mutex
+	pendingRemoteCandidatesFlushed atomic.Bool
+	pendingRemoteCandidatesMutex   sync.Mutex
+	pendingRemoteCandidates        []webrtc.ICECandidateInit
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -151,7 +152,7 @@ func (c *Conn) init() error {
 		// been negotiated to flush candidates.
 		c.pendingLocalCandidatesMutex.Lock()
 		defer c.pendingLocalCandidatesMutex.Unlock()
-		if c.rtc.RemoteDescription() == nil {
+		if !c.pendingLocalCandidatesFlushed.Load() {
 			c.opts.Logger.Debug(context.Background(), "adding local candidate to flush queue")
 			c.pendingLocalCandidates = append(c.pendingLocalCandidates, iceCandidate.ToJSON())
 			return
@@ -261,10 +262,8 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
-	// Locks while the negotiation for a remote session
-	// description is taking place.
-	c.remoteSessionDescriptionMutex.Lock()
-	defer c.remoteSessionDescriptionMutex.Unlock()
+	c.pendingLocalCandidatesFlushed.Store(false)
+	c.pendingRemoteCandidatesFlushed.Store(false)
 
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -318,6 +317,7 @@ func (c *Conn) negotiate() {
 		}
 	}
 
+	c.pendingLocalCandidatesFlushed.Store(true)
 	c.pendingLocalCandidatesMutex.Lock()
 	defer c.pendingLocalCandidatesMutex.Unlock()
 	for _, pendingCandidate := range c.pendingLocalCandidates {
@@ -332,6 +332,7 @@ func (c *Conn) negotiate() {
 
 	c.pendingRemoteCandidatesMutex.Lock()
 	defer c.pendingRemoteCandidatesMutex.Unlock()
+	c.pendingRemoteCandidatesFlushed.Store(true)
 	for _, pendingCandidate := range c.pendingRemoteCandidates {
 		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
 		err = c.rtc.AddICECandidate(pendingCandidate)
@@ -354,7 +355,7 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
 	c.pendingRemoteCandidatesMutex.Lock()
 	defer c.pendingRemoteCandidatesMutex.Unlock()
-	if c.rtc.LocalDescription() == nil {
+	if !c.pendingRemoteCandidatesFlushed.Load() {
 		c.opts.Logger.Debug(context.Background(), "adding remote candidate to flush queue")
 		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
 		return nil
