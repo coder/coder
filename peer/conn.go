@@ -73,7 +73,8 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		dcFailedChannel:                 make(chan struct{}),
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
-		pendingCandidates:               make([]webrtc.ICECandidateInit, 0),
+		pendingLocalCandidates:          make([]webrtc.ICECandidateInit, 0),
+		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
 		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
 	}
 	if client {
@@ -119,9 +120,13 @@ type Conn struct {
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
+	remoteSessionDescriptionMutex   sync.Mutex
 
-	pendingCandidates      []webrtc.ICECandidateInit
-	pendingCandidatesMutex sync.Mutex
+	pendingLocalCandidates      []webrtc.ICECandidateInit
+	pendingLocalCandidatesMutex sync.Mutex
+
+	pendingRemoteCandidates      []webrtc.ICECandidateInit
+	pendingRemoteCandidatesMutex sync.Mutex
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -144,10 +149,10 @@ func (c *Conn) init() error {
 		// ICE Candidates on a remote peer are reset when an offer
 		// is received. We must wait until the offer<->answer has
 		// been negotiated to flush candidates.
-		c.pendingCandidatesMutex.Lock()
-		defer c.pendingCandidatesMutex.Unlock()
+		c.pendingLocalCandidatesMutex.Lock()
+		defer c.pendingLocalCandidatesMutex.Unlock()
 		if c.rtc.RemoteDescription() == nil {
-			c.pendingCandidates = append(c.pendingCandidates, iceCandidate.ToJSON())
+			c.pendingLocalCandidates = append(c.pendingLocalCandidates, iceCandidate.ToJSON())
 			return
 		}
 		select {
@@ -254,6 +259,10 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
+	// Locks while the negotiation for a remote session
+	// description is taking place.
+	c.remoteSessionDescriptionMutex.Lock()
+	defer c.remoteSessionDescriptionMutex.Unlock()
 
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -307,16 +316,27 @@ func (c *Conn) negotiate() {
 		}
 	}
 
-	c.pendingCandidatesMutex.Lock()
-	defer c.pendingCandidatesMutex.Unlock()
-	for _, pendingCandidate := range c.pendingCandidates {
+	c.pendingLocalCandidatesMutex.Lock()
+	defer c.pendingLocalCandidatesMutex.Unlock()
+	for _, pendingCandidate := range c.pendingLocalCandidates {
 		select {
 		case <-c.closed:
 			return
 		case c.localCandidateChannel <- pendingCandidate:
 		}
 	}
-	c.pendingCandidates = make([]webrtc.ICECandidateInit, 0)
+	c.pendingLocalCandidates = make([]webrtc.ICECandidateInit, 0)
+
+	c.pendingRemoteCandidatesMutex.Lock()
+	defer c.pendingRemoteCandidatesMutex.Unlock()
+	for _, pendingCandidate := range c.pendingRemoteCandidates {
+		err = c.rtc.AddICECandidate(pendingCandidate)
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("add remote candidate: %w", err))
+			return
+		}
+	}
+	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
 	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 }
 
@@ -328,6 +348,12 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
+	c.pendingRemoteCandidatesMutex.Lock()
+	defer c.pendingRemoteCandidatesMutex.Unlock()
+	if c.rtc.RemoteDescription() == nil {
+		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
+		return nil
+	}
 	return c.rtc.AddICECandidate(i)
 }
 
