@@ -285,6 +285,19 @@ func (c *Conn) negotiate() {
 		return
 	}
 
+	c.localCandidateMutex.Lock()
+	defer c.localCandidateMutex.Unlock()
+	for _, localCandidate := range c.localCandidateBuffer {
+		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
+		select {
+		case <-c.closed:
+			return
+		case c.localCandidateChannel <- localCandidate:
+		}
+	}
+	c.localCandidateBuffer = make([]webrtc.ICECandidateInit, 0)
+	c.opts.Logger.Debug(context.Background(), "flushed candidates")
+
 	if !c.offerrer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
 		if err != nil {
@@ -305,19 +318,6 @@ func (c *Conn) negotiate() {
 		case c.localSessionDescriptionChannel <- answer:
 		}
 	}
-
-	c.localCandidateMutex.Lock()
-	defer c.localCandidateMutex.Unlock()
-	for _, localCandidate := range c.localCandidateBuffer {
-		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
-		select {
-		case <-c.closed:
-			return
-		case c.localCandidateChannel <- localCandidate:
-		}
-	}
-	c.localCandidateBuffer = make([]webrtc.ICECandidateInit, 0)
-	c.opts.Logger.Debug(context.Background(), "flushed candidates")
 }
 
 // LocalCandidate returns a channel that emits when a local candidate
