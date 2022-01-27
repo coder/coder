@@ -305,6 +305,8 @@ func (c *Conn) negotiate() {
 		}
 	}
 
+	c.localCandidateMutex.Lock()
+	defer c.localCandidateMutex.Unlock()
 	for _, localCandidate := range c.localCandidateBuffer {
 		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
 		select {
