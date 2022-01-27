@@ -141,14 +141,7 @@ func (c *Conn) init() error {
 		if iceCandidate == nil {
 			return
 		}
-		if !c.offerrer && c.rtc.LocalDescription() == nil {
-			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer with local description")
-			c.localCandidateMutex.Lock()
-			defer c.localCandidateMutex.Unlock()
-			c.localCandidateBuffer = append(c.localCandidateBuffer, iceCandidate.ToJSON())
-			return
-		}
-		if c.offerrer && c.rtc.RemoteDescription() == nil {
+		if c.rtc.RemoteDescription() == nil {
 			c.opts.Logger.Debug(context.Background(), "adding local candidate to buffer with remote description")
 			c.localCandidateMutex.Lock()
 			defer c.localCandidateMutex.Unlock()
@@ -292,18 +285,9 @@ func (c *Conn) negotiate() {
 		return
 	}
 
-	c.localCandidateMutex.Lock()
-	for _, localCandidate := range c.localCandidateBuffer {
-		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
-		select {
-		case <-c.closed:
-			return
-		case c.localCandidateChannel <- localCandidate:
-		}
+	if c.offerrer {
+		c.flushLocalCandidates()
 	}
-	c.localCandidateBuffer = make([]webrtc.ICECandidateInit, 0)
-	c.opts.Logger.Debug(context.Background(), "flushed candidates")
-	c.localCandidateMutex.Unlock()
 
 	if !c.offerrer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
@@ -324,7 +308,24 @@ func (c *Conn) negotiate() {
 			return
 		case c.localSessionDescriptionChannel <- answer:
 		}
+
+		c.flushLocalCandidates()
 	}
+}
+
+func (c *Conn) flushLocalCandidates() {
+	c.localCandidateMutex.Lock()
+	for _, localCandidate := range c.localCandidateBuffer {
+		c.opts.Logger.Debug(context.Background(), "flushing local candidate")
+		select {
+		case <-c.closed:
+			return
+		case c.localCandidateChannel <- localCandidate:
+		}
+	}
+	c.localCandidateBuffer = make([]webrtc.ICECandidateInit, 0)
+	c.opts.Logger.Debug(context.Background(), "flushed candidates")
+	c.localCandidateMutex.Unlock()
 }
 
 // LocalCandidate returns a channel that emits when a local candidate
