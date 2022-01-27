@@ -271,6 +271,10 @@ func (c *Channel) closeWithError(err error) error {
 	} else {
 		c.closeError = err
 	}
+	if c.rwc != nil {
+		_ = c.rwc.Close()
+	}
+	_ = c.dc.Close()
 
 	close(c.closed)
 	close(c.sendMore)
@@ -278,10 +282,6 @@ func (c *Channel) closeWithError(err error) error {
 	c.conn.dcFailedListeners.Sub(1)
 	c.conn.dcClosedWaitGroup.Done()
 
-	if c.rwc != nil {
-		_ = c.rwc.Close()
-	}
-	_ = c.dc.Close()
 	return err
 }
 
