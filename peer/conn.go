@@ -318,13 +318,6 @@ func (c *Conn) negotiate() {
 	}
 }
 
-// flushPendingCandidates writes all local candidates to the candidate send channel.
-// The localCandidateChannel is expected to be serviced, otherwise this could block.
-func (c *Conn) flushPendingCandidates() error {
-
-	return nil
-}
-
 // LocalCandidate returns a channel that emits when a local candidate
 // needs to be exchanged with a remote connection.
 func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
