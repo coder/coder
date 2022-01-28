@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "golang.go",
+    "hashicorp.terraform",
+    "esbenp.prettier-vscode",
+    "foxundermoon.shell-format",
+    "emeraldwalk.runonsave",
+    "zxh404.vscode-proto3",
+    "redhat.vscode-yaml"
+  ]
+}

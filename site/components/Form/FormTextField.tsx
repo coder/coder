@@ -104,67 +104,61 @@ export interface FormTextFieldProps<T>
  *   )
  * }
  */
-export const formTextFieldFactory = <T,>(): React.FC<FormTextFieldProps<T>> => {
-  const component: React.FC<FormTextFieldProps<T>> = ({
-    children,
-    disabled,
-    displayValueOverride,
-    eventTransform,
-    form,
-    formFieldName,
-    helperText,
-    isPassword = false,
-    InputProps,
-    onChange,
-    type,
-    variant = "outlined",
-    ...rest
-  }) => {
-    const isError = form.touched[formFieldName] && Boolean(form.errors[formFieldName])
+export const FormTextField = <T,>({
+  children,
+  disabled,
+  displayValueOverride,
+  eventTransform,
+  form,
+  formFieldName,
+  helperText,
+  isPassword = false,
+  InputProps,
+  onChange,
+  type,
+  variant = "outlined",
+  ...rest
+}: FormTextFieldProps<T>): React.ReactElement => {
+  const isError = form.touched[formFieldName] && Boolean(form.errors[formFieldName])
 
-    // Conversion to a string primitive is necessary as formFieldName is an in
-    // indexable type such as a string, number or enum.
-    const fieldId = String(formFieldName)
+  // Conversion to a string primitive is necessary as formFieldName is an in
+  // indexable type such as a string, number or enum.
+  const fieldId = String(formFieldName)
 
-    const Component = isPassword ? PasswordField : TextField
-    const inputType = isPassword ? undefined : type
+  const Component = isPassword ? PasswordField : TextField
+  const inputType = isPassword ? undefined : type
 
-    return (
-      <Component
-        {...rest}
-        variant={variant}
-        disabled={disabled || form.isSubmitting}
-        error={isError}
-        helperText={isError ? form.errors[formFieldName] : helperText}
-        id={fieldId}
-        InputProps={isPassword ? undefined : InputProps}
-        name={fieldId}
-        onBlur={form.handleBlur}
-        onChange={(e) => {
-          if (typeof onChange !== "undefined") {
-            onChange(e)
-          }
+  return (
+    <Component
+      {...rest}
+      variant={variant}
+      disabled={disabled || form.isSubmitting}
+      error={isError}
+      helperText={isError ? form.errors[formFieldName] : helperText}
+      id={fieldId}
+      InputProps={isPassword ? undefined : InputProps}
+      name={fieldId}
+      onBlur={form.handleBlur}
+      onChange={(e) => {
+        if (typeof onChange !== "undefined") {
+          onChange(e)
+        }
 
-          const event = e
-          if (typeof eventTransform !== "undefined") {
-            // TODO(Grey): Asserting the type as a string here is not quite
-            // right in that when an input is of type="number", the value will
-            // be a number. Type asserting is better than conversion for this
-            // reason, but perhaps there's a better way to do this without any
-            // assertions.
-            event.target.value = eventTransform(e.target.value) as string
-          }
-          form.handleChange(event)
-        }}
-        type={inputType}
-        value={displayValueOverride || form.values[formFieldName]}
-      >
-        {children}
-      </Component>
-    )
-  }
-
-  // Required when using an anonymous factory function
-  component.displayName = "FormTextField"
-  return component
+        const event = e
+        if (typeof eventTransform !== "undefined") {
+          // TODO(Grey): Asserting the type as a string here is not quite
+          // right in that when an input is of type="number", the value will
+          // be a number. Type asserting is better than conversion for this
+          // reason, but perhaps there's a better way to do this without any
+          // assertions.
+          event.target.value = eventTransform(e.target.value) as string
+        }
+        form.handleChange(event)
+      }}
+      type={inputType}
+      value={displayValueOverride || form.values[formFieldName]}
+    >
+      {children}
+    </Component>
+  )
 }
