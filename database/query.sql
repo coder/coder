@@ -149,6 +149,14 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
+-- name: GetProjectParametersByHistoryID :many
+SELECT
+  *
+FROM
+  project_parameter
+WHERE
+  project_history_id = $1;
+
 -- name: GetProjectHistoryByProjectID :many
 SELECT
   *
@@ -318,6 +326,23 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5) RETURNING *;
 
+-- name: InsertParameterValue :one
+INSERT INTO
+  parameter_value (
+    id,
+    name,
+    created_at,
+    updated_at,
+    scope,
+    scope_id,
+    source_scheme,
+    source_value,
+    destination_scheme,
+    destination_value
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+
 -- name: InsertProject :one
 INSERT INTO
   project (
@@ -355,9 +380,11 @@ INSERT INTO
     project_history_id,
     name,
     description,
-    default_source,
+    default_source_scheme,
+    default_source_value,
     allow_override_source,
-    default_destination,
+    default_destination_scheme,
+    default_destination_value,
     allow_override_destination,
     default_refresh,
     redisplay_value,
@@ -382,7 +409,9 @@ VALUES
     $12,
     $13,
     $14,
-    $15
+    $15,
+    $16,
+    $17
   ) RETURNING *;
 
 -- name: InsertProvisionerDaemon :one

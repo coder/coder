@@ -15,11 +15,20 @@ CREATE TYPE login_type AS ENUM (
     'oidc'
 );
 
+CREATE TYPE parameter_destination_scheme AS ENUM (
+    'environment_variable',
+    'provisioner_variable'
+);
+
 CREATE TYPE parameter_scope AS ENUM (
     'organization',
     'project',
     'user',
     'workspace'
+);
+
+CREATE TYPE parameter_source_scheme AS ENUM (
+    'data'
 );
 
 CREATE TYPE parameter_type_system AS ENUM (
@@ -105,8 +114,10 @@ CREATE TABLE parameter_value (
     updated_at timestamp with time zone NOT NULL,
     scope parameter_scope NOT NULL,
     scope_id text NOT NULL,
-    source text,
-    destination text
+    source_scheme parameter_source_scheme NOT NULL,
+    source_value text NOT NULL,
+    destination_scheme parameter_destination_scheme NOT NULL,
+    destination_value text NOT NULL
 );
 
 CREATE TABLE project (
@@ -137,9 +148,11 @@ CREATE TABLE project_parameter (
     project_history_id uuid NOT NULL,
     name character varying(64) NOT NULL,
     description character varying(8192) DEFAULT ''::character varying NOT NULL,
-    default_source text,
+    default_source_scheme parameter_source_scheme,
+    default_source_value text,
     allow_override_source boolean NOT NULL,
-    default_destination text,
+    default_destination_scheme parameter_destination_scheme,
+    default_destination_value text,
     allow_override_destination boolean NOT NULL,
     default_refresh text NOT NULL,
     redisplay_value boolean NOT NULL,

@@ -239,7 +239,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string
 
 const getParameterValuesByScope = `-- name: GetParameterValuesByScope :many
 SELECT
-  id, name, created_at, updated_at, scope, scope_id, source, destination
+  id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme, destination_value
 FROM
   parameter_value
 WHERE
@@ -268,8 +268,10 @@ func (q *sqlQuerier) GetParameterValuesByScope(ctx context.Context, arg GetParam
 			&i.UpdatedAt,
 			&i.Scope,
 			&i.ScopeID,
-			&i.Source,
-			&i.Destination,
+			&i.SourceScheme,
+			&i.SourceValue,
+			&i.DestinationScheme,
+			&i.DestinationValue,
 		); err != nil {
 			return nil, err
 		}
@@ -396,6 +398,56 @@ func (q *sqlQuerier) GetProjectHistoryByProjectID(ctx context.Context, projectID
 			&i.StorageMethod,
 			&i.StorageSource,
 			&i.ImportJobID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProjectParametersByHistoryID = `-- name: GetProjectParametersByHistoryID :many
+SELECT
+  id, created_at, project_history_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+FROM
+  project_parameter
+WHERE
+  project_history_id = $1
+`
+
+func (q *sqlQuerier) GetProjectParametersByHistoryID(ctx context.Context, projectHistoryID uuid.UUID) ([]ProjectParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectParametersByHistoryID, projectHistoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectParameter
+	for rows.Next() {
+		var i ProjectParameter
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.ProjectHistoryID,
+			&i.Name,
+			&i.Description,
+			&i.DefaultSourceScheme,
+			&i.DefaultSourceValue,
+			&i.AllowOverrideSource,
+			&i.DefaultDestinationScheme,
+			&i.DefaultDestinationValue,
+			&i.AllowOverrideDestination,
+			&i.DefaultRefresh,
+			&i.RedisplayValue,
+			&i.ValidationError,
+			&i.ValidationCondition,
+			&i.ValidationTypeSystem,
+			&i.ValidationValueType,
 		); err != nil {
 			return nil, err
 		}
@@ -1098,6 +1150,66 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 	return i, err
 }
 
+const insertParameterValue = `-- name: InsertParameterValue :one
+INSERT INTO
+  parameter_value (
+    id,
+    name,
+    created_at,
+    updated_at,
+    scope,
+    scope_id,
+    source_scheme,
+    source_value,
+    destination_scheme,
+    destination_value
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme, destination_value
+`
+
+type InsertParameterValueParams struct {
+	ID                uuid.UUID                  `db:"id" json:"id"`
+	Name              string                     `db:"name" json:"name"`
+	CreatedAt         time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time                  `db:"updated_at" json:"updated_at"`
+	Scope             ParameterScope             `db:"scope" json:"scope"`
+	ScopeID           string                     `db:"scope_id" json:"scope_id"`
+	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
+	SourceValue       string                     `db:"source_value" json:"source_value"`
+	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
+	DestinationValue  string                     `db:"destination_value" json:"destination_value"`
+}
+
+func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error) {
+	row := q.db.QueryRowContext(ctx, insertParameterValue,
+		arg.ID,
+		arg.Name,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Scope,
+		arg.ScopeID,
+		arg.SourceScheme,
+		arg.SourceValue,
+		arg.DestinationScheme,
+		arg.DestinationValue,
+	)
+	var i ParameterValue
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Scope,
+		&i.ScopeID,
+		&i.SourceScheme,
+		&i.SourceValue,
+		&i.DestinationScheme,
+		&i.DestinationValue,
+	)
+	return i, err
+}
+
 const insertProject = `-- name: InsertProject :one
 INSERT INTO
   project (
@@ -1207,9 +1319,11 @@ INSERT INTO
     project_history_id,
     name,
     description,
-    default_source,
+    default_source_scheme,
+    default_source_value,
     allow_override_source,
-    default_destination,
+    default_destination_scheme,
+    default_destination_value,
     allow_override_destination,
     default_refresh,
     redisplay_value,
@@ -1234,26 +1348,30 @@ VALUES
     $12,
     $13,
     $14,
-    $15
-  ) RETURNING id, created_at, project_history_id, name, description, default_source, allow_override_source, default_destination, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+    $15,
+    $16,
+    $17
+  ) RETURNING id, created_at, project_history_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
 `
 
 type InsertProjectParameterParams struct {
-	ID                       uuid.UUID           `db:"id" json:"id"`
-	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
-	ProjectHistoryID         uuid.UUID           `db:"project_history_id" json:"project_history_id"`
-	Name                     string              `db:"name" json:"name"`
-	Description              string              `db:"description" json:"description"`
-	DefaultSource            sql.NullString      `db:"default_source" json:"default_source"`
-	AllowOverrideSource      bool                `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestination       sql.NullString      `db:"default_destination" json:"default_destination"`
-	AllowOverrideDestination bool                `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string              `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string              `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string              `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string              `db:"validation_value_type" json:"validation_value_type"`
+	ID                       uuid.UUID                  `db:"id" json:"id"`
+	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
+	ProjectHistoryID         uuid.UUID                  `db:"project_history_id" json:"project_history_id"`
+	Name                     string                     `db:"name" json:"name"`
+	Description              string                     `db:"description" json:"description"`
+	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
+	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
+	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
+	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
+	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string                     `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
 }
 
 func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProjectParameterParams) (ProjectParameter, error) {
@@ -1263,9 +1381,11 @@ func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProje
 		arg.ProjectHistoryID,
 		arg.Name,
 		arg.Description,
-		arg.DefaultSource,
+		arg.DefaultSourceScheme,
+		arg.DefaultSourceValue,
 		arg.AllowOverrideSource,
-		arg.DefaultDestination,
+		arg.DefaultDestinationScheme,
+		arg.DefaultDestinationValue,
 		arg.AllowOverrideDestination,
 		arg.DefaultRefresh,
 		arg.RedisplayValue,
@@ -1281,9 +1401,11 @@ func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProje
 		&i.ProjectHistoryID,
 		&i.Name,
 		&i.Description,
-		&i.DefaultSource,
+		&i.DefaultSourceScheme,
+		&i.DefaultSourceValue,
 		&i.AllowOverrideSource,
-		&i.DefaultDestination,
+		&i.DefaultDestinationScheme,
+		&i.DefaultDestinationValue,
 		&i.AllowOverrideDestination,
 		&i.DefaultRefresh,
 		&i.RedisplayValue,

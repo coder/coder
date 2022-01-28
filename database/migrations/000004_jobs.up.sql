@@ -44,8 +44,10 @@ CREATE TABLE parameter_value (
     updated_at timestamptz NOT NULL,
     scope parameter_scope NOT NULL,
     scope_id text NOT NULL,
-    source text,
-    destination text,
+    source_scheme parameter_source_scheme NOT NULL,
+    source_value text NOT NULL,
+    destination_scheme parameter_destination_scheme NOT NULL,
+    destination_value text NOT NULL,
     -- Prevents duplicates for parameters in the same scope.
     UNIQUE(name, scope, scope_id)
 );

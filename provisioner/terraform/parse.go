@@ -47,11 +47,11 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 			return nil, xerrors.Errorf("parse variable %q default: %w", variable.Name, err)
 		}
 		schema.DefaultSource = &proto.ParameterSource{
-			Target: proto.ParameterSource_DATA,
+			Scheme: proto.ParameterSource_DATA,
 			Value:  string(defaultData),
 		}
 		schema.DefaultDestination = &proto.ParameterDestination{
-			Target: proto.ParameterDestination_PROVISIONER_VARIABLE,
+			Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 			Value:  variable.Name,
 		}
 	}

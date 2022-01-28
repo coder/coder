@@ -65,11 +65,11 @@ func TestParse(t *testing.T) {
 			ParameterSchemas: []*proto.ParameterSchema{{
 				Name: "A",
 				DefaultSource: &proto.ParameterSource{
-					Target: proto.ParameterSource_DATA,
+					Scheme: proto.ParameterSource_DATA,
 					Value:  "\"wow\"",
 				},
 				DefaultDestination: &proto.ParameterDestination{
-					Target: proto.ParameterDestination_PROVISIONER_VARIABLE,
+					Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 					Value:  "A",
 				},
 			}},

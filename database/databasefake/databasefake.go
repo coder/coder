@@ -18,7 +18,7 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
-		parameterValues:    make([]database.ParameterValue, 0),
+		parameterValue:     make([]database.ParameterValue, 0),
 		project:            make([]database.Project, 0),
 		projectHistory:     make([]database.ProjectHistory, 0),
 		projectParameter:   make([]database.ProjectParameter, 0),
@@ -40,7 +40,7 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
-	parameterValues    []database.ParameterValue
+	parameterValue     []database.ParameterValue
 	project            []database.Project
 	projectHistory     []database.ProjectHistory
 	projectParameter   []database.ProjectParameter
@@ -267,7 +267,7 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID string)
 
 func (q *fakeQuerier) GetParameterValuesByScope(_ context.Context, arg database.GetParameterValuesByScopeParams) ([]database.ParameterValue, error) {
 	parameterValues := make([]database.ParameterValue, 0)
-	for _, parameterValue := range q.parameterValues {
+	for _, parameterValue := range q.parameterValue {
 		if parameterValue.Scope != arg.Scope {
 			continue
 		}
@@ -326,6 +326,20 @@ func (q *fakeQuerier) GetProjectHistoryByID(_ context.Context, projectHistoryID 
 		return projectHistory, nil
 	}
 	return database.ProjectHistory{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetProjectParametersByHistoryID(_ context.Context, projectHistoryID uuid.UUID) ([]database.ProjectParameter, error) {
+	parameters := make([]database.ProjectParameter, 0)
+	for _, projectParameter := range q.projectParameter {
+		if projectParameter.ProjectHistoryID.String() != projectHistoryID.String() {
+			continue
+		}
+		parameters = append(parameters, projectParameter)
+	}
+	if len(parameters) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return parameters, nil
 }
 
 func (q *fakeQuerier) GetProjectsByOrganizationIDs(_ context.Context, ids []string) ([]database.Project, error) {
@@ -424,6 +438,23 @@ func (q *fakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	return organizationMember, nil
 }
 
+func (q *fakeQuerier) InsertParameterValue(ctx context.Context, arg database.InsertParameterValueParams) (database.ParameterValue, error) {
+	parameterValue := database.ParameterValue{
+		ID:                arg.ID,
+		Name:              arg.Name,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		Scope:             arg.Scope,
+		ScopeID:           arg.ScopeID,
+		SourceScheme:      arg.SourceScheme,
+		SourceValue:       arg.SourceValue,
+		DestinationScheme: arg.DestinationScheme,
+		DestinationValue:  arg.DestinationValue,
+	}
+	q.parameterValue = append(q.parameterValue, parameterValue)
+	return parameterValue, nil
+}
+
 func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjectParams) (database.Project, error) {
 	project := database.Project{
 		ID:             arg.ID,
@@ -462,9 +493,11 @@ func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.Ins
 		ProjectHistoryID:         arg.ProjectHistoryID,
 		Name:                     arg.Name,
 		Description:              arg.Description,
-		DefaultSource:            arg.DefaultSource,
+		DefaultSourceScheme:      arg.DefaultSourceScheme,
+		DefaultSourceValue:       arg.DefaultSourceValue,
 		AllowOverrideSource:      arg.AllowOverrideSource,
-		DefaultDestination:       arg.DefaultDestination,
+		DefaultDestinationScheme: arg.DefaultDestinationScheme,
+		DefaultDestinationValue:  arg.DefaultDestinationValue,
 		AllowOverrideDestination: arg.AllowOverrideDestination,
 		DefaultRefresh:           arg.DefaultRefresh,
 		RedisplayValue:           arg.RedisplayValue,

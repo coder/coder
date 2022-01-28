@@ -6,26 +6,26 @@ package provisioner;
 
 // ParameterSource represents the source location for a parameter to get it's value from.
 message ParameterSource {
-    enum Target {
+    enum Scheme {
         DATA = 0;
     }
-    Target target = 1;
+    Scheme scheme = 1;
     string value = 2;
 }
 
 // ParameterDestination represents the target location for a provisioner to set the value.
 message ParameterDestination {
-    enum Target {
+    enum Scheme {
         ENVIRONMENT_VARIABLE = 0;
         PROVISIONER_VARIABLE = 1;
     }
-    Target target = 1;
+    Scheme scheme = 1;
     string value = 2;
 }
 
 // ParameterValue represents the resolved source and destination of a parameter.
 message ParameterValue {
-    ParameterDestination.Target destination_target = 1;
+    ParameterDestination.Scheme destination_scheme = 1;
     string name = 2;
     string value = 3;
 }

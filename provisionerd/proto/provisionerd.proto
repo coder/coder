@@ -9,12 +9,6 @@ import "provisionersdk/proto/provisioner.proto";
 // Empty indicates a successful request/response.
 message Empty {}
 
-message ParameterValue {
-    string destination = 1;
-    string name = 2;
-    string value = 3;
-}
-
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
     message WorkspaceProvision {

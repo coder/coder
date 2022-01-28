@@ -63,7 +63,7 @@ func TestProvision(t *testing.T) {
 		},
 		Request: &proto.Provision_Request{
 			ParameterValues: []*proto.ParameterValue{{
-				DestinationTarget: proto.ParameterDestination_PROVISIONER_VARIABLE,
+				DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 				Name:              "A",
 				Value:             "example",
 			}},
