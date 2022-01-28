@@ -1,72 +1,84 @@
 package provisionerd_test
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
-	"storj.io/drpc/drpcconn"
-	"storj.io/drpc/drpcmux"
-	"storj.io/drpc/drpcserver"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
 )
 
 func TestProvisionerd(t *testing.T) {
 	t.Parallel()
-	t.Run("Example", func(t *testing.T) {
-		t.Parallel()
 
-		api := provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return setupClient(t, &provisionerdTestServer{
-				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					return nil, nil
-				},
-				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-					for {
-						_, _ = stream.Recv()
-					}
-					return nil
-				},
-			}), nil
-		}, provisionerd.Provisioners{}, &provisionerd.Options{})
+	setupProjectAndWorkspace := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest) (coderd.Project, coderd.Workspace) {
+		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "banana",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		workspace, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			Name:      "hiii",
+			ProjectID: project.ID,
+		})
+		require.NoError(t, err)
+		return project, workspace
+	}
+
+	setupProjectVersion := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project) coderd.ProjectHistory {
+		var buffer bytes.Buffer
+		writer := tar.NewWriter(&buffer)
+		err := writer.WriteHeader(&tar.Header{
+			Name: "file",
+			Size: 1 << 10,
+		})
+		require.NoError(t, err)
+		_, err = writer.Write(make([]byte, 1<<10))
+		require.NoError(t, err)
+		projectHistory, err := client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+			StorageMethod: database.ProjectStorageMethodInlineArchive,
+			StorageSource: buffer.Bytes(),
+		})
+		require.NoError(t, err)
+		return projectHistory
+	}
+
+	t.Run("InstantClose", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		api := provisionerd.New(server.Client.ListenProvisionerDaemon, provisionerd.Provisioners{}, &provisionerd.Options{
+			Logger: slogtest.Make(t, nil),
+		})
 		defer api.Close()
 	})
-}
 
-func setupClient(t *testing.T, server *provisionerdTestServer) proto.DRPCProvisionerDaemonClient {
-	mux := drpcmux.New()
-	err := proto.DRPCRegisterProvisionerDaemon(mux, server)
-	require.NoError(t, err)
-	srv := drpcserver.New(mux)
+	t.Run("ProcessJob", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
+		projectVersion := setupProjectVersion(t, server.Client, user, project)
+		_, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectHistoryID: projectVersion.ID,
+			Transition:       database.WorkspaceTransitionCreate,
+		})
+		require.NoError(t, err)
 
-	clientConn, serverConn := provisionersdk.TransportPipe()
-	t.Cleanup(func() {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
+		api := provisionerd.New(server.Client.ListenProvisionerDaemon, provisionerd.Provisioners{}, &provisionerd.Options{
+			Logger:          slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			AcquireInterval: 50 * time.Millisecond,
+		})
+		defer api.Close()
+		time.Sleep(time.Millisecond * 3000)
 	})
-	go func() {
-		_ = srv.ServeOne(context.Background(), serverConn)
-	}()
-	return proto.NewDRPCProvisionerDaemonClient(drpcconn.New((clientConn)))
-}
-
-type provisionerdTestServer struct {
-	acquireJob  func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error)
-	updateJob   func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error
-	completeJob func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
-}
-
-func (p *provisionerdTestServer) AcquireJob(ctx context.Context, empty *proto.Empty) (*proto.AcquiredJob, error) {
-	return p.acquireJob(ctx, empty)
-}
-
-func (p *provisionerdTestServer) UpdateJob(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-	return p.updateJob(stream)
-}
-
-func (p *provisionerdTestServer) CompleteJob(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
-	return p.completeJob(ctx, job)
 }

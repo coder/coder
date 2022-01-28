@@ -37,10 +37,6 @@ func New(apiDialer Dialer, provisioners Provisioners, opts *Options) *API {
 		closeContext:       ctx,
 		closeContextCancel: ctxCancel,
 		closed:             make(chan struct{}),
-		// acquireTicker: time.NewTicker(opts.AcquireInterval),
-
-		// ctx:       ctx,
-		// ctxCancel: ctxCancel,
 	}
 	go api.connect()
 	return api
@@ -84,10 +80,14 @@ func (a *API) connect() {
 			a.opts.Logger.Warn(context.Background(), "create update job stream", slog.Error(err))
 			continue
 		}
+		a.opts.Logger.Debug(context.Background(), "connected")
 		break
 	}
 
 	go func() {
+		if a.isClosed() {
+			return
+		}
 		select {
 		case <-a.closed:
 			return
@@ -101,17 +101,43 @@ func (a *API) connect() {
 	}()
 
 	go func() {
+		if a.isClosed() {
+			return
+		}
 		ticker := time.NewTicker(a.opts.AcquireInterval)
 		defer ticker.Stop()
 		for {
 			select {
+			case <-a.closed:
+				return
 			case <-a.updateStream.Context().Done():
 				return
 			case <-ticker.C:
-				// Acquire new jobs!
+				if a.activeJob != nil {
+					a.opts.Logger.Debug(context.Background(), "skipping acquire; job is already running")
+					continue
+				}
+				a.acquireJob()
 			}
 		}
 	}()
+}
+
+func (a *API) acquireJob() {
+	a.opts.Logger.Debug(context.Background(), "acquiring new job")
+	var err error
+	a.activeJob, err = a.client.AcquireJob(a.closeContext, &proto.Empty{})
+	if err != nil {
+		a.opts.Logger.Error(context.Background(), "acquire job", slog.Error(err))
+		return
+	}
+	a.opts.Logger.Info(context.Background(), "acquired job",
+		slog.F("organization_name", a.activeJob.OrganizationName),
+		slog.F("project_name", a.activeJob.ProjectName),
+		slog.F("username", a.activeJob.UserName),
+		slog.F("provisioner", a.activeJob.Provisioner),
+	)
+	// Work!
 }
 
 // isClosed returns whether the API is closed or not.
@@ -133,7 +159,6 @@ func (a *API) Close() error {
 func (a *API) closeWithError(err error) error {
 	a.closeMutex.Lock()
 	defer a.closeMutex.Unlock()
-
 	if a.isClosed() {
 		return a.closeError
 	}

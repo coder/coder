@@ -23,6 +23,9 @@ func New(options *Options) http.Handler {
 	projects := &projects{
 		Database: options.Database,
 	}
+	provisionerd := &provisionerd{
+		Database: options.Database,
+	}
 	users := &users{
 		Database: options.Database,
 	}
@@ -39,6 +42,7 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/login", users.loginWithPassword)
 		r.Post("/logout", users.logout)
+		r.Get("/provisionerd", provisionerd.listen)
 		// Used for setup.
 		r.Post("/user", users.createInitialUser)
 		r.Route("/users", func(r chi.Router) {
