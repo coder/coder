@@ -15,7 +15,7 @@ import (
 
 // Scope targets identifiers to pull parameters from.
 type Scope struct {
-	OrganizationID     uuid.UUID
+	OrganizationID     string
 	ProjectID          uuid.UUID
 	ProjectHistoryID   uuid.UUID
 	UserID             string
@@ -57,7 +57,7 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 	// Organization parameters come first!
 	organizationParameters, err := db.GetParameterValuesByScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeOrganization,
-		ScopeID: scope.OrganizationID.String(),
+		ScopeID: scope.OrganizationID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -153,7 +153,7 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 		if _, ok := compute.parameterByName[projectParameter.Name]; ok {
 			continue
 		}
-		return nil, NoValueErr{
+		return nil, NoValueError{
 			ParameterID:   projectParameter.ID,
 			ParameterName: projectParameter.Name,
 		}
@@ -223,11 +223,11 @@ func convertDestinationScheme(scheme database.ParameterDestinationScheme) (proto
 	}
 }
 
-type NoValueErr struct {
+type NoValueError struct {
 	ParameterID   uuid.UUID
 	ParameterName string
 }
 
-func (e NoValueErr) Error() string {
+func (e NoValueError) Error() string {
 	return fmt.Sprintf("no value for parameter %q found", e.ParameterName)
 }

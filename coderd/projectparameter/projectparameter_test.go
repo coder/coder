@@ -17,9 +17,9 @@ import (
 
 func TestCompute(t *testing.T) {
 	t.Parallel()
-	setup := func() projectparameter.Scope {
+	generateScope := func() projectparameter.Scope {
 		return projectparameter.Scope{
-			OrganizationID:   uuid.New(),
+			OrganizationID:   uuid.New().String(),
 			ProjectID:        uuid.New(),
 			ProjectHistoryID: uuid.New(),
 			UserID:           uuid.NewString(),
@@ -65,7 +65,7 @@ func TestCompute(t *testing.T) {
 	t.Run("NoValue", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		scope := setup()
+		scope := generateScope()
 		parameter, err := db.InsertProjectParameter(context.Background(), database.InsertProjectParameterParams{
 			ID:               uuid.New(),
 			ProjectHistoryID: scope.ProjectHistoryID,
@@ -74,7 +74,7 @@ func TestCompute(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = projectparameter.Compute(context.Background(), db, scope)
-		var noValueErr projectparameter.NoValueErr
+		var noValueErr projectparameter.NoValueError
 		require.ErrorAs(t, err, &noValueErr)
 		require.Equal(t, parameter.ID.String(), noValueErr.ParameterID.String())
 		require.Equal(t, parameter.Name, noValueErr.ParameterName)
@@ -83,7 +83,7 @@ func TestCompute(t *testing.T) {
 	t.Run("UseDefaultProjectValue", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		scope := setup()
+		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
 			ProjectHistoryID:         scope.ProjectHistoryID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
@@ -103,7 +103,7 @@ func TestCompute(t *testing.T) {
 	t.Run("OverrideOrganizationWithProjectDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		scope := setup()
+		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
 			ProjectHistoryID: scope.ProjectHistoryID,
 		})
@@ -111,7 +111,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeOrganization,
-			ScopeID:           scope.OrganizationID.String(),
+			ScopeID:           scope.OrganizationID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -129,7 +129,7 @@ func TestCompute(t *testing.T) {
 	t.Run("ProjectOverridesProjectDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		scope := setup()
+		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
 			ProjectHistoryID: scope.ProjectHistoryID,
 		})
@@ -155,7 +155,7 @@ func TestCompute(t *testing.T) {
 	t.Run("WorkspaceCannotOverwriteProjectDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		scope := setup()
+		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
 			ProjectHistoryID: scope.ProjectHistoryID,
 		})
@@ -180,7 +180,7 @@ func TestCompute(t *testing.T) {
 	t.Run("WorkspaceOverwriteProjectDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
-		scope := setup()
+		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
 			AllowOverrideSource: true,
 			ProjectHistoryID:    scope.ProjectHistoryID,
