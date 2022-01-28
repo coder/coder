@@ -190,10 +190,6 @@ func (c *compute) inject(scopedParameters []database.ParameterValue) error {
 			}
 		}
 
-		// If a user attempts to add a variable via API that isn't defined by the project,
-		// or it contains schema that isn't allowed, we should return that it's invalid so
-		// we can display it in the UI.
-
 		destinationScheme, err := convertDestinationScheme(scopedParameter.DestinationScheme)
 		if err != nil {
 			return xerrors.Errorf("convert destination scheme: %w", err)
