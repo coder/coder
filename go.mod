@@ -2,9 +2,6 @@ module github.com/coder/coder
 
 go 1.17
 
-// Required until https://github.com/pion/ice/pull/413 is merged.
-replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220127013758-526c25708344
-
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
