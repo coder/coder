@@ -17,6 +17,7 @@ require (
 	github.com/hashicorp/hc-install v0.3.1
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
+	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/justinas/nosurf v1.1.1
 	github.com/lib/pq v1.10.4
 	github.com/moby/moby v20.10.12+incompatible

@@ -45,7 +45,8 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 	// All parameters for the project version!
 	projectHistoryParameters, err := db.GetProjectParametersByHistoryID(ctx, scope.ProjectHistoryID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.New("no parameters found for history id")
+		// It's valid to have no parameters!
+		return []Value{}, nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("get project parameters: %w", err)

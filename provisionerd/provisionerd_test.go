@@ -56,7 +56,7 @@ func TestProvisionerd(t *testing.T) {
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		api := provisionerd.New(server.Client.ListenProvisionerDaemon, provisionerd.Provisioners{}, &provisionerd.Options{
+		api := provisionerd.New(server.Client.ProvisionerDaemonClient, provisionerd.Provisioners{}, &provisionerd.Options{
 			Logger: slogtest.Make(t, nil),
 		})
 		defer api.Close()
@@ -74,11 +74,11 @@ func TestProvisionerd(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		api := provisionerd.New(server.Client.ListenProvisionerDaemon, provisionerd.Provisioners{}, &provisionerd.Options{
+		api := provisionerd.New(server.Client.ProvisionerDaemonClient, provisionerd.Provisioners{}, &provisionerd.Options{
 			Logger:          slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			AcquireInterval: 50 * time.Millisecond,
 		})
 		defer api.Close()
-		time.Sleep(time.Millisecond * 3000)
+		time.Sleep(time.Millisecond * 500)
 	})
 }

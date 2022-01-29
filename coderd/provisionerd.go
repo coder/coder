@@ -13,6 +13,7 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
 
 	"github.com/coder/coder/coderd/projectparameter"
@@ -36,7 +37,6 @@ func (p *provisionerd) listen(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// defer conn.Close(websocket.StatusInternalError, "request closed")
 
 	daemon, err := p.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
@@ -49,6 +49,11 @@ func (p *provisionerd) listen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), nil)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("multiplex server: %s", err))
+		return
+	}
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
 		ID:       daemon.ID,
@@ -58,17 +63,11 @@ func (p *provisionerd) listen(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("drpc register provisioner daemon: %s", err))
 		return
 	}
-	srv := drpcserver.New(mux)
-	fmt.Printf("WE AT LEAST GETTING HERE!\n")
-	nc := websocket.NetConn(context.Background(), conn, websocket.MessageBinary)
-	// go func() {
-	err = srv.ServeOne(context.Background(), nc)
+	server := drpcserver.New(mux)
+	err = server.Serve(r.Context(), session)
 	if err != nil {
-		fmt.Printf("WE ARE FAILING TO SERV! %s\n", err)
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("serve: %s", err))
-		return
 	}
-	// }()
 }
 
 // The input for a "workspace_provision" job.
@@ -122,7 +121,7 @@ func (s *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty) (*p
 		if err != nil {
 			return xerrors.Errorf("update provisioner job: %w", err)
 		}
-		return xerrors.Errorf("request job was invalidated: %s", err)
+		return xerrors.Errorf("request job was invalidated: %s", errorMessage)
 	}
 
 	project, err := s.Database.GetProjectByID(ctx, job.ProjectID)
@@ -161,7 +160,7 @@ func (s *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty) (*p
 			return nil, failJob(fmt.Sprintf("get workspace history: %s", err))
 		}
 
-		workspace, err := s.Database.GetWorkspaceByID(ctx, workspaceHistory.ID)
+		workspace, err := s.Database.GetWorkspaceByID(ctx, workspaceHistory.WorkspaceID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace: %s", err))
 		}
