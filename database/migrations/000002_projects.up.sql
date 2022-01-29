@@ -48,6 +48,12 @@ CREATE TABLE project_history (
 -- Types of parameters the automator supports.
 CREATE TYPE parameter_type_system AS ENUM ('hcl');
 
+-- Supported schemes for a parameter source.
+CREATE TYPE parameter_source_scheme AS ENUM('data');
+
+-- Supported schemes for a parameter destination.
+CREATE TYPE parameter_destination_scheme AS ENUM('environment_variable', 'provisioner_variable');
+
 -- Stores project version parameters parsed on import.
 -- No secrets are stored here.
 -- 
@@ -65,11 +71,13 @@ CREATE TABLE project_parameter (
     -- 8KB limit
     description varchar(8192) NOT NULL DEFAULT '',
     -- eg. data://inlinevalue
-    default_source text,
+    default_source_scheme parameter_source_scheme,
+    default_source_value text,
     -- Allows the user to override the source.
     allow_override_source boolean NOT null,
     -- eg. env://SOME_VARIABLE, tfvars://example
-    default_destination text,
+    default_destination_scheme parameter_destination_scheme,
+    default_destination_value text,
     -- Allows the user to override the destination.
     allow_override_destination boolean NOT null,
     default_refresh text NOT NULL,

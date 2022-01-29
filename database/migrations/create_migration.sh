@@ -8,4 +8,4 @@ fi
 
 migrate create -ext sql -dir . -seq $1
 
-echo "After making adjustments, run \"make database/generate\" to generate models."
+echo "Run \"make gen\" to generate models."
