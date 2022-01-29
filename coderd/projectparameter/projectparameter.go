@@ -34,159 +34,142 @@ type Value struct {
 }
 
 // Compute accepts a scope in which parameter values are sourced.
-// These sources are iterated in a hierarchial fashion to determine
-// the runtime parameter vaues for a project.
+// These sources are iterated in a hierarchical fashion to determine
+// the runtime parameter values for a project.
 func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, error) {
 	compute := &compute{
-		parameterByName:        map[string]Value{},
-		projectParameterByName: map[string]database.ProjectParameter{},
+		db:                             db,
+		computedParameterByName:        map[string]Value{},
+		projectHistoryParametersByName: map[string]database.ProjectParameter{},
 	}
 
 	// All parameters for the project version!
 	projectHistoryParameters, err := db.GetProjectParametersByHistoryID(ctx, scope.ProjectHistoryID)
 	if errors.Is(err, sql.ErrNoRows) {
-		// It's valid to have no parameters!
+		// This occurs when the project history has defined
+		// no parameters, so we have nothing to compute!
 		return []Value{}, nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("get project parameters: %w", err)
 	}
-	for _, projectParameter := range projectHistoryParameters {
-		compute.projectParameterByName[projectParameter.Name] = projectParameter
+	for _, projectHistoryParameter := range projectHistoryParameters {
+		compute.projectHistoryParametersByName[projectHistoryParameter.Name] = projectHistoryParameter
 	}
 
 	// Organization parameters come first!
-	organizationParameters, err := db.GetParameterValuesByScope(ctx, database.GetParameterValuesByScopeParams{
+	err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeOrganization,
 		ScopeID: scope.OrganizationID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
 	if err != nil {
-		return nil, xerrors.Errorf("get organization parameters: %w", err)
-	}
-	err = compute.inject(organizationParameters)
-	if err != nil {
-		return nil, xerrors.Errorf("inject organization parameters: %w", err)
+		return nil, err
 	}
 
 	// Default project parameter values come second!
-	for _, projectParameter := range projectHistoryParameters {
-		if !projectParameter.DefaultSourceValue.Valid {
+	for _, projectHistoryParameter := range projectHistoryParameters {
+		if !projectHistoryParameter.DefaultSourceValue.Valid {
 			continue
 		}
-		if !projectParameter.DefaultDestinationValue.Valid {
+		if !projectHistoryParameter.DefaultDestinationValue.Valid {
 			continue
 		}
 
-		destinationScheme, err := convertDestinationScheme(projectParameter.DefaultDestinationScheme)
+		destinationScheme, err := convertDestinationScheme(projectHistoryParameter.DefaultDestinationScheme)
 		if err != nil {
-			return nil, xerrors.Errorf("convert default destination scheme for project parameter %q: %w", projectParameter.Name, err)
+			return nil, xerrors.Errorf("convert default destination scheme for project history parameter %q: %w", projectHistoryParameter.Name, err)
 		}
 
-		switch projectParameter.DefaultSourceScheme {
+		switch projectHistoryParameter.DefaultSourceScheme {
 		case database.ParameterSourceSchemeData:
-			compute.parameterByName[projectParameter.Name] = Value{
+			compute.computedParameterByName[projectHistoryParameter.Name] = Value{
 				Proto: &proto.ParameterValue{
 					DestinationScheme: destinationScheme,
-					Name:              projectParameter.DefaultDestinationValue.String,
-					Value:             projectParameter.DefaultSourceValue.String,
+					Name:              projectHistoryParameter.DefaultDestinationValue.String,
+					Value:             projectHistoryParameter.DefaultSourceValue.String,
 				},
 				DefaultValue: true,
 				Scope:        database.ParameterScopeProject,
 				ScopeID:      scope.ProjectID.String(),
 			}
 		default:
-			return nil, xerrors.Errorf("unsupported source scheme for project parameter %q: %q", projectParameter.Name, string(projectParameter.DefaultSourceScheme))
+			return nil, xerrors.Errorf("unsupported source scheme for project history parameter %q: %q", projectHistoryParameter.Name, string(projectHistoryParameter.DefaultSourceScheme))
 		}
 	}
 
 	// Project parameters come third!
-	projectParameters, err := db.GetParameterValuesByScope(ctx, database.GetParameterValuesByScopeParams{
+	err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeProject,
 		ScopeID: scope.ProjectID.String(),
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
 	if err != nil {
-		return nil, xerrors.Errorf("get project parameters: %w", err)
-	}
-	err = compute.inject(projectParameters)
-	if err != nil {
-		return nil, xerrors.Errorf("inject project parameters: %w", err)
+		return nil, err
 	}
 
 	// User parameters come fourth!
-	userParameters, err := db.GetParameterValuesByScope(ctx, database.GetParameterValuesByScopeParams{
+	err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeUser,
 		ScopeID: scope.UserID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
 	if err != nil {
-		return nil, xerrors.Errorf("get user parameters: %w", err)
-	}
-	err = compute.inject(userParameters)
-	if err != nil {
-		return nil, xerrors.Errorf("inject user parameters: %w", err)
+		return nil, err
 	}
 
 	// Workspace parameters come last!
-	workspaceParameters, err := db.GetParameterValuesByScope(ctx, database.GetParameterValuesByScopeParams{
+	err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeWorkspace,
 		ScopeID: scope.WorkspaceID.String(),
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace parameters: %w", err)
-	}
-	err = compute.inject(workspaceParameters)
-	if err != nil {
-		return nil, xerrors.Errorf("inject workspace parameters: %w", err)
+		return nil, err
 	}
 
-	for _, projectParameter := range compute.projectParameterByName {
-		if _, ok := compute.parameterByName[projectParameter.Name]; ok {
+	for _, projectHistoryParameter := range compute.projectHistoryParametersByName {
+		if _, ok := compute.computedParameterByName[projectHistoryParameter.Name]; ok {
 			continue
 		}
 		return nil, NoValueError{
-			ParameterID:   projectParameter.ID,
-			ParameterName: projectParameter.Name,
+			ParameterID:   projectHistoryParameter.ID,
+			ParameterName: projectHistoryParameter.Name,
 		}
 	}
 
-	values := make([]Value, 0, len(compute.parameterByName))
-	for _, value := range compute.parameterByName {
+	values := make([]Value, 0, len(compute.computedParameterByName))
+	for _, value := range compute.computedParameterByName {
 		values = append(values, value)
 	}
 	return values, nil
 }
 
 type compute struct {
-	parameterByName        map[string]Value
-	projectParameterByName map[string]database.ProjectParameter
+	db                             database.Store
+	computedParameterByName        map[string]Value
+	projectHistoryParametersByName map[string]database.ProjectParameter
 }
 
 // Validates and computes the value for parameters; setting the value on "parameterByName".
-func (c *compute) inject(scopedParameters []database.ParameterValue) error {
+func (c *compute) inject(ctx context.Context, scopeParams database.GetParameterValuesByScopeParams) error {
+	scopedParameters, err := c.db.GetParameterValuesByScope(ctx, scopeParams)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get %s parameters: %w", scopeParams.Scope, err)
+	}
+
 	for _, scopedParameter := range scopedParameters {
-		projectParameter, hasProjectParameter := c.projectParameterByName[scopedParameter.Name]
-		if !hasProjectParameter {
+		projectHistoryParameter, hasProjectHistoryParameter := c.projectHistoryParametersByName[scopedParameter.Name]
+		if !hasProjectHistoryParameter {
 			// Don't inject parameters that aren't defined by the project.
 			continue
 		}
 
-		_, hasExistingParameter := c.parameterByName[scopedParameter.Name]
+		_, hasExistingParameter := c.computedParameterByName[scopedParameter.Name]
 		if hasExistingParameter {
 			// If a parameter already exists, check if this variable can override it.
 			// Injection hierarchy is the responsibility of the caller. This check ensures
 			// project parameters cannot be overridden if already set.
-			if !projectParameter.AllowOverrideSource && scopedParameter.Scope != database.ParameterScopeProject {
+			if !projectHistoryParameter.AllowOverrideSource && scopedParameter.Scope != database.ParameterScopeProject {
 				continue
 			}
 		}
@@ -198,7 +181,7 @@ func (c *compute) inject(scopedParameters []database.ParameterValue) error {
 
 		switch scopedParameter.SourceScheme {
 		case database.ParameterSourceSchemeData:
-			c.parameterByName[projectParameter.Name] = Value{
+			c.computedParameterByName[projectHistoryParameter.Name] = Value{
 				Proto: &proto.ParameterValue{
 					DestinationScheme: destinationScheme,
 					Name:              scopedParameter.SourceValue,
@@ -206,7 +189,7 @@ func (c *compute) inject(scopedParameters []database.ParameterValue) error {
 				},
 			}
 		default:
-			return xerrors.Errorf("unsupported source scheme: %q", string(projectParameter.DefaultSourceScheme))
+			return xerrors.Errorf("unsupported source scheme: %q", string(projectHistoryParameter.DefaultSourceScheme))
 		}
 	}
 	return nil
