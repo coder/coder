@@ -168,6 +168,7 @@ func (a *API) acquireJob() {
 			a.cancelActiveJob(fmt.Sprintf("remove all from %q directory: %s", a.opts.WorkDirectory, err))
 			return
 		}
+		a.opts.Logger.Debug(context.Background(), "cleaned up work directory")
 	}()
 
 	err = os.MkdirAll(a.opts.WorkDirectory, 0600)
@@ -233,6 +234,26 @@ func (a *API) acquireJob() {
 		a.opts.Logger.Debug(context.Background(), "acquired job is project import",
 			slog.F("project_history_name", jobType.ProjectImport.ProjectHistoryName),
 		)
+
+		response, err := provisioner.Parse(a.closeContext, &provisionersdkproto.Parse_Request{
+			Directory: a.opts.WorkDirectory,
+		})
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("parse source: %s", err))
+			return
+		}
+		_, err = a.client.CompleteJob(a.closeContext, &proto.CompletedJob{
+			JobId: a.activeJob.JobId,
+			Type: &proto.CompletedJob_ProjectImport_{
+				ProjectImport: &proto.CompletedJob_ProjectImport{
+					ParameterSchemas: response.ParameterSchemas,
+				},
+			},
+		})
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("complete job: %s", err))
+			return
+		}
 	case *proto.AcquiredJob_WorkspaceProvision_:
 		a.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceProvision.WorkspaceName),
@@ -240,13 +261,40 @@ func (a *API) acquireJob() {
 			slog.F("parameters", jobType.WorkspaceProvision.ParameterValues),
 		)
 
+		response, err := provisioner.Provision(a.closeContext, &provisionersdkproto.Provision_Request{
+			Directory:       a.opts.WorkDirectory,
+			ParameterValues: jobType.WorkspaceProvision.ParameterValues,
+			State:           jobType.WorkspaceProvision.State,
+		})
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("provision: %s", err))
+			return
+		}
+		a.opts.Logger.Debug(context.Background(), "provision successful; marking job as complete",
+			slog.F("resource_count", len(response.Resources)),
+			slog.F("resources", response.Resources),
+			slog.F("state_length", len(response.State)),
+		)
+
+		// Complete job may need to be async if we disconnected...
+		// When we reconnect we can flush any of these cached values.
+		_, err = a.client.CompleteJob(a.closeContext, &proto.CompletedJob{
+			JobId: a.activeJob.JobId,
+			Type: &proto.CompletedJob_WorkspaceProvision_{
+				WorkspaceProvision: &proto.CompletedJob_WorkspaceProvision{
+					State:     response.State,
+					Resources: response.Resources,
+				},
+			},
+		})
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("complete job: %s", err))
+			return
+		}
 	default:
 		a.cancelActiveJob(fmt.Sprintf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(a.activeJob.Type).String()))
 		return
 	}
-
-	fmt.Printf("Provisioner: %s\n", provisioner)
-	// Work!
 }
 
 func (a *API) cancelActiveJob(errMsg string) {
@@ -255,6 +303,9 @@ func (a *API) cancelActiveJob(errMsg string) {
 
 	if a.client == nil {
 		a.activeJob = nil
+		return
+	}
+	if a.activeJob == nil {
 		return
 	}
 

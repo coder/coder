@@ -1853,18 +1853,28 @@ UPDATE
   workspace_history
 SET
   updated_at = $2,
-  after_id = $3
+  completed_at = $3,
+  after_id = $4,
+  provisioner_state = $5
 WHERE
   id = $1
 `
 
 type UpdateWorkspaceHistoryByIDParams struct {
-	ID        uuid.UUID     `db:"id" json:"id"`
-	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
-	AfterID   uuid.NullUUID `db:"after_id" json:"after_id"`
+	ID               uuid.UUID     `db:"id" json:"id"`
+	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
+	CompletedAt      sql.NullTime  `db:"completed_at" json:"completed_at"`
+	AfterID          uuid.NullUUID `db:"after_id" json:"after_id"`
+	ProvisionerState []byte        `db:"provisioner_state" json:"provisioner_state"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceHistoryByID(ctx context.Context, arg UpdateWorkspaceHistoryByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceHistoryByID, arg.ID, arg.UpdatedAt, arg.AfterID)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceHistoryByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.CompletedAt,
+		arg.AfterID,
+		arg.ProvisionerState,
+	)
 	return err
 }

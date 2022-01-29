@@ -42,12 +42,13 @@ func TestProvisionerd(t *testing.T) {
 	setupProjectVersion := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project) coderd.ProjectHistory {
 		var buffer bytes.Buffer
 		writer := tar.NewWriter(&buffer)
+		content := `resource "null_resource" "hi" {}`
 		err := writer.WriteHeader(&tar.Header{
-			Name: "file",
-			Size: 1 << 10,
+			Name: "main.tf",
+			Size: int64(len(content)),
 		})
 		require.NoError(t, err)
-		_, err = writer.Write(make([]byte, 1<<10))
+		_, err = writer.Write([]byte(content))
 		require.NoError(t, err)
 		projectHistory, err := client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
@@ -102,6 +103,6 @@ func TestProvisionerd(t *testing.T) {
 			WorkDirectory:   t.TempDir(),
 		})
 		defer api.Close()
-		time.Sleep(time.Millisecond * 500)
+		time.Sleep(time.Millisecond * 1500)
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
@@ -267,6 +268,194 @@ func (s *provisionerdServer) CancelJob(ctx context.Context, cancelJob *proto.Can
 	return &proto.Empty{}, nil
 }
 
+// CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (s *provisionerdServer) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
-	return nil, nil
+	jobID, err := uuid.Parse(completed.JobId)
+	if err != nil {
+		return nil, xerrors.Errorf("parse job id: %w", err)
+	}
+	job, err := s.Database.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get job by id: %w", err)
+	}
+	// TODO: Check if the worker ID matches!
+	// If it doesn't, a provisioner daemon could be impersonating another job!
+
+	switch jobType := completed.Type.(type) {
+	case *proto.CompletedJob_ProjectImport_:
+		var input projectImportJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal job data: %w", err)
+		}
+
+		// Validate that all parameters send from the provisioner daemon
+		// follow the protocol.
+		projectParameters := make([]database.InsertProjectParameterParams, 0, len(jobType.ProjectImport.ParameterSchemas))
+		for _, protoParameter := range jobType.ProjectImport.ParameterSchemas {
+			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
+			if err != nil {
+				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
+			}
+
+			projectParameter := database.InsertProjectParameterParams{
+				ID:                   uuid.New(),
+				CreatedAt:            database.Now(),
+				ProjectHistoryID:     input.ProjectHistoryID,
+				Name:                 protoParameter.Name,
+				Description:          protoParameter.Description,
+				RedisplayValue:       protoParameter.RedisplayValue,
+				ValidationError:      protoParameter.ValidationError,
+				ValidationCondition:  protoParameter.ValidationCondition,
+				ValidationValueType:  protoParameter.ValidationValueType,
+				ValidationTypeSystem: validationTypeSystem,
+
+				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
+				AllowOverrideSource:      protoParameter.AllowOverrideSource,
+			}
+
+			// It's possible a parameter doesn't define a default source!
+			if protoParameter.DefaultSource != nil {
+				parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
+				if err != nil {
+					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
+				}
+				projectParameter.DefaultSourceScheme = parameterSourceScheme
+				projectParameter.DefaultSourceValue = sql.NullString{
+					String: protoParameter.DefaultSource.Value,
+					Valid:  protoParameter.DefaultSource.Value != "",
+				}
+			}
+
+			// It's possible a parameter doesn't define a default destination!
+			if protoParameter.DefaultDestination != nil {
+				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
+				if err != nil {
+					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
+				}
+				projectParameter.DefaultDestinationScheme = parameterDestinationScheme
+				projectParameter.DefaultDestinationValue = sql.NullString{
+					String: protoParameter.DefaultDestination.Value,
+					Valid:  protoParameter.DefaultDestination.Value != "",
+				}
+			}
+
+			projectParameters = append(projectParameters, projectParameter)
+		}
+
+		// This must occur in a transaction in case of failure.
+		err = s.Database.InTx(func(db database.Store) error {
+			err = db.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+				ID:        jobID,
+				UpdatedAt: database.Now(),
+				CompletedAt: sql.NullTime{
+					Time:  database.Now(),
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("update provisioner job: %w", err)
+			}
+			for _, projectParameter := range projectParameters {
+				_, err = db.InsertProjectParameter(ctx, projectParameter)
+				if err != nil {
+					return xerrors.Errorf("insert project parameter %q: %w", projectParameter.Name, err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+	case *proto.CompletedJob_WorkspaceProvision_:
+		var input workspaceProvisionJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal job data: %w", err)
+		}
+
+		workspaceHistory, err := s.Database.GetWorkspaceHistoryByID(ctx, input.WorkspaceHistoryID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace history: %w", err)
+		}
+
+		err = s.Database.InTx(func(db database.Store) error {
+			err = db.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+				ID:        jobID,
+				UpdatedAt: database.Now(),
+				CompletedAt: sql.NullTime{
+					Time:  database.Now(),
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("update provisioner job: %w", err)
+			}
+			err = db.UpdateWorkspaceHistoryByID(ctx, database.UpdateWorkspaceHistoryByIDParams{
+				ID:               workspaceHistory.ID,
+				UpdatedAt:        database.Now(),
+				ProvisionerState: jobType.WorkspaceProvision.State,
+				CompletedAt: sql.NullTime{
+					Time:  database.Now(),
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace history: %w", err)
+			}
+			for _, protoResource := range jobType.WorkspaceProvision.Resources {
+				_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
+					ID:                 uuid.New(),
+					CreatedAt:          database.Now(),
+					WorkspaceHistoryID: input.WorkspaceHistoryID,
+					Type:               protoResource.Type,
+					Name:               protoResource.Name,
+					// TODO: Generate this at the variable validation phase.
+					// Set the value in `default_source`, and disallow overwrite.
+					WorkspaceAgentToken: uuid.NewString(),
+				})
+				if err != nil {
+					return xerrors.Errorf("insert workspace resource %q: %w", protoResource.Name, err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("complete job: %w", err)
+		}
+	default:
+		return nil, xerrors.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",
+			reflect.TypeOf(completed.Type).String())
+	}
+
+	return &proto.Empty{}, nil
+}
+
+func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
+	switch typeSystem {
+	case sdkproto.ParameterSchema_HCL:
+		return database.ParameterTypeSystemHCL, nil
+	default:
+		return database.ParameterTypeSystem(""), xerrors.Errorf("unknown type system: %d", typeSystem)
+	}
+}
+
+func convertParameterSourceScheme(sourceScheme sdkproto.ParameterSource_Scheme) (database.ParameterSourceScheme, error) {
+	switch sourceScheme {
+	case sdkproto.ParameterSource_DATA:
+		return database.ParameterSourceSchemeData, nil
+	default:
+		return database.ParameterSourceScheme(""), xerrors.Errorf("unknown parameter source scheme: %d", sourceScheme)
+	}
+}
+
+func convertParameterDestinationScheme(destinationScheme sdkproto.ParameterDestination_Scheme) (database.ParameterDestinationScheme, error) {
+	switch destinationScheme {
+	case sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE:
+		return database.ParameterDestinationSchemeEnvironmentVariable, nil
+	case sdkproto.ParameterDestination_PROVISIONER_VARIABLE:
+		return database.ParameterDestinationSchemeProvisionerVariable, nil
+	default:
+		return database.ParameterDestinationScheme(""), xerrors.Errorf("unknown parameter destination scheme: %d", destinationScheme)
+	}
 }
