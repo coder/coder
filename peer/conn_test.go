@@ -35,11 +35,11 @@ var (
 		// In CI resources are frequently contended, so increasing this value
 		// results in less flakes.
 		if os.Getenv("CI") == "true" {
-			return 4 * time.Second
+			return 3 * time.Second
 		}
 		return 100 * time.Millisecond
 	}()
-	failedTimeout     = disconnectedTimeout * 4
+	failedTimeout     = disconnectedTimeout * 3
 	keepAliveInterval = time.Millisecond * 2
 
 	// There's a global race in the vnet library allocation code.
@@ -48,7 +48,14 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	// pion/ice doesn't properly close immediately. The solution for this isn't yet known. See:
+	// https://github.com/pion/ice/pull/413
+	goleak.VerifyTestMain(m,
+		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func1"),
+		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func2"),
+		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).taskLoop"),
+		goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
+	)
 }
 
 func TestConn(t *testing.T) {
