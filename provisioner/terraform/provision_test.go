@@ -63,8 +63,9 @@ func TestProvision(t *testing.T) {
 		},
 		Request: &proto.Provision_Request{
 			ParameterValues: []*proto.ParameterValue{{
-				Name:  "A",
-				Value: "example",
+				DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+				Name:              "A",
+				Value:             "example",
 			}},
 		},
 		Response: &proto.Provision_Response{},

@@ -37,10 +37,23 @@ func (t *terraform) Provision(ctx context.Context, request *proto.Provision_Requ
 		return nil, xerrors.Errorf("initialize terraform: %w", err)
 	}
 
+	env := map[string]string{}
 	options := make([]tfexec.ApplyOption, 0)
-	for _, params := range request.ParameterValues {
-		options = append(options, tfexec.Var(fmt.Sprintf("%s=%s", params.Name, params.Value)))
+	for _, param := range request.ParameterValues {
+		switch param.DestinationScheme {
+		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
+			env[param.Name] = param.Value
+		case proto.ParameterDestination_PROVISIONER_VARIABLE:
+			options = append(options, tfexec.Var(fmt.Sprintf("%s=%s", param.Name, param.Value)))
+		default:
+			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
+		}
 	}
+	err = terraform.SetEnv(env)
+	if err != nil {
+		return nil, xerrors.Errorf("apply environment variables: %w", err)
+	}
+
 	err = terraform.Apply(ctx, options...)
 	if err != nil {
 		return nil, xerrors.Errorf("apply terraform: %w", err)
