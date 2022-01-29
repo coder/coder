@@ -2,6 +2,7 @@ package provisionerd
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -58,8 +59,9 @@ type API struct {
 	closeMutex sync.Mutex
 	closeError error
 
-	activeJob *proto.AcquiredJob
-	logQueue  []proto.Log
+	activeJob      *proto.AcquiredJob
+	activeJobMutex sync.Mutex
+	logQueue       []proto.Log
 }
 
 // connect establishes a connection
@@ -126,9 +128,16 @@ func (a *API) connect() {
 func (a *API) acquireJob() {
 	a.opts.Logger.Debug(context.Background(), "acquiring new job")
 	var err error
+	a.activeJobMutex.Lock()
 	a.activeJob, err = a.client.AcquireJob(a.closeContext, &proto.Empty{})
+	a.activeJobMutex.Unlock()
 	if err != nil {
 		a.opts.Logger.Error(context.Background(), "acquire job", slog.Error(err))
+		return
+	}
+	if a.activeJob.JobId == "" {
+		a.activeJob = nil
+		a.opts.Logger.Info(context.Background(), "no jobs available")
 		return
 	}
 	a.opts.Logger.Info(context.Background(), "acquired job",
@@ -137,7 +146,38 @@ func (a *API) acquireJob() {
 		slog.F("username", a.activeJob.UserName),
 		slog.F("provisioner", a.activeJob.Provisioner),
 	)
+
+	provisioner, hasProvisioner := a.provisioners[a.activeJob.Provisioner]
+	if !hasProvisioner {
+		a.cancelActiveJob(fmt.Sprintf("provisioner %q not registered", a.activeJob.Provisioner))
+		return
+	}
+	fmt.Printf("Provisioner: %s\n", provisioner)
 	// Work!
+}
+
+func (a *API) cancelActiveJob(errMsg string) {
+	a.activeJobMutex.Lock()
+	defer a.activeJobMutex.Unlock()
+
+	if a.client == nil {
+		a.activeJob = nil
+		return
+	}
+
+	a.opts.Logger.Info(context.Background(), "canceling active job",
+		slog.F("error_message", errMsg),
+		slog.F("job_id", a.activeJob.JobId),
+	)
+	_, err := a.client.CancelJob(a.closeContext, &proto.CancelledJob{
+		JobId: a.activeJob.JobId,
+		Error: fmt.Sprintf("provisioner daemon: %s", errMsg),
+	})
+	if err != nil {
+		a.opts.Logger.Error(context.Background(), "couldn't cancel job", slog.Error(err))
+	}
+	a.opts.Logger.Debug(context.Background(), "canceled active job")
+	a.activeJob = nil
 }
 
 // isClosed returns whether the API is closed or not.
@@ -161,6 +201,14 @@ func (a *API) closeWithError(err error) error {
 	defer a.closeMutex.Unlock()
 	if a.isClosed() {
 		return a.closeError
+	}
+
+	if a.activeJob != nil {
+		errMsg := ""
+		if err != nil {
+			errMsg = err.Error()
+		}
+		a.cancelActiveJob(errMsg)
 	}
 
 	a.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))

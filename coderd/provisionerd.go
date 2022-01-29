@@ -226,7 +226,6 @@ func (s *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty) (*p
 
 func (s *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
 	for {
-		// fmt.Printf("WE KISENING FOR JOB\n")
 		update, err := stream.Recv()
 		if err != nil {
 			return err
@@ -243,6 +242,29 @@ func (s *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_Update
 			return xerrors.Errorf("update job: %w", err)
 		}
 	}
+}
+
+func (s *provisionerdServer) CancelJob(ctx context.Context, cancelJob *proto.CancelledJob) (*proto.Empty, error) {
+	jobID, err := uuid.Parse(cancelJob.JobId)
+	if err != nil {
+		return nil, xerrors.Errorf("parse job id: %w", err)
+	}
+	err = s.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+		ID: jobID,
+		CancelledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+		UpdatedAt: database.Now(),
+		Error: sql.NullString{
+			String: cancelJob.Error,
+			Valid:  cancelJob.Error != "",
+		},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("update provisioner job: %w", err)
+	}
+	return &proto.Empty{}, nil
 }
 
 func (s *provisionerdServer) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {

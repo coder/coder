@@ -34,6 +34,11 @@ message AcquiredJob {
     }
 }
 
+message CancelledJob {
+    string job_id = 1;
+    string error = 2;
+}
+
 // CompletedJob is sent when the provisioner daemon completes a job.
 message CompletedJob {
     message WorkspaceProvision {
@@ -104,6 +109,10 @@ service ProvisionerDaemon {
     // is non-blocking.
     rpc UpdateJob(stream JobUpdate) returns (Empty);
     
+    // CancelJob indicates a job has been cancelled with
+    // an error message.
+    rpc CancelJob(CancelledJob) returns (Empty);
+
     // CompleteJob indicates a job has been completed.
     rpc CompleteJob(CompletedJob) returns (Empty);
 }
