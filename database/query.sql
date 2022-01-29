@@ -4,6 +4,38 @@
 -- Run "make gen" to generate models and query functions.
 ;
 
+-- Acquires the lock for a single job that isn't started, completed,
+-- cancelled, and that matches an array of provisioner types.
+--
+-- SKIP LOCKED is used to jump over locked rows. This prevents
+-- multiple provisioners from acquiring the same jobs. See:
+-- https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
+-- name: AcquireProvisionerJob :one
+UPDATE
+  provisioner_job
+SET
+  started_at = @started_at,
+  updated_at = @started_at,
+  worker_id = @worker_id
+WHERE
+  id = (
+    SELECT
+      id
+    FROM
+      provisioner_job AS nested
+    WHERE
+      nested.started_at IS NULL
+      AND nested.cancelled_at IS NULL
+      AND nested.completed_at IS NULL
+      AND nested.provisioner = ANY(@types :: provisioner_type [ ])
+    ORDER BY
+      nested.created FOR
+    UPDATE
+      SKIP LOCKED
+    LIMIT
+      1
+  ) RETURNING *;
+
 -- name: GetAPIKeyByID :one
 SELECT
   *
@@ -41,6 +73,14 @@ SELECT
 FROM
   users;
 
+-- name: GetOrganizationByID :one
+SELECT
+  *
+FROM
+  organizations
+WHERE
+  id = $1;
+
 -- name: GetOrganizationByName :one
 SELECT
   *
@@ -77,6 +117,15 @@ WHERE
 LIMIT
   1;
 
+-- name: GetParameterValuesByScope :many
+SELECT
+  *
+FROM
+  parameter_value
+WHERE
+  scope = $1
+  AND scope_id = $2;
+
 -- name: GetProjectByID :one
 SELECT
   *
@@ -106,6 +155,14 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
+-- name: GetProjectParametersByHistoryID :many
+SELECT
+  *
+FROM
+  project_parameter
+WHERE
+  project_history_id = $1;
+
 -- name: GetProjectHistoryByProjectID :many
 SELECT
   *
@@ -121,6 +178,32 @@ FROM
   project_history
 WHERE
   id = $1;
+
+-- name: GetProvisionerDaemonByID :one
+SELECT
+  *
+FROM
+  provisioner_daemon
+WHERE
+  id = $1;
+
+-- name: GetProvisionerJobByID :one
+SELECT
+  *
+FROM
+  provisioner_job
+WHERE
+  id = $1;
+
+-- name: GetWorkspaceByID :one
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  id = $1
+LIMIT
+  1;
 
 -- name: GetWorkspacesByUserID :many
 SELECT
@@ -147,6 +230,16 @@ FROM
 WHERE
   owner_id = $1
   AND project_id = $2;
+
+-- name: GetWorkspaceHistoryByID :one
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  id = $1
+LIMIT
+  1;
 
 -- name: GetWorkspaceHistoryByWorkspaceID :many
 SELECT
@@ -239,6 +332,23 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5) RETURNING *;
 
+-- name: InsertParameterValue :one
+INSERT INTO
+  parameter_value (
+    id,
+    name,
+    created_at,
+    updated_at,
+    scope,
+    scope_id,
+    source_scheme,
+    source_value,
+    destination_scheme,
+    destination_value
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+
 -- name: InsertProject :one
 INSERT INTO
   project (
@@ -276,9 +386,11 @@ INSERT INTO
     project_history_id,
     name,
     description,
-    default_source,
+    default_source_scheme,
+    default_source_value,
     allow_override_source,
-    default_destination,
+    default_destination_scheme,
+    default_destination_value,
     allow_override_destination,
     default_refresh,
     redisplay_value,
@@ -303,8 +415,31 @@ VALUES
     $12,
     $13,
     $14,
-    $15
+    $15,
+    $16,
+    $17
   ) RETURNING *;
+
+-- name: InsertProvisionerDaemon :one
+INSERT INTO
+  provisioner_daemon (id, created_at, name, provisioners)
+VALUES
+  ($1, $2, $3, $4) RETURNING *;
+
+-- name: InsertProvisionerJob :one
+INSERT INTO
+  provisioner_job (
+    id,
+    created_at,
+    updated_at,
+    initiator_id,
+    provisioner,
+    type,
+    project_id,
+    input
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -386,6 +521,26 @@ SET
   oidc_access_token = $4,
   oidc_refresh_token = $5,
   oidc_expiry = $6
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerDaemonByID :exec
+UPDATE
+  provisioner_daemon
+SET
+  updated_at = $2,
+  provisioners = $3
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerJobByID :exec
+UPDATE
+  provisioner_job
+SET
+  updated_at = $2,
+  cancelled_at = $3,
+  completed_at = $4,
+  error = $5
 WHERE
   id = $1;
 
