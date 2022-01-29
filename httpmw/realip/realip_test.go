@@ -215,10 +215,14 @@ func TestExtractAddress(t *testing.T) {
 }
 
 // TestTrustedOrigins tests different settings for TrustedOrigins.
+//
+// Disable paralleltest as it does not work correctly with table-driven
+// tests: https://github.com/kunwardeep/paralleltest/issues/8
+//nolint:paralleltest
 func TestTrustedOrigins(t *testing.T) {
 	t.Parallel()
 
-	// Remote client protocol: HTTP or HTTPS
+	// Protocol is the remote client protocol: HTTP or HTTPS
 	for _, proto := range []string{"http", "https"} {
 		// Trusted origin
 		// all: default behavior, trust all origins
@@ -228,8 +232,8 @@ func TestTrustedOrigins(t *testing.T) {
 		for _, trusted := range []string{"none", "ipv4", "ipv6"} {
 			for _, header := range []string{"Cf-Connecting-Ip", "True-Client-Ip", "X-Real-Ip", "X-Forwarded-For"} {
 				trusted := trusted
-				header := header
 				proto := proto
+				header := header
 				name := fmt.Sprintf("%s-%s-%s", trusted, proto, strings.ToLower(header))
 
 				t.Run(name, func(t *testing.T) {
@@ -276,7 +280,7 @@ func TestTrustedOrigins(t *testing.T) {
 
 					handlerCalled := false
 
-					nextHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					nextHandler := http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 						// If nothing is trusted, the remoteAddr should be unchanged
 						if trusted == "none" {
 							require.Equal(t, remoteAddr, req.RemoteAddr, "remote address should be unchanged")
@@ -298,6 +302,10 @@ func TestTrustedOrigins(t *testing.T) {
 
 // TestCorruptedHeaders tests the middleware when the reverse proxy
 // supplies unparseable content.
+//
+// Disable paralleltest as it does not work correctly with table-driven
+// tests: https://github.com/kunwardeep/paralleltest/issues/8
+//nolint:paralleltest
 func TestCorruptedHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -331,7 +339,7 @@ func TestCorruptedHeaders(t *testing.T) {
 
 			handlerCalled := false
 
-			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			nextHandler := http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 				// Since the header is unparseable, the remoteAddr should be unchanged
 				require.Equal(t, remoteAddr, req.RemoteAddr, "remote address should be unchanged")
 
@@ -347,6 +355,10 @@ func TestCorruptedHeaders(t *testing.T) {
 
 // TestAddressFamilies tests the middleware using different combinations of
 // address families for remote and proxy endpoints.
+//
+// Disable paralleltest as it does not work correctly with table-driven
+// tests: https://github.com/kunwardeep/paralleltest/issues/8
+//nolint:paralleltest
 func TestAddressFamilies(t *testing.T) {
 	t.Parallel()
 

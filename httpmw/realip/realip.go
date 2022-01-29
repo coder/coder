@@ -74,7 +74,7 @@ type AddrInfo struct {
 // propagate origin IP address information, when configured to do so.
 func Middleware(config *Config) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Preserve the original TLS connection state and RemoteAddr
 			req = req.WithContext(WithState(req.Context(), &State{
 				Config:             config,
@@ -84,8 +84,8 @@ func Middleware(config *Config) func(next http.Handler) http.Handler {
 
 			info, err := ExtractAddress(config, req)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				io.WriteString(w, err.Error())
+				rw.WriteHeader(http.StatusInternalServerError)
+				_, _ = io.WriteString(rw, err.Error())
 				return
 			}
 
@@ -105,7 +105,7 @@ func Middleware(config *Config) func(next http.Handler) http.Handler {
 				req.TLS = nil
 			}
 
-			next.ServeHTTP(w, req)
+			next.ServeHTTP(rw, req)
 		})
 	}
 }
