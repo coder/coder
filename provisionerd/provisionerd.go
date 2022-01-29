@@ -1,8 +1,16 @@
 package provisionerd
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +31,7 @@ type Provisioners map[string]provisionersdkproto.DRPCProvisionerClient
 type Options struct {
 	AcquireInterval time.Duration
 	Logger          slog.Logger
+	WorkDirectory   string
 }
 
 func New(apiDialer Dialer, provisioners Provisioners, opts *Options) *API {
@@ -152,6 +161,90 @@ func (a *API) acquireJob() {
 		a.cancelActiveJob(fmt.Sprintf("provisioner %q not registered", a.activeJob.Provisioner))
 		return
 	}
+	defer func() {
+		// Cleanup the work directory after execution.
+		err = os.RemoveAll(a.opts.WorkDirectory)
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("remove all from %q directory: %s", a.opts.WorkDirectory, err))
+			return
+		}
+	}()
+
+	err = os.MkdirAll(a.opts.WorkDirectory, 0600)
+	if err != nil {
+		a.cancelActiveJob(fmt.Sprintf("create work directory %q: %s", a.opts.WorkDirectory, err))
+		return
+	}
+
+	a.opts.Logger.Debug(context.Background(), "unpacking project source archive", slog.F("size_bytes", len(a.activeJob.ProjectSourceArchive)))
+	reader := tar.NewReader(bytes.NewBuffer(a.activeJob.ProjectSourceArchive))
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("read project source archive: %s", err))
+			return
+		}
+		// #nosec
+		path := filepath.Join(a.opts.WorkDirectory, header.Name)
+		if !strings.HasPrefix(path, filepath.Clean(a.opts.WorkDirectory)) {
+			a.cancelActiveJob("tar attempts to target relative upper directory")
+			return
+		}
+		switch header.Typeflag {
+		case tar.TypeDir:
+			err = os.MkdirAll(path, header.FileInfo().Mode())
+			if err != nil {
+				a.cancelActiveJob(fmt.Sprintf("mkdir %q: %s", path, err))
+				return
+			}
+			a.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", path))
+		case tar.TypeReg:
+			file, err := os.Create(path)
+			if err != nil {
+				a.cancelActiveJob(fmt.Sprintf("create file %q: %s", path, err))
+				return
+			}
+			// Max file size of 10MB.
+			size, err := io.CopyN(file, reader, (1<<20)*10)
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
+			if err != nil {
+				a.cancelActiveJob(fmt.Sprintf("copy file %q: %s", path, err))
+				return
+			}
+			err = file.Close()
+			if err != nil {
+				a.cancelActiveJob(fmt.Sprintf("close file %q: %s", path, err))
+				return
+			}
+			a.opts.Logger.Debug(context.Background(), "extracted file",
+				slog.F("size_bytes", size),
+				slog.F("path", path),
+			)
+		}
+	}
+
+	switch jobType := a.activeJob.Type.(type) {
+	case *proto.AcquiredJob_ProjectImport_:
+		a.opts.Logger.Debug(context.Background(), "acquired job is project import",
+			slog.F("project_history_name", jobType.ProjectImport.ProjectHistoryName),
+		)
+	case *proto.AcquiredJob_WorkspaceProvision_:
+		a.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
+			slog.F("workspace_name", jobType.WorkspaceProvision.WorkspaceName),
+			slog.F("state_length", len(jobType.WorkspaceProvision.State)),
+			slog.F("parameters", jobType.WorkspaceProvision.ParameterValues),
+		)
+
+	default:
+		a.cancelActiveJob(fmt.Sprintf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(a.activeJob.Type).String()))
+		return
+	}
+
 	fmt.Printf("Provisioner: %s\n", provisioner)
 	// Work!
 }
@@ -204,7 +297,7 @@ func (a *API) closeWithError(err error) error {
 	}
 
 	if a.activeJob != nil {
-		errMsg := ""
+		errMsg := "provisioner daemon was shutdown gracefully"
 		if err != nil {
 			errMsg = err.Error()
 		}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"storj.io/drpc/drpcconn"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -15,7 +16,10 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
+	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestProvisionerd(t *testing.T) {
@@ -74,9 +78,28 @@ func TestProvisionerd(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		api := provisionerd.New(server.Client.ProvisionerDaemonClient, provisionerd.Provisioners{}, &provisionerd.Options{
+		clientPipe, serverPipe := provisionersdk.TransportPipe()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(func() {
+			_ = clientPipe.Close()
+			_ = serverPipe.Close()
+			cancelFunc()
+		})
+		go func() {
+			err := terraform.Serve(ctx, &terraform.ServeOptions{
+				ServeOptions: &provisionersdk.ServeOptions{
+					Transport: serverPipe,
+				},
+			})
+			require.NoError(t, err)
+		}()
+
+		api := provisionerd.New(server.Client.ProvisionerDaemonClient, provisionerd.Provisioners{
+			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(drpcconn.New(clientPipe)),
+		}, &provisionerd.Options{
 			Logger:          slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			AcquireInterval: 50 * time.Millisecond,
+			WorkDirectory:   t.TempDir(),
 		})
 		defer api.Close()
 		time.Sleep(time.Millisecond * 500)
