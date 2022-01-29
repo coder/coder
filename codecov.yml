@@ -29,4 +29,5 @@ ignore:
   # All coderd tests fail if this doesn't work.
   - database/databasefake
   - peerbroker/proto
+  - provisionerd/proto
   - provisionersdk/proto

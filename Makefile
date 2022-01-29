@@ -3,7 +3,12 @@ bin/coderd:
 	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
-build: site/out bin/coderd
+bin/provisionerd:
+	mkdir -p bin
+	go build -o bin/provisionerd cmd/provisionerd/main.go
+.PHONY: bin/provisionerd
+
+build: site/out bin/coderd bin/provisionerd
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
@@ -38,27 +43,34 @@ fmt/sql: ./database/query.sql
 fmt: fmt/prettier fmt/sql
 .PHONY: fmt
 
-gen: database/generate peerbroker/proto provisionersdk/proto
+gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 .PHONY: gen
 
-# Generates the protocol files.
 peerbroker/proto: peerbroker/proto/peerbroker.proto
-	cd peerbroker/proto && protoc \
+	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./peerbroker.proto
+		./peerbroker/proto/peerbroker.proto
 .PHONY: peerbroker/proto
 
-# Generates the protocol files.
-provisionersdk/proto: provisionersdk/proto/provisioner.proto
-	cd provisionersdk/proto && protoc \
+provisionerd/proto: provisionerd/proto/provisionerd.proto
+	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./provisioner.proto
+		./provisionerd/proto/provisionerd.proto
+.PHONY: provisionerd/proto
+
+provisionersdk/proto: provisionersdk/proto/provisioner.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
 site/out: 

@@ -1,0 +1,118 @@
+
+syntax = "proto3";
+option go_package = "github.com/coder/coder/provisionerd/proto";
+
+package provisionerd;
+
+import "provisionersdk/proto/provisioner.proto";
+
+// Empty indicates a successful request/response.
+message Empty {}
+
+// AcquiredJob is returned when a provisioner daemon has a job locked.
+message AcquiredJob {
+    message WorkspaceProvision {
+        string workspace_history_id = 1;
+        string workspace_name = 2;
+        repeated provisioner.ParameterValue parameter_values = 3;
+        bytes state = 4;
+    }
+    message ProjectImport {
+        string project_history_id = 1;
+        string project_history_name = 2;
+    }
+    string job_id = 1;
+    int64 created_at = 2;
+    string provisioner = 3;
+    string organization_name = 4;
+    string project_name = 5;
+    string user_name = 6;
+    bytes project_source_archive = 7;
+    oneof type {
+        WorkspaceProvision workspace_provision = 8;
+        ProjectImport project_import = 9;
+    }
+}
+
+message CancelledJob {
+    string job_id = 1;
+    string error = 2;
+}
+
+// CompletedJob is sent when the provisioner daemon completes a job.
+message CompletedJob {
+    message WorkspaceProvision {
+        bytes state = 1;
+        repeated provisioner.Resource resources = 2;
+    }
+    message ProjectImport {
+        repeated provisioner.ParameterSchema parameter_schemas = 1;
+    }
+    string job_id = 1;
+    oneof type {
+        WorkspaceProvision workspace_provision = 2;
+        ProjectImport project_import = 3;
+    }
+}
+
+// LogSource represents the sender of the log.
+enum LogSource {
+    PROVISIONER = 0;
+    DAEMON = 1;
+}
+
+// LogLevel represents severity of the log.
+enum LogLevel {
+    TRACE = 0;
+    DEBUG = 1;
+    INFO = 2;
+    WARN = 3;
+    ERROR = 4;
+    FATAL = 5;
+}
+
+// Log represents output from a job.
+message Log {
+    message WorkspaceProvision {
+        string workspace_history_id = 1;
+        string text = 2;
+    }
+    message ProjectImport {
+        string project_history_id = 1;
+        string text = 2;
+    }
+    LogSource source = 1;
+    LogLevel level = 2;
+    int64 created_at = 3;
+    oneof type {
+        WorkspaceProvision workspace_provision = 4;
+        ProjectImport project_import = 5;
+    }
+}
+
+// JobUpdate represents an update to a job.
+// There may be no log output, but this message
+// should still be sent periodically as a heartbeat.
+message JobUpdate {
+    string job_id = 1;
+    repeated Log logs = 2;
+}
+
+service ProvisionerDaemon {
+    // AcquireJob requests a job. Implementations should
+    // hold a lock on the job until CompleteJob() is
+    // called with the matching ID.
+    rpc AcquireJob(Empty) returns (AcquiredJob);
+    
+    // UpdateJob streams periodic updates for a job.
+    // Implementations should buffer logs so this stream
+    // is non-blocking.
+    rpc UpdateJob(stream JobUpdate) returns (Empty);
+    
+    // CancelJob indicates a job has been cancelled with
+    // an error message.
+    rpc CancelJob(CancelledJob) returns (Empty);
+
+    // CompleteJob indicates a job has been completed.
+    rpc CompleteJob(CompletedJob) returns (Empty);
+}
