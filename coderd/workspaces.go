@@ -1,7 +1,9 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -270,6 +272,13 @@ func (w *workspaces) createWorkspaceHistory(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	project, err := w.Database.GetProjectByID(r.Context(), projectHistory.ProjectID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get project: %s", err),
+		})
+		return
+	}
 
 	// Store prior history ID if it exists to update it after we create new!
 	priorHistoryID := uuid.NullUUID{}
@@ -298,8 +307,31 @@ func (w *workspaces) createWorkspaceHistory(rw http.ResponseWriter, r *http.Requ
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = w.Database.InTx(func(db database.Store) error {
+		// Generate the ID before-hand so the provisioner job is aware of it!
+		workspaceHistoryID := uuid.New()
+		input, err := json.Marshal(workspaceProvisionJob{
+			WorkspaceHistoryID: workspaceHistoryID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal provision job: %w", err)
+		}
+
+		provisionerJob, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+			ID:          uuid.New(),
+			CreatedAt:   database.Now(),
+			UpdatedAt:   database.Now(),
+			InitiatorID: user.ID,
+			Provisioner: project.Provisioner,
+			Type:        database.ProvisionerJobTypeWorkspaceProvision,
+			ProjectID:   project.ID,
+			Input:       input,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
+		}
+
 		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
-			ID:               uuid.New(),
+			ID:               workspaceHistoryID,
 			CreatedAt:        database.Now(),
 			UpdatedAt:        database.Now(),
 			WorkspaceID:      workspace.ID,
@@ -307,8 +339,7 @@ func (w *workspaces) createWorkspaceHistory(rw http.ResponseWriter, r *http.Requ
 			BeforeID:         priorHistoryID,
 			Initiator:        user.ID,
 			Transition:       createBuild.Transition,
-			// This should create a provision job once that gets implemented!
-			ProvisionJobID: uuid.New(),
+			ProvisionJobID:   provisionerJob.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace history: %w", err)
