@@ -61,32 +61,21 @@ enum LogSource {
     DAEMON = 1;
 }
 
-// LogLevel represents severity of the log.
-enum LogLevel {
-    TRACE = 0;
-    DEBUG = 1;
-    INFO = 2;
-    WARN = 3;
-    ERROR = 4;
-    FATAL = 5;
-}
-
 // Log represents output from a job.
 message Log {
     message WorkspaceProvision {
         string workspace_history_id = 1;
-        string text = 2;
     }
     message ProjectImport {
         string project_history_id = 1;
-        string text = 2;
     }
     LogSource source = 1;
-    LogLevel level = 2;
+    provisioner.LogLevel level = 2;
     int64 created_at = 3;
+    string text = 4;
     oneof type {
-        WorkspaceProvision workspace_provision = 4;
-        ProjectImport project_import = 5;
+        WorkspaceProvision workspace_provision = 5;
+        ProjectImport project_import = 6;
     }
 }
 

@@ -68,7 +68,11 @@ func TestProvision(t *testing.T) {
 				Value:             "example",
 			}},
 		},
-		Response: &proto.Provision_Response{},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		},
 	}, {
 		Name: "missing-variable",
 		Files: map[string]string{
@@ -82,10 +86,14 @@ func TestProvision(t *testing.T) {
 			"main.tf": `resource "null_resource" "A" {}`,
 		},
 		Response: &proto.Provision_Response{
-			Resources: []*proto.Resource{{
-				Name: "A",
-				Type: "null_resource",
-			}},
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+					}},
+				},
+			},
 		},
 	}, {
 		Name: "invalid-sourcecode",
@@ -112,20 +120,31 @@ func TestProvision(t *testing.T) {
 				request.State = testCase.Request.State
 			}
 			response, err := api.Provision(ctx, request)
-			if testCase.Error {
-				require.Error(t, err)
-				return
+			require.NoError(t, err)
+			for {
+				msg, err := response.Recv()
+				if testCase.Error {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+
+				if msg.GetComplete() == nil {
+					continue
+				}
+
+				require.NoError(t, err)
+				require.Greater(t, len(msg.GetComplete().State), 0)
+
+				resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
+				require.NoError(t, err)
+
+				resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
+				require.NoError(t, err)
+
+				require.Equal(t, string(resourcesWant), string(resourcesGot))
+				break
 			}
-			require.NoError(t, err)
-			require.Greater(t, len(response.State), 0)
-
-			resourcesGot, err := json.Marshal(response.Resources)
-			require.NoError(t, err)
-
-			resourcesWant, err := json.Marshal(testCase.Response.Resources)
-			require.NoError(t, err)
-
-			require.Equal(t, string(resourcesWant), string(resourcesGot))
 		})
 	}
 }

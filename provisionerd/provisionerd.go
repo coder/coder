@@ -16,7 +16,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionerd/proto"
-	provisionersdkproto "github.com/coder/coder/provisionersdk/proto"
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/retry"
 )
 
@@ -26,7 +26,7 @@ import (
 type Dialer func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error)
 
 // Provisioners maps provisioner ID to implementation.
-type Provisioners map[string]provisionersdkproto.DRPCProvisionerClient
+type Provisioners map[string]sdkproto.DRPCProvisionerClient
 
 type Options struct {
 	AcquireInterval time.Duration
@@ -194,16 +194,20 @@ func (a *API) acquireJob() {
 			a.cancelActiveJob("tar attempts to target relative upper directory")
 			return
 		}
+		mode := header.FileInfo().Mode()
+		if mode == 0 {
+			mode = 0600
+		}
 		switch header.Typeflag {
 		case tar.TypeDir:
-			err = os.MkdirAll(path, header.FileInfo().Mode())
+			err = os.MkdirAll(path, mode)
 			if err != nil {
 				a.cancelActiveJob(fmt.Sprintf("mkdir %q: %s", path, err))
 				return
 			}
 			a.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", path))
 		case tar.TypeReg:
-			file, err := os.Create(path)
+			file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
 				a.cancelActiveJob(fmt.Sprintf("create file %q: %s", path, err))
 				return
@@ -225,6 +229,7 @@ func (a *API) acquireJob() {
 			a.opts.Logger.Debug(context.Background(), "extracted file",
 				slog.F("size_bytes", size),
 				slog.F("path", path),
+				slog.F("mode", mode),
 			)
 		}
 	}
@@ -235,25 +240,7 @@ func (a *API) acquireJob() {
 			slog.F("project_history_name", jobType.ProjectImport.ProjectHistoryName),
 		)
 
-		response, err := provisioner.Parse(a.closeContext, &provisionersdkproto.Parse_Request{
-			Directory: a.opts.WorkDirectory,
-		})
-		if err != nil {
-			a.cancelActiveJob(fmt.Sprintf("parse source: %s", err))
-			return
-		}
-		_, err = a.client.CompleteJob(a.closeContext, &proto.CompletedJob{
-			JobId: a.activeJob.JobId,
-			Type: &proto.CompletedJob_ProjectImport_{
-				ProjectImport: &proto.CompletedJob_ProjectImport{
-					ParameterSchemas: response.ParameterSchemas,
-				},
-			},
-		})
-		if err != nil {
-			a.cancelActiveJob(fmt.Sprintf("complete job: %s", err))
-			return
-		}
+		a.runProjectImport(provisioner, jobType)
 	case *proto.AcquiredJob_WorkspaceProvision_:
 		a.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceProvision.WorkspaceName),
@@ -261,39 +248,138 @@ func (a *API) acquireJob() {
 			slog.F("parameters", jobType.WorkspaceProvision.ParameterValues),
 		)
 
-		response, err := provisioner.Provision(a.closeContext, &provisionersdkproto.Provision_Request{
-			Directory:       a.opts.WorkDirectory,
-			ParameterValues: jobType.WorkspaceProvision.ParameterValues,
-			State:           jobType.WorkspaceProvision.State,
-		})
-		if err != nil {
-			a.cancelActiveJob(fmt.Sprintf("provision: %s", err))
-			return
-		}
-		a.opts.Logger.Debug(context.Background(), "provision successful; marking job as complete",
-			slog.F("resource_count", len(response.Resources)),
-			slog.F("resources", response.Resources),
-			slog.F("state_length", len(response.State)),
-		)
-
-		// Complete job may need to be async if we disconnected...
-		// When we reconnect we can flush any of these cached values.
-		_, err = a.client.CompleteJob(a.closeContext, &proto.CompletedJob{
-			JobId: a.activeJob.JobId,
-			Type: &proto.CompletedJob_WorkspaceProvision_{
-				WorkspaceProvision: &proto.CompletedJob_WorkspaceProvision{
-					State:     response.State,
-					Resources: response.Resources,
-				},
-			},
-		})
-		if err != nil {
-			a.cancelActiveJob(fmt.Sprintf("complete job: %s", err))
-			return
-		}
+		a.runWorkspaceProvision(provisioner, jobType)
 	default:
 		a.cancelActiveJob(fmt.Sprintf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(a.activeJob.Type).String()))
 		return
+	}
+
+	a.activeJob = nil
+}
+
+func (a *API) runProjectImport(provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob_ProjectImport_) {
+	stream, err := provisioner.Parse(a.closeContext, &sdkproto.Parse_Request{
+		Directory: a.opts.WorkDirectory,
+	})
+	if err != nil {
+		a.cancelActiveJob(fmt.Sprintf("parse source: %s", err))
+		return
+	}
+	defer stream.Close()
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("recv parse source: %s", err))
+			return
+		}
+		switch msgType := msg.Type.(type) {
+		case *sdkproto.Parse_Response_Log:
+			a.opts.Logger.Debug(context.Background(), "parse job logged",
+				slog.F("level", msgType.Log.Level),
+				slog.F("text", msgType.Log.Text),
+				slog.F("project_history_id", job.ProjectImport.ProjectHistoryId),
+			)
+
+			a.logQueue = append(a.logQueue, proto.Log{
+				Source:    proto.LogSource_PROVISIONER,
+				Level:     msgType.Log.Level,
+				CreatedAt: time.Now().UTC().UnixMilli(),
+				Text:      msgType.Log.Text,
+				Type: &proto.Log_ProjectImport_{
+					ProjectImport: &proto.Log_ProjectImport{
+						ProjectHistoryId: job.ProjectImport.ProjectHistoryId,
+					},
+				},
+			})
+		case *sdkproto.Parse_Response_Complete:
+			_, err = a.client.CompleteJob(a.closeContext, &proto.CompletedJob{
+				JobId: a.activeJob.JobId,
+				Type: &proto.CompletedJob_ProjectImport_{
+					ProjectImport: &proto.CompletedJob_ProjectImport{
+						ParameterSchemas: msgType.Complete.ParameterSchemas,
+					},
+				},
+			})
+			if err != nil {
+				a.cancelActiveJob(fmt.Sprintf("complete job: %s", err))
+				return
+			}
+			// Return so we stop looping!
+			return
+		default:
+			a.cancelActiveJob(fmt.Sprintf("invalid message type %q received from provisioner",
+				reflect.TypeOf(msg.Type).String()))
+			return
+		}
+	}
+}
+
+func (a *API) runWorkspaceProvision(provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob_WorkspaceProvision_) {
+	stream, err := provisioner.Provision(a.closeContext, &sdkproto.Provision_Request{
+		Directory:       a.opts.WorkDirectory,
+		ParameterValues: job.WorkspaceProvision.ParameterValues,
+		State:           job.WorkspaceProvision.State,
+	})
+	if err != nil {
+		a.cancelActiveJob(fmt.Sprintf("provision: %s", err))
+		return
+	}
+	defer stream.Close()
+
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			a.cancelActiveJob(fmt.Sprintf("recv workspace provision: %s", err))
+			return
+		}
+		switch msgType := msg.Type.(type) {
+		case *sdkproto.Provision_Response_Log:
+			a.opts.Logger.Debug(context.Background(), "provision job logged",
+				slog.F("level", msgType.Log.Level),
+				slog.F("text", msgType.Log.Text),
+				slog.F("workspace_history_id", job.WorkspaceProvision.WorkspaceHistoryId),
+			)
+
+			a.logQueue = append(a.logQueue, proto.Log{
+				Source:    proto.LogSource_PROVISIONER,
+				Level:     msgType.Log.Level,
+				CreatedAt: time.Now().UTC().UnixMilli(),
+				Text:      msgType.Log.Text,
+				Type: &proto.Log_WorkspaceProvision_{
+					WorkspaceProvision: &proto.Log_WorkspaceProvision{
+						WorkspaceHistoryId: job.WorkspaceProvision.WorkspaceHistoryId,
+					},
+				},
+			})
+		case *sdkproto.Provision_Response_Complete:
+			a.opts.Logger.Debug(context.Background(), "provision successful; marking job as complete",
+				slog.F("resource_count", len(msgType.Complete.Resources)),
+				slog.F("resources", msgType.Complete.Resources),
+				slog.F("state_length", len(msgType.Complete.State)),
+			)
+
+			// Complete job may need to be async if we disconnected...
+			// When we reconnect we can flush any of these cached values.
+			_, err = a.client.CompleteJob(a.closeContext, &proto.CompletedJob{
+				JobId: a.activeJob.JobId,
+				Type: &proto.CompletedJob_WorkspaceProvision_{
+					WorkspaceProvision: &proto.CompletedJob_WorkspaceProvision{
+						State:     msgType.Complete.State,
+						Resources: msgType.Complete.Resources,
+					},
+				},
+			})
+			if err != nil {
+				a.cancelActiveJob(fmt.Sprintf("complete job: %s", err))
+				return
+			}
+			// Return so we stop looping!
+			return
+		default:
+			a.cancelActiveJob(fmt.Sprintf("invalid message type %q received from provisioner",
+				reflect.TypeOf(msg.Type).String()))
+			return
+		}
 	}
 }
 
