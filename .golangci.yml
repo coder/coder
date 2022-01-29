@@ -241,6 +241,7 @@ linters:
     - staticcheck
     - structcheck
     - tenv
+    - tparallel
     - typecheck
     - unconvert
     - unused
