@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/httpmw/realip"
 	"github.com/coder/coder/site"
 )
 
@@ -31,6 +32,8 @@ func New(options *Options) http.Handler {
 	}
 
 	r := chi.NewRouter()
+	// realip with a nil config rejects all headers
+	r.Use(realip.Middleware(nil))
 	r.Route("/api/v2", func(r chi.Router) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
