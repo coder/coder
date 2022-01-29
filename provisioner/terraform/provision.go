@@ -38,7 +38,7 @@ func (t *terraform) Provision(ctx context.Context, request *proto.Provision_Requ
 	}
 
 	env := map[string]string{}
-	options := make([]tfexec.ApplyOption, 0)
+	options := []tfexec.ApplyOption{tfexec.JSON(true)}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {
 		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
