@@ -44,7 +44,7 @@
     "http-proxy-middleware": "2.0.1",
     "jest": "27.4.7",
     "jest-runner-eslint": "1.0.0",
-    "next": "12.0.7",
+    "next": "12.0.9",
     "next-router-mock": "^0.6.5",
     "prettier": "2.5.1",
     "react": "17.0.2",
