@@ -18,7 +18,7 @@
   "devDependencies": {
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
-    "@material-ui/lab": "4.0.0-alpha.42",
+    "@material-ui/lab": "4.0.0-alpha.60",
     "@testing-library/react": "12.1.2",
     "@types/express": "4.17.13",
     "@types/jest": "27.4.0",

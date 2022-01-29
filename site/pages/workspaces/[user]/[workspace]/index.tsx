@@ -11,7 +11,7 @@ import { Workspace } from "../../../../components/Workspace"
 import { MockWorkspace } from "../../../../test_helpers"
 
 
-const ProjectsPage: React.FC = () => {
+const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
   const router = useRouter()
   const { me, signOut } = useUser(true)
@@ -43,4 +43,4 @@ const useStyles = makeStyles(() => ({
   }
 }))
 
-export default ProjectsPage
+export default WorkspacesPage
