@@ -3,10 +3,8 @@ package peer
 import (
 	"bytes"
 	"context"
-	"fmt"
 
 	"crypto/rand"
-	"crypto/sha256"
 	"io"
 	"sync"
 	"time"
@@ -124,7 +122,8 @@ type Conn struct {
 	dcFailedListeners     atomic.Uint32
 	dcClosedWaitGroup     sync.WaitGroup
 
-	localNegotiator               chan Negotiation
+	localNegotiator chan Negotiation
+
 	remoteSessionDescription      chan webrtc.SessionDescription
 	remoteSessionDescriptionMutex sync.Mutex
 
@@ -179,16 +178,12 @@ func (c *Conn) init() error {
 		c.pendingCandidatesToSendMutex.Lock()
 		defer c.pendingCandidatesToSendMutex.Unlock()
 		json := iceCandidate.ToJSON()
-		fields := []slog.Field{
-			slog.F("hash", c.hashCandidate(json)),
-			slog.F("length", len(json.Candidate)),
-		}
 		if !c.pendingCandidatesFlushed {
 			c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, json)
-			c.opts.Logger.Debug(context.Background(), "buffering local candidate to send", fields...)
+			c.opts.Logger.Debug(context.Background(), "buffering local candidate")
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "sending local candidate directly", fields...)
+		c.opts.Logger.Debug(context.Background(), "sending local candidate")
 		select {
 		case <-c.closed:
 			break
@@ -250,6 +245,120 @@ func (c *Conn) init() error {
 	return nil
 }
 
+// Negotiate exchanges ICECandidate pairs over the exposed channels.
+// The diagram below shows the expected handshake. pion/webrtc v3
+// uses trickle ICE by default. See: https://webrtchacks.com/trickle-ice/
+func (c *Conn) negotiate() {
+	c.opts.Logger.Debug(context.Background(), "negotiating")
+
+	if c.offerrer {
+		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
+			return
+		}
+		err = c.rtc.SetLocalDescription(offer)
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
+			return
+		}
+		c.opts.Logger.Debug(context.Background(), "sending offer")
+		select {
+		case <-c.closed:
+			return
+		case c.localNegotiator <- Negotiation{&offer, nil}:
+		}
+	}
+
+	var sessionDescription webrtc.SessionDescription
+	select {
+	case <-c.closed:
+		return
+	case sessionDescription = <-c.remoteSessionDescription:
+	}
+
+	// This prevents candidates from being added while
+	// the remote description is being set.
+	c.remoteSessionDescriptionMutex.Lock()
+	c.opts.Logger.Debug(context.Background(), "setting remote description")
+	err := c.rtc.SetRemoteDescription(sessionDescription)
+	if err != nil {
+		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
+		return
+	}
+	c.remoteSessionDescriptionMutex.Unlock()
+
+	if !c.offerrer {
+		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
+			return
+		}
+		c.closeMutex.Lock()
+		// pion doesn't handle a close properly if it occurs during this function.
+		err = c.rtc.SetLocalDescription(answer)
+		c.closeMutex.Unlock()
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
+			return
+		}
+		c.opts.Logger.Debug(context.Background(), "sending answer")
+		select {
+		case <-c.closed:
+			return
+		case c.localNegotiator <- Negotiation{&answer, nil}:
+		}
+	}
+
+	c.pendingCandidatesToSendMutex.Lock()
+	defer c.pendingCandidatesToSendMutex.Unlock()
+	if len(c.pendingCandidatesToSend) > 0 {
+		select {
+		case <-c.closed:
+			return
+		case c.localNegotiator <- Negotiation{nil, c.pendingCandidatesToSend}:
+		}
+	}
+	c.opts.Logger.Debug(context.Background(), "flushed buffered local candidates",
+		slog.F("count", len(c.pendingCandidatesToSend)),
+	)
+	c.pendingCandidatesToSend = make([]webrtc.ICECandidateInit, 0)
+	c.pendingCandidatesFlushed = true
+}
+
+// LocalNegotiation returns a channel for connection negotiation.
+// This should be piped to another peer connection.
+func (c *Conn) LocalNegotiation() <-chan Negotiation {
+	return c.localNegotiator
+}
+
+// AddRemoteNegotiation accepts a negotiation message for handshaking a connection.
+func (c *Conn) AddRemoteNegotiation(negotiation Negotiation) error {
+	if negotiation.SessionDescription != nil {
+		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with session description")
+		select {
+		case <-c.closed:
+			return nil
+		case c.remoteSessionDescription <- *negotiation.SessionDescription:
+		}
+	}
+
+	if len(negotiation.ICECandidates) > 0 {
+		c.remoteSessionDescriptionMutex.Lock()
+		defer c.remoteSessionDescriptionMutex.Unlock()
+		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with ice candidates",
+			slog.F("count", len(negotiation.ICECandidates)))
+		for _, iceCandidate := range negotiation.ICECandidates {
+			err := c.rtc.AddICECandidate(iceCandidate)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (c *Conn) pingChannel() (*Channel, error) {
 	c.pingOnce.Do(func() {
 		c.pingChan, c.pingError = c.dialChannel(context.Background(), "ping", &ChannelOptions{
@@ -294,144 +403,6 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 		}()
 	})
 	return c.pingEchoChan, c.pingEchoError
-}
-
-// Computes a hash of the ICE candidate. Used for debug logging.
-func (*Conn) hashCandidate(iceCandidate webrtc.ICECandidateInit) string {
-	hash := sha256.Sum224([]byte(iceCandidate.Candidate))
-	return fmt.Sprintf("%x", hash[:8])
-}
-
-// Negotiate exchanges ICECandidate pairs over the exposed channels.
-// The diagram below shows the expected handshake. pion/webrtc v3
-// uses trickle ICE by default. See: https://webrtchacks.com/trickle-ice/
-//          ┌────────┐           ┌────────┐
-//          │offerrer│           │answerer│
-//          │(client)│           │(server)│
-//          └─┬────┬─┘           └─┬──────┘
-//            │    │     offer     │
-// ┌──────────▼┐   ├──────────────►├──►┌───────────┐
-// │STUN Server│   │               │   │STUN Server│
-// │(optional) ├──►│   candidate   │◄──┤(optional) │
-// └───────────┘   │    (async)    │   └───────────┘
-//                 │◄─────────────►│
-//                 │               │
-//                 │     answer    │
-//                 └◄──────────────┘
-func (c *Conn) negotiate() {
-	c.opts.Logger.Debug(context.Background(), "negotiating")
-
-	if c.offerrer {
-		c.closeMutex.Lock()
-		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
-		c.closeMutex.Unlock()
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "setting local description", slog.F("closed", c.isClosed()))
-		c.closeMutex.Lock()
-		err = c.rtc.SetLocalDescription(offer)
-		c.closeMutex.Unlock()
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
-			return
-		}
-		select {
-		case <-c.closed:
-			return
-		case c.localNegotiator <- Negotiation{&offer, nil}:
-		}
-	}
-
-	var sessionDescription webrtc.SessionDescription
-	select {
-	case <-c.closed:
-		return
-	case sessionDescription = <-c.remoteSessionDescription:
-	}
-
-	// This prevents candidates from being added while
-	// the remote description is being set.
-	c.remoteSessionDescriptionMutex.Lock()
-	c.opts.Logger.Debug(context.Background(), "setting remote description")
-	c.closeMutex.Lock()
-	err := c.rtc.SetRemoteDescription(sessionDescription)
-	c.closeMutex.Unlock()
-	if err != nil {
-		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
-		return
-	}
-	c.remoteSessionDescriptionMutex.Unlock()
-
-	if !c.offerrer {
-		c.closeMutex.Lock()
-		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
-		c.closeMutex.Unlock()
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "setting local description", slog.F("closed", c.isClosed()))
-		c.closeMutex.Lock()
-		err = c.rtc.SetLocalDescription(answer)
-		c.closeMutex.Unlock()
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "sending answer")
-		select {
-		case <-c.closed:
-			return
-		case c.localNegotiator <- Negotiation{&answer, nil}:
-		}
-	}
-
-	c.pendingCandidatesToSendMutex.Lock()
-	defer c.pendingCandidatesToSendMutex.Unlock()
-	if len(c.pendingCandidatesToSend) > 0 {
-		select {
-		case <-c.closed:
-			return
-		case c.localNegotiator <- Negotiation{nil, c.pendingCandidatesToSend}:
-		}
-	}
-	c.opts.Logger.Debug(context.Background(), "flushed buffered local candidates",
-		slog.F("count", len(c.pendingCandidatesToSend)),
-	)
-	c.pendingCandidatesToSend = make([]webrtc.ICECandidateInit, 0)
-	c.pendingCandidatesFlushed = true
-}
-
-func (c *Conn) LocalNegotiation() <-chan Negotiation {
-	return c.localNegotiator
-}
-
-func (c *Conn) AddRemoteNegotiation(negotiation Negotiation) error {
-	if negotiation.SessionDescription != nil {
-		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with session description")
-		select {
-		case <-c.closed:
-			return nil
-		case c.remoteSessionDescription <- *negotiation.SessionDescription:
-		}
-	}
-
-	if len(negotiation.ICECandidates) > 0 {
-		c.remoteSessionDescriptionMutex.Lock()
-		defer c.remoteSessionDescriptionMutex.Unlock()
-		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with ice candidates",
-			slog.F("count", len(negotiation.ICECandidates)))
-		for _, iceCandidate := range negotiation.ICECandidates {
-			err := c.rtc.AddICECandidate(iceCandidate)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 // SetConfiguration applies options to the WebRTC connection.
