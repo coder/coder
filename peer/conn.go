@@ -161,11 +161,15 @@ func (c *Conn) init() error {
 		if iceCandidate == nil {
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "adding local candidate")
+		json := iceCandidate.ToJSON()
+		c.opts.Logger.Debug(context.Background(), "writing candidate to channel",
+			slog.F("hash", sha256.Sum224([]byte(json.Candidate))),
+			slog.F("length", len(json.Candidate)),
+		)
 		select {
 		case <-c.closed:
 			break
-		case c.localCandidateChannel <- iceCandidate.ToJSON():
+		case c.localCandidateChannel <- json:
 		}
 	})
 	c.rtc.OnDataChannel(func(dc *webrtc.DataChannel) {
