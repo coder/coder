@@ -9,6 +9,10 @@ import (
 	"go.uber.org/goleak"
 	"storj.io/drpc/drpcconn"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -28,7 +32,9 @@ func TestDial(t *testing.T) {
 		defer client.Close()
 		defer server.Close()
 
-		listener, err := peerbroker.Listen(server, nil)
+		listener, err := peerbroker.Listen(server, &peer.ConnOptions{
+			Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+		})
 		require.NoError(t, err)
 
 		api := proto.NewDRPCPeerBrokerClient(drpcconn.New(client))
@@ -36,7 +42,9 @@ func TestDial(t *testing.T) {
 		require.NoError(t, err)
 		clientConn, err := peerbroker.Dial(stream, []webrtc.ICEServer{{
 			URLs: []string{"stun:stun.l.google.com:19302"},
-		}}, nil)
+		}}, &peer.ConnOptions{
+			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		})
 		require.NoError(t, err)
 		defer clientConn.Close()
 
