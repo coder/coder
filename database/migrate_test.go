@@ -22,7 +22,7 @@ func TestMigrate(t *testing.T) {
 
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
-		connection, closeFn, err := postgres.Open()
+		connection, closeFn, err := postgres.Open(t.TempDir())
 		require.NoError(t, err)
 		defer closeFn()
 		db, err := sql.Open("postgres", connection)
@@ -34,7 +34,7 @@ func TestMigrate(t *testing.T) {
 
 	t.Run("Twice", func(t *testing.T) {
 		t.Parallel()
-		connection, closeFn, err := postgres.Open()
+		connection, closeFn, err := postgres.Open(t.TempDir())
 		require.NoError(t, err)
 		defer closeFn()
 		db, err := sql.Open("postgres", connection)

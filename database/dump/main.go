@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	connection, closeFn, err := postgres.Open()
+	connection, closeFn, err := postgres.Open("")
 	if err != nil {
 		panic(err)
 	}

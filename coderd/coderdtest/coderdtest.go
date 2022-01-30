@@ -63,7 +63,7 @@ func New(t *testing.T) Server {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
 	if os.Getenv("DB") != "" {
-		connectionURL, close, err := postgres.Open()
+		connectionURL, close, err := postgres.Open(t.TempDir())
 		require.NoError(t, err)
 		t.Cleanup(close)
 		sqlDB, err := sql.Open("postgres", connectionURL)

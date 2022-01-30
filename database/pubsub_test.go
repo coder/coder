@@ -51,7 +51,7 @@ func TestPubsub(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		connectionURL, close, err := postgres.Open()
+		connectionURL, close, err := postgres.Open(t.TempDir())
 		require.NoError(t, err)
 		defer close()
 		db, err := sql.Open("postgres", connectionURL)
