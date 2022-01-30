@@ -77,7 +77,6 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
 		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
-		pendingCandidatesToSend:         make([]webrtc.ICECandidateInit, 0),
 	}
 	if client {
 		// If we're the client, we want to flip the echo and
@@ -128,9 +127,7 @@ type Conn struct {
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
 
 	negotiateMutex sync.Mutex
-
-	pendingCandidatesToSend      []webrtc.ICECandidateInit
-	pendingCandidatesToSendMutex sync.Mutex
+	hasNegotiated  bool
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -145,6 +142,9 @@ type Conn struct {
 }
 
 func (c *Conn) init() error {
+	// The negotiation needed callback can take a little bit to execute!
+	c.negotiateMutex.Lock()
+
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
 		c.opts.Logger.Debug(context.Background(), "ice connection state updated",
@@ -227,17 +227,7 @@ func (c *Conn) init() error {
 		// Run this in a goroutine so we don't block pion/webrtc
 		// from continuing.
 		go func() {
-			c.pendingCandidatesToSendMutex.Lock()
-			defer c.pendingCandidatesToSendMutex.Unlock()
-			// If the remote description hasn't been set yet, we queue the send of these candidates.
-			// It may work to send these immediately, but at the time of writing this package is
-			// unstable, so better being safe than sorry.
-			if c.rtc.RemoteDescription() == nil {
-				c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, iceCandidate.ToJSON())
-				c.opts.Logger.Debug(context.Background(), "buffering local candidate")
-				return
-			}
-			c.opts.Logger.Debug(context.Background(), "sending local candidate")
+			c.opts.Logger.Debug(context.Background(), "sending local candidate", slog.F("candidate", iceCandidate.ToJSON().Candidate))
 			select {
 			case <-c.closed:
 				break
@@ -271,7 +261,10 @@ func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
 	// ICE candidates cannot be added until SessionDescriptions have been
 	// exchanged between peers.
-	c.negotiateMutex.Lock()
+	if c.hasNegotiated {
+		c.negotiateMutex.Lock()
+	}
+	c.hasNegotiated = true
 	defer c.negotiateMutex.Unlock()
 
 	if c.offerrer {
@@ -336,24 +329,6 @@ func (c *Conn) negotiate() {
 		}
 		c.opts.Logger.Debug(context.Background(), "sent answer")
 	}
-
-	// Flush bufferred candidates after both sides have been negotiated!
-	go func() {
-		c.pendingCandidatesToSendMutex.Lock()
-		defer c.pendingCandidatesToSendMutex.Unlock()
-		for _, pendingCandidate := range c.pendingCandidatesToSend {
-			select {
-			case <-c.closed:
-				return
-			case c.localCandidateChannel <- pendingCandidate:
-			}
-			c.opts.Logger.Debug(context.Background(), "flushed buffered local candidate")
-		}
-		c.opts.Logger.Debug(context.Background(), "flushed buffered local candidates",
-			slog.F("count", len(c.pendingCandidatesToSend)),
-		)
-		c.pendingCandidatesToSend = make([]webrtc.ICECandidateInit, 0)
-	}()
 }
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
@@ -366,12 +341,12 @@ func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) {
 	go func() {
 		c.negotiateMutex.Lock()
 		defer c.negotiateMutex.Unlock()
-		if c.isClosed() {
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "accepting candidate", slog.F("length", len(i.Candidate)))
+		c.opts.Logger.Debug(context.Background(), "accepting candidate", slog.F("candidate", i.Candidate))
 		err := c.rtc.AddICECandidate(i)
 		if err != nil {
+			if c.rtc.ConnectionState() == webrtc.PeerConnectionStateClosed {
+				return
+			}
 			_ = c.CloseWithError(xerrors.Errorf("accept candidate: %w", err))
 		}
 	}()
