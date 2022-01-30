@@ -62,7 +62,7 @@ resource "null_resource" "dev" {}`
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		api := provisionerd.New(server.Client.ProvisionerDaemonClient, provisionerd.Provisioners{}, &provisionerd.Options{
+		api := provisionerd.New(server.Client, provisionerd.Provisioners{}, &provisionerd.Options{
 			Logger: slogtest.Make(t, nil),
 		})
 		defer api.Close()
@@ -96,12 +96,12 @@ resource "null_resource" "dev" {}`
 			require.NoError(t, err)
 		}()
 
-		api := provisionerd.New(server.Client.ProvisionerDaemonClient, provisionerd.Provisioners{
+		api := provisionerd.New(server.Client, provisionerd.Provisioners{
 			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(drpcconn.New(clientPipe)),
 		}, &provisionerd.Options{
-			Logger:          slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-			AcquireInterval: 50 * time.Millisecond,
-			WorkDirectory:   t.TempDir(),
+			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			PollInterval:  50 * time.Millisecond,
+			WorkDirectory: t.TempDir(),
 		})
 		defer api.Close()
 		time.Sleep(time.Millisecond * 2000)
