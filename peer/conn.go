@@ -126,7 +126,8 @@ type Conn struct {
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
-	remoteSessionDescriptionMutex   sync.Mutex
+
+	negotiateMutex sync.Mutex
 
 	pendingCandidatesToSend      []webrtc.ICECandidateInit
 	pendingCandidatesToSendMutex sync.Mutex
@@ -143,12 +144,6 @@ type Conn struct {
 	pingError     error
 }
 
-// Negotiation represents a handshake message between peer connections.
-type Negotiation struct {
-	SessionDescription *webrtc.SessionDescription
-	ICECandidates      []webrtc.ICECandidateInit
-}
-
 func (c *Conn) init() error {
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
@@ -156,6 +151,9 @@ func (c *Conn) init() error {
 			slog.F("state", iceConnectionState))
 
 		if iceConnectionState == webrtc.ICEConnectionStateClosed {
+			// pion/webrtc can update this state multiple times.
+			// A connection can never become un-closed, so we
+			// close the channel if it isn't already.
 			c.closedICEMutex.Lock()
 			defer c.closedICEMutex.Unlock()
 			select {
@@ -164,16 +162,15 @@ func (c *Conn) init() error {
 				close(c.closedICE)
 			}
 		}
-	})
-	c.rtc.OnSignalingStateChange(func(signalState webrtc.SignalingState) {
-		c.opts.Logger.Debug(context.Background(), "signal state updated",
-			slog.F("state", signalState))
 	})
 	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
 		c.opts.Logger.Debug(context.Background(), "ice gathering state updated",
 			slog.F("state", iceGatherState))
 
 		if iceGatherState == webrtc.ICEGathererStateClosed {
+			// pion/webrtc can update this state multiple times.
+			// A connection can never become un-closed, so we
+			// close the channel if it isn't already.
 			c.closedICEMutex.Lock()
 			defer c.closedICEMutex.Unlock()
 			select {
@@ -183,13 +180,58 @@ func (c *Conn) init() error {
 			}
 		}
 	})
+	c.rtc.OnConnectionStateChange(func(peerConnectionState webrtc.PeerConnectionState) {
+		if c.isClosed() {
+			// Make sure we don't log after Close() has been called.
+			return
+		}
+		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
+			slog.F("state", peerConnectionState))
+
+		switch peerConnectionState {
+		case webrtc.PeerConnectionStateDisconnected:
+			for i := 0; i < int(c.dcDisconnectListeners.Load()); i++ {
+				select {
+				case c.dcDisconnectChannel <- struct{}{}:
+				default:
+				}
+			}
+		case webrtc.PeerConnectionStateFailed:
+			for i := 0; i < int(c.dcFailedListeners.Load()); i++ {
+				select {
+				case c.dcFailedChannel <- struct{}{}:
+				default:
+				}
+			}
+		case webrtc.PeerConnectionStateClosed:
+			// pion/webrtc can update this state multiple times.
+			// A connection can never become un-closed, so we
+			// close the channel if it isn't already.
+			c.closedRTCMutex.Lock()
+			defer c.closedRTCMutex.Unlock()
+			select {
+			case <-c.closedRTC:
+			default:
+				close(c.closedRTC)
+			}
+		}
+	})
+	c.rtc.OnSignalingStateChange(func(signalState webrtc.SignalingState) {
+		c.opts.Logger.Debug(context.Background(), "signaling state updated",
+			slog.F("state", signalState))
+	})
 	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
 		if iceCandidate == nil {
 			return
 		}
+		// Run this in a goroutine so we don't block pion/webrtc
+		// from continuing.
 		go func() {
 			c.pendingCandidatesToSendMutex.Lock()
 			defer c.pendingCandidatesToSendMutex.Unlock()
+			// If the remote description hasn't been set yet, we queue the send of these candidates.
+			// It may work to send these immediately, but at the time of writing this package is
+			// unstable, so better being safe than sorry.
 			if c.rtc.RemoteDescription() == nil {
 				c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, iceCandidate.ToJSON())
 				c.opts.Logger.Debug(context.Background(), "buffering local candidate")
@@ -211,48 +253,6 @@ func (c *Conn) init() error {
 		default:
 		}
 	})
-	c.rtc.OnConnectionStateChange(func(peerConnectionState webrtc.PeerConnectionState) {
-		if c.isClosed() {
-			return
-		}
-		// Pion executes this handler multiple times in a rare condition.
-		// This prevents logging from happening after close.
-		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
-			slog.F("state", peerConnectionState))
-
-		switch peerConnectionState {
-		case webrtc.PeerConnectionStateDisconnected:
-			for i := 0; i < int(c.dcDisconnectListeners.Load()); i++ {
-				select {
-				case c.dcDisconnectChannel <- struct{}{}:
-				default:
-				}
-			}
-		case webrtc.PeerConnectionStateFailed:
-			for i := 0; i < int(c.dcFailedListeners.Load()); i++ {
-				select {
-				case c.dcFailedChannel <- struct{}{}:
-				default:
-				}
-			}
-		case webrtc.PeerConnectionStateClosed:
-			// Pion executes event handlers after close is called
-			// on the RTC connection. This ensures our Close()
-			// handler properly cleans up before returning.
-			//
-			// Pion can execute this multiple times, so we check
-			// if it's open before closing.
-			c.closedRTCMutex.Lock()
-			defer c.closedRTCMutex.Unlock()
-			select {
-			case <-c.closedRTC:
-				c.opts.Logger.Debug(context.Background(), "closedRTC channel already closed")
-			default:
-				c.opts.Logger.Debug(context.Background(), "closedRTC channel closing...")
-				close(c.closedRTC)
-			}
-		}
-	})
 	_, err := c.pingChannel()
 	if err != nil {
 		return err
@@ -265,13 +265,14 @@ func (c *Conn) init() error {
 	return nil
 }
 
-// Negotiate exchanges ICECandidate pairs over the exposed channels.
-// The diagram below shows the expected handshake. pion/webrtc v3
-// uses trickle ICE by default. See: https://webrtchacks.com/trickle-ice/
+// negotiate is triggered when a connection is ready to be established.
+// See trickle ICE for the expected exchange: https://webrtchacks.com/trickle-ice/
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
-	c.remoteSessionDescriptionMutex.Lock()
-	defer c.remoteSessionDescriptionMutex.Unlock()
+	// ICE candidates cannot be added until SessionDescriptions have been
+	// exchanged between peers.
+	c.negotiateMutex.Lock()
+	defer c.negotiateMutex.Unlock()
 
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -279,6 +280,8 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
 			return
 		}
+		// pion/webrtc will panic if Close is called while this
+		// function is being executed.
 		c.closeMutex.Lock()
 		err = c.rtc.SetLocalDescription(offer)
 		c.closeMutex.Unlock()
@@ -302,8 +305,8 @@ func (c *Conn) negotiate() {
 		return
 	case sessionDescription = <-c.remoteSessionDescriptionChannel:
 	}
-
 	c.opts.Logger.Debug(context.Background(), "setting remote description")
+
 	err := c.rtc.SetRemoteDescription(sessionDescription)
 	if err != nil {
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
@@ -316,8 +319,9 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
 			return
 		}
+		// pion/webrtc will panic if Close is called while this
+		// function is being executed.
 		c.closeMutex.Lock()
-		// pion doesn't handle a close properly if it occurs during this function.
 		err = c.rtc.SetLocalDescription(answer)
 		c.closeMutex.Unlock()
 		if err != nil {
@@ -333,6 +337,7 @@ func (c *Conn) negotiate() {
 		c.opts.Logger.Debug(context.Background(), "sent answer")
 	}
 
+	// Flush bufferred candidates after both sides have been negotiated!
 	go func() {
 		c.pendingCandidatesToSendMutex.Lock()
 		defer c.pendingCandidatesToSendMutex.Unlock()
@@ -356,9 +361,11 @@ func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) {
 	if c.isClosed() {
 		return
 	}
+	// This must occur in a goroutine to allow the SessionDescriptions
+	// to be exchanged first.
 	go func() {
-		c.remoteSessionDescriptionMutex.Lock()
-		defer c.remoteSessionDescriptionMutex.Unlock()
+		c.negotiateMutex.Lock()
+		defer c.negotiateMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
@@ -574,11 +581,12 @@ func (c *Conn) CloseWithError(err error) error {
 	// closing an already closed connection isn't an issue for us.
 	_ = c.rtc.Close()
 
+	// Waiting for pion/webrtc to report closed state on both of these
+	// ensures no goroutine leaks.
 	if c.rtc.ConnectionState() != webrtc.PeerConnectionStateNew {
 		c.opts.Logger.Debug(context.Background(), "waiting for rtc connection close...")
 		<-c.closedRTC
 	}
-
 	if c.rtc.ICEConnectionState() != webrtc.ICEConnectionStateNew {
 		c.opts.Logger.Debug(context.Background(), "waiting for ice connection close...")
 		<-c.closedICE
