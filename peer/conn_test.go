@@ -104,7 +104,7 @@ func TestConn(t *testing.T) {
 	t.Run("Accept", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOpts{})
+		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 
 		sch, err := server.Accept(context.Background())
@@ -119,7 +119,7 @@ func TestConn(t *testing.T) {
 	t.Run("AcceptNetworkOffline", func(t *testing.T) {
 		t.Parallel()
 		client, server, wan := createPair(t)
-		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOpts{})
+		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestConn(t *testing.T) {
 	t.Run("Buffering", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOpts{})
+		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestConn(t *testing.T) {
 		defaultTransport := http.DefaultTransport.(*http.Transport).Clone()
 		var cch *peer.Channel
 		defaultTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			cch, err = client.Dial(ctx, "hello", &peer.ChannelOpts{})
+			cch, err = client.Dial(ctx, "hello", &peer.ChannelOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -271,7 +271,7 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	c1SettingEngine.SetVNet(c1Net)
 	c1SettingEngine.SetPrflxAcceptanceMinWait(0)
 	c1SettingEngine.SetICETimeouts(disconnectedTimeout, failedTimeout, keepAliveInterval)
-	channel1, err := peer.Client([]webrtc.ICEServer{}, &peer.ConnOpts{
+	channel1, err := peer.Client([]webrtc.ICEServer{}, &peer.ConnOptions{
 		SettingEngine: c1SettingEngine,
 		Logger:        slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
@@ -283,7 +283,7 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	c2SettingEngine.SetVNet(c2Net)
 	c2SettingEngine.SetPrflxAcceptanceMinWait(0)
 	c2SettingEngine.SetICETimeouts(disconnectedTimeout, failedTimeout, keepAliveInterval)
-	channel2, err := peer.Server([]webrtc.ICEServer{}, &peer.ConnOpts{
+	channel2, err := peer.Server([]webrtc.ICEServer{}, &peer.ConnOptions{
 		SettingEngine: c2SettingEngine,
 		Logger:        slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
 	})
