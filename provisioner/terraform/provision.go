@@ -17,7 +17,10 @@ import (
 
 // Provision executes `terraform apply`.
 func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
-	// defer stream.CloseSend()
+	defer func() {
+		_ = stream.CloseSend()
+	}()
+
 	ctx := stream.Context()
 	statefilePath := filepath.Join(request.Directory, "terraform.tfstate")
 	if len(request.State) > 0 {

@@ -12,7 +12,9 @@ import (
 
 // Parse extracts Terraform variables from source-code.
 func (*terraform) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
-	defer stream.CloseSend()
+	defer func() {
+		_ = stream.CloseSend()
+	}()
 
 	module, diags := tfconfig.LoadModule(request.Directory)
 	if diags.HasErrors() {
