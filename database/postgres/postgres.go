@@ -3,6 +3,8 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/ory/dockertest/v3"
@@ -16,6 +18,10 @@ func Open() (string, func(), error) {
 	if err != nil {
 		return "", nil, xerrors.Errorf("create pool: %w", err)
 	}
+	tempDir, err := ioutil.TempDir(os.TempDir(), "postgres")
+	if err != nil {
+		return "", nil, xerrors.Errorf("create tempdir: %w", err)
+	}
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
 		Tag:        "11",
@@ -23,7 +29,17 @@ func Open() (string, func(), error) {
 			"POSTGRES_PASSWORD=postgres",
 			"POSTGRES_USER=postgres",
 			"POSTGRES_DB=postgres",
+			// The location for temporary database files!
+			"PGDATA=/tmp",
 			"listen_addresses = '*'",
+		},
+		Mounts: []string{
+			// The postgres image has a VOLUME parameter in it's image.
+			// If we don't mount at this point, Docker will allocate a
+			// volume for this directory.
+			//
+			// This isn't used anyways, since we override PGDATA.
+			fmt.Sprintf("%s:/var/lib/postgresql/data", tempDir),
 		},
 	}, func(config *docker.HostConfig) {
 		// set AutoRemove to true so that stopped container goes away by itself
@@ -57,5 +73,6 @@ func Open() (string, func(), error) {
 	}
 	return dbURL, func() {
 		_ = pool.Purge(resource)
+		_ = os.RemoveAll(tempDir)
 	}, nil
 }

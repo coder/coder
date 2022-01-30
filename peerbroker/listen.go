@@ -19,7 +19,7 @@ import (
 
 // Listen consumes the transport as the server-side of the PeerBroker dRPC service.
 // The Accept function must be serviced, or new connections will hang.
-func Listen(transport drpc.Transport, opts *peer.ConnOpts) (*Listener, error) {
+func Listen(transport drpc.Transport, opts *peer.ConnOptions) (*Listener, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	listener := &Listener{
 		connectionChannel: make(chan *peer.Conn),
@@ -30,7 +30,7 @@ func Listen(transport drpc.Transport, opts *peer.ConnOpts) (*Listener, error) {
 
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterPeerBroker(mux, &peerBrokerService{
-		connOpts: opts,
+		connOptions: opts,
 
 		listener: listener,
 	})
@@ -99,13 +99,13 @@ func (l *Listener) isClosed() bool {
 type peerBrokerService struct {
 	listener *Listener
 
-	connOpts *peer.ConnOpts
+	connOptions *peer.ConnOptions
 }
 
 // NegotiateConnection negotiates a WebRTC connection.
 func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateConnectionStream) error {
 	// Start with no ICE servers. They can be sent by the client if provided.
-	peerConn, err := peer.Server([]webrtc.ICEServer{}, b.connOpts)
+	peerConn, err := peer.Server([]webrtc.ICEServer{}, b.connOptions)
 	if err != nil {
 		return xerrors.Errorf("create peer connection: %w", err)
 	}

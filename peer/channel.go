@@ -27,7 +27,7 @@ const (
 // The initialization overrides listener handles, and detaches
 // the channel on open. The datachannel should not be manually
 // mutated after being passed to this function.
-func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOpts) *Channel {
+func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOptions) *Channel {
 	channel := &Channel{
 		opts: opts,
 		conn: conn,
@@ -41,7 +41,7 @@ func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOpts) *Channel 
 	return channel
 }
 
-type ChannelOpts struct {
+type ChannelOptions struct {
 	// ID is a channel ID that should be used when `Negotiated`
 	// is true.
 	ID uint16
@@ -72,7 +72,7 @@ type ChannelOpts struct {
 // WebRTC PeerConnection failure. This is done to emulate TCP connections.
 // This option can be changed in the options when creating a Channel.
 type Channel struct {
-	opts *ChannelOpts
+	opts *ChannelOptions
 
 	conn *Conn
 	dc   *webrtc.DataChannel
