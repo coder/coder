@@ -48,14 +48,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	// pion/ice doesn't properly close immediately. The solution for this isn't yet known. See:
-	// https://github.com/pion/ice/pull/413
-	goleak.VerifyTestMain(m,
-		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func1"),
-		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func2"),
-		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).taskLoop"),
-		goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
-	)
+	goleak.VerifyTestMain(m)
 }
 
 func TestConn(t *testing.T) {
@@ -64,6 +57,7 @@ func TestConn(t *testing.T) {
 	t.Run("Ping", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
+		exchange(client, server)
 		_, err := client.Ping()
 		require.NoError(t, err)
 		_, err = server.Ping()
@@ -72,7 +66,8 @@ func TestConn(t *testing.T) {
 
 	t.Run("PingNetworkOffline", func(t *testing.T) {
 		t.Parallel()
-		_, server, wan := createPair(t)
+		client, server, wan := createPair(t)
+		exchange(client, server)
 		_, err := server.Ping()
 		require.NoError(t, err)
 		err = wan.Stop()
@@ -83,7 +78,8 @@ func TestConn(t *testing.T) {
 
 	t.Run("PingReconnect", func(t *testing.T) {
 		t.Parallel()
-		_, server, wan := createPair(t)
+		client, server, wan := createPair(t)
+		exchange(client, server)
 		_, err := server.Ping()
 		require.NoError(t, err)
 		// Create a channel that closes on disconnect.
@@ -104,6 +100,7 @@ func TestConn(t *testing.T) {
 	t.Run("Accept", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
+		exchange(client, server)
 		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 
@@ -119,6 +116,7 @@ func TestConn(t *testing.T) {
 	t.Run("AcceptNetworkOffline", func(t *testing.T) {
 		t.Parallel()
 		client, server, wan := createPair(t)
+		exchange(client, server)
 		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
@@ -135,6 +133,7 @@ func TestConn(t *testing.T) {
 	t.Run("Buffering", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
+		exchange(client, server)
 		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
@@ -161,6 +160,7 @@ func TestConn(t *testing.T) {
 	t.Run("NetConn", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
+		exchange(client, server)
 		srv, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		defer srv.Close()
@@ -213,6 +213,7 @@ func TestConn(t *testing.T) {
 	t.Run("CloseBeforeNegotiate", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
+		exchange(client, server)
 		err := client.Close()
 		require.NoError(t, err)
 		err = server.Close()
@@ -232,6 +233,7 @@ func TestConn(t *testing.T) {
 	t.Run("PingConcurrent", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
+		exchange(client, server)
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
@@ -245,6 +247,18 @@ func TestConn(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		wg.Wait()
+	})
+
+	t.Run("CandidateBeforeSessionDescription", func(t *testing.T) {
+		t.Parallel()
+		client, server, _ := createPair(t)
+		server.SetRemoteSessionDescription(<-client.LocalSessionDescription())
+		sdp := <-server.LocalSessionDescription()
+		client.AddRemoteCandidate(<-server.LocalCandidate())
+		client.SetRemoteSessionDescription(sdp)
+		server.AddRemoteCandidate(<-client.LocalCandidate())
+		_, err := client.Ping()
+		require.NoError(t, err)
 	})
 }
 
@@ -304,31 +318,33 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 		_ = wan.Stop()
 	})
 
-	go func() {
-		for {
-			select {
-			case c := <-channel2.LocalCandidate():
-				_ = channel1.AddRemoteCandidate(c)
-			case c := <-channel2.LocalSessionDescription():
-				channel1.SetRemoteSessionDescription(c)
-			case <-channel2.Closed():
-				return
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case c := <-channel1.LocalCandidate():
-				_ = channel2.AddRemoteCandidate(c)
-			case c := <-channel1.LocalSessionDescription():
-				channel2.SetRemoteSessionDescription(c)
-			case <-channel1.Closed():
-				return
-			}
-		}
-	}()
-
 	return channel1, channel2, wan
+}
+
+func exchange(client, server *peer.Conn) {
+	go func() {
+		for {
+			select {
+			case c := <-server.LocalCandidate():
+				client.AddRemoteCandidate(c)
+			case c := <-server.LocalSessionDescription():
+				client.SetRemoteSessionDescription(c)
+			case <-server.Closed():
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case c := <-client.LocalCandidate():
+				server.AddRemoteCandidate(c)
+			case c := <-client.LocalSessionDescription():
+				server.SetRemoteSessionDescription(c)
+			case <-client.Closed():
+				return
+			}
+		}
+	}()
 }

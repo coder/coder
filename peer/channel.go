@@ -141,9 +141,9 @@ func (c *Channel) init() {
 		// A DataChannel can disconnect multiple times, so this needs to loop.
 		for {
 			select {
-			case <-c.closed:
+			case <-c.conn.closedRTC:
 				// If this channel was closed, there's no need to close again.
-				return
+				err = c.conn.closeError
 			case <-c.conn.Closed():
 				// If the RTC connection closed with an error, this channel
 				// should end with the same one.

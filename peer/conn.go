@@ -108,11 +108,13 @@ type Conn struct {
 	// Determines whether this connection will send the offer or the answer.
 	offerrer bool
 
-	closed     chan struct{}
-	closedRTC  chan struct{}
-	closedICE  chan struct{}
-	closeMutex sync.Mutex
-	closeError error
+	closed         chan struct{}
+	closedRTC      chan struct{}
+	closedRTCMutex sync.Mutex
+	closedICE      chan struct{}
+	closedICEMutex sync.Mutex
+	closeMutex     sync.Mutex
+	closeError     error
 
 	dcOpenChannel         chan *webrtc.DataChannel
 	dcDisconnectChannel   chan struct{}
@@ -128,7 +130,6 @@ type Conn struct {
 
 	pendingCandidatesToSend      []webrtc.ICECandidateInit
 	pendingCandidatesToSendMutex sync.Mutex
-	pendingCandidatesFlushed     bool
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -155,6 +156,8 @@ func (c *Conn) init() error {
 			slog.F("state", iceConnectionState))
 
 		if iceConnectionState == webrtc.ICEConnectionStateClosed {
+			c.closedICEMutex.Lock()
+			defer c.closedICEMutex.Unlock()
 			select {
 			case <-c.closedICE:
 			default:
@@ -169,24 +172,36 @@ func (c *Conn) init() error {
 	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
 		c.opts.Logger.Debug(context.Background(), "ice gathering state updated",
 			slog.F("state", iceGatherState))
+
+		if iceGatherState == webrtc.ICEGathererStateClosed {
+			c.closedICEMutex.Lock()
+			defer c.closedICEMutex.Unlock()
+			select {
+			case <-c.closedICE:
+			default:
+				close(c.closedICE)
+			}
+		}
 	})
 	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
 		if iceCandidate == nil {
 			return
 		}
-		c.pendingCandidatesToSendMutex.Lock()
-		defer c.pendingCandidatesToSendMutex.Unlock()
-		if !c.pendingCandidatesFlushed {
-			c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, iceCandidate.ToJSON())
-			c.opts.Logger.Debug(context.Background(), "buffering local candidate")
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "sending local candidate")
-		select {
-		case <-c.closed:
-			break
-		case c.localCandidateChannel <- iceCandidate.ToJSON():
-		}
+		go func() {
+			c.pendingCandidatesToSendMutex.Lock()
+			defer c.pendingCandidatesToSendMutex.Unlock()
+			if c.rtc.RemoteDescription() == nil {
+				c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, iceCandidate.ToJSON())
+				c.opts.Logger.Debug(context.Background(), "buffering local candidate")
+				return
+			}
+			c.opts.Logger.Debug(context.Background(), "sending local candidate")
+			select {
+			case <-c.closed:
+				break
+			case c.localCandidateChannel <- iceCandidate.ToJSON():
+			}
+		}()
 	})
 	c.rtc.OnDataChannel(func(dc *webrtc.DataChannel) {
 		select {
@@ -197,6 +212,11 @@ func (c *Conn) init() error {
 		}
 	})
 	c.rtc.OnConnectionStateChange(func(peerConnectionState webrtc.PeerConnectionState) {
+		if c.isClosed() {
+			return
+		}
+		// Pion executes this handler multiple times in a rare condition.
+		// This prevents logging from happening after close.
 		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
 			slog.F("state", peerConnectionState))
 
@@ -215,18 +235,20 @@ func (c *Conn) init() error {
 				default:
 				}
 			}
-		}
-
-		if peerConnectionState == webrtc.PeerConnectionStateClosed {
+		case webrtc.PeerConnectionStateClosed:
 			// Pion executes event handlers after close is called
 			// on the RTC connection. This ensures our Close()
 			// handler properly cleans up before returning.
 			//
 			// Pion can execute this multiple times, so we check
 			// if it's open before closing.
+			c.closedRTCMutex.Lock()
+			defer c.closedRTCMutex.Unlock()
 			select {
 			case <-c.closedRTC:
+				c.opts.Logger.Debug(context.Background(), "closedRTC channel already closed")
 			default:
+				c.opts.Logger.Debug(context.Background(), "closedRTC channel closing...")
 				close(c.closedRTC)
 			}
 		}
@@ -248,6 +270,8 @@ func (c *Conn) init() error {
 // uses trickle ICE by default. See: https://webrtchacks.com/trickle-ice/
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
+	c.remoteSessionDescriptionMutex.Lock()
+	defer c.remoteSessionDescriptionMutex.Unlock()
 
 	if c.offerrer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
@@ -255,7 +279,9 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
 			return
 		}
+		c.closeMutex.Lock()
 		err = c.rtc.SetLocalDescription(offer)
+		c.closeMutex.Unlock()
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
@@ -266,25 +292,23 @@ func (c *Conn) negotiate() {
 			return
 		case c.localSessionDescriptionChannel <- offer:
 		}
+		c.opts.Logger.Debug(context.Background(), "sent offer")
 	}
 
 	var sessionDescription webrtc.SessionDescription
+	c.opts.Logger.Debug(context.Background(), "awaiting remote description...")
 	select {
 	case <-c.closed:
 		return
 	case sessionDescription = <-c.remoteSessionDescriptionChannel:
 	}
 
-	// This prevents candidates from being added while
-	// the remote description is being set.
-	c.remoteSessionDescriptionMutex.Lock()
 	c.opts.Logger.Debug(context.Background(), "setting remote description")
 	err := c.rtc.SetRemoteDescription(sessionDescription)
 	if err != nil {
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
 		return
 	}
-	c.remoteSessionDescriptionMutex.Unlock()
 
 	if !c.offerrer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
@@ -306,31 +330,44 @@ func (c *Conn) negotiate() {
 			return
 		case c.localSessionDescriptionChannel <- answer:
 		}
+		c.opts.Logger.Debug(context.Background(), "sent answer")
 	}
 
-	c.pendingCandidatesToSendMutex.Lock()
-	defer c.pendingCandidatesToSendMutex.Unlock()
-	for _, pendingCandidate := range c.pendingCandidatesToSend {
-		select {
-		case <-c.closed:
-			return
-		case c.localCandidateChannel <- pendingCandidate:
+	go func() {
+		c.pendingCandidatesToSendMutex.Lock()
+		defer c.pendingCandidatesToSendMutex.Unlock()
+		for _, pendingCandidate := range c.pendingCandidatesToSend {
+			select {
+			case <-c.closed:
+				return
+			case c.localCandidateChannel <- pendingCandidate:
+			}
+			c.opts.Logger.Debug(context.Background(), "flushed buffered local candidate")
 		}
-		c.opts.Logger.Debug(context.Background(), "flushed buffered local candidate")
-	}
-	c.opts.Logger.Debug(context.Background(), "flushed buffered local candidates",
-		slog.F("count", len(c.pendingCandidatesToSend)),
-	)
-	c.pendingCandidatesToSend = make([]webrtc.ICECandidateInit, 0)
-	c.pendingCandidatesFlushed = true
+		c.opts.Logger.Debug(context.Background(), "flushed buffered local candidates",
+			slog.F("count", len(c.pendingCandidatesToSend)),
+		)
+		c.pendingCandidatesToSend = make([]webrtc.ICECandidateInit, 0)
+	}()
 }
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
-func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
-	c.remoteSessionDescriptionMutex.Lock()
-	defer c.remoteSessionDescriptionMutex.Unlock()
-	c.opts.Logger.Debug(context.Background(), "accepting candidate", slog.F("length", len(i.Candidate)))
-	return c.rtc.AddICECandidate(i)
+func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) {
+	if c.isClosed() {
+		return
+	}
+	go func() {
+		c.remoteSessionDescriptionMutex.Lock()
+		defer c.remoteSessionDescriptionMutex.Unlock()
+		if c.isClosed() {
+			return
+		}
+		c.opts.Logger.Debug(context.Background(), "accepting candidate", slog.F("length", len(i.Candidate)))
+		err := c.rtc.AddICECandidate(i)
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("accept candidate: %w", err))
+		}
+	}()
 }
 
 // SetRemoteSessionDescription sets the remote description for the WebRTC connection.
@@ -528,7 +565,6 @@ func (c *Conn) CloseWithError(err error) error {
 	} else {
 		c.closeError = err
 	}
-	close(c.closed)
 
 	if ch, _ := c.pingChannel(); ch != nil {
 		_ = ch.closeWithError(c.closeError)
@@ -537,10 +573,6 @@ func (c *Conn) CloseWithError(err error) error {
 	// this call will return an error that isn't typed. We don't check the error because
 	// closing an already closed connection isn't an issue for us.
 	_ = c.rtc.Close()
-
-	// Waits for all DataChannels to exit before officially labeling as closed.
-	// All logging, goroutines, and async functionality is cleaned up after this.
-	c.dcClosedWaitGroup.Wait()
 
 	if c.rtc.ConnectionState() != webrtc.PeerConnectionStateNew {
 		c.opts.Logger.Debug(context.Background(), "waiting for rtc connection close...")
@@ -552,5 +584,11 @@ func (c *Conn) CloseWithError(err error) error {
 		<-c.closedICE
 	}
 
+	// Waits for all DataChannels to exit before officially labeling as closed.
+	// All logging, goroutines, and async functionality is cleaned up after this.
+	c.dcClosedWaitGroup.Wait()
+
+	close(c.closed)
+	c.opts.Logger.Debug(context.Background(), "closed")
 	return err
 }

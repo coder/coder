@@ -21,6 +21,11 @@ func TestMain(m *testing.M) {
 func TestPostgres(t *testing.T) {
 	t.Parallel()
 
+	if testing.Short() {
+		t.Skip()
+		return
+	}
+
 	connect, close, err := postgres.Open()
 	require.NoError(t, err)
 	defer close()
