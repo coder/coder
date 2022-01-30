@@ -55,7 +55,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 	opts.SettingEngine.SetSrflxAcceptanceMinWait(0)
 	opts.SettingEngine.DetachDataChannels()
 	lf := logging.NewDefaultLoggerFactory()
-	lf.DefaultLogLevel = logging.LogLevelTrace
+	lf.DefaultLogLevel = logging.LogLevelDisabled
 	opts.SettingEngine.LoggerFactory = lf
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(opts.SettingEngine))
 	rtc, err := api.NewPeerConnection(webrtc.Configuration{
