@@ -3,6 +3,8 @@ package peer
 import (
 	"bytes"
 	"context"
+	"fmt"
+
 	"crypto/rand"
 	"crypto/sha256"
 	"io"
@@ -69,6 +71,8 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		rtc:                 rtc,
 		offerrer:            client,
 		closed:              make(chan struct{}),
+		closedRTC:           make(chan struct{}),
+		closedICE:           make(chan struct{}),
 		dcOpenChannel:       make(chan *webrtc.DataChannel),
 		dcDisconnectChannel: make(chan struct{}),
 		dcFailedChannel:     make(chan struct{}),
@@ -76,8 +80,8 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		// of this will cause a connection failure.
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit, 16),
 		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
-		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
-		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
+		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription, 1),
+		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription, 1),
 	}
 	if client {
 		// If we're the client, we want to flip the echo and
@@ -109,6 +113,8 @@ type Conn struct {
 	offerrer bool
 
 	closed     chan struct{}
+	closedRTC  chan struct{}
+	closedICE  chan struct{}
 	closeMutex sync.Mutex
 	closeError error
 
@@ -142,26 +148,22 @@ type Conn struct {
 func (c *Conn) init() error {
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
-		// Close must be locked here otherwise log output can appear
-		// after the connection has been closed.
-		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
-		if c.isClosed() {
-			return
-		}
-
 		c.opts.Logger.Debug(context.Background(), "ice connection state updated",
 			slog.F("state", iceConnectionState))
+
+		if iceConnectionState == webrtc.ICEConnectionStateClosed {
+			select {
+			case <-c.closedICE:
+			default:
+				close(c.closedICE)
+			}
+		}
+	})
+	c.rtc.OnSignalingStateChange(func(signalState webrtc.SignalingState) {
+		c.opts.Logger.Debug(context.Background(), "signal state updated",
+			slog.F("state", signalState))
 	})
 	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
-		// Close can't be locked here, because this is triggered
-		// when close is called. It doesn't appear this get's
-		// executed after close though, so it shouldn't cause
-		// problems.
-		if c.isClosed() {
-			return
-		}
-
 		c.opts.Logger.Debug(context.Background(), "ice gathering state updated",
 			slog.F("state", iceGatherState))
 	})
@@ -171,7 +173,7 @@ func (c *Conn) init() error {
 		}
 		json := iceCandidate.ToJSON()
 		c.opts.Logger.Debug(context.Background(), "writing candidate to channel",
-			slog.F("hash", sha256.Sum224([]byte(json.Candidate))),
+			slog.F("hash", c.hashCandidate(json)),
 			slog.F("length", len(json.Candidate)),
 		)
 		select {
@@ -188,19 +190,11 @@ func (c *Conn) init() error {
 		default:
 		}
 	})
-	c.rtc.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
-		// Close must be locked here otherwise log output can appear
-		// after the connection has been closed.
-		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
-		if c.isClosed() {
-			return
-		}
-
+	c.rtc.OnConnectionStateChange(func(peerConnectionState webrtc.PeerConnectionState) {
 		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
-			slog.F("state", pcs))
+			slog.F("state", peerConnectionState))
 
-		switch pcs {
+		switch peerConnectionState {
 		case webrtc.PeerConnectionStateDisconnected:
 			for i := 0; i < int(c.dcDisconnectListeners.Load()); i++ {
 				select {
@@ -214,6 +208,20 @@ func (c *Conn) init() error {
 				case c.dcFailedChannel <- struct{}{}:
 				default:
 				}
+			}
+		}
+
+		if peerConnectionState == webrtc.PeerConnectionStateClosed {
+			// Pion executes event handlers after close is called
+			// on the RTC connection. This ensures our Close()
+			// handler properly cleans up before returning.
+			//
+			// Pion can execute this multiple times, so we check
+			// if it's open before closing.
+			select {
+			case <-c.closedRTC:
+			default:
+				close(c.closedRTC)
 			}
 		}
 	})
@@ -275,17 +283,30 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 	return c.pingEchoChan, c.pingEchoError
 }
 
+// Computes a hash of the ICE candidate. Used for debug logging.
+func (*Conn) hashCandidate(iceCandidate webrtc.ICECandidateInit) string {
+	hash := sha256.Sum224([]byte(iceCandidate.Candidate))
+	return fmt.Sprintf("%x", hash[:8])
+}
+
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
 
 	if c.offerrer {
+		c.closeMutex.Lock()
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
+		c.closeMutex.Unlock()
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "setting local description")
+		c.opts.Logger.Debug(context.Background(), "setting local description", slog.F("closed", c.isClosed()))
+		if c.isClosed() {
+			return
+		}
+		c.closeMutex.Lock()
 		err = c.rtc.SetLocalDescription(offer)
+		c.closeMutex.Unlock()
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
@@ -305,7 +326,9 @@ func (c *Conn) negotiate() {
 	}
 
 	c.opts.Logger.Debug(context.Background(), "setting remote description")
+	c.closeMutex.Lock()
 	err := c.rtc.SetRemoteDescription(remoteDescription)
+	c.closeMutex.Unlock()
 	if err != nil {
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
 		return
@@ -317,13 +340,15 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "setting local description")
-		err = c.rtc.SetLocalDescription(answer)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
+		c.opts.Logger.Debug(context.Background(), "setting local description", slog.F("closed", c.isClosed()))
+		if c.isClosed() {
 			return
 		}
-		if c.isClosed() {
+		c.closeMutex.Lock()
+		err = c.rtc.SetLocalDescription(answer)
+		c.closeMutex.Unlock()
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
 		select {
@@ -339,9 +364,8 @@ func (c *Conn) negotiate() {
 	c.pendingCandidatesMutex.Lock()
 	defer c.pendingCandidatesMutex.Unlock()
 	for _, pendingCandidate := range c.pendingRemoteCandidates {
-		hash := sha256.Sum224([]byte(pendingCandidate.Candidate))
 		c.opts.Logger.Debug(context.Background(), "flushing buffered remote candidate",
-			slog.F("hash", hash),
+			slog.F("hash", c.hashCandidate(pendingCandidate)),
 			slog.F("length", len(pendingCandidate.Candidate)),
 		)
 		err := c.rtc.AddICECandidate(pendingCandidate)
@@ -368,7 +392,7 @@ func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
 	c.pendingCandidatesMutex.Lock()
 	defer c.pendingCandidatesMutex.Unlock()
 	fields := []slog.Field{
-		slog.F("hash", sha256.Sum224([]byte(i.Candidate))),
+		slog.F("hash", c.hashCandidate(i)),
 		slog.F("length", len(i.Candidate)),
 	}
 	if !c.pendingCandidatesFlushed {
@@ -541,6 +565,16 @@ func (c *Conn) CloseWithError(err error) error {
 	// Waits for all DataChannels to exit before officially labeling as closed.
 	// All logging, goroutines, and async functionality is cleaned up after this.
 	c.dcClosedWaitGroup.Wait()
+
+	if c.rtc.ConnectionState() != webrtc.PeerConnectionStateNew {
+		c.opts.Logger.Debug(context.Background(), "waiting for rtc connection close...")
+		<-c.closedRTC
+	}
+
+	if c.rtc.ICEConnectionState() != webrtc.ICEConnectionStateNew {
+		c.opts.Logger.Debug(context.Background(), "waiting for ice connection close...")
+		<-c.closedICE
+	}
 
 	return err
 }
