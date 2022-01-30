@@ -79,7 +79,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		// This channel needs to be bufferred otherwise slow consumers
 		// of this will cause a connection failure.
 		localNegotiator:          make(chan Negotiation, 8),
-		remoteSessionDescription: make(chan webrtc.SessionDescription, 1),
+		remoteSessionDescription: make(chan webrtc.SessionDescription),
 		pendingCandidatesToSend:  make([]webrtc.ICECandidateInit, 0),
 	}
 	if client {
@@ -124,8 +124,9 @@ type Conn struct {
 	dcFailedListeners     atomic.Uint32
 	dcClosedWaitGroup     sync.WaitGroup
 
-	localNegotiator          chan Negotiation
-	remoteSessionDescription chan webrtc.SessionDescription
+	localNegotiator               chan Negotiation
+	remoteSessionDescription      chan webrtc.SessionDescription
+	remoteSessionDescriptionMutex sync.Mutex
 
 	pendingCandidatesToSend      []webrtc.ICECandidateInit
 	pendingCandidatesToSendMutex sync.Mutex
@@ -329,9 +330,6 @@ func (c *Conn) negotiate() {
 			return
 		}
 		c.opts.Logger.Debug(context.Background(), "setting local description", slog.F("closed", c.isClosed()))
-		if c.isClosed() {
-			return
-		}
 		c.closeMutex.Lock()
 		err = c.rtc.SetLocalDescription(offer)
 		c.closeMutex.Unlock()
@@ -353,6 +351,9 @@ func (c *Conn) negotiate() {
 	case sessionDescription = <-c.remoteSessionDescription:
 	}
 
+	// This prevents candidates from being added while
+	// the remote description is being set.
+	c.remoteSessionDescriptionMutex.Lock()
 	c.opts.Logger.Debug(context.Background(), "setting remote description")
 	c.closeMutex.Lock()
 	err := c.rtc.SetRemoteDescription(sessionDescription)
@@ -361,17 +362,17 @@ func (c *Conn) negotiate() {
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
 		return
 	}
+	c.remoteSessionDescriptionMutex.Unlock()
 
 	if !c.offerrer {
+		c.closeMutex.Lock()
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
+		c.closeMutex.Unlock()
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
 			return
 		}
 		c.opts.Logger.Debug(context.Background(), "setting local description", slog.F("closed", c.isClosed()))
-		if c.isClosed() {
-			return
-		}
 		c.closeMutex.Lock()
 		err = c.rtc.SetLocalDescription(answer)
 		c.closeMutex.Unlock()
@@ -418,10 +419,10 @@ func (c *Conn) AddRemoteNegotiation(negotiation Negotiation) error {
 	}
 
 	if len(negotiation.ICECandidates) > 0 {
+		c.remoteSessionDescriptionMutex.Lock()
+		defer c.remoteSessionDescriptionMutex.Unlock()
 		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with ice candidates",
 			slog.F("count", len(negotiation.ICECandidates)))
-		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
 		for _, iceCandidate := range negotiation.ICECandidates {
 			err := c.rtc.AddICECandidate(iceCandidate)
 			if err != nil {
