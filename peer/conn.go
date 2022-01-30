@@ -288,6 +288,22 @@ func (*Conn) hashCandidate(iceCandidate webrtc.ICECandidateInit) string {
 	return fmt.Sprintf("%x", hash[:8])
 }
 
+// Negotiate exchanges ICECandidate pairs over the exposed channels.
+// The diagram below shows the expected handshake. pion/webrtc v3
+// uses trickle ICE by default. See: https://webrtchacks.com/trickle-ice/
+//          ┌────────┐           ┌────────┐
+//          │offerrer│           │answerer│
+//          │(client)│           │(server)│
+//          └─┬────┬─┘           └─┬──────┘
+//            │    │     offer     │
+// ┌──────────▼┐   ├──────────────►├──►┌───────────┐
+// │STUN Server│   │               │   │STUN Server│
+// │(optional) ├──►│   candidate   │◄──┤(optional) │
+// └───────────┘   │    (async)    │   └───────────┘
+//                 │◄─────────────►│
+//                 │               │
+//                 │     answer    │
+//                 └◄──────────────┘
 func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "negotiating")
 
