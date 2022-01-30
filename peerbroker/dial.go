@@ -11,7 +11,7 @@ import (
 )
 
 // Dial consumes the PeerBroker gRPC connection negotiation stream to produce a WebRTC peered connection.
-func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []webrtc.ICEServer, opts *peer.ConnOpts) (*peer.Conn, error) {
+func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []webrtc.ICEServer, opts *peer.ConnOptions) (*peer.Conn, error) {
 	// Convert WebRTC ICE servers to the protobuf type.
 	protoIceServers := make([]*proto.WebRTCICEServer, 0, len(iceServers))
 	for _, iceServer := range iceServers {

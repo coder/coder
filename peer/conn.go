@@ -32,20 +32,20 @@ var (
 )
 
 // Client creates a new client connection.
-func Client(servers []webrtc.ICEServer, opts *ConnOpts) (*Conn, error) {
+func Client(servers []webrtc.ICEServer, opts *ConnOptions) (*Conn, error) {
 	return newWithClientOrServer(servers, true, opts)
 }
 
 // Server creates a new server connection.
-func Server(servers []webrtc.ICEServer, opts *ConnOpts) (*Conn, error) {
+func Server(servers []webrtc.ICEServer, opts *ConnOptions) (*Conn, error) {
 	return newWithClientOrServer(servers, false, opts)
 }
 
 // newWithClientOrServer constructs a new connection with the client option.
 // nolint:revive
-func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOpts) (*Conn, error) {
+func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOptions) (*Conn, error) {
 	if opts == nil {
-		opts = &ConnOpts{}
+		opts = &ConnOptions{}
 	}
 
 	// Enables preference to STUN.
@@ -90,7 +90,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 	return conn, nil
 }
 
-type ConnOpts struct {
+type ConnOptions struct {
 	Logger slog.Logger
 
 	// Enables customization on the underlying WebRTC connection.
@@ -103,7 +103,7 @@ type ConnOpts struct {
 // concurrent-safe webrtc.DataChannel, and standardized errors for connection state.
 type Conn struct {
 	rtc  *webrtc.PeerConnection
-	opts *ConnOpts
+	opts *ConnOptions
 	// Determines whether this connection will send the offer or the answer.
 	offerrer bool
 
@@ -203,7 +203,7 @@ func (c *Conn) init() error {
 
 func (c *Conn) pingChannel() (*Channel, error) {
 	c.pingOnce.Do(func() {
-		c.pingChan, c.pingError = c.dialChannel(context.Background(), "ping", &ChannelOpts{
+		c.pingChan, c.pingError = c.dialChannel(context.Background(), "ping", &ChannelOptions{
 			ID:               c.pingChannelID,
 			Negotiated:       true,
 			OpenOnDisconnect: true,
@@ -217,7 +217,7 @@ func (c *Conn) pingChannel() (*Channel, error) {
 
 func (c *Conn) pingEchoChannel() (*Channel, error) {
 	c.pingEchoOnce.Do(func() {
-		c.pingEchoChan, c.pingEchoError = c.dialChannel(context.Background(), "echo", &ChannelOpts{
+		c.pingEchoChan, c.pingEchoError = c.dialChannel(context.Background(), "echo", &ChannelOptions{
 			ID:               c.pingEchoChannelID,
 			Negotiated:       true,
 			OpenOnDisconnect: true,
@@ -377,13 +377,13 @@ func (c *Conn) Accept(ctx context.Context) (*Channel, error) {
 	case dataChannel = <-c.dcOpenChannel:
 	}
 
-	return newChannel(c, dataChannel, &ChannelOpts{}), nil
+	return newChannel(c, dataChannel, &ChannelOptions{}), nil
 }
 
 // Dial creates a new DataChannel.
-func (c *Conn) Dial(ctx context.Context, label string, opts *ChannelOpts) (*Channel, error) {
+func (c *Conn) Dial(ctx context.Context, label string, opts *ChannelOptions) (*Channel, error) {
 	if opts == nil {
-		opts = &ChannelOpts{}
+		opts = &ChannelOptions{}
 	}
 	if opts.ID == c.pingChannelID || opts.ID == c.pingEchoChannelID {
 		return nil, xerrors.Errorf("datachannel id %d and %d are reserved for ping", c.pingChannelID, c.pingEchoChannelID)
@@ -391,7 +391,7 @@ func (c *Conn) Dial(ctx context.Context, label string, opts *ChannelOpts) (*Chan
 	return c.dialChannel(ctx, label, opts)
 }
 
-func (c *Conn) dialChannel(ctx context.Context, label string, opts *ChannelOpts) (*Channel, error) {
+func (c *Conn) dialChannel(ctx context.Context, label string, opts *ChannelOptions) (*Channel, error) {
 	c.opts.Logger.Debug(ctx, "creating data channel", slog.F("label", label), slog.F("opts", opts))
 	var id *uint16
 	if opts.ID != 0 {
