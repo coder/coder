@@ -9,26 +9,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
-
-	"github.com/hashicorp/hc-install/product"
-	"github.com/hashicorp/hc-install/releases"
 )
 
 func TestProvision(t *testing.T) {
 	t.Parallel()
-
-	installer := &releases.ExactVersion{
-		Product: product.Terraform,
-		Version: version.Must(version.NewVersion("1.1.2")),
-	}
-	execPath, err := installer.Install(context.Background())
-	require.NoError(t, err)
 
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -42,7 +31,6 @@ func TestProvision(t *testing.T) {
 			ServeOptions: &provisionersdk.ServeOptions{
 				Transport: server,
 			},
-			BinaryPath: execPath,
 		})
 		require.NoError(t, err)
 	}()

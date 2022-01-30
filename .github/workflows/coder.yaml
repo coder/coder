@@ -148,6 +148,10 @@ jobs:
 
       - run: go install gotest.tools/gotestsum@latest
 
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.2
+
       - name: Test with Mock Database
         run:
           gotestsum --jsonfile="gotests.json" --packages="./..." --
