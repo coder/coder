@@ -78,11 +78,9 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		dcFailedChannel:     make(chan struct{}),
 		// This channel needs to be bufferred otherwise slow consumers
 		// of this will cause a connection failure.
-		localCandidateChannel:           make(chan webrtc.ICECandidateInit, 16),
-		pendingCandidatesToSend:         make([]webrtc.ICECandidateInit, 0),
-		pendingCandidatesToAccept:       make([]webrtc.ICECandidateInit, 0),
-		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription, 1),
-		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription, 1),
+		localNegotiator:          make(chan Negotiation, 8),
+		remoteSessionDescription: make(chan webrtc.SessionDescription, 1),
+		pendingCandidatesToSend:  make([]webrtc.ICECandidateInit, 0),
 	}
 	if client {
 		// If we're the client, we want to flip the echo and
@@ -126,15 +124,12 @@ type Conn struct {
 	dcFailedListeners     atomic.Uint32
 	dcClosedWaitGroup     sync.WaitGroup
 
-	localCandidateChannel           chan webrtc.ICECandidateInit
-	localSessionDescriptionChannel  chan webrtc.SessionDescription
-	remoteSessionDescriptionChannel chan webrtc.SessionDescription
+	localNegotiator          chan Negotiation
+	remoteSessionDescription chan webrtc.SessionDescription
 
 	pendingCandidatesToSend      []webrtc.ICECandidateInit
 	pendingCandidatesToSendMutex sync.Mutex
-
-	pendingCandidatesToAccept      []webrtc.ICECandidateInit
-	pendingCandidatesToAcceptMutex sync.Mutex
+	pendingCandidatesFlushed     bool
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -146,6 +141,12 @@ type Conn struct {
 	pingOnce      sync.Once
 	pingChan      *Channel
 	pingError     error
+}
+
+// Negotiation represents a handshake message between peer connections.
+type Negotiation struct {
+	SessionDescription *webrtc.SessionDescription
+	ICECandidates      []webrtc.ICECandidateInit
 }
 
 func (c *Conn) init() error {
@@ -181,7 +182,7 @@ func (c *Conn) init() error {
 			slog.F("hash", c.hashCandidate(json)),
 			slog.F("length", len(json.Candidate)),
 		}
-		if c.rtc.RemoteDescription() == nil {
+		if !c.pendingCandidatesFlushed {
 			c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, json)
 			c.opts.Logger.Debug(context.Background(), "buffering local candidate to send", fields...)
 			return
@@ -190,7 +191,7 @@ func (c *Conn) init() error {
 		select {
 		case <-c.closed:
 			break
-		case c.localCandidateChannel <- json:
+		case c.localNegotiator <- Negotiation{nil, []webrtc.ICECandidateInit{json}}:
 		}
 	})
 	c.rtc.OnDataChannel(func(dc *webrtc.DataChannel) {
@@ -341,20 +342,20 @@ func (c *Conn) negotiate() {
 		select {
 		case <-c.closed:
 			return
-		case c.localSessionDescriptionChannel <- offer:
+		case c.localNegotiator <- Negotiation{&offer, nil}:
 		}
 	}
 
-	var remoteDescription webrtc.SessionDescription
+	var sessionDescription webrtc.SessionDescription
 	select {
 	case <-c.closed:
 		return
-	case remoteDescription = <-c.remoteSessionDescriptionChannel:
+	case sessionDescription = <-c.remoteSessionDescription:
 	}
 
 	c.opts.Logger.Debug(context.Background(), "setting remote description")
 	c.closeMutex.Lock()
-	err := c.rtc.SetRemoteDescription(remoteDescription)
+	err := c.rtc.SetRemoteDescription(sessionDescription)
 	c.closeMutex.Unlock()
 	if err != nil {
 		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
@@ -378,99 +379,64 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
-
+		c.opts.Logger.Debug(context.Background(), "sending answer")
 		select {
 		case <-c.closed:
 			return
-		case c.localSessionDescriptionChannel <- answer:
+		case c.localNegotiator <- Negotiation{&answer, nil}:
 		}
 	}
 
 	c.pendingCandidatesToSendMutex.Lock()
-	for _, pendingCandidate := range c.pendingCandidatesToSend {
-		c.opts.Logger.Debug(context.Background(), "sending buffered local candidate",
-			slog.F("hash", c.hashCandidate(pendingCandidate)),
-			slog.F("length", len(pendingCandidate.Candidate)),
-		)
+	defer c.pendingCandidatesToSendMutex.Unlock()
+	if len(c.pendingCandidatesToSend) > 0 {
 		select {
 		case <-c.closed:
 			return
-		case c.localCandidateChannel <- pendingCandidate:
+		case c.localNegotiator <- Negotiation{nil, c.pendingCandidatesToSend}:
 		}
 	}
 	c.opts.Logger.Debug(context.Background(), "flushed buffered local candidates",
 		slog.F("count", len(c.pendingCandidatesToSend)),
 	)
 	c.pendingCandidatesToSend = make([]webrtc.ICECandidateInit, 0)
-	c.pendingCandidatesToSendMutex.Unlock()
+	c.pendingCandidatesFlushed = true
+}
 
-	c.pendingCandidatesToAcceptMutex.Lock()
-	defer c.pendingCandidatesToAcceptMutex.Unlock()
-	for _, pendingCandidate := range c.pendingCandidatesToAccept {
-		c.opts.Logger.Debug(context.Background(), "adding buffered remote candidate",
-			slog.F("hash", c.hashCandidate(pendingCandidate)),
-			slog.F("length", len(pendingCandidate.Candidate)),
-		)
-		err = c.rtc.AddICECandidate(pendingCandidate)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("accept buffered remote candidate: %w", err))
-			return
+func (c *Conn) LocalNegotiation() <-chan Negotiation {
+	return c.localNegotiator
+}
+
+func (c *Conn) AddRemoteNegotiation(negotiation Negotiation) error {
+	if negotiation.SessionDescription != nil {
+		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with session description")
+		select {
+		case <-c.closed:
+			return nil
+		case c.remoteSessionDescription <- *negotiation.SessionDescription:
 		}
 	}
-	c.opts.Logger.Debug(context.Background(), "flushed buffered remote candidates",
-		slog.F("count", len(c.pendingCandidatesToAccept)),
-	)
-	c.pendingCandidatesToAccept = make([]webrtc.ICECandidateInit, 0)
-}
 
-// LocalCandidate returns a channel that emits when a local candidate
-// needs to be exchanged with a remote connection.
-func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
-	return c.localCandidateChannel
-}
-
-// AddRemoteCandidate adds a remote candidate to the RTC connection.
-func (c *Conn) AddRemoteCandidate(iceCandidate webrtc.ICECandidateInit) error {
-	c.pendingCandidatesToAcceptMutex.Lock()
-	defer c.pendingCandidatesToAcceptMutex.Unlock()
-	fields := []slog.Field{
-		slog.F("hash", c.hashCandidate(iceCandidate)),
-		slog.F("length", len(iceCandidate.Candidate)),
+	if len(negotiation.ICECandidates) > 0 {
+		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with ice candidates",
+			slog.F("count", len(negotiation.ICECandidates)))
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
+		for _, iceCandidate := range negotiation.ICECandidates {
+			err := c.rtc.AddICECandidate(iceCandidate)
+			if err != nil {
+				return err
+			}
+		}
 	}
-	// The consumer doesn't need to set the session description before
-	// adding remote candidates. This buffers it so an error doesn't occur.
-	if c.rtc.RemoteDescription() == nil {
-		c.opts.Logger.Debug(context.Background(), "buffering remote candidate to accept", fields...)
-		c.pendingCandidatesToAccept = append(c.pendingCandidatesToAccept, iceCandidate)
-		return nil
-	}
-	c.opts.Logger.Debug(context.Background(), "adding remote candidate", fields...)
-	return c.rtc.AddICECandidate(iceCandidate)
-}
 
-// LocalSessionDescription returns a channel that emits a session description
-// when one is required to be exchanged.
-func (c *Conn) LocalSessionDescription() <-chan webrtc.SessionDescription {
-	return c.localSessionDescriptionChannel
+	return nil
 }
 
 // SetConfiguration applies options to the WebRTC connection.
 // Generally used for updating transport options, like ICE servers.
 func (c *Conn) SetConfiguration(configuration webrtc.Configuration) error {
 	return c.rtc.SetConfiguration(configuration)
-}
-
-// SetRemoteSessionDescription sets the remote description for the WebRTC connection.
-func (c *Conn) SetRemoteSessionDescription(sessionDescription webrtc.SessionDescription) {
-	if c.isClosed() {
-		return
-	}
-	c.closeMutex.Lock()
-	defer c.closeMutex.Unlock()
-	select {
-	case <-c.closed:
-	case c.remoteSessionDescriptionChannel <- sessionDescription:
-	}
 }
 
 // Accept blocks waiting for a channel to be opened.

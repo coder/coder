@@ -35,7 +35,7 @@ var (
 		// In CI resources are frequently contended, so increasing this value
 		// results in less flakes.
 		if os.Getenv("CI") == "true" {
-			return 3 * time.Second
+			return time.Second
 		}
 		return 100 * time.Millisecond
 	}()
@@ -64,7 +64,6 @@ func TestConn(t *testing.T) {
 	t.Run("Ping", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		exchange(client, server)
 		_, err := client.Ping()
 		require.NoError(t, err)
 		_, err = server.Ping()
@@ -73,8 +72,7 @@ func TestConn(t *testing.T) {
 
 	t.Run("PingNetworkOffline", func(t *testing.T) {
 		t.Parallel()
-		client, server, wan := createPair(t)
-		exchange(client, server)
+		_, server, wan := createPair(t)
 		_, err := server.Ping()
 		require.NoError(t, err)
 		err = wan.Stop()
@@ -85,8 +83,7 @@ func TestConn(t *testing.T) {
 
 	t.Run("PingReconnect", func(t *testing.T) {
 		t.Parallel()
-		client, server, wan := createPair(t)
-		exchange(client, server)
+		_, server, wan := createPair(t)
 		_, err := server.Ping()
 		require.NoError(t, err)
 		// Create a channel that closes on disconnect.
@@ -107,7 +104,6 @@ func TestConn(t *testing.T) {
 	t.Run("Accept", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		exchange(client, server)
 		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 
@@ -123,7 +119,6 @@ func TestConn(t *testing.T) {
 	t.Run("AcceptNetworkOffline", func(t *testing.T) {
 		t.Parallel()
 		client, server, wan := createPair(t)
-		exchange(client, server)
 		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
@@ -140,21 +135,22 @@ func TestConn(t *testing.T) {
 	t.Run("Buffering", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		exchange(client, server)
 		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
 		defer sch.Close()
 		go func() {
+			bytes := make([]byte, 4096)
 			for i := 0; i < 1024; i++ {
-				_, err := cch.Write(make([]byte, 4096))
+				_, err := cch.Write(bytes)
 				require.NoError(t, err)
 			}
 			_ = cch.Close()
 		}()
+		bytes := make([]byte, 4096)
 		for {
-			_, err = sch.Read(make([]byte, 4096))
+			_, err = sch.Read(bytes)
 			if err != nil {
 				require.ErrorIs(t, err, peer.ErrClosed)
 				break
@@ -165,7 +161,6 @@ func TestConn(t *testing.T) {
 	t.Run("NetConn", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		exchange(client, server)
 		srv, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		defer srv.Close()
@@ -218,7 +213,6 @@ func TestConn(t *testing.T) {
 	t.Run("CloseBeforeNegotiate", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		exchange(client, server)
 		err := client.Close()
 		require.NoError(t, err)
 		err = server.Close()
@@ -238,7 +232,6 @@ func TestConn(t *testing.T) {
 	t.Run("PingConcurrent", func(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
-		exchange(client, server)
 		var wg sync.WaitGroup
 		wg.Add(2)
 		go func() {
@@ -252,19 +245,6 @@ func TestConn(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		wg.Wait()
-	})
-
-	t.Run("NegotiateOutOfOrder", func(t *testing.T) {
-		t.Parallel()
-		client, server, _ := createPair(t)
-		server.SetRemoteSessionDescription(<-client.LocalSessionDescription())
-		err := client.AddRemoteCandidate(<-server.LocalCandidate())
-		require.NoError(t, err)
-		client.SetRemoteSessionDescription(<-server.LocalSessionDescription())
-		err = server.AddRemoteCandidate(<-client.LocalCandidate())
-		require.NoError(t, err)
-		_, err = client.Ping()
-		require.NoError(t, err)
 	})
 }
 
@@ -324,33 +304,27 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 		_ = wan.Stop()
 	})
 
+	go func() {
+		for {
+			select {
+			case c := <-channel2.LocalNegotiation():
+				_ = channel1.AddRemoteNegotiation(c)
+			case <-channel2.Closed():
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case c := <-channel1.LocalNegotiation():
+				_ = channel2.AddRemoteNegotiation(c)
+			case <-channel1.Closed():
+				return
+			}
+		}
+	}()
+
 	return channel1, channel2, wan
-}
-
-func exchange(client *peer.Conn, server *peer.Conn) {
-	go func() {
-		for {
-			select {
-			case c := <-server.LocalCandidate():
-				_ = client.AddRemoteCandidate(c)
-			case c := <-server.LocalSessionDescription():
-				client.SetRemoteSessionDescription(c)
-			case <-server.Closed():
-				return
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case c := <-client.LocalCandidate():
-				_ = server.AddRemoteCandidate(c)
-			case c := <-client.LocalSessionDescription():
-				server.SetRemoteSessionDescription(c)
-			case <-client.Closed():
-				return
-			}
-		}
-	}()
 }

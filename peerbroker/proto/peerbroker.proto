@@ -20,19 +20,20 @@ message WebRTCICEServers {
     repeated WebRTCICEServer servers = 1;
 }
 
+message Negotiation {
+    WebRTCSessionDescription session_description = 1;
+    repeated string ice_candidates = 2;
+}
+
 message NegotiateConnection {
     message ClientToServer {
         oneof message {
             WebRTCICEServers servers = 1;
-            WebRTCSessionDescription offer = 2;
-            string ice_candidate = 3;
+            Negotiation negotiation = 2;
         }
     }
     message ServerToClient {
-        oneof message {
-            WebRTCSessionDescription answer = 1;
-            string ice_candidate = 2;
-        }
+        Negotiation negotiation = 1;
     }
 }
 
