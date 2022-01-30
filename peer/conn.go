@@ -357,25 +357,9 @@ func (c *Conn) negotiate() {
 		return
 	}
 
-	// The RemoteDescription must be set before ICE candidates can be
-	// added to a WebRTC connection.
-	c.pendingCandidatesMutex.Lock()
-	for _, pendingCandidate := range c.pendingCandidates {
-		c.opts.Logger.Debug(context.Background(), "sending buffered remote candidate",
-			slog.F("hash", c.hashCandidate(pendingCandidate)),
-			slog.F("length", len(pendingCandidate.Candidate)),
-		)
-		select {
-		case <-c.closed:
-			return
-		case c.localCandidateChannel <- pendingCandidate:
-		}
+	if c.offerrer {
+		c.flushPendingCandidates()
 	}
-	c.opts.Logger.Debug(context.Background(), "flushed buffered remote candidates",
-		slog.F("count", len(c.pendingCandidates)),
-	)
-	c.pendingCandidates = make([]webrtc.ICECandidateInit, 0)
-	c.pendingCandidatesMutex.Unlock()
 
 	if !c.offerrer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
@@ -394,12 +378,35 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
+
 		select {
 		case <-c.closed:
 			return
 		case c.localSessionDescriptionChannel <- answer:
 		}
+
+		c.flushPendingCandidates()
 	}
+}
+
+func (c *Conn) flushPendingCandidates() {
+	c.pendingCandidatesMutex.Lock()
+	defer c.pendingCandidatesMutex.Unlock()
+	for _, pendingCandidate := range c.pendingCandidates {
+		c.opts.Logger.Debug(context.Background(), "sending buffered remote candidate",
+			slog.F("hash", c.hashCandidate(pendingCandidate)),
+			slog.F("length", len(pendingCandidate.Candidate)),
+		)
+		select {
+		case <-c.closed:
+			return
+		case c.localCandidateChannel <- pendingCandidate:
+		}
+	}
+	c.opts.Logger.Debug(context.Background(), "flushed buffered remote candidates",
+		slog.F("count", len(c.pendingCandidates)),
+	)
+	c.pendingCandidates = make([]webrtc.ICECandidateInit, 0)
 }
 
 // LocalCandidate returns a channel that emits when a local candidate
