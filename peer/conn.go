@@ -142,8 +142,6 @@ type Conn struct {
 func (c *Conn) init() error {
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
-		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
@@ -152,8 +150,6 @@ func (c *Conn) init() error {
 			slog.F("state", iceConnectionState))
 	})
 	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
-		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
