@@ -4,6 +4,12 @@
 -- Run "make gen" to generate models and query functions.
 ;
 
+-- Acquires the lock for a single job that isn't started, completed,
+-- cancelled, and that matches an array of provisioner types.
+--
+-- SKIP LOCKED is used to jump over locked rows. This prevents
+-- multiple provisioners from acquiring the same jobs. See:
+-- https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 -- name: AcquireProvisionerJob :one
 UPDATE
   provisioner_job

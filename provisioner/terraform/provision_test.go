@@ -123,6 +123,9 @@ func TestProvision(t *testing.T) {
 			require.NoError(t, err)
 			for {
 				msg, err := response.Recv()
+				if msg != nil && msg.GetLog() != nil {
+					continue
+				}
 				if testCase.Error {
 					require.Error(t, err)
 					return

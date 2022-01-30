@@ -46,6 +46,12 @@ type AcquireProvisionerJobParams struct {
 	Types     []ProvisionerType `db:"types" json:"types"`
 }
 
+// Acquires the lock for a single job that isn't started, completed,
+// cancelled, and that matches an array of provisioner types.
+//
+// SKIP LOCKED is used to jump over locked rows. This prevents
+// multiple provisioners from acquiring the same jobs. See:
+// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error) {
 	row := q.db.QueryRowContext(ctx, acquireProvisionerJob, arg.StartedAt, arg.WorkerID, pq.Array(arg.Types))
 	var i ProvisionerJob
