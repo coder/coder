@@ -79,7 +79,6 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		// This channel needs to be bufferred otherwise slow consumers
 		// of this will cause a connection failure.
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit, 16),
-		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
 		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription, 1),
 		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription, 1),
 	}
@@ -128,10 +127,6 @@ type Conn struct {
 	localCandidateChannel           chan webrtc.ICECandidateInit
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
-
-	pendingRemoteCandidates  []webrtc.ICECandidateInit
-	pendingCandidatesMutex   sync.Mutex
-	pendingCandidatesFlushed bool
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -357,28 +352,6 @@ func (c *Conn) negotiate() {
 		case c.localSessionDescriptionChannel <- answer:
 		}
 	}
-
-	// The ICE transport resets when the remote description is updated.
-	// Adding ICE candidates before this point causes a failed connection,
-	// because the candidate would be lost.
-	c.pendingCandidatesMutex.Lock()
-	defer c.pendingCandidatesMutex.Unlock()
-	for _, pendingCandidate := range c.pendingRemoteCandidates {
-		c.opts.Logger.Debug(context.Background(), "flushing buffered remote candidate",
-			slog.F("hash", c.hashCandidate(pendingCandidate)),
-			slog.F("length", len(pendingCandidate.Candidate)),
-		)
-		err := c.rtc.AddICECandidate(pendingCandidate)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("flush pending remote candidate: %w", err))
-			return
-		}
-	}
-	c.opts.Logger.Debug(context.Background(), "flushed buffered remote candidates",
-		slog.F("count", len(c.pendingRemoteCandidates)),
-	)
-	c.pendingCandidatesFlushed = true
-	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
 }
 
 // LocalCandidate returns a channel that emits when a local candidate
@@ -389,18 +362,10 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 
 // AddRemoteCandidate adds a remote candidate to the RTC connection.
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
-	c.pendingCandidatesMutex.Lock()
-	defer c.pendingCandidatesMutex.Unlock()
-	fields := []slog.Field{
+	c.opts.Logger.Debug(context.Background(), "adding remote candidate",
 		slog.F("hash", c.hashCandidate(i)),
 		slog.F("length", len(i.Candidate)),
-	}
-	if !c.pendingCandidatesFlushed {
-		c.opts.Logger.Debug(context.Background(), "bufferring remote candidate", fields...)
-		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
-		return nil
-	}
-	c.opts.Logger.Debug(context.Background(), "adding remote candidate", fields...)
+	)
 	return c.rtc.AddICECandidate(i)
 }
 
