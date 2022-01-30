@@ -142,14 +142,22 @@ type Conn struct {
 func (c *Conn) init() error {
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
+		// Close must be locked here otherwise log output can appear
+		// after the connection has been closed.
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
 		if c.isClosed() {
 			return
 		}
 
-		c.opts.Logger.Debug(context.Background(), "ice connection updated",
+		c.opts.Logger.Debug(context.Background(), "ice connection state updated",
 			slog.F("state", iceConnectionState))
 	})
 	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
+		// Close can't be locked here, because this is triggered
+		// when close is called. It doesn't appear this get's
+		// executed after close though, so it shouldn't cause
+		// problems.
 		if c.isClosed() {
 			return
 		}
