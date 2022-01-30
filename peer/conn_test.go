@@ -271,7 +271,9 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	c1SettingEngine.SetVNet(c1Net)
 	c1SettingEngine.SetPrflxAcceptanceMinWait(0)
 	c1SettingEngine.SetICETimeouts(disconnectedTimeout, failedTimeout, keepAliveInterval)
-	channel1, err := peer.Client([]webrtc.ICEServer{}, &peer.ConnOptions{
+	channel1, err := peer.Client([]webrtc.ICEServer{{
+		URLs: []string{"stun:stun.l.google.com:19302"},
+	}}, &peer.ConnOptions{
 		SettingEngine: c1SettingEngine,
 		Logger:        slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
@@ -283,7 +285,9 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	c2SettingEngine.SetVNet(c2Net)
 	c2SettingEngine.SetPrflxAcceptanceMinWait(0)
 	c2SettingEngine.SetICETimeouts(disconnectedTimeout, failedTimeout, keepAliveInterval)
-	channel2, err := peer.Server([]webrtc.ICEServer{}, &peer.ConnOptions{
+	channel2, err := peer.Server([]webrtc.ICEServer{{
+		URLs: []string{"stun:stun.l.google.com:19302"},
+	}}, &peer.ConnOptions{
 		SettingEngine: c2SettingEngine,
 		Logger:        slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
 	})
