@@ -307,8 +307,10 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	go func() {
 		for {
 			select {
-			case c := <-channel2.LocalNegotiation():
-				_ = channel1.AddRemoteNegotiation(c)
+			case c := <-channel2.LocalCandidate():
+				_ = channel1.AddRemoteCandidate(c)
+			case c := <-channel2.LocalSessionDescription():
+				channel1.SetRemoteSessionDescription(c)
 			case <-channel2.Closed():
 				return
 			}
@@ -318,8 +320,10 @@ func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.R
 	go func() {
 		for {
 			select {
-			case c := <-channel1.LocalNegotiation():
-				_ = channel2.AddRemoteNegotiation(c)
+			case c := <-channel1.LocalCandidate():
+				_ = channel2.AddRemoteCandidate(c)
+			case c := <-channel1.LocalSessionDescription():
+				channel2.SetRemoteSessionDescription(c)
 			case <-channel1.Closed():
 				return
 			}

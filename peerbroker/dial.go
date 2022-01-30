@@ -53,14 +53,27 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 			select {
 			case <-peerConn.Closed():
 				return
-			case localNegotiation := <-peerConn.LocalNegotiation():
+			case sessionDescription := <-peerConn.LocalSessionDescription():
 				err = stream.Send(&proto.NegotiateConnection_ClientToServer{
-					Message: &proto.NegotiateConnection_ClientToServer_Negotiation{
-						Negotiation: convertLocalNegotiation(localNegotiation),
+					Message: &proto.NegotiateConnection_ClientToServer_Offer{
+						Offer: &proto.WebRTCSessionDescription{
+							SdpType: int32(sessionDescription.Type),
+							Sdp:     sessionDescription.SDP,
+						},
 					},
 				})
 				if err != nil {
 					_ = peerConn.CloseWithError(xerrors.Errorf("send local session description: %w", err))
+					return
+				}
+			case iceCandidate := <-peerConn.LocalCandidate():
+				err = stream.Send(&proto.NegotiateConnection_ClientToServer{
+					Message: &proto.NegotiateConnection_ClientToServer_IceCandidate{
+						IceCandidate: iceCandidate.Candidate,
+					},
+				})
+				if err != nil {
+					_ = peerConn.CloseWithError(xerrors.Errorf("send local candidate: %w", err))
 					return
 				}
 			}
@@ -74,56 +87,27 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 				_ = peerConn.CloseWithError(xerrors.Errorf("recv: %w", err))
 				return
 			}
-			if serverToClientMessage.GetNegotiation() == nil {
-				_ = peerConn.CloseWithError(xerrors.Errorf("unhandled message: %s", reflect.TypeOf(serverToClientMessage).String()))
-				return
-			}
 
-			err = peerConn.AddRemoteNegotiation(convertProtoNegotiation(serverToClientMessage.Negotiation))
-			if err != nil {
-				_ = peerConn.CloseWithError(xerrors.Errorf("add remote negotiation: %w", err))
+			switch {
+			case serverToClientMessage.GetAnswer() != nil:
+				peerConn.SetRemoteSessionDescription(webrtc.SessionDescription{
+					Type: webrtc.SDPType(serverToClientMessage.GetAnswer().SdpType),
+					SDP:  serverToClientMessage.GetAnswer().Sdp,
+				})
+			case serverToClientMessage.GetIceCandidate() != "":
+				err = peerConn.AddRemoteCandidate(webrtc.ICECandidateInit{
+					Candidate: serverToClientMessage.GetIceCandidate(),
+				})
+				if err != nil {
+					_ = peerConn.CloseWithError(xerrors.Errorf("add remote candidate: %w", err))
+					return
+				}
+			default:
+				_ = peerConn.CloseWithError(xerrors.Errorf("unhandled message: %s", reflect.TypeOf(serverToClientMessage).String()))
 				return
 			}
 		}
 	}()
 
 	return peerConn, nil
-}
-
-func convertLocalNegotiation(localNegotiation peer.Negotiation) *proto.Negotiation {
-	protoNegotation := &proto.Negotiation{}
-	if localNegotiation.SessionDescription != nil {
-		protoNegotation.SessionDescription = &proto.WebRTCSessionDescription{
-			SdpType: int32(localNegotiation.SessionDescription.Type),
-			Sdp:     localNegotiation.SessionDescription.SDP,
-		}
-	}
-	if len(localNegotiation.ICECandidates) > 0 {
-		iceCandidates := make([]string, 0, len(localNegotiation.ICECandidates))
-		for _, iceCandidate := range localNegotiation.ICECandidates {
-			iceCandidates = append(iceCandidates, iceCandidate.Candidate)
-		}
-		protoNegotation.IceCandidates = iceCandidates
-	}
-	return protoNegotation
-}
-
-func convertProtoNegotiation(protoNegotiation *proto.Negotiation) peer.Negotiation {
-	localNegotiation := peer.Negotiation{}
-	if protoNegotiation.SessionDescription != nil {
-		localNegotiation.SessionDescription = &webrtc.SessionDescription{
-			Type: webrtc.SDPType(protoNegotiation.SessionDescription.SdpType),
-			SDP:  protoNegotiation.SessionDescription.Sdp,
-		}
-	}
-	if len(protoNegotiation.IceCandidates) > 0 {
-		candidates := make([]webrtc.ICECandidateInit, 0, len(protoNegotiation.IceCandidates))
-		for _, iceCandidate := range protoNegotiation.IceCandidates {
-			candidates = append(candidates, webrtc.ICECandidateInit{
-				Candidate: iceCandidate,
-			})
-		}
-		localNegotiation.ICECandidates = candidates
-	}
-	return localNegotiation
 }

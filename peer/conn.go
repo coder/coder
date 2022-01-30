@@ -63,22 +63,21 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		return nil, xerrors.Errorf("create peer connection: %w", err)
 	}
 	conn := &Conn{
-		pingChannelID:       1,
-		pingEchoChannelID:   2,
-		opts:                opts,
-		rtc:                 rtc,
-		offerrer:            client,
-		closed:              make(chan struct{}),
-		closedRTC:           make(chan struct{}),
-		closedICE:           make(chan struct{}),
-		dcOpenChannel:       make(chan *webrtc.DataChannel),
-		dcDisconnectChannel: make(chan struct{}),
-		dcFailedChannel:     make(chan struct{}),
-		// This channel needs to be bufferred otherwise slow consumers
-		// of this will cause a connection failure.
-		localNegotiator:          make(chan Negotiation, 8),
-		remoteSessionDescription: make(chan webrtc.SessionDescription),
-		pendingCandidatesToSend:  make([]webrtc.ICECandidateInit, 0),
+		pingChannelID:                   1,
+		pingEchoChannelID:               2,
+		opts:                            opts,
+		rtc:                             rtc,
+		offerrer:                        client,
+		closed:                          make(chan struct{}),
+		closedRTC:                       make(chan struct{}),
+		closedICE:                       make(chan struct{}),
+		dcOpenChannel:                   make(chan *webrtc.DataChannel),
+		dcDisconnectChannel:             make(chan struct{}),
+		dcFailedChannel:                 make(chan struct{}),
+		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
+		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
+		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
+		pendingCandidatesToSend:         make([]webrtc.ICECandidateInit, 0),
 	}
 	if client {
 		// If we're the client, we want to flip the echo and
@@ -122,10 +121,10 @@ type Conn struct {
 	dcFailedListeners     atomic.Uint32
 	dcClosedWaitGroup     sync.WaitGroup
 
-	localNegotiator chan Negotiation
-
-	remoteSessionDescription      chan webrtc.SessionDescription
-	remoteSessionDescriptionMutex sync.Mutex
+	localCandidateChannel           chan webrtc.ICECandidateInit
+	localSessionDescriptionChannel  chan webrtc.SessionDescription
+	remoteSessionDescriptionChannel chan webrtc.SessionDescription
+	remoteSessionDescriptionMutex   sync.Mutex
 
 	pendingCandidatesToSend      []webrtc.ICECandidateInit
 	pendingCandidatesToSendMutex sync.Mutex
@@ -177,9 +176,8 @@ func (c *Conn) init() error {
 		}
 		c.pendingCandidatesToSendMutex.Lock()
 		defer c.pendingCandidatesToSendMutex.Unlock()
-		json := iceCandidate.ToJSON()
 		if !c.pendingCandidatesFlushed {
-			c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, json)
+			c.pendingCandidatesToSend = append(c.pendingCandidatesToSend, iceCandidate.ToJSON())
 			c.opts.Logger.Debug(context.Background(), "buffering local candidate")
 			return
 		}
@@ -187,7 +185,7 @@ func (c *Conn) init() error {
 		select {
 		case <-c.closed:
 			break
-		case c.localNegotiator <- Negotiation{nil, []webrtc.ICECandidateInit{json}}:
+		case c.localCandidateChannel <- iceCandidate.ToJSON():
 		}
 	})
 	c.rtc.OnDataChannel(func(dc *webrtc.DataChannel) {
@@ -266,7 +264,7 @@ func (c *Conn) negotiate() {
 		select {
 		case <-c.closed:
 			return
-		case c.localNegotiator <- Negotiation{&offer, nil}:
+		case c.localSessionDescriptionChannel <- offer:
 		}
 	}
 
@@ -274,7 +272,7 @@ func (c *Conn) negotiate() {
 	select {
 	case <-c.closed:
 		return
-	case sessionDescription = <-c.remoteSessionDescription:
+	case sessionDescription = <-c.remoteSessionDescriptionChannel:
 	}
 
 	// This prevents candidates from being added while
@@ -306,18 +304,19 @@ func (c *Conn) negotiate() {
 		select {
 		case <-c.closed:
 			return
-		case c.localNegotiator <- Negotiation{&answer, nil}:
+		case c.localSessionDescriptionChannel <- answer:
 		}
 	}
 
 	c.pendingCandidatesToSendMutex.Lock()
 	defer c.pendingCandidatesToSendMutex.Unlock()
-	if len(c.pendingCandidatesToSend) > 0 {
+	for _, pendingCandidate := range c.pendingCandidatesToSend {
 		select {
 		case <-c.closed:
 			return
-		case c.localNegotiator <- Negotiation{nil, c.pendingCandidatesToSend}:
+		case c.localCandidateChannel <- pendingCandidate:
 		}
+		c.opts.Logger.Debug(context.Background(), "flushed buffered local candidate")
 	}
 	c.opts.Logger.Debug(context.Background(), "flushed buffered local candidates",
 		slog.F("count", len(c.pendingCandidatesToSend)),
@@ -326,37 +325,32 @@ func (c *Conn) negotiate() {
 	c.pendingCandidatesFlushed = true
 }
 
-// LocalNegotiation returns a channel for connection negotiation.
-// This should be piped to another peer connection.
-func (c *Conn) LocalNegotiation() <-chan Negotiation {
-	return c.localNegotiator
+// AddRemoteCandidate adds a remote candidate to the RTC connection.
+func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
+	c.remoteSessionDescriptionMutex.Lock()
+	defer c.remoteSessionDescriptionMutex.Unlock()
+	c.opts.Logger.Debug(context.Background(), "accepting candidate", slog.F("length", len(i.Candidate)))
+	return c.rtc.AddICECandidate(i)
 }
 
-// AddRemoteNegotiation accepts a negotiation message for handshaking a connection.
-func (c *Conn) AddRemoteNegotiation(negotiation Negotiation) error {
-	if negotiation.SessionDescription != nil {
-		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with session description")
-		select {
-		case <-c.closed:
-			return nil
-		case c.remoteSessionDescription <- *negotiation.SessionDescription:
-		}
+// SetRemoteSessionDescription sets the remote description for the WebRTC connection.
+func (c *Conn) SetRemoteSessionDescription(sessionDescription webrtc.SessionDescription) {
+	select {
+	case <-c.closed:
+	case c.remoteSessionDescriptionChannel <- sessionDescription:
 	}
+}
 
-	if len(negotiation.ICECandidates) > 0 {
-		c.remoteSessionDescriptionMutex.Lock()
-		defer c.remoteSessionDescriptionMutex.Unlock()
-		c.opts.Logger.Debug(context.Background(), "adding remote negotiation with ice candidates",
-			slog.F("count", len(negotiation.ICECandidates)))
-		for _, iceCandidate := range negotiation.ICECandidates {
-			err := c.rtc.AddICECandidate(iceCandidate)
-			if err != nil {
-				return err
-			}
-		}
-	}
+// LocalSessionDescription returns a channel that emits a session description
+// when one is required to be exchanged.
+func (c *Conn) LocalSessionDescription() <-chan webrtc.SessionDescription {
+	return c.localSessionDescriptionChannel
+}
 
-	return nil
+// LocalCandidate returns a channel that emits when a local candidate
+// needs to be exchanged with a remote connection.
+func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
+	return c.localCandidateChannel
 }
 
 func (c *Conn) pingChannel() (*Channel, error) {
