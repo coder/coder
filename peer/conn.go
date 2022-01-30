@@ -129,9 +129,8 @@ type Conn struct {
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
 
-	pendingRemoteCandidates  []webrtc.ICECandidateInit
-	pendingCandidatesMutex   sync.Mutex
-	pendingCandidatesFlushed bool
+	pendingRemoteCandidates []webrtc.ICECandidateInit
+	pendingCandidatesMutex  sync.Mutex
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -352,7 +351,6 @@ func (c *Conn) negotiate() {
 	c.opts.Logger.Debug(context.Background(), "flushed buffered remote candidates",
 		slog.F("count", len(c.pendingRemoteCandidates)),
 	)
-	c.pendingCandidatesFlushed = true
 	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
 	c.pendingCandidatesMutex.Unlock()
 
@@ -395,7 +393,7 @@ func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
 		slog.F("hash", c.hashCandidate(i)),
 		slog.F("length", len(i.Candidate)),
 	}
-	if !c.pendingCandidatesFlushed {
+	if c.rtc.RemoteDescription() == nil {
 		c.opts.Logger.Debug(context.Background(), "bufferring remote candidate", fields...)
 		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
 		return nil
