@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"io"
 	"sync"
 	"time"
@@ -140,6 +141,26 @@ type Conn struct {
 
 func (c *Conn) init() error {
 	c.rtc.OnNegotiationNeeded(c.negotiate)
+	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
+		if c.isClosed() {
+			return
+		}
+
+		c.opts.Logger.Debug(context.Background(), "ice connection updated",
+			slog.F("state", iceConnectionState))
+	})
+	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
+		if c.isClosed() {
+			return
+		}
+
+		c.opts.Logger.Debug(context.Background(), "ice gathering state updated",
+			slog.F("state", iceGatherState))
+	})
 	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
 		if iceCandidate == nil {
 			return
@@ -169,8 +190,7 @@ func (c *Conn) init() error {
 		}
 
 		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
-			slog.F("state", pcs),
-			slog.F("ice", c.rtc.ICEConnectionState()))
+			slog.F("state", pcs))
 
 		switch pcs {
 		case webrtc.PeerConnectionStateDisconnected:
@@ -311,15 +331,22 @@ func (c *Conn) negotiate() {
 	c.pendingCandidatesMutex.Lock()
 	defer c.pendingCandidatesMutex.Unlock()
 	for _, pendingCandidate := range c.pendingRemoteCandidates {
-		c.opts.Logger.Debug(context.Background(), "flushing remote candidate")
+		hash := sha256.Sum224([]byte(pendingCandidate.Candidate))
+		c.opts.Logger.Debug(context.Background(), "flushing buffered remote candidate",
+			slog.F("hash", hash),
+			slog.F("length", len(pendingCandidate.Candidate)),
+		)
 		err := c.rtc.AddICECandidate(pendingCandidate)
 		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("flush pending candidates: %w", err))
+			_ = c.CloseWithError(xerrors.Errorf("flush pending remote candidate: %w", err))
 			return
 		}
 	}
+	c.opts.Logger.Debug(context.Background(), "flushed buffered remote candidates",
+		slog.F("count", len(c.pendingRemoteCandidates)),
+	)
 	c.pendingCandidatesFlushed = true
-	c.opts.Logger.Debug(context.Background(), "flushed remote candidates")
+	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
 }
 
 // LocalCandidate returns a channel that emits when a local candidate
@@ -332,12 +359,16 @@ func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
 func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
 	c.pendingCandidatesMutex.Lock()
 	defer c.pendingCandidatesMutex.Unlock()
+	fields := []slog.Field{
+		slog.F("hash", sha256.Sum224([]byte(i.Candidate))),
+		slog.F("length", len(i.Candidate)),
+	}
 	if !c.pendingCandidatesFlushed {
-		c.opts.Logger.Debug(context.Background(), "adding remote candidate to buffer")
+		c.opts.Logger.Debug(context.Background(), "bufferring remote candidate", fields...)
 		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
 		return nil
 	}
-	c.opts.Logger.Debug(context.Background(), "adding remote candidate")
+	c.opts.Logger.Debug(context.Background(), "adding remote candidate", fields...)
 	return c.rtc.AddICECandidate(i)
 }
 
