@@ -49,12 +49,10 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		opts = &ConnOptions{}
 	}
 
-	// Enables preference to STUN.
-	opts.SettingEngine.SetSrflxAcceptanceMinWait(0)
 	opts.SettingEngine.DetachDataChannels()
-	lf := logging.NewDefaultLoggerFactory()
-	lf.DefaultLogLevel = logging.LogLevelDisabled
-	opts.SettingEngine.LoggerFactory = lf
+	factory := logging.NewDefaultLoggerFactory()
+	factory.DefaultLogLevel = logging.LogLevelDisabled
+	opts.SettingEngine.LoggerFactory = factory
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(opts.SettingEngine))
 	rtc, err := api.NewPeerConnection(webrtc.Configuration{
 		ICEServers: servers,
@@ -223,6 +221,10 @@ func (c *Conn) init() error {
 	c.rtc.SCTP().Transport().OnStateChange(func(dtlsTransportState webrtc.DTLSTransportState) {
 		c.opts.Logger.Debug(context.Background(), "dtls transport state updated",
 			slog.F("state", dtlsTransportState))
+	})
+	c.rtc.SCTP().Transport().ICETransport().OnSelectedCandidatePairChange(func(candidatePair *webrtc.ICECandidatePair) {
+		c.opts.Logger.Debug(context.Background(), "selected candidate pair changed",
+			slog.F("local", candidatePair.Local), slog.F("remote", candidatePair.Remote))
 	})
 	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
 		if iceCandidate == nil {
