@@ -95,13 +95,9 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 					SDP:  serverToClientMessage.GetAnswer().Sdp,
 				})
 			case serverToClientMessage.GetIceCandidate() != "":
-				err = peerConn.AddRemoteCandidate(webrtc.ICECandidateInit{
+				peerConn.AddRemoteCandidate(webrtc.ICECandidateInit{
 					Candidate: serverToClientMessage.GetIceCandidate(),
 				})
-				if err != nil {
-					_ = peerConn.CloseWithError(xerrors.Errorf("add remote candidate: %w", err))
-					return
-				}
 			default:
 				_ = peerConn.CloseWithError(xerrors.Errorf("unhandled message: %s", reflect.TypeOf(serverToClientMessage).String()))
 				return

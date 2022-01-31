@@ -179,12 +179,9 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 				return peerConn.CloseWithError(xerrors.Errorf("set ice configuration: %w", err))
 			}
 		case clientToServerMessage.GetIceCandidate() != "":
-			err = peerConn.AddRemoteCandidate(webrtc.ICECandidateInit{
+			peerConn.AddRemoteCandidate(webrtc.ICECandidateInit{
 				Candidate: clientToServerMessage.GetIceCandidate(),
 			})
-			if err != nil {
-				return peerConn.CloseWithError(xerrors.Errorf("add remote candidate: %w", err))
-			}
 		default:
 			return peerConn.CloseWithError(xerrors.Errorf("unhandled message: %s", reflect.TypeOf(clientToServerMessage).String()))
 		}

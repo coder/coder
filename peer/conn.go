@@ -3,8 +3,8 @@ package peer
 import (
 	"bytes"
 	"context"
+
 	"crypto/rand"
-	"crypto/sha256"
 	"io"
 	"sync"
 	"time"
@@ -49,12 +49,10 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		opts = &ConnOptions{}
 	}
 
-	// Enables preference to STUN.
-	opts.SettingEngine.SetSrflxAcceptanceMinWait(0)
 	opts.SettingEngine.DetachDataChannels()
-	lf := logging.NewDefaultLoggerFactory()
-	lf.DefaultLogLevel = logging.LogLevelDisabled
-	opts.SettingEngine.LoggerFactory = lf
+	factory := logging.NewDefaultLoggerFactory()
+	factory.DefaultLogLevel = logging.LogLevelDisabled
+	opts.SettingEngine.LoggerFactory = factory
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(opts.SettingEngine))
 	rtc, err := api.NewPeerConnection(webrtc.Configuration{
 		ICEServers: servers,
@@ -63,21 +61,20 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		return nil, xerrors.Errorf("create peer connection: %w", err)
 	}
 	conn := &Conn{
-		pingChannelID:       1,
-		pingEchoChannelID:   2,
-		opts:                opts,
-		rtc:                 rtc,
-		offerrer:            client,
-		closed:              make(chan struct{}),
-		dcOpenChannel:       make(chan *webrtc.DataChannel),
-		dcDisconnectChannel: make(chan struct{}),
-		dcFailedChannel:     make(chan struct{}),
-		// This channel needs to be bufferred otherwise slow consumers
-		// of this will cause a connection failure.
-		localCandidateChannel:           make(chan webrtc.ICECandidateInit, 16),
-		pendingRemoteCandidates:         make([]webrtc.ICECandidateInit, 0),
-		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
-		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
+		pingChannelID:                   1,
+		pingEchoChannelID:               2,
+		opts:                            opts,
+		rtc:                             rtc,
+		offerrer:                        client,
+		closed:                          make(chan struct{}),
+		closedRTC:                       make(chan struct{}),
+		closedICE:                       make(chan struct{}),
+		dcOpenChannel:                   make(chan *webrtc.DataChannel),
+		dcDisconnectChannel:             make(chan struct{}),
+		dcFailedChannel:                 make(chan struct{}),
+		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
+		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription, 1),
+		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription, 1),
 	}
 	if client {
 		// If we're the client, we want to flip the echo and
@@ -108,9 +105,13 @@ type Conn struct {
 	// Determines whether this connection will send the offer or the answer.
 	offerrer bool
 
-	closed     chan struct{}
-	closeMutex sync.Mutex
-	closeError error
+	closed         chan struct{}
+	closedRTC      chan struct{}
+	closedRTCMutex sync.Mutex
+	closedICE      chan struct{}
+	closedICEMutex sync.Mutex
+	closeMutex     sync.Mutex
+	closeError     error
 
 	dcOpenChannel         chan *webrtc.DataChannel
 	dcDisconnectChannel   chan struct{}
@@ -123,9 +124,8 @@ type Conn struct {
 	localSessionDescriptionChannel  chan webrtc.SessionDescription
 	remoteSessionDescriptionChannel chan webrtc.SessionDescription
 
-	pendingRemoteCandidates  []webrtc.ICECandidateInit
-	pendingCandidatesMutex   sync.Mutex
-	pendingCandidatesFlushed bool
+	negotiateMutex sync.Mutex
+	hasNegotiated  bool
 
 	pingChannelID     uint16
 	pingEchoChannelID uint16
@@ -140,67 +140,53 @@ type Conn struct {
 }
 
 func (c *Conn) init() error {
+	// The negotiation needed callback can take a little bit to execute!
+	c.negotiateMutex.Lock()
+
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
-		// Close must be locked here otherwise log output can appear
-		// after the connection has been closed.
-		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
-		if c.isClosed() {
-			return
-		}
-
 		c.opts.Logger.Debug(context.Background(), "ice connection state updated",
 			slog.F("state", iceConnectionState))
+
+		if iceConnectionState == webrtc.ICEConnectionStateClosed {
+			// pion/webrtc can update this state multiple times.
+			// A connection can never become un-closed, so we
+			// close the channel if it isn't already.
+			c.closedICEMutex.Lock()
+			defer c.closedICEMutex.Unlock()
+			select {
+			case <-c.closedICE:
+			default:
+				close(c.closedICE)
+			}
+		}
 	})
 	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
-		// Close can't be locked here, because this is triggered
-		// when close is called. It doesn't appear this get's
-		// executed after close though, so it shouldn't cause
-		// problems.
-		if c.isClosed() {
-			return
-		}
-
 		c.opts.Logger.Debug(context.Background(), "ice gathering state updated",
 			slog.F("state", iceGatherState))
-	})
-	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
-		if iceCandidate == nil {
-			return
-		}
-		json := iceCandidate.ToJSON()
-		c.opts.Logger.Debug(context.Background(), "writing candidate to channel",
-			slog.F("hash", sha256.Sum224([]byte(json.Candidate))),
-			slog.F("length", len(json.Candidate)),
-		)
-		select {
-		case <-c.closed:
-			break
-		case c.localCandidateChannel <- json:
+
+		if iceGatherState == webrtc.ICEGathererStateClosed {
+			// pion/webrtc can update this state multiple times.
+			// A connection can never become un-closed, so we
+			// close the channel if it isn't already.
+			c.closedICEMutex.Lock()
+			defer c.closedICEMutex.Unlock()
+			select {
+			case <-c.closedICE:
+			default:
+				close(c.closedICE)
+			}
 		}
 	})
-	c.rtc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		select {
-		case <-c.closed:
-			return
-		case c.dcOpenChannel <- dc:
-		default:
-		}
-	})
-	c.rtc.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
-		// Close must be locked here otherwise log output can appear
-		// after the connection has been closed.
-		c.closeMutex.Lock()
-		defer c.closeMutex.Unlock()
+	c.rtc.OnConnectionStateChange(func(peerConnectionState webrtc.PeerConnectionState) {
 		if c.isClosed() {
+			// Make sure we don't log after Close() has been called.
 			return
 		}
-
 		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
-			slog.F("state", pcs))
+			slog.F("state", peerConnectionState))
 
-		switch pcs {
+		switch peerConnectionState {
 		case webrtc.PeerConnectionStateDisconnected:
 			for i := 0; i < int(c.dcDisconnectListeners.Load()); i++ {
 				select {
@@ -215,6 +201,52 @@ func (c *Conn) init() error {
 				default:
 				}
 			}
+		case webrtc.PeerConnectionStateClosed:
+			// pion/webrtc can update this state multiple times.
+			// A connection can never become un-closed, so we
+			// close the channel if it isn't already.
+			c.closedRTCMutex.Lock()
+			defer c.closedRTCMutex.Unlock()
+			select {
+			case <-c.closedRTC:
+			default:
+				close(c.closedRTC)
+			}
+		}
+	})
+	c.rtc.OnSignalingStateChange(func(signalState webrtc.SignalingState) {
+		c.opts.Logger.Debug(context.Background(), "signaling state updated",
+			slog.F("state", signalState))
+	})
+	c.rtc.SCTP().Transport().OnStateChange(func(dtlsTransportState webrtc.DTLSTransportState) {
+		c.opts.Logger.Debug(context.Background(), "dtls transport state updated",
+			slog.F("state", dtlsTransportState))
+	})
+	c.rtc.SCTP().Transport().ICETransport().OnSelectedCandidatePairChange(func(candidatePair *webrtc.ICECandidatePair) {
+		c.opts.Logger.Debug(context.Background(), "selected candidate pair changed",
+			slog.F("local", candidatePair.Local), slog.F("remote", candidatePair.Remote))
+	})
+	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
+		if iceCandidate == nil {
+			return
+		}
+		// Run this in a goroutine so we don't block pion/webrtc
+		// from continuing.
+		go func() {
+			c.opts.Logger.Debug(context.Background(), "sending local candidate", slog.F("candidate", iceCandidate.ToJSON().Candidate))
+			select {
+			case <-c.closed:
+				break
+			case c.localCandidateChannel <- iceCandidate.ToJSON():
+			}
+		}()
+	})
+	c.rtc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		select {
+		case <-c.closed:
+			return
+		case c.dcOpenChannel <- dc:
+		default:
 		}
 	})
 	_, err := c.pingChannel()
@@ -227,6 +259,123 @@ func (c *Conn) init() error {
 	}
 
 	return nil
+}
+
+// negotiate is triggered when a connection is ready to be established.
+// See trickle ICE for the expected exchange: https://webrtchacks.com/trickle-ice/
+func (c *Conn) negotiate() {
+	c.opts.Logger.Debug(context.Background(), "negotiating")
+	// ICE candidates cannot be added until SessionDescriptions have been
+	// exchanged between peers.
+	if c.hasNegotiated {
+		c.negotiateMutex.Lock()
+	}
+	c.hasNegotiated = true
+	defer c.negotiateMutex.Unlock()
+
+	if c.offerrer {
+		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
+			return
+		}
+		// pion/webrtc will panic if Close is called while this
+		// function is being executed.
+		c.closeMutex.Lock()
+		err = c.rtc.SetLocalDescription(offer)
+		c.closeMutex.Unlock()
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
+			return
+		}
+		c.opts.Logger.Debug(context.Background(), "sending offer")
+		select {
+		case <-c.closed:
+			return
+		case c.localSessionDescriptionChannel <- offer:
+		}
+		c.opts.Logger.Debug(context.Background(), "sent offer")
+	}
+
+	var sessionDescription webrtc.SessionDescription
+	c.opts.Logger.Debug(context.Background(), "awaiting remote description...")
+	select {
+	case <-c.closed:
+		return
+	case sessionDescription = <-c.remoteSessionDescriptionChannel:
+	}
+	c.opts.Logger.Debug(context.Background(), "setting remote description")
+
+	err := c.rtc.SetRemoteDescription(sessionDescription)
+	if err != nil {
+		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
+		return
+	}
+
+	if !c.offerrer {
+		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
+			return
+		}
+		// pion/webrtc will panic if Close is called while this
+		// function is being executed.
+		c.closeMutex.Lock()
+		err = c.rtc.SetLocalDescription(answer)
+		c.closeMutex.Unlock()
+		if err != nil {
+			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
+			return
+		}
+		c.opts.Logger.Debug(context.Background(), "sending answer")
+		select {
+		case <-c.closed:
+			return
+		case c.localSessionDescriptionChannel <- answer:
+		}
+		c.opts.Logger.Debug(context.Background(), "sent answer")
+	}
+}
+
+// AddRemoteCandidate adds a remote candidate to the RTC connection.
+func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) {
+	if c.isClosed() {
+		return
+	}
+	// This must occur in a goroutine to allow the SessionDescriptions
+	// to be exchanged first.
+	go func() {
+		c.negotiateMutex.Lock()
+		defer c.negotiateMutex.Unlock()
+		c.opts.Logger.Debug(context.Background(), "accepting candidate", slog.F("candidate", i.Candidate))
+		err := c.rtc.AddICECandidate(i)
+		if err != nil {
+			if c.rtc.ConnectionState() == webrtc.PeerConnectionStateClosed {
+				return
+			}
+			_ = c.CloseWithError(xerrors.Errorf("accept candidate: %w", err))
+		}
+	}()
+}
+
+// SetRemoteSessionDescription sets the remote description for the WebRTC connection.
+func (c *Conn) SetRemoteSessionDescription(sessionDescription webrtc.SessionDescription) {
+	select {
+	case <-c.closed:
+	case c.remoteSessionDescriptionChannel <- sessionDescription:
+	}
+}
+
+// LocalSessionDescription returns a channel that emits a session description
+// when one is required to be exchanged.
+func (c *Conn) LocalSessionDescription() <-chan webrtc.SessionDescription {
+	return c.localSessionDescriptionChannel
+}
+
+// LocalCandidate returns a channel that emits when a local candidate
+// needs to be exchanged with a remote connection.
+func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
+	return c.localCandidateChannel
 }
 
 func (c *Conn) pingChannel() (*Channel, error) {
@@ -275,134 +424,10 @@ func (c *Conn) pingEchoChannel() (*Channel, error) {
 	return c.pingEchoChan, c.pingEchoError
 }
 
-func (c *Conn) negotiate() {
-	c.opts.Logger.Debug(context.Background(), "negotiating")
-
-	if c.offerrer {
-		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "setting local description")
-		err = c.rtc.SetLocalDescription(offer)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
-			return
-		}
-		select {
-		case <-c.closed:
-			return
-		case c.localSessionDescriptionChannel <- offer:
-		}
-	}
-
-	var remoteDescription webrtc.SessionDescription
-	select {
-	case <-c.closed:
-		return
-	case remoteDescription = <-c.remoteSessionDescriptionChannel:
-	}
-
-	c.opts.Logger.Debug(context.Background(), "setting remote description")
-	err := c.rtc.SetRemoteDescription(remoteDescription)
-	if err != nil {
-		_ = c.CloseWithError(xerrors.Errorf("set remote description (closed %v): %w", c.isClosed(), err))
-		return
-	}
-
-	if !c.offerrer {
-		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "setting local description")
-		err = c.rtc.SetLocalDescription(answer)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
-			return
-		}
-		if c.isClosed() {
-			return
-		}
-		select {
-		case <-c.closed:
-			return
-		case c.localSessionDescriptionChannel <- answer:
-		}
-	}
-
-	// The ICE transport resets when the remote description is updated.
-	// Adding ICE candidates before this point causes a failed connection,
-	// because the candidate would be lost.
-	c.pendingCandidatesMutex.Lock()
-	defer c.pendingCandidatesMutex.Unlock()
-	for _, pendingCandidate := range c.pendingRemoteCandidates {
-		hash := sha256.Sum224([]byte(pendingCandidate.Candidate))
-		c.opts.Logger.Debug(context.Background(), "flushing buffered remote candidate",
-			slog.F("hash", hash),
-			slog.F("length", len(pendingCandidate.Candidate)),
-		)
-		err := c.rtc.AddICECandidate(pendingCandidate)
-		if err != nil {
-			_ = c.CloseWithError(xerrors.Errorf("flush pending remote candidate: %w", err))
-			return
-		}
-	}
-	c.opts.Logger.Debug(context.Background(), "flushed buffered remote candidates",
-		slog.F("count", len(c.pendingRemoteCandidates)),
-	)
-	c.pendingCandidatesFlushed = true
-	c.pendingRemoteCandidates = make([]webrtc.ICECandidateInit, 0)
-}
-
-// LocalCandidate returns a channel that emits when a local candidate
-// needs to be exchanged with a remote connection.
-func (c *Conn) LocalCandidate() <-chan webrtc.ICECandidateInit {
-	return c.localCandidateChannel
-}
-
-// AddRemoteCandidate adds a remote candidate to the RTC connection.
-func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) error {
-	c.pendingCandidatesMutex.Lock()
-	defer c.pendingCandidatesMutex.Unlock()
-	fields := []slog.Field{
-		slog.F("hash", sha256.Sum224([]byte(i.Candidate))),
-		slog.F("length", len(i.Candidate)),
-	}
-	if !c.pendingCandidatesFlushed {
-		c.opts.Logger.Debug(context.Background(), "bufferring remote candidate", fields...)
-		c.pendingRemoteCandidates = append(c.pendingRemoteCandidates, i)
-		return nil
-	}
-	c.opts.Logger.Debug(context.Background(), "adding remote candidate", fields...)
-	return c.rtc.AddICECandidate(i)
-}
-
-// LocalSessionDescription returns a channel that emits a session description
-// when one is required to be exchanged.
-func (c *Conn) LocalSessionDescription() <-chan webrtc.SessionDescription {
-	return c.localSessionDescriptionChannel
-}
-
 // SetConfiguration applies options to the WebRTC connection.
 // Generally used for updating transport options, like ICE servers.
 func (c *Conn) SetConfiguration(configuration webrtc.Configuration) error {
 	return c.rtc.SetConfiguration(configuration)
-}
-
-// SetRemoteSessionDescription sets the remote description for the WebRTC connection.
-func (c *Conn) SetRemoteSessionDescription(sessionDescription webrtc.SessionDescription) {
-	if c.isClosed() {
-		return
-	}
-	c.closeMutex.Lock()
-	defer c.closeMutex.Unlock()
-	select {
-	case <-c.closed:
-	case c.remoteSessionDescriptionChannel <- sessionDescription:
-	}
 }
 
 // Accept blocks waiting for a channel to be opened.
@@ -528,7 +553,6 @@ func (c *Conn) CloseWithError(err error) error {
 	} else {
 		c.closeError = err
 	}
-	close(c.closed)
 
 	if ch, _ := c.pingChannel(); ch != nil {
 		_ = ch.closeWithError(c.closeError)
@@ -538,9 +562,22 @@ func (c *Conn) CloseWithError(err error) error {
 	// closing an already closed connection isn't an issue for us.
 	_ = c.rtc.Close()
 
+	// Waiting for pion/webrtc to report closed state on both of these
+	// ensures no goroutine leaks.
+	if c.rtc.ConnectionState() != webrtc.PeerConnectionStateNew {
+		c.opts.Logger.Debug(context.Background(), "waiting for rtc connection close...")
+		<-c.closedRTC
+	}
+	if c.rtc.ICEConnectionState() != webrtc.ICEConnectionStateNew {
+		c.opts.Logger.Debug(context.Background(), "waiting for ice connection close...")
+		<-c.closedICE
+	}
+
 	// Waits for all DataChannels to exit before officially labeling as closed.
 	// All logging, goroutines, and async functionality is cleaned up after this.
 	c.dcClosedWaitGroup.Wait()
 
+	close(c.closed)
+	c.opts.Logger.Debug(context.Background(), "closed")
 	return err
 }
