@@ -32,35 +32,6 @@ updates:
       timezone: "America/Chicago"
     commit-message:
       prefix: "chore"
-    ignore:
-      # Ignore major and minor updates to Kubernetes packages, as we
-      # manage these versions manually according to our version policy:
-      # https://www.notion.so/coderhq/Kubernetes-version-support-strategy-82ecd5c9761e411e9dab61a7a1484418
-      - dependency-name: k8s.io/api
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-      - dependency-name: k8s.io/apimachinery
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-      - dependency-name: k8s.io/client-go
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-      - dependency-name: k8s.io/kubectl
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-      - dependency-name: k8s.io/metrics
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-      # AWS generates automated releases very frequently for the SDK, so
-      # ignore patch releases
-      - dependency-name: github.com/aws/aws-sdk-go
-        update-types:
-          - version-update:semver-patch
 
   - package-ecosystem: "npm"
     directory: "/"
