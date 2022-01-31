@@ -10,7 +10,6 @@ import { useUser } from "../../../../contexts/UserContext"
 import { Workspace } from "../../../../components/Workspace"
 import { MockWorkspace } from "../../../../test_helpers"
 
-
 const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
   const router = useRouter()
@@ -39,8 +38,8 @@ const useStyles = makeStyles(() => ({
   inner: {
     maxWidth: "1380px",
     margin: "1em auto",
-    width: "100%"
-  }
+    width: "100%",
+  },
 }))
 
 export default WorkspacesPage

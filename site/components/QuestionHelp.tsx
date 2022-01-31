@@ -4,9 +4,7 @@ import * as React from "react"
 
 export const QuestionHelp: React.FC = () => {
   const styles = useStyles()
-  return (
-    <HelpIcon className={styles.icon} />
-  )
+  return <HelpIcon className={styles.icon} />
 }
 
 const useStyles = makeStyles((theme) => ({
