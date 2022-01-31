@@ -75,8 +75,8 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		dcDisconnectChannel:             make(chan struct{}),
 		dcFailedChannel:                 make(chan struct{}),
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
-		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription),
-		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription),
+		localSessionDescriptionChannel:  make(chan webrtc.SessionDescription, 1),
+		remoteSessionDescriptionChannel: make(chan webrtc.SessionDescription, 1),
 	}
 	if client {
 		// If we're the client, we want to flip the echo and
