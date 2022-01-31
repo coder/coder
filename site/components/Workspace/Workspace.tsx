@@ -129,6 +129,7 @@ import TimelineSeparator from '@material-ui/lab/TimelineSeparator';
 import TimelineConnector from '@material-ui/lab/TimelineConnector';
 import TimelineContent from '@material-ui/lab/TimelineContent';
 import TimelineDot from '@material-ui/lab/TimelineDot';
+import { QuestionHelp } from "../QuestionHelp"
 
 export const WorkspaceTimeline: React.FC = () => {
   return <Timeline>
@@ -168,7 +169,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
     <div className={styles.horizontal}>
       <div className={styles.sideBar}>
         <Paper elevation={0} className={styles.section}>
-          <Title>Applications</Title>
+          <Title><span>Applications</span><QuestionHelp /></Title>
 
           <div className={styles.vertical}>
             <ResourceRow name={"Code Web"} icon={"/static/vscode.svg"} status={"active"} />
