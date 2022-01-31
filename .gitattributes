@@ -1,3 +1,4 @@
 # Generated files
 peerbroker/proto/*.go linguist-generated=true
+provisionerd/proto/*.go linguist-generated=true
 provisionersdk/proto/*.go linguist-generated=true

@@ -27,7 +27,7 @@ const (
 // The initialization overrides listener handles, and detaches
 // the channel on open. The datachannel should not be manually
 // mutated after being passed to this function.
-func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOpts) *Channel {
+func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOptions) *Channel {
 	channel := &Channel{
 		opts: opts,
 		conn: conn,
@@ -41,7 +41,7 @@ func newChannel(conn *Conn, dc *webrtc.DataChannel, opts *ChannelOpts) *Channel 
 	return channel
 }
 
-type ChannelOpts struct {
+type ChannelOptions struct {
 	// ID is a channel ID that should be used when `Negotiated`
 	// is true.
 	ID uint16
@@ -72,7 +72,7 @@ type ChannelOpts struct {
 // WebRTC PeerConnection failure. This is done to emulate TCP connections.
 // This option can be changed in the options when creating a Channel.
 type Channel struct {
-	opts *ChannelOpts
+	opts *ChannelOptions
 
 	conn *Conn
 	dc   *webrtc.DataChannel
@@ -141,9 +141,9 @@ func (c *Channel) init() {
 		// A DataChannel can disconnect multiple times, so this needs to loop.
 		for {
 			select {
-			case <-c.closed:
+			case <-c.conn.closedRTC:
 				// If this channel was closed, there's no need to close again.
-				return
+				err = c.conn.closeError
 			case <-c.conn.Closed():
 				// If the RTC connection closed with an error, this channel
 				// should end with the same one.
@@ -271,16 +271,17 @@ func (c *Channel) closeWithError(err error) error {
 	} else {
 		c.closeError = err
 	}
+	if c.rwc != nil {
+		_ = c.rwc.Close()
+	}
+	_ = c.dc.Close()
+
 	close(c.closed)
 	close(c.sendMore)
 	c.conn.dcDisconnectListeners.Sub(1)
 	c.conn.dcFailedListeners.Sub(1)
 	c.conn.dcClosedWaitGroup.Done()
 
-	if c.rwc != nil {
-		_ = c.rwc.Close()
-	}
-	_ = c.dc.Close()
 	return err
 }
 

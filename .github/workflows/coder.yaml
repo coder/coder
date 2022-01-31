@@ -10,8 +10,7 @@ on:
 
   pull_request:
     branches:
-      - main
-      - "release/*"
+      - "*"
 
   workflow_dispatch:
 
@@ -149,20 +148,27 @@ jobs:
 
       - run: go install gotest.tools/gotestsum@latest
 
+      - uses: hashicorp/setup-terraform@v1
+        if: runner.os == 'Linux'
+        with:
+          terraform_version: 1.1.2
+          terraform_wrapper: false
+
       - name: Test with Mock Database
         run:
           gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=3 -race -parallel=2
+          -count=3 -race -short -parallel=2
 
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
         run:
           DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=1 -race -parallel=2
+          -count=1 -race -parallel=1
 
       - uses: codecov/codecov-action@v2
+        if: github.actor != 'dependabot[bot]'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
@@ -195,6 +201,7 @@ jobs:
       - run: yarn test:coverage
 
       - uses: codecov/codecov-action@v2
+        if: github.actor != 'dependabot[bot]'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info

@@ -1,29 +1,52 @@
 
 syntax = "proto3";
-option go_package = "github.com/coder/coder/provisioner/proto";
+option go_package = "github.com/coder/coder/provisionersdk/proto";
 
 package provisioner;
+
+// ParameterSource represents the source location for a parameter to get it's value from.
+message ParameterSource {
+    enum Scheme {
+        DATA = 0;
+    }
+    Scheme scheme = 1;
+    string value = 2;
+}
+
+// ParameterDestination represents the target location for a provisioner to set the value.
+message ParameterDestination {
+    enum Scheme {
+        ENVIRONMENT_VARIABLE = 0;
+        PROVISIONER_VARIABLE = 1;
+    }
+    Scheme scheme = 1;
+    string value = 2;
+}
+
+// ParameterValue represents the resolved source and destination of a parameter.
+message ParameterValue {
+    ParameterDestination.Scheme destination_scheme = 1;
+    string name = 2;
+    string value = 3;
+}
 
 // ParameterSchema represents validation and type information for a parsed parameter.
 message ParameterSchema {
     string name = 1;
     string description = 2;
-    string default_value = 3;
-    bool sensitive = 4;
+    ParameterSource default_source = 3;
+    bool allow_override_source = 4;
+    ParameterDestination default_destination = 5;
+    bool allow_override_destination = 6;
+    bool redisplay_value = 7;
 
     enum TypeSystem {
         HCL = 0;
     }
-    TypeSystem validation_type_system = 5;
-    string validation_value_type = 6;
-    string validation_error = 7;
-    string validation_condition = 8;
-}
-
-// ParameterValue holds the value of a parameter.
-message ParameterValue {
-    string name = 1;
-    string value = 2;
+    TypeSystem validation_type_system = 8;
+    string validation_value_type = 9;
+    string validation_error = 10;
+    string validation_condition = 11;
 }
 
 // Parse consumes source-code from a directory to produce inputs.

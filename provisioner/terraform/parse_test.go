@@ -63,8 +63,15 @@ func TestParse(t *testing.T) {
 		},
 		Response: &proto.Parse_Response{
 			ParameterSchemas: []*proto.ParameterSchema{{
-				Name:         "A",
-				DefaultValue: "\"wow\"",
+				Name: "A",
+				DefaultSource: &proto.ParameterSource{
+					Scheme: proto.ParameterSource_DATA,
+					Value:  "\"wow\"",
+				},
+				DefaultDestination: &proto.ParameterDestination{
+					Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+					Value:  "A",
+				},
 			}},
 		},
 	}, {

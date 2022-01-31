@@ -14,6 +14,8 @@ func TestPubsubMemory(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Memory", func(t *testing.T) {
+		t.Parallel()
+
 		pubsub := database.NewPubsubInMemory()
 		event := "test"
 		data := "testing"
