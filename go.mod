@@ -32,7 +32,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	google.golang.org/protobuf v1.27.1
-	storj.io/drpc v0.0.28
+	storj.io/drpc v0.0.29
 )
 
 require (
