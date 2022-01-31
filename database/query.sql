@@ -171,6 +171,15 @@ FROM
 WHERE
   project_id = $1;
 
+-- name: GetProjectHistoryByProjectIDAndName :one
+SELECT
+  *
+FROM
+  project_history
+WHERE
+  project_id = $1
+  AND name = $2;
+
 -- name: GetProjectHistoryByID :one
 SELECT
   *
@@ -178,6 +187,17 @@ FROM
   project_history
 WHERE
   id = $1;
+
+-- name: GetProjectHistoryLogsByIDBefore :many
+SELECT
+  *
+FROM
+  project_history_log
+WHERE
+  project_history_id = $1
+  AND created_at <= $2
+ORDER BY
+  created_at;
 
 -- name: GetProvisionerDaemonByID :one
 SELECT
@@ -378,6 +398,17 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
+-- name: InsertProjectHistoryLogs :many
+INSERT INTO
+  project_history_log
+SELECT
+  @project_history_id :: uuid AS project_history_id,
+  unnset(@id :: uuid [ ]) AS id,
+  unnest(@created_at :: timestamptz [ ]) AS created_at,
+  unnset(@source :: log_source [ ]) as source,
+  unnset(@level :: log_level [ ]) as level,
+  unnset(@output :: varchar(1024) [ ]) as output RETURNING *;
+
 -- name: InsertProjectParameter :one
 INSERT INTO
   project_parameter (
@@ -498,6 +529,17 @@ INSERT INTO
   )
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+
+-- name: InsertWorkspaceHistoryLogs :many
+INSERT INTO
+  workspace_history_log
+SELECT
+  @workspace_history_id :: uuid AS workspace_history_id,
+  unnset(@id :: uuid [ ]) AS id,
+  unnest(@created_at :: timestamptz [ ]) AS created_at,
+  unnset(@source :: log_source [ ]) as source,
+  unnset(@level :: log_level [ ]) as level,
+  unnset(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO

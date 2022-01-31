@@ -418,6 +418,85 @@ func (q *sqlQuerier) GetProjectHistoryByProjectID(ctx context.Context, projectID
 	return items, nil
 }
 
+const getProjectHistoryByProjectIDAndName = `-- name: GetProjectHistoryByProjectIDAndName :one
+SELECT
+  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+FROM
+  project_history
+WHERE
+  project_id = $1
+  AND name = $2
+`
+
+type GetProjectHistoryByProjectIDAndNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetProjectHistoryByProjectIDAndName(ctx context.Context, arg GetProjectHistoryByProjectIDAndNameParams) (ProjectHistory, error) {
+	row := q.db.QueryRowContext(ctx, getProjectHistoryByProjectIDAndName, arg.ProjectID, arg.Name)
+	var i ProjectHistory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Description,
+		&i.StorageMethod,
+		&i.StorageSource,
+		&i.ImportJobID,
+	)
+	return i, err
+}
+
+const getProjectHistoryLogsByIDBefore = `-- name: GetProjectHistoryLogsByIDBefore :many
+SELECT
+  id, project_history_id, created_at, source, level, output
+FROM
+  project_history_log
+WHERE
+  project_history_id = $1
+  AND created_at <= $2
+ORDER BY
+  created_at
+`
+
+type GetProjectHistoryLogsByIDBeforeParams struct {
+	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetProjectHistoryLogsByIDBefore(ctx context.Context, arg GetProjectHistoryLogsByIDBeforeParams) ([]ProjectHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectHistoryLogsByIDBefore, arg.ProjectHistoryID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectHistoryLog
+	for rows.Next() {
+		var i ProjectHistoryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectHistoryID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProjectParametersByHistoryID = `-- name: GetProjectParametersByHistoryID :many
 SELECT
   id, created_at, project_history_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
@@ -1317,6 +1396,64 @@ func (q *sqlQuerier) InsertProjectHistory(ctx context.Context, arg InsertProject
 	return i, err
 }
 
+const insertProjectHistoryLogs = `-- name: InsertProjectHistoryLogs :many
+INSERT INTO
+  project_history_log
+SELECT
+  $1 :: uuid AS project_history_id,
+  unnset($2 :: uuid [ ]) AS id,
+  unnest($3 :: timestamptz [ ]) AS created_at,
+  unnset($4 :: log_source [ ]) as source,
+  unnset($5 :: log_level [ ]) as level,
+  unnset($6 :: varchar(1024) [ ]) as output RETURNING id, project_history_id, created_at, source, level, output
+`
+
+type InsertProjectHistoryLogsParams struct {
+	ProjectHistoryID uuid.UUID   `db:"project_history_id" json:"project_history_id"`
+	ID               []uuid.UUID `db:"id" json:"id"`
+	CreatedAt        []time.Time `db:"created_at" json:"created_at"`
+	Source           []LogSource `db:"source" json:"source"`
+	Level            []LogLevel  `db:"level" json:"level"`
+	Output           []string    `db:"output" json:"output"`
+}
+
+func (q *sqlQuerier) InsertProjectHistoryLogs(ctx context.Context, arg InsertProjectHistoryLogsParams) ([]ProjectHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertProjectHistoryLogs,
+		arg.ProjectHistoryID,
+		pq.Array(arg.ID),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Source),
+		pq.Array(arg.Level),
+		pq.Array(arg.Output),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectHistoryLog
+	for rows.Next() {
+		var i ProjectHistoryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectHistoryID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertProjectParameter = `-- name: InsertProjectParameter :one
 INSERT INTO
   project_parameter (
@@ -1721,6 +1858,64 @@ func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorks
 		&i.ProvisionJobID,
 	)
 	return i, err
+}
+
+const insertWorkspaceHistoryLogs = `-- name: InsertWorkspaceHistoryLogs :many
+INSERT INTO
+  workspace_history_log
+SELECT
+  $1 :: uuid AS workspace_history_id,
+  unnset($2 :: uuid [ ]) AS id,
+  unnest($3 :: timestamptz [ ]) AS created_at,
+  unnset($4 :: log_source [ ]) as source,
+  unnset($5 :: log_level [ ]) as level,
+  unnset($6 :: varchar(1024) [ ]) as output RETURNING id, workspace_history_id, created_at, source, level, output
+`
+
+type InsertWorkspaceHistoryLogsParams struct {
+	WorkspaceHistoryID uuid.UUID   `db:"workspace_history_id" json:"workspace_history_id"`
+	ID                 []uuid.UUID `db:"id" json:"id"`
+	CreatedAt          []time.Time `db:"created_at" json:"created_at"`
+	Source             []LogSource `db:"source" json:"source"`
+	Level              []LogLevel  `db:"level" json:"level"`
+	Output             []string    `db:"output" json:"output"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceHistoryLogs(ctx context.Context, arg InsertWorkspaceHistoryLogsParams) ([]WorkspaceHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceHistoryLogs,
+		arg.WorkspaceHistoryID,
+		pq.Array(arg.ID),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Source),
+		pq.Array(arg.Level),
+		pq.Array(arg.Output),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceHistoryLog
+	for rows.Next() {
+		var i WorkspaceHistoryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceHistoryID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one

@@ -63,28 +63,11 @@ CREATE TABLE workspace_agent (
     resource_metadata jsonb NOT NULL
 );
 
-CREATE TYPE log_level AS ENUM (
-    'trace',
-    'debug',
-    'info',
-    'warn',
-    'error',
-    'fatal'
-);
-
-CREATE TABLE workspace_log (
-    workspace_id uuid NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
-    -- workspace_history_id can be NULL because some events are not going to be part of a
-    -- deliberate transition, e.g. an infrastructure failure that kills the workspace
+CREATE TABLE workspace_history_log (
+    id uuid NOT NULL UNIQUE,
     workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
-    created timestamptz NOT NULL,
--- not sure this is necessary, also not sure it's necessary separate from the log column
-    logged_by varchar(255),
+    created_at timestamptz NOT NULL,
+    source log_source NOT NULL,
     level log_level NOT NULL,
-    log jsonb NOT NULL
-);
-
-CREATE INDEX workspace_log_index ON workspace_log (
-    workspace_id,
-    workspace_history_id
+    output varchar(1024) NOT NULL
 );

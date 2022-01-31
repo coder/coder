@@ -90,3 +90,25 @@ CREATE TABLE project_parameter (
     validation_value_type varchar(64) NOT NULL,
     UNIQUE(project_history_id, name)
 );
+
+CREATE TYPE log_level AS ENUM (
+    'trace',
+    'debug',
+    'info',
+    'warn',
+    'error'
+);
+
+CREATE TYPE log_source AS ENUM (
+    'provisioner_daemon',
+    'provisioner'
+);
+
+CREATE TABLE project_history_log (
+    id uuid NOT NULL UNIQUE,
+    project_history_id uuid NOT NULL REFERENCES project_history (id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL,
+    source log_source NOT NULL,
+    level log_level NOT NULL,
+    output varchar(1024) NOT NULL
+);

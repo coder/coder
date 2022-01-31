@@ -20,6 +20,8 @@ type querier interface {
 	GetProjectByOrganizationAndName(ctx context.Context, arg GetProjectByOrganizationAndNameParams) (Project, error)
 	GetProjectHistoryByID(ctx context.Context, id uuid.UUID) (ProjectHistory, error)
 	GetProjectHistoryByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectHistory, error)
+	GetProjectHistoryByProjectIDAndName(ctx context.Context, arg GetProjectHistoryByProjectIDAndNameParams) (ProjectHistory, error)
+	GetProjectHistoryLogsByIDBefore(ctx context.Context, arg GetProjectHistoryLogsByIDBeforeParams) ([]ProjectHistoryLog, error)
 	GetProjectParametersByHistoryID(ctx context.Context, projectHistoryID uuid.UUID) ([]ProjectParameter, error)
 	GetProjectsByOrganizationIDs(ctx context.Context, ids []string) ([]Project, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
@@ -42,6 +44,7 @@ type querier interface {
 	InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error)
 	InsertProject(ctx context.Context, arg InsertProjectParams) (Project, error)
 	InsertProjectHistory(ctx context.Context, arg InsertProjectHistoryParams) (ProjectHistory, error)
+	InsertProjectHistoryLogs(ctx context.Context, arg InsertProjectHistoryLogsParams) ([]ProjectHistoryLog, error)
 	InsertProjectParameter(ctx context.Context, arg InsertProjectParameterParams) (ProjectParameter, error)
 	InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
@@ -49,6 +52,7 @@ type querier interface {
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceHistory(ctx context.Context, arg InsertWorkspaceHistoryParams) (WorkspaceHistory, error)
+	InsertWorkspaceHistoryLogs(ctx context.Context, arg InsertWorkspaceHistoryLogsParams) ([]WorkspaceHistoryLog, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error
