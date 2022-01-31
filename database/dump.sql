@@ -246,6 +246,7 @@ CREATE TABLE workspace_history (
     completed_at timestamp with time zone,
     workspace_id uuid NOT NULL,
     project_history_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
     before_id uuid,
     after_id uuid,
     transition workspace_transition NOT NULL,
@@ -318,8 +319,14 @@ ALTER TABLE ONLY workspace_history
 ALTER TABLE ONLY workspace_history_log
     ADD CONSTRAINT workspace_history_log_id_key UNIQUE (id);
 
+ALTER TABLE ONLY workspace_history
+    ADD CONSTRAINT workspace_history_workspace_id_name_key UNIQUE (workspace_id, name);
+
 ALTER TABLE ONLY workspace
     ADD CONSTRAINT workspace_id_key UNIQUE (id);
+
+ALTER TABLE ONLY workspace
+    ADD CONSTRAINT workspace_owner_id_name_key UNIQUE (owner_id, name);
 
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_id_key UNIQUE (id);

@@ -188,6 +188,23 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(_ context.Con
 	return database.WorkspaceHistory{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceHistoryLogsByIDBefore(ctx context.Context, arg database.GetWorkspaceHistoryLogsByIDBeforeParams) ([]database.WorkspaceHistoryLog, error) {
+	logs := make([]database.WorkspaceHistoryLog, 0)
+	for _, workspaceHistoryLog := range q.workspaceHistoryLog {
+		if workspaceHistoryLog.WorkspaceHistoryID.String() != arg.WorkspaceHistoryID.String() {
+			continue
+		}
+		if workspaceHistoryLog.CreatedAt.After(arg.CreatedAt) {
+			continue
+		}
+		logs = append(logs, workspaceHistoryLog)
+	}
+	if len(logs) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return logs, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceHistory, error) {
 	history := make([]database.WorkspaceHistory, 0)
 	for _, workspaceHistory := range q.workspaceHistory {
@@ -199,6 +216,19 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, worksp
 		return nil, sql.ErrNoRows
 	}
 	return history, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(ctx context.Context, arg database.GetWorkspaceHistoryByWorkspaceIDAndNameParams) (database.WorkspaceHistory, error) {
+	for _, workspaceHistory := range q.workspaceHistory {
+		if workspaceHistory.WorkspaceID.String() != arg.WorkspaceID.String() {
+			continue
+		}
+		if !strings.EqualFold(workspaceHistory.Name, arg.Name) {
+			continue
+		}
+		return workspaceHistory, nil
+	}
+	return database.WorkspaceHistory{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspacesByProjectAndUserID(_ context.Context, arg database.GetWorkspacesByProjectAndUserIDParams) ([]database.Workspace, error) {
@@ -636,6 +666,7 @@ func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.Ins
 		CreatedAt:        arg.CreatedAt,
 		UpdatedAt:        arg.UpdatedAt,
 		WorkspaceID:      arg.WorkspaceID,
+		Name:             arg.Name,
 		ProjectHistoryID: arg.ProjectHistoryID,
 		BeforeID:         arg.BeforeID,
 		Transition:       arg.Transition,

@@ -261,6 +261,15 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspaceHistoryByWorkspaceIDAndName :one
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  workspace_id = $1
+  AND name = $2;
+
 -- name: GetWorkspaceHistoryByWorkspaceID :many
 SELECT
   *
@@ -279,6 +288,17 @@ WHERE
   AND after_id IS NULL
 LIMIT
   1;
+
+-- name: GetWorkspaceHistoryLogsByIDBefore :many
+SELECT
+  *
+FROM
+  workspace_history_log
+WHERE
+  workspace_history_id = $1
+  AND created_at <= $2
+ORDER BY
+  created_at;
 
 -- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
@@ -523,12 +543,13 @@ INSERT INTO
     workspace_id,
     project_history_id,
     before_id,
+    name,
     transition,
     initiator,
     provision_job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: InsertWorkspaceHistoryLogs :many
 INSERT INTO
