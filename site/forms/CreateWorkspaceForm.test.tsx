@@ -3,7 +3,7 @@ import React from "react"
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm"
 import { MockProject, MockWorkspace } from "./../test_helpers"
 
-describe("CreateProjectForm", () => {
+describe("CreateWorkspaceForm", () => {
   it("renders", async () => {
     // Given
     const onSubmit = () => Promise.resolve(MockWorkspace)
