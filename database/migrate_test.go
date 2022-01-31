@@ -20,6 +20,11 @@ func TestMain(m *testing.M) {
 func TestMigrate(t *testing.T) {
 	t.Parallel()
 
+	if testing.Short() {
+		t.Skip()
+		return
+	}
+
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
 		connection, closeFn, err := postgres.Open()

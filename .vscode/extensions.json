@@ -6,6 +6,7 @@
     "foxundermoon.shell-format",
     "emeraldwalk.runonsave",
     "zxh404.vscode-proto3",
-    "redhat.vscode-yaml"
+    "redhat.vscode-yaml",
+    "streetsidesoftware.code-spell-checker"
   ]
 }
