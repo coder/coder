@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -74,7 +75,7 @@ resource "null_resource" "dev" {}`
 		user := server.RandomInitialUser(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		projectVersion := setupProjectVersion(t, server.Client, user, project)
-		_, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		workspaceHistory, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
@@ -97,13 +98,29 @@ resource "null_resource" "dev" {}`
 		}()
 
 		api := provisionerd.New(server.Client, provisionerd.Provisioners{
-			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(drpcconn.New(clientPipe)),
+			database.ProvisionerTypeTerraform: proto.NewDRPCProvisionerClient(drpcconn.New(clientPipe)),
 		}, &provisionerd.Options{
 			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			PollInterval:  50 * time.Millisecond,
 			WorkDirectory: t.TempDir(),
 		})
 		defer api.Close()
-		time.Sleep(time.Millisecond * 2000)
+
+		time.Sleep(time.Millisecond * 400)
+
+		logs, err := server.Client.FollowWorkspaceHistoryLogs(context.Background(), "me", workspace.Name, workspaceHistory.Name)
+		require.NoError(t, err)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case log := <-logs:
+					fmt.Printf("Got a log! %+v\n", log.Output)
+				}
+			}
+		}()
+
+		time.Sleep(time.Millisecond * 1000)
 	})
 }

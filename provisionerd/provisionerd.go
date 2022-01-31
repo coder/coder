@@ -35,15 +35,14 @@ type Options struct {
 }
 
 // New creates and starts a provisioner daemon.
-func New(apiClient *codersdk.Client, provisioners Provisioners, opts *Options) io.Closer {
+func New(apiClient *codersdk.Client, opts *Options) io.Closer {
 	if opts.PollInterval == 0 {
 		opts.PollInterval = 5 * time.Second
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &provisionerDaemon{
-		apiClient:    apiClient,
-		provisioners: provisioners,
-		opts:         opts,
+		apiClient: apiClient,
+		opts:      opts,
 
 		closeContext:       ctx,
 		closeContextCancel: ctxCancel,
@@ -54,8 +53,7 @@ func New(apiClient *codersdk.Client, provisioners Provisioners, opts *Options) i
 }
 
 type provisionerDaemon struct {
-	provisioners Provisioners
-	opts         *Options
+	opts *Options
 
 	apiClient    *codersdk.Client
 	connectMutex sync.Mutex
@@ -157,7 +155,7 @@ func (p *provisionerDaemon) acquireJob() {
 	)
 
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
-	provisioner, hasProvisioner := p.provisioners[database.ProvisionerType(p.activeJob.Provisioner)]
+	provisioner, hasProvisioner := p.opts.Provisioners[database.ProvisionerType(p.activeJob.Provisioner)]
 	if !hasProvisioner {
 		p.cancelActiveJob(fmt.Sprintf("provisioner %q not registered", p.activeJob.Provisioner))
 		return

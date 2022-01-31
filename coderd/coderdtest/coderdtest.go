@@ -62,6 +62,7 @@ func (s *Server) RandomInitialUser(t *testing.T) coderd.CreateInitialUserRequest
 func New(t *testing.T) Server {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
+	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
 		connectionURL, close, err := postgres.Open()
 		require.NoError(t, err)
@@ -74,11 +75,15 @@ func New(t *testing.T) Server {
 		err = database.Migrate(sqlDB)
 		require.NoError(t, err)
 		db = database.New(sqlDB)
+
+		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
+		require.NoError(t, err)
 	}
 
 	handler := coderd.New(&coderd.Options{
 		Logger:   slogtest.Make(t, nil),
 		Database: db,
+		Pubsub:   pubsub,
 	})
 	srv := httptest.NewServer(handler)
 	serverURL, err := url.Parse(srv.URL)

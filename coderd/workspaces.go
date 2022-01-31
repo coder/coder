@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/database"
@@ -26,6 +27,7 @@ type Workspace database.Workspace
 // Iterate on before/after to determine a chronological history.
 type WorkspaceHistory struct {
 	ID               uuid.UUID                    `json:"id"`
+	Name             string                       `json:"name"`
 	CreatedAt        time.Time                    `json:"created_at"`
 	UpdatedAt        time.Time                    `json:"updated_at"`
 	CompletedAt      time.Time                    `json:"completed_at"`
@@ -35,6 +37,14 @@ type WorkspaceHistory struct {
 	AfterID          uuid.UUID                    `json:"after_id"`
 	Transition       database.WorkspaceTransition `json:"transition"`
 	Initiator        string                       `json:"initiator"`
+}
+
+type WorkspaceHistoryLog struct {
+	ID        uuid.UUID
+	CreatedAt time.Time          `json:"created_at"`
+	Source    database.LogSource `json:"log_source"`
+	Level     database.LogLevel  `json:"log_level"`
+	Output    string             `json:"output"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -51,6 +61,7 @@ type CreateWorkspaceHistoryRequest struct {
 
 type workspaces struct {
 	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 // Returns all workspaces across all projects and organizations.
@@ -335,6 +346,7 @@ func (w *workspaces) createWorkspaceHistory(rw http.ResponseWriter, r *http.Requ
 			CreatedAt:        database.Now(),
 			UpdatedAt:        database.Now(),
 			WorkspaceID:      workspace.ID,
+			Name:             namesgenerator.GetRandomName(1),
 			ProjectHistoryID: projectHistory.ID,
 			BeforeID:         priorHistoryID,
 			Initiator:        user.ID,
@@ -373,6 +385,116 @@ func (w *workspaces) createWorkspaceHistory(rw http.ResponseWriter, r *http.Requ
 	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
 }
 
+func (w *workspaces) workspaceHistoryLogs(rw http.ResponseWriter, r *http.Request) {
+	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
+	follow := r.URL.Query().Has("follow")
+
+	if !follow {
+		// If we're not attempting to follow logs,
+		// we can exit immediately!
+		logs, err := w.Database.GetWorkspaceHistoryLogsByIDBefore(r.Context(), database.GetWorkspaceHistoryLogsByIDBeforeParams{
+			WorkspaceHistoryID: workspaceHistory.ID,
+			CreatedAt:          time.Now(),
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get workspace history logs: %s", err),
+			})
+			return
+		}
+		render.Status(r, http.StatusOK)
+		render.JSON(rw, r, logs)
+		return
+	}
+
+	// We only want to fetch messages before subscribe, so that
+	// there aren't any duplicates.
+	timeBeforeSubscribe := database.Now()
+	// Start subscribing immediately, otherwise we could miss messages
+	// that occur during the database read.
+	newLogNotify := make(chan WorkspaceHistoryLog, 128)
+	cancelNewLogNotify, err := w.Pubsub.Subscribe(workspaceHistoryLogsChannel(workspaceHistory.ID), func(ctx context.Context, message []byte) {
+		var logs []database.WorkspaceHistoryLog
+		err := json.Unmarshal(message, &logs)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("parse logs from publish: %s", err),
+			})
+			return
+		}
+		for _, log := range logs {
+			// If many logs are sent during our database query, this channel
+			// could overflow. The Go scheduler would decide the order to send
+			// logs in at that point, which is an unfortunate (but not fatal)
+			// flaw of this approach.
+			//
+			// This is an extremely unlikely outcome given reasonable database
+			// query times.
+			newLogNotify <- convertWorkspaceHistoryLog(log)
+		}
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("listen for new logs: %s", err),
+		})
+		return
+	}
+	defer cancelNewLogNotify()
+
+	workspaceHistoryLogs, err := w.Database.GetWorkspaceHistoryLogsByIDBefore(r.Context(), database.GetWorkspaceHistoryLogsByIDBeforeParams{
+		WorkspaceHistoryID: workspaceHistory.ID,
+		CreatedAt:          timeBeforeSubscribe,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace history logs: %s", err),
+		})
+		return
+	}
+
+	// "follow" uses the ndjson format to stream data.
+	// See: https://canjs.com/doc/can-ndjson-stream.html
+	rw.Header().Set("Content-Type", "application/stream+json")
+	rw.WriteHeader(http.StatusOK)
+	rw.(http.Flusher).Flush()
+
+	// The Go stdlib JSON encoder appends a newline character after message write.
+	encoder := json.NewEncoder(rw)
+	for _, workspaceHistoryLog := range workspaceHistoryLogs {
+		// JSON separated by a newline
+		err = encoder.Encode(convertWorkspaceHistoryLog(workspaceHistoryLog))
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("marshal: %s", err),
+			})
+			return
+		}
+		rw.(http.Flusher).Flush()
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case log := <-newLogNotify:
+			err = encoder.Encode(log)
+			if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("marshal follow: %s", err),
+				})
+				return
+			}
+			rw.(http.Flusher).Flush()
+		}
+	}
+}
+
 // Converts the internal workspace representation to a public external-facing model.
 func convertWorkspace(workspace database.Workspace) Workspace {
 	return Workspace(workspace)
@@ -383,6 +505,7 @@ func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory) Workspa
 	//nolint:unconvert
 	return WorkspaceHistory(WorkspaceHistory{
 		ID:               workspaceHistory.ID,
+		Name:             workspaceHistory.Name,
 		CreatedAt:        workspaceHistory.CreatedAt,
 		UpdatedAt:        workspaceHistory.UpdatedAt,
 		CompletedAt:      workspaceHistory.CompletedAt.Time,
@@ -393,4 +516,18 @@ func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory) Workspa
 		Transition:       workspaceHistory.Transition,
 		Initiator:        workspaceHistory.Initiator,
 	})
+}
+
+func convertWorkspaceHistoryLog(workspaceHistoryLog database.WorkspaceHistoryLog) WorkspaceHistoryLog {
+	return WorkspaceHistoryLog{
+		ID:        workspaceHistoryLog.ID,
+		CreatedAt: workspaceHistoryLog.CreatedAt,
+		Source:    workspaceHistoryLog.Source,
+		Level:     workspaceHistoryLog.Level,
+		Output:    workspaceHistoryLog.Output,
+	}
+}
+
+func workspaceHistoryLogsChannel(workspaceHistoryID uuid.UUID) string {
+	return fmt.Sprintf("workspace-history-logs:%s", workspaceHistoryID)
 }

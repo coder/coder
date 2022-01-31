@@ -127,3 +127,33 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 	var workspaceHistory coderd.WorkspaceHistory
 	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
 }
+
+func (c *Client) FollowWorkspaceHistoryLogs(ctx context.Context, owner, workspace, history string) (<-chan coderd.WorkspaceHistoryLog, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s/logs?follow", owner, workspace, history), nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, readBodyAsError(res)
+	}
+
+	logs := make(chan coderd.WorkspaceHistoryLog)
+	decoder := json.NewDecoder(res.Body)
+	go func() {
+		defer close(logs)
+		var log coderd.WorkspaceHistoryLog
+		for {
+			err = decoder.Decode(&log)
+			if err != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case logs <- log:
+			}
+		}
+	}()
+	return logs, nil
+}

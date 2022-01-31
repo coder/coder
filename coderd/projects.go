@@ -3,7 +3,9 @@ package coderd
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -34,6 +36,14 @@ type ProjectHistory struct {
 	StorageMethod database.ProjectStorageMethod `json:"storage_method"`
 }
 
+type ProjectHistoryLog struct {
+	ID        uuid.UUID
+	CreatedAt time.Time          `json:"created_at"`
+	Source    database.LogSource `json:"log_source"`
+	Level     database.LogLevel  `json:"log_level"`
+	Output    string             `json:"output"`
+}
+
 // CreateProjectRequest enables callers to create a new Project.
 type CreateProjectRequest struct {
 	Name        string                   `json:"name" validate:"username,required"`
@@ -48,6 +58,7 @@ type CreateProjectVersionRequest struct {
 
 type projects struct {
 	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 // Lists all projects the authenticated user has access to.
@@ -222,6 +233,115 @@ func (p *projects) createProjectHistory(rw http.ResponseWriter, r *http.Request)
 	render.JSON(rw, r, convertProjectHistory(history))
 }
 
+func (p *projects) projectHistoryLogs(rw http.ResponseWriter, r *http.Request) {
+	projectHistory := httpmw.ProjectHistoryParam(r)
+	follow := r.URL.Query().Has("follow")
+
+	if !follow {
+		// If we're not attempting to follow logs,
+		// we can exit immediately!
+		logs, err := p.Database.GetProjectHistoryLogsByIDBefore(r.Context(), database.GetProjectHistoryLogsByIDBeforeParams{
+			ProjectHistoryID: projectHistory.ID,
+			CreatedAt:        time.Now(),
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get project history logs: %s", err),
+			})
+			return
+		}
+		render.Status(r, http.StatusOK)
+		render.JSON(rw, r, logs)
+		return
+	}
+
+	// We only want to fetch messages before subscribe, so that
+	// there aren't any duplicates.
+	timeBeforeSubscribe := database.Now()
+	// Start subscribing immediately, otherwise we could miss messages
+	// that occur during the database read.
+	newLogNotify := make(chan ProjectHistoryLog, 128)
+	cancelNewLogNotify, err := p.Pubsub.Subscribe(projectHistoryLogsChannel(projectHistory.ID), func(ctx context.Context, message []byte) {
+		var logs []database.ProjectHistoryLog
+		err := json.Unmarshal(message, &logs)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("parse logs from publish: %s", err),
+			})
+			return
+		}
+		for _, log := range logs {
+			// If many logs are sent during our database query, this channel
+			// could overflow. The Go scheduler would decide the order to send
+			// logs in at that point, which is an unfortunate (but not fatal)
+			// flaw of this approach.
+			//
+			// This is an extremely unlikely outcome given reasonable database
+			// query times.
+			newLogNotify <- convertProjectHistoryLog(log)
+		}
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("listen for new logs: %s", err),
+		})
+		return
+	}
+	defer cancelNewLogNotify()
+
+	// In-between here logs could be missed!
+	projectHistoryLogs, err := p.Database.GetProjectHistoryLogsByIDBefore(r.Context(), database.GetProjectHistoryLogsByIDBeforeParams{
+		ProjectHistoryID: projectHistory.ID,
+		CreatedAt:        timeBeforeSubscribe,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get project history logs: %s", err),
+		})
+		return
+	}
+
+	// "follow" uses the ndjson format to stream data.
+	// See: https://canjs.com/doc/can-ndjson-stream.html
+	rw.Header().Set("Content-Type", "application/stream+json")
+	rw.WriteHeader(http.StatusOK)
+	rw.(http.Flusher).Flush()
+
+	// The Go stdlib JSON encoder appends a newline character after message write.
+	encoder := json.NewEncoder(rw)
+	for _, projectHistoryLog := range projectHistoryLogs {
+		// JSON separated by a newline
+		err = encoder.Encode(convertProjectHistoryLog(projectHistoryLog))
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("marshal: %s", err),
+			})
+			return
+		}
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case log := <-newLogNotify:
+			err = encoder.Encode(log)
+			if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("marshal follow: %s", err),
+				})
+				return
+			}
+		}
+	}
+}
+
 func convertProjectHistory(history database.ProjectHistory) ProjectHistory {
 	return ProjectHistory{
 		ID:        history.ID,
@@ -230,4 +350,18 @@ func convertProjectHistory(history database.ProjectHistory) ProjectHistory {
 		UpdatedAt: history.UpdatedAt,
 		Name:      history.Name,
 	}
+}
+
+func convertProjectHistoryLog(log database.ProjectHistoryLog) ProjectHistoryLog {
+	return ProjectHistoryLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Source:    log.Source,
+		Level:     log.Level,
+		Output:    log.Output,
+	}
+}
+
+func projectHistoryLogsChannel(projectHistoryID uuid.UUID) string {
+	return fmt.Sprintf("project-history-logs:%s", projectHistoryID)
 }

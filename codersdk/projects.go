@@ -84,3 +84,41 @@ func (c *Client) CreateProjectHistory(ctx context.Context, organization, project
 	var projectVersion coderd.ProjectHistory
 	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
 }
+
+func (c *Client) ProjectHistoryLogs(ctx context.Context, organization, project, history string) ([]coderd.ProjectHistoryLog, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history/%s/logs", organization, project, history), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var logs []coderd.ProjectHistoryLog
+	return logs, json.NewDecoder(res.Body).Decode(&logs)
+}
+
+func (c *Client) FollowProjectHistoryLogs(ctx context.Context, organization, project, history string) (<-chan coderd.ProjectHistoryLog, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history/%s/logs?follow", organization, project, history), nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, readBodyAsError(res)
+	}
+
+	logs := make(chan coderd.ProjectHistoryLog)
+	decoder := json.NewDecoder(res.Body)
+	go func() {
+		defer close(logs)
+		var log coderd.ProjectHistoryLog
+		for {
+			err = decoder.Decode(&log)
+			if err != nil {
+				return
+			}
+		}
+	}()
+	return logs, nil
+}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"time"
 
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
@@ -28,6 +29,7 @@ import (
 
 type provisionerd struct {
 	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 func (p *provisionerd) listen(rw http.ResponseWriter, r *http.Request) {
@@ -59,6 +61,7 @@ func (p *provisionerd) listen(rw http.ResponseWriter, r *http.Request) {
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
 		ID:       daemon.ID,
 		Database: p.Database,
+		Pubsub:   p.Pubsub,
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("drpc register provisioner daemon: %s", err))
@@ -73,7 +76,7 @@ func (p *provisionerd) listen(rw http.ResponseWriter, r *http.Request) {
 
 // The input for a "workspace_provision" job.
 type workspaceProvisionJob struct {
-	WorkspaceHistoryID uuid.UUID `json:"workspace_id"`
+	WorkspaceHistoryID uuid.UUID `json:"workspace_history_id"`
 }
 
 // The input for a "project_import" job.
@@ -85,6 +88,7 @@ type projectImportJob struct {
 type provisionerdServer struct {
 	ID       uuid.UUID
 	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 func (s *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
@@ -235,12 +239,103 @@ func (s *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_Update
 		if err != nil {
 			return xerrors.Errorf("parse job id: %w", err)
 		}
-		err = s.Database.UpdateProvisionerJobByID(context.Background(), database.UpdateProvisionerJobByIDParams{
+		job, err := s.Database.GetProvisionerJobByID(stream.Context(), parsedID)
+		if err != nil {
+			return xerrors.Errorf("get job: %w", err)
+		}
+		if !job.WorkerID.Valid {
+			return errors.New("job isn't running yet")
+		}
+		if job.WorkerID.UUID.String() != s.ID.String() {
+			return errors.New("you don't own this job")
+		}
+
+		err = s.Database.UpdateProvisionerJobByID(stream.Context(), database.UpdateProvisionerJobByIDParams{
 			ID:        parsedID,
 			UpdatedAt: database.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("update job: %w", err)
+		}
+		switch job.Type {
+		case database.ProvisionerJobTypeProjectImport:
+			if len(update.ProjectImportLogs) == 0 {
+				continue
+			}
+			var input projectImportJob
+			err = json.Unmarshal(job.Input, &input)
+			if err != nil {
+				return xerrors.Errorf("unmarshal job input %q: %s", job.Input, err)
+			}
+			insertParams := database.InsertProjectHistoryLogsParams{
+				ProjectHistoryID: input.ProjectHistoryID,
+			}
+			for _, log := range update.ProjectImportLogs {
+				logLevel, err := convertLogLevel(log.Level)
+				if err != nil {
+					return xerrors.Errorf("convert log level: %w", err)
+				}
+				logSource, err := convertLogSource(log.Source)
+				if err != nil {
+					return xerrors.Errorf("convert log source: %w", err)
+				}
+				insertParams.ID = append(insertParams.ID, uuid.New())
+				insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
+				insertParams.Level = append(insertParams.Level, logLevel)
+				insertParams.Source = append(insertParams.Source, logSource)
+				insertParams.Output = append(insertParams.Output, log.Output)
+			}
+			logs, err := s.Database.InsertProjectHistoryLogs(stream.Context(), insertParams)
+			if err != nil {
+				return xerrors.Errorf("insert project logs: %w", err)
+			}
+			data, err := json.Marshal(logs)
+			if err != nil {
+				return xerrors.Errorf("marshal project log: %w", err)
+			}
+			err = s.Pubsub.Publish(projectHistoryLogsChannel(input.ProjectHistoryID), data)
+			if err != nil {
+				return xerrors.Errorf("publish history log: %w", err)
+			}
+		case database.ProvisionerJobTypeWorkspaceProvision:
+			if len(update.WorkspaceProvisionLogs) == 0 {
+				continue
+			}
+			var input workspaceProvisionJob
+			err = json.Unmarshal(job.Input, &input)
+			if err != nil {
+				return xerrors.Errorf("unmarshal job input %q: %s", job.Input, err)
+			}
+			insertParams := database.InsertWorkspaceHistoryLogsParams{
+				WorkspaceHistoryID: input.WorkspaceHistoryID,
+			}
+			for _, log := range update.WorkspaceProvisionLogs {
+				logLevel, err := convertLogLevel(log.Level)
+				if err != nil {
+					return xerrors.Errorf("convert log level: %w", err)
+				}
+				logSource, err := convertLogSource(log.Source)
+				if err != nil {
+					return xerrors.Errorf("convert log source: %w", err)
+				}
+				insertParams.ID = append(insertParams.ID, uuid.New())
+				insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
+				insertParams.Level = append(insertParams.Level, logLevel)
+				insertParams.Source = append(insertParams.Source, logSource)
+				insertParams.Output = append(insertParams.Output, log.Output)
+			}
+			logs, err := s.Database.InsertWorkspaceHistoryLogs(stream.Context(), insertParams)
+			if err != nil {
+				return xerrors.Errorf("insert workspace logs: %w", err)
+			}
+			data, err := json.Marshal(logs)
+			if err != nil {
+				return xerrors.Errorf("marshal project log: %w", err)
+			}
+			err = s.Pubsub.Publish(workspaceHistoryLogsChannel(input.WorkspaceHistoryID), data)
+			if err != nil {
+				return xerrors.Errorf("publish history log: %w", err)
+			}
 		}
 	}
 }
@@ -457,5 +552,33 @@ func convertParameterDestinationScheme(destinationScheme sdkproto.ParameterDesti
 		return database.ParameterDestinationSchemeProvisionerVariable, nil
 	default:
 		return database.ParameterDestinationScheme(""), xerrors.Errorf("unknown parameter destination scheme: %d", destinationScheme)
+	}
+}
+
+func convertLogLevel(logLevel sdkproto.LogLevel) (database.LogLevel, error) {
+	switch logLevel {
+	case sdkproto.LogLevel_TRACE:
+		return database.LogLevelTrace, nil
+	case sdkproto.LogLevel_DEBUG:
+		return database.LogLevelDebug, nil
+	case sdkproto.LogLevel_INFO:
+		return database.LogLevelInfo, nil
+	case sdkproto.LogLevel_WARN:
+		return database.LogLevelWarn, nil
+	case sdkproto.LogLevel_ERROR:
+		return database.LogLevelError, nil
+	default:
+		return database.LogLevel(""), xerrors.Errorf("unknown log level: %d", logLevel)
+	}
+}
+
+func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
+	switch logSource {
+	case proto.LogSource_PROVISIONER_DAEMON:
+		return database.LogSourceProvisionerDaemon, nil
+	case proto.LogSource_PROVISIONER:
+		return database.LogSourceProvisioner, nil
+	default:
+		return database.LogSource(""), xerrors.Errorf("unknown log source: %d", logSource)
 	}
 }

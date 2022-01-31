@@ -16,21 +16,25 @@ import (
 type Options struct {
 	Logger   slog.Logger
 	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
 	projects := &projects{
 		Database: options.Database,
+		Pubsub:   options.Pubsub,
 	}
 	provisionerd := &provisionerd{
 		Database: options.Database,
+		Pubsub:   options.Pubsub,
 	}
 	users := &users{
 		Database: options.Database,
 	}
 	workspaces := &workspaces{
 		Database: options.Database,
+		Pubsub:   options.Pubsub,
 	}
 
 	r := chi.NewRouter()
@@ -71,6 +75,10 @@ func New(options *Options) http.Handler {
 					r.Route("/history", func(r chi.Router) {
 						r.Get("/", projects.allProjectHistory)
 						r.Post("/", projects.createProjectHistory)
+						r.Route("/{projecthistory}", func(r chi.Router) {
+							r.Use(httpmw.ExtractProjectHistoryParam(options.Database))
+							r.Get("/logs", projects.projectHistoryLogs)
+						})
 					})
 					r.Get("/workspaces", workspaces.allWorkspacesForProject)
 				})
@@ -93,6 +101,10 @@ func New(options *Options) http.Handler {
 						r.Post("/", workspaces.createWorkspaceHistory)
 						r.Get("/", workspaces.listAllWorkspaceHistory)
 						r.Get("/latest", workspaces.latestWorkspaceHistory)
+						r.Route("/{workspacehistory}", func(r chi.Router) {
+							r.Use(httpmw.ExtractWorkspaceHistoryParam(options.Database))
+							r.Get("/logs", workspaces.workspaceHistoryLogs)
+						})
 					})
 				})
 			})
