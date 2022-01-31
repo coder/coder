@@ -220,6 +220,10 @@ func (c *Conn) init() error {
 		c.opts.Logger.Debug(context.Background(), "signaling state updated",
 			slog.F("state", signalState))
 	})
+	c.rtc.SCTP().Transport().OnStateChange(func(dtlsTransportState webrtc.DTLSTransportState) {
+		c.opts.Logger.Debug(context.Background(), "dtls transport state updated",
+			slog.F("state", dtlsTransportState))
+	})
 	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
 		if iceCandidate == nil {
 			return
