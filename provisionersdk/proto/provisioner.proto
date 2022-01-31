@@ -56,13 +56,12 @@ enum LogLevel {
     INFO = 2;
     WARN = 3;
     ERROR = 4;
-    FATAL = 5;
 }
 
 // Log represents output from a request.
 message Log {
     LogLevel level = 1;
-    string text = 2;
+    string output = 2;
 }
 
 // Parse consumes source-code from a directory to produce inputs.

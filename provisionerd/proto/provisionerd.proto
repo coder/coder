@@ -57,26 +57,16 @@ message CompletedJob {
 
 // LogSource represents the sender of the log.
 enum LogSource {
-    PROVISIONER = 0;
-    DAEMON = 1;
+    PROVISIONER_DAEMON = 0;
+    PROVISIONER = 1;
 }
 
 // Log represents output from a job.
 message Log {
-    message WorkspaceProvision {
-        string workspace_history_id = 1;
-    }
-    message ProjectImport {
-        string project_history_id = 1;
-    }
     LogSource source = 1;
     provisioner.LogLevel level = 2;
     int64 created_at = 3;
-    string text = 4;
-    oneof type {
-        WorkspaceProvision workspace_provision = 5;
-        ProjectImport project_import = 6;
-    }
+    string output = 4;
 }
 
 // JobUpdate represents an update to a job.
@@ -84,7 +74,8 @@ message Log {
 // should still be sent periodically as a heartbeat.
 message JobUpdate {
     string job_id = 1;
-    repeated Log logs = 2;
+    repeated Log workspace_provision_logs = 2;
+    repeated Log project_import_logs = 3;
 }
 
 service ProvisionerDaemon {

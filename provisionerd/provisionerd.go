@@ -277,21 +277,23 @@ func (p *provisionerDaemon) runProjectImport(provisioner sdkproto.DRPCProvisione
 		case *sdkproto.Parse_Response_Log:
 			p.opts.Logger.Debug(context.Background(), "parse job logged",
 				slog.F("level", msgType.Log.Level),
-				slog.F("text", msgType.Log.Text),
+				slog.F("output", msgType.Log.Output),
 				slog.F("project_history_id", job.ProjectImport.ProjectHistoryId),
 			)
 
-			p.logQueue = append(p.logQueue, proto.Log{
-				Source:    proto.LogSource_PROVISIONER,
-				Level:     msgType.Log.Level,
-				CreatedAt: time.Now().UTC().UnixMilli(),
-				Text:      msgType.Log.Text,
-				Type: &proto.Log_ProjectImport_{
-					ProjectImport: &proto.Log_ProjectImport{
-						ProjectHistoryId: job.ProjectImport.ProjectHistoryId,
-					},
-				},
+			err = p.updateStream.Send(&proto.JobUpdate{
+				JobId: p.activeJob.JobId,
+				ProjectImportLogs: []*proto.Log{{
+					Source:    proto.LogSource_PROVISIONER,
+					Level:     msgType.Log.Level,
+					CreatedAt: time.Now().UTC().UnixMilli(),
+					Output:    msgType.Log.Output,
+				}},
 			})
+			if err != nil {
+				p.cancelActiveJob(fmt.Sprintf("update job: %s", err))
+				return
+			}
 		case *sdkproto.Parse_Response_Complete:
 			_, err = p.client.CompleteJob(p.closeContext, &proto.CompletedJob{
 				JobId: p.activeJob.JobId,
@@ -335,23 +337,25 @@ func (p *provisionerDaemon) runWorkspaceProvision(provisioner sdkproto.DRPCProvi
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			p.opts.Logger.Debug(context.Background(), "provision job logged",
+			p.opts.Logger.Debug(context.Background(), "workspace provision job logged",
 				slog.F("level", msgType.Log.Level),
-				slog.F("text", msgType.Log.Text),
+				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_history_id", job.WorkspaceProvision.WorkspaceHistoryId),
 			)
 
-			p.logQueue = append(p.logQueue, proto.Log{
-				Source:    proto.LogSource_PROVISIONER,
-				Level:     msgType.Log.Level,
-				CreatedAt: time.Now().UTC().UnixMilli(),
-				Text:      msgType.Log.Text,
-				Type: &proto.Log_WorkspaceProvision_{
-					WorkspaceProvision: &proto.Log_WorkspaceProvision{
-						WorkspaceHistoryId: job.WorkspaceProvision.WorkspaceHistoryId,
-					},
-				},
+			err = p.updateStream.Send(&proto.JobUpdate{
+				JobId: p.activeJob.JobId,
+				WorkspaceProvisionLogs: []*proto.Log{{
+					Source:    proto.LogSource_PROVISIONER,
+					Level:     msgType.Log.Level,
+					CreatedAt: time.Now().UTC().UnixMilli(),
+					Output:    msgType.Log.Output,
+				}},
 			})
+			if err != nil {
+				p.cancelActiveJob(fmt.Sprintf("send job update: %s", err))
+				return
+			}
 		case *sdkproto.Provision_Response_Complete:
 			p.opts.Logger.Debug(context.Background(), "provision successful; marking job as complete",
 				slog.F("resource_count", len(msgType.Complete.Resources)),

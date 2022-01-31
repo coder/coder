@@ -51,8 +51,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 			_ = stream.Send(&proto.Provision_Response{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
-						Level: proto.LogLevel_INFO,
-						Text:  scanner.Text(),
+						Level:  proto.LogLevel_INFO,
+						Output: scanner.Text(),
 					},
 				},
 			})
@@ -101,8 +101,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 			_ = stream.Send(&proto.Provision_Response{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
-						Level: logLevel,
-						Text:  log.Message,
+						Level:  logLevel,
+						Output: log.Message,
 					},
 				},
 			})
@@ -119,8 +119,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 			_ = stream.Send(&proto.Provision_Response{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
-						Level: logLevel,
-						Text:  log.Diagnostic.Detail,
+						Level:  logLevel,
+						Output: log.Diagnostic.Detail,
 					},
 				},
 			})
