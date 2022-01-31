@@ -168,6 +168,7 @@ jobs:
           -count=1 -race -parallel=1
 
       - uses: codecov/codecov-action@v2
+        if: github.actor != 'dependabot[bot]'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
@@ -200,6 +201,7 @@ jobs:
       - run: yarn test:coverage
 
       - uses: codecov/codecov-action@v2
+        if: github.actor != 'dependabot[bot]'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
