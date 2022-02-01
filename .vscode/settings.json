@@ -22,5 +22,6 @@
         "cmd": "make gen"
       }
     ]
-  }
+  },
+  "cSpell.words": ["coderd", "coderdtest", "codersdk", "httpmw", "oneof", "stretchr", "xerrors"]
 }
