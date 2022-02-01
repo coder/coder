@@ -16,7 +16,10 @@ yarn-error.log
 
 # Front-end ignore
 .next/
+site/.eslintcache
 site/.next/
+site/node_modules/
+site/yarn-error.log
 coverage/
 
 # Build

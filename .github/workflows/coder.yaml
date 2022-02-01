@@ -61,9 +61,11 @@ jobs:
 
       - name: Install node_modules
         run: yarn install
+        working-directory: site
 
       - name: "yarn lint"
         run: yarn lint
+        working-directory: site
 
   gen:
     name: "style/gen"
@@ -113,6 +115,7 @@ jobs:
 
       - name: Install node_modules
         run: yarn install
+        working-directory: site
 
       - name: "make ${{ matrix.style }}"
         run: "make --output-sync -j ${{ matrix.style }}"
@@ -194,15 +197,18 @@ jobs:
           node-version: "14"
 
       - run: yarn install
+        working-directory: site
 
       - run: yarn build
+        working-directory: site
 
       - run: yarn test:coverage
+        working-directory: site
 
       - uses: codecov/codecov-action@v2
         if: github.actor != 'dependabot[bot]'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/lcov.info
+          files: ./site/coverage/lcov.info
           flags: unittest-js
           fail_ci_if_error: true
