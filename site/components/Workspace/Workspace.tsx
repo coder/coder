@@ -68,16 +68,20 @@ export const ResourceRow: React.FC<ResourceRowProps> = ({ icon, href, name, stat
         <img src={icon} height={ResourceIconSize} width={ResourceIconSize} />
       </div>
       <div className={styles.nameContainer}>
-        {href ? <Link
-          color={status === "active" ? "primary" : "initial"}
-          href={href}
-          rel="noreferrer noopener"
-          target="_blank"
-          underline="none"
-        >
+        {href ? (
+          <Link
+            color={status === "active" ? "primary" : "initial"}
+            href={href}
+            rel="noreferrer noopener"
+            target="_blank"
+            underline="none"
+          >
+            <span>{name}</span>
+            <OpenInNewIcon fontSize="inherit" style={{ marginTop: "0.25em", marginLeft: "0.5em" }} />
+          </Link>
+        ) : (
           <span>{name}</span>
-          <OpenInNewIcon fontSize="inherit" style={{ marginTop: "0.25em", marginLeft: "0.5em" }} />
-        </Link> : <span>{name}</span>}
+        )}
       </div>
       <div className={styles.statusContainer}>
         <StatusIndicator status={status} />
@@ -124,7 +128,7 @@ const useResourceRowStyles = makeStyles((theme) => ({
     margin: `0 ${theme.spacing(0.5)}px`,
     opacity: 0.7,
     fontSize: 16,
-  }
+  },
 }))
 
 export const Title: React.FC = ({ children }) => {
@@ -148,7 +152,6 @@ const useTitleStyles = makeStyles((theme) => ({
   },
 }))
 
-
 export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
   const styles = useStyles()
 
@@ -157,7 +160,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
       <Paper elevation={0} className={styles.section}>
         <Typography variant="h4">{workspace.name}</Typography>
         <Typography variant="body2" color="textSecondary">
-          <Link>test-org</Link>{" / "}<Link>test-project</Link>
+          <Link>test-org</Link>
+          {" / "}
+          <Link>test-project</Link>
         </Typography>
       </Paper>
       <div className={styles.horizontal}>
@@ -173,7 +178,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
             <div className={styles.vertical}>
               <ResourceRow name={"Code Web"} icon={"/static/vscode.svg"} href={"placeholder"} status={"active"} />
               <ResourceRow name={"Terminal"} icon={"/static/terminal.svg"} href={"placeholder"} status={"active"} />
-              <ResourceRow name={"React App"} icon={"/static/react-icon.svg"} status={"loading"} />
+              <ResourceRow name={"React App"} icon={"/static/react-icon.svg"} status={"active"} />
             </div>
           </Paper>
           <Paper elevation={0} className={styles.section}>
@@ -185,7 +190,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
             </Title>
 
             <div className={styles.vertical}>
-              <ResourceRow name={"GCS Bucket"} icon={"/static/google-storage-logo.svg"} href={"placeholder"} status={"active"} />
+              <ResourceRow
+                name={"GCS Bucket"}
+                icon={"/static/google-storage-logo.svg"}
+                href={"placeholder"}
+                status={"active"}
+              />
               <ResourceRow name={"Windows (x64 - VM)"} icon={"/static/windows-logo.svg"} status={"active"} />
               <ResourceRow name={"OSX (M1 - Physical)"} icon={"/static/apple-logo.svg"} status={"inactive"} />
             </div>
