@@ -1,44 +1,74 @@
 package provisionersdk
 
 import (
+	"context"
 	"io"
-	"os"
 
+	"github.com/hashicorp/yamux"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcconn"
 )
 
-// Transport creates a dRPC transport using stdin and stdout.
-func TransportStdio() drpc.Transport {
-	return &transport{
-		in:  os.Stdin,
-		out: os.Stdout,
-	}
-}
-
 // TransportPipe creates an in-memory pipe for dRPC transport.
-func TransportPipe() (drpc.Transport, drpc.Transport) {
-	clientReader, serverWriter := io.Pipe()
-	serverReader, clientWriter := io.Pipe()
-	clientTransport := &transport{clientReader, clientWriter}
-	serverTransport := &transport{serverReader, serverWriter}
+func TransportPipe() (*yamux.Session, *yamux.Session) {
+	clientReader, clientWriter := io.Pipe()
+	serverReader, serverWriter := io.Pipe()
+	yamuxConfig := yamux.DefaultConfig()
+	yamuxConfig.LogOutput = io.Discard
+	client, err := yamux.Client(&readWriteCloser{
+		ReadCloser: clientReader,
+		Writer:     serverWriter,
+	}, yamuxConfig)
+	if err != nil {
+		panic(err)
+	}
 
-	return clientTransport, serverTransport
+	server, err := yamux.Server(&readWriteCloser{
+		ReadCloser: serverReader,
+		Writer:     clientWriter,
+	}, yamuxConfig)
+	if err != nil {
+		panic(err)
+	}
+	return client, server
 }
 
-// transport wraps an input and output to pipe data.
-type transport struct {
-	in  io.ReadCloser
-	out io.Writer
+// Conn returns a multiplexed dRPC connection from a yamux session.
+func Conn(session *yamux.Session) drpc.Conn {
+	return &multiplexedDRPC{session}
 }
 
-func (s *transport) Read(data []byte) (int, error) {
-	return s.in.Read(data)
+type readWriteCloser struct {
+	io.ReadCloser
+	io.Writer
 }
 
-func (s *transport) Write(data []byte) (int, error) {
-	return s.out.Write(data)
+// Allows concurrent requests on a single dRPC connection.
+// Required for calling functions concurrently.
+type multiplexedDRPC struct {
+	session *yamux.Session
 }
 
-func (s *transport) Close() error {
-	return s.in.Close()
+func (m *multiplexedDRPC) Close() error {
+	return m.session.Close()
+}
+
+func (m *multiplexedDRPC) Closed() <-chan struct{} {
+	return m.session.CloseChan()
+}
+
+func (m *multiplexedDRPC) Invoke(ctx context.Context, rpc string, enc drpc.Encoding, in, out drpc.Message) error {
+	conn, err := m.session.Open()
+	if err != nil {
+		return err
+	}
+	return drpcconn.New(conn).Invoke(ctx, rpc, enc, in, out)
+}
+
+func (m *multiplexedDRPC) NewStream(ctx context.Context, rpc string, enc drpc.Encoding) (drpc.Stream, error) {
+	conn, err := m.session.Open()
+	if err != nil {
+		return nil, err
+	}
+	return drpcconn.New(conn).NewStream(ctx, rpc, enc)
 }

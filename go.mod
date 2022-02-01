@@ -10,6 +10,7 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 
 require (
 	cdr.dev/slog v1.4.1
+	github.com/coder/retry v1.3.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.10.0
@@ -18,6 +19,7 @@ require (
 	github.com/hashicorp/go-version v1.4.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
+	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/justinas/nosurf v1.1.1
 	github.com/lib/pq v1.10.4
 	github.com/moby/moby v20.10.12+incompatible
