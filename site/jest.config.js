@@ -34,6 +34,7 @@ module.exports = {
     "!<rootDir>/_jest/**/*.*",
     "!<rootDir>/.next/**/*.*",
     "!<rootDir>/api.ts",
+    "!<rootDir>/coverage/**/*.*",
     "!<rootDir>/dev.ts",
     "!<rootDir>/jest-runner.eslint.config.js",
     "!<rootDir>/jest.config.js",
