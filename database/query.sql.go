@@ -1935,10 +1935,11 @@ INSERT INTO
     name,
     transition,
     initiator,
-    provision_job_id
+    provision_job_id,
+    provisioner_state
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 `
 
 type InsertWorkspaceHistoryParams struct {
@@ -1952,6 +1953,7 @@ type InsertWorkspaceHistoryParams struct {
 	Transition       WorkspaceTransition `db:"transition" json:"transition"`
 	Initiator        string              `db:"initiator" json:"initiator"`
 	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
+	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorkspaceHistoryParams) (WorkspaceHistory, error) {
@@ -1966,6 +1968,7 @@ func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorks
 		arg.Transition,
 		arg.Initiator,
 		arg.ProvisionJobID,
+		arg.ProvisionerState,
 	)
 	var i WorkspaceHistory
 	err := row.Scan(
