@@ -7,7 +7,6 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"storj.io/drpc/drpcconn"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -37,7 +36,7 @@ func TestDial(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		api := proto.NewDRPCPeerBrokerClient(drpcconn.New(client))
+		api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 		stream, err := api.NegotiateConnection(ctx)
 		require.NoError(t, err)
 		clientConn, err := peerbroker.Dial(stream, []webrtc.ICEServer{{

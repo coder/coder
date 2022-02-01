@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
@@ -27,7 +26,7 @@ func TestListen(t *testing.T) {
 		listener, err := peerbroker.Listen(server, nil)
 		require.NoError(t, err)
 
-		api := proto.NewDRPCPeerBrokerClient(drpcconn.New(client))
+		api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 		stream, err := api.NegotiateConnection(ctx)
 		require.NoError(t, err)
 		clientConn, err := peerbroker.Dial(stream, nil, nil)

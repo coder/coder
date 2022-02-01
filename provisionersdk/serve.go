@@ -4,19 +4,22 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
+	"os"
 
 	"golang.org/x/xerrors"
-	"storj.io/drpc"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
+
+	"github.com/hashicorp/yamux"
 
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 // ServeOptions are configurations to serve a provisioner.
 type ServeOptions struct {
-	// Transport specifies a custom transport to serve the dRPC connection.
-	Transport drpc.Transport
+	// Conn specifies a custom transport to serve the dRPC connection.
+	Listener net.Listener
 }
 
 // Serve starts a dRPC connection for the provisioner and transport provided.
@@ -25,8 +28,17 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		options = &ServeOptions{}
 	}
 	// Default to using stdio.
-	if options.Transport == nil {
-		options.Transport = TransportStdio()
+	if options.Listener == nil {
+		config := yamux.DefaultConfig()
+		config.LogOutput = io.Discard
+		stdio, err := yamux.Server(readWriteCloser{
+			ReadCloser: os.Stdin,
+			Writer:     os.Stdout,
+		}, config)
+		if err != nil {
+			return xerrors.Errorf("create yamux: %w", err)
+		}
+		options.Listener = stdio
 	}
 
 	// dRPC is a drop-in replacement for gRPC with less generated code, and faster transports.
@@ -40,16 +52,15 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 	// Only serve a single connection on the transport.
 	// Transports are not multiplexed, and provisioners are
 	// short-lived processes that can be executed concurrently.
-	err = srv.ServeOne(ctx, options.Transport)
+	err = srv.Serve(ctx, options.Listener)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
 		if errors.Is(err, io.ErrClosedPipe) {
-			// This may occur if the transport on either end is
-			// closed before the context. It's fine to return
-			// nil here, since the server has nothing to
-			// communicate with.
+			return nil
+		}
+		if errors.Is(err, yamux.ErrSessionShutdown) {
 			return nil
 		}
 		return xerrors.Errorf("serve transport: %w", err)

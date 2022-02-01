@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"reflect"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
 	"golang.org/x/xerrors"
-	"storj.io/drpc"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -19,7 +19,7 @@ import (
 
 // Listen consumes the transport as the server-side of the PeerBroker dRPC service.
 // The Accept function must be serviced, or new connections will hang.
-func Listen(transport drpc.Transport, opts *peer.ConnOptions) (*Listener, error) {
+func Listen(connListener net.Listener, opts *peer.ConnOptions) (*Listener, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	listener := &Listener{
 		connectionChannel: make(chan *peer.Conn),
@@ -39,7 +39,7 @@ func Listen(transport drpc.Transport, opts *peer.ConnOptions) (*Listener, error)
 	}
 	srv := drpcserver.New(mux)
 	go func() {
-		err := srv.ServeOne(ctx, transport)
+		err := srv.Serve(ctx, connListener)
 		_ = listener.closeWithError(err)
 	}()
 
