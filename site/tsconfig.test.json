@@ -1,10 +1,12 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "target": "es5",
     "module": "commonjs",
     "jsx": "react",
     "downlevelIteration": true,
     "strict": true,
+    "strictNullChecks": true,
     "esModuleInterop": true
   }
 }

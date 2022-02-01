@@ -16,6 +16,8 @@ import (
 )
 
 func TestWorkspaceHistory(t *testing.T) {
+	t.Parallel()
+
 	setupProjectAndWorkspace := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest) (coderd.Project, coderd.Workspace) {
 		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",

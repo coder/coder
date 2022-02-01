@@ -14,6 +14,8 @@ import (
 )
 
 func TestProjectHistory(t *testing.T) {
+	t.Parallel()
+
 	t.Run("NoHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
