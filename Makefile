@@ -26,9 +26,9 @@ fmt/prettier:
 	@echo "--- prettier"
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	yarn run format:check
+	cd site && yarn run format:check
 else
-	yarn run format:write
+	cd site && yarn run format:write
 endif
 .PHONY: fmt/prettier
 
@@ -74,6 +74,6 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
 site/out: 
-	yarn build
-	yarn export
+	cd site && yarn build
+	cd site && yarn export
 .PHONY: site/out

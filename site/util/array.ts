@@ -4,9 +4,13 @@
  * - If an array with 1 or more elements, returns the first element
  * - If a single item, returns that item
  */
-export const firstOrItem = <T>(itemOrItems: T | T[]): T | null => {
+export const firstOrItem = <T>(itemOrItems: undefined | T | T[], defaults: T): T => {
   if (Array.isArray(itemOrItems)) {
-    return itemOrItems.length > 0 ? itemOrItems[0] : null
+    return itemOrItems.length > 0 ? itemOrItems[0] : defaults
+  }
+
+  if (typeof itemOrItems === "undefined") {
+    return defaults
   }
 
   return itemOrItems
