@@ -5,8 +5,12 @@ CREATE TYPE log_level AS ENUM (
     'debug',
     'info',
     'warn',
-    'error',
-    'fatal'
+    'error'
+);
+
+CREATE TYPE log_source AS ENUM (
+    'provisioner_daemon',
+    'provisioner'
 );
 
 CREATE TYPE login_type AS ENUM (
@@ -142,6 +146,15 @@ CREATE TABLE project_history (
     import_job_id uuid NOT NULL
 );
 
+CREATE TABLE project_history_log (
+    id uuid NOT NULL,
+    project_history_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    source log_source NOT NULL,
+    level log_level NOT NULL,
+    output character varying(1024) NOT NULL
+);
+
 CREATE TABLE project_parameter (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -233,6 +246,7 @@ CREATE TABLE workspace_history (
     completed_at timestamp with time zone,
     workspace_id uuid NOT NULL,
     project_history_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
     before_id uuid,
     after_id uuid,
     transition workspace_transition NOT NULL,
@@ -241,13 +255,13 @@ CREATE TABLE workspace_history (
     provision_job_id uuid NOT NULL
 );
 
-CREATE TABLE workspace_log (
-    workspace_id uuid NOT NULL,
+CREATE TABLE workspace_history_log (
+    id uuid NOT NULL,
     workspace_history_id uuid NOT NULL,
-    created timestamp with time zone NOT NULL,
-    logged_by character varying(255),
+    created_at timestamp with time zone NOT NULL,
+    source log_source NOT NULL,
     level log_level NOT NULL,
-    log jsonb NOT NULL
+    output character varying(1024) NOT NULL
 );
 
 CREATE TABLE workspace_resource (
@@ -268,6 +282,9 @@ ALTER TABLE ONLY parameter_value
 
 ALTER TABLE ONLY project_history
     ADD CONSTRAINT project_history_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project_history_log
+    ADD CONSTRAINT project_history_log_id_key UNIQUE (id);
 
 ALTER TABLE ONLY project_history
     ADD CONSTRAINT project_history_project_id_name_key UNIQUE (project_id, name);
@@ -299,8 +316,17 @@ ALTER TABLE ONLY workspace_agent
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_id_key UNIQUE (id);
 
+ALTER TABLE ONLY workspace_history_log
+    ADD CONSTRAINT workspace_history_log_id_key UNIQUE (id);
+
+ALTER TABLE ONLY workspace_history
+    ADD CONSTRAINT workspace_history_workspace_id_name_key UNIQUE (workspace_id, name);
+
 ALTER TABLE ONLY workspace
     ADD CONSTRAINT workspace_id_key UNIQUE (id);
+
+ALTER TABLE ONLY workspace
+    ADD CONSTRAINT workspace_owner_id_name_key UNIQUE (owner_id, name);
 
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_id_key UNIQUE (id);
@@ -311,7 +337,8 @@ ALTER TABLE ONLY workspace_resource
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_history_id_name_key UNIQUE (workspace_history_id, name);
 
-CREATE INDEX workspace_log_index ON workspace_log USING btree (workspace_id, workspace_history_id);
+ALTER TABLE ONLY project_history_log
+    ADD CONSTRAINT project_history_log_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_history
     ADD CONSTRAINT project_history_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
@@ -325,17 +352,14 @@ ALTER TABLE ONLY provisioner_job
 ALTER TABLE ONLY workspace_agent
     ADD CONSTRAINT workspace_agent_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resource(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY workspace_history_log
+    ADD CONSTRAINT workspace_history_log_workspace_history_id_fkey FOREIGN KEY (workspace_history_id) REFERENCES workspace_history(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workspace_log
-    ADD CONSTRAINT workspace_log_workspace_history_id_fkey FOREIGN KEY (workspace_history_id) REFERENCES workspace_history(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workspace_log
-    ADD CONSTRAINT workspace_log_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace
     ADD CONSTRAINT workspace_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);

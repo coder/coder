@@ -35,7 +35,9 @@ func TestProvisionerSDK(t *testing.T) {
 		}()
 
 		api := proto.NewDRPCProvisionerClient(drpcconn.New(client))
-		_, err := api.Parse(context.Background(), &proto.Parse_Request{})
+		stream, err := api.Parse(context.Background(), &proto.Parse_Request{})
+		require.NoError(t, err)
+		_, err = stream.Recv()
 		require.Equal(t, drpcerr.Unimplemented, int(drpcerr.Code(err)))
 	})
 	t.Run("ServeClosedPipe", func(t *testing.T) {

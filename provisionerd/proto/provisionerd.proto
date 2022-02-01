@@ -57,37 +57,16 @@ message CompletedJob {
 
 // LogSource represents the sender of the log.
 enum LogSource {
-    PROVISIONER = 0;
-    DAEMON = 1;
-}
-
-// LogLevel represents severity of the log.
-enum LogLevel {
-    TRACE = 0;
-    DEBUG = 1;
-    INFO = 2;
-    WARN = 3;
-    ERROR = 4;
-    FATAL = 5;
+    PROVISIONER_DAEMON = 0;
+    PROVISIONER = 1;
 }
 
 // Log represents output from a job.
 message Log {
-    message WorkspaceProvision {
-        string workspace_history_id = 1;
-        string text = 2;
-    }
-    message ProjectImport {
-        string project_history_id = 1;
-        string text = 2;
-    }
     LogSource source = 1;
-    LogLevel level = 2;
+    provisioner.LogLevel level = 2;
     int64 created_at = 3;
-    oneof type {
-        WorkspaceProvision workspace_provision = 4;
-        ProjectImport project_import = 5;
-    }
+    string output = 4;
 }
 
 // JobUpdate represents an update to a job.
@@ -95,7 +74,8 @@ message Log {
 // should still be sent periodically as a heartbeat.
 message JobUpdate {
     string job_id = 1;
-    repeated Log logs = 2;
+    repeated Log workspace_provision_logs = 2;
+    repeated Log project_import_logs = 3;
 }
 
 service ProvisionerDaemon {
