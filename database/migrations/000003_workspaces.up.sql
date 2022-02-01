@@ -4,7 +4,8 @@ CREATE TABLE workspace (
     updated_at timestamptz NOT NULL,
     owner_id text NOT NULL,
     project_id uuid NOT NULL REFERENCES project (id),
-    name varchar(64) NOT NULL
+    name varchar(64) NOT NULL,
+    UNIQUE(owner_id, name)
 );
 
 CREATE TYPE workspace_transition AS ENUM (
@@ -22,6 +23,7 @@ CREATE TABLE workspace_history (
     completed_at timestamptz,
     workspace_id uuid NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
     project_history_id uuid NOT NULL REFERENCES project_history (id) ON DELETE CASCADE,
+    name varchar(64) NOT NULL,
     before_id uuid,
     after_id uuid,
     transition workspace_transition NOT NULL,
@@ -29,7 +31,8 @@ CREATE TABLE workspace_history (
     -- State stored by the provisioner
     provisioner_state bytea,
     -- Job ID of the action
-    provision_job_id uuid NOT NULL
+    provision_job_id uuid NOT NULL,
+    UNIQUE(workspace_id, name)
 );
 
 -- Cloud resources produced by a provision job.
@@ -63,28 +66,11 @@ CREATE TABLE workspace_agent (
     resource_metadata jsonb NOT NULL
 );
 
-CREATE TYPE log_level AS ENUM (
-    'trace',
-    'debug',
-    'info',
-    'warn',
-    'error',
-    'fatal'
-);
-
-CREATE TABLE workspace_log (
-    workspace_id uuid NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
-    -- workspace_history_id can be NULL because some events are not going to be part of a
-    -- deliberate transition, e.g. an infrastructure failure that kills the workspace
+CREATE TABLE workspace_history_log (
+    id uuid NOT NULL UNIQUE,
     workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
-    created timestamptz NOT NULL,
--- not sure this is necessary, also not sure it's necessary separate from the log column
-    logged_by varchar(255),
+    created_at timestamptz NOT NULL,
+    source log_source NOT NULL,
     level log_level NOT NULL,
-    log jsonb NOT NULL
-);
-
-CREATE INDEX workspace_log_index ON workspace_log (
-    workspace_id,
-    workspace_history_id
+    output varchar(1024) NOT NULL
 );

@@ -1,7 +1,6 @@
 package terraform
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 
@@ -12,24 +11,32 @@ import (
 )
 
 // Parse extracts Terraform variables from source-code.
-func (*terraform) Parse(_ context.Context, request *proto.Parse_Request) (*proto.Parse_Response, error) {
+func (*terraform) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
+	defer func() {
+		_ = stream.CloseSend()
+	}()
+
 	module, diags := tfconfig.LoadModule(request.Directory)
 	if diags.HasErrors() {
-		return nil, xerrors.Errorf("load module: %w", diags.Err())
+		return xerrors.Errorf("load module: %w", diags.Err())
 	}
 	parameters := make([]*proto.ParameterSchema, 0, len(module.Variables))
 	for _, v := range module.Variables {
 		schema, err := convertVariableToParameter(v)
 		if err != nil {
-			return nil, xerrors.Errorf("convert variable %q: %w", v.Name, err)
+			return xerrors.Errorf("convert variable %q: %w", v.Name, err)
 		}
 
 		parameters = append(parameters, schema)
 	}
 
-	return &proto.Parse_Response{
-		ParameterSchemas: parameters,
-	}, nil
+	return stream.Send(&proto.Parse_Response{
+		Type: &proto.Parse_Response_Complete{
+			Complete: &proto.Parse_Complete{
+				ParameterSchemas: parameters,
+			},
+		},
+	})
 }
 
 // Converts a Terraform variable to a provisioner parameter.

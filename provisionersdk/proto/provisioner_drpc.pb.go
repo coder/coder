@@ -38,8 +38,8 @@ func (drpcEncoding_File_provisionersdk_proto_provisioner_proto) JSONUnmarshal(bu
 type DRPCProvisionerClient interface {
 	DRPCConn() drpc.Conn
 
-	Parse(ctx context.Context, in *Parse_Request) (*Parse_Response, error)
-	Provision(ctx context.Context, in *Provision_Request) (*Provision_Response, error)
+	Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error)
+	Provision(ctx context.Context, in *Provision_Request) (DRPCProvisioner_ProvisionClient, error)
 }
 
 type drpcProvisionerClient struct {
@@ -52,37 +52,91 @@ func NewDRPCProvisionerClient(cc drpc.Conn) DRPCProvisionerClient {
 
 func (c *drpcProvisionerClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcProvisionerClient) Parse(ctx context.Context, in *Parse_Request) (*Parse_Response, error) {
-	out := new(Parse_Response)
-	err := c.cc.Invoke(ctx, "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{}, in, out)
+func (c *drpcProvisionerClient) Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &drpcProvisioner_ParseClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
 
-func (c *drpcProvisionerClient) Provision(ctx context.Context, in *Provision_Request) (*Provision_Response, error) {
-	out := new(Provision_Response)
-	err := c.cc.Invoke(ctx, "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{}, in, out)
+type DRPCProvisioner_ParseClient interface {
+	drpc.Stream
+	Recv() (*Parse_Response, error)
+}
+
+type drpcProvisioner_ParseClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisioner_ParseClient) Recv() (*Parse_Response, error) {
+	m := new(Parse_Response)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisioner_ParseClient) RecvMsg(m *Parse_Response) error {
+	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
+}
+
+func (c *drpcProvisionerClient) Provision(ctx context.Context, in *Provision_Request) (DRPCProvisioner_ProvisionClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &drpcProvisioner_ProvisionClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DRPCProvisioner_ProvisionClient interface {
+	drpc.Stream
+	Recv() (*Provision_Response, error)
+}
+
+type drpcProvisioner_ProvisionClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisioner_ProvisionClient) Recv() (*Provision_Response, error) {
+	m := new(Provision_Response)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisioner_ProvisionClient) RecvMsg(m *Provision_Response) error {
+	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 
 type DRPCProvisionerServer interface {
-	Parse(context.Context, *Parse_Request) (*Parse_Response, error)
-	Provision(context.Context, *Provision_Request) (*Provision_Response, error)
+	Parse(*Parse_Request, DRPCProvisioner_ParseStream) error
+	Provision(*Provision_Request, DRPCProvisioner_ProvisionStream) error
 }
 
 type DRPCProvisionerUnimplementedServer struct{}
 
-func (s *DRPCProvisionerUnimplementedServer) Parse(context.Context, *Parse_Request) (*Parse_Response, error) {
-	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+func (s *DRPCProvisionerUnimplementedServer) Parse(*Parse_Request, DRPCProvisioner_ParseStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCProvisionerUnimplementedServer) Provision(context.Context, *Provision_Request) (*Provision_Response, error) {
-	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+func (s *DRPCProvisionerUnimplementedServer) Provision(*Provision_Request, DRPCProvisioner_ProvisionStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 type DRPCProvisionerDescription struct{}
@@ -94,19 +148,19 @@ func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 	case 0:
 		return "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return srv.(DRPCProvisionerServer).
+				return nil, srv.(DRPCProvisionerServer).
 					Parse(
-						ctx,
 						in1.(*Parse_Request),
+						&drpcProvisioner_ParseStream{in2.(drpc.Stream)},
 					)
 			}, DRPCProvisionerServer.Parse, true
 	case 1:
 		return "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return srv.(DRPCProvisionerServer).
+				return nil, srv.(DRPCProvisionerServer).
 					Provision(
-						ctx,
 						in1.(*Provision_Request),
+						&drpcProvisioner_ProvisionStream{in2.(drpc.Stream)},
 					)
 			}, DRPCProvisionerServer.Provision, true
 	default:
@@ -120,32 +174,26 @@ func DRPCRegisterProvisioner(mux drpc.Mux, impl DRPCProvisionerServer) error {
 
 type DRPCProvisioner_ParseStream interface {
 	drpc.Stream
-	SendAndClose(*Parse_Response) error
+	Send(*Parse_Response) error
 }
 
 type drpcProvisioner_ParseStream struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisioner_ParseStream) SendAndClose(m *Parse_Response) error {
-	if err := x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
-		return err
-	}
-	return x.CloseSend()
+func (x *drpcProvisioner_ParseStream) Send(m *Parse_Response) error {
+	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 
 type DRPCProvisioner_ProvisionStream interface {
 	drpc.Stream
-	SendAndClose(*Provision_Response) error
+	Send(*Provision_Response) error
 }
 
 type drpcProvisioner_ProvisionStream struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisioner_ProvisionStream) SendAndClose(m *Provision_Response) error {
-	if err := x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
-		return err
-	}
-	return x.CloseSend()
+func (x *drpcProvisioner_ProvisionStream) Send(m *Provision_Response) error {
+	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
