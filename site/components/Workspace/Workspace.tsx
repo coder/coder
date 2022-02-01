@@ -3,6 +3,11 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
 import React from "react"
+import MoreVertIcon from "@material-ui/icons/MoreVert"
+import { QuestionHelp } from "../QuestionHelp"
+import { CircularProgress, IconButton, Link } from "@material-ui/core"
+
+import { Timeline as TestTimeline } from "../Timeline"
 
 import * as API from "../../api"
 
@@ -36,7 +41,7 @@ export const StatusIndicator: React.FC<{ status: ResourceStatus }> = ({ status }
   const styles = useStatusStyles()
 
   if (status == "loading") {
-    return <CircularProgress width={"16px"} />
+    return <CircularProgress style={{ width: "12px", height: "12px" }} />
   } else {
     const className = status === "active" ? styles.active : styles.inactive
     return <div className={className} />
@@ -48,7 +53,7 @@ type ResourceStatus = "active" | "inactive" | "loading"
 export interface ResourceRowProps {
   name: string
   icon: string
-  //href: string
+  href?: string
   status: ResourceStatus
 }
 
@@ -63,7 +68,7 @@ export const ResourceRow: React.FC<ResourceRowProps> = ({ icon, href, name, stat
         <img src={icon} height={ResourceIconSize} width={ResourceIconSize} />
       </div>
       <div className={styles.nameContainer}>
-        <Link
+        {href ? <Link
           color={status === "active" ? "primary" : "initial"}
           href={href}
           rel="noreferrer noopener"
@@ -72,10 +77,15 @@ export const ResourceRow: React.FC<ResourceRowProps> = ({ icon, href, name, stat
         >
           <span>{name}</span>
           <OpenInNewIcon fontSize="inherit" style={{ marginTop: "0.25em", marginLeft: "0.5em" }} />
-        </Link>
+        </Link> : <span>{name}</span>}
       </div>
       <div className={styles.statusContainer}>
         <StatusIndicator status={status} />
+      </div>
+      <div>
+        <IconButton size="small" className={styles.action}>
+          <MoreVertIcon fontSize="inherit" />
+        </IconButton>
       </div>
     </div>
   )
@@ -110,6 +120,11 @@ const useResourceRowStyles = makeStyles((theme) => ({
     justifyContent: "center",
     alignItems: "center",
   },
+  action: {
+    margin: `0 ${theme.spacing(0.5)}px`,
+    opacity: 0.7,
+    fontSize: 16,
+  }
 }))
 
 export const Title: React.FC = ({ children }) => {
@@ -133,41 +148,6 @@ const useTitleStyles = makeStyles((theme) => ({
   },
 }))
 
-import Timeline from "@material-ui/lab/Timeline"
-import TimelineItem from "@material-ui/lab/TimelineItem"
-import TimelineSeparator from "@material-ui/lab/TimelineSeparator"
-import TimelineConnector from "@material-ui/lab/TimelineConnector"
-import TimelineContent from "@material-ui/lab/TimelineContent"
-import TimelineDot from "@material-ui/lab/TimelineDot"
-import { QuestionHelp } from "../QuestionHelp"
-import { CircularProgress, Link } from "@material-ui/core"
-
-export const WorkspaceTimeline: React.FC = () => {
-  return (
-    <Timeline>
-      <TimelineItem>
-        <TimelineSeparator>
-          <TimelineDot />
-          <TimelineConnector />
-        </TimelineSeparator>
-        <TimelineContent>Eat</TimelineContent>
-      </TimelineItem>
-      <TimelineItem>
-        <TimelineSeparator>
-          <TimelineDot />
-          <TimelineConnector />
-        </TimelineSeparator>
-        <TimelineContent>Code</TimelineContent>
-      </TimelineItem>
-      <TimelineItem>
-        <TimelineSeparator>
-          <TimelineDot />
-        </TimelineSeparator>
-        <TimelineContent>Sleep</TimelineContent>
-      </TimelineItem>
-    </Timeline>
-  )
-}
 
 export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
   const styles = useStyles()
@@ -177,7 +157,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
       <Paper elevation={0} className={styles.section}>
         <Typography variant="h4">{workspace.name}</Typography>
         <Typography variant="body2" color="textSecondary">
-          {"TODO: Project"}
+          <Link>test-org</Link>{" / "}<Link>test-project</Link>
         </Typography>
       </Paper>
       <div className={styles.horizontal}>
@@ -191,8 +171,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
             </Title>
 
             <div className={styles.vertical}>
-              <ResourceRow name={"Code Web"} icon={"/static/vscode.svg"} status={"active"} />
-              <ResourceRow name={"Terminal"} icon={"/static/terminal.svg"} status={"active"} />
+              <ResourceRow name={"Code Web"} icon={"/static/vscode.svg"} href={"placeholder"} status={"active"} />
+              <ResourceRow name={"Terminal"} icon={"/static/terminal.svg"} href={"placeholder"} status={"active"} />
               <ResourceRow name={"React App"} icon={"/static/react-icon.svg"} status={"loading"} />
             </div>
           </Paper>
@@ -205,7 +185,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
             </Title>
 
             <div className={styles.vertical}>
-              <ResourceRow name={"GCS Bucket"} icon={"/static/google-storage-logo.svg"} status={"active"} />
+              <ResourceRow name={"GCS Bucket"} icon={"/static/google-storage-logo.svg"} href={"placeholder"} status={"active"} />
               <ResourceRow name={"Windows (x64 - VM)"} icon={"/static/windows-logo.svg"} status={"active"} />
               <ResourceRow name={"OSX (M1 - Physical)"} icon={"/static/apple-logo.svg"} status={"inactive"} />
             </div>
@@ -215,7 +195,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
           <Title>
             <Typography variant="h6">Timeline</Typography>
           </Title>
-          <WorkspaceTimeline />
+          <TestTimeline />
         </Paper>
       </div>
     </div>
