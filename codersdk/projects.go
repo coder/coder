@@ -72,7 +72,7 @@ func (c *Client) ProjectHistory(ctx context.Context, organization, project strin
 }
 
 // CreateProjectHistory inserts a new version for the project.
-func (c *Client) CreateProjectHistory(ctx context.Context, organization, project string, request coderd.CreateProjectVersionRequest) (coderd.ProjectHistory, error) {
+func (c *Client) CreateProjectHistory(ctx context.Context, organization, project string, request coderd.CreateProjectHistoryRequest) (coderd.ProjectHistory, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s/%s/history", organization, project), request)
 	if err != nil {
 		return coderd.ProjectHistory{}, err
