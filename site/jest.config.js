@@ -1,10 +1,15 @@
 module.exports = {
   projects: [
     {
+      globals: {
+        "ts-jest": {
+          tsconfig: "tsconfig.test.json",
+        },
+      },
       coverageReporters: ["text", "lcov"],
       displayName: "test",
       preset: "ts-jest",
-      roots: ["<rootDir>/site"],
+      roots: ["<rootDir>"],
       setupFilesAfterEnv: ["<rootDir>/_jest/setupTests.ts"],
       transform: {
         "^.+\\.tsx?$": "ts-jest",
@@ -17,20 +22,20 @@ module.exports = {
     {
       displayName: "lint",
       runner: "jest-runner-eslint",
-      testMatch: ["<rootDir>/site/**/*.js", "<rootDir>/site/**/*.ts", "<rootDir>/site/**/*.tsx"],
+      testMatch: ["<rootDir>/**/*.js", "<rootDir>/**/*.ts", "<rootDir>/**/*.tsx"],
       testPathIgnorePatterns: ["/.next/", "/out/"],
     },
   ],
   collectCoverageFrom: [
-    "<rootDir>/site/**/*.js",
-    "<rootDir>/site/**/*.ts",
-    "<rootDir>/site/**/*.tsx",
-    "!<rootDir>/site/**/*.stories.tsx",
-    "!<rootDir>/site/.next/**/*.*",
-    "!<rootDir>/site/api.ts",
-    "!<rootDir>/site/dev.ts",
-    "!<rootDir>/site/next-env.d.ts",
-    "!<rootDir>/site/next.config.js",
-    "!<rootDir>/site/out/**/*.*",
+    "<rootDir>/**/*.js",
+    "<rootDir>/**/*.ts",
+    "<rootDir>/**/*.tsx",
+    "!<rootDir>/**/*.stories.tsx",
+    "!<rootDir>/.next/**/*.*",
+    "!<rootDir>/api.ts",
+    "!<rootDir>/dev.ts",
+    "!<rootDir>/next-env.d.ts",
+    "!<rootDir>/next.config.js",
+    "!<rootDir>/out/**/*.*",
   ],
 }
