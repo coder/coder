@@ -188,7 +188,7 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(_ context.Con
 	return database.WorkspaceHistory{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceHistoryLogsByIDBefore(ctx context.Context, arg database.GetWorkspaceHistoryLogsByIDBeforeParams) ([]database.WorkspaceHistoryLog, error) {
+func (q *fakeQuerier) GetWorkspaceHistoryLogsByIDBefore(_ context.Context, arg database.GetWorkspaceHistoryLogsByIDBeforeParams) ([]database.WorkspaceHistoryLog, error) {
 	logs := make([]database.WorkspaceHistoryLog, 0)
 	for _, workspaceHistoryLog := range q.workspaceHistoryLog {
 		if workspaceHistoryLog.WorkspaceHistoryID.String() != arg.WorkspaceHistoryID.String() {
@@ -218,7 +218,7 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, worksp
 	return history, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(ctx context.Context, arg database.GetWorkspaceHistoryByWorkspaceIDAndNameParams) (database.WorkspaceHistory, error) {
+func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceHistoryByWorkspaceIDAndNameParams) (database.WorkspaceHistory, error) {
 	for _, workspaceHistory := range q.workspaceHistory {
 		if workspaceHistory.WorkspaceID.String() != arg.WorkspaceID.String() {
 			continue
