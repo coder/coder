@@ -26,6 +26,12 @@ permissions:
   security-events: none
   statuses: none
 
+# Cancel in-progress runs for pull requests when developers push
+# additional changes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   style-lint-golangci:
     name: style/lint/golangci
@@ -89,14 +95,7 @@ jobs:
         style:
           - fmt
       fail-fast: false
-    permissions:
-      actions: write # for cancel-workflow-action
-      contents: read
     steps:
-      - name: Cancel previous runs
-        if: github.event_name == 'pull_request'
-        uses: styfle/cancel-workflow-action@0.9.1
-
       - name: Checkout
         uses: actions/checkout@v2
         with:
