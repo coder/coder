@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@material-ui/core": "4.9.4",
-    "@material-ui/icons": "4.5.1",
+    "@material-ui/icons": "4.11.2",
     "@material-ui/lab": "4.0.0-alpha.42",
     "@testing-library/react": "12.1.2",
     "@types/express": "4.17.13",
