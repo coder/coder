@@ -210,6 +210,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
               <ResourceRow name={"React App"} icon={"/static/react-icon.svg"} href={"placeholder"} status={"active"} />
             </div>
           </Paper>
+          
           <Paper elevation={0} className={styles.section}>
             <Title>
               <Typography variant="h6">Resources</Typography>
