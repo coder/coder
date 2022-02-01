@@ -32,15 +32,19 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 type Options struct {
 	Logger slog.Logger
 
-	PollInterval  time.Duration
-	Provisioners  Provisioners
-	WorkDirectory string
+	UpdateInterval time.Duration
+	PollInterval   time.Duration
+	Provisioners   Provisioners
+	WorkDirectory  string
 }
 
 // New creates and starts a provisioner daemon.
 func New(clientDialer Dialer, opts *Options) io.Closer {
 	if opts.PollInterval == 0 {
 		opts.PollInterval = 5 * time.Second
+	}
+	if opts.UpdateInterval == 0 {
+		opts.UpdateInterval = 5 * time.Second
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &provisionerDaemon{
@@ -192,6 +196,24 @@ func (p *provisionerDaemon) isRunningJob() bool {
 }
 
 func (p *provisionerDaemon) runJob(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(p.opts.UpdateInterval)
+		defer ticker.Stop()
+		select {
+		case <-p.closed:
+			return
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := p.updateStream.Send(&proto.JobUpdate{
+				JobId: p.acquiredJob.JobId,
+			})
+			if err != nil {
+				p.cancelActiveJob(fmt.Sprintf("send periodic update: %s", err))
+				return
+			}
+		}
+	}()
 	go func() {
 		select {
 		case <-p.closed:
