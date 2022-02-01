@@ -96,20 +96,13 @@ func Open() (string, func(), error) {
 
 // getFreePort asks the kernel for a free open port that is ready to use.
 func getFreePort() (port int, err error) {
-	var address *net.TCPAddr
 	// Binding to port 0 tells the OS to grab a port for us:
 	// https://stackoverflow.com/questions/1365265/on-localhost-how-do-i-pick-a-free-port-number
-	if address, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
-		var listener *net.TCPListener
-
-		// So once we've opened a port - we know it's free!
-		if listener, err = net.ListenTCP("tcp", address); err == nil {
-			defer listener.Close()
-			return listener.Addr().(*net.TCPAddr).Port, nil
-		}
-
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
 		return 0, err
 	}
 
-	return 0, err
+	defer listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port, nil
 }
