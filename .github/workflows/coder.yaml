@@ -61,9 +61,11 @@ jobs:
 
       - name: Install node_modules
         run: yarn install
+        working-directory: site
 
       - name: "yarn lint"
         run: yarn lint
+        working-directory: site
 
   gen:
     name: "style/gen"
@@ -113,6 +115,7 @@ jobs:
 
       - name: Install node_modules
         run: yarn install
+        working-directory: site
 
       - name: "make ${{ matrix.style }}"
         run: "make --output-sync -j ${{ matrix.style }}"
