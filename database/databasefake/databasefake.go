@@ -679,6 +679,7 @@ func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.Ins
 		Transition:       arg.Transition,
 		Initiator:        arg.Initiator,
 		ProvisionJobID:   arg.ProvisionJobID,
+		ProvisionerState: arg.ProvisionerState,
 	}
 	q.workspaceHistory = append(q.workspaceHistory, workspaceHistory)
 	return workspaceHistory, nil
