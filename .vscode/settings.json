@@ -27,9 +27,23 @@
     "coderd",
     "coderdtest",
     "codersdk",
+    "drpc",
+    "drpcmux",
+    "drpcserver",
+    "goleak",
+    "hashicorp",
     "httpmw",
+    "moby",
+    "nhooyr",
+    "nosec",
     "oneof",
+    "protobuf",
+    "provisionerd",
+    "provisionersdk",
+    "retrier",
+    "sdkproto",
     "stretchr",
-    "xerrors"
+    "xerrors",
+    "yamux"
   ]
 }

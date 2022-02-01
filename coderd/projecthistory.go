@@ -116,3 +116,7 @@ func convertProjectHistory(history database.ProjectHistory) ProjectHistory {
 		Name:      history.Name,
 	}
 }
+
+func projectHistoryLogsChannel(projectHistoryID uuid.UUID) string {
+	return fmt.Sprintf("project-history-logs:%s", projectHistoryID)
+}

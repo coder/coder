@@ -89,6 +89,11 @@ func New(options *Options) http.Handler {
 				})
 			})
 		})
+
+		r.Route("/provisioners/daemons", func(r chi.Router) {
+			r.Get("/", api.provisionerDaemons)
+			r.Get("/serve", api.provisionerDaemonsServe)
+		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)
 	return r

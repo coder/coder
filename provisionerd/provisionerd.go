@@ -87,7 +87,7 @@ type provisionerDaemon struct {
 	acquiredJobDone      chan struct{}
 }
 
-// Connnect establishes a connection to coderd.
+// Connect establishes a connection to coderd.
 func (p *provisionerDaemon) connect(ctx context.Context) {
 	p.connectMutex.Lock()
 	defer p.connectMutex.Unlock()
@@ -98,7 +98,9 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		p.client, err = p.clientDialer(ctx)
 		if err != nil {
-			// Warn
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
@@ -496,6 +498,8 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 	close(p.closed)
 	p.closeCancel()
 
+	p.connectMutex.Lock()
+	defer p.connectMutex.Unlock()
 	if p.updateStream != nil {
 		_ = p.client.DRPCConn().Close()
 		_ = p.updateStream.Close()

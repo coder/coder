@@ -180,3 +180,7 @@ func (api *api) latestWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Req
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertWorkspaceHistory(history))
 }
+
+func workspaceHistoryLogsChannel(workspaceHistoryID uuid.UUID) string {
+	return fmt.Sprintf("workspace-history-logs:%s", workspaceHistoryID)
+}
