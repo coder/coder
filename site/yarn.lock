@@ -626,6 +626,11 @@
   resolved "https://registry.yarnpkg.com/@mdn/browser-compat-data/-/browser-compat-data-3.3.14.tgz#b72a37c654e598f9ae6f8335faaee182bebc6b28"
   integrity sha512-n2RC9d6XatVbWFdHLimzzUJxJ1KY8LdjqrW6YvGPiRmsHkhOUx74/Ct10x5Yo7bC/Jvqx7cDEW8IMPv/+vwEzA==
 
+"@mdn/browser-compat-data@^4.1.5":
+  version "4.1.6"
+  resolved "https://registry.yarnpkg.com/@mdn/browser-compat-data/-/browser-compat-data-4.1.6.tgz#991b4393404babaac27cbc406dd28763aa14cec4"
+  integrity sha512-JbtcHGODAlkOT6eDV2rCyOguW3+o34ExMD9DOki6kxzeyN3IBtZ9PI0FlbKeD77Bm5U0UG5Heo4qnNbSajXUnw==
+
 "@next/env@12.0.9":
   version "12.0.9"
   resolved "https://registry.yarnpkg.com/@next/env/-/env-12.0.9.tgz#4c9e9eef00226145d9629a846b8cc31878e1328c"
@@ -1496,7 +1501,7 @@ camelcase@^6.2.0:
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-6.3.0.tgz#5685b95eb209ac9c0c177467778c9c84df58ba9a"
   integrity sha512-Gmy6FhYlCY7uOElZUSbxo2UCDH8owEk996gkbrpsgGtrJLM3J7jGxl9Ic7Qwwj4ivOE5AWZWRMecDdF7hqGjFA==
 
-caniuse-lite@^1.0.30001267, caniuse-lite@^1.0.30001283, caniuse-lite@^1.0.30001286:
+caniuse-lite@^1.0.30001283, caniuse-lite@^1.0.30001286, caniuse-lite@^1.0.30001304:
   version "1.0.30001304"
   resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001304.tgz#38af55ed3fc8220cb13e35e6e7309c8c65a05559"
   integrity sha512-bdsfZd6K6ap87AGqSHJP/s1V+U6Z5lyrcbBu3ovbCCf8cSYpwTtGrCBObMpJqwxfTbLW6YTIdbb1jEeTelcpYQ==
@@ -2015,15 +2020,15 @@ eslint-module-utils@^2.7.2:
     debug "^3.2.7"
     find-up "^2.1.0"
 
-eslint-plugin-compat@4.0.1:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-compat/-/eslint-plugin-compat-4.0.1.tgz#54e1b5095a7c3ef45701556fce1923d615c76445"
-  integrity sha512-vs4oa+WQcCRH7lD/0H8eh90tnSQurV3Cebt32x28JlP0Kn9UkQT+N8Pm939KavTO3/DiFPQyTPCNdYXcIWP/GA==
+eslint-plugin-compat@4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-compat/-/eslint-plugin-compat-4.0.2.tgz#b058627a7d25d352adf0ec16dca8fcf92d9c7af7"
+  integrity sha512-xqvoO54CLTVaEYGMzhu35Wzwk/As7rCvz/2dqwnFiWi0OJccEtGIn+5qq3zqIu9nboXlpdBN579fZcItC73Ycg==
   dependencies:
-    "@mdn/browser-compat-data" "^3.3.14"
+    "@mdn/browser-compat-data" "^4.1.5"
     ast-metadata-inferer "^0.7.0"
     browserslist "^4.16.8"
-    caniuse-lite "^1.0.30001267"
+    caniuse-lite "^1.0.30001304"
     core-js "^3.16.2"
     find-up "^5.0.0"
     lodash.memoize "4.1.2"
