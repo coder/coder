@@ -164,7 +164,7 @@ jobs:
         run:
           DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=1 -race -parallel=1
+          -count=1 -race -parallel=2
 
       - uses: codecov/codecov-action@v2
         if: github.actor != 'dependabot[bot]'
