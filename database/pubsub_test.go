@@ -17,6 +17,11 @@ import (
 func TestPubsub(t *testing.T) {
 	t.Parallel()
 
+	if testing.Short() {
+		t.Skip()
+		return
+	}
+
 	t.Run("Postgres", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
