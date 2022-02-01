@@ -25,7 +25,7 @@ func Open() (string, func(), error) {
 	}
 	// Pick an explicit port on the host to connect to 5432.
 	// This is necessary so we can configure the port to only use ipv4.
-	port, err := GetFreePort()
+	port, err := getFreePort()
 	if err != nil {
 		return "", nil, xerrors.Errorf("Unable to get free port: %w", err)
 	}
@@ -94,8 +94,8 @@ func Open() (string, func(), error) {
 	}, nil
 }
 
-// GetFreePort asks the kernel for a free open port that is ready to use.
-func GetFreePort() (port int, err error) {
+// getFreePort asks the kernel for a free open port that is ready to use.
+func getFreePort() (port int, err error) {
 	var address *net.TCPAddr
 	// Binding to port 0 tells the OS to grab a port for us:
 	// https://stackoverflow.com/questions/1365265/on-localhost-how-do-i-pick-a-free-port-number
