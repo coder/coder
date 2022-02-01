@@ -16,18 +16,14 @@ import (
 type Options struct {
 	Logger   slog.Logger
 	Database database.Store
+	Pubsub   database.Pubsub
 }
 
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
-	projects := &projects{
+	api := &api{
 		Database: options.Database,
-	}
-	users := &users{
-		Database: options.Database,
-	}
-	workspaces := &workspaces{
-		Database: options.Database,
+		Pubsub:   options.Pubsub,
 	}
 
 	r := chi.NewRouter()
@@ -37,38 +33,38 @@ func New(options *Options) http.Handler {
 				Message: "👋",
 			})
 		})
-		r.Post("/login", users.loginWithPassword)
-		r.Post("/logout", users.logout)
+		r.Post("/login", api.postLogin)
+		r.Post("/logout", api.postLogout)
 		// Used for setup.
-		r.Post("/user", users.createInitialUser)
+		r.Post("/user", api.postUser)
 		r.Route("/users", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 			)
-			r.Post("/", users.createUser)
+			r.Post("/", api.postUsers)
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/{user}", users.user)
-				r.Get("/{user}/organizations", users.userOrganizations)
+				r.Get("/{user}", api.userByName)
+				r.Get("/{user}/organizations", api.organizationsByUser)
 			})
 		})
 		r.Route("/projects", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 			)
-			r.Get("/", projects.allProjects)
+			r.Get("/", api.projects)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationParam(options.Database))
-				r.Get("/", projects.allProjectsForOrganization)
-				r.Post("/", projects.createProject)
+				r.Get("/", api.projectsByOrganization)
+				r.Post("/", api.postProjectsByOrganization)
 				r.Route("/{project}", func(r chi.Router) {
 					r.Use(httpmw.ExtractProjectParam(options.Database))
-					r.Get("/", projects.project)
+					r.Get("/", api.projectByOrganization)
+					r.Get("/workspaces", api.workspacesByProject)
 					r.Route("/history", func(r chi.Router) {
-						r.Get("/", projects.allProjectHistory)
-						r.Post("/", projects.createProjectHistory)
+						r.Get("/", api.projectHistoryByOrganization)
+						r.Post("/", api.postProjectHistoryByOrganization)
 					})
-					r.Get("/workspaces", workspaces.allWorkspacesForProject)
 				})
 			})
 		})
@@ -77,18 +73,18 @@ func New(options *Options) http.Handler {
 		// their respective routes. eg. /orgs/<name>/workspaces
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-			r.Get("/", workspaces.listAllWorkspaces)
+			r.Get("/", api.workspaces)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/", workspaces.listAllWorkspaces)
-				r.Post("/", workspaces.createWorkspaceForUser)
+				r.Get("/", api.workspaces)
+				r.Post("/", api.postWorkspaceByUser)
 				r.Route("/{workspace}", func(r chi.Router) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
-					r.Get("/", workspaces.singleWorkspace)
+					r.Get("/", api.workspaceByUser)
 					r.Route("/history", func(r chi.Router) {
-						r.Post("/", workspaces.createWorkspaceHistory)
-						r.Get("/", workspaces.listAllWorkspaceHistory)
-						r.Get("/latest", workspaces.latestWorkspaceHistory)
+						r.Post("/", api.postWorkspaceHistoryByUser)
+						r.Get("/", api.workspaceHistoryByUser)
+						r.Get("/latest", api.latestWorkspaceHistoryByUser)
 					})
 				})
 			})
@@ -96,4 +92,11 @@ func New(options *Options) http.Handler {
 	})
 	r.NotFound(site.Handler().ServeHTTP)
 	return r
+}
+
+// API contains all route handlers. Only HTTP handlers should
+// be added to this struct for code clarity.
+type api struct {
+	Database database.Store
+	Pubsub   database.Pubsub
 }
