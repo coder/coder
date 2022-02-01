@@ -64,6 +64,7 @@ func (s *Server) RandomInitialUser(t *testing.T) coderd.CreateInitialUserRequest
 	return req
 }
 
+// AddProvisionerd launches a new provisionerd instance!
 func (s *Server) AddProvisionerd(t *testing.T) io.Closer {
 	tfClient, tfServer := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())

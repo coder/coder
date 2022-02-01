@@ -3,7 +3,7 @@ package coderd
 import (
 	"net/http"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/database"

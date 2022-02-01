@@ -12,6 +12,7 @@ require (
 	cdr.dev/slog v1.4.1
 	github.com/coder/retry v1.3.0
 	github.com/go-chi/chi v1.5.4
+	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.10.0
 	github.com/golang-migrate/migrate/v4 v4.15.1
@@ -27,7 +28,7 @@ require (
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
-	github.com/pion/webrtc/v3 v3.1.17
+	github.com/pion/webrtc/v3 v3.1.18
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.9
@@ -38,7 +39,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
-	storj.io/drpc v0.0.28
+	storj.io/drpc v0.0.29
 )
 
 require (
@@ -83,7 +84,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.1.0 // indirect
-	github.com/pion/dtls/v2 v2.1.0 // indirect
+	github.com/pion/dtls/v2 v2.1.1 // indirect
 	github.com/pion/ice/v2 v2.1.19 // indirect
 	github.com/pion/interceptor v0.1.7 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
