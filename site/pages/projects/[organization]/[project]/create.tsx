@@ -27,7 +27,7 @@ const CreateWorkspacePage: React.FC = () => {
   }
 
   const onCancel = async () => {
-    await router.push(`/projects/${organization}/${project}`)
+    await router.push(`/projects/${organization}/${projectName}`)
   }
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
