@@ -19,7 +19,6 @@ const (
 	LogLevelInfo  LogLevel = "info"
 	LogLevelWarn  LogLevel = "warn"
 	LogLevelError LogLevel = "error"
-	LogLevelFatal LogLevel = "fatal"
 )
 
 func (e *LogLevel) Scan(src interface{}) error {
@@ -30,6 +29,25 @@ func (e *LogLevel) Scan(src interface{}) error {
 		*e = LogLevel(s)
 	default:
 		return fmt.Errorf("unsupported scan type for LogLevel: %T", src)
+	}
+	return nil
+}
+
+type LogSource string
+
+const (
+	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
+	LogSourceProvisioner       LogSource = "provisioner"
+)
+
+func (e *LogSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LogSource(s)
+	case string:
+		*e = LogSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LogSource: %T", src)
 	}
 	return nil
 }
@@ -307,6 +325,15 @@ type ProjectHistory struct {
 	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
 }
 
+type ProjectHistoryLog struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	Source           LogSource `db:"source" json:"source"`
+	Level            LogLevel  `db:"level" json:"level"`
+	Output           string    `db:"output" json:"output"`
+}
+
 type ProjectParameter struct {
 	ID                       uuid.UUID                  `db:"id" json:"id"`
 	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
@@ -398,6 +425,7 @@ type WorkspaceHistory struct {
 	CompletedAt      sql.NullTime        `db:"completed_at" json:"completed_at"`
 	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	ProjectHistoryID uuid.UUID           `db:"project_history_id" json:"project_history_id"`
+	Name             string              `db:"name" json:"name"`
 	BeforeID         uuid.NullUUID       `db:"before_id" json:"before_id"`
 	AfterID          uuid.NullUUID       `db:"after_id" json:"after_id"`
 	Transition       WorkspaceTransition `db:"transition" json:"transition"`
@@ -406,13 +434,13 @@ type WorkspaceHistory struct {
 	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
 }
 
-type WorkspaceLog struct {
-	WorkspaceID        uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	WorkspaceHistoryID uuid.UUID       `db:"workspace_history_id" json:"workspace_history_id"`
-	Created            time.Time       `db:"created" json:"created"`
-	LoggedBy           sql.NullString  `db:"logged_by" json:"logged_by"`
-	Level              LogLevel        `db:"level" json:"level"`
-	Log                json.RawMessage `db:"log" json:"log"`
+type WorkspaceHistoryLog struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	WorkspaceHistoryID uuid.UUID `db:"workspace_history_id" json:"workspace_history_id"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	Source             LogSource `db:"source" json:"source"`
+	Level              LogLevel  `db:"level" json:"level"`
+	Output             string    `db:"output" json:"output"`
 }
 
 type WorkspaceResource struct {

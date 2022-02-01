@@ -418,6 +418,85 @@ func (q *sqlQuerier) GetProjectHistoryByProjectID(ctx context.Context, projectID
 	return items, nil
 }
 
+const getProjectHistoryByProjectIDAndName = `-- name: GetProjectHistoryByProjectIDAndName :one
+SELECT
+  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+FROM
+  project_history
+WHERE
+  project_id = $1
+  AND name = $2
+`
+
+type GetProjectHistoryByProjectIDAndNameParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetProjectHistoryByProjectIDAndName(ctx context.Context, arg GetProjectHistoryByProjectIDAndNameParams) (ProjectHistory, error) {
+	row := q.db.QueryRowContext(ctx, getProjectHistoryByProjectIDAndName, arg.ProjectID, arg.Name)
+	var i ProjectHistory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Description,
+		&i.StorageMethod,
+		&i.StorageSource,
+		&i.ImportJobID,
+	)
+	return i, err
+}
+
+const getProjectHistoryLogsByIDBefore = `-- name: GetProjectHistoryLogsByIDBefore :many
+SELECT
+  id, project_history_id, created_at, source, level, output
+FROM
+  project_history_log
+WHERE
+  project_history_id = $1
+  AND created_at <= $2
+ORDER BY
+  created_at
+`
+
+type GetProjectHistoryLogsByIDBeforeParams struct {
+	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetProjectHistoryLogsByIDBefore(ctx context.Context, arg GetProjectHistoryLogsByIDBeforeParams) ([]ProjectHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectHistoryLogsByIDBefore, arg.ProjectHistoryID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectHistoryLog
+	for rows.Next() {
+		var i ProjectHistoryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectHistoryID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProjectParametersByHistoryID = `-- name: GetProjectParametersByHistoryID :many
 SELECT
   id, created_at, project_history_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
@@ -528,6 +607,42 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		pq.Array(&i.Provisioners),
 	)
 	return i, err
+}
+
+const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
+SELECT
+  id, created_at, updated_at, name, provisioners
+FROM
+  provisioner_daemon
+`
+
+func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerDaemon
+	for rows.Next() {
+		var i ProvisionerDaemon
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			pq.Array(&i.Provisioners),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
@@ -751,7 +866,7 @@ func (q *sqlQuerier) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWor
 
 const getWorkspaceHistoryByID = `-- name: GetWorkspaceHistoryByID :one
 SELECT
-  id, created_at, updated_at, completed_at, workspace_id, project_history_id, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 FROM
   workspace_history
 WHERE
@@ -770,6 +885,7 @@ func (q *sqlQuerier) GetWorkspaceHistoryByID(ctx context.Context, id uuid.UUID) 
 		&i.CompletedAt,
 		&i.WorkspaceID,
 		&i.ProjectHistoryID,
+		&i.Name,
 		&i.BeforeID,
 		&i.AfterID,
 		&i.Transition,
@@ -782,7 +898,7 @@ func (q *sqlQuerier) GetWorkspaceHistoryByID(ctx context.Context, id uuid.UUID) 
 
 const getWorkspaceHistoryByWorkspaceID = `-- name: GetWorkspaceHistoryByWorkspaceID :many
 SELECT
-  id, created_at, updated_at, completed_at, workspace_id, project_history_id, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 FROM
   workspace_history
 WHERE
@@ -805,6 +921,7 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceID(ctx context.Context, works
 			&i.CompletedAt,
 			&i.WorkspaceID,
 			&i.ProjectHistoryID,
+			&i.Name,
 			&i.BeforeID,
 			&i.AfterID,
 			&i.Transition,
@@ -825,9 +942,45 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceID(ctx context.Context, works
 	return items, nil
 }
 
+const getWorkspaceHistoryByWorkspaceIDAndName = `-- name: GetWorkspaceHistoryByWorkspaceIDAndName :one
+SELECT
+  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+FROM
+  workspace_history
+WHERE
+  workspace_id = $1
+  AND name = $2
+`
+
+type GetWorkspaceHistoryByWorkspaceIDAndNameParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Name        string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceHistoryByWorkspaceIDAndNameParams) (WorkspaceHistory, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceHistoryByWorkspaceIDAndName, arg.WorkspaceID, arg.Name)
+	var i WorkspaceHistory
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+		&i.WorkspaceID,
+		&i.ProjectHistoryID,
+		&i.Name,
+		&i.BeforeID,
+		&i.AfterID,
+		&i.Transition,
+		&i.Initiator,
+		&i.ProvisionerState,
+		&i.ProvisionJobID,
+	)
+	return i, err
+}
+
 const getWorkspaceHistoryByWorkspaceIDWithoutAfter = `-- name: GetWorkspaceHistoryByWorkspaceIDWithoutAfter :one
 SELECT
-  id, created_at, updated_at, completed_at, workspace_id, project_history_id, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 FROM
   workspace_history
 WHERE
@@ -847,6 +1000,7 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(ctx context.Co
 		&i.CompletedAt,
 		&i.WorkspaceID,
 		&i.ProjectHistoryID,
+		&i.Name,
 		&i.BeforeID,
 		&i.AfterID,
 		&i.Transition,
@@ -855,6 +1009,53 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(ctx context.Co
 		&i.ProvisionJobID,
 	)
 	return i, err
+}
+
+const getWorkspaceHistoryLogsByIDBefore = `-- name: GetWorkspaceHistoryLogsByIDBefore :many
+SELECT
+  id, workspace_history_id, created_at, source, level, output
+FROM
+  workspace_history_log
+WHERE
+  workspace_history_id = $1
+  AND created_at <= $2
+ORDER BY
+  created_at
+`
+
+type GetWorkspaceHistoryLogsByIDBeforeParams struct {
+	WorkspaceHistoryID uuid.UUID `db:"workspace_history_id" json:"workspace_history_id"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetWorkspaceHistoryLogsByIDBefore(ctx context.Context, arg GetWorkspaceHistoryLogsByIDBeforeParams) ([]WorkspaceHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceHistoryLogsByIDBefore, arg.WorkspaceHistoryID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceHistoryLog
+	for rows.Next() {
+		var i WorkspaceHistoryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceHistoryID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceResourcesByHistoryID = `-- name: GetWorkspaceResourcesByHistoryID :many
@@ -1317,6 +1518,64 @@ func (q *sqlQuerier) InsertProjectHistory(ctx context.Context, arg InsertProject
 	return i, err
 }
 
+const insertProjectHistoryLogs = `-- name: InsertProjectHistoryLogs :many
+INSERT INTO
+  project_history_log
+SELECT
+  $1 :: uuid AS project_history_id,
+  unnset($2 :: uuid [ ]) AS id,
+  unnest($3 :: timestamptz [ ]) AS created_at,
+  unnset($4 :: log_source [ ]) as source,
+  unnset($5 :: log_level [ ]) as level,
+  unnset($6 :: varchar(1024) [ ]) as output RETURNING id, project_history_id, created_at, source, level, output
+`
+
+type InsertProjectHistoryLogsParams struct {
+	ProjectHistoryID uuid.UUID   `db:"project_history_id" json:"project_history_id"`
+	ID               []uuid.UUID `db:"id" json:"id"`
+	CreatedAt        []time.Time `db:"created_at" json:"created_at"`
+	Source           []LogSource `db:"source" json:"source"`
+	Level            []LogLevel  `db:"level" json:"level"`
+	Output           []string    `db:"output" json:"output"`
+}
+
+func (q *sqlQuerier) InsertProjectHistoryLogs(ctx context.Context, arg InsertProjectHistoryLogsParams) ([]ProjectHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertProjectHistoryLogs,
+		arg.ProjectHistoryID,
+		pq.Array(arg.ID),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Source),
+		pq.Array(arg.Level),
+		pq.Array(arg.Output),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectHistoryLog
+	for rows.Next() {
+		var i ProjectHistoryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectHistoryID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertProjectParameter = `-- name: InsertProjectParameter :one
 INSERT INTO
   project_parameter (
@@ -1673,12 +1932,13 @@ INSERT INTO
     workspace_id,
     project_history_id,
     before_id,
+    name,
     transition,
     initiator,
     provision_job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, completed_at, workspace_id, project_history_id, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 `
 
 type InsertWorkspaceHistoryParams struct {
@@ -1688,6 +1948,7 @@ type InsertWorkspaceHistoryParams struct {
 	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	ProjectHistoryID uuid.UUID           `db:"project_history_id" json:"project_history_id"`
 	BeforeID         uuid.NullUUID       `db:"before_id" json:"before_id"`
+	Name             string              `db:"name" json:"name"`
 	Transition       WorkspaceTransition `db:"transition" json:"transition"`
 	Initiator        string              `db:"initiator" json:"initiator"`
 	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
@@ -1701,6 +1962,7 @@ func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorks
 		arg.WorkspaceID,
 		arg.ProjectHistoryID,
 		arg.BeforeID,
+		arg.Name,
 		arg.Transition,
 		arg.Initiator,
 		arg.ProvisionJobID,
@@ -1713,6 +1975,7 @@ func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorks
 		&i.CompletedAt,
 		&i.WorkspaceID,
 		&i.ProjectHistoryID,
+		&i.Name,
 		&i.BeforeID,
 		&i.AfterID,
 		&i.Transition,
@@ -1721,6 +1984,64 @@ func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorks
 		&i.ProvisionJobID,
 	)
 	return i, err
+}
+
+const insertWorkspaceHistoryLogs = `-- name: InsertWorkspaceHistoryLogs :many
+INSERT INTO
+  workspace_history_log
+SELECT
+  $1 :: uuid AS workspace_history_id,
+  unnset($2 :: uuid [ ]) AS id,
+  unnest($3 :: timestamptz [ ]) AS created_at,
+  unnset($4 :: log_source [ ]) as source,
+  unnset($5 :: log_level [ ]) as level,
+  unnset($6 :: varchar(1024) [ ]) as output RETURNING id, workspace_history_id, created_at, source, level, output
+`
+
+type InsertWorkspaceHistoryLogsParams struct {
+	WorkspaceHistoryID uuid.UUID   `db:"workspace_history_id" json:"workspace_history_id"`
+	ID                 []uuid.UUID `db:"id" json:"id"`
+	CreatedAt          []time.Time `db:"created_at" json:"created_at"`
+	Source             []LogSource `db:"source" json:"source"`
+	Level              []LogLevel  `db:"level" json:"level"`
+	Output             []string    `db:"output" json:"output"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceHistoryLogs(ctx context.Context, arg InsertWorkspaceHistoryLogsParams) ([]WorkspaceHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceHistoryLogs,
+		arg.WorkspaceHistoryID,
+		pq.Array(arg.ID),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Source),
+		pq.Array(arg.Level),
+		pq.Array(arg.Output),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceHistoryLog
+	for rows.Next() {
+		var i WorkspaceHistoryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceHistoryID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
@@ -1859,18 +2180,28 @@ UPDATE
   workspace_history
 SET
   updated_at = $2,
-  after_id = $3
+  completed_at = $3,
+  after_id = $4,
+  provisioner_state = $5
 WHERE
   id = $1
 `
 
 type UpdateWorkspaceHistoryByIDParams struct {
-	ID        uuid.UUID     `db:"id" json:"id"`
-	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
-	AfterID   uuid.NullUUID `db:"after_id" json:"after_id"`
+	ID               uuid.UUID     `db:"id" json:"id"`
+	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
+	CompletedAt      sql.NullTime  `db:"completed_at" json:"completed_at"`
+	AfterID          uuid.NullUUID `db:"after_id" json:"after_id"`
+	ProvisionerState []byte        `db:"provisioner_state" json:"provisioner_state"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceHistoryByID(ctx context.Context, arg UpdateWorkspaceHistoryByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceHistoryByID, arg.ID, arg.UpdatedAt, arg.AfterID)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceHistoryByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.CompletedAt,
+		arg.AfterID,
+		arg.ProvisionerState,
+	)
 	return err
 }

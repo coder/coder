@@ -18,16 +18,18 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
-		parameterValue:     make([]database.ParameterValue, 0),
-		project:            make([]database.Project, 0),
-		projectHistory:     make([]database.ProjectHistory, 0),
-		projectParameter:   make([]database.ProjectParameter, 0),
-		provisionerDaemons: make([]database.ProvisionerDaemon, 0),
-		provisionerJobs:    make([]database.ProvisionerJob, 0),
-		workspace:          make([]database.Workspace, 0),
-		workspaceResource:  make([]database.WorkspaceResource, 0),
-		workspaceHistory:   make([]database.WorkspaceHistory, 0),
-		workspaceAgent:     make([]database.WorkspaceAgent, 0),
+		parameterValue:      make([]database.ParameterValue, 0),
+		project:             make([]database.Project, 0),
+		projectHistory:      make([]database.ProjectHistory, 0),
+		projectHistoryLog:   make([]database.ProjectHistoryLog, 0),
+		projectParameter:    make([]database.ProjectParameter, 0),
+		provisionerDaemons:  make([]database.ProvisionerDaemon, 0),
+		provisionerJobs:     make([]database.ProvisionerJob, 0),
+		workspace:           make([]database.Workspace, 0),
+		workspaceResource:   make([]database.WorkspaceResource, 0),
+		workspaceHistory:    make([]database.WorkspaceHistory, 0),
+		workspaceHistoryLog: make([]database.WorkspaceHistoryLog, 0),
+		workspaceAgent:      make([]database.WorkspaceAgent, 0),
 	}
 }
 
@@ -40,16 +42,18 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
-	parameterValue     []database.ParameterValue
-	project            []database.Project
-	projectHistory     []database.ProjectHistory
-	projectParameter   []database.ProjectParameter
-	provisionerDaemons []database.ProvisionerDaemon
-	provisionerJobs    []database.ProvisionerJob
-	workspace          []database.Workspace
-	workspaceResource  []database.WorkspaceResource
-	workspaceHistory   []database.WorkspaceHistory
-	workspaceAgent     []database.WorkspaceAgent
+	parameterValue      []database.ParameterValue
+	project             []database.Project
+	projectHistory      []database.ProjectHistory
+	projectHistoryLog   []database.ProjectHistoryLog
+	projectParameter    []database.ProjectParameter
+	provisionerDaemons  []database.ProvisionerDaemon
+	provisionerJobs     []database.ProvisionerJob
+	workspace           []database.Workspace
+	workspaceAgent      []database.WorkspaceAgent
+	workspaceHistory    []database.WorkspaceHistory
+	workspaceHistoryLog []database.WorkspaceHistoryLog
+	workspaceResource   []database.WorkspaceResource
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -184,6 +188,23 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(_ context.Con
 	return database.WorkspaceHistory{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceHistoryLogsByIDBefore(_ context.Context, arg database.GetWorkspaceHistoryLogsByIDBeforeParams) ([]database.WorkspaceHistoryLog, error) {
+	logs := make([]database.WorkspaceHistoryLog, 0)
+	for _, workspaceHistoryLog := range q.workspaceHistoryLog {
+		if workspaceHistoryLog.WorkspaceHistoryID.String() != arg.WorkspaceHistoryID.String() {
+			continue
+		}
+		if workspaceHistoryLog.CreatedAt.After(arg.CreatedAt) {
+			continue
+		}
+		logs = append(logs, workspaceHistoryLog)
+	}
+	if len(logs) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return logs, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceHistory, error) {
 	history := make([]database.WorkspaceHistory, 0)
 	for _, workspaceHistory := range q.workspaceHistory {
@@ -195,6 +216,19 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, worksp
 		return nil, sql.ErrNoRows
 	}
 	return history, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceHistoryByWorkspaceIDAndNameParams) (database.WorkspaceHistory, error) {
+	for _, workspaceHistory := range q.workspaceHistory {
+		if workspaceHistory.WorkspaceID.String() != arg.WorkspaceID.String() {
+			continue
+		}
+		if !strings.EqualFold(workspaceHistory.Name, arg.Name) {
+			continue
+		}
+		return workspaceHistory, nil
+	}
+	return database.WorkspaceHistory{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspacesByProjectAndUserID(_ context.Context, arg database.GetWorkspacesByProjectAndUserIDParams) ([]database.Workspace, error) {
@@ -318,6 +352,36 @@ func (q *fakeQuerier) GetProjectHistoryByProjectID(_ context.Context, projectID 
 	return history, nil
 }
 
+func (q *fakeQuerier) GetProjectHistoryByProjectIDAndName(_ context.Context, arg database.GetProjectHistoryByProjectIDAndNameParams) (database.ProjectHistory, error) {
+	for _, projectHistory := range q.projectHistory {
+		if projectHistory.ProjectID.String() != arg.ProjectID.String() {
+			continue
+		}
+		if !strings.EqualFold(projectHistory.Name, arg.Name) {
+			continue
+		}
+		return projectHistory, nil
+	}
+	return database.ProjectHistory{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetProjectHistoryLogsByIDBefore(_ context.Context, arg database.GetProjectHistoryLogsByIDBeforeParams) ([]database.ProjectHistoryLog, error) {
+	logs := make([]database.ProjectHistoryLog, 0)
+	for _, projectHistoryLog := range q.projectHistoryLog {
+		if projectHistoryLog.ProjectHistoryID.String() != arg.ProjectHistoryID.String() {
+			continue
+		}
+		if projectHistoryLog.CreatedAt.After(arg.CreatedAt) {
+			continue
+		}
+		logs = append(logs, projectHistoryLog)
+	}
+	if len(logs) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return logs, nil
+}
+
 func (q *fakeQuerier) GetProjectHistoryByID(_ context.Context, projectHistoryID uuid.UUID) (database.ProjectHistory, error) {
 	for _, projectHistory := range q.projectHistory {
 		if projectHistory.ID.String() != projectHistoryID.String() {
@@ -369,6 +433,13 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 		return organizationMember, nil
 	}
 	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
+	if len(q.provisionerDaemons) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return q.provisionerDaemons, nil
 }
 
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
@@ -486,6 +557,22 @@ func (q *fakeQuerier) InsertProjectHistory(_ context.Context, arg database.Inser
 	return history, nil
 }
 
+func (q *fakeQuerier) InsertProjectHistoryLogs(_ context.Context, arg database.InsertProjectHistoryLogsParams) ([]database.ProjectHistoryLog, error) {
+	logs := make([]database.ProjectHistoryLog, 0)
+	for index, output := range arg.Output {
+		logs = append(logs, database.ProjectHistoryLog{
+			ProjectHistoryID: arg.ProjectHistoryID,
+			ID:               arg.ID[index],
+			CreatedAt:        arg.CreatedAt[index],
+			Source:           arg.Source[index],
+			Level:            arg.Level[index],
+			Output:           output,
+		})
+	}
+	q.projectHistoryLog = append(q.projectHistoryLog, logs...)
+	return logs, nil
+}
+
 func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.InsertProjectParameterParams) (database.ProjectParameter, error) {
 	//nolint:gosimple
 	param := database.ProjectParameter{
@@ -586,6 +673,7 @@ func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.Ins
 		CreatedAt:        arg.CreatedAt,
 		UpdatedAt:        arg.UpdatedAt,
 		WorkspaceID:      arg.WorkspaceID,
+		Name:             arg.Name,
 		ProjectHistoryID: arg.ProjectHistoryID,
 		BeforeID:         arg.BeforeID,
 		Transition:       arg.Transition,
@@ -594,6 +682,22 @@ func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.Ins
 	}
 	q.workspaceHistory = append(q.workspaceHistory, workspaceHistory)
 	return workspaceHistory, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceHistoryLogs(_ context.Context, arg database.InsertWorkspaceHistoryLogsParams) ([]database.WorkspaceHistoryLog, error) {
+	logs := make([]database.WorkspaceHistoryLog, 0)
+	for index, output := range arg.Output {
+		logs = append(logs, database.WorkspaceHistoryLog{
+			WorkspaceHistoryID: arg.WorkspaceHistoryID,
+			ID:                 arg.ID[index],
+			CreatedAt:          arg.CreatedAt[index],
+			Source:             arg.Source[index],
+			Level:              arg.Level[index],
+			Output:             output,
+		})
+	}
+	q.workspaceHistoryLog = append(q.workspaceHistoryLog, logs...)
+	return logs, nil
 }
 
 func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
@@ -659,7 +763,9 @@ func (q *fakeQuerier) UpdateWorkspaceHistoryByID(_ context.Context, arg database
 			continue
 		}
 		workspaceHistory.UpdatedAt = arg.UpdatedAt
+		workspaceHistory.CompletedAt = arg.CompletedAt
 		workspaceHistory.AfterID = arg.AfterID
+		workspaceHistory.ProvisionerState = arg.ProvisionerState
 		q.workspaceHistory[index] = workspaceHistory
 		return nil
 	}
