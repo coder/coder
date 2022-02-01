@@ -78,8 +78,8 @@ const ProjectPage: React.FC = () => {
     <div className={styles.root}>
       <Navbar user={me} onSignOut={signOut} />
       <Header
-        title={firstOrItem(project)}
-        description={firstOrItem(organization)}
+        title={firstOrItem(project, "")}
+        description={firstOrItem(organization, "")}
         subTitle={`${workspaces.length} workspaces`}
         action={{
           text: "Create Workspace",
