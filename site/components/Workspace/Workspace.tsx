@@ -1,11 +1,12 @@
+import Box from "@material-ui/core/Box"
 import Paper from "@material-ui/core/Paper"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
-import React from "react"
+import React, { useState } from "react"
 import MoreVertIcon from "@material-ui/icons/MoreVert"
 import { QuestionHelp } from "../QuestionHelp"
-import { CircularProgress, IconButton, Link } from "@material-ui/core"
+import { CircularProgress, IconButton, Link, Menu, MenuItem } from "@material-ui/core"
 
 import { Timeline as TestTimeline } from "../Timeline"
 
@@ -62,6 +63,8 @@ const ResourceIconSize = 20
 export const ResourceRow: React.FC<ResourceRowProps> = ({ icon, href, name, status }) => {
   const styles = useResourceRowStyles()
 
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null)
+
   return (
     <div className={styles.root}>
       <div className={styles.iconContainer}>
@@ -87,9 +90,26 @@ export const ResourceRow: React.FC<ResourceRowProps> = ({ icon, href, name, stat
         <StatusIndicator status={status} />
       </div>
       <div>
-        <IconButton size="small" className={styles.action}>
+        <IconButton size="small" className={styles.action} onClick={(ev) => setMenuAnchorEl(ev.currentTarget)}>
           <MoreVertIcon fontSize="inherit" />
         </IconButton>
+
+        <Menu anchorEl={menuAnchorEl} open={!!menuAnchorEl} onClose={() => setMenuAnchorEl(undefined)}>
+          <MenuItem
+            onClick={() => {
+              setMenuAnchorEl(undefined)
+            }}
+          >
+            SSH
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              setMenuAnchorEl(undefined)
+            }}
+          >
+            Remote Desktop
+          </MenuItem>
+        </Menu>
       </div>
     </div>
   )
@@ -152,18 +172,27 @@ const useTitleStyles = makeStyles((theme) => ({
   },
 }))
 
+const TitleIconSize = 48
+
 export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
       <Paper elevation={0} className={styles.section}>
-        <Typography variant="h4">{workspace.name}</Typography>
-        <Typography variant="body2" color="textSecondary">
-          <Link>test-org</Link>
-          {" / "}
-          <Link>test-project</Link>
-        </Typography>
+        <div className={styles.horizontal}>
+          <Box mr={"1em"}>
+            <img src={"/static/discord-logo.svg"} height={TitleIconSize} width={TitleIconSize} />
+          </Box>
+          <div className={styles.vertical}>
+            <Typography variant="h4">{workspace.name}</Typography>
+            <Typography variant="body2" color="textSecondary">
+              <Link>test-org</Link>
+              {" / "}
+              <Link>test-project</Link>
+            </Typography>
+          </div>
+        </div>
       </Paper>
       <div className={styles.horizontal}>
         <div className={styles.sideBar}>
@@ -178,7 +207,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
             <div className={styles.vertical}>
               <ResourceRow name={"Code Web"} icon={"/static/vscode.svg"} href={"placeholder"} status={"active"} />
               <ResourceRow name={"Terminal"} icon={"/static/terminal.svg"} href={"placeholder"} status={"active"} />
-              <ResourceRow name={"React App"} icon={"/static/react-icon.svg"} status={"active"} />
+              <ResourceRow name={"React App"} icon={"/static/react-icon.svg"} href={"placeholder"} status={"active"} />
             </div>
           </Paper>
           <Paper elevation={0} className={styles.section}>
