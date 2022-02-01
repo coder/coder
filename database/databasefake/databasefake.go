@@ -435,6 +435,13 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
+	if len(q.provisionerDaemons) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return q.provisionerDaemons, nil
+}
+
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
 	for _, provisionerDaemon := range q.provisionerDaemons {
 		if provisionerDaemon.ID.String() != id.String() {

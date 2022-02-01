@@ -25,7 +25,7 @@ func New(options *Options) http.Handler {
 		Database: options.Database,
 		Pubsub:   options.Pubsub,
 	}
-	provisionerd := &provisionerd{
+	provisioners := &provisioners{
 		Database: options.Database,
 		Pubsub:   options.Pubsub,
 	}
@@ -46,7 +46,8 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/login", users.loginWithPassword)
 		r.Post("/logout", users.logout)
-		r.Get("/provisionerd", provisionerd.listen)
+		r.Get("/provisionerd", provisioners.listen)
+
 		// Used for setup.
 		r.Post("/user", users.createInitialUser)
 		r.Route("/users", func(r chi.Router) {
@@ -108,6 +109,10 @@ func New(options *Options) http.Handler {
 					})
 				})
 			})
+		})
+
+		r.Route("/provisioners", func(r chi.Router) {
+			r.Get("/daemons", provisioners.listDaemons)
 		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)

@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -29,12 +28,12 @@ func TestProvision(t *testing.T) {
 	go func() {
 		err := Serve(ctx, &ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
-				Transport: server,
+				Listener: server,
 			},
 		})
 		require.NoError(t, err)
 	}()
-	api := proto.NewDRPCProvisionerClient(drpcconn.New(client))
+	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 
 	for _, testCase := range []struct {
 		Name     string

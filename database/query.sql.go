@@ -609,6 +609,42 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
+const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
+SELECT
+  id, created_at, updated_at, name, provisioners
+FROM
+  provisioner_daemon
+`
+
+func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerDaemon
+	for rows.Next() {
+		var i ProvisionerDaemon
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			pq.Array(&i.Provisioners),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
   id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, project_id, input, worker_id

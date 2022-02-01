@@ -14,6 +14,7 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
+	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -27,12 +28,30 @@ import (
 	"nhooyr.io/websocket"
 )
 
-type provisionerd struct {
+type ProvisionerDaemon database.ProvisionerDaemon
+
+type provisioners struct {
 	Database database.Store
 	Pubsub   database.Pubsub
 }
 
-func (p *provisionerd) listen(rw http.ResponseWriter, r *http.Request) {
+func (p *provisioners) listDaemons(rw http.ResponseWriter, r *http.Request) {
+	daemons, err := p.Database.GetProvisionerDaemons(r.Context())
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner daemons: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, daemons)
+}
+
+func (p *provisioners) listen(rw http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{

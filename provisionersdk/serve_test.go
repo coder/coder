@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"storj.io/drpc/drpcconn"
 	"storj.io/drpc/drpcerr"
 
 	"github.com/coder/coder/provisionersdk"
@@ -29,12 +28,12 @@ func TestProvisionerSDK(t *testing.T) {
 		defer cancelFunc()
 		go func() {
 			err := provisionersdk.Serve(ctx, &proto.DRPCProvisionerUnimplementedServer{}, &provisionersdk.ServeOptions{
-				Transport: server,
+				Listener: server,
 			})
 			require.NoError(t, err)
 		}()
 
-		api := proto.NewDRPCProvisionerClient(drpcconn.New(client))
+		api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 		stream, err := api.Parse(context.Background(), &proto.Parse_Request{})
 		require.NoError(t, err)
 		_, err = stream.Recv()
@@ -47,7 +46,7 @@ func TestProvisionerSDK(t *testing.T) {
 		_ = server.Close()
 
 		err := provisionersdk.Serve(context.Background(), &proto.DRPCProvisionerUnimplementedServer{}, &provisionersdk.ServeOptions{
-			Transport: server,
+			Listener: server,
 		})
 		require.NoError(t, err)
 	})

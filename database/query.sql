@@ -199,6 +199,12 @@ WHERE
 ORDER BY
   created_at;
 
+-- name: GetProvisionerDaemons :many
+SELECT
+  *
+FROM
+  provisioner_daemon;
+
 -- name: GetProvisionerDaemonByID :one
 SELECT
   *
