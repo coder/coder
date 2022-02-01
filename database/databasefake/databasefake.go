@@ -764,7 +764,6 @@ func (q *fakeQuerier) UpdateWorkspaceHistoryByID(_ context.Context, arg database
 			continue
 		}
 		workspaceHistory.UpdatedAt = arg.UpdatedAt
-		workspaceHistory.CompletedAt = arg.CompletedAt
 		workspaceHistory.AfterID = arg.AfterID
 		workspaceHistory.ProvisionerState = arg.ProvisionerState
 		q.workspaceHistory[index] = workspaceHistory

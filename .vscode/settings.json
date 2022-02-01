@@ -35,6 +35,7 @@
     "httpmw",
     "moby",
     "nhooyr",
+    "nolint",
     "nosec",
     "oneof",
     "protobuf",
@@ -43,6 +44,7 @@
     "retrier",
     "sdkproto",
     "stretchr",
+    "unconvert",
     "xerrors",
     "yamux"
   ]

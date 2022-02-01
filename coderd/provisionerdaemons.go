@@ -515,10 +515,6 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				ID:               workspaceHistory.ID,
 				UpdatedAt:        database.Now(),
 				ProvisionerState: jobType.WorkspaceProvision.State,
-				CompletedAt: sql.NullTime{
-					Time:  database.Now(),
-					Valid: true,
-				},
 			})
 			if err != nil {
 				return xerrors.Errorf("update workspace history: %w", err)

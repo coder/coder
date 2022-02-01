@@ -866,7 +866,7 @@ func (q *sqlQuerier) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWor
 
 const getWorkspaceHistoryByID = `-- name: GetWorkspaceHistoryByID :one
 SELECT
-  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 FROM
   workspace_history
 WHERE
@@ -882,7 +882,6 @@ func (q *sqlQuerier) GetWorkspaceHistoryByID(ctx context.Context, id uuid.UUID) 
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.CompletedAt,
 		&i.WorkspaceID,
 		&i.ProjectHistoryID,
 		&i.Name,
@@ -898,7 +897,7 @@ func (q *sqlQuerier) GetWorkspaceHistoryByID(ctx context.Context, id uuid.UUID) 
 
 const getWorkspaceHistoryByWorkspaceID = `-- name: GetWorkspaceHistoryByWorkspaceID :many
 SELECT
-  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 FROM
   workspace_history
 WHERE
@@ -918,7 +917,6 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceID(ctx context.Context, works
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.CompletedAt,
 			&i.WorkspaceID,
 			&i.ProjectHistoryID,
 			&i.Name,
@@ -944,7 +942,7 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceID(ctx context.Context, works
 
 const getWorkspaceHistoryByWorkspaceIDAndName = `-- name: GetWorkspaceHistoryByWorkspaceIDAndName :one
 SELECT
-  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 FROM
   workspace_history
 WHERE
@@ -964,7 +962,6 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(ctx context.Context
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.CompletedAt,
 		&i.WorkspaceID,
 		&i.ProjectHistoryID,
 		&i.Name,
@@ -980,7 +977,7 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(ctx context.Context
 
 const getWorkspaceHistoryByWorkspaceIDWithoutAfter = `-- name: GetWorkspaceHistoryByWorkspaceIDWithoutAfter :one
 SELECT
-  id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 FROM
   workspace_history
 WHERE
@@ -997,7 +994,6 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(ctx context.Co
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.CompletedAt,
 		&i.WorkspaceID,
 		&i.ProjectHistoryID,
 		&i.Name,
@@ -1939,7 +1935,7 @@ INSERT INTO
     provisioner_state
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, completed_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, workspace_id, project_history_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
 `
 
 type InsertWorkspaceHistoryParams struct {
@@ -1975,7 +1971,6 @@ func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorks
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.CompletedAt,
 		&i.WorkspaceID,
 		&i.ProjectHistoryID,
 		&i.Name,
@@ -2183,9 +2178,8 @@ UPDATE
   workspace_history
 SET
   updated_at = $2,
-  completed_at = $3,
-  after_id = $4,
-  provisioner_state = $5
+  after_id = $3,
+  provisioner_state = $4
 WHERE
   id = $1
 `
@@ -2193,7 +2187,6 @@ WHERE
 type UpdateWorkspaceHistoryByIDParams struct {
 	ID               uuid.UUID     `db:"id" json:"id"`
 	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
-	CompletedAt      sql.NullTime  `db:"completed_at" json:"completed_at"`
 	AfterID          uuid.NullUUID `db:"after_id" json:"after_id"`
 	ProvisionerState []byte        `db:"provisioner_state" json:"provisioner_state"`
 }
@@ -2202,7 +2195,6 @@ func (q *sqlQuerier) UpdateWorkspaceHistoryByID(ctx context.Context, arg UpdateW
 	_, err := q.db.ExecContext(ctx, updateWorkspaceHistoryByID,
 		arg.ID,
 		arg.UpdatedAt,
-		arg.CompletedAt,
 		arg.AfterID,
 		arg.ProvisionerState,
 	)

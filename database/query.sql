@@ -619,8 +619,7 @@ UPDATE
   workspace_history
 SET
   updated_at = $2,
-  completed_at = $3,
-  after_id = $4,
-  provisioner_state = $5
+  after_id = $3,
+  provisioner_state = $4
 WHERE
   id = $1;
