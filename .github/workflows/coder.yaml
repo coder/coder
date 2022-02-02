@@ -128,7 +128,8 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-latest
+          # Temporarily disable, to use special PION logging
+          # - windows-latest
     steps:
       - uses: actions/checkout@v2
 
@@ -160,14 +161,14 @@ jobs:
         run:
           PION_LOG_TRACE=dtls,ice,pc PIONS_LOG_INFO=all gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=3 -race -short -parallel=2
+          -count=10 -race -short -parallel=2
 
-      - name: Test with PostgreSQL Database
-        if: runner.os == 'Linux'
-        run:
-          DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=1 -race -parallel=2
+      #- name: Test with PostgreSQL Database
+      #  if: runner.os == 'Linux'
+      #  run:
+      #    DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
+      #    -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+      #    -count=1 -race -parallel=2
 
       - uses: codecov/codecov-action@v2
         if: github.actor != 'dependabot[bot]'
