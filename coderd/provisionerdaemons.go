@@ -115,7 +115,7 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("drpc register provisioner daemon: %s", err))
-		// return
+		return
 	}
 	server := drpcserver.New(mux)
 	err = server.Serve(r.Context(), session)
