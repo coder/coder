@@ -187,11 +187,12 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	p.acquiredJobDone = make(chan struct{})
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
-		slog.F("job_id", p.acquiredJob.JobId)
+		slog.F("job_id", p.acquiredJob.JobId),
 		slog.F("organization_name", p.acquiredJob.OrganizationName),
 		slog.F("project_name", p.acquiredJob.ProjectName),
 		slog.F("username", p.acquiredJob.UserName),
 		slog.F("provisioner", p.acquiredJob.Provisioner),
+		slog.F("job_type", p.acquiredJob.Type),
 	)
 
 	go p.runJob(ctx)

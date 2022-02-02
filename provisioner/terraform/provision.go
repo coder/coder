@@ -12,6 +12,8 @@ import (
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -149,6 +151,7 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 	resources := make([]*proto.Resource, 0)
 	if state.Values != nil {
 		for _, resource := range state.Values.RootModule.Resources {
+			t.logger.Debug(ctx, "appending state file", slog.F("name", resource.Name), slog.F("type", resource.Type))
 			resources = append(resources, &proto.Resource{
 				Name: resource.Name,
 				Type: resource.Type,
@@ -156,6 +159,7 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 		}
 	}
 
+	t.logger.Debug(ctx, "sending completion response")
 	return stream.Send(&proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
