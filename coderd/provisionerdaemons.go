@@ -48,7 +48,10 @@ func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(rw, r, nil)
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		// Need to disable compression to avoid a data-race
+		CompressionMode: websocket.CompressionDisabled,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("accept websocket: %s", err),
