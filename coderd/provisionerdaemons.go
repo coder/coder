@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"reflect"
 	"time"
@@ -47,36 +46,12 @@ func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, daemons)
 }
 
-type proxiedConn struct {
-	conn io.ReadWriteCloser
-}
-
-func (c *proxiedConn) Close() error {
-	return c.conn.Close()
-}
-func (c *proxiedConn) Write(p []byte) (int, error) {
-	// Copy the data to avoid a race condition
-	cpy := make([]byte, len(p))
-	copy(cpy, p)
-	return c.conn.Write(cpy)
-}
-
-func (c *proxiedConn) Read(p []byte) (int, error) {
-	// In theory, this could be deep-copied too - but it actually causes a failure.
-	//cpy := make([]byte, len(p))
-	//copy(cpy, p)
-	return c.conn.Read(p)
-}
-
-func createCopyOnReadProxy(pipesToProxy io.ReadWriteCloser) io.ReadWriteCloser {
-	return &proxiedConn{
-		conn: pipesToProxy,
-	}
-}
-
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(rw, r, nil)
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		// Need to disable compression to avoid a data-race
+		CompressionMode: websocket.CompressionDisabled,
+	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("accept websocket: %s", err),
@@ -95,13 +70,10 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	netConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
-	proxiedConn := createCopyOnReadProxy(netConn)
-
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over
 	// the same connection.
-	session, err := yamux.Server(proxiedConn, nil)
+	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), nil)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("multiplex server: %s", err))
 		return
