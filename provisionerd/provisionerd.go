@@ -50,12 +50,12 @@ func New(clientDialer Dialer, opts *Options) io.Closer {
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &provisionerDaemon{
-		clientDialer: clientDialer,
-		opts:         opts,
-
-		closeContext: ctx,
-		closeCancel:  ctxCancel,
-		closed:       make(chan struct{}),
+		clientDialer:    clientDialer,
+		opts:            opts,
+		acquiredJobDone: make(chan struct{}),
+		closeContext:    ctx,
+		closeCancel:     ctxCancel,
+		closed:          make(chan struct{}),
 	}
 	go daemon.connect(ctx)
 	return daemon
@@ -184,8 +184,6 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	ctx, p.acquiredJobCancel = context.WithCancel(ctx)
 	p.acquiredJobCancelled.Store(false)
 	p.acquiredJobRunning.Store(true)
-
-	p.acquiredJobDone = make(chan struct{})
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
 		slog.F("job_id", p.acquiredJob.JobId),
@@ -515,15 +513,6 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 	}
 
 	if p.isRunningJob() {
-		// We also need the 'acquire job' mutex here,
-		// so that a new `p.acquiredJobDone` channel isn't created
-		// while we're waiting on the mutex.
-
-		// Note the mutex order - it's important that we always use the same order of acquisition
-		// to avoid deadlocks
-		p.acquiredJobMutex.Lock()
-		defer p.acquiredJobMutex.Unlock()
-
 		errMsg := "provisioner daemon was shutdown gracefully"
 		if err != nil {
 			errMsg = err.Error()
