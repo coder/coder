@@ -47,6 +47,7 @@ func TestProjects(t *testing.T) {
 		_ = server.RandomInitialUser(t)
 		projects, err := server.Client.Projects(context.Background(), "")
 		require.NoError(t, err)
+		require.NotNil(t, projects)
 		require.Len(t, projects, 0)
 	})
 
@@ -77,6 +78,7 @@ func TestProjects(t *testing.T) {
 
 		projects, err := server.Client.Projects(context.Background(), user.Organization)
 		require.NoError(t, err)
+		require.NotNil(t, projects)
 		require.Len(t, projects, 0)
 	})
 
