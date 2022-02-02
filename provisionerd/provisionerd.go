@@ -515,7 +515,6 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 	}
 
 	if p.isRunningJob() {
-
 		// We also need the 'acquire job' mutex here,
 		// so that a new `p.acquiredJobDone` channel isn't created
 		// while we're waiting on the mutex.
