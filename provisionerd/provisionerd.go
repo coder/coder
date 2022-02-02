@@ -156,6 +156,9 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 
 // Locks a job in the database, and runs it!
 func (p *provisionerDaemon) acquireJob(ctx context.Context) {
+	if p.isClosed() {
+		return
+	}
 	p.acquiredJobMutex.Lock()
 	defer p.acquiredJobMutex.Unlock()
 	if p.isRunningJob() {
@@ -174,9 +177,6 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 		p.opts.Logger.Warn(context.Background(), "acquire job", slog.Error(err))
 		return
 	}
-	if p.isClosed() {
-		return
-	}
 	if p.acquiredJob.JobId == "" {
 		p.opts.Logger.Debug(context.Background(), "no jobs available")
 		return
@@ -184,6 +184,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	ctx, p.acquiredJobCancel = context.WithCancel(ctx)
 	p.acquiredJobCancelled.Store(false)
 	p.acquiredJobRunning.Store(true)
+
 	p.acquiredJobDone = make(chan struct{})
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
@@ -234,8 +235,6 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 			return
 		}
 		p.opts.Logger.Debug(ctx, "cleaned up work directory")
-		p.acquiredJobMutex.Lock()
-		defer p.acquiredJobMutex.Unlock()
 		p.acquiredJobRunning.Store(false)
 		close(p.acquiredJobDone)
 	}()
@@ -510,11 +509,22 @@ func (p *provisionerDaemon) Close() error {
 func (p *provisionerDaemon) closeWithError(err error) error {
 	p.closeMutex.Lock()
 	defer p.closeMutex.Unlock()
+
 	if p.isClosed() {
 		return p.closeError
 	}
 
 	if p.isRunningJob() {
+
+		// We also need the 'acquire job' mutex here,
+		// so that a new `p.acquiredJobDone` channel isn't created
+		// while we're waiting on the mutex.
+
+		// Note the mutex order - it's important that we always use the same order of acquisition
+		// to avoid deadlocks
+		p.acquiredJobMutex.Lock()
+		defer p.acquiredJobMutex.Unlock()
+
 		errMsg := "provisioner daemon was shutdown gracefully"
 		if err != nil {
 			errMsg = err.Error()
