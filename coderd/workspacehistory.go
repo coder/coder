@@ -29,7 +29,7 @@ type WorkspaceHistory struct {
 	AfterID          uuid.UUID                    `json:"after_id"`
 	Transition       database.WorkspaceTransition `json:"transition"`
 	Initiator        string                       `json:"initiator"`
-	Job              ProvisionerJob               `json:"job"`
+	Provision        ProvisionerJob               `json:"provision"`
 }
 
 // CreateWorkspaceHistoryRequest provides options to update the latest workspace history.
@@ -62,6 +62,27 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	projectHistoryJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectHistory.ImportJobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	projectHistoryJobStatus := convertProvisionerJob(projectHistoryJob).Status
+	switch projectHistoryJobStatus {
+	case ProvisionerJobStatusPending, ProvisionerJobStatusRunning:
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("The provided project history is %s. Wait for it to complete importing!", projectHistoryJobStatus),
+		})
+		return
+	case ProvisionerJobStatusFailed:
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("The provided project history %q has failed to import. You cannot create workspaces using it!", projectHistory.Name),
+		})
+		return
+	}
+
 	project, err := api.Database.GetProjectByID(r.Context(), projectHistory.ProjectID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -75,15 +96,11 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	priorHistory, err := api.Database.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err == nil {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.ProvisionJobID)
-		if err == nil {
-			convertedJob := convertProvisionerJob(priorJob)
-			if convertedJob.Status == ProvisionerJobStatusPending ||
-				convertedJob.Status == ProvisionerJobStatusRunning {
-				httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-					Message: "a workspace build is already active",
-				})
-				return
-			}
+		if err == nil && convertProvisionerJob(priorJob).Status.Completed() {
+			httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+				Message: "a workspace build is already active",
+			})
+			return
 		}
 
 		priorHistoryID = uuid.NullUUID{
@@ -200,24 +217,9 @@ func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) 
 	render.JSON(rw, r, apiHistory)
 }
 
-// Returns the latest workspace history. This works by querying for history without "after" set.
-func (api *api) latestWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
-
-	history, err := api.Database.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "workspace has no history",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace history: %s", err),
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), history.ProvisionJobID)
+func (api *api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
+	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceHistory.ProvisionJobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
@@ -226,7 +228,7 @@ func (api *api) latestWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Req
 	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceHistory(history, job))
+	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory, job))
 }
 
 // Converts the internal history representation to a public external-facing model.
@@ -242,7 +244,7 @@ func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory, provisi
 		AfterID:          workspaceHistory.AfterID.UUID,
 		Transition:       workspaceHistory.Transition,
 		Initiator:        workspaceHistory.Initiator,
-		Job:              convertProvisionerJob(provisionerJob),
+		Provision:        convertProvisionerJob(provisionerJob),
 	})
 }
 

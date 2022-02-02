@@ -36,15 +36,27 @@ func ExtractWorkspaceHistoryParam(db database.Store) func(http.Handler) http.Han
 				})
 				return
 			}
-			workspaceHistory, err := db.GetWorkspaceHistoryByWorkspaceIDAndName(r.Context(), database.GetWorkspaceHistoryByWorkspaceIDAndNameParams{
-				WorkspaceID: workspace.ID,
-				Name:        workspaceHistoryName,
-			})
-			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("workspace history %q does not exist", workspaceHistoryName),
+			var workspaceHistory database.WorkspaceHistory
+			var err error
+			if workspaceHistoryName == "latest" {
+				workspaceHistory, err = db.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+				if errors.Is(err, sql.ErrNoRows) {
+					httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+						Message: "there is no workspace history",
+					})
+					return
+				}
+			} else {
+				workspaceHistory, err = db.GetWorkspaceHistoryByWorkspaceIDAndName(r.Context(), database.GetWorkspaceHistoryByWorkspaceIDAndNameParams{
+					WorkspaceID: workspace.ID,
+					Name:        workspaceHistoryName,
 				})
-				return
+				if errors.Is(err, sql.ErrNoRows) {
+					httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+						Message: fmt.Sprintf("workspace history %q does not exist", workspaceHistoryName),
+					})
+					return
+				}
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

@@ -241,6 +241,13 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project history: %s", err))
 		}
+
+		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
+			ProjectImport: &proto.AcquiredJob_ProjectImport{
+				ProjectHistoryId:   projectHistory.ID.String(),
+				ProjectHistoryName: projectHistory.Name,
+			},
+		}
 	}
 	switch projectHistory.StorageMethod {
 	case database.ProjectStorageMethodInlineArchive:
