@@ -50,12 +50,11 @@ func New(clientDialer Dialer, opts *Options) io.Closer {
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &provisionerDaemon{
-		clientDialer:    clientDialer,
-		opts:            opts,
-		acquiredJobDone: make(chan struct{}),
-		closeContext:    ctx,
-		closeCancel:     ctxCancel,
-		closed:          make(chan struct{}),
+		clientDialer: clientDialer,
+		opts:         opts,
+		closeContext: ctx,
+		closeCancel:  ctxCancel,
+		closed:       make(chan struct{}),
 	}
 	go daemon.connect(ctx)
 	return daemon
@@ -90,7 +89,7 @@ type provisionerDaemon struct {
 	acquiredJobCancel    context.CancelFunc
 	acquiredJobCancelled atomic.Bool
 	acquiredJobRunning   atomic.Bool
-	acquiredJobDone      chan struct{}
+	acquiredJobGroup     sync.WaitGroup
 }
 
 // Connect establishes a connection to coderd.
@@ -182,6 +181,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 		return
 	}
 	ctx, p.acquiredJobCancel = context.WithCancel(ctx)
+	p.acquiredJobGroup.Add(1)
 	p.acquiredJobCancelled.Store(false)
 	p.acquiredJobRunning.Store(true)
 
@@ -234,7 +234,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 		}
 		p.opts.Logger.Debug(ctx, "cleaned up work directory")
 		p.acquiredJobRunning.Store(false)
-		close(p.acquiredJobDone)
+		p.acquiredJobGroup.Done()
 	}()
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
 	provisioner, hasProvisioner := p.opts.Provisioners[p.acquiredJob.Provisioner]
@@ -520,7 +520,7 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 		if !p.acquiredJobCancelled.Load() {
 			p.cancelActiveJob(errMsg)
 		}
-		<-p.acquiredJobDone
+		p.acquiredJobGroup.Wait()
 	}
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
