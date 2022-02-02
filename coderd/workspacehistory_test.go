@@ -57,15 +57,15 @@ func TestWorkspaceHistory(t *testing.T) {
 			hist, err := client.ProjectHistory(context.Background(), user.Organization, project.Name, projectHistory.Name)
 			require.NoError(t, err)
 			return hist.Import.Status.Completed()
-		}, time.Second, 10*time.Millisecond)
+		}, 15*time.Second, 50*time.Millisecond)
 		return projectHistory
 	}
 
 	t.Run("AllHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.AddProvisionerd(t)
 		user := server.RandomInitialUser(t)
+		_ = server.AddProvisionerd(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		history, err := server.Client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
@@ -86,8 +86,8 @@ func TestWorkspaceHistory(t *testing.T) {
 	t.Run("LatestHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.AddProvisionerd(t)
 		user := server.RandomInitialUser(t)
+		_ = server.AddProvisionerd(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		_, err := server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
 		require.Error(t, err)
@@ -106,8 +106,8 @@ func TestWorkspaceHistory(t *testing.T) {
 	t.Run("CreateHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.AddProvisionerd(t)
 		user := server.RandomInitialUser(t)
+		_ = server.AddProvisionerd(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{
 			"main.tf": `resource "null_resource" "example" {}`,
@@ -131,8 +131,8 @@ func TestWorkspaceHistory(t *testing.T) {
 	t.Run("CreateHistoryAlreadyInProgress", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.AddProvisionerd(t)
 		user := server.RandomInitialUser(t)
+		_ = server.AddProvisionerd(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{
 			"some": "content",
@@ -154,8 +154,8 @@ func TestWorkspaceHistory(t *testing.T) {
 	t.Run("CreateHistoryInvalidProjectVersion", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.AddProvisionerd(t)
 		user := server.RandomInitialUser(t)
+		_ = server.AddProvisionerd(t)
 		_, workspace := setupProjectAndWorkspace(t, server.Client, user)
 
 		_, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{

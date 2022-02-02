@@ -16,6 +16,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/hashicorp/yamux"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -141,7 +143,7 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-p.closed:
+			case <-ctx.Done():
 				return
 			case <-p.updateStream.Context().Done():
 				return
@@ -164,6 +166,9 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	p.acquiredJob, err = p.client.AcquireJob(ctx, &proto.Empty{})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if errors.Is(err, yamux.ErrSessionShutdown) {
 			return
 		}
 		p.opts.Logger.Warn(context.Background(), "acquire job", slog.Error(err))
@@ -196,6 +201,11 @@ func (p *provisionerDaemon) isRunningJob() bool {
 }
 
 func (p *provisionerDaemon) runJob(ctx context.Context) {
+	// Prevents p.updateStream from being accessed and
+	// written to at the same time.
+	p.connectMutex.Lock()
+	defer p.connectMutex.Unlock()
+
 	go func() {
 		ticker := time.NewTicker(p.opts.UpdateInterval)
 		defer ticker.Stop()
@@ -214,12 +224,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 			}
 		}
 	}()
-	go func() {
-		select {
-		case <-p.closed:
-		case <-ctx.Done():
-		}
-
+	defer func() {
 		// Cleanup the work directory after execution.
 		err := os.RemoveAll(p.opts.WorkDirectory)
 		if err != nil {
@@ -457,6 +462,9 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 }
 
 func (p *provisionerDaemon) cancelActiveJob(errMsg string) {
+	if p.isClosed() {
+		return
+	}
 	if !p.isRunningJob() {
 		p.opts.Logger.Warn(context.Background(), "skipping job cancel; none running", slog.F("error_message", errMsg))
 		return

@@ -32,7 +32,7 @@ WHERE
       AND nested.completed_at IS NULL
       AND nested.provisioner = ANY($3 :: provisioner_type [ ])
     ORDER BY
-      nested.created FOR
+      nested.created_at FOR
     UPDATE
       SKIP LOCKED
     LIMIT
@@ -1519,11 +1519,11 @@ INSERT INTO
   project_history_log
 SELECT
   $1 :: uuid AS project_history_id,
-  unnset($2 :: uuid [ ]) AS id,
+  unnest($2 :: uuid [ ]) AS id,
   unnest($3 :: timestamptz [ ]) AS created_at,
-  unnset($4 :: log_source [ ]) as source,
-  unnset($5 :: log_level [ ]) as level,
-  unnset($6 :: varchar(1024) [ ]) as output RETURNING id, project_history_id, created_at, source, level, output
+  unnest($4 :: log_source [ ]) as source,
+  unnest($5 :: log_level [ ]) as level,
+  unnest($6 :: varchar(1024) [ ]) as output RETURNING id, project_history_id, created_at, source, level, output
 `
 
 type InsertProjectHistoryLogsParams struct {
@@ -1988,17 +1988,17 @@ const insertWorkspaceHistoryLogs = `-- name: InsertWorkspaceHistoryLogs :many
 INSERT INTO
   workspace_history_log
 SELECT
-  $1 :: uuid AS workspace_history_id,
-  unnset($2 :: uuid [ ]) AS id,
+  unnest($1 :: uuid [ ]) AS id,
+  $2 :: uuid AS workspace_history_id,
   unnest($3 :: timestamptz [ ]) AS created_at,
-  unnset($4 :: log_source [ ]) as source,
-  unnset($5 :: log_level [ ]) as level,
-  unnset($6 :: varchar(1024) [ ]) as output RETURNING id, workspace_history_id, created_at, source, level, output
+  unnest($4 :: log_source [ ]) as source,
+  unnest($5 :: log_level [ ]) as level,
+  unnest($6 :: varchar(1024) [ ]) as output RETURNING id, workspace_history_id, created_at, source, level, output
 `
 
 type InsertWorkspaceHistoryLogsParams struct {
-	WorkspaceHistoryID uuid.UUID   `db:"workspace_history_id" json:"workspace_history_id"`
 	ID                 []uuid.UUID `db:"id" json:"id"`
+	WorkspaceHistoryID uuid.UUID   `db:"workspace_history_id" json:"workspace_history_id"`
 	CreatedAt          []time.Time `db:"created_at" json:"created_at"`
 	Source             []LogSource `db:"source" json:"source"`
 	Level              []LogLevel  `db:"level" json:"level"`
@@ -2007,8 +2007,8 @@ type InsertWorkspaceHistoryLogsParams struct {
 
 func (q *sqlQuerier) InsertWorkspaceHistoryLogs(ctx context.Context, arg InsertWorkspaceHistoryLogsParams) ([]WorkspaceHistoryLog, error) {
 	rows, err := q.db.QueryContext(ctx, insertWorkspaceHistoryLogs,
-		arg.WorkspaceHistoryID,
 		pq.Array(arg.ID),
+		arg.WorkspaceHistoryID,
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Source),
 		pq.Array(arg.Level),

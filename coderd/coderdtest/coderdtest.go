@@ -84,7 +84,7 @@ func (s *Server) AddProvisionerd(t *testing.T) io.Closer {
 	}()
 
 	closer := provisionerd.New(s.Client.ProvisionerDaemonClient, &provisionerd.Options{
-		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelInfo),
+		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:   50 * time.Millisecond,
 		UpdateInterval: 50 * time.Millisecond,
 		Provisioners: provisionerd.Provisioners{
@@ -119,6 +119,9 @@ func New(t *testing.T) Server {
 
 		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = pubsub.Close()
+		})
 	}
 
 	handler := coderd.New(&coderd.Options{

@@ -2,8 +2,8 @@ module github.com/coder/coder
 
 go 1.17
 
-// Required until https://github.com/hashicorp/terraform-exec/pull/275 is merged.
-replace github.com/hashicorp/terraform-exec => github.com/kylecarbs/terraform-exec v0.15.1-0.20220129210610-65894a884c09
+// Required until https://github.com/hashicorp/terraform-exec/pull/275 and https://github.com/hashicorp/terraform-exec/pull/276 are merged.
+replace github.com/hashicorp/terraform-exec => github.com/kylecarbs/terraform-exec v0.15.1-0.20220202050609-a1ce7181b180
 
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
@@ -107,7 +107,6 @@ require (
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
