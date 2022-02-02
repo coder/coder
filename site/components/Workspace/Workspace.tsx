@@ -3,14 +3,15 @@ import Paper from "@material-ui/core/Paper"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import MoreVertIcon from "@material-ui/icons/MoreVert"
 import { QuestionHelp } from "../QuestionHelp"
 import { CircularProgress, IconButton, Link, Menu, MenuItem } from "@material-ui/core"
-
+import { ResourceMonitor, ResourceMonitorProps, ResourceUsageSnapshot } from "../ResourceMonitor"
 import { Timeline as TestTimeline } from "../Timeline"
 
 import * as API from "../../api"
+import { getAllByTestId } from "@testing-library/react"
 
 export interface WorkspaceProps {
   workspace: API.Workspace
@@ -94,17 +95,17 @@ export const ResourceRow: React.FC<ResourceRowProps> = ({ icon, href, name, stat
           <MoreVertIcon fontSize="inherit" />
         </IconButton>
 
-        <Menu anchorEl={menuAnchorEl} open={!!menuAnchorEl} onClose={() => setMenuAnchorEl(undefined)}>
+        <Menu anchorEl={menuAnchorEl} open={!!menuAnchorEl} onClose={() => setMenuAnchorEl(null)}>
           <MenuItem
             onClick={() => {
-              setMenuAnchorEl(undefined)
+              setMenuAnchorEl(null)
             }}
           >
             SSH
           </MenuItem>
           <MenuItem
             onClick={() => {
-              setMenuAnchorEl(undefined)
+              setMenuAnchorEl(null)
             }}
           >
             Remote Desktop
@@ -177,6 +178,36 @@ const TitleIconSize = 48
 export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
   const styles = useStyles()
 
+  const [resources, setResources] = useState<ResourceUsageSnapshot[]>([
+    {
+      cpuPercentage: 50,
+      memoryUsedBytes: 8 * 1024 * 1024,
+      diskUsedBytes: 24 * 1024 * 1024,
+    },
+  ])
+
+  useEffect(() => {
+    const rand = (range: number) => {
+      return range * 2 * (Math.random() - 0.5)
+    }
+    const timeout = window.setTimeout(() => {
+      setResources((res: ResourceUsageSnapshot[]) => {
+        const latest = res[0]
+        const newEntry = {
+          cpuPercentage: latest.cpuPercentage + rand(5),
+          memoryUsedBytes: latest.memoryUsedBytes + rand(256 * 1024),
+          diskUsedBytes: latest.diskUsedBytes + rand(512 * 1024),
+        }
+        const ret: ResourceUsageSnapshot[] = [newEntry, ...res]
+        return ret
+      })
+    }, 1000)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  })
+
   return (
     <div className={styles.root}>
       <Paper elevation={0} className={styles.section}>
@@ -192,6 +223,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
               <Link>test-project</Link>
             </Typography>
           </div>
+        </div>
+        <div style={{ height: "200px", position: "relative" }}>
+          <ResourceMonitor
+            diskTotalBytes={256 * 1024 * 1024}
+            memoryTotalBytes={16 * 1024 * 1024}
+            resources={resources}
+          />
         </div>
       </Paper>
       <div className={styles.horizontal}>
@@ -210,7 +248,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
               <ResourceRow name={"React App"} icon={"/static/react-icon.svg"} href={"placeholder"} status={"active"} />
             </div>
           </Paper>
-          
+
           <Paper elevation={0} className={styles.section}>
             <Title>
               <Typography variant="h6">Resources</Typography>
