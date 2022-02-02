@@ -42,13 +42,16 @@ func (api *api) projects(rw http.ResponseWriter, r *http.Request) {
 	projects, err := api.Database.GetProjectsByOrganizationIDs(r.Context(), organizationIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		projects = []database.Project{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get projects: %s", err.Error()),
 		})
 		return
+	}
+	// Don't return 'null'
+	if projects == nil {
+		projects = []database.Project{}
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, projects)
@@ -60,13 +63,16 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 	projects, err := api.Database.GetProjectsByOrganizationIDs(r.Context(), []string{organization.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		projects = []database.Project{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get projects: %s", err.Error()),
 		})
 		return
+	}
+	// Don't return 'null'
+	if projects == nil {
+		projects = []database.Project{}
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, projects)
