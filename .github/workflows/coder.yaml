@@ -158,7 +158,7 @@ jobs:
 
       - name: Test with Mock Database
         run:
-          gotestsum --jsonfile="gotests.json" --packages="./..." --
+          PION_LOG_TRACE=dtls,ice,pc PIONS_LOG_INFO=all gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=3 -race -short -parallel=2
 
