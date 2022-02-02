@@ -187,6 +187,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	p.acquiredJobDone = make(chan struct{})
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
+		slog.F("job_id", p.acquiredJob.JobId)
 		slog.F("organization_name", p.acquiredJob.OrganizationName),
 		slog.F("project_name", p.acquiredJob.ProjectName),
 		slog.F("username", p.acquiredJob.UserName),
@@ -328,7 +329,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 	}
 
 	p.acquiredJobCancel()
-	p.opts.Logger.Info(context.Background(), "completed job")
+	p.opts.Logger.Info(context.Background(), "completed job", slog.F("job_id", p.acquiredJob.JobId))
 }
 
 func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob_ProjectImport_) {
