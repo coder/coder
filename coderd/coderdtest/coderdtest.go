@@ -78,13 +78,15 @@ func (s *Server) AddProvisionerd(t *testing.T) io.Closer {
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: tfServer,
 			},
+			Logger: slogtest.Make(t, nil).Named("terraform-provisioner").Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
 	}()
 
 	closer := provisionerd.New(s.Client.ProvisionerDaemonClient, &provisionerd.Options{
-		Logger:       slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelInfo),
-		PollInterval: 50 * time.Millisecond,
+		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelInfo),
+		PollInterval:   50 * time.Millisecond,
+		UpdateInterval: 50 * time.Millisecond,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(tfClient)),
 		},
@@ -101,6 +103,7 @@ func (s *Server) AddProvisionerd(t *testing.T) io.Closer {
 func New(t *testing.T) Server {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
+	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
 		connectionURL, close, err := postgres.Open()
 		require.NoError(t, err)
@@ -113,11 +116,15 @@ func New(t *testing.T) Server {
 		err = database.Migrate(sqlDB)
 		require.NoError(t, err)
 		db = database.New(sqlDB)
+
+		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
+		require.NoError(t, err)
 	}
 
 	handler := coderd.New(&coderd.Options{
 		Logger:   slogtest.Make(t, nil),
 		Database: db,
+		Pubsub:   pubsub,
 	})
 	srv := httptest.NewServer(handler)
 	serverURL, err := url.Parse(srv.URL)

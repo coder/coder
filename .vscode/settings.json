@@ -28,6 +28,7 @@
     "coderdtest",
     "codersdk",
     "drpc",
+    "drpcconn",
     "drpcmux",
     "drpcserver",
     "goleak",
@@ -44,6 +45,8 @@
     "retrier",
     "sdkproto",
     "stretchr",
+    "tfexec",
+    "tfstate",
     "unconvert",
     "xerrors",
     "yamux"

@@ -27,6 +27,7 @@ type WorkspaceHistory struct {
 	ProjectHistoryID uuid.UUID                    `json:"project_history_id"`
 	BeforeID         uuid.UUID                    `json:"before_id"`
 	AfterID          uuid.UUID                    `json:"after_id"`
+	Name             string                       `json:"name"`
 	Transition       database.WorkspaceTransition `json:"transition"`
 	Initiator        string                       `json:"initiator"`
 	Provision        ProvisionerJob               `json:"provision"`
@@ -144,7 +145,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		}
 
 		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
-			ID:               uuid.New(),
+			ID:               workspaceHistoryID,
 			CreatedAt:        database.Now(),
 			UpdatedAt:        database.Now(),
 			WorkspaceID:      workspace.ID,
@@ -242,6 +243,7 @@ func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory, provisi
 		ProjectHistoryID: workspaceHistory.ProjectHistoryID,
 		BeforeID:         workspaceHistory.BeforeID.UUID,
 		AfterID:          workspaceHistory.AfterID.UUID,
+		Name:             workspaceHistory.Name,
 		Transition:       workspaceHistory.Transition,
 		Initiator:        workspaceHistory.Initiator,
 		Provision:        convertProvisionerJob(provisionerJob),

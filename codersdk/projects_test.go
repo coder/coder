@@ -71,7 +71,7 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("UnauthenticatedHistorys", func(t *testing.T) {
+	t.Run("UnauthenticatedHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		_, err := server.Client.ListProjectHistory(context.Background(), "org", "project")

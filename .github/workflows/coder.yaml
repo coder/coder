@@ -151,7 +151,6 @@ jobs:
       - run: go install gotest.tools/gotestsum@latest
 
       - uses: hashicorp/setup-terraform@v1
-        if: runner.os == 'Linux'
         with:
           terraform_version: 1.1.2
           terraform_wrapper: false

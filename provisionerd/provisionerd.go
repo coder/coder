@@ -239,7 +239,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 		return
 	}
 
-	err := os.MkdirAll(p.opts.WorkDirectory, 0600)
+	err := os.MkdirAll(p.opts.WorkDirectory, 0700)
 	if err != nil {
 		p.cancelActiveJob(fmt.Sprintf("create work directory %q: %s", p.opts.WorkDirectory, err))
 		return
@@ -277,7 +277,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 		case tar.TypeReg:
 			file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				p.cancelActiveJob(fmt.Sprintf("create file %q: %s", path, err))
+				p.cancelActiveJob(fmt.Sprintf("create file %q (mode %s): %s", path, mode, err))
 				return
 			}
 			// Max file size of 10MB.

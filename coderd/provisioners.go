@@ -19,6 +19,7 @@ const (
 	ProvisionerJobStatusPending   ProvisionerJobStatus = "pending"
 	ProvisionerJobStatusRunning   ProvisionerJobStatus = "running"
 	ProvisionerJobStatusSucceeded ProvisionerJobStatus = "succeeded"
+	ProvisionerJobStatusCancelled ProvisionerJobStatus = "canceled"
 	ProvisionerJobStatusFailed    ProvisionerJobStatus = "failed"
 )
 
@@ -41,6 +42,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 		Error:       provisionerJob.Error.String,
 		Provisioner: provisionerJob.Provisioner,
 	}
+	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {
 		job.StartedAt = &provisionerJob.StartedAt.Time
 	}
@@ -56,7 +58,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 
 	switch {
 	case provisionerJob.CancelledAt.Valid:
-		job.Status = ProvisionerJobStatusFailed
+		job.Status = ProvisionerJobStatusCancelled
 	case !provisionerJob.StartedAt.Valid:
 		job.Status = ProvisionerJobStatusPending
 	case provisionerJob.CompletedAt.Valid:
@@ -66,6 +68,10 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 		job.Error = "Worker failed to update job in time."
 	default:
 		job.Status = ProvisionerJobStatusRunning
+	}
+
+	if job.Error != "" {
+		job.Status = ProvisionerJobStatusFailed
 	}
 
 	return job

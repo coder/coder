@@ -36,13 +36,18 @@ func TestWorkspaceHistory(t *testing.T) {
 	setupProjectHistory := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project, files map[string]string) coderd.ProjectHistory {
 		var buffer bytes.Buffer
 		writer := tar.NewWriter(&buffer)
-		err := writer.WriteHeader(&tar.Header{
-			Name: "file",
-			Size: 1 << 10,
-		})
+		for path, content := range files {
+			err := writer.WriteHeader(&tar.Header{
+				Name: path,
+				Size: int64(len(content)),
+			})
+			require.NoError(t, err)
+			_, err = writer.Write([]byte(content))
+			require.NoError(t, err)
+		}
+		err := writer.Flush()
 		require.NoError(t, err)
-		_, err = writer.Write(make([]byte, 1<<10))
-		require.NoError(t, err)
+
 		projectHistory, err := client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
@@ -65,7 +70,9 @@ func TestWorkspaceHistory(t *testing.T) {
 		history, err := server.Client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
 		require.Len(t, history, 0)
-		projectVersion := setupProjectHistory(t, server.Client, user, project, map[string]string{})
+		projectVersion := setupProjectHistory(t, server.Client, user, project, map[string]string{
+			"example": "file",
+		})
 		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
@@ -84,7 +91,9 @@ func TestWorkspaceHistory(t *testing.T) {
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		_, err := server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
 		require.Error(t, err)
-		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{})
+		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{
+			"some": "file",
+		})
 		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectHistory.ID,
 			Transition:       database.WorkspaceTransitionCreate,
@@ -100,12 +109,23 @@ func TestWorkspaceHistory(t *testing.T) {
 		_ = server.AddProvisionerd(t)
 		user := server.RandomInitialUser(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{})
+		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{
+			"main.tf": `resource "null_resource" "example" {}`,
+		})
 		_, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectHistory.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
 		require.NoError(t, err)
+
+		var workspaceHistory coderd.WorkspaceHistory
+		require.Eventually(t, func() bool {
+			workspaceHistory, err = server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
+			require.NoError(t, err)
+			return workspaceHistory.Provision.Status.Completed()
+		}, 5*time.Second, 50*time.Millisecond)
+		require.Equal(t, "", workspaceHistory.Provision.Error)
+		require.Equal(t, coderd.ProvisionerJobStatusSucceeded, workspaceHistory.Provision.Status)
 	})
 
 	t.Run("CreateHistoryAlreadyInProgress", func(t *testing.T) {
@@ -114,7 +134,9 @@ func TestWorkspaceHistory(t *testing.T) {
 		_ = server.AddProvisionerd(t)
 		user := server.RandomInitialUser(t)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{})
+		projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{
+			"some": "content",
+		})
 
 		_, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectHistoryID: projectHistory.ID,

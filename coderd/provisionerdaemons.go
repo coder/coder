@@ -33,6 +33,7 @@ func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
+		daemons = []database.ProvisionerDaemon{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -76,9 +77,10 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 	}
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
-		ID:       daemon.ID,
-		Database: api.Database,
-		Pubsub:   api.Pubsub,
+		ID:           daemon.ID,
+		Database:     api.Database,
+		Pubsub:       api.Pubsub,
+		Provisioners: daemon.Provisioners,
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("drpc register provisioner daemon: %s", err))
@@ -103,9 +105,10 @@ type projectImportJob struct {
 
 // Implementation of the provisioner daemon protobuf server.
 type provisionerdServer struct {
-	ID       uuid.UUID
-	Database database.Store
-	Pubsub   database.Pubsub
+	ID           uuid.UUID
+	Provisioners []database.ProvisionerType
+	Database     database.Store
+	Pubsub       database.Pubsub
 }
 
 // AcquireJob queries the database to lock a job.
@@ -120,7 +123,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			UUID:  server.ID,
 			Valid: true,
 		},
-		Types: []database.ProvisionerType{database.ProvisionerTypeTerraform},
+		Types: server.Provisioners,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		// The provisioner daemon assumes no jobs are available if
