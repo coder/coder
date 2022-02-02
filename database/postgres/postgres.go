@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"time"
 
@@ -22,6 +23,13 @@ func Open() (string, func(), error) {
 	if err != nil {
 		return "", nil, xerrors.Errorf("create tempdir: %w", err)
 	}
+	// Pick an explicit port on the host to connect to 5432.
+	// This is necessary so we can configure the port to only use ipv4.
+	port, err := getFreePort()
+	if err != nil {
+		return "", nil, xerrors.Errorf("Unable to get free port: %w", err)
+	}
+
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "postgres",
 		Tag:        "11",
@@ -32,6 +40,15 @@ func Open() (string, func(), error) {
 			// The location for temporary database files!
 			"PGDATA=/tmp",
 			"listen_addresses = '*'",
+		},
+		PortBindings: map[docker.Port][]docker.PortBinding{
+			"5432/tcp": {{
+				// Manually specifying a host IP tells Docker just to use an IPV4 address.
+				// If we don't do this, we hit a fun bug:
+				// https://github.com/moby/moby/issues/42442
+				// where the ipv4 and ipv6 ports might be _different_ and collide with other running docker containers.
+				HostIP:   "0.0.0.0",
+				HostPort: fmt.Sprintf("%d", port)}},
 		},
 		Mounts: []string{
 			// The postgres image has a VOLUME parameter in it's image.
@@ -75,4 +92,17 @@ func Open() (string, func(), error) {
 		_ = pool.Purge(resource)
 		_ = os.RemoveAll(tempDir)
 	}, nil
+}
+
+// getFreePort asks the kernel for a free open port that is ready to use.
+func getFreePort() (port int, err error) {
+	// Binding to port 0 tells the OS to grab a port for us:
+	// https://stackoverflow.com/questions/1365265/on-localhost-how-do-i-pick-a-free-port-number
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+
+	defer listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port, nil
 }

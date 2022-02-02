@@ -94,7 +94,7 @@ func TestProjects(t *testing.T) {
 	t.Run("CreateVersionUnauthenticated", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_, err := server.Client.CreateProjectHistory(context.Background(), "org", "project", coderd.CreateProjectVersionRequest{
+		_, err := server.Client.CreateProjectHistory(context.Background(), "org", "project", coderd.CreateProjectHistoryRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: []byte{},
 		})
@@ -119,7 +119,7 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<10))
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})

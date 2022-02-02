@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -30,12 +29,12 @@ func TestParse(t *testing.T) {
 	go func() {
 		err := Serve(ctx, &ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
-				Transport: server,
+				Listener: server,
 			},
 		})
 		require.NoError(t, err)
 	}()
-	api := proto.NewDRPCProvisionerClient(drpcconn.New(client))
+	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 
 	for _, testCase := range []struct {
 		Name     string
@@ -49,10 +48,14 @@ func TestParse(t *testing.T) {
 			}`,
 		},
 		Response: &proto.Parse_Response{
-			ParameterSchemas: []*proto.ParameterSchema{{
-				Name:        "A",
-				Description: "Testing!",
-			}},
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{{
+						Name:        "A",
+						Description: "Testing!",
+					}},
+				},
+			},
 		},
 	}, {
 		Name: "default-variable-value",
@@ -62,17 +65,21 @@ func TestParse(t *testing.T) {
 			}`,
 		},
 		Response: &proto.Parse_Response{
-			ParameterSchemas: []*proto.ParameterSchema{{
-				Name: "A",
-				DefaultSource: &proto.ParameterSource{
-					Scheme: proto.ParameterSource_DATA,
-					Value:  "\"wow\"",
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{{
+						Name: "A",
+						DefaultSource: &proto.ParameterSource{
+							Scheme: proto.ParameterSource_DATA,
+							Value:  "\"wow\"",
+						},
+						DefaultDestination: &proto.ParameterDestination{
+							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							Value:  "A",
+						},
+					}},
 				},
-				DefaultDestination: &proto.ParameterDestination{
-					Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-					Value:  "A",
-				},
-			}},
+			},
 		},
 	}, {
 		Name: "variable-validation",
@@ -84,10 +91,15 @@ func TestParse(t *testing.T) {
 			}`,
 		},
 		Response: &proto.Parse_Response{
-			ParameterSchemas: []*proto.ParameterSchema{{
-				Name:                "A",
-				ValidationCondition: `var.A == "value"`,
-			}},
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{{
+						Name:                "A",
+						ValidationCondition: `var.A == "value"`,
+					},
+					},
+				},
+			},
 		},
 	}} {
 		testCase := testCase
@@ -106,13 +118,23 @@ func TestParse(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// Ensure the want and got are equivalent!
-			want, err := json.Marshal(testCase.Response)
-			require.NoError(t, err)
-			got, err := json.Marshal(response)
-			require.NoError(t, err)
+			for {
+				msg, err := response.Recv()
+				require.NoError(t, err)
 
-			require.Equal(t, string(want), string(got))
+				if msg.GetComplete() == nil {
+					continue
+				}
+
+				// Ensure the want and got are equivalent!
+				want, err := json.Marshal(testCase.Response)
+				require.NoError(t, err)
+				got, err := json.Marshal(msg)
+				require.NoError(t, err)
+
+				require.Equal(t, string(want), string(got))
+				break
+			}
 		})
 	}
 }

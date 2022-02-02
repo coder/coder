@@ -34,7 +34,7 @@ updates:
       prefix: "chore"
 
   - package-ecosystem: "npm"
-    directory: "/"
+    directory: "/site/"
     schedule:
       interval: "daily"
       time: "06:00"
