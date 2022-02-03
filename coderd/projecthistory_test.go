@@ -25,7 +25,7 @@ func TestProjectHistory(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		versions, err := server.Client.ProjectHistory(context.Background(), user.Organization, project.Name)
+		versions, err := server.Client.ListProjectHistory(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, versions, 0)
 	})
@@ -48,14 +48,17 @@ func TestProjectHistory(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<10))
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+		history, err := server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})
 		require.NoError(t, err)
-		versions, err := server.Client.ProjectHistory(context.Background(), user.Organization, project.Name)
+		versions, err := server.Client.ListProjectHistory(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, versions, 1)
+
+		_, err = server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
+		require.NoError(t, err)
 	})
 
 	t.Run("CreateHistoryArchiveTooBig", func(t *testing.T) {

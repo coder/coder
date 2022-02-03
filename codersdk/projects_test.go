@@ -71,14 +71,14 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("UnauthenticatedVersions", func(t *testing.T) {
+	t.Run("UnauthenticatedHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_, err := server.Client.ProjectHistory(context.Background(), "org", "project")
+		_, err := server.Client.ListProjectHistory(context.Background(), "org", "project")
 		require.Error(t, err)
 	})
 
-	t.Run("Versions", func(t *testing.T) {
+	t.Run("History", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
@@ -87,11 +87,11 @@ func TestProjects(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.ProjectHistory(context.Background(), user.Organization, project.Name)
+		_, err = server.Client.ListProjectHistory(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
 
-	t.Run("CreateVersionUnauthenticated", func(t *testing.T) {
+	t.Run("CreateHistoryUnauthenticated", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		_, err := server.Client.CreateProjectHistory(context.Background(), "org", "project", coderd.CreateProjectHistoryRequest{
@@ -101,7 +101,7 @@ func TestProjects(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("CreateVersion", func(t *testing.T) {
+	t.Run("CreateHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
@@ -119,10 +119,13 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<10))
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+		history, err := server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})
+		require.NoError(t, err)
+
+		_, err = server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
 		require.NoError(t, err)
 	})
 }
