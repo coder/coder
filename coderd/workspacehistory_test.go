@@ -123,7 +123,7 @@ func TestWorkspaceHistory(t *testing.T) {
 			workspaceHistory, err = server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
 			require.NoError(t, err)
 			return workspaceHistory.Provision.Status.Completed()
-		}, 5*time.Second, 50*time.Millisecond)
+		}, 15*time.Second, 50*time.Millisecond)
 		require.Equal(t, "", workspaceHistory.Provision.Error)
 		require.Equal(t, coderd.ProvisionerJobStatusSucceeded, workspaceHistory.Provision.Status)
 	})
