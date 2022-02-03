@@ -145,6 +145,10 @@ func (c *Conn) init() error {
 
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
+		if c.isClosed() {
+			return
+		}
+
 		c.opts.Logger.Debug(context.Background(), "ice connection state updated",
 			slog.F("state", iceConnectionState))
 

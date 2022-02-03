@@ -142,4 +142,35 @@ func TestWorkspaceHistoryParam(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
+
+	t.Run("WorkspaceHistoryLatest", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		rtr := chi.NewRouter()
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractUserParam(db),
+			httpmw.ExtractWorkspaceParam(db),
+			httpmw.ExtractWorkspaceHistoryParam(db),
+		)
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			_ = httpmw.WorkspaceHistoryParam(r)
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		r, workspace := setupAuthentication(db)
+		_, err := db.InsertWorkspaceHistory(context.Background(), database.InsertWorkspaceHistoryParams{
+			ID:          uuid.New(),
+			WorkspaceID: workspace.ID,
+			Name:        "moo",
+		})
+		require.NoError(t, err)
+		chi.RouteContext(r.Context()).URLParams.Add("workspacehistory", "latest")
+		rw := httptest.NewRecorder()
+		rtr.ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
 }
