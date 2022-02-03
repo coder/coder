@@ -64,6 +64,10 @@ func New(options *Options) http.Handler {
 					r.Route("/history", func(r chi.Router) {
 						r.Get("/", api.projectHistoryByOrganization)
 						r.Post("/", api.postProjectHistoryByOrganization)
+						r.Route("/{projecthistory}", func(r chi.Router) {
+							r.Use(httpmw.ExtractProjectHistoryParam(api.Database))
+							r.Get("/", api.projectHistoryByOrganizationAndName)
+						})
 					})
 				})
 			})
@@ -84,10 +88,18 @@ func New(options *Options) http.Handler {
 					r.Route("/history", func(r chi.Router) {
 						r.Post("/", api.postWorkspaceHistoryByUser)
 						r.Get("/", api.workspaceHistoryByUser)
-						r.Get("/latest", api.latestWorkspaceHistoryByUser)
+						r.Route("/{workspacehistory}", func(r chi.Router) {
+							r.Use(httpmw.ExtractWorkspaceHistoryParam(options.Database))
+							r.Get("/", api.workspaceHistoryByName)
+						})
 					})
 				})
 			})
+		})
+
+		r.Route("/provisioners/daemons", func(r chi.Router) {
+			r.Get("/", api.provisionerDaemons)
+			r.Get("/serve", api.provisionerDaemonsServe)
 		})
 	})
 	r.NotFound(site.Handler().ServeHTTP)

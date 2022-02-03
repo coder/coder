@@ -16,4 +16,5 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 	server := coderdtest.New(t)
 	_ = server.RandomInitialUser(t)
+	_ = server.AddProvisionerd(t)
 }
