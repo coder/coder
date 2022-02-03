@@ -79,8 +79,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: "^1.17"
-      - run:
-          curl -sSL
+      - run: curl -sSL
           https://github.com/kyleconroy/sqlc/releases/download/v1.11.0/sqlc_1.11.0_linux_amd64.tar.gz
           | sudo tar -C /usr/bin -xz sqlc
 
@@ -128,8 +127,7 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          # Temporarily disable, to use special PION logging
-          # - windows-latest
+          - windows-latest
     steps:
       - uses: actions/checkout@v2
 
@@ -158,17 +156,15 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with Mock Database
-        run:
-          PION_LOG_TRACE=dtls,ice,pc PIONS_LOG_INFO=all gotestsum --jsonfile="gotests.json" --packages="./..." --
+        run: gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=10 -race -short -parallel=2
+          -count=5 -race -short -parallel=2
 
-      #- name: Test with PostgreSQL Database
-      #  if: runner.os == 'Linux'
-      #  run:
-      #    DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
-      #    -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-      #    -count=1 -race -parallel=2
+      - name: Test with PostgreSQL Database
+        if: runner.os == 'Linux'
+        run: DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+          -count=1 -race -parallel=2
 
       - uses: codecov/codecov-action@v2
         if: github.actor != 'dependabot[bot]'
