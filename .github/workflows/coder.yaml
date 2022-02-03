@@ -79,8 +79,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: "^1.17"
-      - run:
-          curl -sSL
+      - run: curl -sSL
           https://github.com/kyleconroy/sqlc/releases/download/v1.11.0/sqlc_1.11.0_linux_amd64.tar.gz
           | sudo tar -C /usr/bin -xz sqlc
 
@@ -156,15 +155,13 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with Mock Database
-        run:
-          gotestsum --jsonfile="gotests.json" --packages="./..." --
+        run: gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=3 -race -short -parallel=2
+          -count=5 -race -short -parallel=2
 
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
-        run:
-          DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
+        run: DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=1 -race -parallel=2
 
