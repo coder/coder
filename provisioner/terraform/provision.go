@@ -38,6 +38,12 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 		return xerrors.Errorf("terraform version %q is too old. required >= %q", version.String(), minimumTerraformVersion.String())
 	}
 
+	env := map[string]string{
+		// Makes sequential runs significantly faster.
+		// https://github.com/hashicorp/terraform/blob/d35bc0531255b496beb5d932f185cbcdb2d61a99/internal/command/cliconfig/cliconfig.go#L24
+		"TF_PLUGIN_CACHE_DIR": os.ExpandEnv("$HOME/.terraform.d/plugin-cache"),
+	}
+
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
@@ -55,12 +61,13 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 		}
 	}()
 	terraform.SetStdout(writer)
+	t.logger.Debug(ctx, "running initialization")
 	err = terraform.Init(ctx)
 	if err != nil {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
+	t.logger.Debug(ctx, "ran initialization")
 
-	env := map[string]string{}
 	options := []tfexec.ApplyOption{tfexec.JSON(true)}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {
@@ -124,10 +131,12 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 	}()
 
 	terraform.SetStdout(writer)
+	t.logger.Debug(ctx, "running apply")
 	err = terraform.Apply(ctx, options...)
 	if err != nil {
 		return xerrors.Errorf("apply terraform: %w", err)
 	}
+	t.logger.Debug(ctx, "ran apply")
 
 	statefileContent, err := os.ReadFile(statefilePath)
 	if err != nil {

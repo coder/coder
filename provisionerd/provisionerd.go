@@ -16,6 +16,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/hashicorp/yamux"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -32,15 +34,19 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 type Options struct {
 	Logger slog.Logger
 
-	PollInterval  time.Duration
-	Provisioners  Provisioners
-	WorkDirectory string
+	UpdateInterval time.Duration
+	PollInterval   time.Duration
+	Provisioners   Provisioners
+	WorkDirectory  string
 }
 
 // New creates and starts a provisioner daemon.
 func New(clientDialer Dialer, opts *Options) io.Closer {
 	if opts.PollInterval == 0 {
 		opts.PollInterval = 5 * time.Second
+	}
+	if opts.UpdateInterval == 0 {
+		opts.UpdateInterval = 5 * time.Second
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &provisionerDaemon{
@@ -84,10 +90,10 @@ type provisionerDaemon struct {
 	acquiredJobCancel    context.CancelFunc
 	acquiredJobCancelled atomic.Bool
 	acquiredJobRunning   atomic.Bool
-	acquiredJobDone      chan struct{}
+	acquiredJobGroup     sync.WaitGroup
 }
 
-// Connnect establishes a connection to coderd.
+// Connect establishes a connection to coderd.
 func (p *provisionerDaemon) connect(ctx context.Context) {
 	p.connectMutex.Lock()
 	defer p.connectMutex.Unlock()
@@ -98,7 +104,9 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		p.client, err = p.clientDialer(ctx)
 		if err != nil {
-			// Warn
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
@@ -135,7 +143,7 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-p.closed:
+			case <-ctx.Done():
 				return
 			case <-p.updateStream.Context().Done():
 				return
@@ -160,6 +168,9 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 		if errors.Is(err, context.Canceled) {
 			return
 		}
+		if errors.Is(err, yamux.ErrSessionShutdown) {
+			return
+		}
 		p.opts.Logger.Warn(context.Background(), "acquire job", slog.Error(err))
 		return
 	}
@@ -173,7 +184,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	ctx, p.acquiredJobCancel = context.WithCancel(ctx)
 	p.acquiredJobCancelled.Store(false)
 	p.acquiredJobRunning.Store(true)
-	p.acquiredJobDone = make(chan struct{})
+	p.acquiredJobGroup.Add(1)
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
 		slog.F("organization_name", p.acquiredJob.OrganizationName),
@@ -190,12 +201,30 @@ func (p *provisionerDaemon) isRunningJob() bool {
 }
 
 func (p *provisionerDaemon) runJob(ctx context.Context) {
+	// Prevents p.updateStream from being accessed and
+	// written to at the same time.
+	p.connectMutex.Lock()
+	defer p.connectMutex.Unlock()
+
 	go func() {
+		ticker := time.NewTicker(p.opts.UpdateInterval)
+		defer ticker.Stop()
 		select {
 		case <-p.closed:
+			return
 		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := p.updateStream.Send(&proto.JobUpdate{
+				JobId: p.acquiredJob.JobId,
+			})
+			if err != nil {
+				p.cancelActiveJob(fmt.Sprintf("send periodic update: %s", err))
+				return
+			}
 		}
-
+	}()
+	defer func() {
 		// Cleanup the work directory after execution.
 		err := os.RemoveAll(p.opts.WorkDirectory)
 		if err != nil {
@@ -206,7 +235,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 		p.acquiredJobMutex.Lock()
 		defer p.acquiredJobMutex.Unlock()
 		p.acquiredJobRunning.Store(false)
-		close(p.acquiredJobDone)
+		p.acquiredJobGroup.Done()
 	}()
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
 	provisioner, hasProvisioner := p.opts.Provisioners[p.acquiredJob.Provisioner]
@@ -215,7 +244,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 		return
 	}
 
-	err := os.MkdirAll(p.opts.WorkDirectory, 0600)
+	err := os.MkdirAll(p.opts.WorkDirectory, 0700)
 	if err != nil {
 		p.cancelActiveJob(fmt.Sprintf("create work directory %q: %s", p.opts.WorkDirectory, err))
 		return
@@ -253,7 +282,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 		case tar.TypeReg:
 			file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				p.cancelActiveJob(fmt.Sprintf("create file %q: %s", path, err))
+				p.cancelActiveJob(fmt.Sprintf("create file %q (mode %s): %s", path, mode, err))
 				return
 			}
 			// Max file size of 10MB.
@@ -433,6 +462,9 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 }
 
 func (p *provisionerDaemon) cancelActiveJob(errMsg string) {
+	if p.isClosed() {
+		return
+	}
 	if !p.isRunningJob() {
 		p.opts.Logger.Warn(context.Background(), "skipping job cancel; none running", slog.F("error_message", errMsg))
 		return
@@ -488,7 +520,7 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 		if !p.acquiredJobCancelled.Load() {
 			p.cancelActiveJob(errMsg)
 		}
-		<-p.acquiredJobDone
+		p.acquiredJobGroup.Wait()
 	}
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
@@ -496,6 +528,8 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 	close(p.closed)
 	p.closeCancel()
 
+	p.connectMutex.Lock()
+	defer p.connectMutex.Unlock()
 	if p.updateStream != nil {
 		_ = p.client.DRPCConn().Close()
 		_ = p.updateStream.Close()

@@ -57,8 +57,8 @@ func (c *Client) CreateProject(ctx context.Context, organization string, request
 	return project, json.NewDecoder(res.Body).Decode(&project)
 }
 
-// ProjectHistory lists history for a project.
-func (c *Client) ProjectHistory(ctx context.Context, organization, project string) ([]coderd.ProjectHistory, error) {
+// ListProjectHistory lists history for a project.
+func (c *Client) ListProjectHistory(ctx context.Context, organization, project string) ([]coderd.ProjectHistory, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history", organization, project), nil)
 	if err != nil {
 		return nil, err
@@ -67,8 +67,22 @@ func (c *Client) ProjectHistory(ctx context.Context, organization, project strin
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var projectVersions []coderd.ProjectHistory
-	return projectVersions, json.NewDecoder(res.Body).Decode(&projectVersions)
+	var projectHistory []coderd.ProjectHistory
+	return projectHistory, json.NewDecoder(res.Body).Decode(&projectHistory)
+}
+
+// ProjectHistory returns project history by name.
+func (c *Client) ProjectHistory(ctx context.Context, organization, project, history string) (coderd.ProjectHistory, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history/%s", organization, project, history), nil)
+	if err != nil {
+		return coderd.ProjectHistory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.ProjectHistory{}, readBodyAsError(res)
+	}
+	var projectHistory coderd.ProjectHistory
+	return projectHistory, json.NewDecoder(res.Body).Decode(&projectHistory)
 }
 
 // CreateProjectHistory inserts a new version for the project.
