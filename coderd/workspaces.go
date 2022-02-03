@@ -149,20 +149,3 @@ func (*api) workspaceByUser(rw http.ResponseWriter, r *http.Request) {
 func convertWorkspace(workspace database.Workspace) Workspace {
 	return Workspace(workspace)
 }
-
-// Converts the internal history representation to a public external-facing model.
-func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory) WorkspaceHistory {
-	//nolint:unconvert
-	return WorkspaceHistory(WorkspaceHistory{
-		ID:               workspaceHistory.ID,
-		CreatedAt:        workspaceHistory.CreatedAt,
-		UpdatedAt:        workspaceHistory.UpdatedAt,
-		CompletedAt:      workspaceHistory.CompletedAt.Time,
-		WorkspaceID:      workspaceHistory.WorkspaceID,
-		ProjectHistoryID: workspaceHistory.ProjectHistoryID,
-		BeforeID:         workspaceHistory.BeforeID.UUID,
-		AfterID:          workspaceHistory.AfterID.UUID,
-		Transition:       workspaceHistory.Transition,
-		Initiator:        workspaceHistory.Initiator,
-	})
-}
