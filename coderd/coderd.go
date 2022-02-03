@@ -22,6 +22,7 @@ type Options struct {
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
 	api := &api{
+		Logger:   options.Logger,
 		Database: options.Database,
 		Pubsub:   options.Pubsub,
 	}
@@ -71,6 +72,7 @@ func New(options *Options) http.Handler {
 						r.Route("/{projecthistory}", func(r chi.Router) {
 							r.Use(httpmw.ExtractProjectHistoryParam(api.Database))
 							r.Get("/", api.projectHistoryByOrganizationAndName)
+							r.Get("/parameters", api.projectHistoryParametersByOrganizationAndName)
 						})
 					})
 				})
@@ -95,6 +97,7 @@ func New(options *Options) http.Handler {
 						r.Route("/{workspacehistory}", func(r chi.Router) {
 							r.Use(httpmw.ExtractWorkspaceHistoryParam(options.Database))
 							r.Get("/", api.workspaceHistoryByName)
+							r.Get("/logs", api.workspaceHistoryLogsByName)
 						})
 					})
 				})
@@ -113,6 +116,7 @@ func New(options *Options) http.Handler {
 // API contains all route handlers. Only HTTP handlers should
 // be added to this struct for code clarity.
 type api struct {
+	Logger   slog.Logger
 	Database database.Store
 	Pubsub   database.Pubsub
 }

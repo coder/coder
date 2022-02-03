@@ -99,6 +99,20 @@ func (c *Client) CreateProjectHistory(ctx context.Context, organization, project
 	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
 }
 
+// ProjectHistoryParameters returns project parameters for history by name.
+func (c *Client) ProjectHistoryParameters(ctx context.Context, organization, project, history string) ([]coderd.ProjectParameter, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history/%s/parameters", organization, project, history), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var params []coderd.ProjectParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
+}
+
 // ProjectParameters returns parameters scoped to a project.
 func (c *Client) ProjectParameters(ctx context.Context, organization, project string) ([]coderd.ParameterValue, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/parameters", organization, project), nil)

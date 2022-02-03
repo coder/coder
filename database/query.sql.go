@@ -450,25 +450,29 @@ func (q *sqlQuerier) GetProjectHistoryByProjectIDAndName(ctx context.Context, ar
 	return i, err
 }
 
-const getProjectHistoryLogsByIDBefore = `-- name: GetProjectHistoryLogsByIDBefore :many
+const getProjectHistoryLogsByIDBetween = `-- name: GetProjectHistoryLogsByIDBetween :many
 SELECT
   id, project_history_id, created_at, source, level, output
 FROM
   project_history_log
 WHERE
   project_history_id = $1
-  AND created_at <= $2
+  AND (
+    created_at >= $2
+    OR created_at <= $3
+  )
 ORDER BY
   created_at
 `
 
-type GetProjectHistoryLogsByIDBeforeParams struct {
+type GetProjectHistoryLogsByIDBetweenParams struct {
 	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	CreatedAfter     time.Time `db:"created_after" json:"created_after"`
+	CreatedBefore    time.Time `db:"created_before" json:"created_before"`
 }
 
-func (q *sqlQuerier) GetProjectHistoryLogsByIDBefore(ctx context.Context, arg GetProjectHistoryLogsByIDBeforeParams) ([]ProjectHistoryLog, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectHistoryLogsByIDBefore, arg.ProjectHistoryID, arg.CreatedAt)
+func (q *sqlQuerier) GetProjectHistoryLogsByIDBetween(ctx context.Context, arg GetProjectHistoryLogsByIDBetweenParams) ([]ProjectHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectHistoryLogsByIDBetween, arg.ProjectHistoryID, arg.CreatedAfter, arg.CreatedBefore)
 	if err != nil {
 		return nil, err
 	}
@@ -1007,25 +1011,29 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(ctx context.Co
 	return i, err
 }
 
-const getWorkspaceHistoryLogsByIDBefore = `-- name: GetWorkspaceHistoryLogsByIDBefore :many
+const getWorkspaceHistoryLogsByIDBetween = `-- name: GetWorkspaceHistoryLogsByIDBetween :many
 SELECT
   id, workspace_history_id, created_at, source, level, output
 FROM
   workspace_history_log
 WHERE
   workspace_history_id = $1
-  AND created_at <= $2
+  AND (
+    created_at >= $2
+    OR created_at <= $3
+  )
 ORDER BY
   created_at
 `
 
-type GetWorkspaceHistoryLogsByIDBeforeParams struct {
+type GetWorkspaceHistoryLogsByIDBetweenParams struct {
 	WorkspaceHistoryID uuid.UUID `db:"workspace_history_id" json:"workspace_history_id"`
-	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	CreatedAfter       time.Time `db:"created_after" json:"created_after"`
+	CreatedBefore      time.Time `db:"created_before" json:"created_before"`
 }
 
-func (q *sqlQuerier) GetWorkspaceHistoryLogsByIDBefore(ctx context.Context, arg GetWorkspaceHistoryLogsByIDBeforeParams) ([]WorkspaceHistoryLog, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceHistoryLogsByIDBefore, arg.WorkspaceHistoryID, arg.CreatedAt)
+func (q *sqlQuerier) GetWorkspaceHistoryLogsByIDBetween(ctx context.Context, arg GetWorkspaceHistoryLogsByIDBetweenParams) ([]WorkspaceHistoryLog, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceHistoryLogsByIDBetween, arg.WorkspaceHistoryID, arg.CreatedAfter, arg.CreatedBefore)
 	if err != nil {
 		return nil, err
 	}

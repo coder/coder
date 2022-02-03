@@ -188,14 +188,17 @@ FROM
 WHERE
   id = $1;
 
--- name: GetProjectHistoryLogsByIDBefore :many
+-- name: GetProjectHistoryLogsByIDBetween :many
 SELECT
   *
 FROM
   project_history_log
 WHERE
-  project_history_id = $1
-  AND created_at <= $2
+  project_history_id = @project_history_id
+  AND (
+    created_at >= @created_after
+    OR created_at <= @created_before
+  )
 ORDER BY
   created_at;
 
@@ -295,14 +298,17 @@ WHERE
 LIMIT
   1;
 
--- name: GetWorkspaceHistoryLogsByIDBefore :many
+-- name: GetWorkspaceHistoryLogsByIDBetween :many
 SELECT
   *
 FROM
   workspace_history_log
 WHERE
-  workspace_history_id = $1
-  AND created_at <= $2
+  workspace_history_id = @workspace_history_id
+  AND (
+    created_at >= @created_after
+    OR created_at <= @created_before
+  )
 ORDER BY
   created_at;
 
