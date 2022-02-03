@@ -288,7 +288,7 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "sending offer")
+		c.opts.Logger.Debug(context.Background(), "sending offer", slog.F("offer", offer))
 		select {
 		case <-c.closed:
 			return
@@ -327,7 +327,7 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "sending answer")
+		c.opts.Logger.Debug(context.Background(), "sending answer", slog.F("answer", answer))
 		select {
 		case <-c.closed:
 			return
