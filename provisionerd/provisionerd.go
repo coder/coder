@@ -90,7 +90,7 @@ type provisionerDaemon struct {
 	acquiredJobCancel    context.CancelFunc
 	acquiredJobCancelled atomic.Bool
 	acquiredJobRunning   atomic.Bool
-	acquiredJobDone      chan struct{}
+	acquiredJobGroup     sync.WaitGroup
 }
 
 // Connect establishes a connection to coderd.
@@ -184,7 +184,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	ctx, p.acquiredJobCancel = context.WithCancel(ctx)
 	p.acquiredJobCancelled.Store(false)
 	p.acquiredJobRunning.Store(true)
-	p.acquiredJobDone = make(chan struct{})
+	p.acquiredJobGroup.Add(1)
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
 		slog.F("organization_name", p.acquiredJob.OrganizationName),
@@ -235,7 +235,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context) {
 		p.acquiredJobMutex.Lock()
 		defer p.acquiredJobMutex.Unlock()
 		p.acquiredJobRunning.Store(false)
-		close(p.acquiredJobDone)
+		p.acquiredJobGroup.Done()
 	}()
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
 	provisioner, hasProvisioner := p.opts.Provisioners[p.acquiredJob.Provisioner]
@@ -520,7 +520,7 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 		if !p.acquiredJobCancelled.Load() {
 			p.cancelActiveJob(errMsg)
 		}
-		<-p.acquiredJobDone
+		p.acquiredJobGroup.Wait()
 	}
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
