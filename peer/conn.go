@@ -65,7 +65,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		pingEchoChannelID:               2,
 		opts:                            opts,
 		rtc:                             rtc,
-		offerrer:                        client,
+		offerer:                         client,
 		closed:                          make(chan struct{}),
 		closedRTC:                       make(chan struct{}),
 		closedICE:                       make(chan struct{}),
@@ -103,7 +103,7 @@ type Conn struct {
 	rtc  *webrtc.PeerConnection
 	opts *ConnOptions
 	// Determines whether this connection will send the offer or the answer.
-	offerrer bool
+	offerer bool
 
 	closed         chan struct{}
 	closedRTC      chan struct{}
@@ -273,7 +273,7 @@ func (c *Conn) negotiate() {
 	c.hasNegotiated = true
 	defer c.negotiateMutex.Unlock()
 
-	if c.offerrer {
+	if c.offerer {
 		offer, err := c.rtc.CreateOffer(&webrtc.OfferOptions{})
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("create offer: %w", err))
@@ -312,7 +312,7 @@ func (c *Conn) negotiate() {
 		return
 	}
 
-	if !c.offerrer {
+	if !c.offerer {
 		answer, err := c.rtc.CreateAnswer(&webrtc.AnswerOptions{})
 		if err != nil {
 			_ = c.CloseWithError(xerrors.Errorf("create answer: %w", err))
