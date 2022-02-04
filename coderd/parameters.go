@@ -16,11 +16,11 @@ import (
 
 // CreateParameterValueRequest is used to create a new parameter value for a scope.
 type CreateParameterValueRequest struct {
-	Name              string                              `json:"name"`
-	SourceValue       string                              `json:"source_value"`
-	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme"`
-	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme"`
-	DestinationValue  string                              `json:"destination_value"`
+	Name              string                              `json:"name" validate:"required"`
+	SourceValue       string                              `json:"source_value" validate:"required"`
+	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
+	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
+	DestinationValue  string                              `json:"destination_value" validate:"required"`
 }
 
 // ParameterValue represents a set value for the scope.

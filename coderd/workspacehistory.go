@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/database"
@@ -155,6 +156,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			WorkspaceID:      workspace.ID,
 			ProjectHistoryID: projectHistory.ID,
 			BeforeID:         priorHistoryID,
+			Name:             namesgenerator.GetRandomName(1),
 			Initiator:        user.ID,
 			Transition:       createBuild.Transition,
 			ProvisionJobID:   provisionerJob.ID,
@@ -252,8 +254,4 @@ func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory, provisi
 		Initiator:        workspaceHistory.Initiator,
 		Provision:        convertProvisionerJob(provisionerJob),
 	})
-}
-
-func workspaceHistoryLogsChannel(workspaceHistoryID uuid.UUID) string {
-	return fmt.Sprintf("workspace-history-logs:%s", workspaceHistoryID)
 }

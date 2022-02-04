@@ -94,12 +94,18 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			if p.isClosed() {
+				return
+			}
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
 		p.updateStream, err = p.client.UpdateJob(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if p.isClosed() {
 				return
 			}
 			p.opts.Logger.Warn(context.Background(), "create update job stream", slog.Error(err))

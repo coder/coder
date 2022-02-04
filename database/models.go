@@ -75,6 +75,7 @@ func (e *LoginType) Scan(src interface{}) error {
 type ParameterDestinationScheme string
 
 const (
+	ParameterDestinationSchemeNone                ParameterDestinationScheme = "none"
 	ParameterDestinationSchemeEnvironmentVariable ParameterDestinationScheme = "environment_variable"
 	ParameterDestinationSchemeProvisionerVariable ParameterDestinationScheme = "provisioner_variable"
 )
@@ -115,6 +116,7 @@ func (e *ParameterScope) Scan(src interface{}) error {
 type ParameterSourceScheme string
 
 const (
+	ParameterSourceSchemeNone ParameterSourceScheme = "none"
 	ParameterSourceSchemeData ParameterSourceScheme = "data"
 )
 
@@ -133,7 +135,8 @@ func (e *ParameterSourceScheme) Scan(src interface{}) error {
 type ParameterTypeSystem string
 
 const (
-	ParameterTypeSystemHCL ParameterTypeSystem = "hcl"
+	ParameterTypeSystemNone ParameterTypeSystem = "none"
+	ParameterTypeSystemHCL  ParameterTypeSystem = "hcl"
 )
 
 func (e *ParameterTypeSystem) Scan(src interface{}) error {

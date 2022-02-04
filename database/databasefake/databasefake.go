@@ -224,7 +224,7 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(_ context.Con
 	return database.WorkspaceHistory{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceHistoryLogsByIDBefore(_ context.Context, arg database.GetWorkspaceHistoryLogsByIDBeforeParams) ([]database.WorkspaceHistoryLog, error) {
+func (q *fakeQuerier) GetWorkspaceHistoryLogsByIDBetween(_ context.Context, arg database.GetWorkspaceHistoryLogsByIDBetweenParams) ([]database.WorkspaceHistoryLog, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -233,7 +233,10 @@ func (q *fakeQuerier) GetWorkspaceHistoryLogsByIDBefore(_ context.Context, arg d
 		if workspaceHistoryLog.WorkspaceHistoryID.String() != arg.WorkspaceHistoryID.String() {
 			continue
 		}
-		if workspaceHistoryLog.CreatedAt.After(arg.CreatedAt) {
+		if workspaceHistoryLog.CreatedAt.After(arg.CreatedBefore) {
+			continue
+		}
+		if workspaceHistoryLog.CreatedAt.Before(arg.CreatedAfter) {
 			continue
 		}
 		logs = append(logs, workspaceHistoryLog)
@@ -440,7 +443,7 @@ func (q *fakeQuerier) GetProjectHistoryByProjectIDAndName(_ context.Context, arg
 	return database.ProjectHistory{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectHistoryLogsByIDBefore(_ context.Context, arg database.GetProjectHistoryLogsByIDBeforeParams) ([]database.ProjectHistoryLog, error) {
+func (q *fakeQuerier) GetProjectHistoryLogsByIDBetween(_ context.Context, arg database.GetProjectHistoryLogsByIDBetweenParams) ([]database.ProjectHistoryLog, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -449,7 +452,10 @@ func (q *fakeQuerier) GetProjectHistoryLogsByIDBefore(_ context.Context, arg dat
 		if projectHistoryLog.ProjectHistoryID.String() != arg.ProjectHistoryID.String() {
 			continue
 		}
-		if projectHistoryLog.CreatedAt.After(arg.CreatedAt) {
+		if projectHistoryLog.CreatedAt.After(arg.CreatedBefore) {
+			continue
+		}
+		if projectHistoryLog.CreatedAt.Before(arg.CreatedAfter) {
 			continue
 		}
 		logs = append(logs, projectHistoryLog)

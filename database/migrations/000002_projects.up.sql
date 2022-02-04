@@ -46,13 +46,13 @@ CREATE TABLE project_history (
 );
 
 -- Types of parameters the automator supports.
-CREATE TYPE parameter_type_system AS ENUM ('hcl');
+CREATE TYPE parameter_type_system AS ENUM ('none', 'hcl');
 
 -- Supported schemes for a parameter source.
-CREATE TYPE parameter_source_scheme AS ENUM('data');
+CREATE TYPE parameter_source_scheme AS ENUM('none', 'data');
 
 -- Supported schemes for a parameter destination.
-CREATE TYPE parameter_destination_scheme AS ENUM('environment_variable', 'provisioner_variable');
+CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable', 'provisioner_variable');
 
 -- Stores project version parameters parsed on import.
 -- No secrets are stored here.

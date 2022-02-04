@@ -1,8 +1,11 @@
 package coderd_test
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -123,5 +126,43 @@ func TestProjects(t *testing.T) {
 			DestinationValue:  "moo",
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("Import", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		_ = server.AddProvisionerd(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "someproject",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		var buffer bytes.Buffer
+		writer := tar.NewWriter(&buffer)
+		content := `variable "example" {
+	default = "hi"
+}`
+		err = writer.WriteHeader(&tar.Header{
+			Name: "main.tf",
+			Size: int64(len(content)),
+		})
+		require.NoError(t, err)
+		_, err = writer.Write([]byte(content))
+		require.NoError(t, err)
+		history, err := server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+			StorageMethod: database.ProjectStorageMethodInlineArchive,
+			StorageSource: buffer.Bytes(),
+		})
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			projectHistory, err := server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
+			require.NoError(t, err)
+			return projectHistory.Import.Status.Completed()
+		}, 15*time.Second, 10*time.Millisecond)
+		params, err := server.Client.ProjectHistoryParameters(context.Background(), user.Organization, project.Name, history.Name)
+		require.NoError(t, err)
+		require.Len(t, params, 1)
+		require.Equal(t, "example", params[0].Name)
 	})
 }

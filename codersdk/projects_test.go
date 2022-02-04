@@ -163,4 +163,12 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "hi", param.Name)
 	})
+
+	t.Run("HistoryParametersError", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		_, err := server.Client.ProjectHistoryParameters(context.Background(), user.Organization, "nothing", "nope")
+		require.Error(t, err)
+	})
 }

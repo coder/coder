@@ -95,8 +95,9 @@ func TestParse(t *testing.T) {
 			Type: &proto.Parse_Response_Complete{
 				Complete: &proto.Parse_Complete{
 					ParameterSchemas: []*proto.ParameterSchema{{
-						Name:                "A",
-						ValidationCondition: `var.A == "value"`,
+						Name:                 "A",
+						ValidationCondition:  `var.A == "value"`,
+						ValidationTypeSystem: proto.ParameterSchema_HCL,
 					},
 					},
 				},
