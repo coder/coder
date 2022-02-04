@@ -138,8 +138,10 @@ func TestProjects(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.ProjectParameters(context.Background(), user.Organization, project.Name)
+		params, err := server.Client.ProjectParameters(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
+		require.NotNil(t, params)
+		require.Len(t, params, 0)
 	})
 
 	t.Run("CreateParameter", func(t *testing.T) {
@@ -151,7 +153,7 @@ func TestProjects(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
+		param, err := server.Client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
 			Name:              "hi",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
@@ -159,6 +161,7 @@ func TestProjects(t *testing.T) {
 			DestinationValue:  "moo",
 		})
 		require.NoError(t, err)
+		require.Equal(t, "hi", param.Name)
 	})
 
 	t.Run("HistoryParametersError", func(t *testing.T) {

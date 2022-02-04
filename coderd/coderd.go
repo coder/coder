@@ -22,8 +22,8 @@ type Options struct {
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
 	api := &api{
-		Logger:   options.Logger,
 		Database: options.Database,
+		Logger:   options.Logger,
 		Pubsub:   options.Pubsub,
 	}
 
@@ -116,7 +116,7 @@ func New(options *Options) http.Handler {
 // API contains all route handlers. Only HTTP handlers should
 // be added to this struct for code clarity.
 type api struct {
-	Logger   slog.Logger
 	Database database.Store
+	Logger   slog.Logger
 	Pubsub   database.Pubsub
 }

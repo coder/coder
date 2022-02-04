@@ -41,5 +41,6 @@ module.exports = {
     "!<rootDir>/next-env.d.ts",
     "!<rootDir>/next.config.js",
     "!<rootDir>/out/**/*.*",
+    "!<rootDir>/storybook-static/**/*.*",
   ],
 }

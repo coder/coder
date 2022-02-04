@@ -56,6 +56,7 @@ func TestWorkspaceHistory(t *testing.T) {
 		require.Eventually(t, func() bool {
 			hist, err := client.ProjectHistory(context.Background(), user.Organization, project.Name, projectHistory.Name)
 			require.NoError(t, err)
+			t.Logf("Import status: %s\n", hist.Import.Status)
 			return hist.Import.Status.Completed()
 		}, 15*time.Second, 50*time.Millisecond)
 		return projectHistory

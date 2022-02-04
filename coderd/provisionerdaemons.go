@@ -19,6 +19,8 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/projectparameter"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
@@ -84,6 +86,7 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 		Database:     api.Database,
 		Pubsub:       api.Pubsub,
 		Provisioners: daemon.Provisioners,
+		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("drpc register provisioner daemon: %s", err))
@@ -109,6 +112,7 @@ type projectImportJob struct {
 // Implementation of the provisioner daemon protobuf server.
 type provisionerdServer struct {
 	ID           uuid.UUID
+	Logger       slog.Logger
 	Provisioners []database.ProvisionerType
 	Database     database.Store
 	Pubsub       database.Pubsub
@@ -136,9 +140,11 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	if err != nil {
 		return nil, xerrors.Errorf("acquire job: %w", err)
 	}
+	server.Logger.Debug(ctx, "locked job from database", slog.F("id", job.ID))
+
 	// Marks the acquired job as failed with the error message provided.
 	failJob := func(errorMessage string) error {
-		err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: job.ID,
 			CompletedAt: sql.NullTime{
 				Time:  database.Now(),
@@ -381,8 +387,12 @@ func (server *provisionerdServer) CancelJob(ctx context.Context, cancelJob *prot
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
-	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+	err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID: jobID,
+		CompletedAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
 		CancelledAt: sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
@@ -476,7 +486,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 		// This must occur in a transaction in case of failure.
 		err = server.Database.InTx(func(db database.Store) error {
-			err = db.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
 				CompletedAt: sql.NullTime{
@@ -495,6 +505,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					return xerrors.Errorf("insert project parameter %q: %w", projectParameter.Name, err)
 				}
 			}
+			server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
 			return nil
 		})
 		if err != nil {
@@ -513,7 +524,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		}
 
 		err = server.Database.InTx(func(db database.Store) error {
-			err = db.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
 				CompletedAt: sql.NullTime{
