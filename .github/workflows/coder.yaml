@@ -198,6 +198,9 @@ jobs:
       - run: yarn build
         working-directory: site
 
+      - run: yarn storybook:build
+        working-directory: site
+
       - run: yarn test:coverage
         working-directory: site
 
