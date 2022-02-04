@@ -117,14 +117,14 @@ func TestWorkspaces(t *testing.T) {
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.WorkspaceHistory(context.Background(), "", workspace.Name)
+		_, err = server.Client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
 	})
 
 	t.Run("HistoryError", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_, err := server.Client.WorkspaceHistory(context.Background(), "", "blob")
+		_, err := server.Client.ListWorkspaceHistory(context.Background(), "", "blob")
 		require.Error(t, err)
 	})
 
@@ -142,7 +142,7 @@ func TestWorkspaces(t *testing.T) {
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.LatestWorkspaceHistory(context.Background(), "", workspace.Name)
+		_, err = server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
 		require.Error(t, err)
 	})
 
