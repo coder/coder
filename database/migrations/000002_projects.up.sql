@@ -1,4 +1,4 @@
-CREATE TYPE provisioner_type AS ENUM ('terraform', 'cdr-basic');
+CREATE TYPE provisioner_type AS ENUM ('echo', 'terraform');
 
 -- Project defines infrastructure that your software project
 -- requires for development.

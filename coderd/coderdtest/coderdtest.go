@@ -20,7 +20,7 @@ import (
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
 	"github.com/coder/coder/database/postgres"
-	"github.com/coder/coder/provisioner/terraform"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -64,21 +64,19 @@ func (s *Server) RandomInitialUser(t *testing.T) coderd.CreateInitialUserRequest
 	return req
 }
 
-// AddProvisionerd launches a new provisionerd instance!
+// AddProvisionerd launches a new provisionerd instance with the
+// test provisioner registered.
 func (s *Server) AddProvisionerd(t *testing.T) io.Closer {
-	tfClient, tfServer := provisionersdk.TransportPipe()
+	echoClient, echoServer := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
-		_ = tfClient.Close()
-		_ = tfServer.Close()
+		_ = echoClient.Close()
+		_ = echoServer.Close()
 		cancelFunc()
 	})
 	go func() {
-		err := terraform.Serve(ctx, &terraform.ServeOptions{
-			ServeOptions: &provisionersdk.ServeOptions{
-				Listener: tfServer,
-			},
-			Logger: slogtest.Make(t, nil).Named("terraform-provisioner").Leveled(slog.LevelDebug),
+		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+			Listener: echoServer,
 		})
 		require.NoError(t, err)
 	}()
@@ -88,7 +86,7 @@ func (s *Server) AddProvisionerd(t *testing.T) io.Closer {
 		PollInterval:   50 * time.Millisecond,
 		UpdateInterval: 50 * time.Millisecond,
 		Provisioners: provisionerd.Provisioners{
-			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(tfClient)),
+			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},
 		WorkDirectory: t.TempDir(),
 	})

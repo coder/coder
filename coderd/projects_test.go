@@ -1,8 +1,6 @@
 package coderd_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -12,6 +10,8 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestProjects(t *testing.T) {
@@ -23,7 +23,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 	})
@@ -34,12 +34,12 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.Error(t, err)
 	})
@@ -59,7 +59,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		// Ensure global query works.
@@ -89,7 +89,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.Project(context.Background(), user.Organization, project.Name)
@@ -102,7 +102,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.ProjectParameters(context.Background(), user.Organization, project.Name)
@@ -115,7 +115,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
@@ -135,24 +135,22 @@ func TestProjects(t *testing.T) {
 		_ = server.AddProvisionerd(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		var buffer bytes.Buffer
-		writer := tar.NewWriter(&buffer)
-		content := `variable "example" {
-	default = "hi"
-}`
-		err = writer.WriteHeader(&tar.Header{
-			Name: "main.tf",
-			Size: int64(len(content)),
-		})
-		require.NoError(t, err)
-		_, err = writer.Write([]byte(content))
+		data, err := echo.Tar([]*proto.Parse_Response{{
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{{
+						Name: "example",
+					}},
+				},
+			},
+		}}, nil)
 		require.NoError(t, err)
 		history, err := server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
-			StorageSource: buffer.Bytes(),
+			StorageSource: data,
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
