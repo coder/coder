@@ -241,6 +241,7 @@ linters:
     - staticcheck
     - structcheck
     - tenv
+    - testpackage
     - tparallel
     - typecheck
     - unconvert
