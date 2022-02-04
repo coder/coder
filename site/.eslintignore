@@ -6,3 +6,4 @@ vendor
 out
 coverage
 .next
+storybook-static
