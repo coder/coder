@@ -2,15 +2,15 @@ import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 
 interface Props {
-  output: string[]
+  lines: string[]
 }
 
-export const TerminalOutput: React.FC<Props> = ({ className, output }) => {
+export const CodeBlock: React.FC<Props> = ({ lines }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
-      {output.map((line, idx) => (
+      {lines.map((line, idx) => (
         <div className={styles.line} key={idx}>
           {line}
         </div>
@@ -25,7 +25,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     minHeight: 156,
     background: theme.palette.background.default,
-    //color: theme.palette.codeBlock.contrastText,
+    color: theme.palette.codeBlock.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 13,
     wordBreak: "break-all",
