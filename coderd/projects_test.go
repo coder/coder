@@ -156,12 +156,7 @@ func TestProjects(t *testing.T) {
 		require.Eventually(t, func() bool {
 			projectHistory, err := server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
 			require.NoError(t, err)
-			completed := projectHistory.Import.Status.Completed()
-			if !completed {
-				_, err := server.Client.ProjectHistoryParameters(context.Background(), user.Organization, project.Name, history.Name)
-				require.Error(t, err)
-			}
-			return completed
+			return projectHistory.Import.Status.Completed()
 		}, 15*time.Second, 10*time.Millisecond)
 		params, err := server.Client.ProjectHistoryParameters(context.Background(), user.Organization, project.Name, history.Name)
 		require.NoError(t, err)

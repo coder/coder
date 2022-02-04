@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -42,6 +41,7 @@ func (api *api) workspaceHistoryLogsByName(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var after time.Time
+	// Only fetch logs created after the time provided.
 	if afterRaw != "" {
 		afterMS, err := strconv.ParseInt(afterRaw, 10, 64)
 		if err != nil {
@@ -57,6 +57,7 @@ func (api *api) workspaceHistoryLogsByName(rw http.ResponseWriter, r *http.Reque
 		}
 	}
 	var before time.Time
+	// Only fetch logs created before the time provided.
 	if beforeRaw != "" {
 		beforeMS, err := strconv.ParseInt(beforeRaw, 10, 64)
 		if err != nil {
@@ -67,9 +68,7 @@ func (api *api) workspaceHistoryLogsByName(rw http.ResponseWriter, r *http.Reque
 		}
 		before = time.UnixMilli(beforeMS)
 	} else {
-		if !follow {
-			before = time.UnixMilli(math.MaxInt64)
-		}
+		before = database.Now()
 	}
 
 	history := httpmw.WorkspaceHistoryParam(r)
@@ -128,7 +127,7 @@ func (api *api) workspaceHistoryLogsByName(rw http.ResponseWriter, r *http.Reque
 	workspaceHistoryLogs, err := api.Database.GetWorkspaceHistoryLogsByIDBetween(r.Context(), database.GetWorkspaceHistoryLogsByIDBetweenParams{
 		WorkspaceHistoryID: history.ID,
 		CreatedAfter:       after,
-		CreatedBefore:      database.Now(),
+		CreatedBefore:      before,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
