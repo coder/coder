@@ -1,11 +1,11 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 
-interface Props {
+interface CodeBlockProps {
   lines: string[]
 }
 
-export const CodeBlock: React.FC<Props> = ({ lines }) => {
+export const CodeBlock: React.FC<CodeBlockProps> = ({ lines }) => {
   const styles = useStyles()
 
   return (
