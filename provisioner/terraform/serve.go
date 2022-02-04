@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/go-version"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/provisionersdk"
 )
 
@@ -29,6 +31,7 @@ type ServeOptions struct {
 	// BinaryPath specifies the "terraform" binary to use.
 	// If omitted, the $PATH will attempt to find it.
 	BinaryPath string
+	Logger     slog.Logger
 }
 
 // Serve starts a dRPC server on the provided transport speaking Terraform provisioner.
@@ -43,9 +46,11 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 
 	return provisionersdk.Serve(ctx, &terraform{
 		binaryPath: options.BinaryPath,
+		logger:     options.Logger,
 	}, options.ServeOptions)
 }
 
 type terraform struct {
 	binaryPath string
+	logger     slog.Logger
 }

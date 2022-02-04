@@ -20,6 +20,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// LogLevel represents severity of the log.
+type LogLevel int32
+
+const (
+	LogLevel_TRACE LogLevel = 0
+	LogLevel_DEBUG LogLevel = 1
+	LogLevel_INFO  LogLevel = 2
+	LogLevel_WARN  LogLevel = 3
+	LogLevel_ERROR LogLevel = 4
+)
+
+// Enum value maps for LogLevel.
+var (
+	LogLevel_name = map[int32]string{
+		0: "TRACE",
+		1: "DEBUG",
+		2: "INFO",
+		3: "WARN",
+		4: "ERROR",
+	}
+	LogLevel_value = map[string]int32{
+		"TRACE": 0,
+		"DEBUG": 1,
+		"INFO":  2,
+		"WARN":  3,
+		"ERROR": 4,
+	}
+)
+
+func (x LogLevel) Enum() *LogLevel {
+	p := new(LogLevel)
+	*p = x
+	return p
+}
+
+func (x LogLevel) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LogLevel) Descriptor() protoreflect.EnumDescriptor {
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[0].Descriptor()
+}
+
+func (LogLevel) Type() protoreflect.EnumType {
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[0]
+}
+
+func (x LogLevel) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LogLevel.Descriptor instead.
+func (LogLevel) EnumDescriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{0}
+}
+
 type ParameterSource_Scheme int32
 
 const (
@@ -47,11 +103,11 @@ func (x ParameterSource_Scheme) String() string {
 }
 
 func (ParameterSource_Scheme) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[0].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[1].Descriptor()
 }
 
 func (ParameterSource_Scheme) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[0]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[1]
 }
 
 func (x ParameterSource_Scheme) Number() protoreflect.EnumNumber {
@@ -93,11 +149,11 @@ func (x ParameterDestination_Scheme) String() string {
 }
 
 func (ParameterDestination_Scheme) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[1].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[2].Descriptor()
 }
 
 func (ParameterDestination_Scheme) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[1]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[2]
 }
 
 func (x ParameterDestination_Scheme) Number() protoreflect.EnumNumber {
@@ -136,11 +192,11 @@ func (x ParameterSchema_TypeSystem) String() string {
 }
 
 func (ParameterSchema_TypeSystem) Descriptor() protoreflect.EnumDescriptor {
-	return file_provisionersdk_proto_provisioner_proto_enumTypes[2].Descriptor()
+	return file_provisionersdk_proto_provisioner_proto_enumTypes[3].Descriptor()
 }
 
 func (ParameterSchema_TypeSystem) Type() protoreflect.EnumType {
-	return &file_provisionersdk_proto_provisioner_proto_enumTypes[2]
+	return &file_provisionersdk_proto_provisioner_proto_enumTypes[3]
 }
 
 func (x ParameterSchema_TypeSystem) Number() protoreflect.EnumNumber {
@@ -456,6 +512,62 @@ func (x *ParameterSchema) GetValidationCondition() string {
 	return ""
 }
 
+// Log represents output from a request.
+type Log struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Level  LogLevel `protobuf:"varint,1,opt,name=level,proto3,enum=provisioner.LogLevel" json:"level,omitempty"`
+	Output string   `protobuf:"bytes,2,opt,name=output,proto3" json:"output,omitempty"`
+}
+
+func (x *Log) Reset() {
+	*x = Log{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Log) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Log) ProtoMessage() {}
+
+func (x *Log) ProtoReflect() protoreflect.Message {
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Log.ProtoReflect.Descriptor instead.
+func (*Log) Descriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Log) GetLevel() LogLevel {
+	if x != nil {
+		return x.Level
+	}
+	return LogLevel_TRACE
+}
+
+func (x *Log) GetOutput() string {
+	if x != nil {
+		return x.Output
+	}
+	return ""
+}
+
 // Parse consumes source-code from a directory to produce inputs.
 type Parse struct {
 	state         protoimpl.MessageState
@@ -466,7 +578,7 @@ type Parse struct {
 func (x *Parse) Reset() {
 	*x = Parse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[4]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -479,7 +591,7 @@ func (x *Parse) String() string {
 func (*Parse) ProtoMessage() {}
 
 func (x *Parse) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[4]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -492,7 +604,7 @@ func (x *Parse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Parse.ProtoReflect.Descriptor instead.
 func (*Parse) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5}
 }
 
 // Resource is a provisioned unit.
@@ -508,7 +620,7 @@ type Resource struct {
 func (x *Resource) Reset() {
 	*x = Resource{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[5]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -521,7 +633,7 @@ func (x *Resource) String() string {
 func (*Resource) ProtoMessage() {}
 
 func (x *Resource) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[5]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -534,7 +646,7 @@ func (x *Resource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Resource.ProtoReflect.Descriptor instead.
 func (*Resource) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Resource) GetName() string {
@@ -561,7 +673,7 @@ type Provision struct {
 func (x *Provision) Reset() {
 	*x = Provision{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[6]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -574,7 +686,7 @@ func (x *Provision) String() string {
 func (*Provision) ProtoMessage() {}
 
 func (x *Provision) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[6]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -587,7 +699,7 @@ func (x *Provision) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Provision.ProtoReflect.Descriptor instead.
 func (*Provision) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{7}
 }
 
 type Parse_Request struct {
@@ -601,7 +713,7 @@ type Parse_Request struct {
 func (x *Parse_Request) Reset() {
 	*x = Parse_Request{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[7]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -614,7 +726,7 @@ func (x *Parse_Request) String() string {
 func (*Parse_Request) ProtoMessage() {}
 
 func (x *Parse_Request) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[7]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +739,7 @@ func (x *Parse_Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Parse_Request.ProtoReflect.Descriptor instead.
 func (*Parse_Request) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4, 0}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5, 0}
 }
 
 func (x *Parse_Request) GetDirectory() string {
@@ -637,18 +749,68 @@ func (x *Parse_Request) GetDirectory() string {
 	return ""
 }
 
+type Parse_Complete struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ParameterSchemas []*ParameterSchema `protobuf:"bytes,2,rep,name=parameter_schemas,json=parameterSchemas,proto3" json:"parameter_schemas,omitempty"`
+}
+
+func (x *Parse_Complete) Reset() {
+	*x = Parse_Complete{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Parse_Complete) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Parse_Complete) ProtoMessage() {}
+
+func (x *Parse_Complete) ProtoReflect() protoreflect.Message {
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Parse_Complete.ProtoReflect.Descriptor instead.
+func (*Parse_Complete) Descriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5, 1}
+}
+
+func (x *Parse_Complete) GetParameterSchemas() []*ParameterSchema {
+	if x != nil {
+		return x.ParameterSchemas
+	}
+	return nil
+}
+
 type Parse_Response struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	ParameterSchemas []*ParameterSchema `protobuf:"bytes,1,rep,name=parameter_schemas,json=parameterSchemas,proto3" json:"parameter_schemas,omitempty"`
+	// Types that are assignable to Type:
+	//	*Parse_Response_Log
+	//	*Parse_Response_Complete
+	Type isParse_Response_Type `protobuf_oneof:"type"`
 }
 
 func (x *Parse_Response) Reset() {
 	*x = Parse_Response{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[8]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -661,7 +823,7 @@ func (x *Parse_Response) String() string {
 func (*Parse_Response) ProtoMessage() {}
 
 func (x *Parse_Response) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[8]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -674,15 +836,45 @@ func (x *Parse_Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Parse_Response.ProtoReflect.Descriptor instead.
 func (*Parse_Response) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4, 1}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{5, 2}
 }
 
-func (x *Parse_Response) GetParameterSchemas() []*ParameterSchema {
-	if x != nil {
-		return x.ParameterSchemas
+func (m *Parse_Response) GetType() isParse_Response_Type {
+	if m != nil {
+		return m.Type
 	}
 	return nil
 }
+
+func (x *Parse_Response) GetLog() *Log {
+	if x, ok := x.GetType().(*Parse_Response_Log); ok {
+		return x.Log
+	}
+	return nil
+}
+
+func (x *Parse_Response) GetComplete() *Parse_Complete {
+	if x, ok := x.GetType().(*Parse_Response_Complete); ok {
+		return x.Complete
+	}
+	return nil
+}
+
+type isParse_Response_Type interface {
+	isParse_Response_Type()
+}
+
+type Parse_Response_Log struct {
+	Log *Log `protobuf:"bytes,1,opt,name=log,proto3,oneof"`
+}
+
+type Parse_Response_Complete struct {
+	Complete *Parse_Complete `protobuf:"bytes,2,opt,name=complete,proto3,oneof"`
+}
+
+func (*Parse_Response_Log) isParse_Response_Type() {}
+
+func (*Parse_Response_Complete) isParse_Response_Type() {}
 
 type Provision_Request struct {
 	state         protoimpl.MessageState
@@ -697,7 +889,7 @@ type Provision_Request struct {
 func (x *Provision_Request) Reset() {
 	*x = Provision_Request{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[9]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -710,7 +902,7 @@ func (x *Provision_Request) String() string {
 func (*Provision_Request) ProtoMessage() {}
 
 func (x *Provision_Request) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[9]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -723,7 +915,7 @@ func (x *Provision_Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Provision_Request.ProtoReflect.Descriptor instead.
 func (*Provision_Request) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6, 0}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{7, 0}
 }
 
 func (x *Provision_Request) GetDirectory() string {
@@ -747,7 +939,7 @@ func (x *Provision_Request) GetState() []byte {
 	return nil
 }
 
-type Provision_Response struct {
+type Provision_Complete struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -756,10 +948,67 @@ type Provision_Response struct {
 	Resources []*Resource `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
 }
 
+func (x *Provision_Complete) Reset() {
+	*x = Provision_Complete{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Provision_Complete) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Provision_Complete) ProtoMessage() {}
+
+func (x *Provision_Complete) ProtoReflect() protoreflect.Message {
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Provision_Complete.ProtoReflect.Descriptor instead.
+func (*Provision_Complete) Descriptor() ([]byte, []int) {
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{7, 1}
+}
+
+func (x *Provision_Complete) GetState() []byte {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+func (x *Provision_Complete) GetResources() []*Resource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+type Provision_Response struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to Type:
+	//	*Provision_Response_Log
+	//	*Provision_Response_Complete
+	Type isProvision_Response_Type `protobuf_oneof:"type"`
+}
+
 func (x *Provision_Response) Reset() {
 	*x = Provision_Response{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[10]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -772,7 +1021,7 @@ func (x *Provision_Response) String() string {
 func (*Provision_Response) ProtoMessage() {}
 
 func (x *Provision_Response) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[10]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -785,22 +1034,45 @@ func (x *Provision_Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Provision_Response.ProtoReflect.Descriptor instead.
 func (*Provision_Response) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{6, 1}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{7, 2}
 }
 
-func (x *Provision_Response) GetState() []byte {
-	if x != nil {
-		return x.State
+func (m *Provision_Response) GetType() isProvision_Response_Type {
+	if m != nil {
+		return m.Type
 	}
 	return nil
 }
 
-func (x *Provision_Response) GetResources() []*Resource {
-	if x != nil {
-		return x.Resources
+func (x *Provision_Response) GetLog() *Log {
+	if x, ok := x.GetType().(*Provision_Response_Log); ok {
+		return x.Log
 	}
 	return nil
 }
+
+func (x *Provision_Response) GetComplete() *Provision_Complete {
+	if x, ok := x.GetType().(*Provision_Response_Complete); ok {
+		return x.Complete
+	}
+	return nil
+}
+
+type isProvision_Response_Type interface {
+	isProvision_Response_Type()
+}
+
+type Provision_Response_Log struct {
+	Log *Log `protobuf:"bytes,1,opt,name=log,proto3,oneof"`
+}
+
+type Provision_Response_Complete struct {
+	Complete *Provision_Complete `protobuf:"bytes,2,opt,name=complete,proto3,oneof"`
+}
+
+func (*Provision_Response_Log) isProvision_Response_Type() {}
+
+func (*Provision_Response_Complete) isProvision_Response_Type() {}
 
 var File_provisionersdk_proto_provisioner_proto protoreflect.FileDescriptor
 
@@ -876,47 +1148,71 @@ var file_provisionersdk_proto_provisioner_proto_rawDesc = []byte{
 	0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x09, 0x52, 0x13,
 	0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x43, 0x6f, 0x6e, 0x64, 0x69, 0x74,
 	0x69, 0x6f, 0x6e, 0x22, 0x15, 0x0a, 0x0a, 0x54, 0x79, 0x70, 0x65, 0x53, 0x79, 0x73, 0x74, 0x65,
-	0x6d, 0x12, 0x07, 0x0a, 0x03, 0x48, 0x43, 0x4c, 0x10, 0x00, 0x22, 0x87, 0x01, 0x0a, 0x05, 0x50,
-	0x61, 0x72, 0x73, 0x65, 0x1a, 0x27, 0x0a, 0x07, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
-	0x1c, 0x0a, 0x09, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x09, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79, 0x1a, 0x55, 0x0a,
-	0x08, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a, 0x11, 0x70, 0x61, 0x72,
-	0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x5f, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x73, 0x18, 0x01,
-	0x20, 0x03, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
-	0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x53, 0x63, 0x68, 0x65,
-	0x6d, 0x61, 0x52, 0x10, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x53, 0x63, 0x68,
-	0x65, 0x6d, 0x61, 0x73, 0x22, 0x32, 0x0a, 0x08, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
-	0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
-	0x6e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x22, 0xea, 0x01, 0x0a, 0x09, 0x50, 0x72, 0x6f,
-	0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x1a, 0x85, 0x01, 0x0a, 0x07, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79, 0x18,
-	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79,
-	0x12, 0x46, 0x0a, 0x10, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x5f, 0x76, 0x61,
-	0x6c, 0x75, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x70, 0x72, 0x6f,
-	0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
-	0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0f, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
-	0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74,
-	0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x1a, 0x55,
-	0x0a, 0x08, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x74,
-	0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65,
-	0x12, 0x33, 0x0a, 0x09, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x18, 0x02, 0x20,
-	0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65,
-	0x72, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x09, 0x72, 0x65, 0x73, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x73, 0x32, 0x9d, 0x01, 0x0a, 0x0b, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x65, 0x72, 0x12, 0x40, 0x0a, 0x05, 0x50, 0x61, 0x72, 0x73, 0x65, 0x12, 0x1a,
-	0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72,
-	0x73, 0x65, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x70, 0x72, 0x6f,
-	0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x73, 0x65, 0x2e, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c, 0x0a, 0x09, 0x50, 0x72, 0x6f, 0x76, 0x69,
-	0x73, 0x69, 0x6f, 0x6e, 0x12, 0x1e, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
-	0x65, 0x72, 0x2e, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x2e, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x1f, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
-	0x65, 0x72, 0x2e, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x2e, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x2d, 0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
-	0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f,
-	0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x73, 0x64, 0x6b, 0x2f, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6d, 0x12, 0x07, 0x0a, 0x03, 0x48, 0x43, 0x4c, 0x10, 0x00, 0x22, 0x4a, 0x0a, 0x03, 0x4c, 0x6f,
+	0x67, 0x12, 0x2b, 0x0a, 0x05, 0x6c, 0x65, 0x76, 0x65, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e,
+	0x32, 0x15, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x4c,
+	0x6f, 0x67, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x52, 0x05, 0x6c, 0x65, 0x76, 0x65, 0x6c, 0x12, 0x16,
+	0x0a, 0x06, 0x6f, 0x75, 0x74, 0x70, 0x75, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
+	0x6f, 0x75, 0x74, 0x70, 0x75, 0x74, 0x22, 0xfc, 0x01, 0x0a, 0x05, 0x50, 0x61, 0x72, 0x73, 0x65,
+	0x1a, 0x27, 0x0a, 0x07, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x64,
+	0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09,
+	0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79, 0x1a, 0x55, 0x0a, 0x08, 0x43, 0x6f, 0x6d,
+	0x70, 0x6c, 0x65, 0x74, 0x65, 0x12, 0x49, 0x0a, 0x11, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74,
+	0x65, 0x72, 0x5f, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x1c, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50,
+	0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x52, 0x10,
+	0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x73,
+	0x1a, 0x73, 0x0a, 0x08, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x24, 0x0a, 0x03,
+	0x6c, 0x6f, 0x67, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x70, 0x72, 0x6f, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x4c, 0x6f, 0x67, 0x48, 0x00, 0x52, 0x03, 0x6c,
+	0x6f, 0x67, 0x12, 0x39, 0x0a, 0x08, 0x63, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
+	0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x73, 0x65, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74,
+	0x65, 0x48, 0x00, 0x52, 0x08, 0x63, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x42, 0x06, 0x0a,
+	0x04, 0x74, 0x79, 0x70, 0x65, 0x22, 0x32, 0x0a, 0x08, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x22, 0xe3, 0x02, 0x0a, 0x09, 0x50, 0x72,
+	0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x1a, 0x85, 0x01, 0x0a, 0x07, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72,
+	0x79, 0x12, 0x46, 0x0a, 0x10, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x5f, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x70, 0x72,
+	0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65,
+	0x74, 0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0f, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65,
+	0x74, 0x65, 0x72, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x74, 0x61,
+	0x74, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x1a,
+	0x55, 0x0a, 0x08, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x73,
+	0x74, 0x61, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74,
+	0x65, 0x12, 0x33, 0x0a, 0x09, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x18, 0x02,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
+	0x65, 0x72, 0x2e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x09, 0x72, 0x65, 0x73,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x1a, 0x77, 0x0a, 0x08, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x24, 0x0a, 0x03, 0x6c, 0x6f, 0x67, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x10, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x4c, 0x6f,
+	0x67, 0x48, 0x00, 0x52, 0x03, 0x6c, 0x6f, 0x67, 0x12, 0x3d, 0x0a, 0x08, 0x63, 0x6f, 0x6d, 0x70,
+	0x6c, 0x65, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x70, 0x72, 0x6f,
+	0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69,
+	0x6f, 0x6e, 0x2e, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x48, 0x00, 0x52, 0x08, 0x63,
+	0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x42, 0x06, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x2a,
+	0x3f, 0x0a, 0x08, 0x4c, 0x6f, 0x67, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x12, 0x09, 0x0a, 0x05, 0x54,
+	0x52, 0x41, 0x43, 0x45, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05, 0x44, 0x45, 0x42, 0x55, 0x47, 0x10,
+	0x01, 0x12, 0x08, 0x0a, 0x04, 0x49, 0x4e, 0x46, 0x4f, 0x10, 0x02, 0x12, 0x08, 0x0a, 0x04, 0x57,
+	0x41, 0x52, 0x4e, 0x10, 0x03, 0x12, 0x09, 0x0a, 0x05, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x04,
+	0x32, 0xa1, 0x01, 0x0a, 0x0b, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72,
+	0x12, 0x42, 0x0a, 0x05, 0x50, 0x61, 0x72, 0x73, 0x65, 0x12, 0x1a, 0x2e, 0x70, 0x72, 0x6f, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x73, 0x65, 0x2e, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f,
+	0x6e, 0x65, 0x72, 0x2e, 0x50, 0x61, 0x72, 0x73, 0x65, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x30, 0x01, 0x12, 0x4e, 0x0a, 0x09, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f,
+	0x6e, 0x12, 0x1e, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e,
+	0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x1f, 0x2e, 0x70, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x2e,
+	0x50, 0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x30, 0x01, 0x42, 0x2d, 0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
+	0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x70,
+	0x72, 0x6f, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x65, 0x72, 0x73, 0x64, 0x6b, 0x2f, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -931,43 +1227,52 @@ func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 	return file_provisionersdk_proto_provisioner_proto_rawDescData
 }
 
-var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_provisionersdk_proto_provisioner_proto_goTypes = []interface{}{
-	(ParameterSource_Scheme)(0),      // 0: provisioner.ParameterSource.Scheme
-	(ParameterDestination_Scheme)(0), // 1: provisioner.ParameterDestination.Scheme
-	(ParameterSchema_TypeSystem)(0),  // 2: provisioner.ParameterSchema.TypeSystem
-	(*ParameterSource)(nil),          // 3: provisioner.ParameterSource
-	(*ParameterDestination)(nil),     // 4: provisioner.ParameterDestination
-	(*ParameterValue)(nil),           // 5: provisioner.ParameterValue
-	(*ParameterSchema)(nil),          // 6: provisioner.ParameterSchema
-	(*Parse)(nil),                    // 7: provisioner.Parse
-	(*Resource)(nil),                 // 8: provisioner.Resource
-	(*Provision)(nil),                // 9: provisioner.Provision
-	(*Parse_Request)(nil),            // 10: provisioner.Parse.Request
-	(*Parse_Response)(nil),           // 11: provisioner.Parse.Response
-	(*Provision_Request)(nil),        // 12: provisioner.Provision.Request
-	(*Provision_Response)(nil),       // 13: provisioner.Provision.Response
+	(LogLevel)(0),                    // 0: provisioner.LogLevel
+	(ParameterSource_Scheme)(0),      // 1: provisioner.ParameterSource.Scheme
+	(ParameterDestination_Scheme)(0), // 2: provisioner.ParameterDestination.Scheme
+	(ParameterSchema_TypeSystem)(0),  // 3: provisioner.ParameterSchema.TypeSystem
+	(*ParameterSource)(nil),          // 4: provisioner.ParameterSource
+	(*ParameterDestination)(nil),     // 5: provisioner.ParameterDestination
+	(*ParameterValue)(nil),           // 6: provisioner.ParameterValue
+	(*ParameterSchema)(nil),          // 7: provisioner.ParameterSchema
+	(*Log)(nil),                      // 8: provisioner.Log
+	(*Parse)(nil),                    // 9: provisioner.Parse
+	(*Resource)(nil),                 // 10: provisioner.Resource
+	(*Provision)(nil),                // 11: provisioner.Provision
+	(*Parse_Request)(nil),            // 12: provisioner.Parse.Request
+	(*Parse_Complete)(nil),           // 13: provisioner.Parse.Complete
+	(*Parse_Response)(nil),           // 14: provisioner.Parse.Response
+	(*Provision_Request)(nil),        // 15: provisioner.Provision.Request
+	(*Provision_Complete)(nil),       // 16: provisioner.Provision.Complete
+	(*Provision_Response)(nil),       // 17: provisioner.Provision.Response
 }
 var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
-	0,  // 0: provisioner.ParameterSource.scheme:type_name -> provisioner.ParameterSource.Scheme
-	1,  // 1: provisioner.ParameterDestination.scheme:type_name -> provisioner.ParameterDestination.Scheme
-	1,  // 2: provisioner.ParameterValue.destination_scheme:type_name -> provisioner.ParameterDestination.Scheme
-	3,  // 3: provisioner.ParameterSchema.default_source:type_name -> provisioner.ParameterSource
-	4,  // 4: provisioner.ParameterSchema.default_destination:type_name -> provisioner.ParameterDestination
-	2,  // 5: provisioner.ParameterSchema.validation_type_system:type_name -> provisioner.ParameterSchema.TypeSystem
-	6,  // 6: provisioner.Parse.Response.parameter_schemas:type_name -> provisioner.ParameterSchema
-	5,  // 7: provisioner.Provision.Request.parameter_values:type_name -> provisioner.ParameterValue
-	8,  // 8: provisioner.Provision.Response.resources:type_name -> provisioner.Resource
-	10, // 9: provisioner.Provisioner.Parse:input_type -> provisioner.Parse.Request
-	12, // 10: provisioner.Provisioner.Provision:input_type -> provisioner.Provision.Request
-	11, // 11: provisioner.Provisioner.Parse:output_type -> provisioner.Parse.Response
-	13, // 12: provisioner.Provisioner.Provision:output_type -> provisioner.Provision.Response
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	1,  // 0: provisioner.ParameterSource.scheme:type_name -> provisioner.ParameterSource.Scheme
+	2,  // 1: provisioner.ParameterDestination.scheme:type_name -> provisioner.ParameterDestination.Scheme
+	2,  // 2: provisioner.ParameterValue.destination_scheme:type_name -> provisioner.ParameterDestination.Scheme
+	4,  // 3: provisioner.ParameterSchema.default_source:type_name -> provisioner.ParameterSource
+	5,  // 4: provisioner.ParameterSchema.default_destination:type_name -> provisioner.ParameterDestination
+	3,  // 5: provisioner.ParameterSchema.validation_type_system:type_name -> provisioner.ParameterSchema.TypeSystem
+	0,  // 6: provisioner.Log.level:type_name -> provisioner.LogLevel
+	7,  // 7: provisioner.Parse.Complete.parameter_schemas:type_name -> provisioner.ParameterSchema
+	8,  // 8: provisioner.Parse.Response.log:type_name -> provisioner.Log
+	13, // 9: provisioner.Parse.Response.complete:type_name -> provisioner.Parse.Complete
+	6,  // 10: provisioner.Provision.Request.parameter_values:type_name -> provisioner.ParameterValue
+	10, // 11: provisioner.Provision.Complete.resources:type_name -> provisioner.Resource
+	8,  // 12: provisioner.Provision.Response.log:type_name -> provisioner.Log
+	16, // 13: provisioner.Provision.Response.complete:type_name -> provisioner.Provision.Complete
+	12, // 14: provisioner.Provisioner.Parse:input_type -> provisioner.Parse.Request
+	15, // 15: provisioner.Provisioner.Provision:input_type -> provisioner.Provision.Request
+	14, // 16: provisioner.Provisioner.Parse:output_type -> provisioner.Parse.Response
+	17, // 17: provisioner.Provisioner.Provision:output_type -> provisioner.Provision.Response
+	16, // [16:18] is the sub-list for method output_type
+	14, // [14:16] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_provisionersdk_proto_provisioner_proto_init() }
@@ -1025,7 +1330,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Parse); i {
+			switch v := v.(*Log); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1037,7 +1342,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Resource); i {
+			switch v := v.(*Parse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1049,7 +1354,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Provision); i {
+			switch v := v.(*Resource); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1061,7 +1366,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Parse_Request); i {
+			switch v := v.(*Provision); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1073,7 +1378,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Parse_Response); i {
+			switch v := v.(*Parse_Request); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1085,7 +1390,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Provision_Request); i {
+			switch v := v.(*Parse_Complete); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1097,6 +1402,42 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Parse_Response); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_provisionersdk_proto_provisioner_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Provision_Request); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_provisionersdk_proto_provisioner_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Provision_Complete); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_provisionersdk_proto_provisioner_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Provision_Response); i {
 			case 0:
 				return &v.state
@@ -1109,13 +1450,21 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 	}
+	file_provisionersdk_proto_provisioner_proto_msgTypes[10].OneofWrappers = []interface{}{
+		(*Parse_Response_Log)(nil),
+		(*Parse_Response_Complete)(nil),
+	}
+	file_provisionersdk_proto_provisioner_proto_msgTypes[13].OneofWrappers = []interface{}{
+		(*Provision_Response_Log)(nil),
+		(*Provision_Response_Complete)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_provisionersdk_proto_provisioner_proto_rawDesc,
-			NumEnums:      3,
-			NumMessages:   11,
+			NumEnums:      4,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

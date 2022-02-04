@@ -1,4 +1,4 @@
-package site
+package site_test
 
 import (
 	"context"
@@ -8,12 +8,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/site"
 )
 
 func TestIndexPageRenders(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(Handler())
+	srv := httptest.NewServer(site.Handler())
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	require.NoError(t, err)

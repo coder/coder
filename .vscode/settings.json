@@ -22,5 +22,35 @@
         "cmd": "make gen"
       }
     ]
-  }
+  },
+  "cSpell.words": [
+    "coderd",
+    "coderdtest",
+    "codersdk",
+    "drpc",
+    "drpcconn",
+    "drpcmux",
+    "drpcserver",
+    "goleak",
+    "hashicorp",
+    "httpmw",
+    "Jobf",
+    "moby",
+    "nhooyr",
+    "nolint",
+    "nosec",
+    "oneof",
+    "parameterscopeid",
+    "protobuf",
+    "provisionerd",
+    "provisionersdk",
+    "retrier",
+    "sdkproto",
+    "stretchr",
+    "tfexec",
+    "tfstate",
+    "unconvert",
+    "xerrors",
+    "yamux"
+  ]
 }

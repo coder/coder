@@ -49,13 +49,34 @@ message ParameterSchema {
     string validation_condition = 11;
 }
 
+// LogLevel represents severity of the log.
+enum LogLevel {
+    TRACE = 0;
+    DEBUG = 1;
+    INFO = 2;
+    WARN = 3;
+    ERROR = 4;
+}
+
+// Log represents output from a request.
+message Log {
+    LogLevel level = 1;
+    string output = 2;
+}
+
 // Parse consumes source-code from a directory to produce inputs.
 message Parse {
     message Request {
         string directory = 1;
     }
+    message Complete {
+        repeated ParameterSchema parameter_schemas = 2;
+    }
     message Response {
-        repeated ParameterSchema parameter_schemas = 1;
+        oneof type {
+            Log log = 1;
+            Complete complete = 2;
+        }
     }
 }
 
@@ -72,13 +93,19 @@ message Provision {
         repeated ParameterValue parameter_values = 2;
         bytes state = 3;
     }
-    message Response {
+    message Complete {
         bytes state = 1; 
         repeated Resource resources = 2;
+    }
+    message Response {
+        oneof type {
+            Log log = 1;
+            Complete complete = 2;
+        }
     }
 }
 
 service Provisioner {
-    rpc Parse(Parse.Request) returns (Parse.Response);
-    rpc Provision(Provision.Request) returns (Provision.Response);
+    rpc Parse(Parse.Request) returns (stream Parse.Response);
+    rpc Provision(Provision.Request) returns (stream Provision.Response);
 }

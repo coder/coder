@@ -29,7 +29,7 @@ WHERE
       AND nested.completed_at IS NULL
       AND nested.provisioner = ANY(@types :: provisioner_type [ ])
     ORDER BY
-      nested.created FOR
+      nested.created_at FOR
     UPDATE
       SKIP LOCKED
     LIMIT
@@ -171,6 +171,15 @@ FROM
 WHERE
   project_id = $1;
 
+-- name: GetProjectHistoryByProjectIDAndName :one
+SELECT
+  *
+FROM
+  project_history
+WHERE
+  project_id = $1
+  AND name = $2;
+
 -- name: GetProjectHistoryByID :one
 SELECT
   *
@@ -178,6 +187,23 @@ FROM
   project_history
 WHERE
   id = $1;
+
+-- name: GetProjectHistoryLogsByIDBefore :many
+SELECT
+  *
+FROM
+  project_history_log
+WHERE
+  project_history_id = $1
+  AND created_at <= $2
+ORDER BY
+  created_at;
+
+-- name: GetProvisionerDaemons :many
+SELECT
+  *
+FROM
+  provisioner_daemon;
 
 -- name: GetProvisionerDaemonByID :one
 SELECT
@@ -241,6 +267,15 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspaceHistoryByWorkspaceIDAndName :one
+SELECT
+  *
+FROM
+  workspace_history
+WHERE
+  workspace_id = $1
+  AND name = $2;
+
 -- name: GetWorkspaceHistoryByWorkspaceID :many
 SELECT
   *
@@ -259,6 +294,17 @@ WHERE
   AND after_id IS NULL
 LIMIT
   1;
+
+-- name: GetWorkspaceHistoryLogsByIDBefore :many
+SELECT
+  *
+FROM
+  workspace_history_log
+WHERE
+  workspace_history_id = $1
+  AND created_at <= $2
+ORDER BY
+  created_at;
 
 -- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
@@ -378,6 +424,17 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
+-- name: InsertProjectHistoryLogs :many
+INSERT INTO
+  project_history_log
+SELECT
+  @project_history_id :: uuid AS project_history_id,
+  unnest(@id :: uuid [ ]) AS id,
+  unnest(@created_at :: timestamptz [ ]) AS created_at,
+  unnest(@source :: log_source [ ]) as source,
+  unnest(@level :: log_level [ ]) as level,
+  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
+
 -- name: InsertProjectParameter :one
 INSERT INTO
   project_parameter (
@@ -492,12 +549,25 @@ INSERT INTO
     workspace_id,
     project_history_id,
     before_id,
+    name,
     transition,
     initiator,
-    provision_job_id
+    provision_job_id,
+    provisioner_state
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+
+-- name: InsertWorkspaceHistoryLogs :many
+INSERT INTO
+  workspace_history_log
+SELECT
+  unnest(@id :: uuid [ ]) AS id,
+  @workspace_history_id :: uuid AS workspace_history_id,
+  unnest(@created_at :: timestamptz [ ]) AS created_at,
+  unnest(@source :: log_source [ ]) as source,
+  unnest(@level :: log_level [ ]) as level,
+  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO
@@ -537,9 +607,17 @@ WHERE
 UPDATE
   provisioner_job
 SET
+  updated_at = $2
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerJobWithCompleteByID :exec
+UPDATE
+  provisioner_job
+SET
   updated_at = $2,
-  cancelled_at = $3,
-  completed_at = $4,
+  completed_at = $3,
+  cancelled_at = $4,
   error = $5
 WHERE
   id = $1;
@@ -549,6 +627,7 @@ UPDATE
   workspace_history
 SET
   updated_at = $2,
-  after_id = $3
+  after_id = $3,
+  provisioner_state = $4
 WHERE
   id = $1;
