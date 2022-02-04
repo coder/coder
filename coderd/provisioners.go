@@ -12,7 +12,7 @@ type ProvisionerJobStatus string
 
 // Completed returns whether the job is still processing.
 func (p ProvisionerJobStatus) Completed() bool {
-	return p == ProvisionerJobStatusSucceeded || p == ProvisionerJobStatusFailed
+	return p == ProvisionerJobStatusSucceeded || p == ProvisionerJobStatusFailed || p == ProvisionerJobStatusCancelled
 }
 
 const (

@@ -2146,28 +2146,47 @@ const updateProvisionerJobByID = `-- name: UpdateProvisionerJobByID :exec
 UPDATE
   provisioner_job
 SET
-  updated_at = $2,
-  cancelled_at = $3,
-  completed_at = $4,
-  error = $5
+  updated_at = $2
 WHERE
   id = $1
 `
 
 type UpdateProvisionerJobByIDParams struct {
-	ID          uuid.UUID      `db:"id" json:"id"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
-	CancelledAt sql.NullTime   `db:"cancelled_at" json:"cancelled_at"`
-	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
-	Error       sql.NullString `db:"error" json:"error"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobByID,
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobByID, arg.ID, arg.UpdatedAt)
+	return err
+}
+
+const updateProvisionerJobWithCompleteByID = `-- name: UpdateProvisionerJobWithCompleteByID :exec
+UPDATE
+  provisioner_job
+SET
+  updated_at = $2,
+  completed_at = $3,
+  cancelled_at = $4,
+  error = $5
+WHERE
+  id = $1
+`
+
+type UpdateProvisionerJobWithCompleteByIDParams struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
+	CancelledAt sql.NullTime   `db:"cancelled_at" json:"cancelled_at"`
+	Error       sql.NullString `db:"error" json:"error"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCompleteByID,
 		arg.ID,
 		arg.UpdatedAt,
-		arg.CancelledAt,
 		arg.CompletedAt,
+		arg.CancelledAt,
 		arg.Error,
 	)
 	return err
