@@ -1,8 +1,6 @@
 package coderd_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -13,6 +11,8 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestWorkspaceHistoryLogs(t *testing.T) {
@@ -21,7 +21,7 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 	setupProjectAndWorkspace := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest) (coderd.Project, coderd.Workspace) {
 		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		workspace, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
@@ -32,24 +32,10 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 		return project, workspace
 	}
 
-	setupProjectHistory := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project, files map[string]string) coderd.ProjectHistory {
-		var buffer bytes.Buffer
-		writer := tar.NewWriter(&buffer)
-		for path, content := range files {
-			err := writer.WriteHeader(&tar.Header{
-				Name: path,
-				Size: int64(len(content)),
-			})
-			require.NoError(t, err)
-			_, err = writer.Write([]byte(content))
-			require.NoError(t, err)
-		}
-		err := writer.Flush()
-		require.NoError(t, err)
-
+	setupProjectHistory := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project, data []byte) coderd.ProjectHistory {
 		projectHistory, err := client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
-			StorageSource: buffer.Bytes(),
+			StorageSource: data,
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
@@ -64,9 +50,19 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 	user := server.RandomInitialUser(t)
 	_ = server.AddProvisionerd(t)
 	project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-	projectHistory := setupProjectHistory(t, server.Client, user, project, map[string]string{
-		"main.tf": `resource "null_resource" "test" {}`,
-	})
+	data, err := echo.Tar(echo.ParseComplete, []*proto.Provision_Response{{
+		Type: &proto.Provision_Response_Log{
+			Log: &proto.Log{
+				Output: "test",
+			},
+		},
+	}, {
+		Type: &proto.Provision_Response_Complete{
+			Complete: &proto.Provision_Complete{},
+		},
+	}})
+	require.NoError(t, err)
+	projectHistory := setupProjectHistory(t, server.Client, user, project, data)
 
 	workspaceHistory, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 		ProjectHistoryID: projectHistory.ID,

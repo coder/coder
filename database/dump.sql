@@ -52,8 +52,8 @@ CREATE TYPE provisioner_job_type AS ENUM (
 );
 
 CREATE TYPE provisioner_type AS ENUM (
-    'terraform',
-    'cdr-basic'
+    'echo',
+    'terraform'
 );
 
 CREATE TYPE userstatus AS ENUM (
