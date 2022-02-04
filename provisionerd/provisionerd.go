@@ -221,8 +221,21 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 	}()
 	defer func() {
 		// Cleanup the work directory after execution.
-		err := os.RemoveAll(p.opts.WorkDirectory)
-		p.opts.Logger.Debug(ctx, "cleaned up work directory", slog.Error(err))
+		for attempt := 0; attempt < 5; attempt++ {
+			err := os.RemoveAll(p.opts.WorkDirectory)
+			if err != nil {
+				// On Windows, open files cannot be removed.
+				// When the provisioner daemon is shutting down,
+				// it may take a few milliseconds for processes to exit.
+				// See: https://github.com/golang/go/issues/50510
+				p.opts.Logger.Debug(ctx, "failed to clean work directory; trying again", slog.Error(err))
+				time.Sleep(250 * time.Millisecond)
+				continue
+			}
+			p.opts.Logger.Debug(ctx, "cleaned up work directory", slog.Error(err))
+			break
+		}
+
 		close(p.jobRunning)
 	}()
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
@@ -279,6 +292,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 				err = nil
 			}
 			if err != nil {
+				_ = file.Close()
 				go p.cancelActiveJobf("copy file %q: %s", path, err)
 				return
 			}
@@ -315,7 +329,11 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 		return
 	}
 
-	p.opts.Logger.Info(context.Background(), "completed job", slog.F("id", job.JobId))
+	// Ensure the job is still running to output.
+	// It's possible the job was canceled.
+	if p.isRunningJob() {
+		p.opts.Logger.Info(context.Background(), "completed job", slog.F("id", job.JobId))
+	}
 }
 
 func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
@@ -512,9 +530,6 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 	p.cancelActiveJobf(errMsg)
 	p.closeCancel()
 
-	// Required until we're on Go 1.18. See:
-	// https://github.com/golang/go/issues/50510
-	_ = os.RemoveAll(p.opts.WorkDirectory)
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
 
 	return err
