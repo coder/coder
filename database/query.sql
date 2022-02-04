@@ -607,9 +607,17 @@ WHERE
 UPDATE
   provisioner_job
 SET
+  updated_at = $2
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerJobWithCompleteByID :exec
+UPDATE
+  provisioner_job
+SET
   updated_at = $2,
-  cancelled_at = $3,
-  completed_at = $4,
+  completed_at = $3,
+  cancelled_at = $4,
   error = $5
 WHERE
   id = $1;

@@ -23,6 +23,7 @@ type Options struct {
 func New(options *Options) http.Handler {
 	api := &api{
 		Database: options.Database,
+		Logger:   options.Logger,
 		Pubsub:   options.Pubsub,
 	}
 
@@ -114,5 +115,6 @@ func New(options *Options) http.Handler {
 // be added to this struct for code clarity.
 type api struct {
 	Database database.Store
+	Logger   slog.Logger
 	Pubsub   database.Pubsub
 }

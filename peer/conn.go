@@ -145,39 +145,39 @@ func (c *Conn) init() error {
 
 	c.rtc.OnNegotiationNeeded(c.negotiate)
 	c.rtc.OnICEConnectionStateChange(func(iceConnectionState webrtc.ICEConnectionState) {
-		if c.isClosed() {
+		c.closedICEMutex.Lock()
+		defer c.closedICEMutex.Unlock()
+		select {
+		case <-c.closedICE:
+			// Don't log more state changes if we've already closed.
 			return
-		}
+		default:
+			c.opts.Logger.Debug(context.Background(), "ice connection state updated",
+				slog.F("state", iceConnectionState))
 
-		c.opts.Logger.Debug(context.Background(), "ice connection state updated",
-			slog.F("state", iceConnectionState))
-
-		if iceConnectionState == webrtc.ICEConnectionStateClosed {
-			// pion/webrtc can update this state multiple times.
-			// A connection can never become un-closed, so we
-			// close the channel if it isn't already.
-			c.closedICEMutex.Lock()
-			defer c.closedICEMutex.Unlock()
-			select {
-			case <-c.closedICE:
-			default:
+			if iceConnectionState == webrtc.ICEConnectionStateClosed {
+				// pion/webrtc can update this state multiple times.
+				// A connection can never become un-closed, so we
+				// close the channel if it isn't already.
 				close(c.closedICE)
 			}
 		}
 	})
 	c.rtc.OnICEGatheringStateChange(func(iceGatherState webrtc.ICEGathererState) {
-		c.opts.Logger.Debug(context.Background(), "ice gathering state updated",
-			slog.F("state", iceGatherState))
+		c.closedICEMutex.Lock()
+		defer c.closedICEMutex.Unlock()
+		select {
+		case <-c.closedICE:
+			// Don't log more state changes if we've already closed.
+			return
+		default:
+			c.opts.Logger.Debug(context.Background(), "ice gathering state updated",
+				slog.F("state", iceGatherState))
 
-		if iceGatherState == webrtc.ICEGathererStateClosed {
-			// pion/webrtc can update this state multiple times.
-			// A connection can never become un-closed, so we
-			// close the channel if it isn't already.
-			c.closedICEMutex.Lock()
-			defer c.closedICEMutex.Unlock()
-			select {
-			case <-c.closedICE:
-			default:
+			if iceGatherState == webrtc.ICEGathererStateClosed {
+				// pion/webrtc can update this state multiple times.
+				// A connection can never become un-closed, so we
+				// close the channel if it isn't already.
 				close(c.closedICE)
 			}
 		}
@@ -292,7 +292,7 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "sending offer")
+		c.opts.Logger.Debug(context.Background(), "sending offer", slog.F("offer", offer))
 		select {
 		case <-c.closed:
 			return
@@ -331,7 +331,7 @@ func (c *Conn) negotiate() {
 			_ = c.CloseWithError(xerrors.Errorf("set local description: %w", err))
 			return
 		}
-		c.opts.Logger.Debug(context.Background(), "sending answer")
+		c.opts.Logger.Debug(context.Background(), "sending answer", slog.F("answer", answer))
 		select {
 		case <-c.closed:
 			return

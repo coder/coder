@@ -82,6 +82,10 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			Message: fmt.Sprintf("The provided project history %q has failed to import. You cannot create workspaces using it!", projectHistory.Name),
 		})
 		return
+	case ProvisionerJobStatusCancelled:
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "The provided project history was canceled during import. You cannot create workspaces using it!",
+		})
 	}
 
 	project, err := api.Database.GetProjectByID(r.Context(), projectHistory.ProjectID)

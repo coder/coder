@@ -125,7 +125,7 @@ func New(t *testing.T) Server {
 	}
 
 	handler := coderd.New(&coderd.Options{
-		Logger:   slogtest.Make(t, nil),
+		Logger:   slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database: db,
 		Pubsub:   pubsub,
 	})

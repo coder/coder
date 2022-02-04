@@ -904,9 +904,24 @@ func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 		if arg.ID.String() != job.ID.String() {
 			continue
 		}
+		job.UpdatedAt = arg.UpdatedAt
+		q.provisionerJobs[index] = job
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, job := range q.provisionerJobs {
+		if arg.ID.String() != job.ID.String() {
+			continue
+		}
+		job.UpdatedAt = arg.UpdatedAt
 		job.CompletedAt = arg.CompletedAt
 		job.CancelledAt = arg.CancelledAt
-		job.UpdatedAt = arg.UpdatedAt
 		job.Error = arg.Error
 		q.provisionerJobs[index] = job
 		return nil
