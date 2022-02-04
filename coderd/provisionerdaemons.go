@@ -451,6 +451,9 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				ValidationValueType:  protoParameter.ValidationValueType,
 				ValidationTypeSystem: validationTypeSystem,
 
+				DefaultSourceScheme:      database.ParameterSourceSchemeNone,
+				DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
+
 				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
 				AllowOverrideSource:      protoParameter.AllowOverrideSource,
 			}
@@ -574,6 +577,8 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
 	switch typeSystem {
+	case sdkproto.ParameterSchema_None:
+		return database.ParameterTypeSystemNone, nil
 	case sdkproto.ParameterSchema_HCL:
 		return database.ParameterTypeSystemHCL, nil
 	default:

@@ -140,7 +140,9 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		var buffer bytes.Buffer
 		writer := tar.NewWriter(&buffer)
-		content := `variable "example" {}`
+		content := `variable "example" {
+	default = "hi"
+}`
 		err = writer.WriteHeader(&tar.Header{
 			Name: "main.tf",
 			Size: int64(len(content)),

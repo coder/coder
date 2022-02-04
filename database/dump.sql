@@ -20,6 +20,7 @@ CREATE TYPE login_type AS ENUM (
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
+    'none',
     'environment_variable',
     'provisioner_variable'
 );
@@ -32,10 +33,12 @@ CREATE TYPE parameter_scope AS ENUM (
 );
 
 CREATE TYPE parameter_source_scheme AS ENUM (
+    'none',
     'data'
 );
 
 CREATE TYPE parameter_type_system AS ENUM (
+    'none',
     'hcl'
 );
 

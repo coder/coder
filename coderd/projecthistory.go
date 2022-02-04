@@ -37,19 +37,19 @@ type ProjectParameter struct {
 	CreatedAt                time.Time                           `json:"created_at"`
 	ProjectHistoryID         uuid.UUID                           `json:"project_history_id"`
 	Name                     string                              `json:"name"`
-	Description              string                              `json:"description"`
-	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme"`
-	DefaultSourceValue       string                              `json:"default_source_value"`
+	Description              string                              `json:"description,omitempty"`
+	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme,omitempty"`
+	DefaultSourceValue       string                              `json:"default_source_value,omitempty"`
 	AllowOverrideSource      bool                                `json:"allow_override_source"`
-	DefaultDestinationScheme database.ParameterDestinationScheme `json:"default_destination_scheme"`
-	DefaultDestinationValue  string                              `json:"default_destination_value"`
+	DefaultDestinationScheme database.ParameterDestinationScheme `json:"default_destination_scheme,omitempty"`
+	DefaultDestinationValue  string                              `json:"default_destination_value,omitempty"`
 	AllowOverrideDestination bool                                `json:"allow_override_destination"`
 	DefaultRefresh           string                              `json:"default_refresh"`
 	RedisplayValue           bool                                `json:"redisplay_value"`
-	ValidationError          string                              `json:"validation_error"`
-	ValidationCondition      string                              `json:"validation_condition"`
-	ValidationTypeSystem     database.ParameterTypeSystem        `json:"validation_type_system"`
-	ValidationValueType      string                              `json:"validation_value_type"`
+	ValidationError          string                              `json:"validation_error,omitempty"`
+	ValidationCondition      string                              `json:"validation_condition,omitempty"`
+	ValidationTypeSystem     database.ParameterTypeSystem        `json:"validation_type_system,omitempty"`
+	ValidationValueType      string                              `json:"validation_value_type,omitempty"`
 }
 
 // CreateProjectHistoryRequest enables callers to create a new Project Version.
