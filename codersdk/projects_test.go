@@ -128,4 +128,39 @@ func TestProjects(t *testing.T) {
 		_, err = server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
 		require.NoError(t, err)
 	})
+
+	t.Run("Parameters", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "someproject",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		params, err := server.Client.ProjectParameters(context.Background(), user.Organization, project.Name)
+		require.NoError(t, err)
+		require.NotNil(t, params)
+		require.Len(t, params, 0)
+	})
+
+	t.Run("CreateParameter", func(t *testing.T) {
+		t.Parallel()
+		server := coderdtest.New(t)
+		user := server.RandomInitialUser(t)
+		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+			Name:        "someproject",
+			Provisioner: database.ProvisionerTypeTerraform,
+		})
+		require.NoError(t, err)
+		param, err := server.Client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
+			Name:              "hi",
+			SourceValue:       "tomato",
+			SourceScheme:      database.ParameterSourceSchemeData,
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			DestinationValue:  "moo",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "hi", param.Name)
+	})
 }

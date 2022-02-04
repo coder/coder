@@ -149,3 +149,21 @@ func (api *api) workspacesByProject(rw http.ResponseWriter, r *http.Request) {
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiWorkspaces)
 }
+
+// Creates parameters for a project.
+// This should validate the calling user has permissions!
+func (api *api) postParametersByProject(rw http.ResponseWriter, r *http.Request) {
+	project := httpmw.ProjectParam(r)
+
+	postParameterValueForScope(rw, r, api.Database, database.ParameterScopeProject, project.ID.String())
+}
+
+// Lists parameters for a project.
+func (api *api) parametersByProject(rw http.ResponseWriter, r *http.Request) {
+	project := httpmw.ProjectParam(r)
+
+	parametersForScope(rw, r, api.Database, database.GetParameterValuesByScopeParams{
+		Scope:   database.ParameterScopeProject,
+		ScopeID: project.ID.String(),
+	})
+}
