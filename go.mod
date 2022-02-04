@@ -27,7 +27,7 @@ require (
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
-	github.com/pion/webrtc/v3 v3.1.19
+	github.com/pion/webrtc/v3 v3.1.21
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.9
@@ -106,7 +106,7 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba // indirect
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
