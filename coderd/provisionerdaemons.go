@@ -65,7 +65,7 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         namesgenerator.GetRandomName(1),
-		Provisioners: []database.ProvisionerType{database.ProvisionerTypeCdrBasic, database.ProvisionerTypeTerraform},
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("insert provisioner daemon:% s", err))

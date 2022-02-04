@@ -28,7 +28,7 @@ func TestWorkspaces(t *testing.T) {
 	setupProjectAndWorkspace := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest) (coderd.Project, coderd.Workspace) {
 		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		workspace, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
@@ -55,7 +55,7 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		workspaces, err := server.Client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
@@ -79,7 +79,7 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
@@ -106,7 +106,7 @@ func TestWorkspaces(t *testing.T) {
 		initial := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), initial.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{

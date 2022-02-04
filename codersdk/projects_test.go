@@ -46,7 +46,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 	})
@@ -64,7 +64,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.Project(context.Background(), user.Organization, "bananas")
@@ -84,7 +84,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.ListProjectHistory(context.Background(), user.Organization, project.Name)
@@ -107,7 +107,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		var buffer bytes.Buffer
@@ -135,7 +135,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		params, err := server.Client.ProjectParameters(context.Background(), user.Organization, project.Name)
@@ -150,7 +150,7 @@ func TestProjects(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		param, err := server.Client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{

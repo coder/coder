@@ -191,8 +191,8 @@ func (e *ProvisionerJobType) Scan(src interface{}) error {
 type ProvisionerType string
 
 const (
+	ProvisionerTypeEcho      ProvisionerType = "echo"
 	ProvisionerTypeTerraform ProvisionerType = "terraform"
-	ProvisionerTypeCdrBasic  ProvisionerType = "cdr-basic"
 )
 
 func (e *ProvisionerType) Scan(src interface{}) error {
