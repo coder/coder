@@ -86,6 +86,17 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 		t.Logf("Output: %s", log.Output)
 	}
 
-	_, err = server.Client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, workspaceHistory.Name)
-	require.NoError(t, err)
+	t.Run("ReturnAll", func(t *testing.T) {
+		t.Parallel()
+
+		_, err = server.Client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, workspaceHistory.Name)
+		require.NoError(t, err)
+	})
+
+	t.Run("Between", func(t *testing.T) {
+		t.Parallel()
+
+		_, err = server.Client.WorkspaceHistoryLogsBetween(context.Background(), "", workspace.Name, workspaceHistory.Name, time.Time{}, database.Now())
+		require.NoError(t, err)
+	})
 }

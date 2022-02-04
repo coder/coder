@@ -29,6 +29,13 @@ type WorkspaceHistoryLog struct {
 	Output    string             `json:"output"`
 }
 
+// Returns workspace history logs based on query parameters.
+// The intended usage for a client to stream all logs (with JS API):
+// const timestamp = new Date().getTime();
+// 1. GET /logs?before=<timestamp>
+// 2. GET /logs?after=<timestamp>&follow
+// The combination of these responses should provide all current logs
+// to the consumer, and future logs are streamed in the follow request.
 func (api *api) workspaceHistoryLogsByName(rw http.ResponseWriter, r *http.Request) {
 	follow := r.URL.Query().Has("follow")
 	afterRaw := r.URL.Query().Get("after")
