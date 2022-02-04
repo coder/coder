@@ -1,6 +1,6 @@
 //go:build linux
 
-package terraform
+package terraform_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -26,7 +27,7 @@ func TestProvision(t *testing.T) {
 		cancelFunc()
 	})
 	go func() {
-		err := Serve(ctx, &ServeOptions{
+		err := terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: server,
 			},
