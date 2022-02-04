@@ -23,5 +23,32 @@
       }
     ]
   },
-  "cSpell.words": ["coderd", "coderdtest", "codersdk", "httpmw", "oneof", "stretchr", "xerrors"]
+  "cSpell.words": [
+    "coderd",
+    "coderdtest",
+    "codersdk",
+    "drpc",
+    "drpcconn",
+    "drpcmux",
+    "drpcserver",
+    "goleak",
+    "hashicorp",
+    "httpmw",
+    "moby",
+    "nhooyr",
+    "nolint",
+    "nosec",
+    "oneof",
+    "protobuf",
+    "provisionerd",
+    "provisionersdk",
+    "retrier",
+    "sdkproto",
+    "stretchr",
+    "tfexec",
+    "tfstate",
+    "unconvert",
+    "xerrors",
+    "yamux"
+  ]
 }

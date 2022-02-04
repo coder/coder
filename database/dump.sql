@@ -243,7 +243,6 @@ CREATE TABLE workspace_history (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    completed_at timestamp with time zone,
     workspace_id uuid NOT NULL,
     project_history_id uuid NOT NULL,
     name character varying(64) NOT NULL,

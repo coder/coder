@@ -422,7 +422,6 @@ type WorkspaceHistory struct {
 	ID               uuid.UUID           `db:"id" json:"id"`
 	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time           `db:"updated_at" json:"updated_at"`
-	CompletedAt      sql.NullTime        `db:"completed_at" json:"completed_at"`
 	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	ProjectHistoryID uuid.UUID           `db:"project_history_id" json:"project_history_id"`
 	Name             string              `db:"name" json:"name"`

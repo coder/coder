@@ -29,7 +29,7 @@ WHERE
       AND nested.completed_at IS NULL
       AND nested.provisioner = ANY(@types :: provisioner_type [ ])
     ORDER BY
-      nested.created FOR
+      nested.created_at FOR
     UPDATE
       SKIP LOCKED
     LIMIT
@@ -429,11 +429,11 @@ INSERT INTO
   project_history_log
 SELECT
   @project_history_id :: uuid AS project_history_id,
-  unnset(@id :: uuid [ ]) AS id,
+  unnest(@id :: uuid [ ]) AS id,
   unnest(@created_at :: timestamptz [ ]) AS created_at,
-  unnset(@source :: log_source [ ]) as source,
-  unnset(@level :: log_level [ ]) as level,
-  unnset(@output :: varchar(1024) [ ]) as output RETURNING *;
+  unnest(@source :: log_source [ ]) as source,
+  unnest(@level :: log_level [ ]) as level,
+  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertProjectParameter :one
 INSERT INTO
@@ -562,12 +562,12 @@ VALUES
 INSERT INTO
   workspace_history_log
 SELECT
+  unnest(@id :: uuid [ ]) AS id,
   @workspace_history_id :: uuid AS workspace_history_id,
-  unnset(@id :: uuid [ ]) AS id,
   unnest(@created_at :: timestamptz [ ]) AS created_at,
-  unnset(@source :: log_source [ ]) as source,
-  unnset(@level :: log_level [ ]) as level,
-  unnset(@output :: varchar(1024) [ ]) as output RETURNING *;
+  unnest(@source :: log_source [ ]) as source,
+  unnest(@level :: log_level [ ]) as level,
+  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO
@@ -607,9 +607,17 @@ WHERE
 UPDATE
   provisioner_job
 SET
+  updated_at = $2
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerJobWithCompleteByID :exec
+UPDATE
+  provisioner_job
+SET
   updated_at = $2,
-  cancelled_at = $3,
-  completed_at = $4,
+  completed_at = $3,
+  cancelled_at = $4,
   error = $5
 WHERE
   id = $1;
@@ -619,8 +627,7 @@ UPDATE
   workspace_history
 SET
   updated_at = $2,
-  completed_at = $3,
-  after_id = $4,
-  provisioner_state = $5
+  after_id = $3,
+  provisioner_state = $4
 WHERE
   id = $1;

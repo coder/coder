@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
 )
 
@@ -24,6 +25,7 @@ func Root() *cobra.Command {
 			handler := coderd.New(&coderd.Options{
 				Logger:   slog.Make(sloghuman.Sink(os.Stderr)),
 				Database: databasefake.New(),
+				Pubsub:   database.NewPubsubInMemory(),
 			})
 
 			listener, err := net.Listen("tcp", address)

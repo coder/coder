@@ -20,7 +20,6 @@ CREATE TABLE workspace_history (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
-    completed_at timestamptz,
     workspace_id uuid NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
     project_history_id uuid NOT NULL REFERENCES project_history (id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
