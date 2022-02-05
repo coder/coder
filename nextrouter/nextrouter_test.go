@@ -16,43 +16,6 @@ import (
 func TestNextRouter(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Injects template parameters", func(t *testing.T) {
-		t.Parallel()
-
-		rootFS := memfs.New()
-		err := rootFS.WriteFile("test.html", []byte("{{ .CSRF.Token }}"), 0755)
-		require.NoError(t, err)
-
-		type csrfState struct {
-			Token string
-		}
-
-		type template struct {
-			CSRF csrfState
-		}
-
-		// Add custom template function
-		templateFunc := func(request *http.Request) interface{} {
-			return template{
-				CSRF: csrfState{
-					Token: "hello-csrf",
-				},
-			}
-		}
-
-		router := nextrouter.Handler(rootFS, templateFunc)
-		server := httptest.NewServer(router)
-
-		res, err := request(server, "/test.html")
-		require.NoError(t, err)
-		defer res.Body.Close()
-
-		body, err := io.ReadAll(res.Body)
-		require.NoError(t, err)
-		require.Equal(t, string(body), "hello-csrf")
-		require.Equal(t, res.StatusCode, 200)
-	})
-
 	t.Run("Serves file at root", func(t *testing.T) {
 		t.Parallel()
 		rootFS := memfs.New()
@@ -220,6 +183,41 @@ func TestNextRouter(t *testing.T) {
 		require.Equal(t, res.StatusCode, 404)
 	})
 
+	t.Run("404 if file at root is not found", func(t *testing.T) {
+		t.Parallel()
+
+		rootFS := memfs.New()
+		err := rootFS.WriteFile("test.html", []byte("test123"), 0755)
+		require.NoError(t, err)
+
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test-non-existent.html")
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, res.StatusCode, 404)
+	})
+
+	t.Run("Serve custom 404.html if available", func(t *testing.T) {
+		t.Parallel()
+
+		rootFS := memfs.New()
+		err := rootFS.WriteFile("404.html", []byte("404 custom content"), 0755)
+		require.NoError(t, err)
+
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test-non-existent.html")
+		require.NoError(t, err)
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, res.StatusCode, 404)
+		require.Equal(t, string(body), "404 custom content")
+	})
+
 	t.Run("Serves dynamic-routed file", func(t *testing.T) {
 		t.Parallel()
 		rootFS := memfs.New()
@@ -305,6 +303,43 @@ func TestNextRouter(t *testing.T) {
 		require.Equal(t, string(body), "test-create")
 		require.Equal(t, res.StatusCode, 200)
 	})
+
+	t.Run("Injects template parameters", func(t *testing.T) {
+		t.Parallel()
+
+		rootFS := memfs.New()
+		err := rootFS.WriteFile("test.html", []byte("{{ .CSRF.Token }}"), 0755)
+		require.NoError(t, err)
+
+		type csrfState struct {
+			Token string
+		}
+
+		type template struct {
+			CSRF csrfState
+		}
+
+		// Add custom template function
+		templateFunc := func(request *http.Request) interface{} {
+			return template{
+				CSRF: csrfState{
+					Token: "hello-csrf",
+				},
+			}
+		}
+
+		router := nextrouter.Handler(rootFS, templateFunc)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test.html")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "hello-csrf")
+		require.Equal(t, res.StatusCode, 200)
+	})
 }
 
 func request(server *httptest.Server, path string) (*http.Response, error) {
@@ -319,6 +354,6 @@ func request(server *httptest.Server, path string) (*http.Response, error) {
 	return res, err
 }
 
-func noopTemplateFunc(request *http.Request) interface{} {
+func noopTemplateFunc(_ *http.Request) interface{} {
 	return nil
 }

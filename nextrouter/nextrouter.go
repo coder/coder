@@ -36,6 +36,9 @@ func Handler(fileSystem fs.FS, templateFunc TemplateDataFunc) http.Handler {
 	fileHandler := http.FileServer(http.FS(fileSystem))
 	router.NotFound(fileHandler.ServeHTTP)
 
+	// Finally, if there is a 404.html available, serve that
+	serve404IfAvailable(fileSystem, router)
+
 	return router
 }
 
@@ -112,8 +115,7 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string, templateFun
 
 		// TODO(Bryan): How to handle an error here?
 		if err != nil {
-			// TODO
-			http.Error(writer, "500", 500)
+			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
@@ -150,6 +152,26 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string, templateFun
 	}
 }
 
+func serve404IfAvailable(fileSystem fs.FS, router chi.Router) {
+	// Get the file contents
+	fileBytes, err := fs.ReadFile(fileSystem, "404.html")
+	if err != nil {
+		// An error is expected if the file doesn't exist
+		return
+	}
+
+	router.NotFound(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusNotFound)
+		_, err = writer.Write(fileBytes)
+		if err != nil {
+			// TODO(Bryan)
+			return
+		}
+	})
+}
+
+// isDynamicRoute returns true if the file is a NextJS dynamic route, like `[orgs]`
+// Returns false if the file is not a dynamic route, or if it is a catch-all route (`[[...any]]`)
 func isDynamicRoute(fileName string) bool {
 	fileWithoutExtension := removeFileExtension(fileName)
 
@@ -162,12 +184,16 @@ func isDynamicRoute(fileName string) bool {
 	return fileWithoutExtension[0] == '[' && fileWithoutExtension[1] != '[' && fileWithoutExtension[byteLen-1] == ']'
 }
 
+// isCatchAllRoute returns true if the file is a catch-all route, like `[[...any]]`
+// Return false otherwise
 func isCatchAllRoute(fileName string) bool {
 	fileWithoutExtension := removeFileExtension(fileName)
 	ret := strings.HasPrefix(fileWithoutExtension, "[[.")
 	return ret
 }
 
+// removeFileExtension removes the extension from a file
+// For example, removeFileExtension("index.html") would return "index"
 func removeFileExtension(fileName string) string {
 	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
