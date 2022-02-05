@@ -52,18 +52,18 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 		return
 	}
 
-	fmt.Println("Requesting file: " + fileName)
 	bytes, err := fs.ReadFile(fileSystem, fileName)
+	if err != nil {
+		// TODO(Bryan): Log here
+		return
+	}
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
-
-		if err != nil {
-			http.Error(w, http.StatusText(404), 404)
-		}
 		_, err = w.Write(bytes)
 
 		if err != nil {
-			http.Error(w, http.StatusText(404), 404)
+			// TODO(BRYAN): Log here
+			http.Error(w, http.StatusText(500), 500)
 		}
 	}
 
