@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog"
 )
 
+// Options for configuring a nextrouter
 type Options struct {
 	Logger           slog.Logger
 	TemplateDataFunc TemplateDataFunc
