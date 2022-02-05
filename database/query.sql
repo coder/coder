@@ -155,46 +155,46 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
--- name: GetProjectParametersByHistoryID :many
+-- name: GetProjectParametersByVersionID :many
 SELECT
   *
 FROM
   project_parameter
 WHERE
-  project_history_id = $1;
+  project_version_id = $1;
 
--- name: GetProjectHistoryByProjectID :many
+-- name: GetProjectVersionByProjectID :many
 SELECT
   *
 FROM
-  project_history
+  project_version
 WHERE
   project_id = $1;
 
--- name: GetProjectHistoryByProjectIDAndName :one
+-- name: GetProjectVersionByProjectIDAndName :one
 SELECT
   *
 FROM
-  project_history
+  project_version
 WHERE
   project_id = $1
   AND name = $2;
 
--- name: GetProjectHistoryByID :one
+-- name: GetProjectVersionByID :one
 SELECT
   *
 FROM
-  project_history
+  project_version
 WHERE
   id = $1;
 
--- name: GetProjectHistoryLogsByIDBetween :many
+-- name: GetProjectVersionLogsByIDBetween :many
 SELECT
   *
 FROM
-  project_history_log
+  project_version_log
 WHERE
-  project_history_id = @project_history_id
+  project_version_id = @project_version_id
   AND (
     created_at >= @created_after
     OR created_at <= @created_before
@@ -414,9 +414,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: InsertProjectHistory :one
+-- name: InsertProjectVersion :one
 INSERT INTO
-  project_history (
+  project_version (
     id,
     project_id,
     created_at,
@@ -430,11 +430,11 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
--- name: InsertProjectHistoryLogs :many
+-- name: InsertProjectVersionLogs :many
 INSERT INTO
-  project_history_log
+  project_version_log
 SELECT
-  @project_history_id :: uuid AS project_history_id,
+  @project_version_id :: uuid AS project_version_id,
   unnest(@id :: uuid [ ]) AS id,
   unnest(@created_at :: timestamptz [ ]) AS created_at,
   unnest(@source :: log_source [ ]) as source,
@@ -446,7 +446,7 @@ INSERT INTO
   project_parameter (
     id,
     created_at,
-    project_history_id,
+    project_version_id,
     name,
     description,
     default_source_scheme,
@@ -553,7 +553,7 @@ INSERT INTO
     created_at,
     updated_at,
     workspace_id,
-    project_history_id,
+    project_version_id,
     before_id,
     name,
     transition,

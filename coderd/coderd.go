@@ -66,13 +66,13 @@ func New(options *Options) http.Handler {
 						r.Get("/", api.parametersByProject)
 						r.Post("/", api.postParametersByProject)
 					})
-					r.Route("/history", func(r chi.Router) {
-						r.Get("/", api.projectHistoryByOrganization)
-						r.Post("/", api.postProjectHistoryByOrganization)
-						r.Route("/{projecthistory}", func(r chi.Router) {
-							r.Use(httpmw.ExtractProjectHistoryParam(api.Database))
-							r.Get("/", api.projectHistoryByOrganizationAndName)
-							r.Get("/parameters", api.projectHistoryParametersByOrganizationAndName)
+					r.Route("/versions", func(r chi.Router) {
+						r.Get("/", api.projectVersionsByOrganization)
+						r.Post("/", api.postProjectVersionByOrganization)
+						r.Route("/{projectversion}", func(r chi.Router) {
+							r.Use(httpmw.ExtractProjectVersionParam(api.Database))
+							r.Get("/", api.projectVersionByOrganizationAndName)
+							r.Get("/parameters", api.projectVersionParametersByOrganizationAndName)
 						})
 					})
 				})
@@ -91,7 +91,7 @@ func New(options *Options) http.Handler {
 				r.Route("/{workspace}", func(r chi.Router) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
 					r.Get("/", api.workspaceByUser)
-					r.Route("/history", func(r chi.Router) {
+					r.Route("/version", func(r chi.Router) {
 						r.Post("/", api.postWorkspaceHistoryByUser)
 						r.Get("/", api.workspaceHistoryByUser)
 						r.Route("/{workspacehistory}", func(r chi.Router) {

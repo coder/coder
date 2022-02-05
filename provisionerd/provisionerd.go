@@ -318,7 +318,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 	switch jobType := job.Type.(type) {
 	case *proto.AcquiredJob_ProjectImport_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is project import",
-			slog.F("project_history_name", jobType.ProjectImport.ProjectHistoryName),
+			slog.F("project_version_name", jobType.ProjectImport.ProjectVersionName),
 		)
 
 		p.runProjectImport(ctx, provisioner, job)
@@ -362,7 +362,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 			p.opts.Logger.Debug(context.Background(), "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				slog.F("project_history_id", job.GetProjectImport().ProjectHistoryId),
+				slog.F("project_version_id", job.GetProjectImport().ProjectVersionId),
 			)
 
 			err = p.updateStream.Send(&proto.JobUpdate{

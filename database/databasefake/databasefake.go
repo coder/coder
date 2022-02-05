@@ -21,8 +21,8 @@ func New() database.Store {
 
 		parameterValue:      make([]database.ParameterValue, 0),
 		project:             make([]database.Project, 0),
-		projectHistory:      make([]database.ProjectHistory, 0),
-		projectHistoryLog:   make([]database.ProjectHistoryLog, 0),
+		projectVersion:      make([]database.ProjectVersion, 0),
+		projectVersionLog:   make([]database.ProjectVersionLog, 0),
 		projectParameter:    make([]database.ProjectParameter, 0),
 		provisionerDaemons:  make([]database.ProvisionerDaemon, 0),
 		provisionerJobs:     make([]database.ProvisionerJob, 0),
@@ -47,8 +47,8 @@ type fakeQuerier struct {
 	// New tables
 	parameterValue      []database.ParameterValue
 	project             []database.Project
-	projectHistory      []database.ProjectHistory
-	projectHistoryLog   []database.ProjectHistoryLog
+	projectVersion      []database.ProjectVersion
+	projectVersionLog   []database.ProjectVersionLog
 	projectParameter    []database.ProjectParameter
 	provisionerDaemons  []database.ProvisionerDaemon
 	provisionerJobs     []database.ProvisionerJob
@@ -410,55 +410,55 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 	return database.Project{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectHistoryByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectHistory, error) {
+func (q *fakeQuerier) GetProjectVersionByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	history := make([]database.ProjectHistory, 0)
-	for _, projectHistory := range q.projectHistory {
-		if projectHistory.ProjectID.String() != projectID.String() {
+	version := make([]database.ProjectVersion, 0)
+	for _, projectVersion := range q.projectVersion {
+		if projectVersion.ProjectID.String() != projectID.String() {
 			continue
 		}
-		history = append(history, projectHistory)
+		version = append(version, projectVersion)
 	}
-	if len(history) == 0 {
+	if len(version) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return history, nil
+	return version, nil
 }
 
-func (q *fakeQuerier) GetProjectHistoryByProjectIDAndName(_ context.Context, arg database.GetProjectHistoryByProjectIDAndNameParams) (database.ProjectHistory, error) {
+func (q *fakeQuerier) GetProjectVersionByProjectIDAndName(_ context.Context, arg database.GetProjectVersionByProjectIDAndNameParams) (database.ProjectVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, projectHistory := range q.projectHistory {
-		if projectHistory.ProjectID.String() != arg.ProjectID.String() {
+	for _, projectVersion := range q.projectVersion {
+		if projectVersion.ProjectID.String() != arg.ProjectID.String() {
 			continue
 		}
-		if !strings.EqualFold(projectHistory.Name, arg.Name) {
+		if !strings.EqualFold(projectVersion.Name, arg.Name) {
 			continue
 		}
-		return projectHistory, nil
+		return projectVersion, nil
 	}
-	return database.ProjectHistory{}, sql.ErrNoRows
+	return database.ProjectVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectHistoryLogsByIDBetween(_ context.Context, arg database.GetProjectHistoryLogsByIDBetweenParams) ([]database.ProjectHistoryLog, error) {
+func (q *fakeQuerier) GetProjectVersionLogsByIDBetween(_ context.Context, arg database.GetProjectVersionLogsByIDBetweenParams) ([]database.ProjectVersionLog, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	logs := make([]database.ProjectHistoryLog, 0)
-	for _, projectHistoryLog := range q.projectHistoryLog {
-		if projectHistoryLog.ProjectHistoryID.String() != arg.ProjectHistoryID.String() {
+	logs := make([]database.ProjectVersionLog, 0)
+	for _, projectVersionLog := range q.projectVersionLog {
+		if projectVersionLog.ProjectVersionID.String() != arg.ProjectVersionID.String() {
 			continue
 		}
-		if projectHistoryLog.CreatedAt.After(arg.CreatedBefore) {
+		if projectVersionLog.CreatedAt.After(arg.CreatedBefore) {
 			continue
 		}
-		if projectHistoryLog.CreatedAt.Before(arg.CreatedAfter) {
+		if projectVersionLog.CreatedAt.Before(arg.CreatedAfter) {
 			continue
 		}
-		logs = append(logs, projectHistoryLog)
+		logs = append(logs, projectVersionLog)
 	}
 	if len(logs) == 0 {
 		return nil, sql.ErrNoRows
@@ -466,26 +466,26 @@ func (q *fakeQuerier) GetProjectHistoryLogsByIDBetween(_ context.Context, arg da
 	return logs, nil
 }
 
-func (q *fakeQuerier) GetProjectHistoryByID(_ context.Context, projectHistoryID uuid.UUID) (database.ProjectHistory, error) {
+func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID uuid.UUID) (database.ProjectVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, projectHistory := range q.projectHistory {
-		if projectHistory.ID.String() != projectHistoryID.String() {
+	for _, projectVersion := range q.projectVersion {
+		if projectVersion.ID.String() != projectVersionID.String() {
 			continue
 		}
-		return projectHistory, nil
+		return projectVersion, nil
 	}
-	return database.ProjectHistory{}, sql.ErrNoRows
+	return database.ProjectVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectParametersByHistoryID(_ context.Context, projectHistoryID uuid.UUID) ([]database.ProjectParameter, error) {
+func (q *fakeQuerier) GetProjectParametersByVersionID(_ context.Context, projectVersionID uuid.UUID) ([]database.ProjectParameter, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	parameters := make([]database.ProjectParameter, 0)
 	for _, projectParameter := range q.projectParameter {
-		if projectParameter.ProjectHistoryID.String() != projectHistoryID.String() {
+		if projectParameter.ProjectVersionID.String() != projectVersionID.String() {
 			continue
 		}
 		parameters = append(parameters, projectParameter)
@@ -660,12 +660,12 @@ func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjec
 	return project, nil
 }
 
-func (q *fakeQuerier) InsertProjectHistory(_ context.Context, arg database.InsertProjectHistoryParams) (database.ProjectHistory, error) {
+func (q *fakeQuerier) InsertProjectVersion(_ context.Context, arg database.InsertProjectVersionParams) (database.ProjectVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	history := database.ProjectHistory{
+	version := database.ProjectVersion{
 		ID:            arg.ID,
 		ProjectID:     arg.ProjectID,
 		CreatedAt:     arg.CreatedAt,
@@ -676,18 +676,18 @@ func (q *fakeQuerier) InsertProjectHistory(_ context.Context, arg database.Inser
 		StorageSource: arg.StorageSource,
 		ImportJobID:   arg.ImportJobID,
 	}
-	q.projectHistory = append(q.projectHistory, history)
-	return history, nil
+	q.projectVersion = append(q.projectVersion, version)
+	return version, nil
 }
 
-func (q *fakeQuerier) InsertProjectHistoryLogs(_ context.Context, arg database.InsertProjectHistoryLogsParams) ([]database.ProjectHistoryLog, error) {
+func (q *fakeQuerier) InsertProjectVersionLogs(_ context.Context, arg database.InsertProjectVersionLogsParams) ([]database.ProjectVersionLog, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	logs := make([]database.ProjectHistoryLog, 0)
+	logs := make([]database.ProjectVersionLog, 0)
 	for index, output := range arg.Output {
-		logs = append(logs, database.ProjectHistoryLog{
-			ProjectHistoryID: arg.ProjectHistoryID,
+		logs = append(logs, database.ProjectVersionLog{
+			ProjectVersionID: arg.ProjectVersionID,
 			ID:               arg.ID[index],
 			CreatedAt:        arg.CreatedAt[index],
 			Source:           arg.Source[index],
@@ -695,7 +695,7 @@ func (q *fakeQuerier) InsertProjectHistoryLogs(_ context.Context, arg database.I
 			Output:           output,
 		})
 	}
-	q.projectHistoryLog = append(q.projectHistoryLog, logs...)
+	q.projectVersionLog = append(q.projectVersionLog, logs...)
 	return logs, nil
 }
 
@@ -707,7 +707,7 @@ func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.Ins
 	param := database.ProjectParameter{
 		ID:                       arg.ID,
 		CreatedAt:                arg.CreatedAt,
-		ProjectHistoryID:         arg.ProjectHistoryID,
+		ProjectVersionID:         arg.ProjectVersionID,
 		Name:                     arg.Name,
 		Description:              arg.Description,
 		DefaultSourceScheme:      arg.DefaultSourceScheme,
@@ -821,7 +821,7 @@ func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.Ins
 		UpdatedAt:        arg.UpdatedAt,
 		WorkspaceID:      arg.WorkspaceID,
 		Name:             arg.Name,
-		ProjectHistoryID: arg.ProjectHistoryID,
+		ProjectVersionID: arg.ProjectVersionID,
 		BeforeID:         arg.BeforeID,
 		Transition:       arg.Transition,
 		Initiator:        arg.Initiator,

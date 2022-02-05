@@ -13,47 +13,47 @@ import (
 	"github.com/coder/coder/httpapi"
 )
 
-type projectHistoryParamContextKey struct{}
+type projectVersionParamContextKey struct{}
 
-// ProjectHistoryParam returns the project history from the ExtractProjectHistoryParam handler.
-func ProjectHistoryParam(r *http.Request) database.ProjectHistory {
-	projectHistory, ok := r.Context().Value(projectHistoryParamContextKey{}).(database.ProjectHistory)
+// ProjectVersionParam returns the project version from the ExtractProjectVersionParam handler.
+func ProjectVersionParam(r *http.Request) database.ProjectVersion {
+	projectVersion, ok := r.Context().Value(projectVersionParamContextKey{}).(database.ProjectVersion)
 	if !ok {
-		panic("developer error: project history param middleware not provided")
+		panic("developer error: project version param middleware not provided")
 	}
-	return projectHistory
+	return projectVersion
 }
 
-// ExtractProjectHistoryParam grabs project history from the "projecthistory" URL parameter.
-func ExtractProjectHistoryParam(db database.Store) func(http.Handler) http.Handler {
+// ExtractProjectVersionParam grabs project version from the "projectversion" URL parameter.
+func ExtractProjectVersionParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			project := ProjectParam(r)
-			projectHistoryName := chi.URLParam(r, "projecthistory")
-			if projectHistoryName == "" {
+			projectVersionName := chi.URLParam(r, "projectversion")
+			if projectVersionName == "" {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "project history name must be provided",
+					Message: "project version name must be provided",
 				})
 				return
 			}
-			projectHistory, err := db.GetProjectHistoryByProjectIDAndName(r.Context(), database.GetProjectHistoryByProjectIDAndNameParams{
+			projectVersion, err := db.GetProjectVersionByProjectIDAndName(r.Context(), database.GetProjectVersionByProjectIDAndNameParams{
 				ProjectID: project.ID,
-				Name:      projectHistoryName,
+				Name:      projectVersionName,
 			})
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("project history %q does not exist", projectHistoryName),
+					Message: fmt.Sprintf("project version %q does not exist", projectVersionName),
 				})
 				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get project history: %s", err.Error()),
+					Message: fmt.Sprintf("get project version: %s", err.Error()),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), projectHistoryParamContextKey{}, projectHistory)
+			ctx := context.WithValue(r.Context(), projectVersionParamContextKey{}, projectVersion)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

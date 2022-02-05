@@ -32,18 +32,18 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 		return project, workspace
 	}
 
-	setupProjectHistory := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project, data []byte) coderd.ProjectHistory {
-		projectHistory, err := client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+	setupProjectVersion := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project, data []byte) coderd.ProjectVersion {
+		projectVersion, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: data,
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			hist, err := client.ProjectHistory(context.Background(), user.Organization, project.Name, projectHistory.Name)
+			hist, err := client.ProjectVersion(context.Background(), user.Organization, project.Name, projectVersion.Name)
 			require.NoError(t, err)
 			return hist.Import.Status.Completed()
 		}, 15*time.Second, 50*time.Millisecond)
-		return projectHistory
+		return projectVersion
 	}
 
 	server := coderdtest.New(t)
@@ -62,10 +62,10 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 		},
 	}})
 	require.NoError(t, err)
-	projectHistory := setupProjectHistory(t, server.Client, user, project, data)
+	projectVersion := setupProjectVersion(t, server.Client, user, project, data)
 
 	workspaceHistory, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-		ProjectHistoryID: projectHistory.ID,
+		ProjectVersionID: projectVersion.ID,
 		Transition:       database.WorkspaceTransitionCreate,
 	})
 	require.NoError(t, err)
