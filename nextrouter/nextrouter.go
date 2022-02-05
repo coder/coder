@@ -50,7 +50,13 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 				// TODO(Bryan): Log
 				continue
 			}
-			rtr.Route("/"+name, func(r chi.Router) {
+			routeName := name
+
+			if isDynamicRoute(name) {
+				routeName = "{dynamic}"
+			}
+
+			rtr.Route("/"+routeName, func(r chi.Router) {
 				buildRouter(r, sub, name)
 			})
 		} else {
