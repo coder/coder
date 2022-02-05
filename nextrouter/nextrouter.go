@@ -13,13 +13,23 @@ import (
 )
 
 // Handler returns an HTTP handler for serving a next-based static site
+// This handler respects NextJS-based routing rules:
+// https://nextjs.org/docs/routing/dynamic-routes
+//
+// 1) If a file is of the form `[org]`, it's a dynamic route for a single-parameter
+// 2) If a file is of the form `[[...any]]`, it's a dynamic route for any parameters
 func Handler(fileSystem fs.FS) http.Handler {
 	router := chi.NewRouter()
+
+	// Build up a router that matches NextJS routing rules, for HTML files
 	buildRouter(router, fileSystem, "")
 
-	// Fallback to static file server for non-html files
+	// Fallback to static file server for non-HTML files
+	// Non-HTML files don't have special routing rules, so we can just leverage
+	// the built-in http.FileServer for it.
 	fileHandler := http.FileServer(http.FS(fileSystem))
 	router.NotFound(fileHandler.ServeHTTP)
+
 	return router
 }
 
@@ -50,7 +60,6 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 }
 
 func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
-
 	// We only handle .html files for now
 	ext := filepath.Ext(fileName)
 	if ext != ".html" {
@@ -69,6 +78,12 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 
 	fileNameWithoutExtension := removeFileExtension(fileName)
 
+	// Handle the `[org]` dynamic route case
+	if isDynamicRoute(fileName) {
+		router.Get("/{dynamic}", handler)
+		return
+	}
+
 	router.Get("/"+fileName, handler)
 	router.Get("/"+fileNameWithoutExtension, handler)
 
@@ -80,6 +95,18 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 		// for examples, `providers.html` should serve `/providers/`
 		router.Get("/"+fileNameWithoutExtension+"/", handler)
 	}
+}
+
+func isDynamicRoute(fileName string) bool {
+	fileWithoutExtension := removeFileExtension(fileName)
+
+	// Assuming ASCII encoding - `len` in go works on bytes
+	byteLen := len(fileWithoutExtension)
+	if byteLen < 2 {
+		return false
+	}
+
+	return fileWithoutExtension[0] == '[' && fileWithoutExtension[1] != '[' && fileWithoutExtension[byteLen-1] == ']'
 }
 
 func removeFileExtension(fileName string) string {

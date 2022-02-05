@@ -194,4 +194,25 @@ func TestNextRouter(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, res.StatusCode, 404)
 	})
+
+	t.Run("Serves dynamic-routed file", func(t *testing.T) {
+		t.Parallel()
+		rootFS := memfs.New()
+		err := rootFS.MkdirAll("folder", 0777)
+		require.NoError(t, err)
+		err = rootFS.WriteFile("folder/[orgs].html", []byte("test-dynamic-path"), 0755)
+		require.NoError(t, err)
+
+		router := nextrouter.Handler(rootFS)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/folder/org-1")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "test-dynamic-path")
+		require.Equal(t, res.StatusCode, 200)
+	})
 }
