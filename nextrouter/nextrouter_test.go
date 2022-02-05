@@ -34,8 +34,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("test.html", []byte("test123"), 0755)
 		require.NoError(t, err)
 
-		router, err := nextrouter.Handler(rootFS)
-		require.NoError(t, err)
+		router := nextrouter.Handler(rootFS)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test.html")
@@ -54,8 +53,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("test.html", []byte("test-no-extension"), 0755)
 		require.NoError(t, err)
 
-		router, err := nextrouter.Handler(rootFS)
-		require.NoError(t, err)
+		router := nextrouter.Handler(rootFS)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test")
@@ -74,8 +72,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("index.html", []byte("test-root-index"), 0755)
 		require.NoError(t, err)
 
-		router, err := nextrouter.Handler(rootFS)
-		require.NoError(t, err)
+		router := nextrouter.Handler(rootFS)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/")
@@ -98,8 +95,7 @@ func TestNextRouter(t *testing.T) {
 		rootFS.WriteFile("test/a/b/c.html", []byte("test123"), 0755)
 		require.NoError(t, err)
 
-		router, err := nextrouter.Handler(rootFS)
-		require.NoError(t, err)
+		router := nextrouter.Handler(rootFS)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test/a/b/c.html")
@@ -126,8 +122,8 @@ func TestNextRouter(t *testing.T) {
 		rootFS.WriteFile("test/a/b/c/index.html", []byte("test-abc-index"), 0755)
 		require.NoError(t, err)
 
-		router, err := nextrouter.Handler(rootFS)
-		require.NoError(t, err)
+		router := nextrouter.Handler(rootFS)
+
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test/a/b/c")
@@ -147,8 +143,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("test.html", []byte("test123"), 0755)
 		require.NoError(t, err)
 
-		router, err := nextrouter.Handler(rootFS)
-		require.NoError(t, err)
+		router := nextrouter.Handler(rootFS)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test-non-existent.html")

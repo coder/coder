@@ -13,10 +13,10 @@ import (
 )
 
 // Handler returns an HTTP handler for serving a next-based static site
-func Handler(fileSystem fs.FS) (http.Handler, error) {
+func Handler(fileSystem fs.FS) http.Handler {
 	rtr := chi.NewRouter()
 	buildRouter(rtr, fileSystem, "")
-	return rtr, nil
+	return rtr
 }
 
 func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
