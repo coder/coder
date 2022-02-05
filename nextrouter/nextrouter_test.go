@@ -2,6 +2,7 @@ package nextrouter_test
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -42,6 +43,10 @@ func TestConn(t *testing.T) {
 		res, err := request(server, "/test.html")
 		require.NoError(t, err)
 		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "test123")
 		require.Equal(t, res.StatusCode, 200)
 	})
 
