@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 
-interface CodeBlockProps {
+export interface CodeBlockProps {
   lines: string[]
 }
 
