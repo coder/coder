@@ -156,7 +156,6 @@ func TestNextRouter(t *testing.T) {
 		require.NoError(t, err)
 
 		router := nextrouter.Handler(rootFS, nil)
-
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test/a/b/c")
@@ -357,8 +356,4 @@ func request(server *httptest.Server, path string) (*http.Response, error) {
 		return nil, err
 	}
 	return res, err
-}
-
-func noopTemplateFunc(_ *http.Request) interface{} {
-	return nil
 }
