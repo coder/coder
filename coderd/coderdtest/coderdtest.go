@@ -3,7 +3,6 @@ package coderdtest
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"io"
 	"net/http/httptest"
 	"net/url"
@@ -154,7 +153,6 @@ func AwaitProjectVersionImported(t *testing.T, client *codersdk.Client, organiza
 		var err error
 		projectVersion, err = client.ProjectVersion(context.Background(), organization, project, version)
 		require.NoError(t, err)
-		fmt.Printf("GOT: %s\n", projectVersion.Import.Status)
 		return projectVersion.Import.Status.Completed()
 	}, 3*time.Second, 25*time.Millisecond)
 	return projectVersion

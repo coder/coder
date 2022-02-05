@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/hashicorp/yamux"
@@ -42,7 +43,9 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 		}
 		return nil, readBodyAsError(res)
 	}
-	session, err := yamux.Client(websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil)
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}

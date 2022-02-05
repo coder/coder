@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"time"
@@ -75,7 +76,9 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over
 	// the same connection.
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), nil)
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("multiplex server: %s", err))
 		return

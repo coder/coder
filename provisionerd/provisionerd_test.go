@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -52,7 +52,7 @@ func TestProvisionerd(t *testing.T) {
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			defer close(completeChan)
-			return nil, errors.New("an error")
+			return nil, xerrors.New("an error")
 		}, provisionerd.Provisioners{})
 		<-completeChan
 		require.NoError(t, closer.Close())
