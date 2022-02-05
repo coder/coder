@@ -23,28 +23,34 @@ func serve(fileSystem fs.FS, filePath string) http.HandlerFunc {
 	}
 }
 
-func buildRouter(parentFileSystem fs.FS, path string) (chi.Router, error) {
-	fileSystem, err := fs.Sub(parentFileSystem, path)
-	if err != nil {
-		return nil, err
-	}
+func buildRouter(rtr chi.Router, fileSystem fs.FS, path string) {
 	files, err := fs.ReadDir(fileSystem, ".")
-	rtr := chi.NewRouter()
+	if err != nil {
+		// TODO(Bryan): Log
+		return
+	}
+
 	rtr.Route("/", func(r chi.Router) {
 		for _, file := range files {
 			name := file.Name()
-			rtr.Get("/"+name, serve(fileSystem, name))
+
+			if file.IsDir() {
+				sub, err := fs.Sub(fileSystem, name)
+				if err != nil {
+					// TODO(Bryan): Log
+					continue
+				}
+				buildRouter(r, sub, path+"/"+name)
+			} else {
+				rtr.Get("/"+name, serve(fileSystem, name))
+			}
 		}
 	})
-	return rtr, nil
 }
 
 // Handler returns an HTTP handler for serving a next-based static site
 func Handler(fileSystem fs.FS) (http.Handler, error) {
-
-	router, err := buildRouter(fileSystem, ".")
-	if err != nil {
-		return nil, err
-	}
-	return router, nil
+	rtr := chi.NewRouter()
+	buildRouter(rtr, fileSystem, "")
+	return rtr, nil
 }
