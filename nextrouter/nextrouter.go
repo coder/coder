@@ -16,6 +16,10 @@ import (
 func Handler(fileSystem fs.FS) http.Handler {
 	router := chi.NewRouter()
 	buildRouter(router, fileSystem, "")
+
+	// Fallback to static file server for non-html files
+	fileHandler := http.FileServer(http.FS(fileSystem))
+	router.NotFound(fileHandler.ServeHTTP)
 	return router
 }
 

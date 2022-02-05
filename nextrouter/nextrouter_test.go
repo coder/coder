@@ -47,6 +47,26 @@ func TestNextRouter(t *testing.T) {
 		require.Equal(t, res.StatusCode, 200)
 	})
 
+	t.Run("Serves non-html files at root", func(t *testing.T) {
+		t.Parallel()
+		rootFS := memfs.New()
+		err := rootFS.WriteFile("test.png", []byte("png-bytes"), 0755)
+		require.NoError(t, err)
+
+		router := nextrouter.Handler(rootFS)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test.png")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, res.Header.Get("Content-Type"), "image/png")
+		require.Equal(t, string(body), "png-bytes")
+		require.Equal(t, res.StatusCode, 200)
+	})
+
 	t.Run("Serves html file without extension", func(t *testing.T) {
 		t.Parallel()
 		rootFS := memfs.New()
@@ -81,6 +101,7 @@ func TestNextRouter(t *testing.T) {
 
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
+		require.Equal(t, res.Header.Get("Content-Type"), "text/html; charset=utf-8")
 		require.Equal(t, string(body), "test-root-index")
 		require.Equal(t, res.StatusCode, 200)
 	})
