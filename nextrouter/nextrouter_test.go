@@ -117,6 +117,30 @@ func TestNextRouter(t *testing.T) {
 		require.Equal(t, res.StatusCode, 200)
 	})
 
+	t.Run("Uses index.html in nested path", func(t *testing.T) {
+		t.Parallel()
+
+		rootFS := memfs.New()
+		err := rootFS.MkdirAll("test/a/b/c", 0777)
+		require.NoError(t, err)
+
+		rootFS.WriteFile("test/a/b/c/index.html", []byte("test-abc-index"), 0755)
+		require.NoError(t, err)
+
+		router, err := nextrouter.Handler(rootFS)
+		require.NoError(t, err)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test/a/b/c")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "test-abc-index")
+		require.Equal(t, res.StatusCode, 200)
+	})
+
 	t.Run("404 if file at root is not found", func(t *testing.T) {
 		t.Parallel()
 
