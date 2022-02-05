@@ -86,7 +86,6 @@ func New(options *Options) http.Handler {
 			r.Get("/", api.workspaces)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/", api.workspaces)
 				r.Post("/", api.postWorkspaceByUser)
 				r.Route("/{workspace}", func(r chi.Router) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))

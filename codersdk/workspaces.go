@@ -15,7 +15,7 @@ import (
 // Workspaces returns all workspaces the authenticated session has access to.
 // If owner is specified, all workspaces for an organization will be returned.
 // If owner is empty, all workspaces the caller has access to will be returned.
-func (c *Client) WorkspacesByUser(ctx context.Context, user string) ([]coderd.Workspace, error) {
+func (c *Client) Workspaces(ctx context.Context, user string) ([]coderd.Workspace, error) {
 	route := "/api/v2/workspaces"
 	if user != "" {
 		route += fmt.Sprintf("/%s", user)

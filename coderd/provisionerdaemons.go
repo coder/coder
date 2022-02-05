@@ -36,7 +36,6 @@ func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		daemons = []database.ProvisionerDaemon{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -44,7 +43,9 @@ func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	if daemons == nil {
+		daemons = []database.ProvisionerDaemon{}
+	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, daemons)
 }
