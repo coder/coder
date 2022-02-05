@@ -45,6 +45,7 @@ func TestPostUser(t *testing.T) {
 }
 
 func TestPostUsers(t *testing.T) {
+	t.Parallel()
 	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)

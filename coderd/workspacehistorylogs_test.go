@@ -51,7 +51,8 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 	_ = coderdtest.NewProvisionerDaemon(t, client)
 	project, workspace := setupProjectAndWorkspace(t, client, user)
 	data, err := echo.Tar(&echo.Responses{
-		echo.ParseComplete, []*proto.Provision_Response{{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Log{
 				Log: &proto.Log{
 					Output: "test",

@@ -17,7 +17,9 @@ import (
 )
 
 func TestPostWorkspaceHistoryByUser(t *testing.T) {
+	t.Parallel()
 	t.Run("NoProjectVersion", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
@@ -32,6 +34,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	})
 
 	t.Run("ProjectVersionImporting", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
@@ -50,6 +53,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	})
 
 	t.Run("ProjectVersionFailedImport", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
@@ -69,6 +73,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	})
 
 	t.Run("AlreadyActive", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
@@ -91,6 +96,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	})
 
 	t.Run("UpdatePriorAfterField", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
@@ -118,7 +124,9 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 }
 
 func TestWorkspaceHistoryByUser(t *testing.T) {
+	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
@@ -131,6 +139,7 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 	})
 
 	t.Run("List", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
@@ -144,26 +153,26 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 		history, err := client.ListWorkspaceHistory(context.Background(), "me", workspace.Name)
+		require.NoError(t, err)
 		require.NotNil(t, history)
 		require.Len(t, history, 1)
 	})
 }
 
 func TestWorkspaceHistoryByName(t *testing.T) {
-	t.Run("Get", func(t *testing.T) {
-		client := coderdtest.New(t)
-		coderdtest.NewProvisionerDaemon(t, client)
-		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
-		})
-		require.NoError(t, err)
-		_, err = client.WorkspaceHistory(context.Background(), "me", workspace.Name, history.Name)
-		require.NoError(t, err)
+	t.Parallel()
+	client := coderdtest.New(t)
+	coderdtest.NewProvisionerDaemon(t, client)
+	user := coderdtest.CreateInitialUser(t, client)
+	project := coderdtest.CreateProject(t, client, user.Organization)
+	version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
+	coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+	history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		ProjectVersionID: version.ID,
+		Transition:       database.WorkspaceTransitionCreate,
 	})
+	require.NoError(t, err)
+	_, err = client.WorkspaceHistory(context.Background(), "me", workspace.Name, history.Name)
+	require.NoError(t, err)
 }

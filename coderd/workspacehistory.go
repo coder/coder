@@ -179,7 +179,6 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			if err != nil {
 				return xerrors.Errorf("update prior workspace history: %w", err)
 			}
-			fmt.Printf("Updated %s to %s\n", priorHistory.ID, workspaceHistory.ID)
 		}
 
 		return nil
