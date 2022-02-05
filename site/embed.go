@@ -10,6 +10,8 @@ import (
 	"github.com/justinas/nosurf"
 	"github.com/unrolled/secure"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/nextrouter"
 )
 
@@ -22,7 +24,7 @@ import (
 var site embed.FS
 
 // Handler returns an HTTP handler for serving the static site.
-func Handler() http.Handler {
+func Handler(logger slog.Logger) http.Handler {
 	filesystem, err := fs.Sub(site, "out")
 	if err != nil {
 		// This can't happen... Go would throw a compilation error.
@@ -39,7 +41,10 @@ func Handler() http.Handler {
 		}
 	}
 
-	nextRouterHandler := nextrouter.Handler(filesystem, templateFunc)
+	nextRouterHandler := nextrouter.Handler(filesystem, &nextrouter.Options{
+		Logger:           logger,
+		TemplateDataFunc: templateFunc,
+	})
 	return secureHeaders(nextRouterHandler)
 }
 

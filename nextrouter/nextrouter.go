@@ -2,6 +2,7 @@ package nextrouter
 
 import (
 	"bytes"
+	"context"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -10,7 +11,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"cdr.dev/slog"
 )
+
+type Options struct {
+	Logger           slog.Logger
+	TemplateDataFunc TemplateDataFunc
+}
 
 // TemplateDataFunc is a function that lets the consumer of `nextrouter`
 // inject arbitrary template parameters, based on the request. This is useful
@@ -24,11 +32,17 @@ type TemplateDataFunc func(*http.Request) interface{}
 //
 // 1) If a file is of the form `[org]`, it's a dynamic route for a single-parameter
 // 2) If a file is of the form `[[...any]]`, it's a dynamic route for any parameters
-func Handler(fileSystem fs.FS, templateFunc TemplateDataFunc) http.Handler {
+func Handler(fileSystem fs.FS, options *Options) http.Handler {
+	if options == nil {
+		options = &Options{
+			Logger:           slog.Logger{},
+			TemplateDataFunc: nil,
+		}
+	}
 	router := chi.NewRouter()
 
 	// Build up a router that matches NextJS routing rules, for HTML files
-	buildRouter(router, fileSystem, templateFunc)
+	buildRouter(router, fileSystem, *options)
 
 	// Fallback to static file server for non-HTML files
 	// Non-HTML files don't have special routing rules, so we can just leverage
@@ -37,17 +51,17 @@ func Handler(fileSystem fs.FS, templateFunc TemplateDataFunc) http.Handler {
 	router.NotFound(fileHandler.ServeHTTP)
 
 	// Finally, if there is a 404.html available, serve that
-	serve404IfAvailable(fileSystem, router)
+	serve404IfAvailable(fileSystem, router, *options)
 
 	return router
 }
 
 // buildRouter recursively traverses the file-system, building routes
 // as appropriate for respecting NextJS dynamic rules.
-func buildRouter(rtr chi.Router, fileSystem fs.FS, templateFunc TemplateDataFunc) {
+func buildRouter(rtr chi.Router, fileSystem fs.FS, options Options) {
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
-		// TODO(Bryan): Log
+		options.Logger.Warn(context.Background(), "Provided filesystem is empty; unable to build routes")
 		return
 	}
 
@@ -60,7 +74,7 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, templateFunc TemplateDataFunc
 		if file.IsDir() {
 			sub, err := fs.Sub(fileSystem, name)
 			if err != nil {
-				// TODO(Bryan): Log
+				options.Logger.Error(context.Background(), "Unable to call fs.Sub on directory", slog.F("directory_name", name))
 				continue
 			}
 
@@ -72,35 +86,38 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, templateFunc TemplateDataFunc
 				routeName = "{dynamic}"
 			}
 
+			options.Logger.Info(context.Background(), "Adding route", slog.F("name", name), slog.F("routeName", routeName))
 			rtr.Route("/"+routeName, func(r chi.Router) {
-				buildRouter(r, sub, templateFunc)
+				buildRouter(r, sub, options)
 			})
 		} else {
 			// ...otherwise, if it's a file - serve it up!
-			serveFile(rtr, fileSystem, name, templateFunc)
+			serveFile(rtr, fileSystem, name, options)
 		}
 	}
 }
 
 // serveFile is responsible for serving up HTML files in our next router
 // It handles various special cases, like trailing-slashes or handling routes w/o the .html suffix.
-func serveFile(router chi.Router, fileSystem fs.FS, fileName string, templateFunc TemplateDataFunc) {
+func serveFile(router chi.Router, fileSystem fs.FS, fileName string, options Options) {
 	// We only handle .html files for now
 	ext := filepath.Ext(fileName)
 	if ext != ".html" {
 		return
 	}
 
+	options.Logger.Debug(context.Background(), "Reading file", slog.F("fileName", fileName))
+
 	data, err := fs.ReadFile(fileSystem, fileName)
 	if err != nil {
-		// TODO(Bryan): Log here
+		options.Logger.Error(context.Background(), "Unable to read file", slog.F("fileName", fileName))
 		return
 	}
 
 	// Create a template from the data - we can inject custom parameters like CSRF here
 	tpls, err := template.New(fileName).Parse(string(data))
 	if err != nil {
-		// TODO(Bryan): Log here
+		options.Logger.Error(context.Background(), "Unable to create template for file", slog.F("fileName", fileName))
 		return
 	}
 
@@ -109,12 +126,18 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string, templateFun
 
 		// See if there are any template parameters we need to inject!
 		// Things like CSRF tokens, etc...
-		templateData := templateFunc(request)
+		//templateData := struct{}{}
+		var templateData interface{}
+		templateData = nil
+		if options.TemplateDataFunc != nil {
+			templateData = options.TemplateDataFunc(request)
+		}
 
+		options.Logger.Debug(context.Background(), "Applying template parameters", slog.F("fileName", fileName), slog.F("templateData", templateData))
 		err := tpls.ExecuteTemplate(&buf, fileName, templateData)
 
-		// TODO(Bryan): How to handle an error here?
 		if err != nil {
+			options.Logger.Error(request.Context(), "Error executing template", slog.F("template_parameters", templateData))
 			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -126,12 +149,14 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string, templateFun
 
 	// Handle the `[[...any]]` catch-all case
 	if isCatchAllRoute(fileNameWithoutExtension) {
+		options.Logger.Info(context.Background(), "Registering catch-all route", slog.F("fileName", fileName))
 		router.NotFound(handler)
 		return
 	}
 
 	// Handle the `[org]` dynamic route case
 	if isDynamicRoute(fileNameWithoutExtension) {
+		options.Logger.Info(context.Background(), "Registering dynamic route", slog.F("fileName", fileName))
 		router.Get("/{dynamic}", handler)
 		return
 	}
@@ -152,7 +177,7 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string, templateFun
 	}
 }
 
-func serve404IfAvailable(fileSystem fs.FS, router chi.Router) {
+func serve404IfAvailable(fileSystem fs.FS, router chi.Router, options Options) {
 	// Get the file contents
 	fileBytes, err := fs.ReadFile(fileSystem, "404.html")
 	if err != nil {
@@ -164,7 +189,7 @@ func serve404IfAvailable(fileSystem fs.FS, router chi.Router) {
 		writer.WriteHeader(http.StatusNotFound)
 		_, err = writer.Write(fileBytes)
 		if err != nil {
-			// TODO(Bryan)
+			options.Logger.Error(request.Context(), "Unable to write bytes for 404")
 			return
 		}
 	})
