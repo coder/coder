@@ -12,17 +12,20 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+//
+type TemplateDataFunc func(*http.Request) interface{}
+
 // Handler returns an HTTP handler for serving a next-based static site
 // This handler respects NextJS-based routing rules:
 // https://nextjs.org/docs/routing/dynamic-routes
 //
 // 1) If a file is of the form `[org]`, it's a dynamic route for a single-parameter
 // 2) If a file is of the form `[[...any]]`, it's a dynamic route for any parameters
-func Handler(fileSystem fs.FS) http.Handler {
+func Handler(fileSystem fs.FS, templateFunc TemplateDataFunc) http.Handler {
 	router := chi.NewRouter()
 
 	// Build up a router that matches NextJS routing rules, for HTML files
-	buildRouter(router, fileSystem)
+	buildRouter(router, fileSystem, templateFunc)
 
 	// Fallback to static file server for non-HTML files
 	// Non-HTML files don't have special routing rules, so we can just leverage
@@ -33,38 +36,49 @@ func Handler(fileSystem fs.FS) http.Handler {
 	return router
 }
 
-func buildRouter(rtr chi.Router, fileSystem fs.FS) {
+// buildRouter recursively traverses the file-system, building routes
+// as appropriate for respecting NextJS dynamic rules.
+func buildRouter(rtr chi.Router, fileSystem fs.FS, templateFunc TemplateDataFunc) {
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
 		// TODO(Bryan): Log
 		return
 	}
 
+	// Loop through everything in the current directory...
 	for _, file := range files {
 		name := file.Name()
 
+		// ...if it's a directory, create a sub-route by
+		// recursively calling `buildRouter`
 		if file.IsDir() {
 			sub, err := fs.Sub(fileSystem, name)
 			if err != nil {
 				// TODO(Bryan): Log
 				continue
 			}
-			routeName := name
 
+			// In the special case where the folder is dynamic,
+			// like `[org]`, we can convert to a chi-style dynamic route
+			// (which uses `{` instead of `[`)
+			routeName := name
 			if isDynamicRoute(name) {
 				routeName = "{dynamic}"
 			}
 
 			rtr.Route("/"+routeName, func(r chi.Router) {
-				buildRouter(r, sub)
+				buildRouter(r, sub, templateFunc)
 			})
 		} else {
-			serveFile(rtr, fileSystem, name)
+			// ...otherwise, if it's a file - serve it up!
+			serveFile(rtr, fileSystem, name, templateFunc)
 		}
 	}
 }
 
-func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
+// serveFile is responsible for serving up HTML files in our next router
+// It handles various special cases, like trailing-slashes or handling routes w/o the .html suffix.
+func serveFile(router chi.Router, fileSystem fs.FS, fileName string, templateFunc TemplateDataFunc) {
 	// We only handle .html files for now
 	ext := filepath.Ext(fileName)
 	if ext != ".html" {
@@ -84,23 +98,28 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 		return
 	}
 
-	handler := func(w http.ResponseWriter, r *http.Request) {
-
+	handler := func(writer http.ResponseWriter, request *http.Request) {
 		var buf bytes.Buffer
-		err := tpls.ExecuteTemplate(&buf, fileName, nil)
+
+		// See if there are any template parameters we need to inject!
+		// Things like CSRF tokens, etc...
+		templateData := templateFunc(request)
+
+		err := tpls.ExecuteTemplate(&buf, fileName, templateData)
 
 		// TODO(Bryan): How to handle an error here?
 		if err != nil {
 			// TODO
-			http.Error(w, "500", 500)
+			http.Error(writer, "500", 500)
 			return
 		}
 
-		http.ServeContent(w, r, fileName, time.Time{}, bytes.NewReader(buf.Bytes()))
+		http.ServeContent(writer, request, fileName, time.Time{}, bytes.NewReader(buf.Bytes()))
 	}
 
 	fileNameWithoutExtension := removeFileExtension(fileName)
 
+	// Handle the `[[...any]]` catch-all case
 	if isCatchAllRoute(fileNameWithoutExtension) {
 		router.NotFound(handler)
 		return
@@ -112,7 +131,10 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 		return
 	}
 
+	// Handle the basic file cases
+	// Directly accessing a file, ie `/providers.html`
 	router.Get("/"+fileName, handler)
+	// Accessing a file without an extension, ie `/providers`
 	router.Get("/"+fileNameWithoutExtension, handler)
 
 	// Special case: '/' should serve index.html

@@ -13,18 +13,6 @@ import (
 	"github.com/coder/coder/nextrouter"
 )
 
-func request(server *httptest.Server, path string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL+path, nil)
-	if err != nil {
-		return nil, err
-	}
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	return res, err
-}
-
 func TestNextRouter(t *testing.T) {
 	t.Parallel()
 
@@ -34,7 +22,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("test.html", []byte("test123"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test.html")
@@ -56,7 +44,7 @@ func TestNextRouter(t *testing.T) {
 		err = rootFS.WriteFile("folder.html", []byte("folderFile"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/folder/")
@@ -75,7 +63,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("test.png", []byte("png-bytes"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test.png")
@@ -95,7 +83,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("test.html", []byte("test-no-extension"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test")
@@ -114,7 +102,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("index.html", []byte("test-root-index"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/")
@@ -138,7 +126,7 @@ func TestNextRouter(t *testing.T) {
 		rootFS.WriteFile("test/a/b/c.html", []byte("test123"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test/a/b/c.html")
@@ -165,7 +153,7 @@ func TestNextRouter(t *testing.T) {
 		rootFS.WriteFile("test/a/b/c/index.html", []byte("test-abc-index"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 
 		server := httptest.NewServer(router)
 
@@ -186,7 +174,7 @@ func TestNextRouter(t *testing.T) {
 		err := rootFS.WriteFile("test.html", []byte("test123"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test-non-existent.html")
@@ -203,7 +191,7 @@ func TestNextRouter(t *testing.T) {
 		err = rootFS.WriteFile("folder/[orgs].html", []byte("test-dynamic-path"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/folder/org-1")
@@ -224,7 +212,7 @@ func TestNextRouter(t *testing.T) {
 		err = rootFS.WriteFile("folder/[org]/[project]/create.html", []byte("test-create"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/folder/org-1/project-1/create")
@@ -245,7 +233,7 @@ func TestNextRouter(t *testing.T) {
 		err = rootFS.WriteFile("folder/[[...any]].html", []byte("test-catch-all"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/folder/org-1/project-1/random")
@@ -268,7 +256,7 @@ func TestNextRouter(t *testing.T) {
 		err = rootFS.WriteFile("folder/create.html", []byte("test-create"), 0755)
 		require.NoError(t, err)
 
-		router := nextrouter.Handler(rootFS)
+		router := nextrouter.Handler(rootFS, noopTemplateFunc)
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/folder/create")
@@ -280,4 +268,20 @@ func TestNextRouter(t *testing.T) {
 		require.Equal(t, string(body), "test-create")
 		require.Equal(t, res.StatusCode, 200)
 	})
+}
+
+func request(server *httptest.Server, path string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return res, err
+}
+
+func noopTemplateFunc(request *http.Request) interface{} {
+	return nil
 }
