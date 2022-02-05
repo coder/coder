@@ -137,7 +137,7 @@ func (api *api) postWorkspaceByUser(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspace(workspace))
 }
 
-// Returns a single single workspace.
+// Returns a single workspace.
 func (*api) workspaceByUser(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
