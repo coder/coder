@@ -14,9 +14,9 @@ import (
 
 // Handler returns an HTTP handler for serving a next-based static site
 func Handler(fileSystem fs.FS) http.Handler {
-	rtr := chi.NewRouter()
-	buildRouter(rtr, fileSystem, "")
-	return rtr
+	router := chi.NewRouter()
+	buildRouter(router, fileSystem, "")
+	return router
 }
 
 func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
