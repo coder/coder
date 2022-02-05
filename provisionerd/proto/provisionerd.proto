@@ -18,8 +18,8 @@ message AcquiredJob {
         bytes state = 4;
     }
     message ProjectImport {
-        string project_history_id = 1;
-        string project_history_name = 2;
+        string project_version_id = 1;
+        string project_version_name = 2;
     }
     string job_id = 1;
     int64 created_at = 2;

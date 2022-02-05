@@ -22,7 +22,7 @@ type Project database.Project
 // CreateProjectRequest enables callers to create a new Project.
 type CreateProjectRequest struct {
 	Name        string                   `json:"name" validate:"username,required"`
-	Provisioner database.ProvisionerType `json:"provisioner" validate:"oneof=terraform cdr-basic,required"`
+	Provisioner database.ProvisionerType `json:"provisioner" validate:"oneof=terraform echo,required"`
 }
 
 // Lists all projects the authenticated user has access to.

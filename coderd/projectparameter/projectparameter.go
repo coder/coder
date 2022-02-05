@@ -17,7 +17,7 @@ import (
 type Scope struct {
 	OrganizationID     string
 	ProjectID          uuid.UUID
-	ProjectHistoryID   uuid.UUID
+	ProjectVersionID   uuid.UUID
 	UserID             string
 	WorkspaceID        uuid.UUID
 	WorkspaceHistoryID uuid.UUID
@@ -40,21 +40,21 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 	compute := &compute{
 		db:                             db,
 		computedParameterByName:        map[string]Value{},
-		projectHistoryParametersByName: map[string]database.ProjectParameter{},
+		projectVersionParametersByName: map[string]database.ProjectParameter{},
 	}
 
 	// All parameters for the project version!
-	projectHistoryParameters, err := db.GetProjectParametersByHistoryID(ctx, scope.ProjectHistoryID)
+	projectVersionParameters, err := db.GetProjectParametersByVersionID(ctx, scope.ProjectVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		// This occurs when the project history has defined
+		// This occurs when the project version has defined
 		// no parameters, so we have nothing to compute!
 		return []Value{}, nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("get project parameters: %w", err)
 	}
-	for _, projectHistoryParameter := range projectHistoryParameters {
-		compute.projectHistoryParametersByName[projectHistoryParameter.Name] = projectHistoryParameter
+	for _, projectVersionParameter := range projectVersionParameters {
+		compute.projectVersionParametersByName[projectVersionParameter.Name] = projectVersionParameter
 	}
 
 	// Organization parameters come first!
@@ -67,33 +67,33 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 	}
 
 	// Default project parameter values come second!
-	for _, projectHistoryParameter := range projectHistoryParameters {
-		if !projectHistoryParameter.DefaultSourceValue.Valid {
+	for _, projectVersionParameter := range projectVersionParameters {
+		if !projectVersionParameter.DefaultSourceValue.Valid {
 			continue
 		}
-		if !projectHistoryParameter.DefaultDestinationValue.Valid {
+		if !projectVersionParameter.DefaultDestinationValue.Valid {
 			continue
 		}
 
-		destinationScheme, err := convertDestinationScheme(projectHistoryParameter.DefaultDestinationScheme)
+		destinationScheme, err := convertDestinationScheme(projectVersionParameter.DefaultDestinationScheme)
 		if err != nil {
-			return nil, xerrors.Errorf("convert default destination scheme for project history parameter %q: %w", projectHistoryParameter.Name, err)
+			return nil, xerrors.Errorf("convert default destination scheme for project version parameter %q: %w", projectVersionParameter.Name, err)
 		}
 
-		switch projectHistoryParameter.DefaultSourceScheme {
+		switch projectVersionParameter.DefaultSourceScheme {
 		case database.ParameterSourceSchemeData:
-			compute.computedParameterByName[projectHistoryParameter.Name] = Value{
+			compute.computedParameterByName[projectVersionParameter.Name] = Value{
 				Proto: &proto.ParameterValue{
 					DestinationScheme: destinationScheme,
-					Name:              projectHistoryParameter.DefaultDestinationValue.String,
-					Value:             projectHistoryParameter.DefaultSourceValue.String,
+					Name:              projectVersionParameter.DefaultDestinationValue.String,
+					Value:             projectVersionParameter.DefaultSourceValue.String,
 				},
 				DefaultValue: true,
 				Scope:        database.ParameterScopeProject,
 				ScopeID:      scope.ProjectID.String(),
 			}
 		default:
-			return nil, xerrors.Errorf("unsupported source scheme for project history parameter %q: %q", projectHistoryParameter.Name, string(projectHistoryParameter.DefaultSourceScheme))
+			return nil, xerrors.Errorf("unsupported source scheme for project version parameter %q: %q", projectVersionParameter.Name, string(projectVersionParameter.DefaultSourceScheme))
 		}
 	}
 
@@ -124,13 +124,13 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 		return nil, err
 	}
 
-	for _, projectHistoryParameter := range compute.projectHistoryParametersByName {
-		if _, ok := compute.computedParameterByName[projectHistoryParameter.Name]; ok {
+	for _, projectVersionParameter := range compute.projectVersionParametersByName {
+		if _, ok := compute.computedParameterByName[projectVersionParameter.Name]; ok {
 			continue
 		}
 		return nil, NoValueError{
-			ParameterID:   projectHistoryParameter.ID,
-			ParameterName: projectHistoryParameter.Name,
+			ParameterID:   projectVersionParameter.ID,
+			ParameterName: projectVersionParameter.Name,
 		}
 	}
 
@@ -144,7 +144,7 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 type compute struct {
 	db                             database.Store
 	computedParameterByName        map[string]Value
-	projectHistoryParametersByName map[string]database.ProjectParameter
+	projectVersionParametersByName map[string]database.ProjectParameter
 }
 
 // Validates and computes the value for parameters; setting the value on "parameterByName".
@@ -158,8 +158,8 @@ func (c *compute) inject(ctx context.Context, scopeParams database.GetParameterV
 	}
 
 	for _, scopedParameter := range scopedParameters {
-		projectHistoryParameter, hasProjectHistoryParameter := c.projectHistoryParametersByName[scopedParameter.Name]
-		if !hasProjectHistoryParameter {
+		projectVersionParameter, hasProjectVersionParameter := c.projectVersionParametersByName[scopedParameter.Name]
+		if !hasProjectVersionParameter {
 			// Don't inject parameters that aren't defined by the project.
 			continue
 		}
@@ -169,7 +169,7 @@ func (c *compute) inject(ctx context.Context, scopeParams database.GetParameterV
 			// If a parameter already exists, check if this variable can override it.
 			// Injection hierarchy is the responsibility of the caller. This check ensures
 			// project parameters cannot be overridden if already set.
-			if !projectHistoryParameter.AllowOverrideSource && scopedParameter.Scope != database.ParameterScopeProject {
+			if !projectVersionParameter.AllowOverrideSource && scopedParameter.Scope != database.ParameterScopeProject {
 				continue
 			}
 		}
@@ -181,7 +181,7 @@ func (c *compute) inject(ctx context.Context, scopeParams database.GetParameterV
 
 		switch scopedParameter.SourceScheme {
 		case database.ParameterSourceSchemeData:
-			c.computedParameterByName[projectHistoryParameter.Name] = Value{
+			c.computedParameterByName[projectVersionParameter.Name] = Value{
 				Proto: &proto.ParameterValue{
 					DestinationScheme: destinationScheme,
 					Name:              scopedParameter.SourceValue,
@@ -189,7 +189,7 @@ func (c *compute) inject(ctx context.Context, scopeParams database.GetParameterV
 				},
 			}
 		default:
-			return xerrors.Errorf("unsupported source scheme: %q", string(projectHistoryParameter.DefaultSourceScheme))
+			return xerrors.Errorf("unsupported source scheme: %q", string(projectVersionParameter.DefaultSourceScheme))
 		}
 	}
 	return nil

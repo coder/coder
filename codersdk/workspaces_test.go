@@ -34,11 +34,11 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "wooow",
+			Name:      "wow",
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
@@ -52,11 +52,11 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "wooow",
+			Name:      "wow",
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
@@ -84,11 +84,11 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "wooow",
+			Name:      "wow",
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
@@ -109,11 +109,11 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "wooow",
+			Name:      "wow",
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
@@ -134,11 +134,11 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "wooow",
+			Name:      "wow",
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
@@ -152,16 +152,16 @@ func TestWorkspaces(t *testing.T) {
 		user := server.RandomInitialUser(t)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		workspace, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "wooow",
+			Name:      "wow",
 			ProjectID: project.ID,
 		})
 		require.NoError(t, err)
 		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectHistoryID: uuid.New(),
+			ProjectVersionID: uuid.New(),
 			Transition:       database.WorkspaceTransitionCreate,
 		})
 		require.Error(t, err)

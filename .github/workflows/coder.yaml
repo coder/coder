@@ -155,15 +155,48 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with Mock Database
-        run: gotestsum --jsonfile="gotests.json" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=5 -race -short -parallel=2
+        run: gotestsum --junitfile="gotests.xml" --packages="./..." --
+          -covermode=atomic -coverprofile="gotests.coverage"
+          -timeout=3m -count=5 -race -short -parallel=2
 
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
-        run: DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
+        run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=1 -race -parallel=2
+
+      - uses: actions/setup-node@v2
+        if: always() && github.actor != 'dependabot[bot]'
+        with:
+          node-version: "14"
+
+      - name: Cache DataDog CI
+        if: always() && github.actor != 'dependabot[bot]'
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.npm
+            %LocalAppData%\npm-cache
+          key: datadogci-
+          restore-keys: datadogci-
+
+      - name: Upload DataDog Trace
+        if: always() && github.actor != 'dependabot[bot]'
+        # See: https://docs.datadoghq.com/continuous_integration/setup_tests/junit_upload/#collecting-environment-configuration-metadata
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_GIT_REPOSITORY_URL: ${{ github.repositoryUrl }}
+          DD_GIT_BRANCH: ${{ github.head_ref }}
+          DD_GIT_COMMIT_SHA: ${{ github.sha }}
+          DD_GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          DD_GIT_COMMIT_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+          DD_GIT_COMMIT_AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+          DD_GIT_COMMIT_COMMITTER_NAME: ${{ github.event.head_commit.committer.name }}
+          DD_GIT_COMMIT_COMMITTER_EMAIL: ${{ github.event.head_commit.committer.email }}
+          DD_TAGS: ${{ format('os.platform:{0},os.architecture:{1}', runner.os, runner.arch) }} 
+        run: |
+          npm install -g @datadog/datadog-ci
+          datadog-ci junit upload --service coder gotests.xml
 
       - uses: codecov/codecov-action@v2
         if: github.actor != 'dependabot[bot]'

@@ -41,7 +41,8 @@ message ParameterSchema {
     bool redisplay_value = 7;
 
     enum TypeSystem {
-        HCL = 0;
+        None = 0;
+        HCL = 1;
     }
     TypeSystem validation_type_system = 8;
     string validation_value_type = 9;
