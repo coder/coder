@@ -28,6 +28,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 			ProjectVersionID: uuid.New(),
 			Transition:       database.WorkspaceTransitionCreate,
 		})
+		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
@@ -36,8 +37,8 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	t.Run("ProjectVersionImporting", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
@@ -47,6 +48,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 			ProjectVersionID: version.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
+		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotAcceptable, apiErr.StatusCode())
@@ -55,8 +57,8 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	t.Run("ProjectVersionFailedImport", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
 			Provision: []*proto.Provision_Response{{}},
@@ -67,6 +69,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 			ProjectVersionID: version.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
+		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -75,8 +78,8 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	t.Run("AlreadyActive", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
 		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
@@ -90,6 +93,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 			ProjectVersionID: version.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
+		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -98,8 +102,8 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	t.Run("UpdatePriorAfterField", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
 		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
@@ -128,8 +132,8 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		history, err := client.ListWorkspaceHistory(context.Background(), "me", workspace.Name)
@@ -141,8 +145,8 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
 		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
@@ -162,8 +166,8 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 func TestWorkspaceHistoryByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t)
-	coderdtest.NewProvisionerDaemon(t, client)
 	user := coderdtest.CreateInitialUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
 	project := coderdtest.CreateProject(t, client, user.Organization)
 	version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
 	coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)

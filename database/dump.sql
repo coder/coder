@@ -137,6 +137,26 @@ CREATE TABLE project (
     active_version_id uuid
 );
 
+CREATE TABLE project_parameter (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    project_version_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
+    description character varying(8192) DEFAULT ''::character varying NOT NULL,
+    default_source_scheme parameter_source_scheme,
+    default_source_value text,
+    allow_override_source boolean NOT NULL,
+    default_destination_scheme parameter_destination_scheme,
+    default_destination_value text,
+    allow_override_destination boolean NOT NULL,
+    default_refresh text NOT NULL,
+    redisplay_value boolean NOT NULL,
+    validation_error character varying(256) NOT NULL,
+    validation_condition character varying(512) NOT NULL,
+    validation_type_system parameter_type_system NOT NULL,
+    validation_value_type character varying(64) NOT NULL
+);
+
 CREATE TABLE project_version (
     id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -156,26 +176,6 @@ CREATE TABLE project_version_log (
     source log_source NOT NULL,
     level log_level NOT NULL,
     output character varying(1024) NOT NULL
-);
-
-CREATE TABLE project_parameter (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    project_version_id uuid NOT NULL,
-    name character varying(64) NOT NULL,
-    description character varying(8192) DEFAULT ''::character varying NOT NULL,
-    default_source_scheme parameter_source_scheme,
-    default_source_value text,
-    allow_override_source boolean NOT NULL,
-    default_destination_scheme parameter_destination_scheme,
-    default_destination_value text,
-    allow_override_destination boolean NOT NULL,
-    default_refresh text NOT NULL,
-    redisplay_value boolean NOT NULL,
-    validation_error character varying(256) NOT NULL,
-    validation_condition character varying(512) NOT NULL,
-    validation_type_system parameter_type_system NOT NULL,
-    validation_value_type character varying(64) NOT NULL
 );
 
 CREATE TABLE provisioner_daemon (
@@ -282,15 +282,6 @@ ALTER TABLE ONLY parameter_value
 ALTER TABLE ONLY parameter_value
     ADD CONSTRAINT parameter_value_name_scope_scope_id_key UNIQUE (name, scope, scope_id);
 
-ALTER TABLE ONLY project_version
-    ADD CONSTRAINT project_version_id_key UNIQUE (id);
-
-ALTER TABLE ONLY project_version_log
-    ADD CONSTRAINT project_version_log_id_key UNIQUE (id);
-
-ALTER TABLE ONLY project_version
-    ADD CONSTRAINT project_version_project_id_name_key UNIQUE (project_id, name);
-
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_id_key UNIQUE (id);
 
@@ -302,6 +293,15 @@ ALTER TABLE ONLY project_parameter
 
 ALTER TABLE ONLY project_parameter
     ADD CONSTRAINT project_parameter_project_version_id_name_key UNIQUE (project_version_id, name);
+
+ALTER TABLE ONLY project_version
+    ADD CONSTRAINT project_version_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project_version_log
+    ADD CONSTRAINT project_version_log_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project_version
+    ADD CONSTRAINT project_version_project_id_name_key UNIQUE (project_id, name);
 
 ALTER TABLE ONLY provisioner_daemon
     ADD CONSTRAINT provisioner_daemon_id_key UNIQUE (id);
@@ -339,14 +339,14 @@ ALTER TABLE ONLY workspace_resource
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_history_id_name_key UNIQUE (workspace_history_id, name);
 
+ALTER TABLE ONLY project_parameter
+    ADD CONSTRAINT project_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY project_version_log
     ADD CONSTRAINT project_version_log_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
-
-ALTER TABLE ONLY project_parameter
-    ADD CONSTRAINT project_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_job
     ADD CONSTRAINT provisioner_job_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE;
