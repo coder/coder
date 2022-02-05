@@ -2,6 +2,7 @@ package nextrouter
 
 import (
 	"bytes"
+	"html/template"
 	"io/fs"
 	"net/http"
 	"path/filepath"
@@ -76,8 +77,26 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 		return
 	}
 
+	// Create a template from the data - we can inject custom parameters like CSRF here
+	tpls, err := template.New(fileName).Parse(string(data))
+	if err != nil {
+		// TODO(Bryan): Log here
+		return
+	}
+
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		http.ServeContent(w, r, fileName, time.Time{}, bytes.NewReader(data))
+
+		var buf bytes.Buffer
+		err := tpls.ExecuteTemplate(&buf, fileName, nil)
+
+		// TODO(Bryan): How to handle an error here?
+		if err != nil {
+			// TODO
+			http.Error(w, "500", 500)
+			return
+		}
+
+		http.ServeContent(w, r, fileName, time.Time{}, bytes.NewReader(buf.Bytes()))
 	}
 
 	fileNameWithoutExtension := removeFileExtension(fileName)
