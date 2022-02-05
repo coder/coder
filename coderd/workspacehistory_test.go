@@ -34,26 +34,6 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("ProjectVersionImporting", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t)
-		user := coderdtest.CreateInitialUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
-			Provision: []*proto.Provision_Response{{}},
-		})
-		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
-		})
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotAcceptable, apiErr.StatusCode())
-	})
-
 	t.Run("ProjectVersionFailedImport", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
