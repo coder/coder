@@ -1,6 +1,7 @@
 package nextrouter
 
 import (
+	"fmt"
 	"io/fs"
 	"net/http"
 
@@ -9,7 +10,7 @@ import (
 
 func serve(fileSystem fs.FS, filePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
+		fmt.Println("Requesting file: " + filePath)
 		bytes, err := fs.ReadFile(fileSystem, filePath)
 
 		if err != nil {
@@ -23,29 +24,29 @@ func serve(fileSystem fs.FS, filePath string) http.HandlerFunc {
 	}
 }
 
-func buildRouter(rtr chi.Router, fileSystem fs.FS, path string) {
+func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
 		// TODO(Bryan): Log
 		return
 	}
 
-	rtr.Route("/", func(r chi.Router) {
-		for _, file := range files {
-			name := file.Name()
+	for _, file := range files {
+		name := file.Name()
 
-			if file.IsDir() {
-				sub, err := fs.Sub(fileSystem, name)
-				if err != nil {
-					// TODO(Bryan): Log
-					continue
-				}
-				buildRouter(r, sub, path+"/"+name)
-			} else {
-				rtr.Get("/"+name, serve(fileSystem, name))
+		if file.IsDir() {
+			sub, err := fs.Sub(fileSystem, name)
+			if err != nil {
+				// TODO(Bryan): Log
+				continue
 			}
+			rtr.Route("/"+name, func(r chi.Router) {
+				buildRouter(r, sub, name)
+			})
+		} else {
+			rtr.Get("/"+name, serve(fileSystem, name))
 		}
-	})
+	}
 }
 
 // Handler returns an HTTP handler for serving a next-based static site

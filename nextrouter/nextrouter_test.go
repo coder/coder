@@ -26,7 +26,7 @@ func request(server *httptest.Server, path string) (*http.Response, error) {
 	return res, err
 }
 
-func TestConn(t *testing.T) {
+func TestNextRouter(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Serves file at root", func(t *testing.T) {
@@ -41,6 +41,30 @@ func TestConn(t *testing.T) {
 		server := httptest.NewServer(router)
 
 		res, err := request(server, "/test.html")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "test123")
+		require.Equal(t, res.StatusCode, 200)
+	})
+
+	t.Run("Serves nested file", func(t *testing.T) {
+		t.Parallel()
+
+		rootFS := memfs.New()
+		err := rootFS.MkdirAll("test/a/b", 0777)
+		require.NoError(t, err)
+
+		rootFS.WriteFile("test/a/b/c.html", []byte("test123"), 0755)
+		require.NoError(t, err)
+
+		router, err := nextrouter.Handler(rootFS)
+		require.NoError(t, err)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test/a/b/c.html")
 		require.NoError(t, err)
 		defer res.Body.Close()
 
