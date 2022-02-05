@@ -137,7 +137,7 @@ CREATE TABLE project (
     active_version_id uuid
 );
 
-CREATE TABLE project_history (
+CREATE TABLE project_version (
     id uuid NOT NULL,
     project_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -149,9 +149,9 @@ CREATE TABLE project_history (
     import_job_id uuid NOT NULL
 );
 
-CREATE TABLE project_history_log (
+CREATE TABLE project_version_log (
     id uuid NOT NULL,
-    project_history_id uuid NOT NULL,
+    project_version_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     source log_source NOT NULL,
     level log_level NOT NULL,
@@ -161,7 +161,7 @@ CREATE TABLE project_history_log (
 CREATE TABLE project_parameter (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    project_history_id uuid NOT NULL,
+    project_version_id uuid NOT NULL,
     name character varying(64) NOT NULL,
     description character varying(8192) DEFAULT ''::character varying NOT NULL,
     default_source_scheme parameter_source_scheme,
@@ -247,7 +247,7 @@ CREATE TABLE workspace_history (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     workspace_id uuid NOT NULL,
-    project_history_id uuid NOT NULL,
+    project_version_id uuid NOT NULL,
     name character varying(64) NOT NULL,
     before_id uuid,
     after_id uuid,
@@ -282,14 +282,14 @@ ALTER TABLE ONLY parameter_value
 ALTER TABLE ONLY parameter_value
     ADD CONSTRAINT parameter_value_name_scope_scope_id_key UNIQUE (name, scope, scope_id);
 
-ALTER TABLE ONLY project_history
-    ADD CONSTRAINT project_history_id_key UNIQUE (id);
+ALTER TABLE ONLY project_version
+    ADD CONSTRAINT project_version_id_key UNIQUE (id);
 
-ALTER TABLE ONLY project_history_log
-    ADD CONSTRAINT project_history_log_id_key UNIQUE (id);
+ALTER TABLE ONLY project_version_log
+    ADD CONSTRAINT project_version_log_id_key UNIQUE (id);
 
-ALTER TABLE ONLY project_history
-    ADD CONSTRAINT project_history_project_id_name_key UNIQUE (project_id, name);
+ALTER TABLE ONLY project_version
+    ADD CONSTRAINT project_version_project_id_name_key UNIQUE (project_id, name);
 
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_id_key UNIQUE (id);
@@ -301,7 +301,7 @@ ALTER TABLE ONLY project_parameter
     ADD CONSTRAINT project_parameter_id_key UNIQUE (id);
 
 ALTER TABLE ONLY project_parameter
-    ADD CONSTRAINT project_parameter_project_history_id_name_key UNIQUE (project_history_id, name);
+    ADD CONSTRAINT project_parameter_project_version_id_name_key UNIQUE (project_version_id, name);
 
 ALTER TABLE ONLY provisioner_daemon
     ADD CONSTRAINT provisioner_daemon_id_key UNIQUE (id);
@@ -339,14 +339,14 @@ ALTER TABLE ONLY workspace_resource
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_history_id_name_key UNIQUE (workspace_history_id, name);
 
-ALTER TABLE ONLY project_history_log
-    ADD CONSTRAINT project_history_log_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_version_log
+    ADD CONSTRAINT project_version_log_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY project_history
-    ADD CONSTRAINT project_history_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
+ALTER TABLE ONLY project_version
+    ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
 
 ALTER TABLE ONLY project_parameter
-    ADD CONSTRAINT project_parameter_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id) ON DELETE CASCADE;
+    ADD CONSTRAINT project_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_job
     ADD CONSTRAINT provisioner_job_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE;
@@ -358,7 +358,7 @@ ALTER TABLE ONLY workspace_history_log
     ADD CONSTRAINT workspace_history_log_workspace_history_id_fkey FOREIGN KEY (workspace_history_id) REFERENCES workspace_history(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_history
-    ADD CONSTRAINT workspace_history_project_history_id_fkey FOREIGN KEY (project_history_id) REFERENCES project_history(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_history_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE;

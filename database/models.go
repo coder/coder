@@ -316,31 +316,10 @@ type Project struct {
 	ActiveVersionID uuid.NullUUID   `db:"active_version_id" json:"active_version_id"`
 }
 
-type ProjectHistory struct {
-	ID            uuid.UUID            `db:"id" json:"id"`
-	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
-	Name          string               `db:"name" json:"name"`
-	Description   string               `db:"description" json:"description"`
-	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource []byte               `db:"storage_source" json:"storage_source"`
-	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
-}
-
-type ProjectHistoryLog struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Source           LogSource `db:"source" json:"source"`
-	Level            LogLevel  `db:"level" json:"level"`
-	Output           string    `db:"output" json:"output"`
-}
-
 type ProjectParameter struct {
 	ID                       uuid.UUID                  `db:"id" json:"id"`
 	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	ProjectHistoryID         uuid.UUID                  `db:"project_history_id" json:"project_history_id"`
+	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
 	Name                     string                     `db:"name" json:"name"`
 	Description              string                     `db:"description" json:"description"`
 	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
@@ -355,6 +334,27 @@ type ProjectParameter struct {
 	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+}
+
+type ProjectVersion struct {
+	ID            uuid.UUID            `db:"id" json:"id"`
+	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
+	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
+	Name          string               `db:"name" json:"name"`
+	Description   string               `db:"description" json:"description"`
+	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource []byte               `db:"storage_source" json:"storage_source"`
+	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
+}
+
+type ProjectVersionLog struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	ProjectVersionID uuid.UUID `db:"project_version_id" json:"project_version_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	Source           LogSource `db:"source" json:"source"`
+	Level            LogLevel  `db:"level" json:"level"`
+	Output           string    `db:"output" json:"output"`
 }
 
 type ProvisionerDaemon struct {
@@ -426,7 +426,7 @@ type WorkspaceHistory struct {
 	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time           `db:"updated_at" json:"updated_at"`
 	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	ProjectHistoryID uuid.UUID           `db:"project_history_id" json:"project_history_id"`
+	ProjectVersionID uuid.UUID           `db:"project_version_id" json:"project_version_id"`
 	Name             string              `db:"name" json:"name"`
 	BeforeID         uuid.NullUUID       `db:"before_id" json:"before_id"`
 	AfterID          uuid.NullUUID       `db:"after_id" json:"after_id"`

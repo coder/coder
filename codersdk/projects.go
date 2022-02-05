@@ -57,9 +57,9 @@ func (c *Client) CreateProject(ctx context.Context, organization string, request
 	return project, json.NewDecoder(res.Body).Decode(&project)
 }
 
-// ListProjectHistory lists history for a project.
-func (c *Client) ListProjectHistory(ctx context.Context, organization, project string) ([]coderd.ProjectHistory, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history", organization, project), nil)
+// ProjectVersions lists versions of a project.
+func (c *Client) ProjectVersions(ctx context.Context, organization, project string) ([]coderd.ProjectVersion, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/versions", organization, project), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -67,41 +67,41 @@ func (c *Client) ListProjectHistory(ctx context.Context, organization, project s
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var projectHistory []coderd.ProjectHistory
-	return projectHistory, json.NewDecoder(res.Body).Decode(&projectHistory)
-}
-
-// ProjectHistory returns project history by name.
-func (c *Client) ProjectHistory(ctx context.Context, organization, project, history string) (coderd.ProjectHistory, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history/%s", organization, project, history), nil)
-	if err != nil {
-		return coderd.ProjectHistory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return coderd.ProjectHistory{}, readBodyAsError(res)
-	}
-	var projectHistory coderd.ProjectHistory
-	return projectHistory, json.NewDecoder(res.Body).Decode(&projectHistory)
-}
-
-// CreateProjectHistory inserts a new version for the project.
-func (c *Client) CreateProjectHistory(ctx context.Context, organization, project string, request coderd.CreateProjectHistoryRequest) (coderd.ProjectHistory, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s/%s/history", organization, project), request)
-	if err != nil {
-		return coderd.ProjectHistory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return coderd.ProjectHistory{}, readBodyAsError(res)
-	}
-	var projectVersion coderd.ProjectHistory
+	var projectVersion []coderd.ProjectVersion
 	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
 }
 
-// ProjectHistoryParameters returns project parameters for history by name.
-func (c *Client) ProjectHistoryParameters(ctx context.Context, organization, project, history string) ([]coderd.ProjectParameter, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/history/%s/parameters", organization, project, history), nil)
+// ProjectVersion returns project version by name.
+func (c *Client) ProjectVersion(ctx context.Context, organization, project, version string) (coderd.ProjectVersion, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/versions/%s", organization, project, version), nil)
+	if err != nil {
+		return coderd.ProjectVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.ProjectVersion{}, readBodyAsError(res)
+	}
+	var projectVersion coderd.ProjectVersion
+	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
+}
+
+// CreateProjectVersion inserts a new version for the project.
+func (c *Client) CreateProjectVersion(ctx context.Context, organization, project string, request coderd.CreateProjectVersionRequest) (coderd.ProjectVersion, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s/%s/versions", organization, project), request)
+	if err != nil {
+		return coderd.ProjectVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return coderd.ProjectVersion{}, readBodyAsError(res)
+	}
+	var projectVersion coderd.ProjectVersion
+	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
+}
+
+// ProjectVersionParameters returns project parameters for a version by name.
+func (c *Client) ProjectVersionParameters(ctx context.Context, organization, project, version string) ([]coderd.ProjectParameter, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/versions/%s/parameters", organization, project, version), nil)
 	if err != nil {
 		return nil, err
 	}

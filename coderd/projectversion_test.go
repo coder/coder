@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestProjectHistory(t *testing.T) {
+func TestProjectVersion(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoHistory", func(t *testing.T) {
@@ -27,12 +27,12 @@ func TestProjectHistory(t *testing.T) {
 			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		versions, err := server.Client.ListProjectHistory(context.Background(), user.Organization, project.Name)
+		versions, err := server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, versions, 0)
 	})
 
-	t.Run("CreateHistory", func(t *testing.T) {
+	t.Run("CreateVersion", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
@@ -47,16 +47,16 @@ func TestProjectHistory(t *testing.T) {
 			},
 		}}, nil)
 		require.NoError(t, err)
-		history, err := server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+		version, err := server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: data,
 		})
 		require.NoError(t, err)
-		versions, err := server.Client.ListProjectHistory(context.Background(), user.Organization, project.Name)
+		versions, err := server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, versions, 1)
 
-		_, err = server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
+		_, err = server.Client.ProjectVersion(context.Background(), user.Organization, project.Name, version.Name)
 		require.NoError(t, err)
 	})
 
@@ -78,7 +78,7 @@ func TestProjectHistory(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<21))
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+		_, err = server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})
@@ -94,7 +94,7 @@ func TestProjectHistory(t *testing.T) {
 			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+		_, err = server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: []byte{},
 		})

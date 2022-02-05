@@ -106,7 +106,7 @@ type workspaceProvisionJob struct {
 
 // The input for a "project_import" job.
 type projectImportJob struct {
-	ProjectHistoryID uuid.UUID `json:"project_history_id"`
+	ProjectVersionID uuid.UUID `json:"project_version_id"`
 }
 
 // Implementation of the provisioner daemon protobuf server.
@@ -182,7 +182,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		ProjectName:      project.Name,
 		UserName:         user.Username,
 	}
-	var projectHistory database.ProjectHistory
+	var projectVersion database.ProjectVersion
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceProvision:
 		var input workspaceProvisionJob
@@ -198,16 +198,16 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace: %s", err))
 		}
-		projectHistory, err = server.Database.GetProjectHistoryByID(ctx, workspaceHistory.ProjectHistoryID)
+		projectVersion, err = server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get project history: %s", err))
+			return nil, failJob(fmt.Sprintf("get project version: %s", err))
 		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
 			OrganizationID:     organization.ID,
 			ProjectID:          project.ID,
-			ProjectHistoryID:   projectHistory.ID,
+			ProjectVersionID:   projectVersion.ID,
 			UserID:             user.ID,
 			WorkspaceID:        workspace.ID,
 			WorkspaceHistoryID: workspaceHistory.ID,
@@ -249,23 +249,23 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
-		projectHistory, err = server.Database.GetProjectHistoryByID(ctx, input.ProjectHistoryID)
+		projectVersion, err = server.Database.GetProjectVersionByID(ctx, input.ProjectVersionID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get project history: %s", err))
+			return nil, failJob(fmt.Sprintf("get project version: %s", err))
 		}
 
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
 			ProjectImport: &proto.AcquiredJob_ProjectImport{
-				ProjectHistoryId:   projectHistory.ID.String(),
-				ProjectHistoryName: projectHistory.Name,
+				ProjectVersionId:   projectVersion.ID.String(),
+				ProjectVersionName: projectVersion.Name,
 			},
 		}
 	}
-	switch projectHistory.StorageMethod {
+	switch projectVersion.StorageMethod {
 	case database.ProjectStorageMethodInlineArchive:
-		protoJob.ProjectSourceArchive = projectHistory.StorageSource
+		protoJob.ProjectSourceArchive = projectVersion.StorageSource
 	default:
-		return nil, failJob(fmt.Sprintf("unsupported storage source: %q", projectHistory.StorageMethod))
+		return nil, failJob(fmt.Sprintf("unsupported storage source: %q", projectVersion.StorageMethod))
 	}
 
 	return protoJob, err
@@ -309,8 +309,8 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 			if err != nil {
 				return xerrors.Errorf("unmarshal job input %q: %s", job.Input, err)
 			}
-			insertParams := database.InsertProjectHistoryLogsParams{
-				ProjectHistoryID: input.ProjectHistoryID,
+			insertParams := database.InsertProjectVersionLogsParams{
+				ProjectVersionID: input.ProjectVersionID,
 			}
 			for _, log := range update.ProjectImportLogs {
 				logLevel, err := convertLogLevel(log.Level)
@@ -327,7 +327,7 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 				insertParams.Source = append(insertParams.Source, logSource)
 				insertParams.Output = append(insertParams.Output, log.Output)
 			}
-			logs, err := server.Database.InsertProjectHistoryLogs(stream.Context(), insertParams)
+			logs, err := server.Database.InsertProjectVersionLogs(stream.Context(), insertParams)
 			if err != nil {
 				return xerrors.Errorf("insert project logs: %w", err)
 			}
@@ -335,7 +335,7 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 			if err != nil {
 				return xerrors.Errorf("marshal project log: %w", err)
 			}
-			err = server.Pubsub.Publish(projectHistoryLogsChannel(input.ProjectHistoryID), data)
+			err = server.Pubsub.Publish(projectVersionLogsChannel(input.ProjectVersionID), data)
 			if err != nil {
 				return xerrors.Errorf("publish history log: %w", err)
 			}
@@ -442,7 +442,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			projectParameter := database.InsertProjectParameterParams{
 				ID:                   uuid.New(),
 				CreatedAt:            database.Now(),
-				ProjectHistoryID:     input.ProjectHistoryID,
+				ProjectVersionID:     input.ProjectVersionID,
 				Name:                 protoParameter.Name,
 				Description:          protoParameter.Description,
 				RedisplayValue:       protoParameter.RedisplayValue,

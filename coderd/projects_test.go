@@ -148,17 +148,17 @@ func TestProjects(t *testing.T) {
 			},
 		}}, nil)
 		require.NoError(t, err)
-		history, err := server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+		version, err := server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: data,
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			projectHistory, err := server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
+			projectVersion, err := server.Client.ProjectVersion(context.Background(), user.Organization, project.Name, version.Name)
 			require.NoError(t, err)
-			return projectHistory.Import.Status.Completed()
+			return projectVersion.Import.Status.Completed()
 		}, 15*time.Second, 10*time.Millisecond)
-		params, err := server.Client.ProjectHistoryParameters(context.Background(), user.Organization, project.Name, history.Name)
+		params, err := server.Client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
 		require.NoError(t, err)
 		require.Len(t, params, 1)
 		require.Equal(t, "example", params[0].Name)

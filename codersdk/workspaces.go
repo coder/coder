@@ -68,7 +68,7 @@ func (c *Client) ListWorkspaceHistory(ctx context.Context, owner, workspace stri
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace, history
 	if history == "" {
 		history = "latest"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s", owner, workspace, history), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version/%s", owner, workspace, history), nil)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}
@@ -123,7 +123,7 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), request)
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), request)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}
@@ -153,7 +153,7 @@ func (c *Client) WorkspaceHistoryLogsBetween(ctx context.Context, owner, workspa
 	if !before.IsZero() {
 		values["before"] = []string{strconv.FormatInt(before.UTC().UnixMilli(), 10)}
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s/logs?%s", owner, workspace, history, values.Encode()), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version/%s/logs?%s", owner, workspace, history, values.Encode()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (c *Client) FollowWorkspaceHistoryLogsAfter(ctx context.Context, owner, wor
 		owner = "me"
 	}
 
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s/logs?follow%s", owner, workspace, history, afterQuery), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version/%s/logs?follow%s", owner, workspace, history, afterQuery), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -74,7 +74,7 @@ func TestProjects(t *testing.T) {
 	t.Run("UnauthenticatedHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_, err := server.Client.ListProjectHistory(context.Background(), "org", "project")
+		_, err := server.Client.ProjectVersions(context.Background(), "org", "project")
 		require.Error(t, err)
 	})
 
@@ -87,14 +87,14 @@ func TestProjects(t *testing.T) {
 			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.ListProjectHistory(context.Background(), user.Organization, project.Name)
+		_, err = server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
 
 	t.Run("CreateHistoryUnauthenticated", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_, err := server.Client.CreateProjectHistory(context.Background(), "org", "project", coderd.CreateProjectHistoryRequest{
+		_, err := server.Client.CreateProjectVersion(context.Background(), "org", "project", coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: []byte{},
 		})
@@ -119,13 +119,13 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<10))
 		require.NoError(t, err)
-		history, err := server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
+		version, err := server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Client.ProjectHistory(context.Background(), user.Organization, project.Name, history.Name)
+		_, err = server.Client.ProjectVersion(context.Background(), user.Organization, project.Name, version.Name)
 		require.NoError(t, err)
 	})
 
@@ -168,7 +168,7 @@ func TestProjects(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
 		user := server.RandomInitialUser(t)
-		_, err := server.Client.ProjectHistoryParameters(context.Background(), user.Organization, "nothing", "nope")
+		_, err := server.Client.ProjectVersionParameters(context.Background(), user.Organization, "nothing", "nope")
 		require.Error(t, err)
 	})
 }

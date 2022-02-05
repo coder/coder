@@ -25,7 +25,7 @@ type WorkspaceHistory struct {
 	CreatedAt        time.Time                    `json:"created_at"`
 	UpdatedAt        time.Time                    `json:"updated_at"`
 	WorkspaceID      uuid.UUID                    `json:"workspace_id"`
-	ProjectHistoryID uuid.UUID                    `json:"project_history_id"`
+	ProjectVersionID uuid.UUID                    `json:"project_version_id"`
 	BeforeID         uuid.UUID                    `json:"before_id"`
 	AfterID          uuid.UUID                    `json:"after_id"`
 	Name             string                       `json:"name"`
@@ -36,7 +36,7 @@ type WorkspaceHistory struct {
 
 // CreateWorkspaceHistoryRequest provides options to update the latest workspace history.
 type CreateWorkspaceHistoryRequest struct {
-	ProjectHistoryID uuid.UUID                    `json:"project_history_id" validate:"required"`
+	ProjectVersionID uuid.UUID                    `json:"project_version_id" validate:"required"`
 	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 }
 
@@ -47,12 +47,12 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	}
 	user := httpmw.UserParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	projectHistory, err := api.Database.GetProjectHistoryByID(r.Context(), createBuild.ProjectHistoryID)
+	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), createBuild.ProjectVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "project history not found",
+			Message: "project version not found",
 			Errors: []httpapi.Error{{
-				Field: "project_history_id",
+				Field: "project_version_id",
 				Code:  "exists",
 			}},
 		})
@@ -60,36 +60,36 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project history: %s", err),
+			Message: fmt.Sprintf("get project version: %s", err),
 		})
 		return
 	}
-	projectHistoryJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectHistory.ImportJobID)
+	projectVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.ImportJobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
-	projectHistoryJobStatus := convertProvisionerJob(projectHistoryJob).Status
-	switch projectHistoryJobStatus {
+	projectVersionJobStatus := convertProvisionerJob(projectVersionJob).Status
+	switch projectVersionJobStatus {
 	case ProvisionerJobStatusPending, ProvisionerJobStatusRunning:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("The provided project history is %s. Wait for it to complete importing!", projectHistoryJobStatus),
+			Message: fmt.Sprintf("The provided project version is %s. Wait for it to complete importing!", projectVersionJobStatus),
 		})
 		return
 	case ProvisionerJobStatusFailed:
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("The provided project history %q has failed to import. You cannot create workspaces using it!", projectHistory.Name),
+			Message: fmt.Sprintf("The provided project version %q has failed to import. You cannot create workspaces using it!", projectVersion.Name),
 		})
 		return
 	case ProvisionerJobStatusCancelled:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "The provided project history was canceled during import. You cannot create workspaces using it!",
+			Message: "The provided project version was canceled during import. You cannot create workspaces using it!",
 		})
 	}
 
-	project, err := api.Database.GetProjectByID(r.Context(), projectHistory.ProjectID)
+	project, err := api.Database.GetProjectByID(r.Context(), projectVersion.ProjectID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get project: %s", err),
@@ -154,7 +154,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			CreatedAt:        database.Now(),
 			UpdatedAt:        database.Now(),
 			WorkspaceID:      workspace.ID,
-			ProjectHistoryID: projectHistory.ID,
+			ProjectVersionID: projectVersion.ID,
 			BeforeID:         priorHistoryID,
 			Name:             namesgenerator.GetRandomName(1),
 			Initiator:        user.ID,
@@ -246,7 +246,7 @@ func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory, provisi
 		CreatedAt:        workspaceHistory.CreatedAt,
 		UpdatedAt:        workspaceHistory.UpdatedAt,
 		WorkspaceID:      workspaceHistory.WorkspaceID,
-		ProjectHistoryID: workspaceHistory.ProjectHistoryID,
+		ProjectVersionID: workspaceHistory.ProjectVersionID,
 		BeforeID:         workspaceHistory.BeforeID.UUID,
 		AfterID:          workspaceHistory.AfterID.UUID,
 		Name:             workspaceHistory.Name,

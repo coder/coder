@@ -20,10 +20,10 @@ CREATE TABLE project (
 
 CREATE TYPE project_storage_method AS ENUM ('inline-archive');
 
--- Project Versions store Project history. When a Project Version is imported,
+-- Project Versions store historical project data. When a Project Version is imported,
 -- an "import" job is queued to parse parameters. A Project Version
 -- can only be used if the import job succeeds.
-CREATE TABLE project_history (
+CREATE TABLE project_version (
     id uuid NOT NULL UNIQUE,
     -- This should be indexed.
     project_id uuid NOT NULL REFERENCES project (id),
@@ -66,7 +66,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable',
 CREATE TABLE project_parameter (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
-    project_history_id uuid NOT NULL REFERENCES project_history(id) ON DELETE CASCADE,
+    project_version_id uuid NOT NULL REFERENCES project_version(id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
     -- 8KB limit
     description varchar(8192) NOT NULL DEFAULT '',
@@ -88,7 +88,7 @@ CREATE TABLE project_parameter (
     validation_condition varchar(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type varchar(64) NOT NULL,
-    UNIQUE(project_history_id, name)
+    UNIQUE(project_version_id, name)
 );
 
 CREATE TYPE log_level AS ENUM (
@@ -104,9 +104,9 @@ CREATE TYPE log_source AS ENUM (
     'provisioner'
 );
 
-CREATE TABLE project_history_log (
+CREATE TABLE project_version_log (
     id uuid NOT NULL UNIQUE,
-    project_history_id uuid NOT NULL REFERENCES project_history (id) ON DELETE CASCADE,
+    project_version_id uuid NOT NULL REFERENCES project_version (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL,
     source log_source NOT NULL,
     level log_level NOT NULL,
