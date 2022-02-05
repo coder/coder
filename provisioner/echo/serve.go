@@ -68,7 +68,8 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 			return err
 		}
 	}
-	return nil
+	<-stream.Context().Done()
+	return stream.Context().Err()
 }
 
 // Provision reads requests from the provided directory to stream responses.
@@ -97,7 +98,8 @@ func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvis
 			return err
 		}
 	}
-	return nil
+	<-stream.Context().Done()
+	return stream.Context().Err()
 }
 
 type Responses struct {
