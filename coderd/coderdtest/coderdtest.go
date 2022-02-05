@@ -3,6 +3,7 @@ package coderdtest
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"net/url"
@@ -67,37 +68,6 @@ func New(t *testing.T) *codersdk.Client {
 	return codersdk.New(serverURL)
 }
 
-// Server represents a test instance of coderd.
-// The database is intentionally omitted from
-// this struct to promote data being exposed via
-// the API.
-type Server struct {
-	Client *codersdk.Client
-	URL    *url.URL
-}
-
-// NewInitialUser creates a user with preset credentials and authenticates
-// with the passed in codersdk client.
-func NewInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateInitialUserRequest {
-	req := coderd.CreateInitialUserRequest{
-		Email:        "testuser@coder.com",
-		Username:     "testuser",
-		Password:     "testpass",
-		Organization: "testorg",
-	}
-	_, err := client.CreateInitialUser(context.Background(), req)
-	require.NoError(t, err)
-
-	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-		Email:    req.Email,
-		Password: req.Password,
-	})
-	require.NoError(t, err)
-	err = client.SetSessionToken(login.SessionToken)
-	require.NoError(t, err)
-	return req
-}
-
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
@@ -131,9 +101,31 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 	return closer
 }
 
-// NewProject creates a project with the "echo" provisioner for
+// CreateInitialUser creates a user with preset credentials and authenticates
+// with the passed in codersdk client.
+func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateInitialUserRequest {
+	req := coderd.CreateInitialUserRequest{
+		Email:        "testuser@coder.com",
+		Username:     "testuser",
+		Password:     "testpass",
+		Organization: "testorg",
+	}
+	_, err := client.CreateInitialUser(context.Background(), req)
+	require.NoError(t, err)
+
+	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	require.NoError(t, err)
+	err = client.SetSessionToken(login.SessionToken)
+	require.NoError(t, err)
+	return req
+}
+
+// CreateProject creates a project with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func NewProject(t *testing.T, client *codersdk.Client, organization string) coderd.Project {
+func CreateProject(t *testing.T, client *codersdk.Client, organization string) coderd.Project {
 	project, err := client.CreateProject(context.Background(), organization, coderd.CreateProjectRequest{
 		Name:        randomUsername(),
 		Provisioner: database.ProvisionerTypeEcho,
@@ -142,9 +134,9 @@ func NewProject(t *testing.T, client *codersdk.Client, organization string) code
 	return project
 }
 
-// NewProjectVersion creates a project version for the "echo" provisioner
+// CreateProjectVersion creates a project version for the "echo" provisioner
 // for compatibility with testing.
-func NewProjectVersion(t *testing.T, client *codersdk.Client, organization, project string, responses *echo.Responses) coderd.ProjectVersion {
+func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization, project string, responses *echo.Responses) coderd.ProjectVersion {
 	data, err := echo.Tar(responses)
 	require.NoError(t, err)
 	version, err := client.CreateProjectVersion(context.Background(), organization, project, coderd.CreateProjectVersionRequest{
@@ -162,20 +154,33 @@ func AwaitProjectVersionImported(t *testing.T, client *codersdk.Client, organiza
 		var err error
 		projectVersion, err = client.ProjectVersion(context.Background(), organization, project, version)
 		require.NoError(t, err)
+		fmt.Printf("GOT: %s\n", projectVersion.Import.Status)
 		return projectVersion.Import.Status.Completed()
-	}, 3*time.Second, 50*time.Millisecond)
+	}, 3*time.Second, 25*time.Millisecond)
 	return projectVersion
 }
 
-// NewWorkspace creates a workspace for the user and project provided.
+// CreateWorkspace creates a workspace for the user and project provided.
 // A random name is generated for it.
-func NewWorkspace(t *testing.T, client *codersdk.Client, user string, projectID uuid.UUID) coderd.Workspace {
+func CreateWorkspace(t *testing.T, client *codersdk.Client, user string, projectID uuid.UUID) coderd.Workspace {
 	workspace, err := client.CreateWorkspace(context.Background(), user, coderd.CreateWorkspaceRequest{
 		ProjectID: projectID,
 		Name:      randomUsername(),
 	})
 	require.NoError(t, err)
 	return workspace
+}
+
+// AwaitWorkspaceHistoryProvisioned awaits for the workspace provision job to reach completed status.
+func AwaitWorkspaceHistoryProvisioned(t *testing.T, client *codersdk.Client, user, workspace, history string) coderd.WorkspaceHistory {
+	var workspaceHistory coderd.WorkspaceHistory
+	require.Eventually(t, func() bool {
+		var err error
+		workspaceHistory, err = client.WorkspaceHistory(context.Background(), user, workspace, history)
+		require.NoError(t, err)
+		return workspaceHistory.Provision.Status.Completed()
+	}, 3*time.Second, 25*time.Millisecond)
+	return workspaceHistory
 }
 
 func randomUsername() string {

@@ -19,7 +19,7 @@ func TestProjects(t *testing.T) {
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.CreateInitialUser(t, client)
 		projects, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
 		require.NotNil(t, projects)
@@ -29,8 +29,8 @@ func TestProjects(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
-		_ = coderdtest.NewProject(t, client, user.Organization)
+		user := coderdtest.CreateInitialUser(t, client)
+		_ = coderdtest.CreateProject(t, client, user.Organization)
 		projects, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, projects, 1)
@@ -42,7 +42,7 @@ func TestProjectsByOrganization(t *testing.T) {
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
+		user := coderdtest.CreateInitialUser(t, client)
 		projects, err := client.Projects(context.Background(), user.Organization)
 		require.NoError(t, err)
 		require.NotNil(t, projects)
@@ -52,8 +52,8 @@ func TestProjectsByOrganization(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
-		_ = coderdtest.NewProject(t, client, user.Organization)
+		user := coderdtest.CreateInitialUser(t, client)
+		_ = coderdtest.CreateProject(t, client, user.Organization)
 		projects, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, projects, 1)
@@ -65,15 +65,15 @@ func TestPostProjectsByOrganization(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
-		_ = coderdtest.NewProject(t, client, user.Organization)
+		user := coderdtest.CreateInitialUser(t, client)
+		_ = coderdtest.CreateProject(t, client, user.Organization)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
-		project := coderdtest.NewProject(t, client, user.Organization)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
 		_, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        project.Name,
 			Provisioner: database.ProvisionerTypeEcho,
@@ -89,8 +89,8 @@ func TestProjectByOrganization(t *testing.T) {
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
-		project := coderdtest.NewProject(t, client, user.Organization)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
 		_, err := client.Project(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
@@ -101,8 +101,8 @@ func TestPostParametersByProject(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
-		project := coderdtest.NewProject(t, client, user.Organization)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
 		_, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
 			Name:              "somename",
 			SourceValue:       "tomato",
@@ -119,8 +119,8 @@ func TestParametersByProject(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, client)
-		project := coderdtest.NewProject(t, client, user.Organization)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
 		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.NotNil(t, params)

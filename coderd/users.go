@@ -195,6 +195,10 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+		organizations = []database.Organization{}
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organizations: %s", err.Error()),

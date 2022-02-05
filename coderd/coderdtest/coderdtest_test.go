@@ -15,6 +15,6 @@ func TestMain(m *testing.M) {
 func TestNew(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t)
-	_ = coderdtest.NewInitialUser(t, client)
+	_ = coderdtest.CreateInitialUser(t, client)
 	_ = coderdtest.NewProvisionerDaemon(t, client)
 }

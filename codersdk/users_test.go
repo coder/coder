@@ -34,7 +34,7 @@ func TestUsers(t *testing.T) {
 	t.Run("User", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.User(context.Background(), "")
 		require.NoError(t, err)
 	})
@@ -42,7 +42,7 @@ func TestUsers(t *testing.T) {
 	t.Run("UserOrganizations", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.CreateInitialUser(t, client)
 		orgs, err := client.UserOrganizations(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, orgs, 1)
@@ -51,7 +51,7 @@ func TestUsers(t *testing.T) {
 	t.Run("LogoutIsSuccessful", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.CreateInitialUser(t, client)
 		err := client.Logout(context.Background())
 		require.NoError(t, err)
 	})
@@ -59,7 +59,7 @@ func TestUsers(t *testing.T) {
 	t.Run("CreateMultiple", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.CreateUser(context.Background(), coderd.CreateUserRequest{
 			Email:    "wow@ok.io",
 			Username: "example",

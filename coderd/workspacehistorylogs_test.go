@@ -47,7 +47,7 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 	}
 
 	client := coderdtest.New(t)
-	user := coderdtest.NewInitialUser(t, client)
+	user := coderdtest.CreateInitialUser(t, client)
 	_ = coderdtest.NewProvisionerDaemon(t, client)
 	project, workspace := setupProjectAndWorkspace(t, client, user)
 	data, err := echo.Tar(&echo.Responses{
