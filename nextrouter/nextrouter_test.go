@@ -3,7 +3,6 @@ package nextrouter_test
 import (
 	"context"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"

@@ -1,11 +1,13 @@
 package nextrouter
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -39,7 +41,6 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 			})
 		} else {
 			serveFile(rtr, fileSystem, name)
-
 		}
 	}
 }
@@ -52,19 +53,14 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 		return
 	}
 
-	bytes, err := fs.ReadFile(fileSystem, fileName)
+	data, err := fs.ReadFile(fileSystem, fileName)
 	if err != nil {
 		// TODO(Bryan): Log here
 		return
 	}
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		_, err = w.Write(bytes)
-
-		if err != nil {
-			// TODO(BRYAN): Log here
-			http.Error(w, http.StatusText(500), 500)
-		}
+		http.ServeContent(w, r, fileName, time.Time{}, bytes.NewReader(data))
 	}
 
 	fileNameWithoutExtension := removeFileExtension(fileName)
