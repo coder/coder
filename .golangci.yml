@@ -100,6 +100,10 @@ linters-settings:
       # - whyNoLint
       # - wrapperFunc
       # - yodaStyleExpr
+    settings:
+      ruleguard:
+        failOn: all
+        rules: rules.go
 
   goimports:
     local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder

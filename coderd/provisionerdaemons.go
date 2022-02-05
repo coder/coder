@@ -221,25 +221,11 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			protoParameters = append(protoParameters, parameter.Proto)
 		}
 
-		provisionerState := []byte{}
-		// If workspace history exists before this entry, use that state.
-		// We can't use the before state everytime, because if a job fails
-		// for some random reason, the workspace shouldn't be reset.
-		//
-		// Maybe we should make state global on a workspace?
-		if workspaceHistory.BeforeID.Valid {
-			beforeHistory, err := server.Database.GetWorkspaceHistoryByID(ctx, workspaceHistory.BeforeID.UUID)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("get workspace history: %s", err))
-			}
-			provisionerState = beforeHistory.ProvisionerState
-		}
-
 		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
 			WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
 				WorkspaceHistoryId: workspaceHistory.ID.String(),
 				WorkspaceName:      workspace.Name,
-				State:              provisionerState,
+				State:              workspaceHistory.ProvisionerState,
 				ParameterValues:    protoParameters,
 			},
 		}
@@ -286,10 +272,10 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 			return xerrors.Errorf("get job: %w", err)
 		}
 		if !job.WorkerID.Valid {
-			return errors.New("job isn't running yet")
+			return xerrors.New("job isn't running yet")
 		}
 		if job.WorkerID.UUID.String() != server.ID.String() {
-			return errors.New("you don't own this job")
+			return xerrors.New("you don't own this job")
 		}
 
 		err = server.Database.UpdateProvisionerJobByID(stream.Context(), database.UpdateProvisionerJobByIDParams{

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +30,7 @@ import (
 
 // New constructs a new coderd test instance. This returned Server
 // should contain no side-effects.
-func New(t *testing.T) Server {
+func New(t *testing.T) *codersdk.Client {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
@@ -63,10 +64,7 @@ func New(t *testing.T) Server {
 	require.NoError(t, err)
 	t.Cleanup(srv.Close)
 
-	return Server{
-		Client: codersdk.New(serverURL),
-		URL:    serverURL,
-	}
+	return codersdk.New(serverURL)
 }
 
 // Server represents a test instance of coderd.
@@ -167,6 +165,17 @@ func AwaitProjectVersionImported(t *testing.T, client *codersdk.Client, organiza
 		return projectVersion.Import.Status.Completed()
 	}, 3*time.Second, 50*time.Millisecond)
 	return projectVersion
+}
+
+// NewWorkspace creates a workspace for the user and project provided.
+// A random name is generated for it.
+func NewWorkspace(t *testing.T, client *codersdk.Client, user string, projectID uuid.UUID) coderd.Workspace {
+	workspace, err := client.CreateWorkspace(context.Background(), user, coderd.CreateWorkspaceRequest{
+		ProjectID: projectID,
+		Name:      randomUsername(),
+	})
+	require.NoError(t, err)
+	return workspace
 }
 
 func randomUsername() string {

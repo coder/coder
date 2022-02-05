@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,7 +50,7 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 		if err != nil {
 			if index == 0 {
 				// Error if nothing is around to enable failed states.
-				return errors.New("no state")
+				return xerrors.New("no state")
 			}
 			break
 		}
@@ -80,7 +79,7 @@ func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvis
 		if err != nil {
 			if index == 0 {
 				// Error if nothing is around to enable failed states.
-				return errors.New("no state")
+				return xerrors.New("no state")
 			}
 			break
 		}

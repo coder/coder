@@ -19,10 +19,10 @@ func TestProjectVersionsByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		versions, err := server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		versions, err := client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.NotNil(t, versions)
 		require.Len(t, versions, 0)
@@ -30,11 +30,11 @@ func TestProjectVersionsByOrganization(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		_ = coderdtest.NewProjectVersion(t, server.Client, user.Organization, project.Name, nil)
-		versions, err := server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		_ = coderdtest.NewProjectVersion(t, client, user.Organization, project.Name, nil)
+		versions, err := client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.Len(t, versions, 1)
 	})
@@ -44,10 +44,10 @@ func TestProjectVersionByOrganizationAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		version := coderdtest.NewProjectVersion(t, server.Client, user.Organization, project.Name, nil)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		version := coderdtest.NewProjectVersion(t, client, user.Organization, project.Name, nil)
 		require.Equal(t, version.Import.Status, coderd.ProvisionerJobStatusPending)
 	})
 }
@@ -56,18 +56,18 @@ func TestPostProjectVersionByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		_ = coderdtest.NewProjectVersion(t, server.Client, user.Organization, project.Name, nil)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		_ = coderdtest.NewProjectVersion(t, client, user.Organization, project.Name, nil)
 	})
 
 	t.Run("InvalidStorage", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		_, err := server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		_, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethod("invalid"),
 			StorageSource: []byte{},
 		})
@@ -79,11 +79,11 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotImported", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		version := coderdtest.NewProjectVersion(t, server.Client, user.Organization, project.Name, nil)
-		_, err := server.Client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		version := coderdtest.NewProjectVersion(t, client, user.Organization, project.Name, nil)
+		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionRequired, apiErr.StatusCode())
@@ -91,26 +91,26 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 
 	t.Run("FailedImport", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		version := coderdtest.NewProjectVersion(t, server.Client, user.Organization, project.Name, &echo.Responses{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		version := coderdtest.NewProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
 			Provision: []*proto.Provision_Response{{}},
 		})
-		coderdtest.AwaitProjectVersionImported(t, server.Client, user.Organization, project.Name, version.Name)
-		_, err := server.Client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
+		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		version := coderdtest.NewProjectVersion(t, server.Client, user.Organization, project.Name, &echo.Responses{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		version := coderdtest.NewProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
@@ -121,8 +121,8 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectVersionImported(t, server.Client, user.Organization, project.Name, version.Name)
-		params, err := server.Client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
+		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		params, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
 		require.NoError(t, err)
 		require.Len(t, params, 1)
 	})

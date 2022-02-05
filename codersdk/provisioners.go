@@ -29,7 +29,7 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]coderd.ProvisionerDa
 
 // ProvisionerDaemonClient returns the gRPC service for a provisioner daemon implementation.
 func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.url.Parse("/api/v2/provisioners/daemons/serve")
+	serverURL, err := c.URL.Parse("/api/v2/provisioners/daemons/serve")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}

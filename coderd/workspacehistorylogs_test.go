@@ -46,10 +46,10 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 		return projectVersion
 	}
 
-	server := coderdtest.New(t)
-	user := coderdtest.NewInitialUser(t, server.Client)
-	_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-	project, workspace := setupProjectAndWorkspace(t, server.Client, user)
+	client := coderdtest.New(t)
+	user := coderdtest.NewInitialUser(t, client)
+	_ = coderdtest.NewProvisionerDaemon(t, client)
+	project, workspace := setupProjectAndWorkspace(t, client, user)
 	data, err := echo.Tar(&echo.Responses{
 		echo.ParseComplete, []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Log{
@@ -64,16 +64,16 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	projectVersion := setupProjectVersion(t, server.Client, user, project, data)
+	projectVersion := setupProjectVersion(t, client, user, project, data)
 
-	workspaceHistory, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+	workspaceHistory, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 		ProjectVersionID: projectVersion.ID,
 		Transition:       database.WorkspaceTransitionCreate,
 	})
 	require.NoError(t, err)
 
 	now := database.Now()
-	logChan, err := server.Client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, workspaceHistory.Name, now)
+	logChan, err := client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, workspaceHistory.Name, now)
 	require.NoError(t, err)
 
 	for {
@@ -87,14 +87,14 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 	t.Run("ReturnAll", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := server.Client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, workspaceHistory.Name)
+		_, err := client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, workspaceHistory.Name)
 		require.NoError(t, err)
 	})
 
 	t.Run("Between", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := server.Client.WorkspaceHistoryLogsBetween(context.Background(), "", workspace.Name, workspaceHistory.Name, time.Time{}, database.Now())
+		_, err := client.WorkspaceHistoryLogsBetween(context.Background(), "", workspace.Name, workspaceHistory.Name, time.Time{}, database.Now())
 		require.NoError(t, err)
 	})
 }

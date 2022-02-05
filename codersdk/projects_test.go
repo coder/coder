@@ -18,33 +18,33 @@ func TestProjects(t *testing.T) {
 
 	t.Run("UnauthenticatedList", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.Projects(context.Background(), "")
+		client := coderdtest.New(t)
+		_, err := client.Projects(context.Background(), "")
 		require.Error(t, err)
 	})
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_, err := server.Client.Projects(context.Background(), "")
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
-		_, err = server.Client.Projects(context.Background(), user.Organization)
+		_, err = client.Projects(context.Background(), user.Organization)
 		require.NoError(t, err)
 	})
 
 	t.Run("UnauthenticatedCreate", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.CreateProject(context.Background(), "", coderd.CreateProjectRequest{})
+		client := coderdtest.New(t)
+		_, err := client.CreateProject(context.Background(), "", coderd.CreateProjectRequest{})
 		require.Error(t, err)
 	})
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
@@ -53,48 +53,48 @@ func TestProjects(t *testing.T) {
 
 	t.Run("UnauthenticatedSingle", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.Project(context.Background(), "wow", "example")
+		client := coderdtest.New(t)
+		_, err := client.Project(context.Background(), "wow", "example")
 		require.Error(t, err)
 	})
 
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.Project(context.Background(), user.Organization, "bananas")
+		_, err = client.Project(context.Background(), user.Organization, "bananas")
 		require.NoError(t, err)
 	})
 
 	t.Run("UnauthenticatedHistory", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.ProjectVersions(context.Background(), "org", "project")
+		client := coderdtest.New(t)
+		_, err := client.ProjectVersions(context.Background(), "org", "project")
 		require.Error(t, err)
 	})
 
 	t.Run("History", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.ProjectVersions(context.Background(), user.Organization, project.Name)
+		_, err = client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
 
 	t.Run("CreateHistoryUnauthenticated", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.CreateProjectVersion(context.Background(), "org", "project", coderd.CreateProjectVersionRequest{
+		client := coderdtest.New(t)
+		_, err := client.CreateProjectVersion(context.Background(), "org", "project", coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: []byte{},
 		})
@@ -103,9 +103,9 @@ func TestProjects(t *testing.T) {
 
 	t.Run("CreateHistory", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
@@ -119,26 +119,26 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		_, err = writer.Write(make([]byte, 1<<10))
 		require.NoError(t, err)
-		version, err := server.Client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+		version, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProjectStorageMethodInlineArchive,
 			StorageSource: buffer.Bytes(),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Client.ProjectVersion(context.Background(), user.Organization, project.Name, version.Name)
+		_, err = client.ProjectVersion(context.Background(), user.Organization, project.Name, version.Name)
 		require.NoError(t, err)
 	})
 
 	t.Run("Parameters", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		params, err := server.Client.ProjectParameters(context.Background(), user.Organization, project.Name)
+		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.NotNil(t, params)
 		require.Len(t, params, 0)
@@ -146,14 +146,14 @@ func TestProjects(t *testing.T) {
 
 	t.Run("CreateParameter", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
-		param, err := server.Client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
+		param, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
 			Name:              "hi",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
@@ -166,9 +166,9 @@ func TestProjects(t *testing.T) {
 
 	t.Run("HistoryParametersError", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_, err := server.Client.ProjectVersionParameters(context.Background(), user.Organization, "nothing", "nope")
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, "nothing", "nope")
 		require.Error(t, err)
 	})
 }

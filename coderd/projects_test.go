@@ -2,12 +2,14 @@ package coderd_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 )
 
@@ -16,9 +18,9 @@ func TestProjects(t *testing.T) {
 
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, server.Client)
-		projects, err := server.Client.Projects(context.Background(), "")
+		client := coderdtest.New(t)
+		_ = coderdtest.NewInitialUser(t, client)
+		projects, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
 		require.NotNil(t, projects)
 		require.Len(t, projects, 0)
@@ -26,10 +28,10 @@ func TestProjects(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProject(t, server.Client, user.Organization)
-		projects, err := server.Client.Projects(context.Background(), "")
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProject(t, client, user.Organization)
+		projects, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, projects, 1)
 	})
@@ -39,9 +41,9 @@ func TestProjectsByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		projects, err := server.Client.Projects(context.Background(), user.Organization)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		projects, err := client.Projects(context.Background(), user.Organization)
 		require.NoError(t, err)
 		require.NotNil(t, projects)
 		require.Len(t, projects, 0)
@@ -49,10 +51,10 @@ func TestProjectsByOrganization(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProject(t, server.Client, user.Organization)
-		projects, err := server.Client.Projects(context.Background(), "")
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProject(t, client, user.Organization)
+		projects, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, projects, 1)
 	})
@@ -62,21 +64,23 @@ func TestPostProjectsByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProject(t, server.Client, user.Organization)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProject(t, client, user.Organization)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		_, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        project.Name,
 			Provisioner: database.ProvisionerTypeEcho,
 		})
-		require.NoError(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 }
 
@@ -84,10 +88,10 @@ func TestProjectByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		_, err := server.Client.Project(context.Background(), user.Organization, project.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		_, err := client.Project(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
 }
@@ -96,10 +100,10 @@ func TestPostParametersByProject(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		_, err := server.Client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		_, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
 			Name:              "somename",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
@@ -114,10 +118,10 @@ func TestParametersByProject(t *testing.T) {
 	t.Parallel()
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		project := coderdtest.NewProject(t, server.Client, user.Organization)
-		params, err := server.Client.ProjectParameters(context.Background(), user.Organization, project.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.NotNil(t, params)
 	})

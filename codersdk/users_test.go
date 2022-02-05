@@ -14,8 +14,8 @@ func TestUsers(t *testing.T) {
 	t.Parallel()
 	t.Run("CreateInitial", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
+		client := coderdtest.New(t)
+		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
 			Email:        "wowie@coder.com",
 			Organization: "somethin",
 			Username:     "tester",
@@ -26,41 +26,41 @@ func TestUsers(t *testing.T) {
 
 	t.Run("NoUser", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.User(context.Background(), "")
+		client := coderdtest.New(t)
+		_, err := client.User(context.Background(), "")
 		require.Error(t, err)
 	})
 
 	t.Run("User", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, server.Client)
-		_, err := server.Client.User(context.Background(), "")
+		client := coderdtest.New(t)
+		_ = coderdtest.NewInitialUser(t, client)
+		_, err := client.User(context.Background(), "")
 		require.NoError(t, err)
 	})
 
 	t.Run("UserOrganizations", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, server.Client)
-		orgs, err := server.Client.UserOrganizations(context.Background(), "")
+		client := coderdtest.New(t)
+		_ = coderdtest.NewInitialUser(t, client)
+		orgs, err := client.UserOrganizations(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, orgs, 1)
 	})
 
 	t.Run("LogoutIsSuccessful", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, server.Client)
-		err := server.Client.Logout(context.Background())
+		client := coderdtest.New(t)
+		_ = coderdtest.NewInitialUser(t, client)
+		err := client.Logout(context.Background())
 		require.NoError(t, err)
 	})
 
 	t.Run("CreateMultiple", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = coderdtest.NewInitialUser(t, server.Client)
-		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
+		client := coderdtest.New(t)
+		_ = coderdtest.NewInitialUser(t, client)
+		_, err := client.CreateUser(context.Background(), coderd.CreateUserRequest{
 			Email:    "wow@ok.io",
 			Username: "example",
 			Password: "tomato",

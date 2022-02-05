@@ -15,10 +15,10 @@ func TestProvisionerDaemons(t *testing.T) {
 
 	t.Run("Register", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
+		client := coderdtest.New(t)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
 		require.Eventually(t, func() bool {
-			daemons, err := server.Client.ProvisionerDaemons(context.Background())
+			daemons, err := client.ProvisionerDaemons(context.Background())
 			require.NoError(t, err)
 			return len(daemons) > 0
 		}, time.Second, 10*time.Millisecond)

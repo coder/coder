@@ -15,6 +15,24 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 )
 
+func TestPostWorkspaceHistoryByUser(t *testing.T) {
+	t.Run("NoVersion", func(t *testing.T) {
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		project := coderdtest.NewProject(t, client, user.Organization)
+		workspace := coderdtest.NewWorkspace(t, client, "me", project.ID)
+		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectVersionID: uuid.New(),
+			Transition:       database.WorkspaceTransitionCreate,
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+
+	})
+}
+
 func TestWorkspaceHistory(t *testing.T) {
 	t.Parallel()
 
@@ -49,56 +67,56 @@ func TestWorkspaceHistory(t *testing.T) {
 
 	t.Run("AllHistory", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-		history, err := server.Client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		project, workspace := setupProjectAndWorkspace(t, client, user)
+		history, err := client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
 		require.Len(t, history, 0)
 		data, err := echo.Tar(nil)
 		require.NoError(t, err)
-		projectVersion := setupProjectVersion(t, server.Client, user, project, data)
-		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		projectVersion := setupProjectVersion(t, client, user, project, data)
+		_, err = client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
 		require.NoError(t, err)
-		history, err = server.Client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
+		history, err = client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
 		require.Len(t, history, 1)
 	})
 
 	t.Run("LatestHistory", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-		_, err := server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		project, workspace := setupProjectAndWorkspace(t, client, user)
+		_, err := client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
 		require.Error(t, err)
 		data, err := echo.Tar(nil)
 		require.NoError(t, err)
-		projectVersion := setupProjectVersion(t, server.Client, user, project, data)
-		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		projectVersion := setupProjectVersion(t, client, user, project, data)
+		_, err = client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
+		_, err = client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
 		require.NoError(t, err)
 	})
 
 	t.Run("CreateHistory", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		project, workspace := setupProjectAndWorkspace(t, client, user)
 		data, err := echo.Tar(nil)
 		require.NoError(t, err)
-		projectVersion := setupProjectVersion(t, server.Client, user, project, data)
-		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		projectVersion := setupProjectVersion(t, client, user, project, data)
+		_, err = client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
@@ -106,7 +124,7 @@ func TestWorkspaceHistory(t *testing.T) {
 
 		var workspaceHistory coderd.WorkspaceHistory
 		require.Eventually(t, func() bool {
-			workspaceHistory, err = server.Client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
+			workspaceHistory, err = client.WorkspaceHistory(context.Background(), "", workspace.Name, "")
 			require.NoError(t, err)
 			return workspaceHistory.Provision.Status.Completed()
 		}, 15*time.Second, 50*time.Millisecond)
@@ -116,21 +134,21 @@ func TestWorkspaceHistory(t *testing.T) {
 
 	t.Run("CreateHistoryAlreadyInProgress", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		project, workspace := setupProjectAndWorkspace(t, client, user)
 		data, err := echo.Tar(nil)
 		require.NoError(t, err)
-		projectVersion := setupProjectVersion(t, server.Client, user, project, data)
+		projectVersion := setupProjectVersion(t, client, user, project, data)
 
-		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err = client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
 		require.NoError(t, err)
 
-		_, err = server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err = client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: projectVersion.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
@@ -139,12 +157,12 @@ func TestWorkspaceHistory(t *testing.T) {
 
 	t.Run("CreateHistoryInvalidProjectVersion", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := coderdtest.NewInitialUser(t, server.Client)
-		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
-		_, workspace := setupProjectAndWorkspace(t, server.Client, user)
+		client := coderdtest.New(t)
+		user := coderdtest.NewInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		_, workspace := setupProjectAndWorkspace(t, client, user)
 
-		_, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: uuid.New(),
 			Transition:       database.WorkspaceTransitionCreate,
 		})
