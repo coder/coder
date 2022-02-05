@@ -8,10 +8,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func serve(fileSystem fs.FS, filePath string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Requesting file: " + filePath)
-		bytes, err := fs.ReadFile(fileSystem, filePath)
+func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Requesting file: " + fileName)
+		bytes, err := fs.ReadFile(fileSystem, fileName)
 
 		if err != nil {
 			http.Error(w, http.StatusText(404), 404)
@@ -22,6 +23,8 @@ func serve(fileSystem fs.FS, filePath string) http.HandlerFunc {
 			http.Error(w, http.StatusText(404), 404)
 		}
 	}
+
+	router.Get("/"+fileName, handler)
 }
 
 func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
@@ -31,6 +34,7 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 		return
 	}
 
+	fmt.Println("Recursing: " + name)
 	for _, file := range files {
 		name := file.Name()
 
@@ -44,7 +48,8 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 				buildRouter(r, sub, name)
 			})
 		} else {
-			rtr.Get("/"+name, serve(fileSystem, name))
+			serveFile(rtr, fileSystem, name)
+
 		}
 	}
 }

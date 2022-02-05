@@ -68,6 +68,10 @@ func TestNextRouter(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 
+		res, err = request(server, "/test/a/b/c.html")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		require.Equal(t, string(body), "test123")
