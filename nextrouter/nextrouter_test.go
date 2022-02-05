@@ -31,7 +31,6 @@ func TestNextRouter(t *testing.T) {
 
 	t.Run("Serves file at root", func(t *testing.T) {
 		t.Parallel()
-
 		rootFS := memfs.New()
 		err := rootFS.WriteFile("test.html", []byte("test123"), 0755)
 		require.NoError(t, err)
@@ -47,6 +46,26 @@ func TestNextRouter(t *testing.T) {
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		require.Equal(t, string(body), "test123")
+		require.Equal(t, res.StatusCode, 200)
+	})
+
+	t.Run("Serves html file without extension", func(t *testing.T) {
+		t.Parallel()
+		rootFS := memfs.New()
+		err := rootFS.WriteFile("test.html", []byte("test-no-extension"), 0755)
+		require.NoError(t, err)
+
+		router, err := nextrouter.Handler(rootFS)
+		require.NoError(t, err)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "test-no-extension")
 		require.Equal(t, res.StatusCode, 200)
 	})
 

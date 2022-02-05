@@ -4,27 +4,17 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
 
-func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
-
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Requesting file: " + fileName)
-		bytes, err := fs.ReadFile(fileSystem, fileName)
-
-		if err != nil {
-			http.Error(w, http.StatusText(404), 404)
-		}
-		_, err = w.Write(bytes)
-
-		if err != nil {
-			http.Error(w, http.StatusText(404), 404)
-		}
-	}
-
-	router.Get("/"+fileName, handler)
+// Handler returns an HTTP handler for serving a next-based static site
+func Handler(fileSystem fs.FS) (http.Handler, error) {
+	rtr := chi.NewRouter()
+	buildRouter(rtr, fileSystem, "")
+	return rtr, nil
 }
 
 func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
@@ -54,9 +44,35 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 	}
 }
 
-// Handler returns an HTTP handler for serving a next-based static site
-func Handler(fileSystem fs.FS) (http.Handler, error) {
-	rtr := chi.NewRouter()
-	buildRouter(rtr, fileSystem, "")
-	return rtr, nil
+func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
+
+	// We only handle .html files for now
+	ext := filepath.Ext(fileName)
+	if ext != ".html" {
+		return
+	}
+
+	fmt.Println("Requesting file: " + fileName)
+	bytes, err := fs.ReadFile(fileSystem, fileName)
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+
+		if err != nil {
+			http.Error(w, http.StatusText(404), 404)
+		}
+		_, err = w.Write(bytes)
+
+		if err != nil {
+			http.Error(w, http.StatusText(404), 404)
+		}
+	}
+
+	fileNameWithoutExtension := removeFileExtension(fileName)
+
+	router.Get("/"+fileName, handler)
+	router.Get("/"+fileNameWithoutExtension, handler)
+}
+
+func removeFileExtension(fileName string) string {
+	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
