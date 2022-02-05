@@ -31,7 +31,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("ListByUser", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -49,7 +49,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("ListByProject", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -81,7 +81,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -106,7 +106,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("History", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -131,7 +131,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("LatestHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -149,7 +149,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("CreateHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "tomato",
 			Provisioner: database.ProvisionerTypeEcho,

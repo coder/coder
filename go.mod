@@ -28,6 +28,7 @@ require (
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
 	github.com/pion/webrtc/v3 v3.1.21
+	github.com/quasilyte/go-ruleguard/dsl v0.3.16
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.9

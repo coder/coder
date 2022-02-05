@@ -18,7 +18,7 @@ func TestUsers(t *testing.T) {
 	t.Run("Authenticated", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
+		_ = coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.User(context.Background(), "")
 		require.NoError(t, err)
 	})
@@ -26,7 +26,7 @@ func TestUsers(t *testing.T) {
 	t.Run("CreateMultipleInitial", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
+		_ = coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
 			Email:        "dummy@coder.com",
 			Organization: "bananas",
@@ -39,7 +39,7 @@ func TestUsers(t *testing.T) {
 	t.Run("Login", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    user.Email,
 			Password: user.Password,
@@ -60,7 +60,7 @@ func TestUsers(t *testing.T) {
 	t.Run("LoginBadPassword", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    user.Email,
 			Password: "bananas",
@@ -71,7 +71,7 @@ func TestUsers(t *testing.T) {
 	t.Run("ListOrganizations", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
+		_ = coderdtest.NewInitialUser(t, server.Client)
 		orgs, err := server.Client.UserOrganizations(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, orgs, 1)
@@ -80,7 +80,7 @@ func TestUsers(t *testing.T) {
 	t.Run("CreateUser", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
+		_ = coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
 			Email:    "wow@ok.io",
 			Username: "tomato",
@@ -92,7 +92,7 @@ func TestUsers(t *testing.T) {
 	t.Run("CreateUserConflict", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
 			Email:    "wow@ok.io",
 			Username: user.Username,

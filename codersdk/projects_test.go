@@ -26,7 +26,7 @@ func TestProjects(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.Projects(context.Background(), "")
 		require.NoError(t, err)
 		_, err = server.Client.Projects(context.Background(), user.Organization)
@@ -43,7 +43,7 @@ func TestProjects(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -61,7 +61,7 @@ func TestProjects(t *testing.T) {
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -81,7 +81,7 @@ func TestProjects(t *testing.T) {
 	t.Run("History", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -104,7 +104,7 @@ func TestProjects(t *testing.T) {
 	t.Run("CreateHistory", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "bananas",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -132,7 +132,7 @@ func TestProjects(t *testing.T) {
 	t.Run("Parameters", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -147,7 +147,7 @@ func TestProjects(t *testing.T) {
 	t.Run("CreateParameter", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "someproject",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -167,7 +167,7 @@ func TestProjects(t *testing.T) {
 	t.Run("HistoryParametersError", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.ProjectVersionParameters(context.Background(), user.Organization, "nothing", "nope")
 		require.Error(t, err)
 	})

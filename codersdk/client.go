@@ -112,5 +112,9 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("status code %d: %s", e.statusCode, e.Message)
+	msg := fmt.Sprintf("status code %d: %s", e.statusCode, e.Message)
+	for _, err := range e.Errors {
+		msg += fmt.Sprintf("\n\t%s: %s", err.Field, err.Code)
+	}
+	return msg
 }

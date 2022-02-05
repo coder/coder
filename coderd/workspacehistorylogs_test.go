@@ -47,20 +47,22 @@ func TestWorkspaceHistoryLogs(t *testing.T) {
 	}
 
 	server := coderdtest.New(t)
-	user := server.RandomInitialUser(t)
-	_ = server.AddProvisionerd(t)
+	user := coderdtest.NewInitialUser(t, server.Client)
+	_ = coderdtest.NewProvisionerDaemon(t, server.Client)
 	project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-	data, err := echo.Tar(echo.ParseComplete, []*proto.Provision_Response{{
-		Type: &proto.Provision_Response_Log{
-			Log: &proto.Log{
-				Output: "test",
+	data, err := echo.Tar(&echo.Responses{
+		echo.ParseComplete, []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{
+					Output: "test",
+				},
 			},
-		},
-	}, {
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{},
-		},
-	}})
+		}, {
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
 	require.NoError(t, err)
 	projectVersion := setupProjectVersion(t, server.Client, user, project, data)
 

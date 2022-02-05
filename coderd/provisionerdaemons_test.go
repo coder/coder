@@ -16,7 +16,7 @@ func TestProvisionerDaemons(t *testing.T) {
 	t.Run("Register", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.AddProvisionerd(t)
+		_ = coderdtest.NewProvisionerDaemon(t, server.Client)
 		require.Eventually(t, func() bool {
 			daemons, err := server.Client.ProvisionerDaemons(context.Background())
 			require.NoError(t, err)

@@ -19,7 +19,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("ListNone", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
+		_ = coderdtest.NewInitialUser(t, server.Client)
 		workspaces, err := server.Client.WorkspacesByUser(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
@@ -42,7 +42,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, _ = setupProjectAndWorkspace(t, server.Client, user)
 		workspaces, err := server.Client.WorkspacesByUser(context.Background(), "")
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("ListNoneForProject", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -66,7 +66,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("ListForProject", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, _ := setupProjectAndWorkspace(t, server.Client, user)
 		workspaces, err := server.Client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("CreateInvalidInput", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -92,7 +92,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("CreateInvalidProject", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
+		_ = coderdtest.NewInitialUser(t, server.Client)
 		_, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
 			ProjectID: uuid.New(),
 			Name:      "moo",
@@ -103,7 +103,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("CreateNotInProjectOrganization", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		initial := server.RandomInitialUser(t)
+		initial := coderdtest.NewInitialUser(t, server.Client)
 		project, err := server.Client.CreateProject(context.Background(), initial.Organization, coderd.CreateProjectRequest{
 			Name:        "banana",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -132,7 +132,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("CreateAlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		_, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
 			Name:      workspace.Name,
@@ -144,7 +144,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
+		user := coderdtest.NewInitialUser(t, server.Client)
 		_, workspace := setupProjectAndWorkspace(t, server.Client, user)
 		_, err := server.Client.Workspace(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
