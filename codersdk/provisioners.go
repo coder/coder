@@ -36,6 +36,8 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: c.httpClient,
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
 		if res == nil {
