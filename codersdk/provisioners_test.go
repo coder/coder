@@ -4,14 +4,16 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/provisionerd/proto"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProvisionerDaemons(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		_, err := client.ProvisionerDaemons(context.Background())
 		require.NoError(t, err)
@@ -21,6 +23,7 @@ func TestProvisionerDaemons(t *testing.T) {
 func TestProvisionerDaemonClient(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		daemon, err := client.ProvisionerDaemonClient(ctx)
@@ -31,6 +34,7 @@ func TestProvisionerDaemonClient(t *testing.T) {
 	})
 
 	t.Run("Connect", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()

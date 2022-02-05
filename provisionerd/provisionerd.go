@@ -488,7 +488,7 @@ func (p *provisionerDaemon) cancelActiveJobf(format string, args ...interface{})
 		return
 	}
 	if p.jobCancelled.Load() {
-		p.opts.Logger.Warn(context.Background(), "job has already been cancelled", slog.F("error_messsage", errMsg))
+		p.opts.Logger.Warn(context.Background(), "job has already been canceled", slog.F("error_messsage", errMsg))
 		return
 	}
 	p.jobCancelled.Store(true)

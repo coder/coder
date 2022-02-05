@@ -79,12 +79,14 @@ func TestLogout(t *testing.T) {
 func TestUser(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		_, err := client.User(context.Background(), "")
 		require.Error(t, err)
 	})
 
 	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.User(context.Background(), "")
@@ -95,12 +97,14 @@ func TestUser(t *testing.T) {
 func TestUserOrganizations(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		_, err := client.UserOrganizations(context.Background(), "")
 		require.Error(t, err)
 	})
 
 	t.Run("List", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.UserOrganizations(context.Background(), "")
