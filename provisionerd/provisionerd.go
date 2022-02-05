@@ -484,6 +484,9 @@ func (p *provisionerDaemon) cancelActiveJobf(format string, args ...interface{})
 	defer p.jobMutex.Unlock()
 	errMsg := fmt.Sprintf(format, args...)
 	if !p.isRunningJob() {
+		if p.isClosed() {
+			return
+		}
 		p.opts.Logger.Info(context.Background(), "skipping job cancel; none running", slog.F("error_message", errMsg))
 		return
 	}

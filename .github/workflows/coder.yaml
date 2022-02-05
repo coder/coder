@@ -178,7 +178,6 @@ jobs:
           path: |
             ~/.npm
             %LocalAppData%\npm-cache
-            C:\npm
           key: datadogci-
           restore-keys: datadogci-
 
