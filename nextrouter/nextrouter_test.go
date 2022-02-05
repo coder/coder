@@ -16,6 +16,43 @@ import (
 func TestNextRouter(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Injects template parameters", func(t *testing.T) {
+		t.Parallel()
+
+		rootFS := memfs.New()
+		err := rootFS.WriteFile("test.html", []byte("{{ .CSRF.Token }}"), 0755)
+		require.NoError(t, err)
+
+		type csrfState struct {
+			Token string
+		}
+
+		type template struct {
+			CSRF csrfState
+		}
+
+		// Add custom template function
+		templateFunc := func(request *http.Request) interface{} {
+			return template{
+				CSRF: csrfState{
+					Token: "hello-csrf",
+				},
+			}
+		}
+
+		router := nextrouter.Handler(rootFS, templateFunc)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/test.html")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "hello-csrf")
+		require.Equal(t, res.StatusCode, 200)
+	})
+
 	t.Run("Serves file at root", func(t *testing.T) {
 		t.Parallel()
 		rootFS := memfs.New()

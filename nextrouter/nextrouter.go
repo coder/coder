@@ -12,7 +12,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-//
+// TemplateDataFunc is a function that lets the consumer of `nextrouter`
+// inject arbitrary template parameters, based on the request. This is useful
+// if the Request object is carrying CSRF tokens, session tokens, etc -
+// they can be emitted in the page.
 type TemplateDataFunc func(*http.Request) interface{}
 
 // Handler returns an HTTP handler for serving a next-based static site
