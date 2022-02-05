@@ -75,6 +75,10 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 	// Special case: '/' should serve index.html
 	if fileName == "index.html" {
 		router.Get("/", handler)
+	} else {
+		// Otherwise, handling the trailing slash case -
+		// for examples, `providers.html` should serve `/providers/`
+		router.Get("/"+fileNameWithoutExtension+"/", handler)
 	}
 }
 

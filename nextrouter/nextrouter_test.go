@@ -47,6 +47,28 @@ func TestNextRouter(t *testing.T) {
 		require.Equal(t, res.StatusCode, 200)
 	})
 
+	// This is a test case for the issue we hit in V1 w/ NextJS migration
+	t.Run("Prefer file over folder w/ trailing slash", func(t *testing.T) {
+		t.Parallel()
+		rootFS := memfs.New()
+		err := rootFS.MkdirAll("folder", 0777)
+		require.NoError(t, err)
+		err = rootFS.WriteFile("folder.html", []byte("folderFile"), 0755)
+		require.NoError(t, err)
+
+		router := nextrouter.Handler(rootFS)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/folder/")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "folderFile")
+		require.Equal(t, res.StatusCode, 200)
+	})
+
 	t.Run("Serves non-html files at root", func(t *testing.T) {
 		t.Parallel()
 		rootFS := memfs.New()
