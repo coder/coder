@@ -71,6 +71,11 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 
 	router.Get("/"+fileName, handler)
 	router.Get("/"+fileNameWithoutExtension, handler)
+
+	// Special case: '/' should serve index.html
+	if fileName == "index.html" {
+		router.Get("/", handler)
+	}
 }
 
 func removeFileExtension(fileName string) string {

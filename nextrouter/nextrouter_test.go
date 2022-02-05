@@ -69,6 +69,26 @@ func TestNextRouter(t *testing.T) {
 		require.Equal(t, res.StatusCode, 200)
 	})
 
+	t.Run("Defaults to index.html at root", func(t *testing.T) {
+		t.Parallel()
+		rootFS := memfs.New()
+		err := rootFS.WriteFile("index.html", []byte("test-root-index"), 0755)
+		require.NoError(t, err)
+
+		router, err := nextrouter.Handler(rootFS)
+		require.NoError(t, err)
+		server := httptest.NewServer(router)
+
+		res, err := request(server, "/")
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), "test-root-index")
+		require.Equal(t, res.StatusCode, 200)
+	})
+
 	t.Run("Serves nested file", func(t *testing.T) {
 		t.Parallel()
 
