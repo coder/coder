@@ -10,7 +10,7 @@ Using user 'coder' with shell '/bin/bash'`.split("\n")
 
 export default {
   title: "CodeBlock",
-  component: CodeBlockProps,
+  component: CodeBlock,
   argTypes: {
     lines: { control: "object", defaultValue: sampleLines },
   },
