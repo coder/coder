@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -113,9 +114,10 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Error() string {
-	msg := fmt.Sprintf("status code %d: %s", e.statusCode, e.Message)
+	var builder strings.Builder
+	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
 	for _, err := range e.Errors {
-		msg += fmt.Sprintf("\n\t%s: %s", err.Field, err.Code)
+		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Code)
 	}
-	return msg
+	return builder.String()
 }

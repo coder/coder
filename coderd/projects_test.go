@@ -116,7 +116,7 @@ func TestPostParametersByProject(t *testing.T) {
 
 func TestParametersByProject(t *testing.T) {
 	t.Parallel()
-	t.Run("List", func(t *testing.T) {
+	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
@@ -124,5 +124,24 @@ func TestParametersByProject(t *testing.T) {
 		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 		require.NotNil(t, params)
+	})
+
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		_, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
+			Name:              "example",
+			SourceValue:       "source-value",
+			SourceScheme:      database.ParameterSourceSchemeData,
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			DestinationValue:  "destination-value",
+		})
+		require.NoError(t, err)
+		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
+		require.NoError(t, err)
+		require.NotNil(t, params)
+		require.Len(t, params, 1)
 	})
 }
