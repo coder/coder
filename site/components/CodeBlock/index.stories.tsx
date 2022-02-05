@@ -2,11 +2,11 @@ import { Story } from "@storybook/react"
 import React from "react"
 import { CodeBlock, CodeBlockProps } from "./index"
 
-const sampleLines = `Successfully assigned coder/image-jcws7 to gke-master-workspaces-1-ef039342-cybd
-Container image "gcr.io/coder-dogfood/master/coder-dev-ubuntu@sha256:80604e432c039daf558edfd7c01b9ea1f62f9c4b0f30aeab954efe11c404f8ee" already present on machine
+const sampleLines = `Successfully assigned coder/image-jcws7 to cluster-1
+Container image "gcr.io/coder-dogfood/master/coder-dev-ubuntu@sha256" already present on machine
 Created container user
 Started container user
-Using user 'coder' with shell '/bin/bash'`.split('\n')
+Using user 'coder' with shell '/bin/bash'`.split("\n")
 
 export default {
   title: "CodeBlock",
@@ -16,7 +16,7 @@ export default {
   },
 }
 
-const Template: Story<CodeBlockProps> = (args) => <CodeBlock {...args} />
+const Template: Story<CodeBlockProps> = (args: CodeBlockProps) => <CodeBlock {...args} />
 
 export const Example = Template.bind({})
 Example.args = {
