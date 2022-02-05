@@ -2,7 +2,6 @@ package nextrouter
 
 import (
 	"bytes"
-	"fmt"
 	"io/fs"
 	"net/http"
 	"path/filepath"
@@ -22,7 +21,7 @@ func Handler(fileSystem fs.FS) http.Handler {
 	router := chi.NewRouter()
 
 	// Build up a router that matches NextJS routing rules, for HTML files
-	buildRouter(router, fileSystem, "")
+	buildRouter(router, fileSystem)
 
 	// Fallback to static file server for non-HTML files
 	// Non-HTML files don't have special routing rules, so we can just leverage
@@ -33,14 +32,13 @@ func Handler(fileSystem fs.FS) http.Handler {
 	return router
 }
 
-func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
+func buildRouter(rtr chi.Router, fileSystem fs.FS) {
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
 		// TODO(Bryan): Log
 		return
 	}
 
-	fmt.Println("Recursing: " + name)
 	for _, file := range files {
 		name := file.Name()
 
@@ -57,7 +55,7 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, name string) {
 			}
 
 			rtr.Route("/"+routeName, func(r chi.Router) {
-				buildRouter(r, sub, name)
+				buildRouter(r, sub)
 			})
 		} else {
 			serveFile(rtr, fileSystem, name)
@@ -84,8 +82,13 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string) {
 
 	fileNameWithoutExtension := removeFileExtension(fileName)
 
+	if isCatchAllRoute(fileNameWithoutExtension) {
+		router.NotFound(handler)
+		return
+	}
+
 	// Handle the `[org]` dynamic route case
-	if isDynamicRoute(fileName) {
+	if isDynamicRoute(fileNameWithoutExtension) {
 		router.Get("/{dynamic}", handler)
 		return
 	}
@@ -113,6 +116,12 @@ func isDynamicRoute(fileName string) bool {
 	}
 
 	return fileWithoutExtension[0] == '[' && fileWithoutExtension[1] != '[' && fileWithoutExtension[byteLen-1] == ']'
+}
+
+func isCatchAllRoute(fileName string) bool {
+	fileWithoutExtension := removeFileExtension(fileName)
+	ret := strings.HasPrefix(fileWithoutExtension, "[[.")
+	return ret
 }
 
 func removeFileExtension(fileName string) string {
