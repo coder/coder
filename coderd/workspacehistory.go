@@ -126,17 +126,32 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = api.Database.InTx(func(db database.Store) error {
-		// Generate the ID before-hand so the provisioner job is aware of it!
-		workspaceHistoryID := uuid.New()
+		provisionerJobID := uuid.New()
+		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
+			ID:               uuid.New(),
+			CreatedAt:        database.Now(),
+			UpdatedAt:        database.Now(),
+			WorkspaceID:      workspace.ID,
+			ProjectVersionID: projectVersion.ID,
+			BeforeID:         priorHistoryID,
+			Name:             namesgenerator.GetRandomName(1),
+			Initiator:        user.ID,
+			Transition:       createBuild.Transition,
+			ProvisionJobID:   provisionerJobID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace history: %w", err)
+		}
+
 		input, err := json.Marshal(workspaceProvisionJob{
-			WorkspaceHistoryID: workspaceHistoryID,
+			WorkspaceHistoryID: workspaceHistory.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)
 		}
 
 		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
+			ID:          provisionerJobID,
 			CreatedAt:   database.Now(),
 			UpdatedAt:   database.Now(),
 			InitiatorID: user.ID,
@@ -147,22 +162,6 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-
-		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
-			ID:               workspaceHistoryID,
-			CreatedAt:        database.Now(),
-			UpdatedAt:        database.Now(),
-			WorkspaceID:      workspace.ID,
-			ProjectVersionID: projectVersion.ID,
-			BeforeID:         priorHistoryID,
-			Name:             namesgenerator.GetRandomName(1),
-			Initiator:        user.ID,
-			Transition:       createBuild.Transition,
-			ProvisionJobID:   provisionerJob.ID,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace history: %w", err)
 		}
 
 		if priorHistoryID.Valid {
