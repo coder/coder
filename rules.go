@@ -10,18 +10,17 @@ func xerrors(m dsl.Matcher) {
 	m.Import("errors")
 	m.Import("fmt")
 	m.Import("golang.org/x/xerrors")
-	msg := "Use xerrors to provide additional stacktrace information!"
 
 	m.Match("fmt.Errorf($*args)").
 		Suggest("xerrors.New($args)").
-		Report(msg)
+		Report("Use xerrors to provide additional stacktrace information!")
 
 	m.Match("fmt.Errorf($*args)").
 		Suggest("xerrors.Errorf($args)").
-		Report(msg)
+		Report("Use xerrors to provide additional stacktrace information!")
 
 	m.Match("errors.New($msg)").
 		Where(m["msg"].Type.Is("string")).
 		Suggest("xerrors.New($msg)").
-		Report(msg)
+		Report("Use xerrors to provide additional stacktrace information!")
 }
