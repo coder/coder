@@ -19,18 +19,18 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
-		parameterValue:      make([]database.ParameterValue, 0),
-		project:             make([]database.Project, 0),
-		projectVersion:      make([]database.ProjectVersion, 0),
-		projectVersionLog:   make([]database.ProjectVersionLog, 0),
-		projectParameter:    make([]database.ProjectParameter, 0),
-		provisionerDaemons:  make([]database.ProvisionerDaemon, 0),
-		provisionerJobs:     make([]database.ProvisionerJob, 0),
-		workspace:           make([]database.Workspace, 0),
-		workspaceResource:   make([]database.WorkspaceResource, 0),
-		workspaceHistory:    make([]database.WorkspaceHistory, 0),
-		workspaceHistoryLog: make([]database.WorkspaceHistoryLog, 0),
-		workspaceAgent:      make([]database.WorkspaceAgent, 0),
+		parameterValue:          make([]database.ParameterValue, 0),
+		project:                 make([]database.Project, 0),
+		projectVersion:          make([]database.ProjectVersion, 0),
+		projectVersionLog:       make([]database.ProjectVersionLog, 0),
+		projectVersionParameter: make([]database.ProjectVersionParameter, 0),
+		provisionerDaemons:      make([]database.ProvisionerDaemon, 0),
+		provisionerJobs:         make([]database.ProvisionerJob, 0),
+		workspace:               make([]database.Workspace, 0),
+		workspaceResource:       make([]database.WorkspaceResource, 0),
+		workspaceHistory:        make([]database.WorkspaceHistory, 0),
+		workspaceHistoryLog:     make([]database.WorkspaceHistoryLog, 0),
+		workspaceAgent:          make([]database.WorkspaceAgent, 0),
 	}
 }
 
@@ -45,18 +45,18 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
-	parameterValue      []database.ParameterValue
-	project             []database.Project
-	projectVersion      []database.ProjectVersion
-	projectVersionLog   []database.ProjectVersionLog
-	projectParameter    []database.ProjectParameter
-	provisionerDaemons  []database.ProvisionerDaemon
-	provisionerJobs     []database.ProvisionerJob
-	workspace           []database.Workspace
-	workspaceAgent      []database.WorkspaceAgent
-	workspaceHistory    []database.WorkspaceHistory
-	workspaceHistoryLog []database.WorkspaceHistoryLog
-	workspaceResource   []database.WorkspaceResource
+	parameterValue          []database.ParameterValue
+	project                 []database.Project
+	projectVersion          []database.ProjectVersion
+	projectVersionLog       []database.ProjectVersionLog
+	projectVersionParameter []database.ProjectVersionParameter
+	provisionerDaemons      []database.ProvisionerDaemon
+	provisionerJobs         []database.ProvisionerJob
+	workspace               []database.Workspace
+	workspaceAgent          []database.WorkspaceAgent
+	workspaceHistory        []database.WorkspaceHistory
+	workspaceHistoryLog     []database.WorkspaceHistoryLog
+	workspaceResource       []database.WorkspaceResource
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -410,7 +410,7 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 	return database.Project{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectVersionByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectVersion, error) {
+func (q *fakeQuerier) GetProjectVersionsByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -479,12 +479,12 @@ func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID 
 	return database.ProjectVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectParametersByVersionID(_ context.Context, projectVersionID uuid.UUID) ([]database.ProjectParameter, error) {
+func (q *fakeQuerier) GetProjectVersionParametersByVersionID(_ context.Context, projectVersionID uuid.UUID) ([]database.ProjectVersionParameter, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	parameters := make([]database.ProjectParameter, 0)
-	for _, projectParameter := range q.projectParameter {
+	parameters := make([]database.ProjectVersionParameter, 0)
+	for _, projectParameter := range q.projectVersionParameter {
 		if projectParameter.ProjectVersionID.String() != projectVersionID.String() {
 			continue
 		}
@@ -699,12 +699,12 @@ func (q *fakeQuerier) InsertProjectVersionLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
-func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.InsertProjectParameterParams) (database.ProjectParameter, error) {
+func (q *fakeQuerier) InsertProjectVersionParameter(_ context.Context, arg database.InsertProjectVersionParameterParams) (database.ProjectVersionParameter, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	param := database.ProjectParameter{
+	param := database.ProjectVersionParameter{
 		ID:                       arg.ID,
 		CreatedAt:                arg.CreatedAt,
 		ProjectVersionID:         arg.ProjectVersionID,
@@ -723,7 +723,7 @@ func (q *fakeQuerier) InsertProjectParameter(_ context.Context, arg database.Ins
 		ValidationTypeSystem:     arg.ValidationTypeSystem,
 		ValidationValueType:      arg.ValidationValueType,
 	}
-	q.projectParameter = append(q.projectParameter, param)
+	q.projectVersionParameter = append(q.projectVersionParameter, param)
 	return param, nil
 }
 
