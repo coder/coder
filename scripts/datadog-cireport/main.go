@@ -49,7 +49,7 @@ func main() {
 		pipelineURL += fmt.Sprintf("/attempts/%s", os.Getenv("GITHUB_RUN_ATTEMPT"))
 	}
 
-	commitMessage, err := exec.Command("git", "show", "-s", "--format=%s").CombinedOutput()
+	commitMessage, err := exec.Command("git", "log", "-1", "--pretty=format:%s").CombinedOutput()
 	if err != nil {
 		log.Fatalf("Get commit message: %s", err)
 	}
@@ -63,7 +63,7 @@ func main() {
 		"service":              "coder",
 		"_dd.cireport_version": "2",
 
-		"database": os.Getenv("DD_DATABASE"),
+		"test.traits": fmt.Sprintf(`{"database":["%s"]}`, os.Getenv("DD_DATABASE")),
 
 		// Additional tags found in DataDog docs. See:
 		// https://docs.datadoghq.com/continuous_integration/setup_tests/junit_upload/#collecting-environment-configuration-metadata
@@ -82,7 +82,7 @@ func main() {
 		"git.commit.sha":     githubSHA,
 		"git.repository_url": fmt.Sprintf("%s/%s.git", githubServerURL, githubRepository),
 
-		"git.commit.message":         strings.TrimSpace(string(commitMessage)),
+		"git.commit.message":         string(commitMessage),
 		"git.commit.author.name":     commitParts[0],
 		"git.commit.author.email":    commitParts[1],
 		"git.commit.author.date":     commitParts[2],
@@ -174,5 +174,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Pretty print: %s", err)
 	}
-	_, _ = fmt.Printf("Status code: %d\nResponse: %s\n", res.StatusCode, msg)
+	_, _ = fmt.Println(string(msg))
+	msg, err = json.MarshalIndent(tags, "", "\t")
+	if err != nil {
+		log.Fatalf("Marshal tags: %s", err)
+	}
+	_, _ = fmt.Println(string(msg))
+	_, _ = fmt.Printf("Status: %d\n", res.StatusCode)
 }

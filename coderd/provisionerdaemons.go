@@ -377,6 +377,13 @@ func (server *provisionerdServer) CancelJob(ctx context.Context, cancelJob *prot
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
+	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get provisioner job: %w", err)
+	}
+	if job.CompletedAt.Valid {
+		return nil, xerrors.Errorf("job already completed")
+	}
 	err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID: jobID,
 		CompletedAt: sql.NullTime{
