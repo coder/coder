@@ -165,12 +165,13 @@ jobs:
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=1 -race -parallel=2
 
-      - uses: actions/setup-node@v2
+      - name: Setup Node for DataDog CLI
+        uses: actions/setup-node@v2
         if: always() && github.actor != 'dependabot[bot]'
         with:
           node-version: "14"
 
-      - name: Cache DataDog CI
+      - name: Cache DataDog CLI
         if: always() && github.actor != 'dependabot[bot]'
         uses: actions/cache@v2
         with:

@@ -11,16 +11,18 @@ import (
 )
 
 func TestProvisionerDaemons(t *testing.T) {
+	// Tests for properly processing specific job
+	// types should be placed in their respective
+	// resource location.
+	//
+	// eg. project import is a project-related job
 	t.Parallel()
 
-	t.Run("Register", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		_ = server.AddProvisionerd(t)
-		require.Eventually(t, func() bool {
-			daemons, err := server.Client.ProvisionerDaemons(context.Background())
-			require.NoError(t, err)
-			return len(daemons) > 0
-		}, time.Second, 10*time.Millisecond)
-	})
+	client := coderdtest.New(t)
+	_ = coderdtest.NewProvisionerDaemon(t, client)
+	require.Eventually(t, func() bool {
+		daemons, err := client.ProvisionerDaemons(context.Background())
+		require.NoError(t, err)
+		return len(daemons) > 0
+	}, time.Second, 25*time.Millisecond)
 }

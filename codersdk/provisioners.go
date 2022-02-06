@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/hashicorp/yamux"
@@ -29,12 +30,14 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]coderd.ProvisionerDa
 
 // ProvisionerDaemonClient returns the gRPC service for a provisioner daemon implementation.
 func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.url.Parse("/api/v2/provisioners/daemons/serve")
+	serverURL, err := c.URL.Parse("/api/v2/provisioners/daemons/serve")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: c.httpClient,
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
 		if res == nil {
@@ -42,7 +45,9 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 		}
 		return nil, readBodyAsError(res)
 	}
-	session, err := yamux.Client(websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil)
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}

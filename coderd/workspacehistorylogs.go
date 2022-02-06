@@ -87,13 +87,15 @@ func (api *api) workspaceHistoryLogsByName(rw http.ResponseWriter, r *http.Reque
 		})
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
-			logs = []database.WorkspaceHistoryLog{}
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get workspace history: %s", err),
 			})
 			return
+		}
+		if logs == nil {
+			logs = []database.WorkspaceHistoryLog{}
 		}
 		render.Status(r, http.StatusOK)
 		render.JSON(rw, r, logs)
@@ -113,12 +115,8 @@ func (api *api) workspaceHistoryLogsByName(rw http.ResponseWriter, r *http.Reque
 			select {
 			case bufferedLogs <- log:
 			default:
-				// This is a case that shouldn't happen, but totally could.
-				// There's no way to stream data from the database, so we'll
-				// need to maintain some level of internal buffer.
-				//
-				// If this overflows users could miss logs when streaming.
-				// We warn to make sure we know when it happens!
+				// If this overflows users could miss logs streaming. This can happen
+				// if a database request takes a long amount of time, and we get a lot of logs.
 				api.Logger.Warn(r.Context(), "workspace history log overflowing channel")
 			}
 		}

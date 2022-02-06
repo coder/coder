@@ -53,7 +53,9 @@ func TestEcho(t *testing.T) {
 				},
 			},
 		}}
-		data, err := echo.Tar(responses, nil)
+		data, err := echo.Tar(&echo.Responses{
+			Parse: responses,
+		})
 		require.NoError(t, err)
 		client, err := api.Parse(ctx, &proto.Parse_Request{
 			Directory: unpackTar(t, data),
@@ -86,7 +88,9 @@ func TestEcho(t *testing.T) {
 				},
 			},
 		}}
-		data, err := echo.Tar(nil, responses)
+		data, err := echo.Tar(&echo.Responses{
+			Provision: responses,
+		})
 		require.NoError(t, err)
 		client, err := api.Provision(ctx, &proto.Provision_Request{
 			Directory: unpackTar(t, data),

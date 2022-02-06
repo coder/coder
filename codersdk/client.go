@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -20,14 +21,15 @@ import (
 // New creates a Coder client for the provided URL.
 func New(serverURL *url.URL) *Client {
 	return &Client{
-		url:        serverURL,
+		URL:        serverURL,
 		httpClient: &http.Client{},
 	}
 }
 
 // Client is an HTTP caller for methods to the Coder API.
 type Client struct {
-	url        *url.URL
+	URL *url.URL
+
 	httpClient *http.Client
 }
 
@@ -40,7 +42,7 @@ func (c *Client) SetSessionToken(token string) error {
 			return err
 		}
 	}
-	c.httpClient.Jar.SetCookies(c.url, []*http.Cookie{{
+	c.httpClient.Jar.SetCookies(c.URL, []*http.Cookie{{
 		Name:  httpmw.AuthCookie,
 		Value: token,
 	}})
@@ -50,7 +52,7 @@ func (c *Client) SetSessionToken(token string) error {
 // request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
 func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
-	serverURL, err := c.url.Parse(path)
+	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
@@ -112,5 +114,10 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("status code %d: %s", e.statusCode, e.Message)
+	var builder strings.Builder
+	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
+	for _, err := range e.Errors {
+		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Code)
+	}
+	return builder.String()
 }

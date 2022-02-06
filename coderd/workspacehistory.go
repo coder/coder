@@ -74,12 +74,12 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	projectVersionJobStatus := convertProvisionerJob(projectVersionJob).Status
 	switch projectVersionJobStatus {
 	case ProvisionerJobStatusPending, ProvisionerJobStatusRunning:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
 			Message: fmt.Sprintf("The provided project version is %s. Wait for it to complete importing!", projectVersionJobStatus),
 		})
 		return
 	case ProvisionerJobStatusFailed:
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: fmt.Sprintf("The provided project version %q has failed to import. You cannot create workspaces using it!", projectVersion.Name),
 		})
 		return
@@ -87,6 +87,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "The provided project version was canceled during import. You cannot create workspaces using it!",
 		})
+		return
 	}
 
 	project, err := api.Database.GetProjectByID(r.Context(), projectVersion.ProjectID)
@@ -102,7 +103,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	priorHistory, err := api.Database.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err == nil {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.ProvisionJobID)
-		if err == nil && convertProvisionerJob(priorJob).Status.Completed() {
+		if err == nil && !convertProvisionerJob(priorJob).Status.Completed() {
 			httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 				Message: "a workspace build is already active",
 			})
@@ -113,8 +114,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			UUID:  priorHistory.ID,
 			Valid: true,
 		}
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get prior workspace history: %s", err),
 		})
@@ -168,8 +168,9 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		if priorHistoryID.Valid {
 			// Update the prior history entries "after" column.
 			err = db.UpdateWorkspaceHistoryByID(r.Context(), database.UpdateWorkspaceHistoryByIDParams{
-				ID:        priorHistory.ID,
-				UpdatedAt: database.Now(),
+				ID:               priorHistory.ID,
+				ProvisionerState: priorHistory.ProvisionerState,
+				UpdatedAt:        database.Now(),
 				AfterID: uuid.NullUUID{
 					UUID:  workspaceHistory.ID,
 					Valid: true,
@@ -197,9 +198,10 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	histories, err := api.Database.GetWorkspaceHistoryByWorkspaceID(r.Context(), workspace.ID)
+	history, err := api.Database.GetWorkspaceHistoryByWorkspaceID(r.Context(), workspace.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
+		history = []database.WorkspaceHistory{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -208,8 +210,8 @@ func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	apiHistory := make([]WorkspaceHistory, 0, len(histories))
-	for _, history := range histories {
+	apiHistory := make([]WorkspaceHistory, 0, len(history))
+	for _, history := range history {
 		job, err := api.Database.GetProvisionerJobByID(r.Context(), history.ProvisionJobID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

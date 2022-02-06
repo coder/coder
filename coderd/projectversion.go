@@ -110,19 +110,11 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 		return
 	}
 
-	switch createProjectVersion.StorageMethod {
-	case database.ProjectStorageMethodInlineArchive:
-		tarReader := tar.NewReader(bytes.NewReader(createProjectVersion.StorageSource))
-		_, err := tarReader.Next()
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: "the archive must be a tar",
-			})
-			return
-		}
-	default:
+	tarReader := tar.NewReader(bytes.NewReader(createProjectVersion.StorageSource))
+	_, err := tarReader.Next()
+	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("unsupported storage method %s", createProjectVersion.StorageMethod),
+			Message: "the archive must be a tar",
 		})
 		return
 	}
@@ -132,7 +124,7 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 
 	var provisionerJob database.ProvisionerJob
 	var projectVersion database.ProjectVersion
-	err := api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(func(db database.Store) error {
 		projectVersionID := uuid.New()
 		input, err := json.Marshal(projectImportJob{
 			ProjectVersionID: projectVersionID,

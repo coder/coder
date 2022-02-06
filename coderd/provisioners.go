@@ -70,7 +70,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 		job.Status = ProvisionerJobStatusRunning
 	}
 
-	if job.Error != "" {
+	if !provisionerJob.CancelledAt.Valid && job.Error != "" {
 		job.Status = ProvisionerJobStatusFailed
 	}
 

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,143 +11,135 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 )
 
 func TestWorkspaces(t *testing.T) {
 	t.Parallel()
-
 	t.Run("ListNone", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
-		workspaces, err := server.Client.WorkspacesByUser(context.Background(), "")
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		workspaces, err := client.Workspaces(context.Background(), "")
 		require.NoError(t, err)
+		require.NotNil(t, workspaces)
 		require.Len(t, workspaces, 0)
 	})
-
-	setupProjectAndWorkspace := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest) (coderd.Project, coderd.Workspace) {
-		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "banana",
-			Provisioner: database.ProvisionerTypeEcho,
-		})
-		require.NoError(t, err)
-		workspace, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "example",
-			ProjectID: project.ID,
-		})
-		require.NoError(t, err)
-		return project, workspace
-	}
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, _ = setupProjectAndWorkspace(t, server.Client, user)
-		workspaces, err := server.Client.WorkspacesByUser(context.Background(), "")
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspaces, err := client.Workspaces(context.Background(), "")
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
+}
 
-	t.Run("ListNoneForProject", func(t *testing.T) {
+func TestPostWorkspaceByUser(t *testing.T) {
+	t.Parallel()
+	t.Run("InvalidProject", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "banana",
-			Provisioner: database.ProvisionerTypeEcho,
-		})
-		require.NoError(t, err)
-		workspaces, err := server.Client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
-		require.NoError(t, err)
-		require.Len(t, workspaces, 0)
-	})
-
-	t.Run("ListForProject", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		project, _ := setupProjectAndWorkspace(t, server.Client, user)
-		workspaces, err := server.Client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
-		require.NoError(t, err)
-		require.Len(t, workspaces, 1)
-	})
-
-	t.Run("CreateInvalidInput", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "banana",
-			Provisioner: database.ProvisionerTypeEcho,
-		})
-		require.NoError(t, err)
-		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			ProjectID: project.ID,
-			Name:      "$$$",
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("CreateInvalidProject", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
-		_, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		_, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
 			ProjectID: uuid.New(),
-			Name:      "moo",
+			Name:      "workspace",
 		})
 		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("CreateNotInProjectOrganization", func(t *testing.T) {
+	t.Run("NoProjectAccess", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		initial := server.RandomInitialUser(t)
-		project, err := server.Client.CreateProject(context.Background(), initial.Organization, coderd.CreateProjectRequest{
-			Name:        "banana",
-			Provisioner: database.ProvisionerTypeEcho,
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+
+		anotherUser := coderd.CreateUserRequest{
+			Email:    "another@user.org",
+			Username: "someuser",
+			Password: "somepass",
+		}
+		_, err := client.CreateUser(context.Background(), anotherUser)
+		require.NoError(t, err)
+		token, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: anotherUser.Password,
 		})
 		require.NoError(t, err)
-		_, err = server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
-			Email:    "hello@ok.io",
-			Username: "example",
-			Password: "password",
-		})
+		err = client.SetSessionToken(token.SessionToken)
 		require.NoError(t, err)
-		token, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-			Email:    "hello@ok.io",
-			Password: "password",
-		})
-		require.NoError(t, err)
-		err = server.Client.SetSessionToken(token.SessionToken)
-		require.NoError(t, err)
-		_, err = server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+
+		_, err = client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
 			ProjectID: project.ID,
-			Name:      "moo",
+			Name:      "workspace",
 		})
 		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 
-	t.Run("CreateAlreadyExists", func(t *testing.T) {
+	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-		_, err := server.Client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		_, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+			ProjectID: project.ID,
 			Name:      workspace.Name,
-			ProjectID: project.ID,
 		})
 		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("Single", func(t *testing.T) {
+	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, workspace := setupProjectAndWorkspace(t, server.Client, user)
-		_, err := server.Client.Workspace(context.Background(), "", workspace.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
+	})
+}
+
+func TestWorkspaceByUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t)
+	user := coderdtest.CreateInitialUser(t, client)
+	project := coderdtest.CreateProject(t, client, user.Organization)
+	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+	_, err := client.Workspace(context.Background(), "", workspace.Name)
+	require.NoError(t, err)
+}
+
+func TestWorkspacesByProject(t *testing.T) {
+	t.Parallel()
+	t.Run("ListEmpty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		workspaces, err := client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
+		require.NotNil(t, workspaces)
+	})
+
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspaces, err := client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
+		require.NoError(t, err)
+		require.NotNil(t, workspaces)
+		require.Len(t, workspaces, 1)
 	})
 }

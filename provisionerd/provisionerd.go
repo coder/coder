@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/yamux"
+	"go.uber.org/atomic"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionerd/proto"
@@ -54,7 +55,8 @@ func New(clientDialer Dialer, opts *Options) io.Closer {
 		closeCancel: ctxCancel,
 		closed:      make(chan struct{}),
 
-		jobRunning: make(chan struct{}),
+		jobRunning:   make(chan struct{}),
+		jobCancelled: *atomic.NewBool(true),
 	}
 	// Start off with a closed channel so
 	// isRunningJob() returns properly.
@@ -77,10 +79,11 @@ type provisionerDaemon struct {
 	closeError  error
 
 	// Locked when acquiring or canceling a job.
-	jobMutex   sync.Mutex
-	jobID      string
-	jobRunning chan struct{}
-	jobCancel  context.CancelFunc
+	jobMutex     sync.Mutex
+	jobID        string
+	jobRunning   chan struct{}
+	jobCancelled atomic.Bool
+	jobCancel    context.CancelFunc
 }
 
 // Connect establishes a connection to coderd.
@@ -193,6 +196,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	}
 	ctx, p.jobCancel = context.WithCancel(ctx)
 	p.jobRunning = make(chan struct{})
+	p.jobCancelled.Store(false)
 	p.jobID = job.JobId
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
@@ -220,7 +224,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 				JobId: job.JobId,
 			})
 			if err != nil {
-				go p.cancelActiveJobf("send periodic update: %s", err)
+				p.cancelActiveJobf("send periodic update: %s", err)
 				return
 			}
 		}
@@ -247,13 +251,13 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
 	provisioner, hasProvisioner := p.opts.Provisioners[job.Provisioner]
 	if !hasProvisioner {
-		go p.cancelActiveJobf("provisioner %q not registered", job.Provisioner)
+		p.cancelActiveJobf("provisioner %q not registered", job.Provisioner)
 		return
 	}
 
 	err := os.MkdirAll(p.opts.WorkDirectory, 0700)
 	if err != nil {
-		go p.cancelActiveJobf("create work directory %q: %s", p.opts.WorkDirectory, err)
+		p.cancelActiveJobf("create work directory %q: %s", p.opts.WorkDirectory, err)
 		return
 	}
 
@@ -265,13 +269,13 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 			break
 		}
 		if err != nil {
-			go p.cancelActiveJobf("read project source archive: %s", err)
+			p.cancelActiveJobf("read project source archive: %s", err)
 			return
 		}
 		// #nosec
 		path := filepath.Join(p.opts.WorkDirectory, header.Name)
 		if !strings.HasPrefix(path, filepath.Clean(p.opts.WorkDirectory)) {
-			go p.cancelActiveJobf("tar attempts to target relative upper directory")
+			p.cancelActiveJobf("tar attempts to target relative upper directory")
 			return
 		}
 		mode := header.FileInfo().Mode()
@@ -282,14 +286,14 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 		case tar.TypeDir:
 			err = os.MkdirAll(path, mode)
 			if err != nil {
-				go p.cancelActiveJobf("mkdir %q: %s", path, err)
+				p.cancelActiveJobf("mkdir %q: %s", path, err)
 				return
 			}
 			p.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", path))
 		case tar.TypeReg:
 			file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				go p.cancelActiveJobf("create file %q (mode %s): %s", path, mode, err)
+				p.cancelActiveJobf("create file %q (mode %s): %s", path, mode, err)
 				return
 			}
 			// Max file size of 10MB.
@@ -299,12 +303,12 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 			}
 			if err != nil {
 				_ = file.Close()
-				go p.cancelActiveJobf("copy file %q: %s", path, err)
+				p.cancelActiveJobf("copy file %q: %s", path, err)
 				return
 			}
 			err = file.Close()
 			if err != nil {
-				go p.cancelActiveJobf("close file %q: %s", path, err)
+				p.cancelActiveJobf("close file %q: %s", path, err)
 				return
 			}
 			p.opts.Logger.Debug(context.Background(), "extracted file",
@@ -331,7 +335,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 
 		p.runWorkspaceProvision(ctx, provisioner, job)
 	default:
-		go p.cancelActiveJobf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(job.Type).String())
+		p.cancelActiveJobf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(job.Type).String())
 		return
 	}
 
@@ -347,14 +351,14 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		Directory: p.opts.WorkDirectory,
 	})
 	if err != nil {
-		go p.cancelActiveJobf("parse source: %s", err)
+		p.cancelActiveJobf("parse source: %s", err)
 		return
 	}
 	defer stream.Close()
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			go p.cancelActiveJobf("recv parse source: %s", err)
+			p.cancelActiveJobf("recv parse source: %s", err)
 			return
 		}
 		switch msgType := msg.Type.(type) {
@@ -375,7 +379,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 				}},
 			})
 			if err != nil {
-				go p.cancelActiveJobf("update job: %s", err)
+				p.cancelActiveJobf("update job: %s", err)
 				return
 			}
 		case *sdkproto.Parse_Response_Complete:
@@ -391,13 +395,13 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 				},
 			})
 			if err != nil {
-				go p.cancelActiveJobf("complete job: %s", err)
+				p.cancelActiveJobf("complete job: %s", err)
 				return
 			}
 			// Return so we stop looping!
 			return
 		default:
-			go p.cancelActiveJobf("invalid message type %q received from provisioner",
+			p.cancelActiveJobf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 			return
 		}
@@ -411,7 +415,7 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 		State:           job.GetWorkspaceProvision().State,
 	})
 	if err != nil {
-		go p.cancelActiveJobf("provision: %s", err)
+		p.cancelActiveJobf("provision: %s", err)
 		return
 	}
 	defer stream.Close()
@@ -419,7 +423,7 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			go p.cancelActiveJobf("recv workspace provision: %s", err)
+			p.cancelActiveJobf("recv workspace provision: %s", err)
 			return
 		}
 		switch msgType := msg.Type.(type) {
@@ -440,7 +444,7 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 				}},
 			})
 			if err != nil {
-				go p.cancelActiveJobf("send job update: %s", err)
+				p.cancelActiveJobf("send job update: %s", err)
 				return
 			}
 		case *sdkproto.Provision_Response_Complete:
@@ -462,13 +466,13 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 				},
 			})
 			if err != nil {
-				go p.cancelActiveJobf("complete job: %s", err)
+				p.cancelActiveJobf("complete job: %s", err)
 				return
 			}
 			// Return so we stop looping!
 			return
 		default:
-			go p.cancelActiveJobf("invalid message type %q received from provisioner",
+			p.cancelActiveJobf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 			return
 		}
@@ -481,12 +485,16 @@ func (p *provisionerDaemon) cancelActiveJobf(format string, args ...interface{})
 	errMsg := fmt.Sprintf(format, args...)
 	if !p.isRunningJob() {
 		if p.isClosed() {
-			// We don't want to log if we're already closed!
 			return
 		}
-		p.opts.Logger.Warn(context.Background(), "skipping job cancel; none running", slog.F("error_message", errMsg))
+		p.opts.Logger.Info(context.Background(), "skipping job cancel; none running", slog.F("error_message", errMsg))
 		return
 	}
+	if p.jobCancelled.Load() {
+		p.opts.Logger.Warn(context.Background(), "job has already been canceled", slog.F("error_messsage", errMsg))
+		return
+	}
+	p.jobCancelled.Store(true)
 	p.jobCancel()
 	p.opts.Logger.Info(context.Background(), "canceling running job",
 		slog.F("error_message", errMsg),
@@ -500,7 +508,6 @@ func (p *provisionerDaemon) cancelActiveJobf(format string, args ...interface{})
 		p.opts.Logger.Warn(context.Background(), "failed to notify of cancel; job is no longer running", slog.Error(err))
 		return
 	}
-	<-p.jobRunning
 	p.opts.Logger.Debug(context.Background(), "canceled running job")
 }
 
@@ -534,6 +541,7 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 		errMsg = err.Error()
 	}
 	p.cancelActiveJobf(errMsg)
+	<-p.jobRunning
 	p.closeCancel()
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))

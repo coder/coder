@@ -9,90 +9,132 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestWorkspaceHistoryLogs(t *testing.T) {
+func TestWorkspaceHistoryLogsByName(t *testing.T) {
 	t.Parallel()
-
-	setupProjectAndWorkspace := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest) (coderd.Project, coderd.Workspace) {
-		project, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "banana",
-			Provisioner: database.ProvisionerTypeEcho,
-		})
-		require.NoError(t, err)
-		workspace, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
-			Name:      "example",
-			ProjectID: project.ID,
-		})
-		require.NoError(t, err)
-		return project, workspace
-	}
-
-	setupProjectVersion := func(t *testing.T, client *codersdk.Client, user coderd.CreateInitialUserRequest, project coderd.Project, data []byte) coderd.ProjectVersion {
-		projectVersion, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
-			StorageMethod: database.ProjectStorageMethodInlineArchive,
-			StorageSource: data,
-		})
-		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			hist, err := client.ProjectVersion(context.Background(), user.Organization, project.Name, projectVersion.Name)
-			require.NoError(t, err)
-			return hist.Import.Status.Completed()
-		}, 15*time.Second, 50*time.Millisecond)
-		return projectVersion
-	}
-
-	server := coderdtest.New(t)
-	user := server.RandomInitialUser(t)
-	_ = server.AddProvisionerd(t)
-	project, workspace := setupProjectAndWorkspace(t, server.Client, user)
-	data, err := echo.Tar(echo.ParseComplete, []*proto.Provision_Response{{
-		Type: &proto.Provision_Response_Log{
-			Log: &proto.Log{
-				Output: "test",
-			},
-		},
-	}, {
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{},
-		},
-	}})
-	require.NoError(t, err)
-	projectVersion := setupProjectVersion(t, server.Client, user, project, data)
-
-	workspaceHistory, err := server.Client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-		ProjectVersionID: projectVersion.ID,
-		Transition:       database.WorkspaceTransitionCreate,
-	})
-	require.NoError(t, err)
-
-	now := database.Now()
-	logChan, err := server.Client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, workspaceHistory.Name, now)
-	require.NoError(t, err)
-
-	for {
-		log, more := <-logChan
-		if !more {
-			break
-		}
-		t.Logf("Output: %s", log.Output)
-	}
-
-	t.Run("ReturnAll", func(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-
-		_, err := server.Client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, workspaceHistory.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_INFO,
+						Output: "log-output",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		})
+		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectVersionID: version.ID,
+			Transition:       database.WorkspaceTransitionCreate,
+		})
 		require.NoError(t, err)
+
+		// Successfully return empty logs before the job starts!
+		logs, err := client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, history.Name)
+		require.NoError(t, err)
+		require.NotNil(t, logs)
+		require.Len(t, logs, 0)
+
+		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
+
+		// Return the log after completion!
+		logs, err = client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, history.Name)
+		require.NoError(t, err)
+		require.NotNil(t, logs)
+		require.Len(t, logs, 1)
 	})
 
-	t.Run("Between", func(t *testing.T) {
+	t.Run("StreamAfterComplete", func(t *testing.T) {
 		t.Parallel()
-
-		_, err := server.Client.WorkspaceHistoryLogsBetween(context.Background(), "", workspace.Name, workspaceHistory.Name, time.Time{}, database.Now())
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_INFO,
+						Output: "log-output",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		})
+		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		before := time.Now().UTC()
+		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectVersionID: version.ID,
+			Transition:       database.WorkspaceTransitionCreate,
+		})
 		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
+
+		logs, err := client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, history.Name, before)
+		require.NoError(t, err)
+		log := <-logs
+		require.Equal(t, "log-output", log.Output)
+		// Make sure the channel automatically closes!
+		_, ok := <-logs
+		require.False(t, ok)
+	})
+
+	t.Run("StreamWhileRunning", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		project := coderdtest.CreateProject(t, client, user.Organization)
+		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_INFO,
+						Output: "log-output",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		})
+		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectVersionID: version.ID,
+			Transition:       database.WorkspaceTransitionCreate,
+		})
+		require.NoError(t, err)
+
+		logs, err := client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, history.Name, time.Time{})
+		require.NoError(t, err)
+		log := <-logs
+		require.Equal(t, "log-output", log.Output)
+		// Make sure the channel automatically closes!
+		_, ok := <-logs
+		require.False(t, ok)
 	})
 }
