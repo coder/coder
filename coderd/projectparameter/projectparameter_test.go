@@ -31,7 +31,7 @@ func TestCompute(t *testing.T) {
 		DefaultDestinationScheme database.ParameterDestinationScheme
 		ProjectVersionID         uuid.UUID
 	}
-	generateProjectParameter := func(t *testing.T, db database.Store, opts projectParameterOptions) database.ProjectParameter {
+	generateProjectParameter := func(t *testing.T, db database.Store, opts projectParameterOptions) database.ProjectVersionParameter {
 		if opts.DefaultDestinationScheme == "" {
 			opts.DefaultDestinationScheme = database.ParameterDestinationSchemeEnvironmentVariable
 		}
@@ -41,7 +41,7 @@ func TestCompute(t *testing.T) {
 		require.NoError(t, err)
 		destinationValue, err := cryptorand.String(8)
 		require.NoError(t, err)
-		param, err := db.InsertProjectParameter(context.Background(), database.InsertProjectParameterParams{
+		param, err := db.InsertProjectVersionParameter(context.Background(), database.InsertProjectVersionParameterParams{
 			ID:                  uuid.New(),
 			Name:                name,
 			ProjectVersionID:    opts.ProjectVersionID,
@@ -66,7 +66,7 @@ func TestCompute(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
-		parameter, err := db.InsertProjectParameter(context.Background(), database.InsertProjectParameterParams{
+		parameter, err := db.InsertProjectVersionParameter(context.Background(), database.InsertProjectVersionParameterParams{
 			ID:               uuid.New(),
 			ProjectVersionID: scope.ProjectVersionID,
 			Name:             "hey",

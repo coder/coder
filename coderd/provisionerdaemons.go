@@ -422,14 +422,14 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 		// Validate that all parameters send from the provisioner daemon
 		// follow the protocol.
-		projectParameters := make([]database.InsertProjectParameterParams, 0, len(jobType.ProjectImport.ParameterSchemas))
+		projectVersionParameters := make([]database.InsertProjectVersionParameterParams, 0, len(jobType.ProjectImport.ParameterSchemas))
 		for _, protoParameter := range jobType.ProjectImport.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
 			}
 
-			projectParameter := database.InsertProjectParameterParams{
+			projectParameter := database.InsertProjectVersionParameterParams{
 				ID:                   uuid.New(),
 				CreatedAt:            database.Now(),
 				ProjectVersionID:     input.ProjectVersionID,
@@ -474,7 +474,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				}
 			}
 
-			projectParameters = append(projectParameters, projectParameter)
+			projectVersionParameters = append(projectVersionParameters, projectParameter)
 		}
 
 		// This must occur in a transaction in case of failure.
@@ -492,8 +492,8 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			}
 			// This could be a bulk-insert operation to improve performance.
 			// See the "InsertWorkspaceHistoryLogs" query.
-			for _, projectParameter := range projectParameters {
-				_, err = db.InsertProjectParameter(ctx, projectParameter)
+			for _, projectParameter := range projectVersionParameters {
+				_, err = db.InsertProjectVersionParameter(ctx, projectParameter)
 				if err != nil {
 					return xerrors.Errorf("insert project parameter %q: %w", projectParameter.Name, err)
 				}
