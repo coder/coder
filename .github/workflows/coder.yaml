@@ -88,14 +88,9 @@ jobs:
       - run: "make --output-sync -j gen"
       - run: ./scripts/check_unstaged.sh
 
-  style:
-    name: "style/${{ matrix.style }}"
+  style-fmt:
+    name: "style/fmt"
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        style:
-          - fmt
-      fail-fast: false
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -116,8 +111,8 @@ jobs:
         run: yarn install
         working-directory: site
 
-      - name: "make ${{ matrix.style }}"
-        run: "make --output-sync -j ${{ matrix.style }}"
+      - name: "make fmt"
+        run: "make --output-sync -j fmt"
 
   test-go:
     name: "test/go"
