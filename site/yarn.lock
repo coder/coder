@@ -1826,15 +1826,15 @@
     is-color-stop "^1.1.0"
     rgb-hex "^3.0.0"
 
-"@react-theming/storybook-addon@1.1.3":
-  version "1.1.3"
-  resolved "https://registry.yarnpkg.com/@react-theming/storybook-addon/-/storybook-addon-1.1.3.tgz#6d344d99df0f7aaaee44975395a5817d9ee5f36a"
-  integrity sha512-x6t4LD8Z8ysac3+Thr9BxHyrzKDZMssJHqXc7wneFaiJcRmdAWGHoT7D3kT9WsegmKaBf4rY4GVACcklBkwdIg==
+"@react-theming/storybook-addon@1.1.5":
+  version "1.1.5"
+  resolved "https://registry.yarnpkg.com/@react-theming/storybook-addon/-/storybook-addon-1.1.5.tgz#cb00ce26139859b2e233619b4c29b2cc391767c9"
+  integrity sha512-m4LM4j/dDzwMdvdHvsdiM64Qb6pI7DdALHHMoCCe0u4OFlAxtHk67FlwMkEGfsoV3zZWHYhz8hP7rcSrPUMbVw==
   dependencies:
     "@react-theming/flatten" "^0.1.1"
     "@react-theming/theme-name" "^1.0.3"
     "@react-theming/theme-swatch" "^1.0.0"
-    "@storybook/addon-devkit" "^1.4.1"
+    "@storybook/addon-devkit" "^1.4.2"
     "@usulpro/react-json-view" "^2.0.1"
     react-color "^2.18.0"
 
@@ -1920,7 +1920,7 @@
     core-js "^3.8.2"
     ts-dedent "^2.0.0"
 
-"@storybook/addon-devkit@^1.4.1":
+"@storybook/addon-devkit@^1.4.2":
   version "1.4.2"
   resolved "https://registry.yarnpkg.com/@storybook/addon-devkit/-/addon-devkit-1.4.2.tgz#a230fef4554c604799def525541c61af06e8d22d"
   integrity sha512-ggy34eCzmiKOwgV7xYNjlPClGpmtnYODPJv0vkCKiDyPeVLHocq2UZ7ZkOhQ5GO7TM7aLeeC1JBS00tZId9oLA==
