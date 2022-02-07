@@ -60,7 +60,8 @@ message CompletedJob {
     }
     message ProjectImport {
         repeated provisioner.ParameterSchema parameter_schemas = 1;
-        repeated TransitionedResource resources = 2;
+        repeated provisioner.Resource start_resources = 2;
+        repeated provisioner.Resource stop_resources = 3;
     }
     string job_id = 1;
     oneof type {

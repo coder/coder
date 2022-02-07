@@ -149,6 +149,7 @@ func TestProvision(t *testing.T) {
 			for {
 				msg, err := response.Recv()
 				if msg != nil && msg.GetLog() != nil {
+					t.Logf("log: [%s] %s", msg.GetLog().Level, msg.GetLog().Output)
 					continue
 				}
 				if testCase.Error {

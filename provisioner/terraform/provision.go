@@ -150,6 +150,7 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 	if err != nil {
 		return xerrors.Errorf("apply terraform: %w", err)
 	}
+	_ = reader.Close()
 	t.logger.Debug(ctx, "ran plan")
 	<-closeChan
 
