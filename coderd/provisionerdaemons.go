@@ -165,26 +165,16 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		return xerrors.Errorf("request job was invalidated: %s", errorMessage)
 	}
 
-	project, err := server.Database.GetProjectByID(ctx, job.ProjectID)
-	if err != nil {
-		return nil, failJob(fmt.Sprintf("get project: %s", err))
-	}
-	organization, err := server.Database.GetOrganizationByID(ctx, project.OrganizationID)
-	if err != nil {
-		return nil, failJob(fmt.Sprintf("get organization: %s", err))
-	}
 	user, err := server.Database.GetUserByID(ctx, job.InitiatorID)
 	if err != nil {
 		return nil, failJob(fmt.Sprintf("get user: %s", err))
 	}
 
 	protoJob := &proto.AcquiredJob{
-		JobId:            job.ID.String(),
-		CreatedAt:        job.CreatedAt.UnixMilli(),
-		Provisioner:      string(job.Provisioner),
-		OrganizationName: organization.Name,
-		ProjectName:      project.Name,
-		UserName:         user.Username,
+		JobId:       job.ID.String(),
+		CreatedAt:   job.CreatedAt.UnixMilli(),
+		Provisioner: string(job.Provisioner),
+		UserName:    user.Username,
 	}
 	var projectVersion database.ProjectVersion
 	switch job.Type {
@@ -205,6 +195,14 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		projectVersion, err = server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project version: %s", err))
+		}
+		project, err := server.Database.GetProjectByID(ctx, projectVersion.ProjectID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get project: %s", err))
+		}
+		organization, err := server.Database.GetOrganizationByID(ctx, project.OrganizationID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get organization: %s", err))
 		}
 
 		// Compute parameters for the workspace to consume.
@@ -246,8 +244,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
 			ProjectImport: &proto.AcquiredJob_ProjectImport{
-				ProjectVersionId:   projectVersion.ID.String(),
-				ProjectVersionName: projectVersion.Name,
+				// This will be replaced once the project import has been refactored.
+				ProjectName: "placeholder",
 			},
 		}
 	}
@@ -289,85 +287,36 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 		if err != nil {
 			return xerrors.Errorf("update job: %w", err)
 		}
-		switch job.Type {
-		case database.ProvisionerJobTypeProjectImport:
-			if len(update.ProjectImportLogs) == 0 {
-				continue
-			}
-			var input projectImportJob
-			err = json.Unmarshal(job.Input, &input)
+		insertParams := database.InsertProvisionerJobLogsParams{
+			JobID: parsedID,
+		}
+		for _, log := range update.Logs {
+			logLevel, err := convertLogLevel(log.Level)
 			if err != nil {
-				return xerrors.Errorf("unmarshal job input %q: %s", job.Input, err)
+				return xerrors.Errorf("convert log level: %w", err)
 			}
-			insertParams := database.InsertProjectVersionLogsParams{
-				ProjectVersionID: input.ProjectVersionID,
-			}
-			for _, log := range update.ProjectImportLogs {
-				logLevel, err := convertLogLevel(log.Level)
-				if err != nil {
-					return xerrors.Errorf("convert log level: %w", err)
-				}
-				logSource, err := convertLogSource(log.Source)
-				if err != nil {
-					return xerrors.Errorf("convert log source: %w", err)
-				}
-				insertParams.ID = append(insertParams.ID, uuid.New())
-				insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
-				insertParams.Level = append(insertParams.Level, logLevel)
-				insertParams.Source = append(insertParams.Source, logSource)
-				insertParams.Output = append(insertParams.Output, log.Output)
-			}
-			logs, err := server.Database.InsertProjectVersionLogs(stream.Context(), insertParams)
+			logSource, err := convertLogSource(log.Source)
 			if err != nil {
-				return xerrors.Errorf("insert project logs: %w", err)
+				return xerrors.Errorf("convert log source: %w", err)
 			}
-			data, err := json.Marshal(logs)
-			if err != nil {
-				return xerrors.Errorf("marshal project log: %w", err)
-			}
-			err = server.Pubsub.Publish(projectVersionLogsChannel(input.ProjectVersionID), data)
-			if err != nil {
-				return xerrors.Errorf("publish history log: %w", err)
-			}
-		case database.ProvisionerJobTypeWorkspaceProvision:
-			if len(update.WorkspaceProvisionLogs) == 0 {
-				continue
-			}
-			var input workspaceProvisionJob
-			err = json.Unmarshal(job.Input, &input)
-			if err != nil {
-				return xerrors.Errorf("unmarshal job input %q: %s", job.Input, err)
-			}
-			insertParams := database.InsertWorkspaceHistoryLogsParams{
-				WorkspaceHistoryID: input.WorkspaceHistoryID,
-			}
-			for _, log := range update.WorkspaceProvisionLogs {
-				logLevel, err := convertLogLevel(log.Level)
-				if err != nil {
-					return xerrors.Errorf("convert log level: %w", err)
-				}
-				logSource, err := convertLogSource(log.Source)
-				if err != nil {
-					return xerrors.Errorf("convert log source: %w", err)
-				}
-				insertParams.ID = append(insertParams.ID, uuid.New())
-				insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
-				insertParams.Level = append(insertParams.Level, logLevel)
-				insertParams.Source = append(insertParams.Source, logSource)
-				insertParams.Output = append(insertParams.Output, log.Output)
-			}
-			logs, err := server.Database.InsertWorkspaceHistoryLogs(stream.Context(), insertParams)
-			if err != nil {
-				return xerrors.Errorf("insert workspace logs: %w", err)
-			}
-			data, err := json.Marshal(logs)
-			if err != nil {
-				return xerrors.Errorf("marshal project log: %w", err)
-			}
-			err = server.Pubsub.Publish(workspaceHistoryLogsChannel(input.WorkspaceHistoryID), data)
-			if err != nil {
-				return xerrors.Errorf("publish history log: %w", err)
-			}
+			insertParams.ID = append(insertParams.ID, uuid.New())
+			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
+			insertParams.Level = append(insertParams.Level, logLevel)
+			insertParams.Source = append(insertParams.Source, logSource)
+			insertParams.Output = append(insertParams.Output, log.Output)
+		}
+		logs, err := server.Database.InsertProvisionerJobLogs(stream.Context(), insertParams)
+		if err != nil {
+			server.Logger.Error(stream.Context(), "insert provisioner job logs", slog.Error(err))
+			return xerrors.Errorf("insert job logs: %w", err)
+		}
+		data, err := json.Marshal(logs)
+		if err != nil {
+			return xerrors.Errorf("marshal job log: %w", err)
+		}
+		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
+		if err != nil {
+			return xerrors.Errorf("publish job log: %w", err)
 		}
 	}
 }

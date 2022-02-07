@@ -18,19 +18,16 @@ message AcquiredJob {
         bytes state = 4;
     }
     message ProjectImport {
-        string project_version_id = 1;
-        string project_version_name = 2;
+        string project_name = 2;
     }
     string job_id = 1;
     int64 created_at = 2;
     string provisioner = 3;
-    string organization_name = 4;
-    string project_name = 5;
-    string user_name = 6;
-    bytes project_source_archive = 7;
+    string user_name = 4;
+    bytes project_source_archive = 5;
     oneof type {
-        WorkspaceProvision workspace_provision = 8;
-        ProjectImport project_import = 9;
+        WorkspaceProvision workspace_provision = 6;
+        ProjectImport project_import = 7;
     }
 }
 
@@ -74,8 +71,7 @@ message Log {
 // should still be sent periodically as a heartbeat.
 message JobUpdate {
     string job_id = 1;
-    repeated Log workspace_provision_logs = 2;
-    repeated Log project_import_logs = 3;
+    repeated Log logs = 2;
 }
 
 service ProvisionerDaemon {

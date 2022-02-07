@@ -46,6 +46,16 @@ WHERE
 LIMIT
   1;
 
+-- name: GetFileByHash :one
+SELECT
+  *
+FROM
+  file
+WHERE
+  hash = $1
+LIMIT
+  1;
+
 -- name: GetUserByID :one
 SELECT
   *
@@ -188,13 +198,13 @@ FROM
 WHERE
   id = $1;
 
--- name: GetProjectVersionLogsByIDBetween :many
+-- name: GetProvisionerLogsByIDBetween :many
 SELECT
   *
 FROM
-  project_version_log
+  provisioner_job_log
 WHERE
-  project_version_id = @project_version_id
+  job_id = @job_id
   AND (
     created_at >= @created_after
     OR created_at <= @created_before
@@ -298,20 +308,6 @@ WHERE
 LIMIT
   1;
 
--- name: GetWorkspaceHistoryLogsByIDBetween :many
-SELECT
-  *
-FROM
-  workspace_history_log
-WHERE
-  workspace_history_id = @workspace_history_id
-  AND (
-    created_at >= @created_after
-    OR created_at <= @created_before
-  )
-ORDER BY
-  created_at;
-
 -- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
   *
@@ -365,6 +361,23 @@ VALUES
     $14,
     $15
   ) RETURNING *;
+
+-- name: InsertFile :one
+INSERT INTO
+  file (hash, created_at, mimetype, data)
+VALUES
+  ($1, $2, $3, $4) RETURNING *;
+
+-- name: InsertProvisionerJobLogs :many
+INSERT INTO
+  provisioner_job_log
+SELECT
+  unnest(@id :: uuid [ ]) AS id,
+  @job_id :: uuid AS job_id,
+  unnest(@created_at :: timestamptz [ ]) AS created_at,
+  unnest(@source :: log_source [ ]) as source,
+  unnest(@level :: log_level [ ]) as level,
+  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertOrganization :one
 INSERT INTO
@@ -430,17 +443,6 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
--- name: InsertProjectVersionLogs :many
-INSERT INTO
-  project_version_log
-SELECT
-  @project_version_id :: uuid AS project_version_id,
-  unnest(@id :: uuid [ ]) AS id,
-  unnest(@created_at :: timestamptz [ ]) AS created_at,
-  unnest(@source :: log_source [ ]) as source,
-  unnest(@level :: log_level [ ]) as level,
-  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
-
 -- name: InsertProjectParameter :one
 INSERT INTO
   project_parameter (
@@ -498,11 +500,10 @@ INSERT INTO
     initiator_id,
     provisioner,
     type,
-    project_id,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -563,17 +564,6 @@ INSERT INTO
   )
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
-
--- name: InsertWorkspaceHistoryLogs :many
-INSERT INTO
-  workspace_history_log
-SELECT
-  unnest(@id :: uuid [ ]) AS id,
-  @workspace_history_id :: uuid AS workspace_history_id,
-  unnest(@created_at :: timestamptz [ ]) AS created_at,
-  unnest(@source :: log_source [ ]) as source,
-  unnest(@level :: log_level [ ]) as level,
-  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO
