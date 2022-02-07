@@ -11,7 +11,7 @@ import (
 type querier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
-	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
+	GetFileByHash(ctx context.Context, hash string) (File, error)
 	GetOrganizationByID(ctx context.Context, id string) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error)

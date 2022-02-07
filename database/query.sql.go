@@ -106,21 +106,26 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	return i, err
 }
 
-const getFileByID = `-- name: GetFileByID :one
+const getFileByHash = `-- name: GetFileByHash :one
 SELECT
-  id, created_at, data
+  hash, created_at, mimetype, data
 FROM
-  files
+  file
 WHERE
-  id = $1
+  hash = $1
 LIMIT
   1
 `
 
-func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error) {
-	row := q.db.QueryRowContext(ctx, getFileByID, id)
+func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, error) {
+	row := q.db.QueryRowContext(ctx, getFileByHash, hash)
 	var i File
-	err := row.Scan(&i.ID, &i.CreatedAt, &i.Data)
+	err := row.Scan(
+		&i.Hash,
+		&i.CreatedAt,
+		&i.Mimetype,
+		&i.Data,
+	)
 	return i, err
 }
 
@@ -1249,21 +1254,32 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 
 const insertFile = `-- name: InsertFile :one
 INSERT INTO
-  files (id, created_at, data)
+  file (hash, created_at, mimetype, data)
 VALUES
-  ($1, $2, $3) RETURNING id, created_at, data
+  ($1, $2, $3, $4) RETURNING hash, created_at, mimetype, data
 `
 
 type InsertFileParams struct {
-	ID        uuid.UUID `db:"id" json:"id"`
+	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
 }
 
 func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File, error) {
-	row := q.db.QueryRowContext(ctx, insertFile, arg.ID, arg.CreatedAt, arg.Data)
+	row := q.db.QueryRowContext(ctx, insertFile,
+		arg.Hash,
+		arg.CreatedAt,
+		arg.Mimetype,
+		arg.Data,
+	)
 	var i File
-	err := row.Scan(&i.ID, &i.CreatedAt, &i.Data)
+	err := row.Scan(
+		&i.Hash,
+		&i.CreatedAt,
+		&i.Mimetype,
+		&i.Data,
+	)
 	return i, err
 }
 

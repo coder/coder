@@ -267,8 +267,9 @@ type APIKey struct {
 }
 
 type File struct {
-	ID        uuid.UUID `db:"id" json:"id"`
+	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
 }
 

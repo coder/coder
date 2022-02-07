@@ -87,9 +87,10 @@ CREATE TABLE api_keys (
     devurl_token boolean DEFAULT false NOT NULL
 );
 
-CREATE TABLE files (
-    id uuid NOT NULL,
+CREATE TABLE file (
+    hash character varying(32) NOT NULL,
     created_at timestamp with time zone NOT NULL,
+    mimetype character varying(64) NOT NULL,
     data bytea NOT NULL
 );
 
@@ -272,8 +273,8 @@ CREATE TABLE workspace_resource (
     workspace_agent_id uuid
 );
 
-ALTER TABLE ONLY files
-    ADD CONSTRAINT files_id_key UNIQUE (id);
+ALTER TABLE ONLY file
+    ADD CONSTRAINT file_hash_key UNIQUE (hash);
 
 ALTER TABLE ONLY parameter_value
     ADD CONSTRAINT parameter_value_id_key UNIQUE (id);

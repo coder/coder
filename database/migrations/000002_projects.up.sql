@@ -1,7 +1,8 @@
 -- Store arbitrary data like project source code or avatars.
-CREATE TABLE files (
-    id uuid NOT NULL UNIQUE,
+CREATE TABLE file (
+    hash varchar(32) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
+    mimetype varchar(64) NOT NULL,
     data bytea NOT NULL
 );
 

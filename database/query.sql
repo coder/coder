@@ -46,13 +46,13 @@ WHERE
 LIMIT
   1;
 
--- name: GetFileByID :one
+-- name: GetFileByHash :one
 SELECT
   *
 FROM
-  files
+  file
 WHERE
-  id = $1
+  hash = $1
 LIMIT
   1;
 
@@ -364,9 +364,9 @@ VALUES
 
 -- name: InsertFile :one
 INSERT INTO
-  files (id, created_at, data)
+  file (hash, created_at, mimetype, data)
 VALUES
-  ($1, $2, $3) RETURNING *;
+  ($1, $2, $3, $4) RETURNING *;
 
 -- name: InsertProvisionerJobLogs :many
 INSERT INTO
