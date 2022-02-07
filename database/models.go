@@ -335,15 +335,6 @@ type ProjectVersion struct {
 	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
 }
 
-type ProjectVersionLog struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	ProjectVersionID uuid.UUID `db:"project_version_id" json:"project_version_id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Source           LogSource `db:"source" json:"source"`
-	Level            LogLevel  `db:"level" json:"level"`
-	Output           string    `db:"output" json:"output"`
-}
-
 type ProjectVersionParameter struct {
 	ID                       uuid.UUID                  `db:"id" json:"id"`
 	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`

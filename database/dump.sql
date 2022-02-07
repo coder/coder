@@ -156,15 +156,6 @@ CREATE TABLE project_version (
     import_job_id uuid NOT NULL
 );
 
-CREATE TABLE project_version_log (
-    id uuid NOT NULL,
-    project_version_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output character varying(1024) NOT NULL
-);
-
 CREATE TABLE project_version_parameter (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -300,6 +291,12 @@ ALTER TABLE ONLY project
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_id_key UNIQUE (id);
 
+ALTER TABLE ONLY project_version_parameter
+    ADD CONSTRAINT project_version_parameter_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project_version_parameter
+    ADD CONSTRAINT project_version_parameter_project_version_id_name_key UNIQUE (project_version_id, name);
+
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_name_key UNIQUE (project_id, name);
 
@@ -338,9 +335,6 @@ ALTER TABLE ONLY workspace_resource
 
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_history_id_name_key UNIQUE (workspace_history_id, name);
-
-ALTER TABLE ONLY project_version_log
-    ADD CONSTRAINT project_version_log_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_version_parameter
     ADD CONSTRAINT project_version_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
