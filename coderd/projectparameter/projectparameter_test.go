@@ -22,7 +22,14 @@ func TestCompute(t *testing.T) {
 			OrganizationID:   uuid.New().String(),
 			ProjectID:        uuid.New(),
 			ProjectVersionID: uuid.New(),
-			UserID:           uuid.NewString(),
+			WorkspaceID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+			UserID: sql.NullString{
+				String: uuid.NewString(),
+				Valid:  true,
+			},
 		}
 	}
 	type projectParameterOptions struct {
@@ -163,7 +170,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           scope.WorkspaceID.String(),
+			ScopeID:           scope.WorkspaceID.UUID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -189,7 +196,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           scope.WorkspaceID.String(),
+			ScopeID:           scope.WorkspaceID.UUID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
