@@ -65,18 +65,10 @@ message Log {
     string output = 2;
 }
 
-// ResourceState represents the update of a resource.
-enum ResourceState {
-    CREATED = 0;
-    CHANGED = 1;
-    DESTROYED = 2;
-}
-
 // Resource represents created infrastructure.
 message Resource {
-    ResourceState state = 1;
-    string name = 2;
-    string type = 3;
+    string name = 1;
+    string type = 2;
 }
 
 // Parse consumes source-code from a directory to produce inputs.

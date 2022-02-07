@@ -357,12 +357,12 @@ type ProjectVersionParameter struct {
 }
 
 type ProjectVersionResource struct {
-	ID               uuid.UUID           `db:"id" json:"id"`
-	ProjectVersionID uuid.UUID           `db:"project_version_id" json:"project_version_id"`
-	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
-	Transition       WorkspaceTransition `db:"transition" json:"transition"`
-	Type             string              `db:"type" json:"type"`
-	Name             string              `db:"name" json:"name"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	ProjectVersionID uuid.UUID `db:"project_version_id" json:"project_version_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	DestroyOnStop    bool      `db:"destroy_on_stop" json:"destroy_on_stop"`
+	Type             string    `db:"type" json:"type"`
+	Name             string    `db:"name" json:"name"`
 }
 
 type ProvisionerDaemon struct {

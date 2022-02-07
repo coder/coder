@@ -113,20 +113,14 @@ CREATE TABLE project_version_log (
     output varchar(1024) NOT NULL
 );
 
-CREATE TYPE workspace_transition AS ENUM (
-    'start',
-    'stop',
-    'delete'
-);
-
 -- Stores resources for a specific project version and workspace transition.
 -- This is to display resources for the started and stopped transitions.
 CREATE TABLE project_version_resource (
     id uuid NOT NULL UNIQUE,
     project_version_id uuid NOT NULL REFERENCES project_version (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL,
-    transition workspace_transition NOT NULL,
+    destroy_on_stop boolean NOT NULL,
     type varchar(256) NOT NULL,
     name varchar(64) NOT NULL,
-    UNIQUE(project_version_id, transition, type, name)
+    UNIQUE(project_version_id, type, name)
 );

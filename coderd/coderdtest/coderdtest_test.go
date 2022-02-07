@@ -28,7 +28,7 @@ func TestNew(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 	history, err := client.CreateWorkspaceHistory(context.Background(), "me", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 		ProjectVersionID: version.ID,
-		Transition:       database.WorkspaceTransitionCreate,
+		Transition:       database.WorkspaceTransitionStart,
 	})
 	require.NoError(t, err)
 	coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "me", workspace.Name, history.Name)

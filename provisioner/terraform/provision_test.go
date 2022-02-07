@@ -89,6 +89,42 @@ func TestProvision(t *testing.T) {
 			"main.tf": `a`,
 		},
 		Error: true,
+	}, {
+		Name: "dryrun-single-resource",
+		Files: map[string]string{
+			"main.tf": `resource "null_resource" "A" {}`,
+		},
+		Request: &proto.Provision_Request{
+			DryRun: true,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+					}},
+				},
+			},
+		},
+	}, {
+		Name: "dryrun-conditional-single-resource",
+		Files: map[string]string{
+			"main.tf": `
+			variable "test" {
+				default = "no"
+			}
+			resource "null_resource" "A" {
+				count = var.test == "yes" ? 1 : 0
+			}`,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: nil,
+				},
+			},
+		},
 	}} {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
@@ -106,6 +142,7 @@ func TestProvision(t *testing.T) {
 			if testCase.Request != nil {
 				request.ParameterValues = testCase.Request.ParameterValues
 				request.State = testCase.Request.State
+				request.DryRun = testCase.Request.DryRun
 			}
 			response, err := api.Provision(ctx, request)
 			require.NoError(t, err)
@@ -125,7 +162,9 @@ func TestProvision(t *testing.T) {
 				}
 
 				require.NoError(t, err)
-				require.Greater(t, len(msg.GetComplete().State), 0)
+				if !request.DryRun {
+					require.Greater(t, len(msg.GetComplete().State), 0)
+				}
 
 				resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
 				require.NoError(t, err)

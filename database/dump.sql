@@ -181,7 +181,7 @@ CREATE TABLE project_version_resource (
     id uuid NOT NULL,
     project_version_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    transition workspace_transition NOT NULL,
+    destroy_on_stop boolean NOT NULL,
     type character varying(256) NOT NULL,
     name character varying(64) NOT NULL
 );
@@ -315,7 +315,7 @@ ALTER TABLE ONLY project_version_resource
     ADD CONSTRAINT project_version_resource_id_key UNIQUE (id);
 
 ALTER TABLE ONLY project_version_resource
-    ADD CONSTRAINT project_version_resource_project_version_id_transition_type_key UNIQUE (project_version_id, transition, type, name);
+    ADD CONSTRAINT project_version_resource_project_version_id_type_name_key UNIQUE (project_version_id, type, name);
 
 ALTER TABLE ONLY provisioner_daemon
     ADD CONSTRAINT provisioner_daemon_id_key UNIQUE (id);
