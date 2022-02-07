@@ -59,10 +59,12 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
+		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
 		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		// Close here so workspace history doesn't process!
+		closeDaemon.Close()
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,

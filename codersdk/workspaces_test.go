@@ -220,12 +220,13 @@ func TestFollowWorkspaceHistoryLogsAfter(t *testing.T) {
 		})
 		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		after := database.Now()
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
 			Transition:       database.WorkspaceTransitionCreate,
 		})
 		require.NoError(t, err)
-		logs, err := client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, history.Name, time.Time{})
+		logs, err := client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, history.Name, after)
 		require.NoError(t, err)
 		_, ok := <-logs
 		require.True(t, ok)

@@ -125,16 +125,29 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 	var provisionerJob database.ProvisionerJob
 	var projectVersion database.ProjectVersion
 	err = api.Database.InTx(func(db database.Store) error {
-		projectVersionID := uuid.New()
+		provisionerJobID := uuid.New()
+		projectVersion, err = api.Database.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
+			ID:            uuid.New(),
+			ProjectID:     project.ID,
+			CreatedAt:     database.Now(),
+			UpdatedAt:     database.Now(),
+			Name:          namesgenerator.GetRandomName(1),
+			StorageMethod: createProjectVersion.StorageMethod,
+			StorageSource: createProjectVersion.StorageSource,
+			ImportJobID:   provisionerJobID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert project version: %s", err)
+		}
+
 		input, err := json.Marshal(projectImportJob{
-			ProjectVersionID: projectVersionID,
+			ProjectVersionID: projectVersion.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal import job: %w", err)
 		}
-
 		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
+			ID:          provisionerJobID,
 			CreatedAt:   database.Now(),
 			UpdatedAt:   database.Now(),
 			InitiatorID: apiKey.UserID,
@@ -145,20 +158,6 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-
-		projectVersion, err = api.Database.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
-			ID:            projectVersionID,
-			ProjectID:     project.ID,
-			CreatedAt:     database.Now(),
-			UpdatedAt:     database.Now(),
-			Name:          namesgenerator.GetRandomName(1),
-			StorageMethod: createProjectVersion.StorageMethod,
-			StorageSource: createProjectVersion.StorageSource,
-			ImportJobID:   provisionerJob.ID,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert project version: %s", err)
 		}
 		return nil
 	})
