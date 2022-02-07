@@ -49,7 +49,7 @@
     "express": "4.17.2",
     "formik": "2.2.9",
     "http-proxy-middleware": "2.0.2",
-    "jest": "27.4.7",
+    "jest": "27.5.0",
     "jest-runner-eslint": "1.0.0",
     "next": "12.0.10",
     "next-router-mock": "^0.6.5",
