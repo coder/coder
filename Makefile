@@ -3,7 +3,7 @@ bin/coderd:
 	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
-build: site/out bin/coderd 
+build: site/out bin/coderd
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
@@ -16,6 +16,11 @@ database/generate: fmt/sql database/dump.sql database/query.sql
 	cd database && gofmt -w -r 'Querier -> querier' *.go
 	cd database && gofmt -w -r 'Queries -> sqlQuerier' *.go
 .PHONY: database/generate
+
+docker/image/coder: build
+	cp ./images/coder/run.sh ./bin
+	docker build --network=host -t us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest -f images/coder/Dockerfile ./bin
+.PHONY: docker/build
 
 fmt/prettier:
 	@echo "--- prettier"
