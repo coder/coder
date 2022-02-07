@@ -25,7 +25,7 @@ database/generate: fmt/sql database/dump.sql database/query.sql
 
 docker/image/coder: build
 	docker build --network=host -t todo/v2/test -f images/coder/Dockerfile ./bin
-.PHONY: docker/build
+.PHONY: docker/image/coder
 
 fmt/prettier:
 	@echo "--- prettier"
