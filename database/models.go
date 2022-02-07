@@ -265,6 +265,13 @@ type APIKey struct {
 	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
 }
 
+type File struct {
+	Hash      string    `db:"hash" json:"hash"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Mimetype  string    `db:"mimetype" json:"mimetype"`
+	Data      []byte    `db:"data" json:"data"`
+}
+
 type License struct {
 	ID        int32           `db:"id" json:"id"`
 	License   json.RawMessage `db:"license" json:"license"`
@@ -327,15 +334,6 @@ type ProjectVersion struct {
 	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
 }
 
-type ProjectVersionLog struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	ProjectVersionID uuid.UUID `db:"project_version_id" json:"project_version_id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Source           LogSource `db:"source" json:"source"`
-	Level            LogLevel  `db:"level" json:"level"`
-	Output           string    `db:"output" json:"output"`
-}
-
 type ProjectVersionParameter struct {
 	ID                       uuid.UUID                  `db:"id" json:"id"`
 	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
@@ -354,15 +352,6 @@ type ProjectVersionParameter struct {
 	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
-}
-
-type ProjectVersionResource struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	ProjectVersionID uuid.UUID `db:"project_version_id" json:"project_version_id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	DestroyOnStop    bool      `db:"destroy_on_stop" json:"destroy_on_stop"`
-	Type             string    `db:"type" json:"type"`
-	Name             string    `db:"name" json:"name"`
 }
 
 type ProvisionerDaemon struct {
@@ -384,9 +373,17 @@ type ProvisionerJob struct {
 	InitiatorID string             `db:"initiator_id" json:"initiator_id"`
 	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
 	Type        ProvisionerJobType `db:"type" json:"type"`
-	ProjectID   uuid.UUID          `db:"project_id" json:"project_id"`
 	Input       json.RawMessage    `db:"input" json:"input"`
 	WorkerID    uuid.NullUUID      `db:"worker_id" json:"worker_id"`
+}
+
+type ProvisionerJobLog struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	JobID     uuid.UUID `db:"job_id" json:"job_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Source    LogSource `db:"source" json:"source"`
+	Level     LogLevel  `db:"level" json:"level"`
+	Output    string    `db:"output" json:"output"`
 }
 
 type User struct {
@@ -442,15 +439,6 @@ type WorkspaceHistory struct {
 	Initiator        string              `db:"initiator" json:"initiator"`
 	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
 	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
-}
-
-type WorkspaceHistoryLog struct {
-	ID                 uuid.UUID `db:"id" json:"id"`
-	WorkspaceHistoryID uuid.UUID `db:"workspace_history_id" json:"workspace_history_id"`
-	CreatedAt          time.Time `db:"created_at" json:"created_at"`
-	Source             LogSource `db:"source" json:"source"`
-	Level              LogLevel  `db:"level" json:"level"`
-	Output             string    `db:"output" json:"output"`
 }
 
 type WorkspaceResource struct {

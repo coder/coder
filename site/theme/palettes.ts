@@ -4,6 +4,12 @@ import { Palette } from "@material-ui/core/styles/createPalette"
  */
 declare module "@material-ui/core/styles/createPalette" {
   interface Palette {
+    codeBlock: {
+      // Text color for codeblocks
+      contrastText: string
+      // Background color for codeblocks
+      main: string
+    }
     navbar: {
       main: string
     }
@@ -17,6 +23,10 @@ declare module "@material-ui/core/styles/createPalette" {
   }
 
   interface PaletteOptions {
+    codeBlock: {
+      contrastText: string
+      main: string
+    }
     navbar: {
       main: string
     }
@@ -32,7 +42,18 @@ declare module "@material-ui/core/styles/createPalette" {
  */
 export type CustomPalette = Pick<
   Palette,
-  "action" | "background" | "divider" | "error" | "hero" | "info" | "navbar" | "primary" | "secondary" | "text" | "type"
+  | "action"
+  | "background"
+  | "codeBlock"
+  | "divider"
+  | "error"
+  | "hero"
+  | "info"
+  | "navbar"
+  | "primary"
+  | "secondary"
+  | "text"
+  | "type"
 >
 
 /**
@@ -47,7 +68,10 @@ export const lightPalette: CustomPalette = {
     default: "#F3F3F3",
     paper: "#FFF",
   },
-
+  codeBlock: {
+    main: "#F3F3F3",
+    contrastText: "rgba(0, 0, 0, 0.9)",
+  },
   primary: {
     main: "#519A54",
     light: "#A2E0A5",
@@ -108,6 +132,10 @@ export const darkPalette: CustomPalette = {
   secondary: lightPalette.secondary,
   info: lightPalette.info,
   error: lightPalette.error,
+  codeBlock: {
+    main: "rgb(24, 26, 27)",
+    contrastText: "rgba(255, 255, 255, 0.8)",
+  },
   hero: {
     main: "#141414",
     button: "#333333",

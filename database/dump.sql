@@ -86,6 +86,13 @@ CREATE TABLE api_keys (
     devurl_token boolean DEFAULT false NOT NULL
 );
 
+CREATE TABLE file (
+    hash character varying(32) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    mimetype character varying(64) NOT NULL,
+    data bytea NOT NULL
+);
+
 CREATE TABLE licenses (
     id integer NOT NULL,
     license jsonb NOT NULL,
@@ -148,15 +155,6 @@ CREATE TABLE project_version (
     import_job_id uuid NOT NULL
 );
 
-CREATE TABLE project_version_log (
-    id uuid NOT NULL,
-    project_version_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output character varying(1024) NOT NULL
-);
-
 CREATE TABLE project_version_parameter (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -175,15 +173,6 @@ CREATE TABLE project_version_parameter (
     validation_condition character varying(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type character varying(64) NOT NULL
-);
-
-CREATE TABLE project_version_resource (
-    id uuid NOT NULL,
-    project_version_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    destroy_on_stop boolean NOT NULL,
-    type character varying(256) NOT NULL,
-    name character varying(64) NOT NULL
 );
 
 CREATE TABLE provisioner_daemon (
@@ -205,9 +194,17 @@ CREATE TABLE provisioner_job (
     initiator_id text NOT NULL,
     provisioner provisioner_type NOT NULL,
     type provisioner_job_type NOT NULL,
-    project_id uuid NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid
+);
+
+CREATE TABLE provisioner_job_log (
+    id uuid NOT NULL,
+    job_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    source log_source NOT NULL,
+    level log_level NOT NULL,
+    output character varying(1024) NOT NULL
 );
 
 CREATE TABLE users (
@@ -265,15 +262,6 @@ CREATE TABLE workspace_history (
     provision_job_id uuid NOT NULL
 );
 
-CREATE TABLE workspace_history_log (
-    id uuid NOT NULL,
-    workspace_history_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output character varying(1024) NOT NULL
-);
-
 CREATE TABLE workspace_resource (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -283,6 +271,9 @@ CREATE TABLE workspace_resource (
     workspace_agent_token character varying(128) NOT NULL,
     workspace_agent_id uuid
 );
+
+ALTER TABLE ONLY file
+    ADD CONSTRAINT file_hash_key UNIQUE (hash);
 
 ALTER TABLE ONLY parameter_value
     ADD CONSTRAINT parameter_value_id_key UNIQUE (id);
@@ -299,9 +290,6 @@ ALTER TABLE ONLY project
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_id_key UNIQUE (id);
 
-ALTER TABLE ONLY project_version_log
-    ADD CONSTRAINT project_version_log_id_key UNIQUE (id);
-
 ALTER TABLE ONLY project_version_parameter
     ADD CONSTRAINT project_version_parameter_id_key UNIQUE (id);
 
@@ -310,12 +298,6 @@ ALTER TABLE ONLY project_version_parameter
 
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_name_key UNIQUE (project_id, name);
-
-ALTER TABLE ONLY project_version_resource
-    ADD CONSTRAINT project_version_resource_id_key UNIQUE (id);
-
-ALTER TABLE ONLY project_version_resource
-    ADD CONSTRAINT project_version_resource_project_version_id_type_name_key UNIQUE (project_version_id, type, name);
 
 ALTER TABLE ONLY provisioner_daemon
     ADD CONSTRAINT provisioner_daemon_id_key UNIQUE (id);
@@ -326,14 +308,14 @@ ALTER TABLE ONLY provisioner_daemon
 ALTER TABLE ONLY provisioner_job
     ADD CONSTRAINT provisioner_job_id_key UNIQUE (id);
 
+ALTER TABLE ONLY provisioner_job_log
+    ADD CONSTRAINT provisioner_job_log_id_key UNIQUE (id);
+
 ALTER TABLE ONLY workspace_agent
     ADD CONSTRAINT workspace_agent_id_key UNIQUE (id);
 
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_id_key UNIQUE (id);
-
-ALTER TABLE ONLY workspace_history_log
-    ADD CONSTRAINT workspace_history_log_id_key UNIQUE (id);
 
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_workspace_id_name_key UNIQUE (workspace_id, name);
@@ -353,26 +335,17 @@ ALTER TABLE ONLY workspace_resource
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_history_id_type_name_key UNIQUE (workspace_history_id, type, name);
 
-ALTER TABLE ONLY project_version_log
-    ADD CONSTRAINT project_version_log_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY project_version_parameter
     ADD CONSTRAINT project_version_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
 
-ALTER TABLE ONLY project_version_resource
-    ADD CONSTRAINT project_version_resource_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY provisioner_job
-    ADD CONSTRAINT provisioner_job_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE;
+ALTER TABLE ONLY provisioner_job_log
+    ADD CONSTRAINT provisioner_job_log_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent
     ADD CONSTRAINT workspace_agent_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resource(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workspace_history_log
-    ADD CONSTRAINT workspace_history_log_workspace_history_id_fkey FOREIGN KEY (workspace_history_id) REFERENCES workspace_history(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
