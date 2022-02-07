@@ -1,3 +1,5 @@
+VERSION:=$(shell git rev-parse HEAD)
+
 bin/coderd:
 	mkdir -p bin
 	go build -o bin/coderd cmd/coderd/main.go
@@ -24,7 +26,7 @@ database/generate: fmt/sql database/dump.sql database/query.sql
 .PHONY: database/generate
 
 docker/image/coder: build
-	docker build --network=host -t todo/v2/test -f images/coder/Dockerfile ./bin
+	docker build --network=host -t ci/coder:$(VERSION) -t ci/coder -f images/coder/Dockerfile ./bin
 .PHONY: docker/image/coder
 
 fmt/prettier:
