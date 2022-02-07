@@ -1,11 +1,13 @@
-FROM postgres:14.0
+FROM registry.access.redhat.com/ubi8/ubi:latest
 
-COPY coderd /coderd
-RUN chmod +x /coderd
+COPY coderd /coder/coderd
+RUN chmod +x /coder/coderd
+
+COPY run.sh /coder/run.sh
+RUN chmod +x /coder/run.sh
 
 # Once `provisionerd` is available, we'll also need that binary
 # COPY bin/provisionerd /provisionerd
 # RUN chmod +x /provisionerd
 
-ENTRYPOINT ["/coderd"]
-CMD ["--address", "127.0.0.1:8000"]
+ENTRYPOINT ["/coder/run.sh"]
