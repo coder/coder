@@ -125,40 +125,38 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 	var provisionerJob database.ProvisionerJob
 	var projectVersion database.ProjectVersion
 	err = api.Database.InTx(func(db database.Store) error {
-		projectVersionID := uuid.New()
-		input, err := json.Marshal(projectImportJob{
-			ProjectVersionID: projectVersionID,
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal import job: %w", err)
-		}
-
-		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-			InitiatorID: apiKey.UserID,
-			Provisioner: project.Provisioner,
-			Type:        database.ProvisionerJobTypeProjectImport,
-			ProjectID:   project.ID,
-			Input:       input,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-
+		provisionerJobID := uuid.New()
 		projectVersion, err = api.Database.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
-			ID:            projectVersionID,
+			ID:            uuid.New(),
 			ProjectID:     project.ID,
 			CreatedAt:     database.Now(),
 			UpdatedAt:     database.Now(),
 			Name:          namesgenerator.GetRandomName(1),
 			StorageMethod: createProjectVersion.StorageMethod,
 			StorageSource: createProjectVersion.StorageSource,
-			ImportJobID:   provisionerJob.ID,
+			ImportJobID:   provisionerJobID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert project version: %s", err)
+		}
+
+		input, err := json.Marshal(projectImportJob{
+			ProjectVersionID: projectVersion.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal import job: %w", err)
+		}
+		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+			ID:          provisionerJobID,
+			CreatedAt:   database.Now(),
+			UpdatedAt:   database.Now(),
+			InitiatorID: apiKey.UserID,
+			Provisioner: project.Provisioner,
+			Type:        database.ProvisionerJobTypeProjectImport,
+			Input:       input,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 		return nil
 	})
@@ -249,8 +247,4 @@ func convertProjectParameter(parameter database.ProjectVersionParameter) Project
 		ValidationTypeSystem:     parameter.ValidationTypeSystem,
 		ValidationValueType:      parameter.ValidationValueType,
 	}
-}
-
-func projectVersionLogsChannel(projectVersionID uuid.UUID) string {
-	return fmt.Sprintf("project-version-logs:%s", projectVersionID)
 }

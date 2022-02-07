@@ -126,31 +126,9 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = api.Database.InTx(func(db database.Store) error {
-		// Generate the ID before-hand so the provisioner job is aware of it!
-		workspaceHistoryID := uuid.New()
-		input, err := json.Marshal(workspaceProvisionJob{
-			WorkspaceHistoryID: workspaceHistoryID,
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal provision job: %w", err)
-		}
-
-		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-			InitiatorID: user.ID,
-			Provisioner: project.Provisioner,
-			Type:        database.ProvisionerJobTypeWorkspaceProvision,
-			ProjectID:   project.ID,
-			Input:       input,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-
+		provisionerJobID := uuid.New()
 		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
-			ID:               workspaceHistoryID,
+			ID:               uuid.New(),
 			CreatedAt:        database.Now(),
 			UpdatedAt:        database.Now(),
 			WorkspaceID:      workspace.ID,
@@ -159,10 +137,30 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			Name:             namesgenerator.GetRandomName(1),
 			Initiator:        user.ID,
 			Transition:       createBuild.Transition,
-			ProvisionJobID:   provisionerJob.ID,
+			ProvisionJobID:   provisionerJobID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace history: %w", err)
+		}
+
+		input, err := json.Marshal(workspaceProvisionJob{
+			WorkspaceHistoryID: workspaceHistory.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal provision job: %w", err)
+		}
+
+		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+			ID:          provisionerJobID,
+			CreatedAt:   database.Now(),
+			UpdatedAt:   database.Now(),
+			InitiatorID: user.ID,
+			Provisioner: project.Provisioner,
+			Type:        database.ProvisionerJobTypeWorkspaceProvision,
+			Input:       input,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 
 		if priorHistoryID.Valid {
