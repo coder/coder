@@ -1,6 +1,6 @@
 FROM postgres:14.0
 
-COPY bin/coderd /coderd
+COPY coderd /coderd
 RUN chmod +x /coderd
 
 # Once `provisionerd` is available, we'll also need that binary

@@ -23,8 +23,8 @@ database/generate: fmt/sql database/dump.sql database/query.sql
 	cd database && gofmt -w -r 'Queries -> sqlQuerier' *.go
 .PHONY: database/generate
 
-docker/build: build
-	docker build --network=host -t todo/v2/test -f deploy/images/coderv2docker/Dockerfile .
+docker/image/coder: build
+	docker build --network=host -t todo/v2/test -f images/coder/Dockerfile ./bin
 .PHONY: docker/build
 
 fmt/prettier:
