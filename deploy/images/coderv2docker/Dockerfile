@@ -7,5 +7,5 @@ RUN chmod +x /coderd
 # COPY bin/provisionerd /provisionerd
 # RUN chmod +x /provisionerd
 
-# TODO: Do we need a specific port for coderd? Default is 3000
 ENTRYPOINT ["/coderd"]
+CMD ["--address", "127.0.0.1:8000"]
