@@ -5,7 +5,8 @@ bin/coderd:
 
 bin/provisionerd:
 	mkdir -p bin
-	go build -o bin/provisionerd cmd/provisionerd/main.go
+# TODO: Looks like this is broken?
+#	go build -o bin/provisionerd cmd/provisionerd/main.go
 .PHONY: bin/provisionerd
 
 build: site/out bin/coderd bin/provisionerd
@@ -21,6 +22,10 @@ database/generate: fmt/sql database/dump.sql database/query.sql
 	cd database && gofmt -w -r 'Querier -> querier' *.go
 	cd database && gofmt -w -r 'Queries -> sqlQuerier' *.go
 .PHONY: database/generate
+
+docker/build: build
+	docker build --network=host -t todo/v2/test -f deploy/images/coderv2docker/Dockerfile .
+.PHONY: docker/build
 
 fmt/prettier:
 	@echo "--- prettier"
