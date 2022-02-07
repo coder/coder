@@ -200,9 +200,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	p.jobID = job.JobId
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
-		slog.F("organization_name", job.OrganizationName),
-		slog.F("project_name", job.ProjectName),
-		slog.F("username", job.UserName),
+		slog.F("initiator_username", job.UserName),
 		slog.F("provisioner", job.Provisioner),
 		slog.F("id", job.JobId),
 	)
@@ -322,7 +320,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 	switch jobType := job.Type.(type) {
 	case *proto.AcquiredJob_ProjectImport_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is project import",
-			slog.F("project_version_name", jobType.ProjectImport.ProjectVersionName),
+			slog.F("project_name", jobType.ProjectImport.ProjectName),
 		)
 
 		p.runProjectImport(ctx, provisioner, job)
@@ -366,12 +364,11 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 			p.opts.Logger.Debug(context.Background(), "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				slog.F("project_version_id", job.GetProjectImport().ProjectVersionId),
 			)
 
 			err = p.updateStream.Send(&proto.JobUpdate{
 				JobId: job.JobId,
-				ProjectImportLogs: []*proto.Log{{
+				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
 					Level:     msgType.Log.Level,
 					CreatedAt: time.Now().UTC().UnixMilli(),
@@ -436,7 +433,7 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 
 			err = p.updateStream.Send(&proto.JobUpdate{
 				JobId: job.JobId,
-				WorkspaceProvisionLogs: []*proto.Log{{
+				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
 					Level:     msgType.Log.Level,
 					CreatedAt: time.Now().UTC().UnixMilli(),

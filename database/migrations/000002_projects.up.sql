@@ -1,3 +1,10 @@
+-- Store arbitrary data like project source code or avatars.
+CREATE TABLE files (
+    id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    data bytea NOT NULL
+);
+
 CREATE TYPE provisioner_type AS ENUM ('echo', 'terraform');
 
 -- Project defines infrastructure that your software project
@@ -89,26 +96,4 @@ CREATE TABLE project_parameter (
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type varchar(64) NOT NULL,
     UNIQUE(project_version_id, name)
-);
-
-CREATE TYPE log_level AS ENUM (
-    'trace',
-    'debug',
-    'info',
-    'warn',
-    'error'
-);
-
-CREATE TYPE log_source AS ENUM (
-    'provisioner_daemon',
-    'provisioner'
-);
-
-CREATE TABLE project_version_log (
-    id uuid NOT NULL UNIQUE,
-    project_version_id uuid NOT NULL REFERENCES project_version (id) ON DELETE CASCADE,
-    created_at timestamptz NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output varchar(1024) NOT NULL
 );

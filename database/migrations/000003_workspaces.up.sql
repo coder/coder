@@ -64,12 +64,3 @@ CREATE TABLE workspace_agent (
     -- Identifies resources.
     resource_metadata jsonb NOT NULL
 );
-
-CREATE TABLE workspace_history_log (
-    id uuid NOT NULL UNIQUE,
-    workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
-    created_at timestamptz NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output varchar(1024) NOT NULL
-);

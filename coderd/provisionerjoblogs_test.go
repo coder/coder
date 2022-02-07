@@ -46,7 +46,7 @@ func TestWorkspaceHistoryLogsByName(t *testing.T) {
 		require.NoError(t, err)
 
 		// Successfully return empty logs before the job starts!
-		logs, err := client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, history.Name)
+		logs, err := client.ProvisionerJobLogs(context.Background(), history.Provision.ID)
 		require.NoError(t, err)
 		require.NotNil(t, logs)
 		require.Len(t, logs, 0)
@@ -54,7 +54,7 @@ func TestWorkspaceHistoryLogsByName(t *testing.T) {
 		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
 
 		// Return the log after completion!
-		logs, err = client.WorkspaceHistoryLogs(context.Background(), "", workspace.Name, history.Name)
+		logs, err = client.ProvisionerJobLogs(context.Background(), history.Provision.ID)
 		require.NoError(t, err)
 		require.NotNil(t, logs)
 		require.Len(t, logs, 1)
@@ -91,12 +91,13 @@ func TestWorkspaceHistoryLogsByName(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
 
-		logs, err := client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, history.Name, before)
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, before)
 		require.NoError(t, err)
-		log := <-logs
+		log, ok := <-logs
+		require.True(t, ok)
 		require.Equal(t, "log-output", log.Output)
 		// Make sure the channel automatically closes!
-		_, ok := <-logs
+		_, ok = <-logs
 		require.False(t, ok)
 	})
 
@@ -129,7 +130,7 @@ func TestWorkspaceHistoryLogsByName(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		logs, err := client.FollowWorkspaceHistoryLogsAfter(context.Background(), "", workspace.Name, history.Name, time.Time{})
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, time.Time{})
 		require.NoError(t, err)
 		log := <-logs
 		require.Equal(t, "log-output", log.Output)

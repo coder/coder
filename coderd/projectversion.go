@@ -153,7 +153,6 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 			InitiatorID: apiKey.UserID,
 			Provisioner: project.Provisioner,
 			Type:        database.ProvisionerJobTypeProjectImport,
-			ProjectID:   project.ID,
 			Input:       input,
 		})
 		if err != nil {
@@ -248,8 +247,4 @@ func convertProjectParameter(parameter database.ProjectParameter) ProjectParamet
 		ValidationTypeSystem:     parameter.ValidationTypeSystem,
 		ValidationValueType:      parameter.ValidationValueType,
 	}
-}
-
-func projectVersionLogsChannel(projectVersionID uuid.UUID) string {
-	return fmt.Sprintf("project-version-logs:%s", projectVersionID)
 }

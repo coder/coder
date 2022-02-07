@@ -157,7 +157,6 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			InitiatorID: user.ID,
 			Provisioner: project.Provisioner,
 			Type:        database.ProvisionerJobTypeWorkspaceProvision,
-			ProjectID:   project.ID,
 			Input:       input,
 		})
 		if err != nil {
