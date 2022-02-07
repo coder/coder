@@ -120,6 +120,7 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 					},
 				},
 			}},
+			Provision: echo.ProvisionComplete,
 		})
 		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
 		params, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)

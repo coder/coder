@@ -65,9 +65,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 
 	if request.DryRun {
 		return t.runTerraformPlan(ctx, terraform, request, stream)
-	} else {
-		return t.runTerraformApply(ctx, terraform, request, stream, statefilePath)
 	}
+	return t.runTerraformApply(ctx, terraform, request, stream, statefilePath)
 }
 
 func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
@@ -150,6 +149,7 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 	if err != nil {
 		return xerrors.Errorf("apply terraform: %w", err)
 	}
+	_ = reader.Close()
 	t.logger.Debug(ctx, "ran plan")
 	<-closeChan
 
