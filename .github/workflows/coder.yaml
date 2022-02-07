@@ -189,6 +189,22 @@ jobs:
           flags: unittest-go-${{ matrix.os }}
           fail_ci_if_error: true
 
+  deploy:
+    name: "deploy"
+    runs-on: ubuntu-latest
+    #if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+
+      - run: yarn install
+        working-directory: site
+
+      - run: make docker/image/coder
+
   test-js:
     name: "test/js"
     runs-on: ubuntu-latest
