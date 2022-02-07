@@ -230,7 +230,6 @@ func (e *UserStatus) Scan(src interface{}) error {
 type WorkspaceTransition string
 
 const (
-	WorkspaceTransitionCreate WorkspaceTransition = "create"
 	WorkspaceTransitionStart  WorkspaceTransition = "start"
 	WorkspaceTransitionStop   WorkspaceTransition = "stop"
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"
@@ -355,6 +354,15 @@ type ProjectVersionParameter struct {
 	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+}
+
+type ProjectVersionResource struct {
+	ID               uuid.UUID           `db:"id" json:"id"`
+	ProjectVersionID uuid.UUID           `db:"project_version_id" json:"project_version_id"`
+	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
+	Transition       WorkspaceTransition `db:"transition" json:"transition"`
+	Type             string              `db:"type" json:"type"`
+	Name             string              `db:"name" json:"name"`
 }
 
 type ProvisionerDaemon struct {

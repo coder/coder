@@ -41,7 +41,7 @@ func TestWorkspaceHistoryLogsByName(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
+			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 
@@ -86,7 +86,7 @@ func TestWorkspaceHistoryLogsByName(t *testing.T) {
 		before := time.Now().UTC()
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
+			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
@@ -125,7 +125,7 @@ func TestWorkspaceHistoryLogsByName(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
+			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 

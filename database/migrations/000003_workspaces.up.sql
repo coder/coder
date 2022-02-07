@@ -8,13 +8,6 @@ CREATE TABLE workspace (
     UNIQUE(owner_id, name)
 );
 
-CREATE TYPE workspace_transition AS ENUM (
-    'create',
-    'start',
-    'stop',
-    'delete'
-);
-
 -- Workspace transition represents a change in workspace state.
 CREATE TABLE workspace_history (
     id uuid NOT NULL UNIQUE,
@@ -34,11 +27,18 @@ CREATE TABLE workspace_history (
     UNIQUE(workspace_id, name)
 );
 
+CREATE TYPE workspace_resource_state AS ENUM (
+    'created',
+    'changed',
+    'destroyed'
+);
+
 -- Cloud resources produced by a provision job.
 CREATE TABLE workspace_resource (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
+    state workspace_resource_state NOT NULL,
     -- Resource type produced by a provisioner.
     -- eg. "google_compute_instance"
     type varchar(256) NOT NULL,
@@ -50,8 +50,7 @@ CREATE TABLE workspace_resource (
     -- If an agent has been conencted for this resource,
     -- the agent table is not null.
     workspace_agent_id uuid,
-
-    UNIQUE(workspace_history_id, name)
+    UNIQUE(workspace_history_id, type, name)
 );
 
 CREATE TABLE workspace_agent (

@@ -63,7 +63,6 @@ CREATE TYPE userstatus AS ENUM (
 );
 
 CREATE TYPE workspace_transition AS ENUM (
-    'create',
     'start',
     'stop',
     'delete'
@@ -176,6 +175,15 @@ CREATE TABLE project_version_parameter (
     validation_condition character varying(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type character varying(64) NOT NULL
+);
+
+CREATE TABLE project_version_resource (
+    id uuid NOT NULL,
+    project_version_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    transition workspace_transition NOT NULL,
+    type character varying(256) NOT NULL,
+    name character varying(64) NOT NULL
 );
 
 CREATE TABLE provisioner_daemon (
@@ -303,6 +311,12 @@ ALTER TABLE ONLY project_version_parameter
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_name_key UNIQUE (project_id, name);
 
+ALTER TABLE ONLY project_version_resource
+    ADD CONSTRAINT project_version_resource_id_key UNIQUE (id);
+
+ALTER TABLE ONLY project_version_resource
+    ADD CONSTRAINT project_version_resource_project_version_id_transition_type_key UNIQUE (project_version_id, transition, type, name);
+
 ALTER TABLE ONLY provisioner_daemon
     ADD CONSTRAINT provisioner_daemon_id_key UNIQUE (id);
 
@@ -337,7 +351,7 @@ ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_agent_token_key UNIQUE (workspace_agent_token);
 
 ALTER TABLE ONLY workspace_resource
-    ADD CONSTRAINT workspace_resource_workspace_history_id_name_key UNIQUE (workspace_history_id, name);
+    ADD CONSTRAINT workspace_resource_workspace_history_id_type_name_key UNIQUE (workspace_history_id, type, name);
 
 ALTER TABLE ONLY project_version_log
     ADD CONSTRAINT project_version_log_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
@@ -347,6 +361,9 @@ ALTER TABLE ONLY project_version_parameter
 
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
+
+ALTER TABLE ONLY project_version_resource
+    ADD CONSTRAINT project_version_resource_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_job
     ADD CONSTRAINT provisioner_job_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id) ON DELETE CASCADE;

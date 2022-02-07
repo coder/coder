@@ -20,6 +20,7 @@ message AcquiredJob {
     message ProjectImport {
         string project_version_id = 1;
         string project_version_name = 2;
+        repeated provisioner.ParameterValue parameter_values = 3;
     }
     string job_id = 1;
     int64 created_at = 2;
