@@ -307,6 +307,7 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 		}
 		logs, err := server.Database.InsertProvisionerJobLogs(stream.Context(), insertParams)
 		if err != nil {
+			server.Logger.Error(stream.Context(), "insert provisioner job logs", slog.Error(err))
 			return xerrors.Errorf("insert job logs: %w", err)
 		}
 		data, err := json.Marshal(logs)
