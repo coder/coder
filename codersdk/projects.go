@@ -100,7 +100,7 @@ func (c *Client) CreateProjectVersion(ctx context.Context, organization, project
 }
 
 // ProjectVersionParameters returns project parameters for a version by name.
-func (c *Client) ProjectVersionParameters(ctx context.Context, organization, project, version string) ([]coderd.ProjectParameter, error) {
+func (c *Client) ProjectVersionParameters(ctx context.Context, organization, project, version string) ([]coderd.ProjectVersionParameter, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/versions/%s/parameters", organization, project, version), nil)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (c *Client) ProjectVersionParameters(ctx context.Context, organization, pro
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []coderd.ProjectParameter
+	var params []coderd.ProjectVersionParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 

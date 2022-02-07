@@ -228,7 +228,7 @@ func TestProvisionerd(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if len(msg.ProjectImportLogs) == 0 {
+						if len(msg.Logs) == 0 {
 							continue
 						}
 
@@ -308,7 +308,7 @@ func TestProvisionerd(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if len(msg.WorkspaceProvisionLogs) == 0 {
+						if len(msg.Logs) == 0 {
 							continue
 						}
 

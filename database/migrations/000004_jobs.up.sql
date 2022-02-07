@@ -24,9 +24,30 @@ CREATE TABLE IF NOT EXISTS provisioner_job (
     initiator_id text NOT NULL,
     provisioner provisioner_type NOT NULL,
     type provisioner_job_type NOT NULL,
-    project_id uuid NOT NULL REFERENCES project(id) ON DELETE CASCADE,
     input jsonb NOT NULL,
     worker_id uuid
+);
+
+CREATE TYPE log_level AS ENUM (
+    'trace',
+    'debug',
+    'info',
+    'warn',
+    'error'
+);
+
+CREATE TYPE log_source AS ENUM (
+    'provisioner_daemon',
+    'provisioner'
+);
+
+CREATE TABLE IF NOT EXISTS provisioner_job_log (
+    id uuid NOT NULL UNIQUE,
+    job_id uuid NOT NULL REFERENCES provisioner_job (id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL,
+    source log_source NOT NULL,
+    level log_level NOT NULL,
+    output varchar(1024) NOT NULL
 );
 
 CREATE TYPE parameter_scope AS ENUM (
