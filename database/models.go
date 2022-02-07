@@ -323,7 +323,28 @@ type Project struct {
 	ActiveVersionID uuid.NullUUID   `db:"active_version_id" json:"active_version_id"`
 }
 
-type ProjectParameter struct {
+type ProjectVersion struct {
+	ID            uuid.UUID            `db:"id" json:"id"`
+	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
+	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
+	Name          string               `db:"name" json:"name"`
+	Description   string               `db:"description" json:"description"`
+	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource []byte               `db:"storage_source" json:"storage_source"`
+	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
+}
+
+type ProjectVersionLog struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	ProjectVersionID uuid.UUID `db:"project_version_id" json:"project_version_id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	Source           LogSource `db:"source" json:"source"`
+	Level            LogLevel  `db:"level" json:"level"`
+	Output           string    `db:"output" json:"output"`
+}
+
+type ProjectVersionParameter struct {
 	ID                       uuid.UUID                  `db:"id" json:"id"`
 	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
 	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
@@ -341,18 +362,6 @@ type ProjectParameter struct {
 	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
 	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
-}
-
-type ProjectVersion struct {
-	ID            uuid.UUID            `db:"id" json:"id"`
-	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
-	Name          string               `db:"name" json:"name"`
-	Description   string               `db:"description" json:"description"`
-	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource []byte               `db:"storage_source" json:"storage_source"`
-	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
 }
 
 type ProvisionerDaemon struct {

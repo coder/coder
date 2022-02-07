@@ -31,8 +31,8 @@ type ProjectVersion struct {
 	Import        ProvisionerJob                `json:"import"`
 }
 
-// ProjectParameter represents a parameter parsed from project version source on creation.
-type ProjectParameter struct {
+// ProjectVersionParameter represents a parameter parsed from project version source on creation.
+type ProjectVersionParameter struct {
 	ID                       uuid.UUID                           `json:"id"`
 	CreatedAt                time.Time                           `json:"created_at"`
 	ProjectVersionID         uuid.UUID                           `json:"project_version_id"`
@@ -62,7 +62,7 @@ type CreateProjectVersionRequest struct {
 func (api *api) projectVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
-	version, err := api.Database.GetProjectVersionByProjectID(r.Context(), project.ID)
+	version, err := api.Database.GetProjectVersionsByProjectID(r.Context(), project.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -194,10 +194,10 @@ func (api *api) projectVersionParametersByOrganizationAndName(rw http.ResponseWr
 		return
 	}
 
-	parameters, err := api.Database.GetProjectParametersByVersionID(r.Context(), projectVersion.ID)
+	parameters, err := api.Database.GetProjectVersionParametersByVersionID(r.Context(), projectVersion.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		parameters = []database.ProjectParameter{}
+		parameters = []database.ProjectVersionParameter{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -206,7 +206,7 @@ func (api *api) projectVersionParametersByOrganizationAndName(rw http.ResponseWr
 		return
 	}
 
-	apiParameters := make([]ProjectParameter, 0, len(parameters))
+	apiParameters := make([]ProjectVersionParameter, 0, len(parameters))
 	for _, parameter := range parameters {
 		apiParameters = append(apiParameters, convertProjectParameter(parameter))
 	}
@@ -227,8 +227,8 @@ func convertProjectVersion(version database.ProjectVersion, job database.Provisi
 	}
 }
 
-func convertProjectParameter(parameter database.ProjectParameter) ProjectParameter {
-	return ProjectParameter{
+func convertProjectParameter(parameter database.ProjectVersionParameter) ProjectVersionParameter {
+	return ProjectVersionParameter{
 		ID:                       parameter.ID,
 		CreatedAt:                parameter.CreatedAt,
 		ProjectVersionID:         parameter.ProjectVersionID,

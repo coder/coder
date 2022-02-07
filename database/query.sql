@@ -165,15 +165,15 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
--- name: GetProjectParametersByVersionID :many
+-- name: GetProjectVersionParametersByVersionID :many
 SELECT
   *
 FROM
-  project_parameter
+  project_version_parameter
 WHERE
   project_version_id = $1;
 
--- name: GetProjectVersionByProjectID :many
+-- name: GetProjectVersionsByProjectID :many
 SELECT
   *
 FROM
@@ -443,9 +443,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
--- name: InsertProjectParameter :one
+-- name: InsertProjectVersionParameter :one
 INSERT INTO
-  project_parameter (
+  project_version_parameter (
     id,
     created_at,
     project_version_id,

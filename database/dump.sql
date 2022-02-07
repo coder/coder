@@ -144,7 +144,28 @@ CREATE TABLE project (
     active_version_id uuid
 );
 
-CREATE TABLE project_parameter (
+CREATE TABLE project_version (
+    id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    description character varying(1048576) NOT NULL,
+    storage_method project_storage_method NOT NULL,
+    storage_source bytea NOT NULL,
+    import_job_id uuid NOT NULL
+);
+
+CREATE TABLE project_version_log (
+    id uuid NOT NULL,
+    project_version_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    source log_source NOT NULL,
+    level log_level NOT NULL,
+    output character varying(1024) NOT NULL
+);
+
+CREATE TABLE project_version_parameter (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     project_version_id uuid NOT NULL,
@@ -162,18 +183,6 @@ CREATE TABLE project_parameter (
     validation_condition character varying(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type character varying(64) NOT NULL
-);
-
-CREATE TABLE project_version (
-    id uuid NOT NULL,
-    project_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    name character varying(64) NOT NULL,
-    description character varying(1048576) NOT NULL,
-    storage_method project_storage_method NOT NULL,
-    storage_source bytea NOT NULL,
-    import_job_id uuid NOT NULL
 );
 
 CREATE TABLE provisioner_daemon (
@@ -288,12 +297,6 @@ ALTER TABLE ONLY project
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_organization_id_name_key UNIQUE (organization_id, name);
 
-ALTER TABLE ONLY project_parameter
-    ADD CONSTRAINT project_parameter_id_key UNIQUE (id);
-
-ALTER TABLE ONLY project_parameter
-    ADD CONSTRAINT project_parameter_project_version_id_name_key UNIQUE (project_version_id, name);
-
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_id_key UNIQUE (id);
 
@@ -336,8 +339,11 @@ ALTER TABLE ONLY workspace_resource
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_history_id_name_key UNIQUE (workspace_history_id, name);
 
-ALTER TABLE ONLY project_parameter
-    ADD CONSTRAINT project_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_version_log
+    ADD CONSTRAINT project_version_log_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY project_version_parameter
+    ADD CONSTRAINT project_version_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);

@@ -71,7 +71,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable',
 -- Parameter types, description, and validation will produce
 -- a UI for users to enter values.
 -- Needs to be made consistent with the examples below.
-CREATE TABLE project_parameter (
+CREATE TABLE project_version_parameter (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     project_version_id uuid NOT NULL REFERENCES project_version(id) ON DELETE CASCADE,

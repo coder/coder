@@ -24,5 +24,5 @@ func TestProvisionerDaemons(t *testing.T) {
 		daemons, err := client.ProvisionerDaemons(context.Background())
 		require.NoError(t, err)
 		return len(daemons) > 0
-	}, time.Second, 25*time.Millisecond)
+	}, 3*time.Second, 50*time.Millisecond)
 }
