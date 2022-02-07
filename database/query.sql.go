@@ -37,7 +37,7 @@ WHERE
       SKIP LOCKED
     LIMIT
       1
-  ) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, project_id, input, worker_id
+  ) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, input, worker_id
 `
 
 type AcquireProvisionerJobParams struct {
@@ -66,7 +66,6 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.InitiatorID,
 		&i.Provisioner,
 		&i.Type,
-		&i.ProjectID,
 		&i.Input,
 		&i.WorkerID,
 	)
@@ -103,6 +102,29 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.OIDCIDToken,
 		&i.OIDCExpiry,
 		&i.DevurlToken,
+	)
+	return i, err
+}
+
+const getFileByHash = `-- name: GetFileByHash :one
+SELECT
+  hash, created_at, mimetype, data
+FROM
+  file
+WHERE
+  hash = $1
+LIMIT
+  1
+`
+
+func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, error) {
+	row := q.db.QueryRowContext(ctx, getFileByHash, hash)
+	var i File
+	err := row.Scan(
+		&i.Hash,
+		&i.CreatedAt,
+		&i.Mimetype,
+		&i.Data,
 	)
 	return i, err
 }
@@ -350,56 +372,6 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 	return i, err
 }
 
-const getProjectParametersByVersionID = `-- name: GetProjectParametersByVersionID :many
-SELECT
-  id, created_at, project_version_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
-FROM
-  project_parameter
-WHERE
-  project_version_id = $1
-`
-
-func (q *sqlQuerier) GetProjectParametersByVersionID(ctx context.Context, projectVersionID uuid.UUID) ([]ProjectParameter, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectParametersByVersionID, projectVersionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProjectParameter
-	for rows.Next() {
-		var i ProjectParameter
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.ProjectVersionID,
-			&i.Name,
-			&i.Description,
-			&i.DefaultSourceScheme,
-			&i.DefaultSourceValue,
-			&i.AllowOverrideSource,
-			&i.DefaultDestinationScheme,
-			&i.DefaultDestinationValue,
-			&i.AllowOverrideDestination,
-			&i.DefaultRefresh,
-			&i.RedisplayValue,
-			&i.ValidationError,
-			&i.ValidationCondition,
-			&i.ValidationTypeSystem,
-			&i.ValidationValueType,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProjectVersionByID = `-- name: GetProjectVersionByID :one
 SELECT
   id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
@@ -424,48 +396,6 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 		&i.ImportJobID,
 	)
 	return i, err
-}
-
-const getProjectVersionByProjectID = `-- name: GetProjectVersionByProjectID :many
-SELECT
-  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
-FROM
-  project_version
-WHERE
-  project_id = $1
-`
-
-func (q *sqlQuerier) GetProjectVersionByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectVersion, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectVersionByProjectID, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProjectVersion
-	for rows.Next() {
-		var i ProjectVersion
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Name,
-			&i.Description,
-			&i.StorageMethod,
-			&i.StorageSource,
-			&i.ImportJobID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getProjectVersionByProjectIDAndName = `-- name: GetProjectVersionByProjectIDAndName :one
@@ -500,43 +430,84 @@ func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, ar
 	return i, err
 }
 
-const getProjectVersionLogsByIDBetween = `-- name: GetProjectVersionLogsByIDBetween :many
+const getProjectVersionParametersByVersionID = `-- name: GetProjectVersionParametersByVersionID :many
 SELECT
-  id, project_version_id, created_at, source, level, output
+  id, created_at, project_version_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
 FROM
-  project_version_log
+  project_version_parameter
 WHERE
   project_version_id = $1
-  AND (
-    created_at >= $2
-    OR created_at <= $3
-  )
-ORDER BY
-  created_at
 `
 
-type GetProjectVersionLogsByIDBetweenParams struct {
-	ProjectVersionID uuid.UUID `db:"project_version_id" json:"project_version_id"`
-	CreatedAfter     time.Time `db:"created_after" json:"created_after"`
-	CreatedBefore    time.Time `db:"created_before" json:"created_before"`
-}
-
-func (q *sqlQuerier) GetProjectVersionLogsByIDBetween(ctx context.Context, arg GetProjectVersionLogsByIDBetweenParams) ([]ProjectVersionLog, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectVersionLogsByIDBetween, arg.ProjectVersionID, arg.CreatedAfter, arg.CreatedBefore)
+func (q *sqlQuerier) GetProjectVersionParametersByVersionID(ctx context.Context, projectVersionID uuid.UUID) ([]ProjectVersionParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectVersionParametersByVersionID, projectVersionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ProjectVersionLog
+	var items []ProjectVersionParameter
 	for rows.Next() {
-		var i ProjectVersionLog
+		var i ProjectVersionParameter
 		if err := rows.Scan(
 			&i.ID,
-			&i.ProjectVersionID,
 			&i.CreatedAt,
-			&i.Source,
-			&i.Level,
-			&i.Output,
+			&i.ProjectVersionID,
+			&i.Name,
+			&i.Description,
+			&i.DefaultSourceScheme,
+			&i.DefaultSourceValue,
+			&i.AllowOverrideSource,
+			&i.DefaultDestinationScheme,
+			&i.DefaultDestinationValue,
+			&i.AllowOverrideDestination,
+			&i.DefaultRefresh,
+			&i.RedisplayValue,
+			&i.ValidationError,
+			&i.ValidationCondition,
+			&i.ValidationTypeSystem,
+			&i.ValidationValueType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProjectVersionsByProjectID = `-- name: GetProjectVersionsByProjectID :many
+SELECT
+  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+FROM
+  project_version
+WHERE
+  project_id = $1
+`
+
+func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectVersionsByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectVersion
+	for rows.Next() {
+		var i ProjectVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Description,
+			&i.StorageMethod,
+			&i.StorageSource,
+			&i.ImportJobID,
 		); err != nil {
 			return nil, err
 		}
@@ -651,7 +622,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-  id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, project_id, input, worker_id
+  id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, input, worker_id
 FROM
   provisioner_job
 WHERE
@@ -672,11 +643,61 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.InitiatorID,
 		&i.Provisioner,
 		&i.Type,
-		&i.ProjectID,
 		&i.Input,
 		&i.WorkerID,
 	)
 	return i, err
+}
+
+const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :many
+SELECT
+  id, job_id, created_at, source, level, output
+FROM
+  provisioner_job_log
+WHERE
+  job_id = $1
+  AND (
+    created_at >= $2
+    OR created_at <= $3
+  )
+ORDER BY
+  created_at
+`
+
+type GetProvisionerLogsByIDBetweenParams struct {
+	JobID         uuid.UUID `db:"job_id" json:"job_id"`
+	CreatedAfter  time.Time `db:"created_after" json:"created_after"`
+	CreatedBefore time.Time `db:"created_before" json:"created_before"`
+}
+
+func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerLogsByIDBetween, arg.JobID, arg.CreatedAfter, arg.CreatedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJobLog
+	for rows.Next() {
+		var i ProvisionerJobLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
@@ -1011,57 +1032,6 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(ctx context.Co
 	return i, err
 }
 
-const getWorkspaceHistoryLogsByIDBetween = `-- name: GetWorkspaceHistoryLogsByIDBetween :many
-SELECT
-  id, workspace_history_id, created_at, source, level, output
-FROM
-  workspace_history_log
-WHERE
-  workspace_history_id = $1
-  AND (
-    created_at >= $2
-    OR created_at <= $3
-  )
-ORDER BY
-  created_at
-`
-
-type GetWorkspaceHistoryLogsByIDBetweenParams struct {
-	WorkspaceHistoryID uuid.UUID `db:"workspace_history_id" json:"workspace_history_id"`
-	CreatedAfter       time.Time `db:"created_after" json:"created_after"`
-	CreatedBefore      time.Time `db:"created_before" json:"created_before"`
-}
-
-func (q *sqlQuerier) GetWorkspaceHistoryLogsByIDBetween(ctx context.Context, arg GetWorkspaceHistoryLogsByIDBetweenParams) ([]WorkspaceHistoryLog, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceHistoryLogsByIDBetween, arg.WorkspaceHistoryID, arg.CreatedAfter, arg.CreatedBefore)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceHistoryLog
-	for rows.Next() {
-		var i WorkspaceHistoryLog
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceHistoryID,
-			&i.CreatedAt,
-			&i.Source,
-			&i.Level,
-			&i.Output,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspaceResourcesByHistoryID = `-- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
   id, created_at, workspace_history_id, type, name, workspace_agent_token, workspace_agent_id
@@ -1282,6 +1252,37 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 	return i, err
 }
 
+const insertFile = `-- name: InsertFile :one
+INSERT INTO
+  file (hash, created_at, mimetype, data)
+VALUES
+  ($1, $2, $3, $4) RETURNING hash, created_at, mimetype, data
+`
+
+type InsertFileParams struct {
+	Hash      string    `db:"hash" json:"hash"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Mimetype  string    `db:"mimetype" json:"mimetype"`
+	Data      []byte    `db:"data" json:"data"`
+}
+
+func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File, error) {
+	row := q.db.QueryRowContext(ctx, insertFile,
+		arg.Hash,
+		arg.CreatedAt,
+		arg.Mimetype,
+		arg.Data,
+	)
+	var i File
+	err := row.Scan(
+		&i.Hash,
+		&i.CreatedAt,
+		&i.Mimetype,
+		&i.Data,
+	)
+	return i, err
+}
+
 const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
   organizations (id, name, description, created_at, updated_at)
@@ -1466,112 +1467,6 @@ func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams)
 	return i, err
 }
 
-const insertProjectParameter = `-- name: InsertProjectParameter :one
-INSERT INTO
-  project_parameter (
-    id,
-    created_at,
-    project_version_id,
-    name,
-    description,
-    default_source_scheme,
-    default_source_value,
-    allow_override_source,
-    default_destination_scheme,
-    default_destination_value,
-    allow_override_destination,
-    default_refresh,
-    redisplay_value,
-    validation_error,
-    validation_condition,
-    validation_type_system,
-    validation_value_type
-  )
-VALUES
-  (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11,
-    $12,
-    $13,
-    $14,
-    $15,
-    $16,
-    $17
-  ) RETURNING id, created_at, project_version_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
-`
-
-type InsertProjectParameterParams struct {
-	ID                       uuid.UUID                  `db:"id" json:"id"`
-	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
-	Name                     string                     `db:"name" json:"name"`
-	Description              string                     `db:"description" json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
-	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
-	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string                     `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
-}
-
-func (q *sqlQuerier) InsertProjectParameter(ctx context.Context, arg InsertProjectParameterParams) (ProjectParameter, error) {
-	row := q.db.QueryRowContext(ctx, insertProjectParameter,
-		arg.ID,
-		arg.CreatedAt,
-		arg.ProjectVersionID,
-		arg.Name,
-		arg.Description,
-		arg.DefaultSourceScheme,
-		arg.DefaultSourceValue,
-		arg.AllowOverrideSource,
-		arg.DefaultDestinationScheme,
-		arg.DefaultDestinationValue,
-		arg.AllowOverrideDestination,
-		arg.DefaultRefresh,
-		arg.RedisplayValue,
-		arg.ValidationError,
-		arg.ValidationCondition,
-		arg.ValidationTypeSystem,
-		arg.ValidationValueType,
-	)
-	var i ProjectParameter
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.ProjectVersionID,
-		&i.Name,
-		&i.Description,
-		&i.DefaultSourceScheme,
-		&i.DefaultSourceValue,
-		&i.AllowOverrideSource,
-		&i.DefaultDestinationScheme,
-		&i.DefaultDestinationValue,
-		&i.AllowOverrideDestination,
-		&i.DefaultRefresh,
-		&i.RedisplayValue,
-		&i.ValidationError,
-		&i.ValidationCondition,
-		&i.ValidationTypeSystem,
-		&i.ValidationValueType,
-	)
-	return i, err
-}
-
 const insertProjectVersion = `-- name: InsertProjectVersion :one
 INSERT INTO
   project_version (
@@ -1628,62 +1523,110 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 	return i, err
 }
 
-const insertProjectVersionLogs = `-- name: InsertProjectVersionLogs :many
+const insertProjectVersionParameter = `-- name: InsertProjectVersionParameter :one
 INSERT INTO
-  project_version_log
-SELECT
-  $1 :: uuid AS project_version_id,
-  unnest($2 :: uuid [ ]) AS id,
-  unnest($3 :: timestamptz [ ]) AS created_at,
-  unnest($4 :: log_source [ ]) as source,
-  unnest($5 :: log_level [ ]) as level,
-  unnest($6 :: varchar(1024) [ ]) as output RETURNING id, project_version_id, created_at, source, level, output
+  project_version_parameter (
+    id,
+    created_at,
+    project_version_id,
+    name,
+    description,
+    default_source_scheme,
+    default_source_value,
+    allow_override_source,
+    default_destination_scheme,
+    default_destination_value,
+    allow_override_destination,
+    default_refresh,
+    redisplay_value,
+    validation_error,
+    validation_condition,
+    validation_type_system,
+    validation_value_type
+  )
+VALUES
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17
+  ) RETURNING id, created_at, project_version_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
 `
 
-type InsertProjectVersionLogsParams struct {
-	ProjectVersionID uuid.UUID   `db:"project_version_id" json:"project_version_id"`
-	ID               []uuid.UUID `db:"id" json:"id"`
-	CreatedAt        []time.Time `db:"created_at" json:"created_at"`
-	Source           []LogSource `db:"source" json:"source"`
-	Level            []LogLevel  `db:"level" json:"level"`
-	Output           []string    `db:"output" json:"output"`
+type InsertProjectVersionParameterParams struct {
+	ID                       uuid.UUID                  `db:"id" json:"id"`
+	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
+	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
+	Name                     string                     `db:"name" json:"name"`
+	Description              string                     `db:"description" json:"description"`
+	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
+	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
+	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
+	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
+	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string                     `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
 }
 
-func (q *sqlQuerier) InsertProjectVersionLogs(ctx context.Context, arg InsertProjectVersionLogsParams) ([]ProjectVersionLog, error) {
-	rows, err := q.db.QueryContext(ctx, insertProjectVersionLogs,
+func (q *sqlQuerier) InsertProjectVersionParameter(ctx context.Context, arg InsertProjectVersionParameterParams) (ProjectVersionParameter, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectVersionParameter,
+		arg.ID,
+		arg.CreatedAt,
 		arg.ProjectVersionID,
-		pq.Array(arg.ID),
-		pq.Array(arg.CreatedAt),
-		pq.Array(arg.Source),
-		pq.Array(arg.Level),
-		pq.Array(arg.Output),
+		arg.Name,
+		arg.Description,
+		arg.DefaultSourceScheme,
+		arg.DefaultSourceValue,
+		arg.AllowOverrideSource,
+		arg.DefaultDestinationScheme,
+		arg.DefaultDestinationValue,
+		arg.AllowOverrideDestination,
+		arg.DefaultRefresh,
+		arg.RedisplayValue,
+		arg.ValidationError,
+		arg.ValidationCondition,
+		arg.ValidationTypeSystem,
+		arg.ValidationValueType,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProjectVersionLog
-	for rows.Next() {
-		var i ProjectVersionLog
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectVersionID,
-			&i.CreatedAt,
-			&i.Source,
-			&i.Level,
-			&i.Output,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	var i ProjectVersionParameter
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ProjectVersionID,
+		&i.Name,
+		&i.Description,
+		&i.DefaultSourceScheme,
+		&i.DefaultSourceValue,
+		&i.AllowOverrideSource,
+		&i.DefaultDestinationScheme,
+		&i.DefaultDestinationValue,
+		&i.AllowOverrideDestination,
+		&i.DefaultRefresh,
+		&i.RedisplayValue,
+		&i.ValidationError,
+		&i.ValidationCondition,
+		&i.ValidationTypeSystem,
+		&i.ValidationValueType,
+	)
+	return i, err
 }
 
 const insertProvisionerDaemon = `-- name: InsertProvisionerDaemon :one
@@ -1727,11 +1670,10 @@ INSERT INTO
     initiator_id,
     provisioner,
     type,
-    project_id,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, project_id, input, worker_id
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, input, worker_id
 `
 
 type InsertProvisionerJobParams struct {
@@ -1741,7 +1683,6 @@ type InsertProvisionerJobParams struct {
 	InitiatorID string             `db:"initiator_id" json:"initiator_id"`
 	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
 	Type        ProvisionerJobType `db:"type" json:"type"`
-	ProjectID   uuid.UUID          `db:"project_id" json:"project_id"`
 	Input       json.RawMessage    `db:"input" json:"input"`
 }
 
@@ -1753,7 +1694,6 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.InitiatorID,
 		arg.Provisioner,
 		arg.Type,
-		arg.ProjectID,
 		arg.Input,
 	)
 	var i ProvisionerJob
@@ -1768,11 +1708,68 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.InitiatorID,
 		&i.Provisioner,
 		&i.Type,
-		&i.ProjectID,
 		&i.Input,
 		&i.WorkerID,
 	)
 	return i, err
+}
+
+const insertProvisionerJobLogs = `-- name: InsertProvisionerJobLogs :many
+INSERT INTO
+  provisioner_job_log
+SELECT
+  unnest($1 :: uuid [ ]) AS id,
+  $2 :: uuid AS job_id,
+  unnest($3 :: timestamptz [ ]) AS created_at,
+  unnest($4 :: log_source [ ]) as source,
+  unnest($5 :: log_level [ ]) as level,
+  unnest($6 :: varchar(1024) [ ]) as output RETURNING id, job_id, created_at, source, level, output
+`
+
+type InsertProvisionerJobLogsParams struct {
+	ID        []uuid.UUID `db:"id" json:"id"`
+	JobID     uuid.UUID   `db:"job_id" json:"job_id"`
+	CreatedAt []time.Time `db:"created_at" json:"created_at"`
+	Source    []LogSource `db:"source" json:"source"`
+	Level     []LogLevel  `db:"level" json:"level"`
+	Output    []string    `db:"output" json:"output"`
+}
+
+func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertProvisionerJobLogs,
+		pq.Array(arg.ID),
+		arg.JobID,
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Source),
+		pq.Array(arg.Level),
+		pq.Array(arg.Output),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJobLog
+	for rows.Next() {
+		var i ProvisionerJobLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Level,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertUser = `-- name: InsertUser :one
@@ -1990,64 +1987,6 @@ func (q *sqlQuerier) InsertWorkspaceHistory(ctx context.Context, arg InsertWorks
 		&i.ProvisionJobID,
 	)
 	return i, err
-}
-
-const insertWorkspaceHistoryLogs = `-- name: InsertWorkspaceHistoryLogs :many
-INSERT INTO
-  workspace_history_log
-SELECT
-  unnest($1 :: uuid [ ]) AS id,
-  $2 :: uuid AS workspace_history_id,
-  unnest($3 :: timestamptz [ ]) AS created_at,
-  unnest($4 :: log_source [ ]) as source,
-  unnest($5 :: log_level [ ]) as level,
-  unnest($6 :: varchar(1024) [ ]) as output RETURNING id, workspace_history_id, created_at, source, level, output
-`
-
-type InsertWorkspaceHistoryLogsParams struct {
-	ID                 []uuid.UUID `db:"id" json:"id"`
-	WorkspaceHistoryID uuid.UUID   `db:"workspace_history_id" json:"workspace_history_id"`
-	CreatedAt          []time.Time `db:"created_at" json:"created_at"`
-	Source             []LogSource `db:"source" json:"source"`
-	Level              []LogLevel  `db:"level" json:"level"`
-	Output             []string    `db:"output" json:"output"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceHistoryLogs(ctx context.Context, arg InsertWorkspaceHistoryLogsParams) ([]WorkspaceHistoryLog, error) {
-	rows, err := q.db.QueryContext(ctx, insertWorkspaceHistoryLogs,
-		pq.Array(arg.ID),
-		arg.WorkspaceHistoryID,
-		pq.Array(arg.CreatedAt),
-		pq.Array(arg.Source),
-		pq.Array(arg.Level),
-		pq.Array(arg.Output),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceHistoryLog
-	for rows.Next() {
-		var i WorkspaceHistoryLog
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceHistoryID,
-			&i.CreatedAt,
-			&i.Source,
-			&i.Level,
-			&i.Output,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one

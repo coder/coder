@@ -40,11 +40,11 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 	compute := &compute{
 		db:                             db,
 		computedParameterByName:        map[string]Value{},
-		projectVersionParametersByName: map[string]database.ProjectParameter{},
+		projectVersionParametersByName: map[string]database.ProjectVersionParameter{},
 	}
 
 	// All parameters for the project version!
-	projectVersionParameters, err := db.GetProjectParametersByVersionID(ctx, scope.ProjectVersionID)
+	projectVersionParameters, err := db.GetProjectVersionParametersByVersionID(ctx, scope.ProjectVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		// This occurs when the project version has defined
 		// no parameters, so we have nothing to compute!
@@ -144,7 +144,7 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 type compute struct {
 	db                             database.Store
 	computedParameterByName        map[string]Value
-	projectVersionParametersByName map[string]database.ProjectParameter
+	projectVersionParametersByName map[string]database.ProjectVersionParameter
 }
 
 // Validates and computes the value for parameters; setting the value on "parameterByName".
