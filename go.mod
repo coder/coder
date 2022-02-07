@@ -27,14 +27,14 @@ require (
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
-	github.com/pion/webrtc/v3 v3.1.21
+	github.com/pion/webrtc/v3 v3.1.22
 	github.com/quasilyte/go-ruleguard/dsl v0.3.16
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.9
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220126234351-aa10faf2a1f8
+	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	google.golang.org/protobuf v1.27.1
@@ -84,7 +84,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.1.0 // indirect
-	github.com/pion/dtls/v2 v2.1.1 // indirect
+	github.com/pion/dtls/v2 v2.1.2 // indirect
 	github.com/pion/ice/v2 v2.1.20 // indirect
 	github.com/pion/interceptor v0.1.7 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
