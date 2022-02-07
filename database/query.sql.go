@@ -1718,8 +1718,8 @@ const insertProvisionerJobLogs = `-- name: InsertProvisionerJobLogs :many
 INSERT INTO
   provisioner_job_log
 SELECT
-  $1 :: uuid AS job_id,
-  unnest($2 :: uuid [ ]) AS id,
+  unnest($1 :: uuid [ ]) AS id,
+  $2 :: uuid AS job_id,
   unnest($3 :: timestamptz [ ]) AS created_at,
   unnest($4 :: log_source [ ]) as source,
   unnest($5 :: log_level [ ]) as level,
@@ -1727,8 +1727,8 @@ SELECT
 `
 
 type InsertProvisionerJobLogsParams struct {
-	JobID     uuid.UUID   `db:"job_id" json:"job_id"`
 	ID        []uuid.UUID `db:"id" json:"id"`
+	JobID     uuid.UUID   `db:"job_id" json:"job_id"`
 	CreatedAt []time.Time `db:"created_at" json:"created_at"`
 	Source    []LogSource `db:"source" json:"source"`
 	Level     []LogLevel  `db:"level" json:"level"`
@@ -1737,8 +1737,8 @@ type InsertProvisionerJobLogsParams struct {
 
 func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error) {
 	rows, err := q.db.QueryContext(ctx, insertProvisionerJobLogs,
-		arg.JobID,
 		pq.Array(arg.ID),
+		arg.JobID,
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Source),
 		pq.Array(arg.Level),

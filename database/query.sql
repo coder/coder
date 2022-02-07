@@ -372,8 +372,8 @@ VALUES
 INSERT INTO
   provisioner_job_log
 SELECT
-  @job_id :: uuid AS job_id,
   unnest(@id :: uuid [ ]) AS id,
+  @job_id :: uuid AS job_id,
   unnest(@created_at :: timestamptz [ ]) AS created_at,
   unnest(@source :: log_source [ ]) as source,
   unnest(@level :: log_level [ ]) as level,
