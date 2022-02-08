@@ -165,13 +165,13 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
--- name: GetProjectVersionParametersByVersionID :many
+-- name: GetParameterSchemasByJobID :many
 SELECT
   *
 FROM
-  project_version_parameter
+  parameter_schema
 WHERE
-  project_version_id = $1;
+  job_id = $1;
 
 -- name: GetProjectVersionsByProjectID :many
 SELECT
@@ -364,9 +364,9 @@ VALUES
 
 -- name: InsertFile :one
 INSERT INTO
-  file (hash, created_at, mimetype, data)
+  file (hash, created_at, created_by, mimetype, data)
 VALUES
-  ($1, $2, $3, $4) RETURNING *;
+  ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertProvisionerJobLogs :many
 INSERT INTO
@@ -422,10 +422,11 @@ INSERT INTO
     updated_at,
     organization_id,
     name,
-    provisioner
+    provisioner,
+    active_version_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertProjectVersion :one
 INSERT INTO
@@ -436,19 +437,17 @@ INSERT INTO
     updated_at,
     name,
     description,
-    storage_method,
-    storage_source,
     import_job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
--- name: InsertProjectVersionParameter :one
+-- name: InsertParameterSchema :one
 INSERT INTO
-  project_version_parameter (
+  parameter_schema (
     id,
     created_at,
-    project_version_id,
+    job_id,
     name,
     description,
     default_source_scheme,
@@ -497,13 +496,16 @@ INSERT INTO
     id,
     created_at,
     updated_at,
+    organization_id,
     initiator_id,
     provisioner,
+    storage_method,
+    storage_source,
     type,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO

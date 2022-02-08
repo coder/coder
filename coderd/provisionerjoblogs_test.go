@@ -21,8 +21,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
@@ -37,17 +36,17 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
+			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
-
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, history.ProvisionJobID)
 		// Return the log after completion!
-		logs, err := client.ProvisionerJobLogs(context.Background(), history.Provision.ID)
+		logs, err := client.ProvisionerJobLogs(context.Background(), user.Organization, history.ProvisionJobID)
 		require.NoError(t, err)
 		require.NotNil(t, logs)
 		require.Len(t, logs, 1)
@@ -58,8 +57,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
@@ -74,17 +72,18 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		before := time.Now().UTC()
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
+			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, history.ProvisionJobID)
 
-		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, before)
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), user.Organization, history.ProvisionJobID, before)
 		require.NoError(t, err)
 		log, ok := <-logs
 		require.True(t, ok)
@@ -99,8 +98,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
@@ -115,15 +113,16 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		before := database.Now()
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
+			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, before)
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), user.Organization, history.ProvisionJobID, before)
 		require.NoError(t, err)
 		log := <-logs
 		require.Equal(t, "log-output", log.Output)

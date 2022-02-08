@@ -320,9 +320,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 
 	switch jobType := job.Type.(type) {
 	case *proto.AcquiredJob_ProjectImport_:
-		p.opts.Logger.Debug(context.Background(), "acquired job is project import",
-			slog.F("project_name", jobType.ProjectImport.ProjectName),
-		)
+		p.opts.Logger.Debug(context.Background(), "acquired job is project import")
 
 		p.runProjectImport(ctx, provisioner, job)
 	case *proto.AcquiredJob_WorkspaceProvision_:
@@ -466,7 +464,6 @@ func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provi
 			p.opts.Logger.Debug(context.Background(), "project import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				slog.F("project_name", job.GetProjectImport().ProjectName),
 			)
 
 			err = p.updateStream.Send(&proto.JobUpdate{
@@ -482,7 +479,7 @@ func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provi
 				return nil, xerrors.Errorf("send job update: %w", err)
 			}
 		case *sdkproto.Provision_Response_Complete:
-			p.opts.Logger.Info(context.Background(), "provision successful; marking job as complete",
+			p.opts.Logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
 				slog.F("state_length", len(msgType.Complete.State)),

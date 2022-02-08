@@ -1,12 +1,19 @@
 package coderd
 
 import (
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/httpmw"
 )
 
 type ProvisionerJobStatus string
@@ -35,6 +42,80 @@ type ProvisionerJob struct {
 	Error       string                   `json:"error,omitempty"`
 	Provisioner database.ProvisionerType `json:"provisioner"`
 	WorkerID    *uuid.UUID               `json:"worker_id,omitempty"`
+}
+
+type CreateProjectImportJobRequest struct {
+	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	StorageSource string                            `json:"storage_source" validate:"required"`
+	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+
+	AdditionalParameters []ParameterValue `json:"parameter_values"`
+	SkipParameterSchemas bool             `json:"skip_parameter_schemas"`
+	SkipResources        bool             `json:"skip_resources"`
+}
+
+func (*api) provisionerJobByOrganization(rw http.ResponseWriter, r *http.Request) {
+	job := httpmw.ProvisionerJobParam(r)
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertProvisionerJob(job))
+}
+
+func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	organization := httpmw.OrganizationParam(r)
+	var req CreateProjectImportJobRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+	file, err := api.Database.GetFileByHash(r.Context(), req.StorageSource)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "file not found",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get file: %s", err),
+		})
+		return
+	}
+
+	input, err := json.Marshal(projectVersionImportJob{
+		// AdditionalParameters: req.AdditionalParameters,
+		OrganizationID:       organization.ID,
+		SkipParameterSchemas: req.SkipParameterSchemas,
+		SkipResources:        req.SkipResources,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("marshal job: %s", err),
+		})
+		return
+	}
+
+	job, err := api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		ID:             uuid.New(),
+		CreatedAt:      database.Now(),
+		UpdatedAt:      database.Now(),
+		OrganizationID: organization.ID,
+		InitiatorID:    apiKey.UserID,
+		Provisioner:    req.Provisioner,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
+		StorageSource:  file.Hash,
+		Type:           database.ProvisionerJobTypeProjectVersionImport,
+		Input:          input,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert provisioner job: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(rw, r, convertProvisionerJob(job))
 }
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {

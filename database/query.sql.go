@@ -37,7 +37,7 @@ WHERE
       SKIP LOCKED
     LIMIT
       1
-  ) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, input, worker_id
+  ) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 `
 
 type AcquireProvisionerJobParams struct {
@@ -63,8 +63,11 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.CancelledAt,
 		&i.CompletedAt,
 		&i.Error,
+		&i.OrganizationID,
 		&i.InitiatorID,
 		&i.Provisioner,
+		&i.StorageMethod,
+		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
@@ -108,7 +111,7 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 
 const getFileByHash = `-- name: GetFileByHash :one
 SELECT
-  hash, created_at, mimetype, data
+  hash, created_at, created_by, mimetype, data
 FROM
   file
 WHERE
@@ -123,6 +126,7 @@ func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, erro
 	err := row.Scan(
 		&i.Hash,
 		&i.CreatedAt,
+		&i.CreatedBy,
 		&i.Mimetype,
 		&i.Data,
 	)
@@ -265,6 +269,56 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string
 	return items, nil
 }
 
+const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
+SELECT
+  id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+FROM
+  parameter_schema
+WHERE
+  job_id = $1
+`
+
+func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error) {
+	rows, err := q.db.QueryContext(ctx, getParameterSchemasByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ParameterSchema
+	for rows.Next() {
+		var i ParameterSchema
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.JobID,
+			&i.Name,
+			&i.Description,
+			&i.DefaultSourceScheme,
+			&i.DefaultSourceValue,
+			&i.AllowOverrideSource,
+			&i.DefaultDestinationScheme,
+			&i.DefaultDestinationValue,
+			&i.AllowOverrideDestination,
+			&i.DefaultRefresh,
+			&i.RedisplayValue,
+			&i.ValidationError,
+			&i.ValidationCondition,
+			&i.ValidationTypeSystem,
+			&i.ValidationValueType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getParameterValuesByScope = `-- name: GetParameterValuesByScope :many
 SELECT
   id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme, destination_value
@@ -374,7 +428,7 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 
 const getProjectVersionByID = `-- name: GetProjectVersionByID :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  id, project_id, created_at, updated_at, name, description, import_job_id
 FROM
   project_version
 WHERE
@@ -391,8 +445,6 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.StorageMethod,
-		&i.StorageSource,
 		&i.ImportJobID,
 	)
 	return i, err
@@ -400,7 +452,7 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 
 const getProjectVersionByProjectIDAndName = `-- name: GetProjectVersionByProjectIDAndName :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  id, project_id, created_at, updated_at, name, description, import_job_id
 FROM
   project_version
 WHERE
@@ -423,66 +475,14 @@ func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, ar
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.StorageMethod,
-		&i.StorageSource,
 		&i.ImportJobID,
 	)
 	return i, err
 }
 
-const getProjectVersionParametersByVersionID = `-- name: GetProjectVersionParametersByVersionID :many
-SELECT
-  id, created_at, project_version_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
-FROM
-  project_version_parameter
-WHERE
-  project_version_id = $1
-`
-
-func (q *sqlQuerier) GetProjectVersionParametersByVersionID(ctx context.Context, projectVersionID uuid.UUID) ([]ProjectVersionParameter, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectVersionParametersByVersionID, projectVersionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProjectVersionParameter
-	for rows.Next() {
-		var i ProjectVersionParameter
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.ProjectVersionID,
-			&i.Name,
-			&i.Description,
-			&i.DefaultSourceScheme,
-			&i.DefaultSourceValue,
-			&i.AllowOverrideSource,
-			&i.DefaultDestinationScheme,
-			&i.DefaultDestinationValue,
-			&i.AllowOverrideDestination,
-			&i.DefaultRefresh,
-			&i.RedisplayValue,
-			&i.ValidationError,
-			&i.ValidationCondition,
-			&i.ValidationTypeSystem,
-			&i.ValidationValueType,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProjectVersionsByProjectID = `-- name: GetProjectVersionsByProjectID :many
 SELECT
-  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  id, project_id, created_at, updated_at, name, description, import_job_id
 FROM
   project_version
 WHERE
@@ -505,8 +505,6 @@ func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectI
 			&i.UpdatedAt,
 			&i.Name,
 			&i.Description,
-			&i.StorageMethod,
-			&i.StorageSource,
 			&i.ImportJobID,
 		); err != nil {
 			return nil, err
@@ -622,7 +620,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-  id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, input, worker_id
+  id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 FROM
   provisioner_job
 WHERE
@@ -640,8 +638,11 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.CancelledAt,
 		&i.CompletedAt,
 		&i.Error,
+		&i.OrganizationID,
 		&i.InitiatorID,
 		&i.Provisioner,
+		&i.StorageMethod,
+		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
@@ -1254,14 +1255,15 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 
 const insertFile = `-- name: InsertFile :one
 INSERT INTO
-  file (hash, created_at, mimetype, data)
+  file (hash, created_at, created_by, mimetype, data)
 VALUES
-  ($1, $2, $3, $4) RETURNING hash, created_at, mimetype, data
+  ($1, $2, $3, $4, $5) RETURNING hash, created_at, created_by, mimetype, data
 `
 
 type InsertFileParams struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	CreatedBy string    `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
 }
@@ -1270,6 +1272,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	row := q.db.QueryRowContext(ctx, insertFile,
 		arg.Hash,
 		arg.CreatedAt,
+		arg.CreatedBy,
 		arg.Mimetype,
 		arg.Data,
 	)
@@ -1277,6 +1280,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	err := row.Scan(
 		&i.Hash,
 		&i.CreatedAt,
+		&i.CreatedBy,
 		&i.Mimetype,
 		&i.Data,
 	)
@@ -1362,6 +1366,112 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 	return i, err
 }
 
+const insertParameterSchema = `-- name: InsertParameterSchema :one
+INSERT INTO
+  parameter_schema (
+    id,
+    created_at,
+    job_id,
+    name,
+    description,
+    default_source_scheme,
+    default_source_value,
+    allow_override_source,
+    default_destination_scheme,
+    default_destination_value,
+    allow_override_destination,
+    default_refresh,
+    redisplay_value,
+    validation_error,
+    validation_condition,
+    validation_type_system,
+    validation_value_type
+  )
+VALUES
+  (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14,
+    $15,
+    $16,
+    $17
+  ) RETURNING id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+`
+
+type InsertParameterSchemaParams struct {
+	ID                       uuid.UUID                  `db:"id" json:"id"`
+	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
+	JobID                    uuid.UUID                  `db:"job_id" json:"job_id"`
+	Name                     string                     `db:"name" json:"name"`
+	Description              string                     `db:"description" json:"description"`
+	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
+	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
+	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
+	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
+	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string                     `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+}
+
+func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error) {
+	row := q.db.QueryRowContext(ctx, insertParameterSchema,
+		arg.ID,
+		arg.CreatedAt,
+		arg.JobID,
+		arg.Name,
+		arg.Description,
+		arg.DefaultSourceScheme,
+		arg.DefaultSourceValue,
+		arg.AllowOverrideSource,
+		arg.DefaultDestinationScheme,
+		arg.DefaultDestinationValue,
+		arg.AllowOverrideDestination,
+		arg.DefaultRefresh,
+		arg.RedisplayValue,
+		arg.ValidationError,
+		arg.ValidationCondition,
+		arg.ValidationTypeSystem,
+		arg.ValidationValueType,
+	)
+	var i ParameterSchema
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.JobID,
+		&i.Name,
+		&i.Description,
+		&i.DefaultSourceScheme,
+		&i.DefaultSourceValue,
+		&i.AllowOverrideSource,
+		&i.DefaultDestinationScheme,
+		&i.DefaultDestinationValue,
+		&i.AllowOverrideDestination,
+		&i.DefaultRefresh,
+		&i.RedisplayValue,
+		&i.ValidationError,
+		&i.ValidationCondition,
+		&i.ValidationTypeSystem,
+		&i.ValidationValueType,
+	)
+	return i, err
+}
+
 const insertParameterValue = `-- name: InsertParameterValue :one
 INSERT INTO
   parameter_value (
@@ -1430,19 +1540,21 @@ INSERT INTO
     updated_at,
     organization_id,
     name,
-    provisioner
+    provisioner,
+    active_version_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, organization_id, name, provisioner, active_version_id
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, organization_id, name, provisioner, active_version_id
 `
 
 type InsertProjectParams struct {
-	ID             uuid.UUID       `db:"id" json:"id"`
-	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID string          `db:"organization_id" json:"organization_id"`
-	Name           string          `db:"name" json:"name"`
-	Provisioner    ProvisionerType `db:"provisioner" json:"provisioner"`
+	ID              uuid.UUID       `db:"id" json:"id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID  string          `db:"organization_id" json:"organization_id"`
+	Name            string          `db:"name" json:"name"`
+	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
 func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams) (Project, error) {
@@ -1453,6 +1565,7 @@ func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams)
 		arg.OrganizationID,
 		arg.Name,
 		arg.Provisioner,
+		arg.ActiveVersionID,
 	)
 	var i Project
 	err := row.Scan(
@@ -1476,24 +1589,20 @@ INSERT INTO
     updated_at,
     name,
     description,
-    storage_method,
-    storage_source,
     import_job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, project_id, created_at, updated_at, name, description, import_job_id
 `
 
 type InsertProjectVersionParams struct {
-	ID            uuid.UUID            `db:"id" json:"id"`
-	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
-	Name          string               `db:"name" json:"name"`
-	Description   string               `db:"description" json:"description"`
-	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource []byte               `db:"storage_source" json:"storage_source"`
-	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	ImportJobID uuid.UUID `db:"import_job_id" json:"import_job_id"`
 }
 
 func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProjectVersionParams) (ProjectVersion, error) {
@@ -1504,8 +1613,6 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 		arg.UpdatedAt,
 		arg.Name,
 		arg.Description,
-		arg.StorageMethod,
-		arg.StorageSource,
 		arg.ImportJobID,
 	)
 	var i ProjectVersion
@@ -1516,115 +1623,7 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.StorageMethod,
-		&i.StorageSource,
 		&i.ImportJobID,
-	)
-	return i, err
-}
-
-const insertProjectVersionParameter = `-- name: InsertProjectVersionParameter :one
-INSERT INTO
-  project_version_parameter (
-    id,
-    created_at,
-    project_version_id,
-    name,
-    description,
-    default_source_scheme,
-    default_source_value,
-    allow_override_source,
-    default_destination_scheme,
-    default_destination_value,
-    allow_override_destination,
-    default_refresh,
-    redisplay_value,
-    validation_error,
-    validation_condition,
-    validation_type_system,
-    validation_value_type
-  )
-VALUES
-  (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11,
-    $12,
-    $13,
-    $14,
-    $15,
-    $16,
-    $17
-  ) RETURNING id, created_at, project_version_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
-`
-
-type InsertProjectVersionParameterParams struct {
-	ID                       uuid.UUID                  `db:"id" json:"id"`
-	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
-	Name                     string                     `db:"name" json:"name"`
-	Description              string                     `db:"description" json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
-	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
-	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string                     `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
-}
-
-func (q *sqlQuerier) InsertProjectVersionParameter(ctx context.Context, arg InsertProjectVersionParameterParams) (ProjectVersionParameter, error) {
-	row := q.db.QueryRowContext(ctx, insertProjectVersionParameter,
-		arg.ID,
-		arg.CreatedAt,
-		arg.ProjectVersionID,
-		arg.Name,
-		arg.Description,
-		arg.DefaultSourceScheme,
-		arg.DefaultSourceValue,
-		arg.AllowOverrideSource,
-		arg.DefaultDestinationScheme,
-		arg.DefaultDestinationValue,
-		arg.AllowOverrideDestination,
-		arg.DefaultRefresh,
-		arg.RedisplayValue,
-		arg.ValidationError,
-		arg.ValidationCondition,
-		arg.ValidationTypeSystem,
-		arg.ValidationValueType,
-	)
-	var i ProjectVersionParameter
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.ProjectVersionID,
-		&i.Name,
-		&i.Description,
-		&i.DefaultSourceScheme,
-		&i.DefaultSourceValue,
-		&i.AllowOverrideSource,
-		&i.DefaultDestinationScheme,
-		&i.DefaultDestinationValue,
-		&i.AllowOverrideDestination,
-		&i.DefaultRefresh,
-		&i.RedisplayValue,
-		&i.ValidationError,
-		&i.ValidationCondition,
-		&i.ValidationTypeSystem,
-		&i.ValidationValueType,
 	)
 	return i, err
 }
@@ -1667,23 +1666,29 @@ INSERT INTO
     id,
     created_at,
     updated_at,
+    organization_id,
     initiator_id,
     provisioner,
+    storage_method,
+    storage_source,
     type,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, initiator_id, provisioner, type, input, worker_id
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 `
 
 type InsertProvisionerJobParams struct {
-	ID          uuid.UUID          `db:"id" json:"id"`
-	CreatedAt   time.Time          `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time          `db:"updated_at" json:"updated_at"`
-	InitiatorID string             `db:"initiator_id" json:"initiator_id"`
-	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
-	Type        ProvisionerJobType `db:"type" json:"type"`
-	Input       json.RawMessage    `db:"input" json:"input"`
+	ID             uuid.UUID                `db:"id" json:"id"`
+	CreatedAt      time.Time                `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                `db:"updated_at" json:"updated_at"`
+	OrganizationID string                   `db:"organization_id" json:"organization_id"`
+	InitiatorID    string                   `db:"initiator_id" json:"initiator_id"`
+	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
+	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource  string                   `db:"storage_source" json:"storage_source"`
+	Type           ProvisionerJobType       `db:"type" json:"type"`
+	Input          json.RawMessage          `db:"input" json:"input"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -1691,8 +1696,11 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.OrganizationID,
 		arg.InitiatorID,
 		arg.Provisioner,
+		arg.StorageMethod,
+		arg.StorageSource,
 		arg.Type,
 		arg.Input,
 	)
@@ -1705,8 +1713,11 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.CancelledAt,
 		&i.CompletedAt,
 		&i.Error,
+		&i.OrganizationID,
 		&i.InitiatorID,
 		&i.Provisioner,
+		&i.StorageMethod,
+		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
