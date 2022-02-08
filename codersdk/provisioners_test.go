@@ -70,7 +70,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
+			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		_, err = client.ProvisionerJobLogs(context.Background(), history.Provision.ID)
@@ -112,7 +112,7 @@ func TestFollowProvisionerJobLogsAfter(t *testing.T) {
 		after := database.Now()
 		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
+			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, after)

@@ -267,6 +267,27 @@ func TestProvisionerd(t *testing.T) {
 					require.NoError(t, err)
 					return nil
 				},
+				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					err := stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Log{
+							Log: &sdkproto.Log{
+								Level:  sdkproto.LogLevel_INFO,
+								Output: "hello",
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					err = stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Resources: []*sdkproto.Resource{},
+							},
+						},
+					})
+					require.NoError(t, err)
+					return nil
+				},
 			}),
 		})
 		<-completeChan

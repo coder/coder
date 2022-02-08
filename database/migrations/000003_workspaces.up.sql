@@ -9,7 +9,6 @@ CREATE TABLE workspace (
 );
 
 CREATE TYPE workspace_transition AS ENUM (
-    'create',
     'start',
     'stop',
     'delete'
@@ -50,8 +49,7 @@ CREATE TABLE workspace_resource (
     -- If an agent has been conencted for this resource,
     -- the agent table is not null.
     workspace_agent_id uuid,
-
-    UNIQUE(workspace_history_id, name)
+    UNIQUE(workspace_history_id, type, name)
 );
 
 CREATE TABLE workspace_agent (

@@ -63,7 +63,6 @@ CREATE TYPE userstatus AS ENUM (
 );
 
 CREATE TYPE workspace_transition AS ENUM (
-    'create',
     'start',
     'stop',
     'delete'
@@ -334,7 +333,7 @@ ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_agent_token_key UNIQUE (workspace_agent_token);
 
 ALTER TABLE ONLY workspace_resource
-    ADD CONSTRAINT workspace_resource_workspace_history_id_name_key UNIQUE (workspace_history_id, name);
+    ADD CONSTRAINT workspace_resource_workspace_history_id_type_name_key UNIQUE (workspace_history_id, type, name);
 
 ALTER TABLE ONLY project_version_parameter
     ADD CONSTRAINT project_version_parameter_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;

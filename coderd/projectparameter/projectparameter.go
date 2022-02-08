@@ -15,12 +15,11 @@ import (
 
 // Scope targets identifiers to pull parameters from.
 type Scope struct {
-	OrganizationID     string
-	ProjectID          uuid.UUID
-	ProjectVersionID   uuid.UUID
-	UserID             string
-	WorkspaceID        uuid.UUID
-	WorkspaceHistoryID uuid.UUID
+	OrganizationID   string
+	ProjectID        uuid.UUID
+	ProjectVersionID uuid.UUID
+	UserID           sql.NullString
+	WorkspaceID      uuid.NullUUID
 }
 
 // Value represents a computed parameter.
@@ -106,22 +105,26 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 		return nil, err
 	}
 
-	// User parameters come fourth!
-	err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeUser,
-		ScopeID: scope.UserID,
-	})
-	if err != nil {
-		return nil, err
+	if scope.UserID.Valid {
+		// User parameters come fourth!
+		err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
+			Scope:   database.ParameterScopeUser,
+			ScopeID: scope.UserID.String,
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Workspace parameters come last!
-	err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeWorkspace,
-		ScopeID: scope.WorkspaceID.String(),
-	})
-	if err != nil {
-		return nil, err
+	if scope.WorkspaceID.Valid {
+		// Workspace parameters come last!
+		err = compute.inject(ctx, database.GetParameterValuesByScopeParams{
+			Scope:   database.ParameterScopeWorkspace,
+			ScopeID: scope.WorkspaceID.UUID.String(),
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for _, projectVersionParameter := range compute.projectVersionParametersByName {

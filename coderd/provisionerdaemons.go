@@ -207,12 +207,17 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
-			OrganizationID:     organization.ID,
-			ProjectID:          project.ID,
-			ProjectVersionID:   projectVersion.ID,
-			UserID:             user.ID,
-			WorkspaceID:        workspace.ID,
-			WorkspaceHistoryID: workspaceHistory.ID,
+			OrganizationID:   organization.ID,
+			ProjectID:        project.ID,
+			ProjectVersionID: projectVersion.ID,
+			UserID: sql.NullString{
+				String: user.ID,
+				Valid:  true,
+			},
+			WorkspaceID: uuid.NullUUID{
+				UUID:  workspace.ID,
+				Valid: true,
+			},
 		})
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))

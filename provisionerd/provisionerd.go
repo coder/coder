@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/yamux"
 	"go.uber.org/atomic"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionerd/proto"
@@ -345,19 +346,70 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 }
 
 func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	var parameterSchemas []*sdkproto.ParameterSchema
+	var startResources []*sdkproto.Resource
+	var stopResources []*sdkproto.Resource
+	var err error
+
+	if !job.GetProjectImport().SkipParameterSchemas {
+		parameterSchemas, err = p.runProjectImportParse(ctx, provisioner, job)
+		if err != nil {
+			p.cancelActiveJobf("run parse: %s", err)
+			return
+		}
+	}
+
+	if !job.GetProjectImport().SkipResources {
+		startResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(job.GetProjectImport().GetParameterValues(), &sdkproto.ParameterValue{
+			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+			// TODO: Make this a constant higher-up in the stack.
+			Name:  "coder_workspace_transition",
+			Value: "start",
+		}))
+		if err != nil {
+			p.cancelActiveJobf("project import provision for start: %s", err)
+			return
+		}
+		stopResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(job.GetProjectImport().GetParameterValues(), &sdkproto.ParameterValue{
+			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+			Name:              "coder_workspace_transition",
+			Value:             "stop",
+		}))
+		if err != nil {
+			p.cancelActiveJobf("project import provision for start: %s", err)
+			return
+		}
+	}
+
+	_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
+		JobId: job.JobId,
+		Type: &proto.CompletedJob_ProjectImport_{
+			ProjectImport: &proto.CompletedJob_ProjectImport{
+				ParameterSchemas: parameterSchemas,
+				StartResources:   startResources,
+				StopResources:    stopResources,
+			},
+		},
+	})
+	if err != nil {
+		p.cancelActiveJobf("complete job: %s", err)
+		return
+	}
+}
+
+// Parses parameter schemas from source.
+func (p *provisionerDaemon) runProjectImportParse(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) ([]*sdkproto.ParameterSchema, error) {
 	stream, err := provisioner.Parse(ctx, &sdkproto.Parse_Request{
 		Directory: p.opts.WorkDirectory,
 	})
 	if err != nil {
-		p.cancelActiveJobf("parse source: %s", err)
-		return
+		return nil, xerrors.Errorf("parse source: %w", err)
 	}
 	defer stream.Close()
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			p.cancelActiveJobf("recv parse source: %s", err)
-			return
+			return nil, xerrors.Errorf("recv parse source: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Parse_Response_Log:
@@ -376,31 +428,70 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 				}},
 			})
 			if err != nil {
-				p.cancelActiveJobf("update job: %s", err)
-				return
+				return nil, xerrors.Errorf("update job: %w", err)
 			}
 		case *sdkproto.Parse_Response_Complete:
-			p.opts.Logger.Info(context.Background(), "parse job complete",
+			p.opts.Logger.Info(context.Background(), "parse complete",
 				slog.F("parameter_schemas", msgType.Complete.ParameterSchemas))
 
-			_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
+			return msgType.Complete.ParameterSchemas, nil
+		default:
+			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
+				reflect.TypeOf(msg.Type).String())
+		}
+	}
+}
+
+// Performs a dry-run provision when importing a project.
+// This is used to detect resources that would be provisioned
+// for a workspace in various states.
+func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue) ([]*sdkproto.Resource, error) {
+	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
+		Directory:       p.opts.WorkDirectory,
+		ParameterValues: values,
+		DryRun:          true,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("provision: %w", err)
+	}
+	defer stream.Close()
+
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			return nil, xerrors.Errorf("recv import provision: %w", err)
+		}
+		switch msgType := msg.Type.(type) {
+		case *sdkproto.Provision_Response_Log:
+			p.opts.Logger.Debug(context.Background(), "project import provision job logged",
+				slog.F("level", msgType.Log.Level),
+				slog.F("output", msgType.Log.Output),
+				slog.F("project_name", job.GetProjectImport().ProjectName),
+			)
+
+			err = p.updateStream.Send(&proto.JobUpdate{
 				JobId: job.JobId,
-				Type: &proto.CompletedJob_ProjectImport_{
-					ProjectImport: &proto.CompletedJob_ProjectImport{
-						ParameterSchemas: msgType.Complete.ParameterSchemas,
-					},
-				},
+				Logs: []*proto.Log{{
+					Source:    proto.LogSource_PROVISIONER,
+					Level:     msgType.Log.Level,
+					CreatedAt: time.Now().UTC().UnixMilli(),
+					Output:    msgType.Log.Output,
+				}},
 			})
 			if err != nil {
-				p.cancelActiveJobf("complete job: %s", err)
-				return
+				return nil, xerrors.Errorf("send job update: %w", err)
 			}
-			// Return so we stop looping!
-			return
+		case *sdkproto.Provision_Response_Complete:
+			p.opts.Logger.Info(context.Background(), "provision successful; marking job as complete",
+				slog.F("resource_count", len(msgType.Complete.Resources)),
+				slog.F("resources", msgType.Complete.Resources),
+				slog.F("state_length", len(msgType.Complete.State)),
+			)
+
+			return msgType.Complete.Resources, nil
 		default:
-			p.cancelActiveJobf("invalid message type %q received from provisioner",
+			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
-			return
 		}
 	}
 }

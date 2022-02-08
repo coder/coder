@@ -18,7 +18,10 @@ message AcquiredJob {
         bytes state = 4;
     }
     message ProjectImport {
-        string project_name = 2;
+        string project_name = 1;
+        repeated provisioner.ParameterValue parameter_values = 2;
+        bool skip_parameter_schemas = 3;
+        bool skip_resources = 4;
     }
     string job_id = 1;
     int64 created_at = 2;
@@ -36,6 +39,16 @@ message CancelledJob {
     string error = 2;
 }
 
+// TransitionedResource represents a resource that knows whether
+// it's existence is dependent on stop or not.
+// 
+// This is used on import to display start + stopped resources
+// for the lifecycle of a workspace.
+message TransitionedResource {
+    provisioner.Resource resource = 1;
+    bool destroy_on_stop = 2;
+}
+
 // CompletedJob is sent when the provisioner daemon completes a job.
 message CompletedJob {
     message WorkspaceProvision {
@@ -44,6 +57,8 @@ message CompletedJob {
     }
     message ProjectImport {
         repeated provisioner.ParameterSchema parameter_schemas = 1;
+        repeated provisioner.Resource start_resources = 2;
+        repeated provisioner.Resource stop_resources = 3;
     }
     string job_id = 1;
     oneof type {

@@ -65,6 +65,12 @@ message Log {
     string output = 2;
 }
 
+// Resource represents created infrastructure.
+message Resource {
+    string name = 1;
+    string type = 2;
+}
+
 // Parse consumes source-code from a directory to produce inputs.
 message Parse {
     message Request {
@@ -81,18 +87,13 @@ message Parse {
     }
 }
 
-// Resource is a provisioned unit.
-message Resource {
-    string name = 1;
-    string type = 2;
-}
-
 // Provision consumes source-code from a directory to produce resources.
 message Provision {
     message Request {
         string directory = 1;
         repeated ParameterValue parameter_values = 2;
         bytes state = 3;
+        bool dry_run = 4;
     }
     message Complete {
         bytes state = 1; 

@@ -108,7 +108,7 @@ func TestWorkspaceHistory(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
+			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 	})
@@ -152,7 +152,7 @@ func TestCreateWorkspaceHistory(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionCreate,
+			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 	})
