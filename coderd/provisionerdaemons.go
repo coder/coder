@@ -106,10 +106,11 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 // The input for a "workspace_provision" job.
 type workspaceProvisionJob struct {
 	WorkspaceHistoryID uuid.UUID `json:"workspace_history_id"`
+	DryRun             bool      `json:"dry_run"`
 }
 
 // The input for a "project_import" job.
-type projectImportJob struct {
+type projectVersionImportJob struct {
 	OrganizationID string    `json:"organization_id"`
 	ProjectID      uuid.UUID `json:"project_id"`
 
@@ -211,15 +212,12 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
-			OrganizationID: sql.NullString{
-				String: organization.ID,
-				Valid:  true,
-			},
+			ImportJobID:    projectVersion.ImportJobID,
+			OrganizationID: organization.ID,
 			ProjectID: uuid.NullUUID{
 				UUID:  project.ID,
 				Valid: true,
 			},
-			ImportJobID: projectVersion.ImportJobID,
 			UserID: sql.NullString{
 				String: user.ID,
 				Valid:  true,
@@ -246,8 +244,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				ParameterValues:    protoParameters,
 			},
 		}
-	case database.ProvisionerJobTypeProjectImport:
-		var input projectImportJob
+	case database.ProvisionerJobTypeProjectVersionImport:
+		var input projectVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
@@ -407,7 +405,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_ProjectImport_:
-		var input projectImportJob
+		var input projectVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal job data: %w", err)

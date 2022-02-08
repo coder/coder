@@ -154,8 +154,8 @@ func (e *ParameterTypeSystem) Scan(src interface{}) error {
 type ProvisionerJobType string
 
 const (
-	ProvisionerJobTypeProjectImport      ProvisionerJobType = "project_import"
-	ProvisionerJobTypeWorkspaceProvision ProvisionerJobType = "workspace_provision"
+	ProvisionerJobTypeProjectVersionImport ProvisionerJobType = "project_version_import"
+	ProvisionerJobTypeWorkspaceProvision   ProvisionerJobType = "workspace_provision"
 )
 
 func (e *ProvisionerJobType) Scan(src interface{}) error {
@@ -340,7 +340,7 @@ type Project struct {
 	OrganizationID  string          `db:"organization_id" json:"organization_id"`
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID uuid.NullUUID   `db:"active_version_id" json:"active_version_id"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
 type ProjectVersion struct {

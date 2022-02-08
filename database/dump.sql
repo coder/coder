@@ -43,7 +43,7 @@ CREATE TYPE parameter_type_system AS ENUM (
 );
 
 CREATE TYPE provisioner_job_type AS ENUM (
-    'project_import',
+    'project_version_import',
     'workspace_provision'
 );
 
@@ -161,7 +161,7 @@ CREATE TABLE project (
     organization_id text NOT NULL,
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
-    active_version_id uuid
+    active_version_id uuid NOT NULL
 );
 
 CREATE TABLE project_version (

@@ -479,7 +479,7 @@ func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provi
 				return nil, xerrors.Errorf("send job update: %w", err)
 			}
 		case *sdkproto.Provision_Response_Complete:
-			p.opts.Logger.Info(context.Background(), "provision successful",
+			p.opts.Logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
 				slog.F("state_length", len(msgType.Complete.State)),

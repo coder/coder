@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS provisioner_daemon (
 );
 
 CREATE TYPE provisioner_job_type AS ENUM (
-    'project_import',
+    'project_version_import',
     'workspace_provision'
 );
 

@@ -422,10 +422,11 @@ INSERT INTO
     updated_at,
     organization_id,
     name,
-    provisioner
+    provisioner,
+    active_version_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertProjectVersion :one
 INSERT INTO

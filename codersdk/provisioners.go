@@ -59,8 +59,10 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(session)), nil
 }
 
-func (c *Client) CreateProjectImportJob(ctx context.Context, organization string, req coderd.CreateProjectImportJobRequest) (coderd.ProvisionerJob, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/provisioners/jobs/%s", organization), req)
+// CreateProjectVersionImportProvisionerJob creates a job for importing
+// the provided project version.
+func (c *Client) CreateProjectVersionImportProvisionerJob(ctx context.Context, organization string, req coderd.CreateProjectImportJobRequest) (coderd.ProvisionerJob, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/provisioners/jobs/%s/import", organization), req)
 	if err != nil {
 		return coderd.ProvisionerJob{}, err
 	}
@@ -70,6 +72,20 @@ func (c *Client) CreateProjectImportJob(ctx context.Context, organization string
 	}
 	var job coderd.ProvisionerJob
 	return job, json.NewDecoder(res.Body).Decode(&job)
+}
+
+// ProvisionerJob returns a job by ID.
+func (c *Client) ProvisionerJob(ctx context.Context, organization string, job uuid.UUID) (coderd.ProvisionerJob, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s", organization, job), nil)
+	if err != nil {
+		return coderd.ProvisionerJob{}, nil
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.ProvisionerJob{}, readBodyAsError(res)
+	}
+	var resp coderd.ProvisionerJob
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // ProvisionerJobLogs returns all logs for workspace history.

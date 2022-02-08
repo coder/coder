@@ -104,7 +104,7 @@ func TestWorkspaceHistory(t *testing.T) {
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		coderdtest.AwaitProjectImportJob(t, client, user.Organization, project.Name, version.Name)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,
@@ -148,7 +148,7 @@ func TestCreateWorkspaceHistory(t *testing.T) {
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		coderdtest.AwaitProjectImportJob(t, client, user.Organization, project.Name, version.Name)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
 			ProjectVersionID: version.ID,

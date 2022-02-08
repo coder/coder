@@ -654,12 +654,13 @@ func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjec
 	defer q.mutex.Unlock()
 
 	project := database.Project{
-		ID:             arg.ID,
-		CreatedAt:      arg.CreatedAt,
-		UpdatedAt:      arg.UpdatedAt,
-		OrganizationID: arg.OrganizationID,
-		Name:           arg.Name,
-		Provisioner:    arg.Provisioner,
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		OrganizationID:  arg.OrganizationID,
+		Name:            arg.Name,
+		Provisioner:     arg.Provisioner,
+		ActiveVersionID: arg.ActiveVersionID,
 	}
 	q.project = append(q.project, project)
 	return project, nil

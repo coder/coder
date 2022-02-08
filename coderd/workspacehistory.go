@@ -31,7 +31,7 @@ type WorkspaceHistory struct {
 	Name             string                       `json:"name"`
 	Transition       database.WorkspaceTransition `json:"transition"`
 	Initiator        string                       `json:"initiator"`
-	Provision        ProvisionerJob               `json:"provision"`
+	ProvisionJobID   uuid.UUID                    `json:"provision_job_id"`
 }
 
 // CreateWorkspaceHistoryRequest provides options to update the latest workspace history.
@@ -121,7 +121,6 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var provisionerJob database.ProvisionerJob
 	var workspaceHistory database.WorkspaceHistory
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
@@ -150,7 +149,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("marshal provision job: %w", err)
 		}
 
-		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		_, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 			ID:             provisionerJobID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -158,6 +157,8 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			OrganizationID: project.OrganizationID,
 			Provisioner:    project.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceProvision,
+			StorageMethod:  projectVersionJob.StorageMethod,
+			StorageSource:  projectVersionJob.StorageSource,
 			Input:          input,
 		})
 		if err != nil {
@@ -190,7 +191,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory, provisionerJob))
+	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
 }
 
 // Returns all workspace history. This is not sorted. Use before/after to chronologically sort.
@@ -211,14 +212,7 @@ func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) 
 
 	apiHistory := make([]WorkspaceHistory, 0, len(history))
 	for _, history := range history {
-		job, err := api.Database.GetProvisionerJobByID(r.Context(), history.ProvisionJobID)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get provisioner job: %s", err),
-			})
-			return
-		}
-		apiHistory = append(apiHistory, convertWorkspaceHistory(history, job))
+		apiHistory = append(apiHistory, convertWorkspaceHistory(history))
 	}
 
 	render.Status(r, http.StatusOK)
@@ -227,20 +221,12 @@ func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) 
 
 func (api *api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
 	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceHistory.ProvisionJobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
-		})
-		return
-	}
-
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory, job))
+	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
 }
 
 // Converts the internal history representation to a public external-facing model.
-func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory, provisionerJob database.ProvisionerJob) WorkspaceHistory {
+func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory) WorkspaceHistory {
 	//nolint:unconvert
 	return WorkspaceHistory(WorkspaceHistory{
 		ID:               workspaceHistory.ID,
@@ -253,6 +239,6 @@ func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory, provisi
 		Name:             workspaceHistory.Name,
 		Transition:       workspaceHistory.Transition,
 		Initiator:        workspaceHistory.Initiator,
-		Provision:        convertProvisionerJob(provisionerJob),
+		ProvisionJobID:   workspaceHistory.ProvisionJobID,
 	})
 }

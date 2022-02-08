@@ -1540,19 +1540,21 @@ INSERT INTO
     updated_at,
     organization_id,
     name,
-    provisioner
+    provisioner,
+    active_version_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, organization_id, name, provisioner, active_version_id
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, organization_id, name, provisioner, active_version_id
 `
 
 type InsertProjectParams struct {
-	ID             uuid.UUID       `db:"id" json:"id"`
-	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID string          `db:"organization_id" json:"organization_id"`
-	Name           string          `db:"name" json:"name"`
-	Provisioner    ProvisionerType `db:"provisioner" json:"provisioner"`
+	ID              uuid.UUID       `db:"id" json:"id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID  string          `db:"organization_id" json:"organization_id"`
+	Name            string          `db:"name" json:"name"`
+	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
 func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams) (Project, error) {
@@ -1563,6 +1565,7 @@ func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams)
 		arg.OrganizationID,
 		arg.Name,
 		arg.Provisioner,
+		arg.ActiveVersionID,
 	)
 	var i Project
 	err := row.Scan(

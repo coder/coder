@@ -142,7 +142,7 @@ func TestProjectVersionParameters(t *testing.T) {
 		coderdtest.NewProvisionerDaemon(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		coderdtest.AwaitProjectImportJob(t, client, user.Organization, project.Name, version.Name)
 		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
 		require.NoError(t, err)
 	})

@@ -16,7 +16,7 @@ func TestPostFiles(t *testing.T) {
 		client := coderdtest.New(t)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.UploadFile(context.Background(), "bad", []byte{'a'})
-		require.NoError(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("MassiveBody", func(t *testing.T) {

@@ -21,7 +21,7 @@ CREATE TABLE project (
     provisioner provisioner_type NOT NULL,
     -- Target's a Project Version to use for Workspaces.
     -- If a Workspace doesn't match this version, it will be prompted to rebuild.
-    active_version_id uuid,
+    active_version_id uuid NOT NULL,
     -- Disallow projects to have the same name under
     -- the same organization.
     UNIQUE(organization_id, name)

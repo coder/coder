@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
@@ -36,10 +37,16 @@ func ExtractProjectVersionParam(db database.Store) func(http.Handler) http.Handl
 				})
 				return
 			}
-			projectVersion, err := db.GetProjectVersionByProjectIDAndName(r.Context(), database.GetProjectVersionByProjectIDAndNameParams{
-				ProjectID: project.ID,
-				Name:      projectVersionName,
-			})
+			var projectVersion database.ProjectVersion
+			uuid, err := uuid.Parse(projectVersionName)
+			if err == nil {
+				projectVersion, err = db.GetProjectVersionByID(r.Context(), uuid)
+			} else {
+				projectVersion, err = db.GetProjectVersionByProjectIDAndName(r.Context(), database.GetProjectVersionByProjectIDAndNameParams{
+					ProjectID: project.ID,
+					Name:      projectVersionName,
+				})
+			}
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("project version %q does not exist", projectVersionName),

@@ -45,23 +45,30 @@ type ProvisionerJob struct {
 }
 
 type CreateProjectImportJobRequest struct {
-	FileHash    string                   `json:"file_hash" validate:"required"`
-	Provisioner database.ProvisionerType `json:"provisioner" validate:"oneof=terraform echo,required"`
+	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	StorageSource string                            `json:"storage_source" validate:"required"`
+	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 
 	AdditionalParameters []ParameterValue `json:"parameter_values"`
 	SkipParameterSchemas bool             `json:"skip_parameter_schemas"`
 	SkipResources        bool             `json:"skip_resources"`
 }
 
-// Create jobs!
-func (api *api) postProvisionerJobsByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (*api) provisionerJobByOrganization(rw http.ResponseWriter, r *http.Request) {
+	job := httpmw.ProvisionerJobParam(r)
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertProvisionerJob(job))
+}
+
+func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
 	var req CreateProjectImportJobRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
-	file, err := api.Database.GetFileByHash(r.Context(), req.FileHash)
+	file, err := api.Database.GetFileByHash(r.Context(), req.StorageSource)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "file not found",
@@ -75,7 +82,7 @@ func (api *api) postProvisionerJobsByOrganization(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	input, err := json.Marshal(projectImportJob{
+	input, err := json.Marshal(projectVersionImportJob{
 		// AdditionalParameters: req.AdditionalParameters,
 		OrganizationID:       organization.ID,
 		SkipParameterSchemas: req.SkipParameterSchemas,
@@ -97,7 +104,7 @@ func (api *api) postProvisionerJobsByOrganization(rw http.ResponseWriter, r *htt
 		Provisioner:    req.Provisioner,
 		StorageMethod:  database.ProvisionerStorageMethodFile,
 		StorageSource:  file.Hash,
-		Type:           database.ProvisionerJobTypeProjectImport,
+		Type:           database.ProvisionerJobTypeProjectVersionImport,
 		Input:          input,
 	})
 	if err != nil {
@@ -109,10 +116,6 @@ func (api *api) postProvisionerJobsByOrganization(rw http.ResponseWriter, r *htt
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, convertProvisionerJob(job))
-}
-
-func (api *api) provisionerJobResourcesByOrganization(rw http.ResponseWriter, r *http.Request) {
-
 }
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {
