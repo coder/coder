@@ -187,7 +187,7 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    # if: github.event_name != 'pull_request'
     permissions:
       contents: read
       id-token: write
@@ -222,7 +222,7 @@ jobs:
       - run: docker push us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest
 
       - name: Update coder service
-        run: gcloud run services update coder --image us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest --project coder-blacktriangle-dev --region us-central1
+        run: gcloud run services update coder --image us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest --project coder-blacktriangle-dev --tag="${{ github.sha }}" --region us-central1
 
   test-js:
     name: "test/js"
