@@ -590,6 +590,7 @@ func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	file := database.File{
 		Hash:      arg.Hash,
 		CreatedAt: arg.CreatedAt,
+		CreatedBy: arg.CreatedBy,
 		Mimetype:  arg.Mimetype,
 		Data:      arg.Data,
 	}

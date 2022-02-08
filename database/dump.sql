@@ -89,6 +89,7 @@ CREATE TABLE api_keys (
 CREATE TABLE file (
     hash character varying(32) NOT NULL,
     created_at timestamp with time zone NOT NULL,
+    created_by text NOT NULL,
     mimetype character varying(64) NOT NULL,
     data bytea NOT NULL
 );

@@ -51,7 +51,7 @@ func (c *Client) SetSessionToken(token string) error {
 
 // request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
-func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, method, path string, body interface{}, opts ...func(r *http.Request)) (*http.Response, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -73,6 +73,9 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for _, opt := range opts {
+		opt(req)
 	}
 
 	resp, err := c.httpClient.Do(req)

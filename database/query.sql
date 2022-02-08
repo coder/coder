@@ -364,9 +364,9 @@ VALUES
 
 -- name: InsertFile :one
 INSERT INTO
-  file (hash, created_at, mimetype, data)
+  file (hash, created_at, created_by, mimetype, data)
 VALUES
-  ($1, $2, $3, $4) RETURNING *;
+  ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertProvisionerJobLogs :many
 INSERT INTO

@@ -102,6 +102,11 @@ func New(options *Options) http.Handler {
 			})
 		})
 
+		r.Route("/files", func(r chi.Router) {
+			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Post("/", api.postFiles)
+		})
+
 		r.Route("/provisioners", func(r chi.Router) {
 			r.Route("/daemons", func(r chi.Router) {
 				r.Get("/", api.provisionerDaemons)

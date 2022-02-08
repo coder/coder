@@ -2,6 +2,7 @@
 CREATE TABLE file (
     hash varchar(32) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
+    created_by text NOT NULL,
     mimetype varchar(64) NOT NULL,
     data bytea NOT NULL
 );

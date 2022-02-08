@@ -268,6 +268,7 @@ type APIKey struct {
 type File struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	CreatedBy string    `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
 }
