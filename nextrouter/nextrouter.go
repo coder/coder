@@ -70,31 +70,32 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, options Options) {
 	for _, file := range files {
 		name := file.Name()
 
-		// ...if it's a directory, create a sub-route by
-		// recursively calling `buildRouter`
-		if file.IsDir() {
-			sub, err := fs.Sub(fileSystem, name)
-			if err != nil {
-				options.Logger.Error(context.Background(), "Unable to call fs.Sub on directory", slog.F("directory_name", name))
-				continue
-			}
-
-			// In the special case where the folder is dynamic,
-			// like `[org]`, we can convert to a chi-style dynamic route
-			// (which uses `{` instead of `[`)
-			routeName := name
-			if isDynamicRoute(name) {
-				routeName = "{dynamic}"
-			}
-
-			options.Logger.Debug(context.Background(), "Adding route", slog.F("name", name), slog.F("routeName", routeName))
-			rtr.Route("/"+routeName, func(r chi.Router) {
-				buildRouter(r, sub, options)
-			})
-		} else {
-			// ...otherwise, if it's a file - serve it up!
+		// If we're working with a file - just serve it up
+		if !file.IsDir() {
 			serveFile(rtr, fileSystem, name, options)
+			continue
 		}
+
+		// ...otherwise, if it's a directory, create a sub-route by
+		// recursively calling `buildRouter`
+		sub, err := fs.Sub(fileSystem, name)
+		if err != nil {
+			options.Logger.Error(context.Background(), "Unable to call fs.Sub on directory", slog.F("directory_name", name))
+			continue
+		}
+
+		// In the special case where the folder is dynamic,
+		// like `[org]`, we can convert to a chi-style dynamic route
+		// (which uses `{` instead of `[`)
+		routeName := name
+		if isDynamicRoute(name) {
+			routeName = "{dynamic}"
+		}
+
+		options.Logger.Debug(context.Background(), "Adding route", slog.F("name", name), slog.F("routeName", routeName))
+		rtr.Route("/"+routeName, func(r chi.Router) {
+			buildRouter(r, sub, options)
+		})
 	}
 }
 
