@@ -41,10 +41,15 @@ func Handler(logger slog.Logger) http.Handler {
 		}
 	}
 
-	nextRouterHandler := nextrouter.Handler(filesystem, &nextrouter.Options{
+	nextRouterHandler, err := nextrouter.Handler(filesystem, &nextrouter.Options{
 		Logger:           logger,
 		TemplateDataFunc: templateFunc,
 	})
+	if err != nil {
+		// There was an error setting up our file system handler.
+		// This likely means a problem with our embedded file system.
+		panic(err)
+	}
 	return secureHeaders(nextRouterHandler)
 }
 

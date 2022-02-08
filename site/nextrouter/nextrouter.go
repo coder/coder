@@ -33,7 +33,7 @@ type HTMLTemplateHandler func(*http.Request) interface{}
 //
 // 1) If a file is of the form `[org]`, it's a dynamic route for a single-parameter
 // 2) If a file is of the form `[[...any]]`, it's a dynamic route for any parameters
-func Handler(fileSystem fs.FS, options *Options) http.Handler {
+func Handler(fileSystem fs.FS, options *Options) (http.Handler, error) {
 	if options == nil {
 		options = &Options{
 			Logger:           slog.Logger{},
@@ -43,7 +43,10 @@ func Handler(fileSystem fs.FS, options *Options) http.Handler {
 	router := chi.NewRouter()
 
 	// Build up a router that matches NextJS routing rules, for HTML files
-	registerRoutes(router, fileSystem, *options)
+	err := registerRoutes(router, fileSystem, *options)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fallback to static file server for non-HTML files
 	// Non-HTML files don't have special routing rules, so we can just leverage
@@ -52,22 +55,21 @@ func Handler(fileSystem fs.FS, options *Options) http.Handler {
 	router.NotFound(fileHandler.ServeHTTP)
 
 	// Finally, if there is a 404.html available, serve that
-	err := register404(fileSystem, router, *options)
-	if (err != nil) {
+	err = register404(fileSystem, router, *options)
+	if err != nil {
 		// An error may be expected if a 404.html is not present
 		options.Logger.Warn(context.Background(), "Unable to find 404.html", slog.Error(err))
 	}
 
-	return router
+	return router, nil
 }
 
 // registerRoutes recursively traverses the file-system, building routes
 // as appropriate for respecting NextJS dynamic rules.
-func registerRoutes(rtr chi.Router, fileSystem fs.FS, options Options) {
+func registerRoutes(rtr chi.Router, fileSystem fs.FS, options Options) error {
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
-		options.Logger.Warn(context.Background(), "Provided filesystem is empty; unable to build routes")
-		return
+		return err
 	}
 
 	// Loop through everything in the current directory...
@@ -84,8 +86,7 @@ func registerRoutes(rtr chi.Router, fileSystem fs.FS, options Options) {
 		// recursively calling `buildRouter`
 		sub, err := fs.Sub(fileSystem, name)
 		if err != nil {
-			options.Logger.Error(context.Background(), "Unable to call fs.Sub on directory", slog.F("directory_name", name))
-			continue
+			return err
 		}
 
 		// In the special case where the folder is dynamic,
@@ -98,9 +99,14 @@ func registerRoutes(rtr chi.Router, fileSystem fs.FS, options Options) {
 
 		options.Logger.Debug(context.Background(), "Registering route", slog.F("name", name), slog.F("routeName", routeName))
 		rtr.Route("/"+routeName, func(r chi.Router) {
-			registerRoutes(r, sub, options)
+			err := registerRoutes(r, sub, options)
+			if err != nil {
+				options.Logger.Error(context.Background(), "Error registering route", slog.F("name", routeName), slog.Error(err))
+			}
 		})
 	}
+
+	return nil
 }
 
 // serveFile is responsible for serving up HTML files in our next router
