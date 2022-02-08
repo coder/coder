@@ -20,19 +20,11 @@ func TestPostFiles(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("MassiveBody", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t)
-		_ = coderdtest.CreateInitialUser(t, client)
-		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, make([]byte, 11*(10<<20)))
-		require.Error(t, err)
-	})
-
 	t.Run("Insert", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		_ = coderdtest.CreateInitialUser(t, client)
-		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, make([]byte, 10<<20))
+		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, make([]byte, 1024))
 		require.NoError(t, err)
 	})
 }
