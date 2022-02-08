@@ -16,7 +16,7 @@ import (
 // Scope targets identifiers to pull parameters from.
 type Scope struct {
 	ImportJobID    uuid.UUID
-	OrganizationID sql.NullString
+	OrganizationID string
 	ProjectID      uuid.NullUUID
 	UserID         sql.NullString
 	WorkspaceID    uuid.NullUUID
@@ -42,12 +42,10 @@ func Compute(ctx context.Context, db database.Store, scope Scope, additional ...
 		parameterSchemasByName:  map[string]database.ParameterSchema{},
 	}
 
-	// All parameters for the project version!
+	// All parameters for the import job ID!
 	parameterSchemas, err := db.GetParameterSchemasByJobID(ctx, scope.ImportJobID)
 	if errors.Is(err, sql.ErrNoRows) {
-		// This occurs when the provided import job has
-		// defined no parameters, so we have nothing to compute!
-		return []Value{}, nil
+		err = nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("get project parameters: %w", err)
@@ -56,15 +54,13 @@ func Compute(ctx context.Context, db database.Store, scope Scope, additional ...
 		compute.parameterSchemasByName[projectVersionParameter.Name] = projectVersionParameter
 	}
 
-	if scope.OrganizationID.Valid {
-		// Organization parameters come first!
-		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-			Scope:   database.ParameterScopeOrganization,
-			ScopeID: scope.OrganizationID.String,
-		})
-		if err != nil {
-			return nil, err
-		}
+	// Organization parameters come first!
+	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
+		Scope:   database.ParameterScopeOrganization,
+		ScopeID: scope.OrganizationID,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Default project parameter values come second!
@@ -182,18 +178,16 @@ func (c *compute) injectScope(ctx context.Context, scopeParams database.GetParam
 
 func (c *compute) injectSingle(scopedParameter database.ParameterValue) error {
 	parameterSchema, hasParameterSchema := c.parameterSchemasByName[scopedParameter.Name]
-	if !hasParameterSchema {
+	if hasParameterSchema {
 		// Don't inject parameters that aren't defined by the project.
-		return nil
-	}
-
-	_, hasExistingParameter := c.computedParameterByName[scopedParameter.Name]
-	if hasExistingParameter {
-		// If a parameter already exists, check if this variable can override it.
-		// Injection hierarchy is the responsibility of the caller. This check ensures
-		// project parameters cannot be overridden if already set.
-		if !parameterSchema.AllowOverrideSource && scopedParameter.Scope != database.ParameterScopeProject {
-			return nil
+		_, hasExistingParameter := c.computedParameterByName[scopedParameter.Name]
+		if hasExistingParameter {
+			// If a parameter already exists, check if this variable can override it.
+			// Injection hierarchy is the responsibility of the caller. This check ensures
+			// project parameters cannot be overridden if already set.
+			if !parameterSchema.AllowOverrideSource && scopedParameter.Scope != database.ParameterScopeProject {
+				return nil
+			}
 		}
 	}
 
@@ -204,7 +198,7 @@ func (c *compute) injectSingle(scopedParameter database.ParameterValue) error {
 
 	switch scopedParameter.SourceScheme {
 	case database.ParameterSourceSchemeData:
-		c.computedParameterByName[parameterSchema.Name] = Value{
+		c.computedParameterByName[scopedParameter.Name] = Value{
 			Proto: &proto.ParameterValue{
 				DestinationScheme: destinationScheme,
 				Name:              scopedParameter.SourceValue,

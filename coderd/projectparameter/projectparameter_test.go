@@ -19,11 +19,8 @@ func TestCompute(t *testing.T) {
 	t.Parallel()
 	generateScope := func() projectparameter.Scope {
 		return projectparameter.Scope{
-			ImportJobID: uuid.New(),
-			OrganizationID: sql.NullString{
-				String: uuid.New().String(),
-				Valid:  true,
-			},
+			ImportJobID:    uuid.New(),
+			OrganizationID: uuid.NewString(),
 			ProjectID: uuid.NullUUID{
 				UUID:  uuid.New(),
 				Valid: true,
@@ -124,7 +121,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeOrganization,
-			ScopeID:           scope.OrganizationID.String,
+			ScopeID:           scope.OrganizationID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
