@@ -52,7 +52,11 @@ func Handler(fileSystem fs.FS, options *Options) http.Handler {
 	router.NotFound(fileHandler.ServeHTTP)
 
 	// Finally, if there is a 404.html available, serve that
-	serve404IfAvailable(fileSystem, router, *options)
+	err := register404(fileSystem, router, *options)
+	if (err != nil) {
+		// An error may be expected if a 404.html is not present
+		options.Logger.Warn(context.Background(), "Unable to find 404.html", slog.Error(err))
+	}
 
 	return router
 }
@@ -180,12 +184,12 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string, options Opt
 	router.Get("/"+fileNameWithoutExtension+"/", handler)
 }
 
-func serve404IfAvailable(fileSystem fs.FS, router chi.Router, options Options) {
+func register404(fileSystem fs.FS, router chi.Router, options Options) error {
 	// Get the file contents
 	fileBytes, err := fs.ReadFile(fileSystem, "404.html")
 	if err != nil {
 		// An error is expected if the file doesn't exist
-		return
+		return err
 	}
 
 	router.NotFound(func(writer http.ResponseWriter, request *http.Request) {
@@ -196,6 +200,8 @@ func serve404IfAvailable(fileSystem fs.FS, router chi.Router, options Options) {
 			return
 		}
 	})
+
+	return nil
 }
 
 // isDynamicRoute returns true if the file is a NextJS dynamic route, like `[orgs]`
