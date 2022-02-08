@@ -200,9 +200,8 @@ func serve404IfAvailable(fileSystem fs.FS, router chi.Router, options Options) {
 
 // isDynamicRoute returns true if the file is a NextJS dynamic route, like `[orgs]`
 // Returns false if the file is not a dynamic route, or if it is a catch-all route (`[[...any]]`)
-func isDynamicRoute(fileName string) bool {
-	fileWithoutExtension := removeFileExtension(fileName)
-
+// NOTE: The extension should be removed from the file name
+func isDynamicRoute(fileWithoutExtension string) bool {
 	// Assuming ASCII encoding - `len` in go works on bytes
 	byteLen := len(fileWithoutExtension)
 	if byteLen < 2 {
@@ -214,8 +213,8 @@ func isDynamicRoute(fileName string) bool {
 
 // isCatchAllRoute returns true if the file is a catch-all route, like `[[...any]]`
 // Return false otherwise
-func isCatchAllRoute(fileName string) bool {
-	fileWithoutExtension := removeFileExtension(fileName)
+// NOTE: The extension should be removed from the file name
+func isCatchAllRoute(fileWithoutExtension string) bool {
 	ret := strings.HasPrefix(fileWithoutExtension, "[[.")
 	return ret
 }
