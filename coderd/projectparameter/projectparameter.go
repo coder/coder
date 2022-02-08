@@ -15,11 +15,11 @@ import (
 
 // Scope targets identifiers to pull parameters from.
 type Scope struct {
-	OrganizationID   string
-	ProjectID        uuid.UUID
-	ProjectVersionID uuid.UUID
-	UserID           sql.NullString
-	WorkspaceID      uuid.NullUUID
+	OrganizationID string
+	ProjectID      uuid.UUID
+	ImportJobID    uuid.UUID
+	UserID         sql.NullString
+	WorkspaceID    uuid.NullUUID
 }
 
 // Value represents a computed parameter.
@@ -37,13 +37,13 @@ type Value struct {
 // the runtime parameter values for a project.
 func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, error) {
 	compute := &compute{
-		db:                             db,
-		computedParameterByName:        map[string]Value{},
-		projectVersionParametersByName: map[string]database.ProjectVersionParameter{},
+		db:                      db,
+		computedParameterByName: map[string]Value{},
+		parameterSchemasByName:  map[string]database.ParameterSchema{},
 	}
 
 	// All parameters for the project version!
-	projectVersionParameters, err := db.GetProjectVersionParametersByVersionID(ctx, scope.ProjectVersionID)
+	projectVersionParameters, err := db.GetParameterSchemasByJobID(ctx, scope.ImportJobID)
 	if errors.Is(err, sql.ErrNoRows) {
 		// This occurs when the project version has defined
 		// no parameters, so we have nothing to compute!
@@ -53,7 +53,7 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 		return nil, xerrors.Errorf("get project parameters: %w", err)
 	}
 	for _, projectVersionParameter := range projectVersionParameters {
-		compute.projectVersionParametersByName[projectVersionParameter.Name] = projectVersionParameter
+		compute.parameterSchemasByName[projectVersionParameter.Name] = projectVersionParameter
 	}
 
 	// Organization parameters come first!
@@ -127,7 +127,7 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 		}
 	}
 
-	for _, projectVersionParameter := range compute.projectVersionParametersByName {
+	for _, projectVersionParameter := range compute.parameterSchemasByName {
 		if _, ok := compute.computedParameterByName[projectVersionParameter.Name]; ok {
 			continue
 		}
@@ -145,9 +145,9 @@ func Compute(ctx context.Context, db database.Store, scope Scope) ([]Value, erro
 }
 
 type compute struct {
-	db                             database.Store
-	computedParameterByName        map[string]Value
-	projectVersionParametersByName map[string]database.ProjectVersionParameter
+	db                      database.Store
+	computedParameterByName map[string]Value
+	parameterSchemasByName  map[string]database.ParameterSchema
 }
 
 // Validates and computes the value for parameters; setting the value on "parameterByName".
@@ -161,7 +161,7 @@ func (c *compute) inject(ctx context.Context, scopeParams database.GetParameterV
 	}
 
 	for _, scopedParameter := range scopedParameters {
-		projectVersionParameter, hasProjectVersionParameter := c.projectVersionParametersByName[scopedParameter.Name]
+		projectVersionParameter, hasProjectVersionParameter := c.parameterSchemasByName[scopedParameter.Name]
 		if !hasProjectVersionParameter {
 			// Don't inject parameters that aren't defined by the project.
 			continue

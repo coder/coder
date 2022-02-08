@@ -207,9 +207,9 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
-			OrganizationID:   organization.ID,
-			ProjectID:        project.ID,
-			ProjectVersionID: projectVersion.ID,
+			OrganizationID: organization.ID,
+			ProjectID:      project.ID,
+			ImportJobID:    projectVersion.ImportJobID,
 			UserID: sql.NullString{
 				String: user.ID,
 				Valid:  true,
