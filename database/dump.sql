@@ -42,13 +42,13 @@ CREATE TYPE parameter_type_system AS ENUM (
     'hcl'
 );
 
-CREATE TYPE project_storage_method AS ENUM (
-    'inline-archive'
-);
-
 CREATE TYPE provisioner_job_type AS ENUM (
     'project_import',
     'workspace_provision'
+);
+
+CREATE TYPE provisioner_storage_method AS ENUM (
+    'file'
 );
 
 CREATE TYPE provisioner_type AS ENUM (
@@ -171,8 +171,6 @@ CREATE TABLE project_version (
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     description character varying(1048576) NOT NULL,
-    storage_method project_storage_method NOT NULL,
-    storage_source bytea NOT NULL,
     import_job_id uuid NOT NULL
 );
 
@@ -195,6 +193,8 @@ CREATE TABLE provisioner_job (
     organization_id text NOT NULL,
     initiator_id text NOT NULL,
     provisioner provisioner_type NOT NULL,
+    storage_method provisioner_storage_method NOT NULL,
+    storage_source text NOT NULL,
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid

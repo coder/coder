@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,13 +21,12 @@ import (
 
 // ProjectVersion represents a single version of a project.
 type ProjectVersion struct {
-	ID            uuid.UUID                     `json:"id"`
-	ProjectID     uuid.UUID                     `json:"project_id"`
-	CreatedAt     time.Time                     `json:"created_at"`
-	UpdatedAt     time.Time                     `json:"updated_at"`
-	Name          string                        `json:"name"`
-	StorageMethod database.ProjectStorageMethod `json:"storage_method"`
-	Import        ProvisionerJob                `json:"import"`
+	ID        uuid.UUID      `json:"id"`
+	ProjectID uuid.UUID      `json:"project_id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	Name      string         `json:"name"`
+	Import    ProvisionerJob `json:"import"`
 }
 
 // ProjectVersionParameter represents a parameter parsed from project version source on creation.
@@ -53,8 +51,7 @@ type ProjectVersionParameter struct {
 
 // CreateProjectVersionRequest enables callers to create a new Project Version.
 type CreateProjectVersionRequest struct {
-	StorageMethod database.ProjectStorageMethod `json:"storage_method" validate:"oneof=inline-archive,required"`
-	StorageSource []byte                        `json:"storage_source" validate:"max=1048576,required"`
+	StorageSource []byte `json:"storage_source" validate:"max=1048576,required"`
 }
 
 // Lists versions for a single project.
@@ -126,25 +123,17 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 	err = api.Database.InTx(func(db database.Store) error {
 		provisionerJobID := uuid.New()
 		projectVersion, err = api.Database.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
-			ID:            uuid.New(),
-			ProjectID:     project.ID,
-			CreatedAt:     database.Now(),
-			UpdatedAt:     database.Now(),
-			Name:          namesgenerator.GetRandomName(1),
-			StorageMethod: createProjectVersion.StorageMethod,
-			StorageSource: createProjectVersion.StorageSource,
-			ImportJobID:   provisionerJobID,
+			ID:          uuid.New(),
+			ProjectID:   project.ID,
+			CreatedAt:   database.Now(),
+			UpdatedAt:   database.Now(),
+			Name:        namesgenerator.GetRandomName(1),
+			ImportJobID: provisionerJobID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert project version: %s", err)
 		}
 
-		input, err := json.Marshal(projectImportJob{
-			ProjectVersionID: projectVersion.ID,
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal import job: %w", err)
-		}
 		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 			ID:             provisionerJobID,
 			CreatedAt:      database.Now(),
@@ -153,7 +142,9 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 			InitiatorID:    apiKey.UserID,
 			Provisioner:    project.Provisioner,
 			Type:           database.ProvisionerJobTypeProjectImport,
-			Input:          input,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			StorageSource:  "",
+			Input:          []byte{'{', '}'},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -217,13 +208,12 @@ func (api *api) projectVersionParametersByOrganizationAndName(rw http.ResponseWr
 
 func convertProjectVersion(version database.ProjectVersion, job database.ProvisionerJob) ProjectVersion {
 	return ProjectVersion{
-		ID:            version.ID,
-		ProjectID:     version.ProjectID,
-		CreatedAt:     version.CreatedAt,
-		UpdatedAt:     version.UpdatedAt,
-		Name:          version.Name,
-		StorageMethod: version.StorageMethod,
-		Import:        convertProvisionerJob(job),
+		ID:        version.ID,
+		ProjectID: version.ProjectID,
+		CreatedAt: version.CreatedAt,
+		UpdatedAt: version.UpdatedAt,
+		Name:      version.Name,
+		Import:    convertProvisionerJob(job),
 	}
 }
 

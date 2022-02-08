@@ -13,6 +13,8 @@ CREATE TYPE provisioner_job_type AS ENUM (
     'workspace_provision'
 );
 
+CREATE TYPE provisioner_storage_method AS ENUM ('file');
+
 CREATE TABLE IF NOT EXISTS provisioner_job (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
@@ -24,6 +26,8 @@ CREATE TABLE IF NOT EXISTS provisioner_job (
     organization_id text NOT NULL,
     initiator_id text NOT NULL,
     provisioner provisioner_type NOT NULL,
+    storage_method provisioner_storage_method NOT NULL,
+    storage_source text NOT NULL,
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid

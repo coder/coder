@@ -27,8 +27,6 @@ CREATE TABLE project (
     UNIQUE(organization_id, name)
 );
 
-CREATE TYPE project_storage_method AS ENUM ('inline-archive');
-
 -- Project Versions store historical project data. When a Project Version is imported,
 -- an "import" job is queued to parse parameters. A Project Version
 -- can only be used if the import job succeeds.
@@ -44,8 +42,6 @@ CREATE TABLE project_version (
     -- Extracted from a README.md on import.
     -- Maximum of 1MB.
     description varchar(1048576) NOT NULL,
-    storage_method project_storage_method NOT NULL,
-    storage_source bytea NOT NULL,
     -- The import job for a Project Version. This is used
     -- to detect if an import was successful.
     import_job_id uuid NOT NULL,

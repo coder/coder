@@ -139,7 +139,6 @@ func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization, p
 	data, err := echo.Tar(responses)
 	require.NoError(t, err)
 	version, err := client.CreateProjectVersion(context.Background(), organization, project, coderd.CreateProjectVersionRequest{
-		StorageMethod: database.ProjectStorageMethodInlineArchive,
 		StorageSource: data,
 	})
 	require.NoError(t, err)

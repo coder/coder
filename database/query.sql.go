@@ -37,7 +37,7 @@ WHERE
       SKIP LOCKED
     LIMIT
       1
-  ) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, type, input, worker_id
+  ) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 `
 
 type AcquireProvisionerJobParams struct {
@@ -66,6 +66,8 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.OrganizationID,
 		&i.InitiatorID,
 		&i.Provisioner,
+		&i.StorageMethod,
+		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
@@ -426,7 +428,7 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 
 const getProjectVersionByID = `-- name: GetProjectVersionByID :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  id, project_id, created_at, updated_at, name, description, import_job_id
 FROM
   project_version
 WHERE
@@ -443,8 +445,6 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.StorageMethod,
-		&i.StorageSource,
 		&i.ImportJobID,
 	)
 	return i, err
@@ -452,7 +452,7 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 
 const getProjectVersionByProjectIDAndName = `-- name: GetProjectVersionByProjectIDAndName :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  id, project_id, created_at, updated_at, name, description, import_job_id
 FROM
   project_version
 WHERE
@@ -475,8 +475,6 @@ func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, ar
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.StorageMethod,
-		&i.StorageSource,
 		&i.ImportJobID,
 	)
 	return i, err
@@ -484,7 +482,7 @@ func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, ar
 
 const getProjectVersionsByProjectID = `-- name: GetProjectVersionsByProjectID :many
 SELECT
-  id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  id, project_id, created_at, updated_at, name, description, import_job_id
 FROM
   project_version
 WHERE
@@ -507,8 +505,6 @@ func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectI
 			&i.UpdatedAt,
 			&i.Name,
 			&i.Description,
-			&i.StorageMethod,
-			&i.StorageSource,
 			&i.ImportJobID,
 		); err != nil {
 			return nil, err
@@ -624,7 +620,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-  id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, type, input, worker_id
+  id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 FROM
   provisioner_job
 WHERE
@@ -645,6 +641,8 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.OrganizationID,
 		&i.InitiatorID,
 		&i.Provisioner,
+		&i.StorageMethod,
+		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,
@@ -1588,24 +1586,20 @@ INSERT INTO
     updated_at,
     name,
     description,
-    storage_method,
-    storage_source,
     import_job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, project_id, created_at, updated_at, name, description, storage_method, storage_source, import_job_id
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, project_id, created_at, updated_at, name, description, import_job_id
 `
 
 type InsertProjectVersionParams struct {
-	ID            uuid.UUID            `db:"id" json:"id"`
-	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
-	Name          string               `db:"name" json:"name"`
-	Description   string               `db:"description" json:"description"`
-	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource []byte               `db:"storage_source" json:"storage_source"`
-	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	ImportJobID uuid.UUID `db:"import_job_id" json:"import_job_id"`
 }
 
 func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProjectVersionParams) (ProjectVersion, error) {
@@ -1616,8 +1610,6 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 		arg.UpdatedAt,
 		arg.Name,
 		arg.Description,
-		arg.StorageMethod,
-		arg.StorageSource,
 		arg.ImportJobID,
 	)
 	var i ProjectVersion
@@ -1628,8 +1620,6 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.StorageMethod,
-		&i.StorageSource,
 		&i.ImportJobID,
 	)
 	return i, err
@@ -1676,22 +1666,26 @@ INSERT INTO
     organization_id,
     initiator_id,
     provisioner,
+    storage_method,
+    storage_source,
     type,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, type, input, worker_id
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 `
 
 type InsertProvisionerJobParams struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	CreatedAt      time.Time          `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time          `db:"updated_at" json:"updated_at"`
-	OrganizationID string             `db:"organization_id" json:"organization_id"`
-	InitiatorID    string             `db:"initiator_id" json:"initiator_id"`
-	Provisioner    ProvisionerType    `db:"provisioner" json:"provisioner"`
-	Type           ProvisionerJobType `db:"type" json:"type"`
-	Input          json.RawMessage    `db:"input" json:"input"`
+	ID             uuid.UUID                `db:"id" json:"id"`
+	CreatedAt      time.Time                `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                `db:"updated_at" json:"updated_at"`
+	OrganizationID string                   `db:"organization_id" json:"organization_id"`
+	InitiatorID    string                   `db:"initiator_id" json:"initiator_id"`
+	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
+	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource  string                   `db:"storage_source" json:"storage_source"`
+	Type           ProvisionerJobType       `db:"type" json:"type"`
+	Input          json.RawMessage          `db:"input" json:"input"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
@@ -1702,6 +1696,8 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		arg.OrganizationID,
 		arg.InitiatorID,
 		arg.Provisioner,
+		arg.StorageMethod,
+		arg.StorageSource,
 		arg.Type,
 		arg.Input,
 	)
@@ -1717,6 +1713,8 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.OrganizationID,
 		&i.InitiatorID,
 		&i.Provisioner,
+		&i.StorageMethod,
+		&i.StorageSource,
 		&i.Type,
 		&i.Input,
 		&i.WorkerID,

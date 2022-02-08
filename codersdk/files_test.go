@@ -14,14 +14,14 @@ func TestUpload(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_, err := client.Upload(context.Background(), "wow", []byte{})
+		_, err := client.UploadFile(context.Background(), "wow", []byte{})
 		require.Error(t, err)
 	})
 	t.Run("Upload", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		_ = coderdtest.CreateInitialUser(t, client)
-		_, err := client.Upload(context.Background(), codersdk.ContentTypeTar, []byte{'a'})
+		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, []byte{'a'})
 		require.NoError(t, err)
 	})
 }

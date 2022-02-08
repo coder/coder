@@ -53,7 +53,7 @@ func (api *api) postFiles(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	render.Status(r, http.StatusOK)
+	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, UploadFileResponse{
 		Hash: file.Hash,
 	})

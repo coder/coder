@@ -436,12 +436,10 @@ INSERT INTO
     updated_at,
     name,
     description,
-    storage_method,
-    storage_source,
     import_job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertParameterSchema :one
 INSERT INTO
@@ -500,11 +498,13 @@ INSERT INTO
     organization_id,
     initiator_id,
     provisioner,
+    storage_method,
+    storage_source,
     type,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO

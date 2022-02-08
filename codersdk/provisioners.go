@@ -59,6 +59,19 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(session)), nil
 }
 
+func (c *Client) CreateProjectImportJob(ctx context.Context, organization string, req coderd.CreateProjectImportJobRequest) (coderd.ProvisionerJob, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/provisioners/jobs/%s", organization), req)
+	if err != nil {
+		return coderd.ProvisionerJob{}, err
+	}
+	if res.StatusCode != http.StatusCreated {
+		defer res.Body.Close()
+		return coderd.ProvisionerJob{}, readBodyAsError(res)
+	}
+	var job coderd.ProvisionerJob
+	return job, json.NewDecoder(res.Body).Decode(&job)
+}
+
 // ProvisionerJobLogs returns all logs for workspace history.
 // To stream logs, use the FollowProvisionerJobLogs function.
 func (c *Client) ProvisionerJobLogs(ctx context.Context, organization string, jobID uuid.UUID) ([]coderd.ProvisionerJobLog, error) {

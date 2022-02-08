@@ -151,24 +151,6 @@ func (e *ParameterTypeSystem) Scan(src interface{}) error {
 	return nil
 }
 
-type ProjectStorageMethod string
-
-const (
-	ProjectStorageMethodInlineArchive ProjectStorageMethod = "inline-archive"
-)
-
-func (e *ProjectStorageMethod) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ProjectStorageMethod(s)
-	case string:
-		*e = ProjectStorageMethod(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ProjectStorageMethod: %T", src)
-	}
-	return nil
-}
-
 type ProvisionerJobType string
 
 const (
@@ -184,6 +166,24 @@ func (e *ProvisionerJobType) Scan(src interface{}) error {
 		*e = ProvisionerJobType(s)
 	default:
 		return fmt.Errorf("unsupported scan type for ProvisionerJobType: %T", src)
+	}
+	return nil
+}
+
+type ProvisionerStorageMethod string
+
+const (
+	ProvisionerStorageMethodFile ProvisionerStorageMethod = "file"
+)
+
+func (e *ProvisionerStorageMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerStorageMethod(s)
+	case string:
+		*e = ProvisionerStorageMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerStorageMethod: %T", src)
 	}
 	return nil
 }
@@ -344,15 +344,13 @@ type Project struct {
 }
 
 type ProjectVersion struct {
-	ID            uuid.UUID            `db:"id" json:"id"`
-	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
-	Name          string               `db:"name" json:"name"`
-	Description   string               `db:"description" json:"description"`
-	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource []byte               `db:"storage_source" json:"storage_source"`
-	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	ImportJobID uuid.UUID `db:"import_job_id" json:"import_job_id"`
 }
 
 type ProvisionerDaemon struct {
@@ -364,19 +362,21 @@ type ProvisionerDaemon struct {
 }
 
 type ProvisionerJob struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	CreatedAt      time.Time          `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time          `db:"updated_at" json:"updated_at"`
-	StartedAt      sql.NullTime       `db:"started_at" json:"started_at"`
-	CancelledAt    sql.NullTime       `db:"cancelled_at" json:"cancelled_at"`
-	CompletedAt    sql.NullTime       `db:"completed_at" json:"completed_at"`
-	Error          sql.NullString     `db:"error" json:"error"`
-	OrganizationID string             `db:"organization_id" json:"organization_id"`
-	InitiatorID    string             `db:"initiator_id" json:"initiator_id"`
-	Provisioner    ProvisionerType    `db:"provisioner" json:"provisioner"`
-	Type           ProvisionerJobType `db:"type" json:"type"`
-	Input          json.RawMessage    `db:"input" json:"input"`
-	WorkerID       uuid.NullUUID      `db:"worker_id" json:"worker_id"`
+	ID             uuid.UUID                `db:"id" json:"id"`
+	CreatedAt      time.Time                `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                `db:"updated_at" json:"updated_at"`
+	StartedAt      sql.NullTime             `db:"started_at" json:"started_at"`
+	CancelledAt    sql.NullTime             `db:"cancelled_at" json:"cancelled_at"`
+	CompletedAt    sql.NullTime             `db:"completed_at" json:"completed_at"`
+	Error          sql.NullString           `db:"error" json:"error"`
+	OrganizationID string                   `db:"organization_id" json:"organization_id"`
+	InitiatorID    string                   `db:"initiator_id" json:"initiator_id"`
+	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
+	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource  string                   `db:"storage_source" json:"storage_source"`
+	Type           ProvisionerJobType       `db:"type" json:"type"`
+	Input          json.RawMessage          `db:"input" json:"input"`
+	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
 }
 
 type ProvisionerJobLog struct {

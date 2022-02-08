@@ -19,9 +19,15 @@ func TestCompute(t *testing.T) {
 	t.Parallel()
 	generateScope := func() projectparameter.Scope {
 		return projectparameter.Scope{
-			OrganizationID: uuid.New().String(),
-			ProjectID:      uuid.New(),
-			ImportJobID:    uuid.New(),
+			ImportJobID: uuid.New(),
+			OrganizationID: sql.NullString{
+				String: uuid.New().String(),
+				Valid:  true,
+			},
+			ProjectID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
 			WorkspaceID: uuid.NullUUID{
 				UUID:  uuid.New(),
 				Valid: true,
@@ -101,7 +107,7 @@ func TestCompute(t *testing.T) {
 		value := values[0]
 		require.True(t, value.DefaultValue)
 		require.Equal(t, database.ParameterScopeProject, value.Scope)
-		require.Equal(t, scope.ProjectID.String(), value.ScopeID)
+		require.Equal(t, scope.ProjectID.UUID.String(), value.ScopeID)
 		require.Equal(t, value.Proto.Name, parameter.DefaultDestinationValue.String)
 		require.Equal(t, value.Proto.DestinationScheme, proto.ParameterDestination_PROVISIONER_VARIABLE)
 		require.Equal(t, value.Proto.Value, parameter.DefaultSourceValue.String)
@@ -118,7 +124,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeOrganization,
-			ScopeID:           scope.OrganizationID,
+			ScopeID:           scope.OrganizationID.String,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -144,7 +150,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeProject,
-			ScopeID:           scope.ProjectID.String(),
+			ScopeID:           scope.ProjectID.UUID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -208,5 +214,38 @@ func TestCompute(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, values, 1)
 		require.Equal(t, false, values[0].DefaultValue)
+	})
+
+	t.Run("AdditionalOverwriteWorkspace", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		scope := generateScope()
+		parameter := generateProjectParameter(t, db, projectParameterOptions{
+			AllowOverrideSource: true,
+			ImportJobID:         scope.ImportJobID,
+		})
+		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
+			ID:                uuid.New(),
+			Name:              parameter.Name,
+			Scope:             database.ParameterScopeWorkspace,
+			ScopeID:           scope.WorkspaceID.UUID.String(),
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       "nop",
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			DestinationValue:  "projectvalue",
+		})
+		require.NoError(t, err)
+
+		values, err := projectparameter.Compute(context.Background(), db, scope, database.ParameterValue{
+			Name:              parameter.Name,
+			Scope:             database.ParameterScopeUser,
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       "nop",
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			DestinationValue:  "testing",
+		})
+		require.NoError(t, err)
+		require.Len(t, values, 1)
+		require.Equal(t, "testing", values[0].Proto.Value)
 	})
 }

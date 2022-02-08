@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -68,7 +67,6 @@ func TestPostProjectVersionByOrganization(t *testing.T) {
 		user := coderdtest.CreateInitialUser(t, client)
 		project := coderdtest.CreateProject(t, client, user.Organization)
 		_, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
-			StorageMethod: database.ProjectStorageMethod("invalid"),
 			StorageSource: []byte{},
 		})
 		require.Error(t, err)

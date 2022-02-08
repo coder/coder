@@ -117,9 +117,11 @@ func New(options *Options) http.Handler {
 					httpmw.ExtractAPIKey(options.Database, nil),
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
+				r.Post("/", api.postProvisionerJobsByOrganization)
 				r.Route("/{provisionerjob}", func(r chi.Router) {
 					r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
 					r.Get("/logs", api.provisionerJobLogsByID)
+					r.Get("/resources", api.provisionerJobResourcesByOrganization)
 				})
 			})
 		})

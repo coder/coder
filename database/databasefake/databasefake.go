@@ -671,15 +671,13 @@ func (q *fakeQuerier) InsertProjectVersion(_ context.Context, arg database.Inser
 
 	//nolint:gosimple
 	version := database.ProjectVersion{
-		ID:            arg.ID,
-		ProjectID:     arg.ProjectID,
-		CreatedAt:     arg.CreatedAt,
-		UpdatedAt:     arg.UpdatedAt,
-		Name:          arg.Name,
-		Description:   arg.Description,
-		StorageMethod: arg.StorageMethod,
-		StorageSource: arg.StorageSource,
-		ImportJobID:   arg.ImportJobID,
+		ID:          arg.ID,
+		ProjectID:   arg.ProjectID,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		Name:        arg.Name,
+		Description: arg.Description,
+		ImportJobID: arg.ImportJobID,
 	}
 	q.projectVersion = append(q.projectVersion, version)
 	return version, nil
@@ -757,6 +755,8 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		OrganizationID: arg.OrganizationID,
 		InitiatorID:    arg.InitiatorID,
 		Provisioner:    arg.Provisioner,
+		StorageMethod:  arg.StorageMethod,
+		StorageSource:  arg.StorageSource,
 		Type:           arg.Type,
 		Input:          arg.Input,
 	}

@@ -59,11 +59,16 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 
 	var buf bytes.Buffer
 	if body != nil {
-		enc := json.NewEncoder(&buf)
-		enc.SetEscapeHTML(false)
-		err = enc.Encode(body)
-		if err != nil {
-			return nil, xerrors.Errorf("encode body: %w", err)
+		if data, ok := body.([]byte); ok {
+			buf = *bytes.NewBuffer(data)
+		} else {
+			// Assume JSON if not bytes.
+			enc := json.NewEncoder(&buf)
+			enc.SetEscapeHTML(false)
+			err = enc.Encode(body)
+			if err != nil {
+				return nil, xerrors.Errorf("encode body: %w", err)
+			}
 		}
 	}
 
