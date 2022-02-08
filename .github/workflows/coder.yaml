@@ -222,7 +222,7 @@ jobs:
       - run: docker push us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest
 
       - name: Update coder service
-        run: gcloud run services update coder --image us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest --project coder-blacktriangle-dev --region us-central1
+        run: gcloud run services update coder --image us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest --project coder-blacktriangle-dev --tag "git-$(git rev-parse --short HEAD)" --region us-central1
 
   test-js:
     name: "test/js"
