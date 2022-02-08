@@ -165,13 +165,13 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
--- name: GetProjectVersionParametersByVersionID :many
+-- name: GetParameterSchemasByJobID :many
 SELECT
   *
 FROM
-  project_version_parameter
+  parameter_schema
 WHERE
-  project_version_id = $1;
+  job_id = $1;
 
 -- name: GetProjectVersionsByProjectID :many
 SELECT
@@ -443,12 +443,12 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
--- name: InsertProjectVersionParameter :one
+-- name: InsertParameterSchema :one
 INSERT INTO
-  project_version_parameter (
+  parameter_schema (
     id,
     created_at,
-    project_version_id,
+    job_id,
     name,
     description,
     default_source_scheme,
@@ -497,13 +497,14 @@ INSERT INTO
     id,
     created_at,
     updated_at,
+    organization_id,
     initiator_id,
     provisioner,
     type,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO

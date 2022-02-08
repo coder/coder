@@ -299,6 +299,26 @@ type OrganizationMember struct {
 	Roles          []string  `db:"roles" json:"roles"`
 }
 
+type ParameterSchema struct {
+	ID                       uuid.UUID                  `db:"id" json:"id"`
+	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
+	JobID                    uuid.UUID                  `db:"job_id" json:"job_id"`
+	Name                     string                     `db:"name" json:"name"`
+	Description              string                     `db:"description" json:"description"`
+	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
+	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
+	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
+	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
+	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string                     `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+}
+
 type ParameterValue struct {
 	ID                uuid.UUID                  `db:"id" json:"id"`
 	Name              string                     `db:"name" json:"name"`
@@ -334,26 +354,6 @@ type ProjectVersion struct {
 	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
 }
 
-type ProjectVersionParameter struct {
-	ID                       uuid.UUID                  `db:"id" json:"id"`
-	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
-	Name                     string                     `db:"name" json:"name"`
-	Description              string                     `db:"description" json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
-	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
-	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string                     `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
-}
-
 type ProvisionerDaemon struct {
 	ID           uuid.UUID         `db:"id" json:"id"`
 	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
@@ -363,18 +363,19 @@ type ProvisionerDaemon struct {
 }
 
 type ProvisionerJob struct {
-	ID          uuid.UUID          `db:"id" json:"id"`
-	CreatedAt   time.Time          `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time          `db:"updated_at" json:"updated_at"`
-	StartedAt   sql.NullTime       `db:"started_at" json:"started_at"`
-	CancelledAt sql.NullTime       `db:"cancelled_at" json:"cancelled_at"`
-	CompletedAt sql.NullTime       `db:"completed_at" json:"completed_at"`
-	Error       sql.NullString     `db:"error" json:"error"`
-	InitiatorID string             `db:"initiator_id" json:"initiator_id"`
-	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
-	Type        ProvisionerJobType `db:"type" json:"type"`
-	Input       json.RawMessage    `db:"input" json:"input"`
-	WorkerID    uuid.NullUUID      `db:"worker_id" json:"worker_id"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+	CreatedAt      time.Time          `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time          `db:"updated_at" json:"updated_at"`
+	StartedAt      sql.NullTime       `db:"started_at" json:"started_at"`
+	CancelledAt    sql.NullTime       `db:"cancelled_at" json:"cancelled_at"`
+	CompletedAt    sql.NullTime       `db:"completed_at" json:"completed_at"`
+	Error          sql.NullString     `db:"error" json:"error"`
+	OrganizationID string             `db:"organization_id" json:"organization_id"`
+	InitiatorID    string             `db:"initiator_id" json:"initiator_id"`
+	Provisioner    ProvisionerType    `db:"provisioner" json:"provisioner"`
+	Type           ProvisionerJobType `db:"type" json:"type"`
+	Input          json.RawMessage    `db:"input" json:"input"`
+	WorkerID       uuid.NullUUID      `db:"worker_id" json:"worker_id"`
 }
 
 type ProvisionerJobLog struct {

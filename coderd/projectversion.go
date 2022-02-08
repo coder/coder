@@ -35,7 +35,6 @@ type ProjectVersion struct {
 type ProjectVersionParameter struct {
 	ID                       uuid.UUID                           `json:"id"`
 	CreatedAt                time.Time                           `json:"created_at"`
-	ProjectVersionID         uuid.UUID                           `json:"project_version_id"`
 	Name                     string                              `json:"name"`
 	Description              string                              `json:"description,omitempty"`
 	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme,omitempty"`
@@ -147,13 +146,14 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 			return xerrors.Errorf("marshal import job: %w", err)
 		}
 		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          provisionerJobID,
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-			InitiatorID: apiKey.UserID,
-			Provisioner: project.Provisioner,
-			Type:        database.ProvisionerJobTypeProjectImport,
-			Input:       input,
+			ID:             provisionerJobID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			OrganizationID: project.OrganizationID,
+			InitiatorID:    apiKey.UserID,
+			Provisioner:    project.Provisioner,
+			Type:           database.ProvisionerJobTypeProjectImport,
+			Input:          input,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -194,10 +194,10 @@ func (api *api) projectVersionParametersByOrganizationAndName(rw http.ResponseWr
 		return
 	}
 
-	parameters, err := api.Database.GetProjectVersionParametersByVersionID(r.Context(), projectVersion.ID)
+	parameters, err := api.Database.GetParameterSchemasByJobID(r.Context(), projectVersion.ImportJobID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		parameters = []database.ProjectVersionParameter{}
+		parameters = []database.ParameterSchema{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -227,11 +227,10 @@ func convertProjectVersion(version database.ProjectVersion, job database.Provisi
 	}
 }
 
-func convertProjectParameter(parameter database.ProjectVersionParameter) ProjectVersionParameter {
+func convertProjectParameter(parameter database.ParameterSchema) ProjectVersionParameter {
 	return ProjectVersionParameter{
 		ID:                       parameter.ID,
 		CreatedAt:                parameter.CreatedAt,
-		ProjectVersionID:         parameter.ProjectVersionID,
 		Name:                     parameter.Name,
 		Description:              parameter.Description,
 		DefaultSourceScheme:      parameter.DefaultSourceScheme,

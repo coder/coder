@@ -151,13 +151,14 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		}
 
 		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          provisionerJobID,
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-			InitiatorID: user.ID,
-			Provisioner: project.Provisioner,
-			Type:        database.ProvisionerJobTypeWorkspaceProvision,
-			Input:       input,
+			ID:             provisionerJobID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			InitiatorID:    user.ID,
+			OrganizationID: project.OrganizationID,
+			Provisioner:    project.Provisioner,
+			Type:           database.ProvisionerJobTypeWorkspaceProvision,
+			Input:          input,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)

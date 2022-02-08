@@ -382,17 +382,17 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 		// Validate that all parameters send from the provisioner daemon
 		// follow the protocol.
-		projectVersionParameters := make([]database.InsertProjectVersionParameterParams, 0, len(jobType.ProjectImport.ParameterSchemas))
+		parameterSchemas := make([]database.InsertParameterSchemaParams, 0, len(jobType.ProjectImport.ParameterSchemas))
 		for _, protoParameter := range jobType.ProjectImport.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
 			}
 
-			projectParameter := database.InsertProjectVersionParameterParams{
+			parameterSchema := database.InsertParameterSchemaParams{
 				ID:                   uuid.New(),
 				CreatedAt:            database.Now(),
-				ProjectVersionID:     input.ProjectVersionID,
+				JobID:                job.ID,
 				Name:                 protoParameter.Name,
 				Description:          protoParameter.Description,
 				RedisplayValue:       protoParameter.RedisplayValue,
@@ -414,8 +414,8 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				if err != nil {
 					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
 				}
-				projectParameter.DefaultSourceScheme = parameterSourceScheme
-				projectParameter.DefaultSourceValue = sql.NullString{
+				parameterSchema.DefaultSourceScheme = parameterSourceScheme
+				parameterSchema.DefaultSourceValue = sql.NullString{
 					String: protoParameter.DefaultSource.Value,
 					Valid:  protoParameter.DefaultSource.Value != "",
 				}
@@ -427,14 +427,14 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				if err != nil {
 					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
 				}
-				projectParameter.DefaultDestinationScheme = parameterDestinationScheme
-				projectParameter.DefaultDestinationValue = sql.NullString{
+				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
+				parameterSchema.DefaultDestinationValue = sql.NullString{
 					String: protoParameter.DefaultDestination.Value,
 					Valid:  protoParameter.DefaultDestination.Value != "",
 				}
 			}
 
-			projectVersionParameters = append(projectVersionParameters, projectParameter)
+			parameterSchemas = append(parameterSchemas, parameterSchema)
 		}
 
 		// This must occur in a transaction in case of failure.
@@ -452,10 +452,10 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			}
 			// This could be a bulk-insert operation to improve performance.
 			// See the "InsertWorkspaceHistoryLogs" query.
-			for _, projectParameter := range projectVersionParameters {
-				_, err = db.InsertProjectVersionParameter(ctx, projectParameter)
+			for _, parameterSchema := range parameterSchemas {
+				_, err = db.InsertParameterSchema(ctx, parameterSchema)
 				if err != nil {
-					return xerrors.Errorf("insert project parameter %q: %w", projectParameter.Name, err)
+					return xerrors.Errorf("insert parameter schema %q: %w", parameterSchema.Name, err)
 				}
 			}
 			server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
