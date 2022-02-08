@@ -9,7 +9,6 @@ CREATE TABLE workspace (
 );
 
 CREATE TYPE workspace_transition AS ENUM (
-    'create',
     'start',
     'stop',
     'delete'
@@ -21,7 +20,7 @@ CREATE TABLE workspace_history (
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     workspace_id uuid NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
-    project_history_id uuid NOT NULL REFERENCES project_history (id) ON DELETE CASCADE,
+    project_version_id uuid NOT NULL REFERENCES project_version (id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
     before_id uuid,
     after_id uuid,
@@ -50,8 +49,7 @@ CREATE TABLE workspace_resource (
     -- If an agent has been conencted for this resource,
     -- the agent table is not null.
     workspace_agent_id uuid,
-
-    UNIQUE(workspace_history_id, name)
+    UNIQUE(workspace_history_id, type, name)
 );
 
 CREATE TABLE workspace_agent (
@@ -63,13 +61,4 @@ CREATE TABLE workspace_agent (
     instance_metadata jsonb NOT NULL,
     -- Identifies resources.
     resource_metadata jsonb NOT NULL
-);
-
-CREATE TABLE workspace_history_log (
-    id uuid NOT NULL UNIQUE,
-    workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
-    created_at timestamptz NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output varchar(1024) NOT NULL
 );

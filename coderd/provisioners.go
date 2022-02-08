@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +25,7 @@ const (
 )
 
 type ProvisionerJob struct {
+	ID          uuid.UUID                `json:"id"`
 	CreatedAt   time.Time                `json:"created_at"`
 	UpdatedAt   time.Time                `json:"updated_at"`
 	StartedAt   *time.Time               `json:"started_at,omitempty"`
@@ -37,6 +39,7 @@ type ProvisionerJob struct {
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {
 	job := ProvisionerJob{
+		ID:          provisionerJob.ID,
 		CreatedAt:   provisionerJob.CreatedAt,
 		UpdatedAt:   provisionerJob.UpdatedAt,
 		Error:       provisionerJob.Error.String,
@@ -70,9 +73,13 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 		job.Status = ProvisionerJobStatusRunning
 	}
 
-	if job.Error != "" {
+	if !provisionerJob.CancelledAt.Valid && job.Error != "" {
 		job.Status = ProvisionerJobStatusFailed
 	}
 
 	return job
+}
+
+func provisionerJobLogsChannel(jobID uuid.UUID) string {
+	return fmt.Sprintf("provisioner-log-logs:%s", jobID)
 }

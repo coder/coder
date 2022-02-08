@@ -1,3 +1,11 @@
+-- Store arbitrary data like project source code or avatars.
+CREATE TABLE file (
+    hash varchar(32) NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    mimetype varchar(64) NOT NULL,
+    data bytea NOT NULL
+);
+
 CREATE TYPE provisioner_type AS ENUM ('echo', 'terraform');
 
 -- Project defines infrastructure that your software project
@@ -20,10 +28,10 @@ CREATE TABLE project (
 
 CREATE TYPE project_storage_method AS ENUM ('inline-archive');
 
--- Project Versions store Project history. When a Project Version is imported,
+-- Project Versions store historical project data. When a Project Version is imported,
 -- an "import" job is queued to parse parameters. A Project Version
 -- can only be used if the import job succeeds.
-CREATE TABLE project_history (
+CREATE TABLE project_version (
     id uuid NOT NULL UNIQUE,
     -- This should be indexed.
     project_id uuid NOT NULL REFERENCES project (id),
@@ -63,10 +71,10 @@ CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable',
 -- Parameter types, description, and validation will produce
 -- a UI for users to enter values.
 -- Needs to be made consistent with the examples below.
-CREATE TABLE project_parameter (
+CREATE TABLE project_version_parameter (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
-    project_history_id uuid NOT NULL REFERENCES project_history(id) ON DELETE CASCADE,
+    project_version_id uuid NOT NULL REFERENCES project_version(id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
     -- 8KB limit
     description varchar(8192) NOT NULL DEFAULT '',
@@ -88,27 +96,5 @@ CREATE TABLE project_parameter (
     validation_condition varchar(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type varchar(64) NOT NULL,
-    UNIQUE(project_history_id, name)
-);
-
-CREATE TYPE log_level AS ENUM (
-    'trace',
-    'debug',
-    'info',
-    'warn',
-    'error'
-);
-
-CREATE TYPE log_source AS ENUM (
-    'provisioner_daemon',
-    'provisioner'
-);
-
-CREATE TABLE project_history_log (
-    id uuid NOT NULL UNIQUE,
-    project_history_id uuid NOT NULL REFERENCES project_history (id) ON DELETE CASCADE,
-    created_at timestamptz NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output varchar(1024) NOT NULL
+    UNIQUE(project_version_id, name)
 );

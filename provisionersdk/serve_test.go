@@ -39,6 +39,7 @@ func TestProvisionerSDK(t *testing.T) {
 		_, err = stream.Recv()
 		require.Equal(t, drpcerr.Unimplemented, int(drpcerr.Code(err)))
 	})
+
 	t.Run("ServeClosedPipe", func(t *testing.T) {
 		t.Parallel()
 		client, server := provisionersdk.TransportPipe()

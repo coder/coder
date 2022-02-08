@@ -230,7 +230,6 @@ func (e *UserStatus) Scan(src interface{}) error {
 type WorkspaceTransition string
 
 const (
-	WorkspaceTransitionCreate WorkspaceTransition = "create"
 	WorkspaceTransitionStart  WorkspaceTransition = "start"
 	WorkspaceTransitionStop   WorkspaceTransition = "stop"
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"
@@ -264,6 +263,13 @@ type APIKey struct {
 	OIDCIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
 	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
 	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
+}
+
+type File struct {
+	Hash      string    `db:"hash" json:"hash"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Mimetype  string    `db:"mimetype" json:"mimetype"`
+	Data      []byte    `db:"data" json:"data"`
 }
 
 type License struct {
@@ -316,7 +322,7 @@ type Project struct {
 	ActiveVersionID uuid.NullUUID   `db:"active_version_id" json:"active_version_id"`
 }
 
-type ProjectHistory struct {
+type ProjectVersion struct {
 	ID            uuid.UUID            `db:"id" json:"id"`
 	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
 	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
@@ -328,19 +334,10 @@ type ProjectHistory struct {
 	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
 }
 
-type ProjectHistoryLog struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	ProjectHistoryID uuid.UUID `db:"project_history_id" json:"project_history_id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Source           LogSource `db:"source" json:"source"`
-	Level            LogLevel  `db:"level" json:"level"`
-	Output           string    `db:"output" json:"output"`
-}
-
-type ProjectParameter struct {
+type ProjectVersionParameter struct {
 	ID                       uuid.UUID                  `db:"id" json:"id"`
 	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	ProjectHistoryID         uuid.UUID                  `db:"project_history_id" json:"project_history_id"`
+	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
 	Name                     string                     `db:"name" json:"name"`
 	Description              string                     `db:"description" json:"description"`
 	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
@@ -376,9 +373,17 @@ type ProvisionerJob struct {
 	InitiatorID string             `db:"initiator_id" json:"initiator_id"`
 	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
 	Type        ProvisionerJobType `db:"type" json:"type"`
-	ProjectID   uuid.UUID          `db:"project_id" json:"project_id"`
 	Input       json.RawMessage    `db:"input" json:"input"`
 	WorkerID    uuid.NullUUID      `db:"worker_id" json:"worker_id"`
+}
+
+type ProvisionerJobLog struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	JobID     uuid.UUID `db:"job_id" json:"job_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Source    LogSource `db:"source" json:"source"`
+	Level     LogLevel  `db:"level" json:"level"`
+	Output    string    `db:"output" json:"output"`
 }
 
 type User struct {
@@ -426,7 +431,7 @@ type WorkspaceHistory struct {
 	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time           `db:"updated_at" json:"updated_at"`
 	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	ProjectHistoryID uuid.UUID           `db:"project_history_id" json:"project_history_id"`
+	ProjectVersionID uuid.UUID           `db:"project_version_id" json:"project_version_id"`
 	Name             string              `db:"name" json:"name"`
 	BeforeID         uuid.NullUUID       `db:"before_id" json:"before_id"`
 	AfterID          uuid.NullUUID       `db:"after_id" json:"after_id"`
@@ -434,15 +439,6 @@ type WorkspaceHistory struct {
 	Initiator        string              `db:"initiator" json:"initiator"`
 	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
 	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
-}
-
-type WorkspaceHistoryLog struct {
-	ID                 uuid.UUID `db:"id" json:"id"`
-	WorkspaceHistoryID uuid.UUID `db:"workspace_history_id" json:"workspace_history_id"`
-	CreatedAt          time.Time `db:"created_at" json:"created_at"`
-	Source             LogSource `db:"source" json:"source"`
-	Level              LogLevel  `db:"level" json:"level"`
-	Output             string    `db:"output" json:"output"`
 }
 
 type WorkspaceResource struct {

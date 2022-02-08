@@ -48,6 +48,10 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 		path := filepath.Join(request.Directory, fmt.Sprintf("%d.parse.protobuf", index))
 		_, err := os.Stat(path)
 		if err != nil {
+			if index == 0 {
+				// Error if nothing is around to enable failed states.
+				return xerrors.New("no state")
+			}
 			break
 		}
 		data, err := os.ReadFile(path)
@@ -64,7 +68,8 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 			return err
 		}
 	}
-	return nil
+	<-stream.Context().Done()
+	return stream.Context().Err()
 }
 
 // Provision reads requests from the provided directory to stream responses.
@@ -73,6 +78,10 @@ func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvis
 		path := filepath.Join(request.Directory, fmt.Sprintf("%d.provision.protobuf", index))
 		_, err := os.Stat(path)
 		if err != nil {
+			if index == 0 {
+				// Error if nothing is around to enable failed states.
+				return xerrors.New("no state")
+			}
 			break
 		}
 		data, err := os.ReadFile(path)
@@ -89,14 +98,24 @@ func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvis
 			return err
 		}
 	}
-	return nil
+	<-stream.Context().Done()
+	return stream.Context().Err()
+}
+
+type Responses struct {
+	Parse     []*proto.Parse_Response
+	Provision []*proto.Provision_Response
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
-func Tar(parseResponses []*proto.Parse_Response, provisionResponses []*proto.Provision_Response) ([]byte, error) {
+func Tar(responses *Responses) ([]byte, error) {
+	if responses == nil {
+		responses = &Responses{ParseComplete, ProvisionComplete}
+	}
+
 	var buffer bytes.Buffer
 	writer := tar.NewWriter(&buffer)
-	for index, response := range parseResponses {
+	for index, response := range responses.Parse {
 		data, err := protobuf.Marshal(response)
 		if err != nil {
 			return nil, err
@@ -113,7 +132,7 @@ func Tar(parseResponses []*proto.Parse_Response, provisionResponses []*proto.Pro
 			return nil, err
 		}
 	}
-	for index, response := range provisionResponses {
+	for index, response := range responses.Provision {
 		data, err := protobuf.Marshal(response)
 		if err != nil {
 			return nil, err

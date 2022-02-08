@@ -46,6 +46,16 @@ WHERE
 LIMIT
   1;
 
+-- name: GetFileByHash :one
+SELECT
+  *
+FROM
+  file
+WHERE
+  hash = $1
+LIMIT
+  1;
+
 -- name: GetUserByID :one
 SELECT
   *
@@ -155,46 +165,46 @@ FROM
 WHERE
   organization_id = ANY(@ids :: text [ ]);
 
--- name: GetProjectParametersByHistoryID :many
+-- name: GetProjectVersionParametersByVersionID :many
 SELECT
   *
 FROM
-  project_parameter
+  project_version_parameter
 WHERE
-  project_history_id = $1;
+  project_version_id = $1;
 
--- name: GetProjectHistoryByProjectID :many
+-- name: GetProjectVersionsByProjectID :many
 SELECT
   *
 FROM
-  project_history
+  project_version
 WHERE
   project_id = $1;
 
--- name: GetProjectHistoryByProjectIDAndName :one
+-- name: GetProjectVersionByProjectIDAndName :one
 SELECT
   *
 FROM
-  project_history
+  project_version
 WHERE
   project_id = $1
   AND name = $2;
 
--- name: GetProjectHistoryByID :one
+-- name: GetProjectVersionByID :one
 SELECT
   *
 FROM
-  project_history
+  project_version
 WHERE
   id = $1;
 
--- name: GetProjectHistoryLogsByIDBetween :many
+-- name: GetProvisionerLogsByIDBetween :many
 SELECT
   *
 FROM
-  project_history_log
+  provisioner_job_log
 WHERE
-  project_history_id = @project_history_id
+  job_id = @job_id
   AND (
     created_at >= @created_after
     OR created_at <= @created_before
@@ -298,20 +308,6 @@ WHERE
 LIMIT
   1;
 
--- name: GetWorkspaceHistoryLogsByIDBetween :many
-SELECT
-  *
-FROM
-  workspace_history_log
-WHERE
-  workspace_history_id = @workspace_history_id
-  AND (
-    created_at >= @created_after
-    OR created_at <= @created_before
-  )
-ORDER BY
-  created_at;
-
 -- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
   *
@@ -366,6 +362,23 @@ VALUES
     $15
   ) RETURNING *;
 
+-- name: InsertFile :one
+INSERT INTO
+  file (hash, created_at, mimetype, data)
+VALUES
+  ($1, $2, $3, $4) RETURNING *;
+
+-- name: InsertProvisionerJobLogs :many
+INSERT INTO
+  provisioner_job_log
+SELECT
+  unnest(@id :: uuid [ ]) AS id,
+  @job_id :: uuid AS job_id,
+  unnest(@created_at :: timestamptz [ ]) AS created_at,
+  unnest(@source :: log_source [ ]) as source,
+  unnest(@level :: log_level [ ]) as level,
+  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
+
 -- name: InsertOrganization :one
 INSERT INTO
   organizations (id, name, description, created_at, updated_at)
@@ -414,9 +427,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: InsertProjectHistory :one
+-- name: InsertProjectVersion :one
 INSERT INTO
-  project_history (
+  project_version (
     id,
     project_id,
     created_at,
@@ -430,23 +443,12 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
--- name: InsertProjectHistoryLogs :many
+-- name: InsertProjectVersionParameter :one
 INSERT INTO
-  project_history_log
-SELECT
-  @project_history_id :: uuid AS project_history_id,
-  unnest(@id :: uuid [ ]) AS id,
-  unnest(@created_at :: timestamptz [ ]) AS created_at,
-  unnest(@source :: log_source [ ]) as source,
-  unnest(@level :: log_level [ ]) as level,
-  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
-
--- name: InsertProjectParameter :one
-INSERT INTO
-  project_parameter (
+  project_version_parameter (
     id,
     created_at,
-    project_history_id,
+    project_version_id,
     name,
     description,
     default_source_scheme,
@@ -498,11 +500,10 @@ INSERT INTO
     initiator_id,
     provisioner,
     type,
-    project_id,
     input
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -553,7 +554,7 @@ INSERT INTO
     created_at,
     updated_at,
     workspace_id,
-    project_history_id,
+    project_version_id,
     before_id,
     name,
     transition,
@@ -563,17 +564,6 @@ INSERT INTO
   )
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
-
--- name: InsertWorkspaceHistoryLogs :many
-INSERT INTO
-  workspace_history_log
-SELECT
-  unnest(@id :: uuid [ ]) AS id,
-  @workspace_history_id :: uuid AS workspace_history_id,
-  unnest(@created_at :: timestamptz [ ]) AS created_at,
-  unnest(@source :: log_source [ ]) as source,
-  unnest(@level :: log_level [ ]) as level,
-  unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO

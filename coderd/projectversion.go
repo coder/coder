@@ -20,8 +20,8 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-// ProjectHistory is the JSON representation of Coder project version history.
-type ProjectHistory struct {
+// ProjectVersion represents a single version of a project.
+type ProjectVersion struct {
 	ID            uuid.UUID                     `json:"id"`
 	ProjectID     uuid.UUID                     `json:"project_id"`
 	CreatedAt     time.Time                     `json:"created_at"`
@@ -31,11 +31,11 @@ type ProjectHistory struct {
 	Import        ProvisionerJob                `json:"import"`
 }
 
-// ProjectParameter represents a parameter parsed from project history source on creation.
-type ProjectParameter struct {
+// ProjectVersionParameter represents a parameter parsed from project version source on creation.
+type ProjectVersionParameter struct {
 	ID                       uuid.UUID                           `json:"id"`
 	CreatedAt                time.Time                           `json:"created_at"`
-	ProjectHistoryID         uuid.UUID                           `json:"project_history_id"`
+	ProjectVersionID         uuid.UUID                           `json:"project_version_id"`
 	Name                     string                              `json:"name"`
 	Description              string                              `json:"description,omitempty"`
 	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme,omitempty"`
@@ -52,28 +52,28 @@ type ProjectParameter struct {
 	ValidationValueType      string                              `json:"validation_value_type,omitempty"`
 }
 
-// CreateProjectHistoryRequest enables callers to create a new Project Version.
-type CreateProjectHistoryRequest struct {
+// CreateProjectVersionRequest enables callers to create a new Project Version.
+type CreateProjectVersionRequest struct {
 	StorageMethod database.ProjectStorageMethod `json:"storage_method" validate:"oneof=inline-archive,required"`
 	StorageSource []byte                        `json:"storage_source" validate:"max=1048576,required"`
 }
 
-// Lists history for a single project.
-func (api *api) projectHistoryByOrganization(rw http.ResponseWriter, r *http.Request) {
+// Lists versions for a single project.
+func (api *api) projectVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
-	history, err := api.Database.GetProjectHistoryByProjectID(r.Context(), project.ID)
+	version, err := api.Database.GetProjectVersionsByProjectID(r.Context(), project.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project history: %s", err),
+			Message: fmt.Sprintf("get project version: %s", err),
 		})
 		return
 	}
-	apiHistory := make([]ProjectHistory, 0)
-	for _, version := range history {
+	apiVersion := make([]ProjectVersion, 0)
+	for _, version := range version {
 		job, err := api.Database.GetProvisionerJobByID(r.Context(), version.ImportJobID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -81,16 +81,16 @@ func (api *api) projectHistoryByOrganization(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
-		apiHistory = append(apiHistory, convertProjectHistory(version, job))
+		apiVersion = append(apiVersion, convertProjectVersion(version, job))
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiHistory)
+	render.JSON(rw, r, apiVersion)
 }
 
-// Return a single project history by organization and name.
-func (api *api) projectHistoryByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
-	projectHistory := httpmw.ProjectHistoryParam(r)
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectHistory.ImportJobID)
+// Return a single project version by organization and name.
+func (api *api) projectVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+	projectVersion := httpmw.ProjectVersionParam(r)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.ImportJobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
@@ -98,31 +98,23 @@ func (api *api) projectHistoryByOrganizationAndName(rw http.ResponseWriter, r *h
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertProjectHistory(projectHistory, job))
+	render.JSON(rw, r, convertProjectVersion(projectVersion, job))
 }
 
 // Creates a new version of the project. An import job is queued to parse
 // the storage method provided. Once completed, the import job will specify
 // the version as latest.
-func (api *api) postProjectHistoryByOrganization(rw http.ResponseWriter, r *http.Request) {
-	var createProjectVersion CreateProjectHistoryRequest
+func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http.Request) {
+	var createProjectVersion CreateProjectVersionRequest
 	if !httpapi.Read(rw, r, &createProjectVersion) {
 		return
 	}
 
-	switch createProjectVersion.StorageMethod {
-	case database.ProjectStorageMethodInlineArchive:
-		tarReader := tar.NewReader(bytes.NewReader(createProjectVersion.StorageSource))
-		_, err := tarReader.Next()
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: "the archive must be a tar",
-			})
-			return
-		}
-	default:
+	tarReader := tar.NewReader(bytes.NewReader(createProjectVersion.StorageSource))
+	_, err := tarReader.Next()
+	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("unsupported storage method %s", createProjectVersion.StorageMethod),
+			Message: "the archive must be a tar",
 		})
 		return
 	}
@@ -131,42 +123,40 @@ func (api *api) postProjectHistoryByOrganization(rw http.ResponseWriter, r *http
 	project := httpmw.ProjectParam(r)
 
 	var provisionerJob database.ProvisionerJob
-	var projectHistory database.ProjectHistory
-	err := api.Database.InTx(func(db database.Store) error {
-		projectHistoryID := uuid.New()
-		input, err := json.Marshal(projectImportJob{
-			ProjectHistoryID: projectHistoryID,
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal import job: %w", err)
-		}
-
-		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-			InitiatorID: apiKey.UserID,
-			Provisioner: project.Provisioner,
-			Type:        database.ProvisionerJobTypeProjectImport,
-			ProjectID:   project.ID,
-			Input:       input,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-
-		projectHistory, err = api.Database.InsertProjectHistory(r.Context(), database.InsertProjectHistoryParams{
-			ID:            projectHistoryID,
+	var projectVersion database.ProjectVersion
+	err = api.Database.InTx(func(db database.Store) error {
+		provisionerJobID := uuid.New()
+		projectVersion, err = api.Database.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
+			ID:            uuid.New(),
 			ProjectID:     project.ID,
 			CreatedAt:     database.Now(),
 			UpdatedAt:     database.Now(),
 			Name:          namesgenerator.GetRandomName(1),
 			StorageMethod: createProjectVersion.StorageMethod,
 			StorageSource: createProjectVersion.StorageSource,
-			ImportJobID:   provisionerJob.ID,
+			ImportJobID:   provisionerJobID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert project history: %s", err)
+			return xerrors.Errorf("insert project version: %s", err)
+		}
+
+		input, err := json.Marshal(projectImportJob{
+			ProjectVersionID: projectVersion.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal import job: %w", err)
+		}
+		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+			ID:          provisionerJobID,
+			CreatedAt:   database.Now(),
+			UpdatedAt:   database.Now(),
+			InitiatorID: apiKey.UserID,
+			Provisioner: project.Provisioner,
+			Type:        database.ProvisionerJobTypeProjectImport,
+			Input:       input,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 		return nil
 	})
@@ -178,12 +168,12 @@ func (api *api) postProjectHistoryByOrganization(rw http.ResponseWriter, r *http
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertProjectHistory(projectHistory, provisionerJob))
+	render.JSON(rw, r, convertProjectVersion(projectVersion, provisionerJob))
 }
 
-func (api *api) projectHistoryParametersByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
-	projectHistory := httpmw.ProjectHistoryParam(r)
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectHistory.ImportJobID)
+func (api *api) projectVersionParametersByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+	projectVersion := httpmw.ProjectVersionParam(r)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.ImportJobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
@@ -204,10 +194,10 @@ func (api *api) projectHistoryParametersByOrganizationAndName(rw http.ResponseWr
 		return
 	}
 
-	parameters, err := api.Database.GetProjectParametersByHistoryID(r.Context(), projectHistory.ID)
+	parameters, err := api.Database.GetProjectVersionParametersByVersionID(r.Context(), projectVersion.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		parameters = []database.ProjectParameter{}
+		parameters = []database.ProjectVersionParameter{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -216,7 +206,7 @@ func (api *api) projectHistoryParametersByOrganizationAndName(rw http.ResponseWr
 		return
 	}
 
-	apiParameters := make([]ProjectParameter, 0, len(parameters))
+	apiParameters := make([]ProjectVersionParameter, 0, len(parameters))
 	for _, parameter := range parameters {
 		apiParameters = append(apiParameters, convertProjectParameter(parameter))
 	}
@@ -225,23 +215,23 @@ func (api *api) projectHistoryParametersByOrganizationAndName(rw http.ResponseWr
 	render.JSON(rw, r, apiParameters)
 }
 
-func convertProjectHistory(history database.ProjectHistory, job database.ProvisionerJob) ProjectHistory {
-	return ProjectHistory{
-		ID:            history.ID,
-		ProjectID:     history.ProjectID,
-		CreatedAt:     history.CreatedAt,
-		UpdatedAt:     history.UpdatedAt,
-		Name:          history.Name,
-		StorageMethod: history.StorageMethod,
+func convertProjectVersion(version database.ProjectVersion, job database.ProvisionerJob) ProjectVersion {
+	return ProjectVersion{
+		ID:            version.ID,
+		ProjectID:     version.ProjectID,
+		CreatedAt:     version.CreatedAt,
+		UpdatedAt:     version.UpdatedAt,
+		Name:          version.Name,
+		StorageMethod: version.StorageMethod,
 		Import:        convertProvisionerJob(job),
 	}
 }
 
-func convertProjectParameter(parameter database.ProjectParameter) ProjectParameter {
-	return ProjectParameter{
+func convertProjectParameter(parameter database.ProjectVersionParameter) ProjectVersionParameter {
+	return ProjectVersionParameter{
 		ID:                       parameter.ID,
 		CreatedAt:                parameter.CreatedAt,
-		ProjectHistoryID:         parameter.ProjectHistoryID,
+		ProjectVersionID:         parameter.ProjectVersionID,
 		Name:                     parameter.Name,
 		Description:              parameter.Description,
 		DefaultSourceScheme:      parameter.DefaultSourceScheme,
@@ -257,8 +247,4 @@ func convertProjectParameter(parameter database.ProjectParameter) ProjectParamet
 		ValidationTypeSystem:     parameter.ValidationTypeSystem,
 		ValidationValueType:      parameter.ValidationValueType,
 	}
-}
-
-func projectHistoryLogsChannel(projectHistoryID uuid.UUID) string {
-	return fmt.Sprintf("project-history-logs:%s", projectHistoryID)
 }

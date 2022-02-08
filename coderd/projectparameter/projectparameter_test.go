@@ -21,17 +21,24 @@ func TestCompute(t *testing.T) {
 		return projectparameter.Scope{
 			OrganizationID:   uuid.New().String(),
 			ProjectID:        uuid.New(),
-			ProjectHistoryID: uuid.New(),
-			UserID:           uuid.NewString(),
+			ProjectVersionID: uuid.New(),
+			WorkspaceID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+			UserID: sql.NullString{
+				String: uuid.NewString(),
+				Valid:  true,
+			},
 		}
 	}
 	type projectParameterOptions struct {
 		AllowOverrideSource      bool
 		AllowOverrideDestination bool
 		DefaultDestinationScheme database.ParameterDestinationScheme
-		ProjectHistoryID         uuid.UUID
+		ProjectVersionID         uuid.UUID
 	}
-	generateProjectParameter := func(t *testing.T, db database.Store, opts projectParameterOptions) database.ProjectParameter {
+	generateProjectParameter := func(t *testing.T, db database.Store, opts projectParameterOptions) database.ProjectVersionParameter {
 		if opts.DefaultDestinationScheme == "" {
 			opts.DefaultDestinationScheme = database.ParameterDestinationSchemeEnvironmentVariable
 		}
@@ -41,10 +48,10 @@ func TestCompute(t *testing.T) {
 		require.NoError(t, err)
 		destinationValue, err := cryptorand.String(8)
 		require.NoError(t, err)
-		param, err := db.InsertProjectParameter(context.Background(), database.InsertProjectParameterParams{
+		param, err := db.InsertProjectVersionParameter(context.Background(), database.InsertProjectVersionParameterParams{
 			ID:                  uuid.New(),
 			Name:                name,
-			ProjectHistoryID:    opts.ProjectHistoryID,
+			ProjectVersionID:    opts.ProjectVersionID,
 			DefaultSourceScheme: database.ParameterSourceSchemeData,
 			DefaultSourceValue: sql.NullString{
 				String: sourceValue,
@@ -66,9 +73,9 @@ func TestCompute(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
-		parameter, err := db.InsertProjectParameter(context.Background(), database.InsertProjectParameterParams{
+		parameter, err := db.InsertProjectVersionParameter(context.Background(), database.InsertProjectVersionParameterParams{
 			ID:               uuid.New(),
-			ProjectHistoryID: scope.ProjectHistoryID,
+			ProjectVersionID: scope.ProjectVersionID,
 			Name:             "hey",
 		})
 		require.NoError(t, err)
@@ -85,7 +92,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectHistoryID:         scope.ProjectHistoryID,
+			ProjectVersionID:         scope.ProjectVersionID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
 		values, err := projectparameter.Compute(context.Background(), db, scope)
@@ -105,7 +112,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectHistoryID: scope.ProjectHistoryID,
+			ProjectVersionID: scope.ProjectVersionID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -131,7 +138,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectHistoryID: scope.ProjectHistoryID,
+			ProjectVersionID: scope.ProjectVersionID,
 		})
 		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -157,13 +164,13 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectHistoryID: scope.ProjectHistoryID,
+			ProjectVersionID: scope.ProjectVersionID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           scope.WorkspaceID.String(),
+			ScopeID:           scope.WorkspaceID.UUID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -183,13 +190,13 @@ func TestCompute(t *testing.T) {
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
 			AllowOverrideSource: true,
-			ProjectHistoryID:    scope.ProjectHistoryID,
+			ProjectVersionID:    scope.ProjectVersionID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           scope.WorkspaceID.String(),
+			ScopeID:           scope.WorkspaceID.UUID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,

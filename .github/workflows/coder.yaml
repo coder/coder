@@ -88,14 +88,9 @@ jobs:
       - run: "make --output-sync -j gen"
       - run: ./scripts/check_unstaged.sh
 
-  style:
-    name: "style/${{ matrix.style }}"
+  style-fmt:
+    name: "style/fmt"
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        style:
-          - fmt
-      fail-fast: false
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -116,8 +111,8 @@ jobs:
         run: yarn install
         working-directory: site
 
-      - name: "make ${{ matrix.style }}"
-        run: "make --output-sync -j ${{ matrix.style }}"
+      - name: "make fmt"
+        run: "make --output-sync -j fmt"
 
   test-go:
     name: "test/go"
@@ -155,15 +150,31 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with Mock Database
-        run: gotestsum --jsonfile="gotests.json" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=5 -race -short -parallel=2
+        run: gotestsum --junitfile="gotests.xml" --packages="./..." --
+          -covermode=atomic -coverprofile="gotests.coverage"
+          -timeout=3m -count=5 -race -short -parallel=2
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_DATABASE: fake
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
-        run: DB=true gotestsum --jsonfile="gotests.json" --packages="./..." --
+        run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=1 -race -parallel=2
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_DATABASE: postgresql
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v2
         if: github.actor != 'dependabot[bot]'
@@ -172,6 +183,46 @@ jobs:
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
           fail_ci_if_error: true
+
+  deploy:
+    name: "deploy"
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0
+        with:
+          workload_identity_provider: projects/477254869654/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-coder@coder-ci.iam.gserviceaccount.com
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Configure Docker for Google Artifact Registry
+        run: gcloud auth configure-docker us-docker.pkg.dev
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+
+      - run: yarn install
+        working-directory: site
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      - run: make docker/image/coder
+
+      - run: docker push us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest
+
+      - name: Update coder service
+        run: gcloud run services update coder --image us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest --project coder-blacktriangle-dev --tag "git-$(git rev-parse --short HEAD)" --region us-central1
 
   test-js:
     name: "test/js"
