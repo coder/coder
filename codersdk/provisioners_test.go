@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
@@ -64,10 +63,8 @@ func TestProvisionerJobLogs(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization, nil)
-		version, err := client.ProjectVersion(context.Background(), user.Organization, project.Name, "latest")
-		require.NoError(t, err)
-		_, err = client.ProvisionerJobLogs(context.Background(), user.Organization, version.Import.ID)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		_, err := client.ProvisionerJobLogs(context.Background(), user.Organization, job.ID)
 		require.NoError(t, err)
 	})
 }
@@ -86,30 +83,22 @@ func TestFollowProvisionerJobLogsAfter(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
-			Parse: echo.ParseComplete,
-			Provision: []*sdkproto.Provision_Response{{
-				Type: &sdkproto.Provision_Response_Log{
+		before := database.Now()
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, &echo.Responses{
+			Parse: []*sdkproto.Parse_Response{{
+				Type: &sdkproto.Parse_Response_Log{
 					Log: &sdkproto.Log{
 						Output: "hello",
 					},
 				},
 			}, {
-				Type: &sdkproto.Provision_Response_Complete{
-					Complete: &sdkproto.Provision_Complete{},
+				Type: &sdkproto.Parse_Response_Complete{
+					Complete: &sdkproto.Parse_Complete{},
 				},
 			}},
+			Provision: echo.ProvisionComplete,
 		})
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, project.Name, version.Name)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		after := database.Now()
-		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), user.Organization, history.Provision.ID, after)
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), user.Organization, job.ID, before)
 		require.NoError(t, err)
 		_, ok := <-logs
 		require.True(t, ok)
