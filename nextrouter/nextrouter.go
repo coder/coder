@@ -43,7 +43,7 @@ func Handler(fileSystem fs.FS, options *Options) http.Handler {
 	router := chi.NewRouter()
 
 	// Build up a router that matches NextJS routing rules, for HTML files
-	buildRouter(router, fileSystem, *options)
+	registerRoutes(router, fileSystem, *options)
 
 	// Fallback to static file server for non-HTML files
 	// Non-HTML files don't have special routing rules, so we can just leverage
@@ -57,9 +57,9 @@ func Handler(fileSystem fs.FS, options *Options) http.Handler {
 	return router
 }
 
-// buildRouter recursively traverses the file-system, building routes
+// registerRoutes recursively traverses the file-system, building routes
 // as appropriate for respecting NextJS dynamic rules.
-func buildRouter(rtr chi.Router, fileSystem fs.FS, options Options) {
+func registerRoutes(rtr chi.Router, fileSystem fs.FS, options Options) {
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
 		options.Logger.Warn(context.Background(), "Provided filesystem is empty; unable to build routes")
@@ -92,9 +92,9 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, options Options) {
 			routeName = "{dynamic}"
 		}
 
-		options.Logger.Debug(context.Background(), "Adding route", slog.F("name", name), slog.F("routeName", routeName))
+		options.Logger.Debug(context.Background(), "Registering route", slog.F("name", name), slog.F("routeName", routeName))
 		rtr.Route("/"+routeName, func(r chi.Router) {
-			buildRouter(r, sub, options)
+			registerRoutes(r, sub, options)
 		})
 	}
 }
