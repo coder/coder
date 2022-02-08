@@ -87,7 +87,7 @@ func buildRouter(rtr chi.Router, fileSystem fs.FS, options Options) {
 				routeName = "{dynamic}"
 			}
 
-			options.Logger.Info(context.Background(), "Adding route", slog.F("name", name), slog.F("routeName", routeName))
+			options.Logger.Debug(context.Background(), "Adding route", slog.F("name", name), slog.F("routeName", routeName))
 			rtr.Route("/"+routeName, func(r chi.Router) {
 				buildRouter(r, sub, options)
 			})
