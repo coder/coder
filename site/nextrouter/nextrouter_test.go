@@ -12,7 +12,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/nextrouter"
+	"github.com/coder/coder/site/nextrouter"
 )
 
 func TestNextRouter(t *testing.T) {
