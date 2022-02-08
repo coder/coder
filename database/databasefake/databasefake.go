@@ -653,6 +653,7 @@ func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjec
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	//nolint:gosimple
 	project := database.Project{
 		ID:              arg.ID,
 		CreatedAt:       arg.CreatedAt,

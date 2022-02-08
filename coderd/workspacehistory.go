@@ -219,7 +219,7 @@ func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) 
 	render.JSON(rw, r, apiHistory)
 }
 
-func (api *api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
+func (*api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
 	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
