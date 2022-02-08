@@ -168,7 +168,7 @@ func serveFile(router chi.Router, fileSystem fs.FS, fileName string, options Opt
 
 	// Handle the `[org]` dynamic route case
 	if isDynamicRoute(fileNameWithoutExtension) {
-		options.Logger.Info(context.Background(), "Registering dynamic route", slog.F("fileName", fileName))
+		options.Logger.Debug(context.Background(), "Registering dynamic route", slog.F("fileName", fileName))
 		router.Get("/{dynamic}", handler)
 		return
 	}
