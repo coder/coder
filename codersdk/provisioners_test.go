@@ -55,7 +55,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_, err := client.ProvisionerJobLogs(context.Background(), uuid.New())
+		_, err := client.ProvisionerJobLogs(context.Background(), "nothing", uuid.New())
 		require.Error(t, err)
 	})
 
@@ -73,7 +73,7 @@ func TestProvisionerJobLogs(t *testing.T) {
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		_, err = client.ProvisionerJobLogs(context.Background(), history.Provision.ID)
+		_, err = client.ProvisionerJobLogs(context.Background(), user.Organization, history.Provision.ID)
 		require.NoError(t, err)
 	})
 }
@@ -83,7 +83,7 @@ func TestFollowProvisionerJobLogsAfter(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		_, err := client.FollowProvisionerJobLogsAfter(context.Background(), uuid.New(), time.Time{})
+		_, err := client.FollowProvisionerJobLogsAfter(context.Background(), "nothing", uuid.New(), time.Time{})
 		require.Error(t, err)
 	})
 
@@ -115,7 +115,7 @@ func TestFollowProvisionerJobLogsAfter(t *testing.T) {
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, after)
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), user.Organization, history.Provision.ID, after)
 		require.NoError(t, err)
 		_, ok := <-logs
 		require.True(t, ok)

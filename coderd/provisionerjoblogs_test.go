@@ -47,7 +47,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
 
 		// Return the log after completion!
-		logs, err := client.ProvisionerJobLogs(context.Background(), history.Provision.ID)
+		logs, err := client.ProvisionerJobLogs(context.Background(), user.Organization, history.Provision.ID)
 		require.NoError(t, err)
 		require.NotNil(t, logs)
 		require.Len(t, logs, 1)
@@ -84,7 +84,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "", workspace.Name, history.Name)
 
-		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, before)
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), user.Organization, history.Provision.ID, before)
 		require.NoError(t, err)
 		log, ok := <-logs
 		require.True(t, ok)
@@ -123,7 +123,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), history.Provision.ID, before)
+		logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), user.Organization, history.Provision.ID, before)
 		require.NoError(t, err)
 		log := <-logs
 		require.Equal(t, "log-output", log.Output)

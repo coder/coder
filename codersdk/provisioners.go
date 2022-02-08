@@ -61,12 +61,12 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 
 // ProvisionerJobLogs returns all logs for workspace history.
 // To stream logs, use the FollowProvisionerJobLogs function.
-func (c *Client) ProvisionerJobLogs(ctx context.Context, jobID uuid.UUID) ([]coderd.ProvisionerJobLog, error) {
-	return c.ProvisionerJobLogsBetween(ctx, jobID, time.Time{}, time.Time{})
+func (c *Client) ProvisionerJobLogs(ctx context.Context, organization string, jobID uuid.UUID) ([]coderd.ProvisionerJobLog, error) {
+	return c.ProvisionerJobLogsBetween(ctx, organization, jobID, time.Time{}, time.Time{})
 }
 
 // ProvisionerJobLogsBetween returns logs between a specific time.
-func (c *Client) ProvisionerJobLogsBetween(ctx context.Context, jobID uuid.UUID, after, before time.Time) ([]coderd.ProvisionerJobLog, error) {
+func (c *Client) ProvisionerJobLogsBetween(ctx context.Context, organization string, jobID uuid.UUID, after, before time.Time) ([]coderd.ProvisionerJobLog, error) {
 	values := url.Values{}
 	if !after.IsZero() {
 		values["after"] = []string{strconv.FormatInt(after.UTC().UnixMilli(), 10)}
@@ -74,7 +74,7 @@ func (c *Client) ProvisionerJobLogsBetween(ctx context.Context, jobID uuid.UUID,
 	if !before.IsZero() {
 		values["before"] = []string{strconv.FormatInt(before.UTC().UnixMilli(), 10)}
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/logs?%s", jobID, values.Encode()), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/logs?%s", organization, jobID, values.Encode()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +89,12 @@ func (c *Client) ProvisionerJobLogsBetween(ctx context.Context, jobID uuid.UUID,
 
 // FollowProvisionerJobLogsAfter returns a stream of workspace history logs.
 // The channel will close when the workspace history job is no longer active.
-func (c *Client) FollowProvisionerJobLogsAfter(ctx context.Context, jobID uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
+func (c *Client) FollowProvisionerJobLogsAfter(ctx context.Context, organization string, jobID uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
 	afterQuery := ""
 	if !after.IsZero() {
 		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/logs?follow%s", jobID, afterQuery), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/logs?follow%s", organization, jobID, afterQuery), nil)
 	if err != nil {
 		return nil, err
 	}

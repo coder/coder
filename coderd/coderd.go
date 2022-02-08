@@ -107,9 +107,15 @@ func New(options *Options) http.Handler {
 				r.Get("/", api.provisionerDaemons)
 				r.Get("/serve", api.provisionerDaemonsServe)
 			})
-			r.Route("/jobs/{provisionerjob}", func(r chi.Router) {
-				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
-				r.Get("/logs", api.provisionerJobLogsByID)
+			r.Route("/jobs/{organization}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractAPIKey(options.Database, nil),
+					httpmw.ExtractOrganizationParam(options.Database),
+				)
+				r.Route("/{provisionerjob}", func(r chi.Router) {
+					r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
+					r.Get("/logs", api.provisionerJobLogsByID)
+				})
 			})
 		})
 	})
