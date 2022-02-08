@@ -1,6 +1,6 @@
 -- Store arbitrary data like project source code or avatars.
 CREATE TABLE file (
-    hash varchar(32) NOT NULL UNIQUE,
+    hash varchar(64) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     created_by text NOT NULL,
     mimetype varchar(64) NOT NULL,
