@@ -18,14 +18,14 @@ import (
 // Options for configuring a nextrouter
 type Options struct {
 	Logger           slog.Logger
-	TemplateDataFunc TemplateDataFunc
+	TemplateDataFunc HTMLTemplateHandler
 }
 
-// TemplateDataFunc is a function that lets the consumer of `nextrouter`
+// HTMLTemplateHandler is a function that lets the consumer of `nextrouter`
 // inject arbitrary template parameters, based on the request. This is useful
 // if the Request object is carrying CSRF tokens, session tokens, etc -
 // they can be emitted in the page.
-type TemplateDataFunc func(*http.Request) interface{}
+type HTMLTemplateHandler func(*http.Request) interface{}
 
 // Handler returns an HTTP handler for serving a next-based static site
 // This handler respects NextJS-based routing rules:
