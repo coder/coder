@@ -2,7 +2,6 @@ package peer_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -231,7 +231,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		conn, err := peer.Client([]webrtc.ICEServer{}, nil)
 		require.NoError(t, err)
-		expectedErr := errors.New("wow")
+		expectedErr := xerrors.New("wow")
 		_ = conn.CloseWithError(expectedErr)
 		_, err = conn.Dial(context.Background(), "", nil)
 		require.ErrorIs(t, err, expectedErr)

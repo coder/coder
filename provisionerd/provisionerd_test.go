@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -52,7 +52,7 @@ func TestProvisionerd(t *testing.T) {
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			defer close(completeChan)
-			return nil, errors.New("an error")
+			return nil, xerrors.New("an error")
 		}, provisionerd.Provisioners{})
 		<-completeChan
 		require.NoError(t, closer.Close())
@@ -228,7 +228,7 @@ func TestProvisionerd(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if len(msg.ProjectImportLogs) == 0 {
+						if len(msg.Logs) == 0 {
 							continue
 						}
 
@@ -261,6 +261,27 @@ func TestProvisionerd(t *testing.T) {
 						Type: &sdkproto.Parse_Response_Complete{
 							Complete: &sdkproto.Parse_Complete{
 								ParameterSchemas: []*sdkproto.ParameterSchema{},
+							},
+						},
+					})
+					require.NoError(t, err)
+					return nil
+				},
+				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					err := stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Log{
+							Log: &sdkproto.Log{
+								Level:  sdkproto.LogLevel_INFO,
+								Output: "hello",
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					err = stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Resources: []*sdkproto.Resource{},
 							},
 						},
 					})
@@ -308,7 +329,7 @@ func TestProvisionerd(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if len(msg.WorkspaceProvisionLogs) == 0 {
+						if len(msg.Logs) == 0 {
 							continue
 						}
 

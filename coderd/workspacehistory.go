@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/database"
@@ -24,18 +25,18 @@ type WorkspaceHistory struct {
 	CreatedAt        time.Time                    `json:"created_at"`
 	UpdatedAt        time.Time                    `json:"updated_at"`
 	WorkspaceID      uuid.UUID                    `json:"workspace_id"`
-	ProjectHistoryID uuid.UUID                    `json:"project_history_id"`
+	ProjectVersionID uuid.UUID                    `json:"project_version_id"`
 	BeforeID         uuid.UUID                    `json:"before_id"`
 	AfterID          uuid.UUID                    `json:"after_id"`
 	Name             string                       `json:"name"`
 	Transition       database.WorkspaceTransition `json:"transition"`
 	Initiator        string                       `json:"initiator"`
-	Provision        ProvisionerJob               `json:"provision"`
+	ProvisionJobID   uuid.UUID                    `json:"provision_job_id"`
 }
 
 // CreateWorkspaceHistoryRequest provides options to update the latest workspace history.
 type CreateWorkspaceHistoryRequest struct {
-	ProjectHistoryID uuid.UUID                    `json:"project_history_id" validate:"required"`
+	ProjectVersionID uuid.UUID                    `json:"project_version_id" validate:"required"`
 	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 }
 
@@ -46,12 +47,12 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	}
 	user := httpmw.UserParam(r)
 	workspace := httpmw.WorkspaceParam(r)
-	projectHistory, err := api.Database.GetProjectHistoryByID(r.Context(), createBuild.ProjectHistoryID)
+	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), createBuild.ProjectVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "project history not found",
+			Message: "project version not found",
 			Errors: []httpapi.Error{{
-				Field: "project_history_id",
+				Field: "project_version_id",
 				Code:  "exists",
 			}},
 		})
@@ -59,36 +60,37 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project history: %s", err),
+			Message: fmt.Sprintf("get project version: %s", err),
 		})
 		return
 	}
-	projectHistoryJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectHistory.ImportJobID)
+	projectVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.ImportJobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
-	projectHistoryJobStatus := convertProvisionerJob(projectHistoryJob).Status
-	switch projectHistoryJobStatus {
+	projectVersionJobStatus := convertProvisionerJob(projectVersionJob).Status
+	switch projectVersionJobStatus {
 	case ProvisionerJobStatusPending, ProvisionerJobStatusRunning:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("The provided project history is %s. Wait for it to complete importing!", projectHistoryJobStatus),
+		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
+			Message: fmt.Sprintf("The provided project version is %s. Wait for it to complete importing!", projectVersionJobStatus),
 		})
 		return
 	case ProvisionerJobStatusFailed:
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("The provided project history %q has failed to import. You cannot create workspaces using it!", projectHistory.Name),
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("The provided project version %q has failed to import. You cannot create workspaces using it!", projectVersion.Name),
 		})
 		return
 	case ProvisionerJobStatusCancelled:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "The provided project history was canceled during import. You cannot create workspaces using it!",
+			Message: "The provided project version was canceled during import. You cannot create workspaces using it!",
 		})
+		return
 	}
 
-	project, err := api.Database.GetProjectByID(r.Context(), projectHistory.ProjectID)
+	project, err := api.Database.GetProjectByID(r.Context(), projectVersion.ProjectID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get project: %s", err),
@@ -101,7 +103,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	priorHistory, err := api.Database.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err == nil {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.ProvisionJobID)
-		if err == nil && convertProvisionerJob(priorJob).Status.Completed() {
+		if err == nil && !convertProvisionerJob(priorJob).Status.Completed() {
 			httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 				Message: "a workspace build is already active",
 			})
@@ -112,62 +114,63 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			UUID:  priorHistory.ID,
 			Valid: true,
 		}
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get prior workspace history: %s", err),
 		})
 		return
 	}
 
-	var provisionerJob database.ProvisionerJob
 	var workspaceHistory database.WorkspaceHistory
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = api.Database.InTx(func(db database.Store) error {
-		// Generate the ID before-hand so the provisioner job is aware of it!
-		workspaceHistoryID := uuid.New()
-		input, err := json.Marshal(workspaceProvisionJob{
-			WorkspaceHistoryID: workspaceHistoryID,
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal provision job: %w", err)
-		}
-
-		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-			InitiatorID: user.ID,
-			Provisioner: project.Provisioner,
-			Type:        database.ProvisionerJobTypeWorkspaceProvision,
-			ProjectID:   project.ID,
-			Input:       input,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-
+		provisionerJobID := uuid.New()
 		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
-			ID:               workspaceHistoryID,
+			ID:               uuid.New(),
 			CreatedAt:        database.Now(),
 			UpdatedAt:        database.Now(),
 			WorkspaceID:      workspace.ID,
-			ProjectHistoryID: projectHistory.ID,
+			ProjectVersionID: projectVersion.ID,
 			BeforeID:         priorHistoryID,
+			Name:             namesgenerator.GetRandomName(1),
 			Initiator:        user.ID,
 			Transition:       createBuild.Transition,
-			ProvisionJobID:   provisionerJob.ID,
+			ProvisionJobID:   provisionerJobID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace history: %w", err)
 		}
 
+		input, err := json.Marshal(workspaceProvisionJob{
+			WorkspaceHistoryID: workspaceHistory.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal provision job: %w", err)
+		}
+
+		_, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+			ID:             provisionerJobID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			InitiatorID:    user.ID,
+			OrganizationID: project.OrganizationID,
+			Provisioner:    project.Provisioner,
+			Type:           database.ProvisionerJobTypeWorkspaceProvision,
+			StorageMethod:  projectVersionJob.StorageMethod,
+			StorageSource:  projectVersionJob.StorageSource,
+			Input:          input,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
+		}
+
 		if priorHistoryID.Valid {
 			// Update the prior history entries "after" column.
 			err = db.UpdateWorkspaceHistoryByID(r.Context(), database.UpdateWorkspaceHistoryByIDParams{
-				ID:        priorHistory.ID,
-				UpdatedAt: database.Now(),
+				ID:               priorHistory.ID,
+				ProvisionerState: priorHistory.ProvisionerState,
+				UpdatedAt:        database.Now(),
 				AfterID: uuid.NullUUID{
 					UUID:  workspaceHistory.ID,
 					Valid: true,
@@ -188,16 +191,17 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory, provisionerJob))
+	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
 }
 
 // Returns all workspace history. This is not sorted. Use before/after to chronologically sort.
 func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	histories, err := api.Database.GetWorkspaceHistoryByWorkspaceID(r.Context(), workspace.ID)
+	history, err := api.Database.GetWorkspaceHistoryByWorkspaceID(r.Context(), workspace.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
+		history = []database.WorkspaceHistory{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -206,54 +210,35 @@ func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	apiHistory := make([]WorkspaceHistory, 0, len(histories))
-	for _, history := range histories {
-		job, err := api.Database.GetProvisionerJobByID(r.Context(), history.ProvisionJobID)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get provisioner job: %s", err),
-			})
-			return
-		}
-		apiHistory = append(apiHistory, convertWorkspaceHistory(history, job))
+	apiHistory := make([]WorkspaceHistory, 0, len(history))
+	for _, history := range history {
+		apiHistory = append(apiHistory, convertWorkspaceHistory(history))
 	}
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiHistory)
 }
 
-func (api *api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
+func (*api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
 	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceHistory.ProvisionJobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
-		})
-		return
-	}
-
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory, job))
+	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
 }
 
 // Converts the internal history representation to a public external-facing model.
-func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory, provisionerJob database.ProvisionerJob) WorkspaceHistory {
+func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory) WorkspaceHistory {
 	//nolint:unconvert
 	return WorkspaceHistory(WorkspaceHistory{
 		ID:               workspaceHistory.ID,
 		CreatedAt:        workspaceHistory.CreatedAt,
 		UpdatedAt:        workspaceHistory.UpdatedAt,
 		WorkspaceID:      workspaceHistory.WorkspaceID,
-		ProjectHistoryID: workspaceHistory.ProjectHistoryID,
+		ProjectVersionID: workspaceHistory.ProjectVersionID,
 		BeforeID:         workspaceHistory.BeforeID.UUID,
 		AfterID:          workspaceHistory.AfterID.UUID,
 		Name:             workspaceHistory.Name,
 		Transition:       workspaceHistory.Transition,
 		Initiator:        workspaceHistory.Initiator,
-		Provision:        convertProvisionerJob(provisionerJob),
+		ProvisionJobID:   workspaceHistory.ProvisionJobID,
 	})
-}
-
-func workspaceHistoryLogsChannel(workspaceHistoryID uuid.UUID) string {
-	return fmt.Sprintf("workspace-history-logs:%s", workspaceHistoryID)
 }

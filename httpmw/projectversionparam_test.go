@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-func TestProjectHistoryParam(t *testing.T) {
+func TestProjectVersionParam(t *testing.T) {
 	t.Parallel()
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.Project) {
@@ -94,7 +94,7 @@ func TestProjectHistoryParam(t *testing.T) {
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractProjectParam(db),
-			httpmw.ExtractProjectHistoryParam(db),
+			httpmw.ExtractProjectVersionParam(db),
 		)
 		rtr.Get("/", nil)
 		r, _ := setupAuthentication(db)
@@ -114,12 +114,12 @@ func TestProjectHistoryParam(t *testing.T) {
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractProjectParam(db),
-			httpmw.ExtractProjectHistoryParam(db),
+			httpmw.ExtractProjectVersionParam(db),
 		)
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("projecthistory", "nothin")
+		chi.RouteContext(r.Context()).URLParams.Add("projectversion", "nothin")
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -128,7 +128,7 @@ func TestProjectHistoryParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("ProjectHistory", func(t *testing.T) {
+	t.Run("ProjectVersion", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
@@ -136,21 +136,21 @@ func TestProjectHistoryParam(t *testing.T) {
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractProjectParam(db),
-			httpmw.ExtractProjectHistoryParam(db),
+			httpmw.ExtractProjectVersionParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.ProjectHistoryParam(r)
+			_ = httpmw.ProjectVersionParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
 
 		r, project := setupAuthentication(db)
-		projectHistory, err := db.InsertProjectHistory(context.Background(), database.InsertProjectHistoryParams{
+		projectVersion, err := db.InsertProjectVersion(context.Background(), database.InsertProjectVersionParams{
 			ID:        uuid.New(),
 			ProjectID: project.ID,
 			Name:      "moo",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("projecthistory", projectHistory.Name)
+		chi.RouteContext(r.Context()).URLParams.Add("projectversion", projectVersion.Name)
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -20,14 +21,15 @@ import (
 // New creates a Coder client for the provided URL.
 func New(serverURL *url.URL) *Client {
 	return &Client{
-		url:        serverURL,
+		URL:        serverURL,
 		httpClient: &http.Client{},
 	}
 }
 
 // Client is an HTTP caller for methods to the Coder API.
 type Client struct {
-	url        *url.URL
+	URL *url.URL
+
 	httpClient *http.Client
 }
 
@@ -40,7 +42,7 @@ func (c *Client) SetSessionToken(token string) error {
 			return err
 		}
 	}
-	c.httpClient.Jar.SetCookies(c.url, []*http.Cookie{{
+	c.httpClient.Jar.SetCookies(c.URL, []*http.Cookie{{
 		Name:  httpmw.AuthCookie,
 		Value: token,
 	}})
@@ -49,19 +51,24 @@ func (c *Client) SetSessionToken(token string) error {
 
 // request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
-func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
-	serverURL, err := c.url.Parse(path)
+func (c *Client) request(ctx context.Context, method, path string, body interface{}, opts ...func(r *http.Request)) (*http.Response, error) {
+	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if body != nil {
-		enc := json.NewEncoder(&buf)
-		enc.SetEscapeHTML(false)
-		err = enc.Encode(body)
-		if err != nil {
-			return nil, xerrors.Errorf("encode body: %w", err)
+		if data, ok := body.([]byte); ok {
+			buf = *bytes.NewBuffer(data)
+		} else {
+			// Assume JSON if not bytes.
+			enc := json.NewEncoder(&buf)
+			enc.SetEscapeHTML(false)
+			err = enc.Encode(body)
+			if err != nil {
+				return nil, xerrors.Errorf("encode body: %w", err)
+			}
 		}
 	}
 
@@ -71,6 +78,9 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for _, opt := range opts {
+		opt(req)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -112,5 +122,10 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("status code %d: %s", e.statusCode, e.Message)
+	var builder strings.Builder
+	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
+	for _, err := range e.Errors {
+		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Code)
+	}
+	return builder.String()
 }

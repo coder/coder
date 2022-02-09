@@ -14,3 +14,4 @@ yarn-error.log
 .next/
 coverage/
 out/
+storybook-static/

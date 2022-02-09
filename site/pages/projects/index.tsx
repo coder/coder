@@ -19,12 +19,8 @@ const ProjectsPage: React.FC = () => {
   const styles = useStyles()
   const router = useRouter()
   const { me, signOut } = useUser(true)
-  const { data, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
+  const { data: projects, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
   const { data: orgs, error: orgsError } = useSWR<Organization[], Error>("/api/v2/users/me/organizations")
-
-  // TODO: The API call is currently returning `null`, which isn't ideal
-  // - it breaks checking for data presence with SWR.
-  const projects = data || []
 
   if (error) {
     return <ErrorSummary error={error} />

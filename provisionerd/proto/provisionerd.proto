@@ -18,25 +18,34 @@ message AcquiredJob {
         bytes state = 4;
     }
     message ProjectImport {
-        string project_history_id = 1;
-        string project_history_name = 2;
+        repeated provisioner.ParameterValue parameter_values = 1;
+        bool skip_parameter_schemas = 2;
+        bool skip_resources = 3;
     }
     string job_id = 1;
     int64 created_at = 2;
     string provisioner = 3;
-    string organization_name = 4;
-    string project_name = 5;
-    string user_name = 6;
-    bytes project_source_archive = 7;
+    string user_name = 4;
+    bytes project_source_archive = 5;
     oneof type {
-        WorkspaceProvision workspace_provision = 8;
-        ProjectImport project_import = 9;
+        WorkspaceProvision workspace_provision = 6;
+        ProjectImport project_import = 7;
     }
 }
 
 message CancelledJob {
     string job_id = 1;
     string error = 2;
+}
+
+// TransitionedResource represents a resource that knows whether
+// it's existence is dependent on stop or not.
+// 
+// This is used on import to display start + stopped resources
+// for the lifecycle of a workspace.
+message TransitionedResource {
+    provisioner.Resource resource = 1;
+    bool destroy_on_stop = 2;
 }
 
 // CompletedJob is sent when the provisioner daemon completes a job.
@@ -47,6 +56,8 @@ message CompletedJob {
     }
     message ProjectImport {
         repeated provisioner.ParameterSchema parameter_schemas = 1;
+        repeated provisioner.Resource start_resources = 2;
+        repeated provisioner.Resource stop_resources = 3;
     }
     string job_id = 1;
     oneof type {
@@ -74,8 +85,7 @@ message Log {
 // should still be sent periodically as a heartbeat.
 message JobUpdate {
     string job_id = 1;
-    repeated Log workspace_provision_logs = 2;
-    repeated Log project_import_logs = 3;
+    repeated Log logs = 2;
 }
 
 service ProvisionerDaemon {

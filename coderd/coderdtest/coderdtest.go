@@ -7,100 +7,30 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
 	"github.com/coder/coder/database/postgres"
-	"github.com/coder/coder/provisioner/terraform"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-// Server represents a test instance of coderd.
-// The database is intentionally omitted from
-// this struct to promote data being exposed via
-// the API.
-type Server struct {
-	Client *codersdk.Client
-	URL    *url.URL
-}
-
-// RandomInitialUser generates a random initial user and authenticates
-// it with the client on the Server struct.
-func (s *Server) RandomInitialUser(t *testing.T) coderd.CreateInitialUserRequest {
-	username, err := cryptorand.String(12)
-	require.NoError(t, err)
-	password, err := cryptorand.String(12)
-	require.NoError(t, err)
-	organization, err := cryptorand.String(12)
-	require.NoError(t, err)
-
-	req := coderd.CreateInitialUserRequest{
-		Email:        "testuser@coder.com",
-		Username:     username,
-		Password:     password,
-		Organization: organization,
-	}
-	_, err = s.Client.CreateInitialUser(context.Background(), req)
-	require.NoError(t, err)
-
-	login, err := s.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-		Email:    "testuser@coder.com",
-		Password: password,
-	})
-	require.NoError(t, err)
-	err = s.Client.SetSessionToken(login.SessionToken)
-	require.NoError(t, err)
-	return req
-}
-
-// AddProvisionerd launches a new provisionerd instance!
-func (s *Server) AddProvisionerd(t *testing.T) io.Closer {
-	tfClient, tfServer := provisionersdk.TransportPipe()
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(func() {
-		_ = tfClient.Close()
-		_ = tfServer.Close()
-		cancelFunc()
-	})
-	go func() {
-		err := terraform.Serve(ctx, &terraform.ServeOptions{
-			ServeOptions: &provisionersdk.ServeOptions{
-				Listener: tfServer,
-			},
-			Logger: slogtest.Make(t, nil).Named("terraform-provisioner").Leveled(slog.LevelDebug),
-		})
-		require.NoError(t, err)
-	}()
-
-	closer := provisionerd.New(s.Client.ProvisionerDaemonClient, &provisionerd.Options{
-		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:   50 * time.Millisecond,
-		UpdateInterval: 50 * time.Millisecond,
-		Provisioners: provisionerd.Provisioners{
-			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(tfClient)),
-		},
-		WorkDirectory: t.TempDir(),
-	})
-	t.Cleanup(func() {
-		_ = closer.Close()
-	})
-	return closer
-}
-
 // New constructs a new coderd test instance. This returned Server
 // should contain no side-effects.
-func New(t *testing.T) Server {
+func New(t *testing.T) *codersdk.Client {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
@@ -134,8 +64,115 @@ func New(t *testing.T) Server {
 	require.NoError(t, err)
 	t.Cleanup(srv.Close)
 
-	return Server{
-		Client: codersdk.New(serverURL),
-		URL:    serverURL,
+	return codersdk.New(serverURL)
+}
+
+// NewProvisionerDaemon launches a provisionerd instance configured to work
+// well with coderd testing. It registers the "echo" provisioner for
+// quick testing.
+func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
+	echoClient, echoServer := provisionersdk.TransportPipe()
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		_ = echoClient.Close()
+		_ = echoServer.Close()
+		cancelFunc()
+	})
+	go func() {
+		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+			Listener: echoServer,
+		})
+		require.NoError(t, err)
+	}()
+
+	closer := provisionerd.New(client.ProvisionerDaemonClient, &provisionerd.Options{
+		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		PollInterval:   50 * time.Millisecond,
+		UpdateInterval: 50 * time.Millisecond,
+		Provisioners: provisionerd.Provisioners{
+			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
+		},
+		WorkDirectory: t.TempDir(),
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+	return closer
+}
+
+// CreateInitialUser creates a user with preset credentials and authenticates
+// with the passed in codersdk client.
+func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateInitialUserRequest {
+	req := coderd.CreateInitialUserRequest{
+		Email:        "testuser@coder.com",
+		Username:     "testuser",
+		Password:     "testpass",
+		Organization: "testorg",
 	}
+	_, err := client.CreateInitialUser(context.Background(), req)
+	require.NoError(t, err)
+
+	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	require.NoError(t, err)
+	err = client.SetSessionToken(login.SessionToken)
+	require.NoError(t, err)
+	return req
+}
+
+// CreateProjectImportProvisionerJob creates a project import provisioner job
+// with the responses provided. It uses the "echo" provisioner for compatibility
+// with testing.
+func CreateProjectImportProvisionerJob(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProvisionerJob {
+	data, err := echo.Tar(res)
+	require.NoError(t, err)
+	file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+	require.NoError(t, err)
+	job, err := client.CreateProjectVersionImportProvisionerJob(context.Background(), organization, coderd.CreateProjectImportJobRequest{
+		StorageSource: file.Hash,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+		Provisioner:   database.ProvisionerTypeEcho,
+	})
+	require.NoError(t, err)
+	return job
+}
+
+// CreateProject creates a project with the "echo" provisioner for
+// compatibility with testing. The name assigned is randomly generated.
+func CreateProject(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.Project {
+	project, err := client.CreateProject(context.Background(), organization, coderd.CreateProjectRequest{
+		Name:               randomUsername(),
+		VersionImportJobID: job,
+	})
+	require.NoError(t, err)
+	return project
+}
+
+// AwaitProvisionerJob awaits for a job to reach completed status.
+func AwaitProvisionerJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
+	var provisionerJob coderd.ProvisionerJob
+	require.Eventually(t, func() bool {
+		var err error
+		provisionerJob, err = client.ProvisionerJob(context.Background(), organization, job)
+		require.NoError(t, err)
+		return provisionerJob.Status.Completed()
+	}, 3*time.Second, 25*time.Millisecond)
+	return provisionerJob
+}
+
+// CreateWorkspace creates a workspace for the user and project provided.
+// A random name is generated for it.
+func CreateWorkspace(t *testing.T, client *codersdk.Client, user string, projectID uuid.UUID) coderd.Workspace {
+	workspace, err := client.CreateWorkspace(context.Background(), user, coderd.CreateWorkspaceRequest{
+		ProjectID: projectID,
+		Name:      randomUsername(),
+	})
+	require.NoError(t, err)
+	return workspace
+}
+
+func randomUsername() string {
+	return strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
 }

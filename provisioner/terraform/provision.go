@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,12 +39,6 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 		return xerrors.Errorf("terraform version %q is too old. required >= %q", version.String(), minimumTerraformVersion.String())
 	}
 
-	env := map[string]string{
-		// Makes sequential runs significantly faster.
-		// https://github.com/hashicorp/terraform/blob/d35bc0531255b496beb5d932f185cbcdb2d61a99/internal/command/cliconfig/cliconfig.go#L24
-		"TF_PLUGIN_CACHE_DIR": os.ExpandEnv("$HOME/.terraform.d/plugin-cache"),
-	}
-
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
@@ -68,6 +63,107 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 	}
 	t.logger.Debug(ctx, "ran initialization")
 
+	if request.DryRun {
+		return t.runTerraformPlan(ctx, terraform, request, stream)
+	}
+	return t.runTerraformApply(ctx, terraform, request, stream, statefilePath)
+}
+
+func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
+	env := map[string]string{}
+	options := []tfexec.PlanOption{tfexec.JSON(true)}
+	for _, param := range request.ParameterValues {
+		switch param.DestinationScheme {
+		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
+			env[param.Name] = param.Value
+		case proto.ParameterDestination_PROVISIONER_VARIABLE:
+			options = append(options, tfexec.Var(fmt.Sprintf("%s=%s", param.Name, param.Value)))
+		default:
+			return xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
+		}
+	}
+	err := terraform.SetEnv(env)
+	if err != nil {
+		return xerrors.Errorf("apply environment variables: %w", err)
+	}
+
+	resources := make([]*proto.Resource, 0)
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	closeChan := make(chan struct{})
+	go func() {
+		defer close(closeChan)
+		decoder := json.NewDecoder(reader)
+		for {
+			var log terraformProvisionLog
+			err := decoder.Decode(&log)
+			if err != nil {
+				return
+			}
+
+			logLevel, err := convertTerraformLogLevel(log.Level)
+			if err != nil {
+				// Not a big deal, but we should handle this at some point!
+				continue
+			}
+			_ = stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  logLevel,
+						Output: log.Message,
+					},
+				},
+			})
+
+			if log.Change != nil && log.Change.Action == "create" {
+				resources = append(resources, &proto.Resource{
+					Name: log.Change.Resource.ResourceName,
+					Type: log.Change.Resource.ResourceType,
+				})
+			}
+
+			if log.Diagnostic == nil {
+				continue
+			}
+
+			// If the diagnostic is provided, let's provide a bit more info!
+			logLevel, err = convertTerraformLogLevel(log.Diagnostic.Severity)
+			if err != nil {
+				continue
+			}
+			_ = stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  logLevel,
+						Output: log.Diagnostic.Detail,
+					},
+				},
+			})
+		}
+	}()
+
+	terraform.SetStdout(writer)
+	t.logger.Debug(ctx, "running plan")
+	_, err = terraform.Plan(ctx, options...)
+	if err != nil {
+		return xerrors.Errorf("apply terraform: %w", err)
+	}
+	_ = reader.Close()
+	t.logger.Debug(ctx, "ran plan")
+	<-closeChan
+
+	return stream.Send(&proto.Provision_Response{
+		Type: &proto.Provision_Response_Complete{
+			Complete: &proto.Provision_Complete{
+				Resources: resources,
+			},
+		},
+	})
+}
+
+func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream, statefilePath string) error {
+	env := map[string]string{}
 	options := []tfexec.ApplyOption{tfexec.JSON(true)}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {
@@ -79,12 +175,12 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 			return xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
 	}
-	err = terraform.SetEnv(env)
+	err := terraform.SetEnv(env)
 	if err != nil {
 		return xerrors.Errorf("apply environment variables: %w", err)
 	}
 
-	reader, writer = io.Pipe()
+	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
 	go func() {
@@ -171,6 +267,17 @@ type terraformProvisionLog struct {
 	Message string `json:"@message"`
 
 	Diagnostic *terraformProvisionLogDiagnostic `json:"diagnostic"`
+	Change     *terraformProvisionLogChange     `json:"change"`
+}
+
+type terraformProvisionLogChange struct {
+	Action   string                         `json:"action"`
+	Resource *terraformProvisionLogResource `json:"resource"`
+}
+
+type terraformProvisionLogResource struct {
+	ResourceType string `json:"resource_type"`
+	ResourceName string `json:"resource_name"`
 }
 
 type terraformProvisionLogDiagnostic struct {
