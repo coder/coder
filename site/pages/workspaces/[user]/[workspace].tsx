@@ -13,7 +13,10 @@ const WorkspacesPage: React.FC = () => {
   const router = useRouter()
   const { me, signOut } = useUser(true)
 
-  const { user, workspace } = router.query
+  const { user: userQueryParam, workspace: workspaceQueryParam } = router.query
+
+  const userParam = firstOrDefault(userQueryParam, null)
+  const workspaceParam = firstOrDefault(workspaceQueryParam, null)
 
   return (
     <div className={styles.root}>
