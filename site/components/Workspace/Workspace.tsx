@@ -1,4 +1,6 @@
-import { Box, Paper, Typography, Link as MuiLink } from "@material-ui/core"
+import Box from "@material-ui/core/Box"
+import Paper from "@material-ui/core/Paper"
+import Typography from "@material-ui/core/Typography"
 import { makeStyles } from "@material-ui/core/styles"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import Link from "next/link"
@@ -21,7 +23,21 @@ namespace Constants {
  */
 export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
   const styles = useStyles()
-  return <div className={styles.root}>
+
+  return (
+    <div className={styles.root}>
+      <WorkspaceHeader workspace={workspace} />
+    </div>
+  )
+}
+
+/**
+ * Component for the header at the top of the workspace page
+ */
+export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ workspace }) => {
+  const styles = useStyles()
+
+  return (
     <Paper elevation={0} className={styles.section}>
       <div className={styles.horizontal}>
         <WorkspaceHeroIcon />
@@ -33,14 +49,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
         </div>
       </div>
     </Paper>
-  </div>
+  )
 }
 
-// Component to render the 'Hero Icon' in the header of a workspace
-export const WorkspaceHeroIcon = () => {
-  return <Box mr={"1em"}>
-    <CloudCircleIcon width={Constants.TitleIconSize} height={Constants.TitleIconSize} />
-  </Box>
+/**
+ * Component to render the 'Hero Icon' in the header of a workspace
+ */
+export const WorkspaceHeroIcon: React.FC = () => {
+  return (
+    <Box mr={"1em"}>
+      <CloudCircleIcon width={Constants.TitleIconSize} height={Constants.TitleIconSize} />
+    </Box>
+  )
 }
 
 export const useStyles = makeStyles((theme) => {
@@ -65,6 +85,6 @@ export const useStyles = makeStyles((theme) => {
     icon: {
       width: Constants.TitleIconSize,
       height: Constants.TitleIconSize,
-    }
+    },
   }
 })
