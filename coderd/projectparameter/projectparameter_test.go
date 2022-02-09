@@ -19,9 +19,12 @@ func TestCompute(t *testing.T) {
 	t.Parallel()
 	generateScope := func() projectparameter.Scope {
 		return projectparameter.Scope{
-			OrganizationID:   uuid.New().String(),
-			ProjectID:        uuid.New(),
-			ProjectVersionID: uuid.New(),
+			ImportJobID:    uuid.New(),
+			OrganizationID: uuid.NewString(),
+			ProjectID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
 			WorkspaceID: uuid.NullUUID{
 				UUID:  uuid.New(),
 				Valid: true,
@@ -36,9 +39,9 @@ func TestCompute(t *testing.T) {
 		AllowOverrideSource      bool
 		AllowOverrideDestination bool
 		DefaultDestinationScheme database.ParameterDestinationScheme
-		ProjectVersionID         uuid.UUID
+		ImportJobID              uuid.UUID
 	}
-	generateProjectParameter := func(t *testing.T, db database.Store, opts projectParameterOptions) database.ProjectVersionParameter {
+	generateProjectParameter := func(t *testing.T, db database.Store, opts projectParameterOptions) database.ParameterSchema {
 		if opts.DefaultDestinationScheme == "" {
 			opts.DefaultDestinationScheme = database.ParameterDestinationSchemeEnvironmentVariable
 		}
@@ -48,10 +51,10 @@ func TestCompute(t *testing.T) {
 		require.NoError(t, err)
 		destinationValue, err := cryptorand.String(8)
 		require.NoError(t, err)
-		param, err := db.InsertProjectVersionParameter(context.Background(), database.InsertProjectVersionParameterParams{
+		param, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
 			ID:                  uuid.New(),
 			Name:                name,
-			ProjectVersionID:    opts.ProjectVersionID,
+			JobID:               opts.ImportJobID,
 			DefaultSourceScheme: database.ParameterSourceSchemeData,
 			DefaultSourceValue: sql.NullString{
 				String: sourceValue,
@@ -73,10 +76,10 @@ func TestCompute(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
-		parameter, err := db.InsertProjectVersionParameter(context.Background(), database.InsertProjectVersionParameterParams{
-			ID:               uuid.New(),
-			ProjectVersionID: scope.ProjectVersionID,
-			Name:             "hey",
+		parameter, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
+			ID:    uuid.New(),
+			JobID: scope.ImportJobID,
+			Name:  "hey",
 		})
 		require.NoError(t, err)
 
@@ -92,7 +95,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectVersionID:         scope.ProjectVersionID,
+			ImportJobID:              scope.ImportJobID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
 		values, err := projectparameter.Compute(context.Background(), db, scope)
@@ -101,7 +104,7 @@ func TestCompute(t *testing.T) {
 		value := values[0]
 		require.True(t, value.DefaultValue)
 		require.Equal(t, database.ParameterScopeProject, value.Scope)
-		require.Equal(t, scope.ProjectID.String(), value.ScopeID)
+		require.Equal(t, scope.ProjectID.UUID.String(), value.ScopeID)
 		require.Equal(t, value.Proto.Name, parameter.DefaultDestinationValue.String)
 		require.Equal(t, value.Proto.DestinationScheme, proto.ParameterDestination_PROVISIONER_VARIABLE)
 		require.Equal(t, value.Proto.Value, parameter.DefaultSourceValue.String)
@@ -112,7 +115,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectVersionID: scope.ProjectVersionID,
+			ImportJobID: scope.ImportJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -138,13 +141,13 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectVersionID: scope.ProjectVersionID,
+			ImportJobID: scope.ImportJobID,
 		})
 		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
 			Name:              parameter.Name,
 			Scope:             database.ParameterScopeProject,
-			ScopeID:           scope.ProjectID.String(),
+			ScopeID:           scope.ProjectID.UUID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -164,7 +167,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
-			ProjectVersionID: scope.ProjectVersionID,
+			ImportJobID: scope.ImportJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -190,7 +193,7 @@ func TestCompute(t *testing.T) {
 		scope := generateScope()
 		parameter := generateProjectParameter(t, db, projectParameterOptions{
 			AllowOverrideSource: true,
-			ProjectVersionID:    scope.ProjectVersionID,
+			ImportJobID:         scope.ImportJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -208,5 +211,38 @@ func TestCompute(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, values, 1)
 		require.Equal(t, false, values[0].DefaultValue)
+	})
+
+	t.Run("AdditionalOverwriteWorkspace", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		scope := generateScope()
+		parameter := generateProjectParameter(t, db, projectParameterOptions{
+			AllowOverrideSource: true,
+			ImportJobID:         scope.ImportJobID,
+		})
+		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
+			ID:                uuid.New(),
+			Name:              parameter.Name,
+			Scope:             database.ParameterScopeWorkspace,
+			ScopeID:           scope.WorkspaceID.UUID.String(),
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       "nop",
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			DestinationValue:  "projectvalue",
+		})
+		require.NoError(t, err)
+
+		values, err := projectparameter.Compute(context.Background(), db, scope, database.ParameterValue{
+			Name:              parameter.Name,
+			Scope:             database.ParameterScopeUser,
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       "nop",
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			DestinationValue:  "testing",
+		})
+		require.NoError(t, err)
+		require.Len(t, values, 1)
+		require.Equal(t, "testing", values[0].Proto.Value)
 	})
 }

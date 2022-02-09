@@ -22,15 +22,15 @@ func TestNew(t *testing.T) {
 	client := coderdtest.New(t)
 	user := coderdtest.CreateInitialUser(t, client)
 	closer := coderdtest.NewProvisionerDaemon(t, client)
-	project := coderdtest.CreateProject(t, client, user.Organization)
-	version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-	coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+	job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+	coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 	history, err := client.CreateWorkspaceHistory(context.Background(), "me", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-		ProjectVersionID: version.ID,
+		ProjectVersionID: project.ActiveVersionID,
 		Transition:       database.WorkspaceTransitionStart,
 	})
 	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceHistoryProvisioned(t, client, "me", workspace.Name, history.Name)
+	coderdtest.AwaitProvisionerJob(t, client, user.Organization, history.ProvisionJobID)
 	closer.Close()
 }

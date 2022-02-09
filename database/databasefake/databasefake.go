@@ -19,18 +19,18 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
-		files:                   make([]database.File, 0),
-		parameterValue:          make([]database.ParameterValue, 0),
-		project:                 make([]database.Project, 0),
-		projectVersion:          make([]database.ProjectVersion, 0),
-		projectVersionParameter: make([]database.ProjectVersionParameter, 0),
-		provisionerDaemons:      make([]database.ProvisionerDaemon, 0),
-		provisionerJobs:         make([]database.ProvisionerJob, 0),
-		provisionerJobLog:       make([]database.ProvisionerJobLog, 0),
-		workspace:               make([]database.Workspace, 0),
-		workspaceResource:       make([]database.WorkspaceResource, 0),
-		workspaceHistory:        make([]database.WorkspaceHistory, 0),
-		workspaceAgent:          make([]database.WorkspaceAgent, 0),
+		files:              make([]database.File, 0),
+		parameterValue:     make([]database.ParameterValue, 0),
+		parameterSchema:    make([]database.ParameterSchema, 0),
+		project:            make([]database.Project, 0),
+		projectVersion:     make([]database.ProjectVersion, 0),
+		provisionerDaemons: make([]database.ProvisionerDaemon, 0),
+		provisionerJobs:    make([]database.ProvisionerJob, 0),
+		provisionerJobLog:  make([]database.ProvisionerJobLog, 0),
+		workspace:          make([]database.Workspace, 0),
+		workspaceResource:  make([]database.WorkspaceResource, 0),
+		workspaceHistory:   make([]database.WorkspaceHistory, 0),
+		workspaceAgent:     make([]database.WorkspaceAgent, 0),
 	}
 }
 
@@ -45,18 +45,18 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
-	files                   []database.File
-	parameterValue          []database.ParameterValue
-	project                 []database.Project
-	projectVersion          []database.ProjectVersion
-	projectVersionParameter []database.ProjectVersionParameter
-	provisionerDaemons      []database.ProvisionerDaemon
-	provisionerJobs         []database.ProvisionerJob
-	provisionerJobLog       []database.ProvisionerJobLog
-	workspace               []database.Workspace
-	workspaceAgent          []database.WorkspaceAgent
-	workspaceHistory        []database.WorkspaceHistory
-	workspaceResource       []database.WorkspaceResource
+	files              []database.File
+	parameterValue     []database.ParameterValue
+	parameterSchema    []database.ParameterSchema
+	project            []database.Project
+	projectVersion     []database.ProjectVersion
+	provisionerDaemons []database.ProvisionerDaemon
+	provisionerJobs    []database.ProvisionerJob
+	provisionerJobLog  []database.ProvisionerJobLog
+	workspace          []database.Workspace
+	workspaceAgent     []database.WorkspaceAgent
+	workspaceHistory   []database.WorkspaceHistory
+	workspaceResource  []database.WorkspaceResource
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -445,16 +445,16 @@ func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID 
 	return database.ProjectVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectVersionParametersByVersionID(_ context.Context, projectVersionID uuid.UUID) ([]database.ProjectVersionParameter, error) {
+func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	parameters := make([]database.ProjectVersionParameter, 0)
-	for _, projectParameter := range q.projectVersionParameter {
-		if projectParameter.ProjectVersionID.String() != projectVersionID.String() {
+	parameters := make([]database.ParameterSchema, 0)
+	for _, parameterSchema := range q.parameterSchema {
+		if parameterSchema.JobID.String() != jobID.String() {
 			continue
 		}
-		parameters = append(parameters, projectParameter)
+		parameters = append(parameters, parameterSchema)
 	}
 	if len(parameters) == 0 {
 		return nil, sql.ErrNoRows
@@ -590,6 +590,7 @@ func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	file := database.File{
 		Hash:      arg.Hash,
 		CreatedAt: arg.CreatedAt,
+		CreatedBy: arg.CreatedBy,
 		Mimetype:  arg.Mimetype,
 		Data:      arg.Data,
 	}
@@ -652,13 +653,15 @@ func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjec
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	//nolint:gosimple
 	project := database.Project{
-		ID:             arg.ID,
-		CreatedAt:      arg.CreatedAt,
-		UpdatedAt:      arg.UpdatedAt,
-		OrganizationID: arg.OrganizationID,
-		Name:           arg.Name,
-		Provisioner:    arg.Provisioner,
+		ID:              arg.ID,
+		CreatedAt:       arg.CreatedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		OrganizationID:  arg.OrganizationID,
+		Name:            arg.Name,
+		Provisioner:     arg.Provisioner,
+		ActiveVersionID: arg.ActiveVersionID,
 	}
 	q.project = append(q.project, project)
 	return project, nil
@@ -670,15 +673,13 @@ func (q *fakeQuerier) InsertProjectVersion(_ context.Context, arg database.Inser
 
 	//nolint:gosimple
 	version := database.ProjectVersion{
-		ID:            arg.ID,
-		ProjectID:     arg.ProjectID,
-		CreatedAt:     arg.CreatedAt,
-		UpdatedAt:     arg.UpdatedAt,
-		Name:          arg.Name,
-		Description:   arg.Description,
-		StorageMethod: arg.StorageMethod,
-		StorageSource: arg.StorageSource,
-		ImportJobID:   arg.ImportJobID,
+		ID:          arg.ID,
+		ProjectID:   arg.ProjectID,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		Name:        arg.Name,
+		Description: arg.Description,
+		ImportJobID: arg.ImportJobID,
 	}
 	q.projectVersion = append(q.projectVersion, version)
 	return version, nil
@@ -703,15 +704,15 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
-func (q *fakeQuerier) InsertProjectVersionParameter(_ context.Context, arg database.InsertProjectVersionParameterParams) (database.ProjectVersionParameter, error) {
+func (q *fakeQuerier) InsertParameterSchema(_ context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	param := database.ProjectVersionParameter{
+	param := database.ParameterSchema{
 		ID:                       arg.ID,
 		CreatedAt:                arg.CreatedAt,
-		ProjectVersionID:         arg.ProjectVersionID,
+		JobID:                    arg.JobID,
 		Name:                     arg.Name,
 		Description:              arg.Description,
 		DefaultSourceScheme:      arg.DefaultSourceScheme,
@@ -727,7 +728,7 @@ func (q *fakeQuerier) InsertProjectVersionParameter(_ context.Context, arg datab
 		ValidationTypeSystem:     arg.ValidationTypeSystem,
 		ValidationValueType:      arg.ValidationValueType,
 	}
-	q.projectVersionParameter = append(q.projectVersionParameter, param)
+	q.parameterSchema = append(q.parameterSchema, param)
 	return param, nil
 }
 
@@ -750,13 +751,16 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	job := database.ProvisionerJob{
-		ID:          arg.ID,
-		CreatedAt:   arg.CreatedAt,
-		UpdatedAt:   arg.UpdatedAt,
-		InitiatorID: arg.InitiatorID,
-		Provisioner: arg.Provisioner,
-		Type:        arg.Type,
-		Input:       arg.Input,
+		ID:             arg.ID,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		OrganizationID: arg.OrganizationID,
+		InitiatorID:    arg.InitiatorID,
+		Provisioner:    arg.Provisioner,
+		StorageMethod:  arg.StorageMethod,
+		StorageSource:  arg.StorageSource,
+		Type:           arg.Type,
+		Input:          arg.Input,
 	}
 	q.provisionerJobs = append(q.provisionerJobs, job)
 	return job, nil

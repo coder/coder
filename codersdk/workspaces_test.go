@@ -42,7 +42,8 @@ func TestWorkspacesByProject(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_, err := client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
@@ -61,7 +62,8 @@ func TestWorkspace(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.Workspace(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
@@ -81,7 +83,8 @@ func TestListWorkspaceHistory(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.ListWorkspaceHistory(context.Background(), "", workspace.Name)
 		require.NoError(t, err)
@@ -102,12 +105,12 @@ func TestWorkspaceHistory(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
+			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
@@ -127,7 +130,8 @@ func TestCreateWorkspace(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
 	})
 }
@@ -146,12 +150,12 @@ func TestCreateWorkspaceHistory(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: version.ID,
+			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)

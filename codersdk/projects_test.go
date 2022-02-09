@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd"
@@ -42,7 +43,8 @@ func TestProject(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_, err := client.Project(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
@@ -54,8 +56,8 @@ func TestCreateProject(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		_, err := client.CreateProject(context.Background(), "org", coderd.CreateProjectRequest{
-			Name:        "something",
-			Provisioner: database.ProvisionerTypeEcho,
+			Name:               "something",
+			VersionImportJobID: uuid.New(),
 		})
 		require.Error(t, err)
 	})
@@ -64,7 +66,8 @@ func TestCreateProject(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		_ = coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		_ = coderdtest.CreateProject(t, client, user.Organization, job.ID)
 	})
 }
 
@@ -81,8 +84,8 @@ func TestProjectVersions(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_, err := client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
@@ -101,9 +104,9 @@ func TestProjectVersion(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		_, err := client.ProjectVersion(context.Background(), user.Organization, project.Name, version.Name)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersion(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
 		require.NoError(t, err)
 	})
 }
@@ -121,8 +124,12 @@ func TestCreateProjectVersion(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		_ = coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+			ImportJobID: job.ID,
+		})
+		require.NoError(t, err)
 	})
 }
 
@@ -140,10 +147,10 @@ func TestProjectVersionParameters(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
-		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
 		require.NoError(t, err)
 	})
 }
@@ -161,8 +168,8 @@ func TestProjectParameters(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
@@ -181,8 +188,8 @@ func TestCreateProjectParameter(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
 			Name:              "example",
 			SourceValue:       "source-value",

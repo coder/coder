@@ -106,11 +106,17 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 // The input for a "workspace_provision" job.
 type workspaceProvisionJob struct {
 	WorkspaceHistoryID uuid.UUID `json:"workspace_history_id"`
+	DryRun             bool      `json:"dry_run"`
 }
 
 // The input for a "project_import" job.
-type projectImportJob struct {
-	ProjectVersionID uuid.UUID `json:"project_version_id"`
+type projectVersionImportJob struct {
+	OrganizationID string    `json:"organization_id"`
+	ProjectID      uuid.UUID `json:"project_id"`
+
+	AdditionalParameters []database.ParameterValue `json:"parameters"`
+	SkipParameterSchemas bool                      `json:"skip_parameter_schemas"`
+	SkipResources        bool                      `json:"skip_resources"`
 }
 
 // Implementation of the provisioner daemon protobuf server.
@@ -176,7 +182,6 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		Provisioner: string(job.Provisioner),
 		UserName:    user.Username,
 	}
-	var projectVersion database.ProjectVersion
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceProvision:
 		var input workspaceProvisionJob
@@ -192,7 +197,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace: %s", err))
 		}
-		projectVersion, err = server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
+		projectVersion, err := server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project version: %s", err))
 		}
@@ -207,9 +212,12 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
-			OrganizationID:   organization.ID,
-			ProjectID:        project.ID,
-			ProjectVersionID: projectVersion.ID,
+			ImportJobID:    projectVersion.ImportJobID,
+			OrganizationID: organization.ID,
+			ProjectID: uuid.NullUUID{
+				UUID:  project.ID,
+				Valid: true,
+			},
 			UserID: sql.NullString{
 				String: user.ID,
 				Valid:  true,
@@ -236,29 +244,52 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				ParameterValues:    protoParameters,
 			},
 		}
-	case database.ProvisionerJobTypeProjectImport:
-		var input projectImportJob
+	case database.ProvisionerJobTypeProjectVersionImport:
+		var input projectVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
-		projectVersion, err = server.Database.GetProjectVersionByID(ctx, input.ProjectVersionID)
+
+		// Compute parameters for the workspace to consume.
+		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
+			ImportJobID:    job.ID,
+			OrganizationID: input.OrganizationID,
+			ProjectID: uuid.NullUUID{
+				UUID:  input.ProjectID,
+				Valid: input.ProjectID.String() != uuid.Nil.String(),
+			},
+			UserID: sql.NullString{
+				String: user.ID,
+				Valid:  true,
+			},
+		}, input.AdditionalParameters...)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get project version: %s", err))
+			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
+		}
+		// Convert parameters to the protobuf type.
+		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
+		for _, parameter := range parameters {
+			protoParameters = append(protoParameters, parameter.Proto)
 		}
 
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
 			ProjectImport: &proto.AcquiredJob_ProjectImport{
-				// This will be replaced once the project import has been refactored.
-				ProjectName: "placeholder",
+				ParameterValues:      protoParameters,
+				SkipParameterSchemas: input.SkipParameterSchemas,
+				SkipResources:        input.SkipResources,
 			},
 		}
 	}
-	switch projectVersion.StorageMethod {
-	case database.ProjectStorageMethodInlineArchive:
-		protoJob.ProjectSourceArchive = projectVersion.StorageSource
+	switch job.StorageMethod {
+	case database.ProvisionerStorageMethodFile:
+		file, err := server.Database.GetFileByHash(ctx, job.StorageSource)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
+		}
+		protoJob.ProjectSourceArchive = file.Data
 	default:
-		return nil, failJob(fmt.Sprintf("unsupported storage source: %q", projectVersion.StorageMethod))
+		return nil, failJob(fmt.Sprintf("unsupported storage method: %s", job.StorageMethod))
 	}
 
 	return protoJob, err
@@ -374,7 +405,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_ProjectImport_:
-		var input projectImportJob
+		var input projectVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal job data: %w", err)
@@ -382,17 +413,17 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 		// Validate that all parameters send from the provisioner daemon
 		// follow the protocol.
-		projectVersionParameters := make([]database.InsertProjectVersionParameterParams, 0, len(jobType.ProjectImport.ParameterSchemas))
+		parameterSchemas := make([]database.InsertParameterSchemaParams, 0, len(jobType.ProjectImport.ParameterSchemas))
 		for _, protoParameter := range jobType.ProjectImport.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
 			}
 
-			projectParameter := database.InsertProjectVersionParameterParams{
+			parameterSchema := database.InsertParameterSchemaParams{
 				ID:                   uuid.New(),
 				CreatedAt:            database.Now(),
-				ProjectVersionID:     input.ProjectVersionID,
+				JobID:                job.ID,
 				Name:                 protoParameter.Name,
 				Description:          protoParameter.Description,
 				RedisplayValue:       protoParameter.RedisplayValue,
@@ -414,8 +445,8 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				if err != nil {
 					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
 				}
-				projectParameter.DefaultSourceScheme = parameterSourceScheme
-				projectParameter.DefaultSourceValue = sql.NullString{
+				parameterSchema.DefaultSourceScheme = parameterSourceScheme
+				parameterSchema.DefaultSourceValue = sql.NullString{
 					String: protoParameter.DefaultSource.Value,
 					Valid:  protoParameter.DefaultSource.Value != "",
 				}
@@ -427,14 +458,14 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 				if err != nil {
 					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
 				}
-				projectParameter.DefaultDestinationScheme = parameterDestinationScheme
-				projectParameter.DefaultDestinationValue = sql.NullString{
+				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
+				parameterSchema.DefaultDestinationValue = sql.NullString{
 					String: protoParameter.DefaultDestination.Value,
 					Valid:  protoParameter.DefaultDestination.Value != "",
 				}
 			}
 
-			projectVersionParameters = append(projectVersionParameters, projectParameter)
+			parameterSchemas = append(parameterSchemas, parameterSchema)
 		}
 
 		// This must occur in a transaction in case of failure.
@@ -452,10 +483,10 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			}
 			// This could be a bulk-insert operation to improve performance.
 			// See the "InsertWorkspaceHistoryLogs" query.
-			for _, projectParameter := range projectVersionParameters {
-				_, err = db.InsertProjectVersionParameter(ctx, projectParameter)
+			for _, parameterSchema := range parameterSchemas {
+				_, err = db.InsertParameterSchema(ctx, parameterSchema)
 				if err != nil {
-					return xerrors.Errorf("insert project parameter %q: %w", projectParameter.Name, err)
+					return xerrors.Errorf("insert parameter schema %q: %w", parameterSchema.Name, err)
 				}
 			}
 			server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))

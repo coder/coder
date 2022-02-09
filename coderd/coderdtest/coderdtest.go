@@ -122,40 +122,44 @@ func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateIniti
 	return req
 }
 
+// CreateProjectImportProvisionerJob creates a project import provisioner job
+// with the responses provided. It uses the "echo" provisioner for compatibility
+// with testing.
+func CreateProjectImportProvisionerJob(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProvisionerJob {
+	data, err := echo.Tar(res)
+	require.NoError(t, err)
+	file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+	require.NoError(t, err)
+	job, err := client.CreateProjectVersionImportProvisionerJob(context.Background(), organization, coderd.CreateProjectImportJobRequest{
+		StorageSource: file.Hash,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+		Provisioner:   database.ProvisionerTypeEcho,
+	})
+	require.NoError(t, err)
+	return job
+}
+
 // CreateProject creates a project with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateProject(t *testing.T, client *codersdk.Client, organization string) coderd.Project {
+func CreateProject(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.Project {
 	project, err := client.CreateProject(context.Background(), organization, coderd.CreateProjectRequest{
-		Name:        randomUsername(),
-		Provisioner: database.ProvisionerTypeEcho,
+		Name:               randomUsername(),
+		VersionImportJobID: job,
 	})
 	require.NoError(t, err)
 	return project
 }
 
-// CreateProjectVersion creates a project version for the "echo" provisioner
-// for compatibility with testing.
-func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization, project string, responses *echo.Responses) coderd.ProjectVersion {
-	data, err := echo.Tar(responses)
-	require.NoError(t, err)
-	version, err := client.CreateProjectVersion(context.Background(), organization, project, coderd.CreateProjectVersionRequest{
-		StorageMethod: database.ProjectStorageMethodInlineArchive,
-		StorageSource: data,
-	})
-	require.NoError(t, err)
-	return version
-}
-
-// AwaitProjectVersionImported awaits for the project import job to reach completed status.
-func AwaitProjectVersionImported(t *testing.T, client *codersdk.Client, organization, project, version string) coderd.ProjectVersion {
-	var projectVersion coderd.ProjectVersion
+// AwaitProvisionerJob awaits for a job to reach completed status.
+func AwaitProvisionerJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
+	var provisionerJob coderd.ProvisionerJob
 	require.Eventually(t, func() bool {
 		var err error
-		projectVersion, err = client.ProjectVersion(context.Background(), organization, project, version)
+		provisionerJob, err = client.ProvisionerJob(context.Background(), organization, job)
 		require.NoError(t, err)
-		return projectVersion.Import.Status.Completed()
+		return provisionerJob.Status.Completed()
 	}, 3*time.Second, 25*time.Millisecond)
-	return projectVersion
+	return provisionerJob
 }
 
 // CreateWorkspace creates a workspace for the user and project provided.
@@ -167,18 +171,6 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, user string, project
 	})
 	require.NoError(t, err)
 	return workspace
-}
-
-// AwaitWorkspaceHistoryProvisioned awaits for the workspace provision job to reach completed status.
-func AwaitWorkspaceHistoryProvisioned(t *testing.T, client *codersdk.Client, user, workspace, history string) coderd.WorkspaceHistory {
-	var workspaceHistory coderd.WorkspaceHistory
-	require.Eventually(t, func() bool {
-		var err error
-		workspaceHistory, err = client.WorkspaceHistory(context.Background(), user, workspace, history)
-		require.NoError(t, err)
-		return workspaceHistory.Provision.Status.Completed()
-	}, 3*time.Second, 25*time.Millisecond)
-	return workspaceHistory
 }
 
 func randomUsername() string {

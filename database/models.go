@@ -151,29 +151,11 @@ func (e *ParameterTypeSystem) Scan(src interface{}) error {
 	return nil
 }
 
-type ProjectStorageMethod string
-
-const (
-	ProjectStorageMethodInlineArchive ProjectStorageMethod = "inline-archive"
-)
-
-func (e *ProjectStorageMethod) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ProjectStorageMethod(s)
-	case string:
-		*e = ProjectStorageMethod(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ProjectStorageMethod: %T", src)
-	}
-	return nil
-}
-
 type ProvisionerJobType string
 
 const (
-	ProvisionerJobTypeProjectImport      ProvisionerJobType = "project_import"
-	ProvisionerJobTypeWorkspaceProvision ProvisionerJobType = "workspace_provision"
+	ProvisionerJobTypeProjectVersionImport ProvisionerJobType = "project_version_import"
+	ProvisionerJobTypeWorkspaceProvision   ProvisionerJobType = "workspace_provision"
 )
 
 func (e *ProvisionerJobType) Scan(src interface{}) error {
@@ -184,6 +166,24 @@ func (e *ProvisionerJobType) Scan(src interface{}) error {
 		*e = ProvisionerJobType(s)
 	default:
 		return fmt.Errorf("unsupported scan type for ProvisionerJobType: %T", src)
+	}
+	return nil
+}
+
+type ProvisionerStorageMethod string
+
+const (
+	ProvisionerStorageMethodFile ProvisionerStorageMethod = "file"
+)
+
+func (e *ProvisionerStorageMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerStorageMethod(s)
+	case string:
+		*e = ProvisionerStorageMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerStorageMethod: %T", src)
 	}
 	return nil
 }
@@ -268,6 +268,7 @@ type APIKey struct {
 type File struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	CreatedBy string    `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
 }
@@ -299,6 +300,26 @@ type OrganizationMember struct {
 	Roles          []string  `db:"roles" json:"roles"`
 }
 
+type ParameterSchema struct {
+	ID                       uuid.UUID                  `db:"id" json:"id"`
+	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
+	JobID                    uuid.UUID                  `db:"job_id" json:"job_id"`
+	Name                     string                     `db:"name" json:"name"`
+	Description              string                     `db:"description" json:"description"`
+	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
+	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
+	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
+	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
+	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string                     `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+}
+
 type ParameterValue struct {
 	ID                uuid.UUID                  `db:"id" json:"id"`
 	Name              string                     `db:"name" json:"name"`
@@ -319,39 +340,17 @@ type Project struct {
 	OrganizationID  string          `db:"organization_id" json:"organization_id"`
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID uuid.NullUUID   `db:"active_version_id" json:"active_version_id"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
 type ProjectVersion struct {
-	ID            uuid.UUID            `db:"id" json:"id"`
-	ProjectID     uuid.UUID            `db:"project_id" json:"project_id"`
-	CreatedAt     time.Time            `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time            `db:"updated_at" json:"updated_at"`
-	Name          string               `db:"name" json:"name"`
-	Description   string               `db:"description" json:"description"`
-	StorageMethod ProjectStorageMethod `db:"storage_method" json:"storage_method"`
-	StorageSource []byte               `db:"storage_source" json:"storage_source"`
-	ImportJobID   uuid.UUID            `db:"import_job_id" json:"import_job_id"`
-}
-
-type ProjectVersionParameter struct {
-	ID                       uuid.UUID                  `db:"id" json:"id"`
-	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
-	ProjectVersionID         uuid.UUID                  `db:"project_version_id" json:"project_version_id"`
-	Name                     string                     `db:"name" json:"name"`
-	Description              string                     `db:"description" json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
-	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
-	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string                     `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	ImportJobID uuid.UUID `db:"import_job_id" json:"import_job_id"`
 }
 
 type ProvisionerDaemon struct {
@@ -363,18 +362,21 @@ type ProvisionerDaemon struct {
 }
 
 type ProvisionerJob struct {
-	ID          uuid.UUID          `db:"id" json:"id"`
-	CreatedAt   time.Time          `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time          `db:"updated_at" json:"updated_at"`
-	StartedAt   sql.NullTime       `db:"started_at" json:"started_at"`
-	CancelledAt sql.NullTime       `db:"cancelled_at" json:"cancelled_at"`
-	CompletedAt sql.NullTime       `db:"completed_at" json:"completed_at"`
-	Error       sql.NullString     `db:"error" json:"error"`
-	InitiatorID string             `db:"initiator_id" json:"initiator_id"`
-	Provisioner ProvisionerType    `db:"provisioner" json:"provisioner"`
-	Type        ProvisionerJobType `db:"type" json:"type"`
-	Input       json.RawMessage    `db:"input" json:"input"`
-	WorkerID    uuid.NullUUID      `db:"worker_id" json:"worker_id"`
+	ID             uuid.UUID                `db:"id" json:"id"`
+	CreatedAt      time.Time                `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                `db:"updated_at" json:"updated_at"`
+	StartedAt      sql.NullTime             `db:"started_at" json:"started_at"`
+	CancelledAt    sql.NullTime             `db:"cancelled_at" json:"cancelled_at"`
+	CompletedAt    sql.NullTime             `db:"completed_at" json:"completed_at"`
+	Error          sql.NullString           `db:"error" json:"error"`
+	OrganizationID string                   `db:"organization_id" json:"organization_id"`
+	InitiatorID    string                   `db:"initiator_id" json:"initiator_id"`
+	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
+	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
+	StorageSource  string                   `db:"storage_source" json:"storage_source"`
+	Type           ProvisionerJobType       `db:"type" json:"type"`
+	Input          json.RawMessage          `db:"input" json:"input"`
+	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
 }
 
 type ProvisionerJobLog struct {

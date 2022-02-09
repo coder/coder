@@ -10,32 +10,21 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestProjectVersionsByOrganization(t *testing.T) {
 	t.Parallel()
-	t.Run("ListEmpty", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t)
-		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		versions, err := client.ProjectVersions(context.Background(), user.Organization, project.Name)
-		require.NoError(t, err)
-		require.NotNil(t, versions)
-		require.Len(t, versions, 0)
-	})
-
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		_ = coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		versions, err := client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
+		require.NotNil(t, versions)
 		require.Len(t, versions, 1)
 	})
 }
@@ -46,9 +35,10 @@ func TestProjectVersionByOrganizationAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		require.Equal(t, version.Import.Status, coderd.ProvisionerJobStatusPending)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersion(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
+		require.NoError(t, err)
 	})
 }
 
@@ -58,20 +48,12 @@ func TestPostProjectVersionByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		_ = coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-	})
-
-	t.Run("InvalidStorage", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t)
-		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
-			StorageMethod: database.ProjectStorageMethod("invalid"),
-			StorageSource: []byte{},
+			ImportJobID: job.ID,
 		})
-		require.Error(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -81,9 +63,9 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, nil)
-		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionRequired, apiErr.StatusCode())
@@ -94,12 +76,12 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, &echo.Responses{
 			Provision: []*proto.Provision_Response{{}},
 		})
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
-		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -109,8 +91,7 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		project := coderdtest.CreateProject(t, client, user.Organization)
-		version := coderdtest.CreateProjectVersion(t, client, user.Organization, project.Name, &echo.Responses{
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
@@ -122,8 +103,9 @@ func TestProjectVersionParametersByOrganizationAndName(t *testing.T) {
 			}},
 			Provision: echo.ProvisionComplete,
 		})
-		coderdtest.AwaitProjectVersionImported(t, client, user.Organization, project.Name, version.Name)
-		params, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, version.Name)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		params, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
 		require.NoError(t, err)
 		require.Len(t, params, 1)
 	})
