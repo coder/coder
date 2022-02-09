@@ -8,9 +8,7 @@ import { useUser } from "../../../contexts/UserContext"
 import { firstOrItem } from "../../../util/array"
 import { ErrorSummary } from "../../../components/ErrorSummary"
 import { FullScreenLoader } from "../../../components/Loader/FullScreenLoader"
-
-//import { Workspace } from "../../components/Workspace"
-//import { MockWorkspace } from "../../test_helpers"
+import { Workspace } from "../../../components/Workspace"
 
 import * as API from "../../../api"
 
@@ -47,7 +45,7 @@ const WorkspacesPage: React.FC = () => {
       <Navbar user={me} onSignOut={signOut} />
 
       <div className={styles.inner}>
-        <div>Hello, world</div>
+        <Workspace workspace={workspace} />
       </div>
 
       <Footer />
