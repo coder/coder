@@ -1,9 +1,14 @@
+bin/coder:
+	mkdir -p bin
+	go build -o bin/coder cmd/coder/main.go
+.PHONY: bin/coder
+
 bin/coderd:
 	mkdir -p bin
 	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
-build: site/out bin/coderd
+build: site/out bin/coder bin/coderd
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
