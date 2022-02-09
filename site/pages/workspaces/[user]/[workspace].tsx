@@ -23,7 +23,7 @@ const WorkspacesPage: React.FC = () => {
     const userParam = firstOrItem(userQueryParam, null)
     const workspaceParam = firstOrItem(workspaceQueryParam, null)
 
-    // TODO: Getting non-personal users isn't supported yet in the backend.
+    // TODO(Bryan): Getting non-personal users isn't supported yet in the backend.
     // So if the user is the same as 'me', use 'me' as the parameter
     const normalizedUserParam = me && userParam === me.id ? "me" : userParam
 
