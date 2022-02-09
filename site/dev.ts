@@ -17,7 +17,7 @@ if (process.env.CODERV2_HOST) {
 
 console.log(`Using CODERV2_HOST: ${coderV2Host}`)
 
-const app = next({ dev, dir: "./site" })
+const app = next({ dev, dir: "." })
 const handle = app.getRequestHandler()
 
 app

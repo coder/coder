@@ -1,11 +1,16 @@
 package coderdtest_test
 
 import (
+	"context"
 	"testing"
 
 	"go.uber.org/goleak"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/database"
 )
 
 func TestMain(m *testing.M) {
@@ -14,6 +19,18 @@ func TestMain(m *testing.M) {
 
 func TestNew(t *testing.T) {
 	t.Parallel()
-	server := coderdtest.New(t)
-	_ = server.RandomInitialUser(t)
+	client := coderdtest.New(t)
+	user := coderdtest.CreateInitialUser(t, client)
+	closer := coderdtest.NewProvisionerDaemon(t, client)
+	job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+	coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+	history, err := client.CreateWorkspaceHistory(context.Background(), "me", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		ProjectVersionID: project.ActiveVersionID,
+		Transition:       database.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitProvisionerJob(t, client, user.Organization, history.ProvisionJobID)
+	closer.Close()
 }

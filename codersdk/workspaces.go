@@ -12,7 +12,7 @@ import (
 // Workspaces returns all workspaces the authenticated session has access to.
 // If owner is specified, all workspaces for an organization will be returned.
 // If owner is empty, all workspaces the caller has access to will be returned.
-func (c *Client) WorkspacesByUser(ctx context.Context, user string) ([]coderd.Workspace, error) {
+func (c *Client) Workspaces(ctx context.Context, user string) ([]coderd.Workspace, error) {
 	route := "/api/v2/workspaces"
 	if user != "" {
 		route += fmt.Sprintf("/%s", user)
@@ -60,12 +60,12 @@ func (c *Client) Workspace(ctx context.Context, owner, name string) (coderd.Work
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-// WorkspaceHistory returns historical data for workspace builds.
-func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace string) ([]coderd.WorkspaceHistory, error) {
+// ListWorkspaceHistory returns historical data for workspace builds.
+func (c *Client) ListWorkspaceHistory(ctx context.Context, owner, workspace string) ([]coderd.WorkspaceHistory, error) {
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -77,12 +77,16 @@ func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace string) 
 	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
 }
 
-// LatestWorkspaceHistory returns the newest build for a workspace.
-func (c *Client) LatestWorkspaceHistory(ctx context.Context, owner, workspace string) (coderd.WorkspaceHistory, error) {
+// WorkspaceHistory returns a single workspace history for a workspace.
+// If history is "", the latest version is returned.
+func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace, history string) (coderd.WorkspaceHistory, error) {
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/latest", owner, workspace), nil)
+	if history == "" {
+		history = "latest"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version/%s", owner, workspace, history), nil)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}
@@ -116,7 +120,7 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), request)
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), request)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}

@@ -19,6 +19,7 @@ yarn-error.log
 site/.eslintcache
 site/.next/
 site/node_modules/
+site/storybook-static/
 site/yarn-error.log
 coverage/
 

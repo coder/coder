@@ -57,12 +57,16 @@ func (m *multiplexedDRPC) Closed() <-chan struct{} {
 	return m.session.CloseChan()
 }
 
-func (m *multiplexedDRPC) Invoke(ctx context.Context, rpc string, enc drpc.Encoding, in, out drpc.Message) error {
+func (m *multiplexedDRPC) Invoke(ctx context.Context, rpc string, enc drpc.Encoding, inMessage, outMessage drpc.Message) error {
 	conn, err := m.session.Open()
 	if err != nil {
 		return err
 	}
-	return drpcconn.New(conn).Invoke(ctx, rpc, enc, in, out)
+	dConn := drpcconn.New(conn)
+	defer func() {
+		_ = dConn.Close()
+	}()
+	return dConn.Invoke(ctx, rpc, enc, inMessage, outMessage)
 }
 
 func (m *multiplexedDRPC) NewStream(ctx context.Context, rpc string, enc drpc.Encoding) (drpc.Stream, error) {
@@ -70,5 +74,13 @@ func (m *multiplexedDRPC) NewStream(ctx context.Context, rpc string, enc drpc.En
 	if err != nil {
 		return nil, err
 	}
-	return drpcconn.New(conn).NewStream(ctx, rpc, enc)
+	dConn := drpcconn.New(conn)
+	stream, err := dConn.NewStream(ctx, rpc, enc)
+	if err == nil {
+		go func() {
+			<-stream.Context().Done()
+			_ = dConn.Close()
+		}()
+	}
+	return stream, err
 }

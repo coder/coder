@@ -41,7 +41,8 @@ message ParameterSchema {
     bool redisplay_value = 7;
 
     enum TypeSystem {
-        HCL = 0;
+        None = 0;
+        HCL = 1;
     }
     TypeSystem validation_type_system = 8;
     string validation_value_type = 9;
@@ -64,6 +65,12 @@ message Log {
     string output = 2;
 }
 
+// Resource represents created infrastructure.
+message Resource {
+    string name = 1;
+    string type = 2;
+}
+
 // Parse consumes source-code from a directory to produce inputs.
 message Parse {
     message Request {
@@ -80,18 +87,13 @@ message Parse {
     }
 }
 
-// Resource is a provisioned unit.
-message Resource {
-    string name = 1;
-    string type = 2;
-}
-
 // Provision consumes source-code from a directory to produce resources.
 message Provision {
     message Request {
         string directory = 1;
         repeated ParameterValue parameter_values = 2;
         bytes state = 3;
+        bool dry_run = 4;
     }
     message Complete {
         bytes state = 1; 

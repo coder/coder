@@ -8,6 +8,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
@@ -21,8 +23,15 @@ type Project database.Project
 
 // CreateProjectRequest enables callers to create a new Project.
 type CreateProjectRequest struct {
-	Name        string                   `json:"name" validate:"username,required"`
-	Provisioner database.ProvisionerType `json:"provisioner" validate:"oneof=terraform cdr-basic,required"`
+	Name string `json:"name" validate:"username,required"`
+
+	// VersionImportJobID is an in-progress or completed job to use as
+	// an initial version of the project.
+	//
+	// This is required on creation to enable a user-flow of validating
+	// the project works. There is no reason the data-model cannot support
+	// empty projects, but it doesn't make sense for users.
+	VersionImportJobID uuid.UUID `json:"import_job_id" validate:"required"`
 }
 
 // Lists all projects the authenticated user has access to.
@@ -49,10 +58,11 @@ func (api *api) projects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// Don't return 'null'
+
 	if projects == nil {
 		projects = []database.Project{}
 	}
+	
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, projects)
 }
@@ -70,15 +80,22 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+<<<<<<< HEAD
 	// Don't return 'null'
 	if projects == nil {
 		projects = []database.Project{}
 	}
+||||||| 2afad8b
+=======
+	if projects == nil {
+		projects = []database.Project{}
+	}
+>>>>>>> main
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, projects)
 }
 
-// Creates a new project in an organization.
+// Create a new project in an organization.
 func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createProject CreateProjectRequest
 	if !httpapi.Read(rw, r, &createProject) {
@@ -101,25 +118,59 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project by name: %s", err.Error()),
+			Message: fmt.Sprintf("get project by name: %s", err),
+		})
+		return
+	}
+	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), createProject.VersionImportJobID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "import job does not exist",
+		})
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get import job by id: %s", err),
 		})
 		return
 	}
 
-	project, err := api.Database.InsertProject(r.Context(), database.InsertProjectParams{
-		ID:             uuid.New(),
-		CreatedAt:      database.Now(),
-		UpdatedAt:      database.Now(),
-		OrganizationID: organization.ID,
-		Name:           createProject.Name,
-		Provisioner:    createProject.Provisioner,
+	var project Project
+	err = api.Database.InTx(func(db database.Store) error {
+		projectVersionID := uuid.New()
+		dbProject, err := db.InsertProject(r.Context(), database.InsertProjectParams{
+			ID:              uuid.New(),
+			CreatedAt:       database.Now(),
+			UpdatedAt:       database.Now(),
+			OrganizationID:  organization.ID,
+			Name:            createProject.Name,
+			Provisioner:     importJob.Provisioner,
+			ActiveVersionID: projectVersionID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert project: %s", err)
+		}
+		_, err = db.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
+			ID:          projectVersionID,
+			ProjectID:   dbProject.ID,
+			CreatedAt:   database.Now(),
+			UpdatedAt:   database.Now(),
+			Name:        namesgenerator.GetRandomName(1),
+			ImportJobID: importJob.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert project version: %s", err)
+		}
+		project = Project(dbProject)
+		return nil
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("insert project: %s", err),
+			Message: err.Error(),
 		})
 		return
 	}
+
 	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, project)
 }
@@ -132,28 +183,20 @@ func (*api) projectByOrganization(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, project)
 }
 
-// Returns all workspaces for a specific project.
-func (api *api) workspacesByProject(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
+// Creates parameters for a project.
+// This should validate the calling user has permissions!
+func (api *api) postParametersByProject(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
-	workspaces, err := api.Database.GetWorkspacesByProjectAndUserID(r.Context(), database.GetWorkspacesByProjectAndUserIDParams{
-		OwnerID:   apiKey.UserID,
-		ProjectID: project.ID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
-		})
-		return
-	}
 
-	apiWorkspaces := make([]Workspace, 0, len(workspaces))
-	for _, workspace := range workspaces {
-		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace))
-	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiWorkspaces)
+	postParameterValueForScope(rw, r, api.Database, database.ParameterScopeProject, project.ID.String())
+}
+
+// Lists parameters for a project.
+func (api *api) parametersByProject(rw http.ResponseWriter, r *http.Request) {
+	project := httpmw.ProjectParam(r)
+
+	parametersForScope(rw, r, api.Database, database.GetParameterValuesByScopeParams{
+		Scope:   database.ParameterScopeProject,
+		ScopeID: project.ID.String(),
+	})
 }

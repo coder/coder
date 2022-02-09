@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -52,7 +52,7 @@ func TestProvisionerd(t *testing.T) {
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			defer close(completeChan)
-			return nil, errors.New("an error")
+			return nil, xerrors.New("an error")
 		}, provisionerd.Provisioners{})
 		<-completeChan
 		require.NoError(t, closer.Close())
@@ -153,6 +153,48 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
+	t.Run("RunningPeriodicUpdate", func(t *testing.T) {
+		t.Parallel()
+		completeChan := make(chan struct{})
+		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						ProjectSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_ProjectImport_{
+							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+						},
+					}, nil
+				},
+				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
+					for {
+						_, err := stream.Recv()
+						if err != nil {
+							return err
+						}
+						close(completeChan)
+					}
+				},
+				cancelJob: func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				parse: func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
+					<-stream.Context().Done()
+					return nil
+				},
+			}),
+		})
+		<-completeChan
+		require.NoError(t, closer.Close())
+	})
+
 	t.Run("ProjectImport", func(t *testing.T) {
 		t.Parallel()
 		var (
@@ -186,7 +228,7 @@ func TestProvisionerd(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if len(msg.ProjectImportLogs) == 0 {
+						if len(msg.Logs) == 0 {
 							continue
 						}
 
@@ -219,6 +261,27 @@ func TestProvisionerd(t *testing.T) {
 						Type: &sdkproto.Parse_Response_Complete{
 							Complete: &sdkproto.Parse_Complete{
 								ParameterSchemas: []*sdkproto.ParameterSchema{},
+							},
+						},
+					})
+					require.NoError(t, err)
+					return nil
+				},
+				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					err := stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Log{
+							Log: &sdkproto.Log{
+								Level:  sdkproto.LogLevel_INFO,
+								Output: "hello",
+							},
+						},
+					})
+					require.NoError(t, err)
+
+					err = stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Resources: []*sdkproto.Resource{},
 							},
 						},
 					})
@@ -266,7 +329,7 @@ func TestProvisionerd(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						if len(msg.WorkspaceProvisionLogs) == 0 {
+						if len(msg.Logs) == 0 {
 							continue
 						}
 
@@ -331,10 +394,11 @@ func createTar(t *testing.T, files map[string]string) []byte {
 // Creates a provisionerd implementation with the provided dialer and provisioners.
 func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners provisionerd.Provisioners) io.Closer {
 	closer := provisionerd.New(dialer, &provisionerd.Options{
-		Logger:        slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:  50 * time.Millisecond,
-		Provisioners:  provisioners,
-		WorkDirectory: t.TempDir(),
+		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		PollInterval:   50 * time.Millisecond,
+		UpdateInterval: 50 * time.Millisecond,
+		Provisioners:   provisioners,
+		WorkDirectory:  t.TempDir(),
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()

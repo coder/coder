@@ -31,3 +31,4 @@ ignore:
   - peerbroker/proto
   - provisionerd/proto
   - provisionersdk/proto
+  - scripts/datadog-cireport

@@ -137,7 +137,7 @@ func (api *api) postWorkspaceByUser(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspace(workspace))
 }
 
-// Returns a single singleWorkspace.
+// Returns a single workspace.
 func (*api) workspaceByUser(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
@@ -145,24 +145,33 @@ func (*api) workspaceByUser(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspace(workspace))
 }
 
+// Returns all workspaces for a specific project.
+func (api *api) workspacesByProject(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	project := httpmw.ProjectParam(r)
+	workspaces, err := api.Database.GetWorkspacesByProjectAndUserID(r.Context(), database.GetWorkspacesByProjectAndUserIDParams{
+		OwnerID:   apiKey.UserID,
+		ProjectID: project.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces: %s", err),
+		})
+		return
+	}
+
+	apiWorkspaces := make([]Workspace, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace))
+	}
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiWorkspaces)
+}
+
 // Converts the internal workspace representation to a public external-facing model.
 func convertWorkspace(workspace database.Workspace) Workspace {
 	return Workspace(workspace)
-}
-
-// Converts the internal history representation to a public external-facing model.
-func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory) WorkspaceHistory {
-	//nolint:unconvert
-	return WorkspaceHistory(WorkspaceHistory{
-		ID:               workspaceHistory.ID,
-		CreatedAt:        workspaceHistory.CreatedAt,
-		UpdatedAt:        workspaceHistory.UpdatedAt,
-		CompletedAt:      workspaceHistory.CompletedAt.Time,
-		WorkspaceID:      workspaceHistory.WorkspaceID,
-		ProjectHistoryID: workspaceHistory.ProjectHistoryID,
-		BeforeID:         workspaceHistory.BeforeID.UUID,
-		AfterID:          workspaceHistory.AfterID.UUID,
-		Transition:       workspaceHistory.Transition,
-		Initiator:        workspaceHistory.Initiator,
-	})
 }

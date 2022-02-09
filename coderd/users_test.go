@@ -9,107 +9,143 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/httpmw"
 )
 
-func TestUsers(t *testing.T) {
+func TestPostUser(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Authenticated", func(t *testing.T) {
+	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
-		_, err := server.Client.User(context.Background(), "")
-		require.NoError(t, err)
-	})
-
-	t.Run("CreateMultipleInitial", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
-		_, err := server.Client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
-			Email:        "dummy@coder.com",
-			Organization: "bananas",
-			Username:     "fake",
-			Password:     "password",
-		})
+		client := coderdtest.New(t)
+		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{})
 		require.Error(t, err)
 	})
 
-	t.Run("Login", func(t *testing.T) {
+	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
+			Email:        "some@email.com",
+			Username:     "exampleuser",
+			Password:     "password",
+			Organization: "someorg",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+	})
+}
+
+func TestPostUsers(t *testing.T) {
+	t.Parallel()
+	t.Run("BadRequest", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{})
+		require.Error(t, err)
+	})
+
+	t.Run("Conflicting", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
+			Email:        user.Email,
+			Username:     user.Username,
+			Password:     "password",
+			Organization: "someorg",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		_, err := client.CreateUser(context.Background(), coderd.CreateUserRequest{
+			Email:    "another@user.org",
+			Username: "someone-else",
+			Password: "testing",
+		})
+		require.NoError(t, err)
+	})
+}
+
+func TestUserByName(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t)
+	_ = coderdtest.CreateInitialUser(t, client)
+	_, err := client.User(context.Background(), "")
+	require.NoError(t, err)
+}
+
+func TestOrganizationsByUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t)
+	_ = coderdtest.CreateInitialUser(t, client)
+	orgs, err := client.UserOrganizations(context.Background(), "")
+	require.NoError(t, err)
+	require.NotNil(t, orgs)
+	require.Len(t, orgs, 1)
+}
+
+func TestPostLogin(t *testing.T) {
+	t.Parallel()
+	t.Run("InvalidUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+			Email:    "my@email.org",
+			Password: "password",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+
+	t.Run("BadPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+			Email:    user.Email,
+			Password: "badpass",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    user.Email,
 			Password: user.Password,
 		})
 		require.NoError(t, err)
 	})
-
-	t.Run("LoginInvalidUser", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-			Email:    "hello@io.io",
-			Password: "wowie",
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("LoginBadPassword", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, err := server.Client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-			Email:    user.Email,
-			Password: "bananas",
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("ListOrganizations", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
-		orgs, err := server.Client.UserOrganizations(context.Background(), "")
-		require.NoError(t, err)
-		require.Len(t, orgs, 1)
-	})
-
-	t.Run("CreateUser", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		_ = server.RandomInitialUser(t)
-		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
-			Email:    "wow@ok.io",
-			Username: "tomato",
-			Password: "bananas",
-		})
-		require.NoError(t, err)
-	})
-
-	t.Run("CreateUserConflict", func(t *testing.T) {
-		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, err := server.Client.CreateUser(context.Background(), coderd.CreateUserRequest{
-			Email:    "wow@ok.io",
-			Username: user.Username,
-			Password: "bananas",
-		})
-		require.Error(t, err)
-	})
 }
 
-func TestLogout(t *testing.T) {
+func TestPostLogout(t *testing.T) {
 	t.Parallel()
 
-	t.Run("LogoutShouldClearCookie", func(t *testing.T) {
+	t.Run("ClearCookie", func(t *testing.T) {
 		t.Parallel()
 
-		server := coderdtest.New(t)
-		fullURL, err := server.URL.Parse("/api/v2/logout")
+		client := coderdtest.New(t)
+		fullURL, err := client.URL.Parse("/api/v2/logout")
 		require.NoError(t, err, "Server URL should parse successfully")
 
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, fullURL.String(), nil)

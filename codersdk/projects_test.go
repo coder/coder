@@ -1,11 +1,10 @@
 package codersdk_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd"
@@ -15,113 +14,188 @@ import (
 
 func TestProjects(t *testing.T) {
 	t.Parallel()
-
-	t.Run("UnauthenticatedList", func(t *testing.T) {
+	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.Projects(context.Background(), "")
+		client := coderdtest.New(t)
+		_, err := client.Projects(context.Background(), "")
 		require.Error(t, err)
 	})
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, err := server.Client.Projects(context.Background(), "")
-		require.NoError(t, err)
-		_, err = server.Client.Projects(context.Background(), user.Organization)
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		_, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
 	})
+}
 
-	t.Run("UnauthenticatedCreate", func(t *testing.T) {
+func TestProject(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.CreateProject(context.Background(), "", coderd.CreateProjectRequest{})
+		client := coderdtest.New(t)
+		_, err := client.Project(context.Background(), "", "")
+		require.Error(t, err)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.Project(context.Background(), user.Organization, project.Name)
+		require.NoError(t, err)
+	})
+}
+
+func TestCreateProject(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.CreateProject(context.Background(), "org", coderd.CreateProjectRequest{
+			Name:               "something",
+			VersionImportJobID: uuid.New(),
+		})
 		require.Error(t, err)
 	})
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
-		})
-		require.NoError(t, err)
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		_ = coderdtest.CreateProject(t, client, user.Organization, job.ID)
 	})
+}
 
-	t.Run("UnauthenticatedSingle", func(t *testing.T) {
+func TestProjectVersions(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.Project(context.Background(), "wow", "example")
+		client := coderdtest.New(t)
+		_, err := client.ProjectVersions(context.Background(), "some", "project")
 		require.Error(t, err)
 	})
 
-	t.Run("Single", func(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		_, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
-		})
-		require.NoError(t, err)
-		_, err = server.Client.Project(context.Background(), user.Organization, "bananas")
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersions(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
 	})
+}
 
-	t.Run("UnauthenticatedVersions", func(t *testing.T) {
+func TestProjectVersion(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.ProjectHistory(context.Background(), "org", "project")
+		client := coderdtest.New(t)
+		_, err := client.ProjectVersion(context.Background(), "some", "project", "version")
 		require.Error(t, err)
 	})
 
-	t.Run("Versions", func(t *testing.T) {
+	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
-		})
-		require.NoError(t, err)
-		_, err = server.Client.ProjectHistory(context.Background(), user.Organization, project.Name)
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersion(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
 		require.NoError(t, err)
 	})
+}
 
-	t.Run("CreateVersionUnauthenticated", func(t *testing.T) {
+func TestCreateProjectVersion(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		_, err := server.Client.CreateProjectHistory(context.Background(), "org", "project", coderd.CreateProjectHistoryRequest{
-			StorageMethod: database.ProjectStorageMethodInlineArchive,
-			StorageSource: []byte{},
-		})
+		client := coderdtest.New(t)
+		_, err := client.CreateProjectVersion(context.Background(), "some", "project", coderd.CreateProjectVersionRequest{})
 		require.Error(t, err)
 	})
 
-	t.Run("CreateVersion", func(t *testing.T) {
+	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		server := coderdtest.New(t)
-		user := server.RandomInitialUser(t)
-		project, err := server.Client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:        "bananas",
-			Provisioner: database.ProvisionerTypeTerraform,
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.CreateProjectVersion(context.Background(), user.Organization, project.Name, coderd.CreateProjectVersionRequest{
+			ImportJobID: job.ID,
 		})
 		require.NoError(t, err)
-		var buffer bytes.Buffer
-		writer := tar.NewWriter(&buffer)
-		err = writer.WriteHeader(&tar.Header{
-			Name: "file",
-			Size: 1 << 10,
-		})
+	})
+}
+
+func TestProjectVersionParameters(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.ProjectVersionParameters(context.Background(), "some", "project", "version")
+		require.Error(t, err)
+	})
+
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
 		require.NoError(t, err)
-		_, err = writer.Write(make([]byte, 1<<10))
+	})
+}
+
+func TestProjectParameters(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.ProjectParameters(context.Background(), "some", "project")
+		require.Error(t, err)
+	})
+
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
-		_, err = server.Client.CreateProjectHistory(context.Background(), user.Organization, project.Name, coderd.CreateProjectHistoryRequest{
-			StorageMethod: database.ProjectStorageMethodInlineArchive,
-			StorageSource: buffer.Bytes(),
+	})
+}
+
+func TestCreateProjectParameter(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.CreateProjectParameter(context.Background(), "some", "project", coderd.CreateParameterValueRequest{})
+		require.Error(t, err)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
+			Name:              "example",
+			SourceValue:       "source-value",
+			SourceScheme:      database.ParameterSourceSchemeData,
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+			DestinationValue:  "destination-value",
 		})
 		require.NoError(t, err)
 	})

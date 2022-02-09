@@ -23,6 +23,7 @@ type Options struct {
 func New(options *Options) http.Handler {
 	api := &api{
 		Database: options.Database,
+		Logger:   options.Logger,
 		Pubsub:   options.Pubsub,
 	}
 
@@ -61,9 +62,18 @@ func New(options *Options) http.Handler {
 					r.Use(httpmw.ExtractProjectParam(options.Database))
 					r.Get("/", api.projectByOrganization)
 					r.Get("/workspaces", api.workspacesByProject)
-					r.Route("/history", func(r chi.Router) {
-						r.Get("/", api.projectHistoryByOrganization)
-						r.Post("/", api.postProjectHistoryByOrganization)
+					r.Route("/parameters", func(r chi.Router) {
+						r.Get("/", api.parametersByProject)
+						r.Post("/", api.postParametersByProject)
+					})
+					r.Route("/versions", func(r chi.Router) {
+						r.Get("/", api.projectVersionsByOrganization)
+						r.Post("/", api.postProjectVersionByOrganization)
+						r.Route("/{projectversion}", func(r chi.Router) {
+							r.Use(httpmw.ExtractProjectVersionParam(api.Database))
+							r.Get("/", api.projectVersionByOrganizationAndName)
+							r.Get("/parameters", api.projectVersionParametersByOrganizationAndName)
+						})
 					})
 				})
 			})
@@ -76,21 +86,47 @@ func New(options *Options) http.Handler {
 			r.Get("/", api.workspaces)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/", api.workspaces)
 				r.Post("/", api.postWorkspaceByUser)
 				r.Route("/{workspace}", func(r chi.Router) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
 					r.Get("/", api.workspaceByUser)
-					r.Route("/history", func(r chi.Router) {
+					r.Route("/version", func(r chi.Router) {
 						r.Post("/", api.postWorkspaceHistoryByUser)
 						r.Get("/", api.workspaceHistoryByUser)
-						r.Get("/latest", api.latestWorkspaceHistoryByUser)
+						r.Route("/{workspacehistory}", func(r chi.Router) {
+							r.Use(httpmw.ExtractWorkspaceHistoryParam(options.Database))
+							r.Get("/", api.workspaceHistoryByName)
+						})
 					})
 				})
 			})
 		})
+
+		r.Route("/files", func(r chi.Router) {
+			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Post("/", api.postFiles)
+		})
+
+		r.Route("/provisioners", func(r chi.Router) {
+			r.Route("/daemons", func(r chi.Router) {
+				r.Get("/", api.provisionerDaemons)
+				r.Get("/serve", api.provisionerDaemonsServe)
+			})
+			r.Route("/jobs/{organization}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractAPIKey(options.Database, nil),
+					httpmw.ExtractOrganizationParam(options.Database),
+				)
+				r.Post("/import", api.postProvisionerImportJobByOrganization)
+				r.Route("/{provisionerjob}", func(r chi.Router) {
+					r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
+					r.Get("/", api.provisionerJobByOrganization)
+					r.Get("/logs", api.provisionerJobLogsByID)
+				})
+			})
+		})
 	})
-	r.NotFound(site.Handler().ServeHTTP)
+	r.NotFound(site.Handler(options.Logger).ServeHTTP)
 	return r
 }
 
@@ -98,5 +134,6 @@ func New(options *Options) http.Handler {
 // be added to this struct for code clarity.
 type api struct {
 	Database database.Store
+	Logger   slog.Logger
 	Pubsub   database.Pubsub
 }
