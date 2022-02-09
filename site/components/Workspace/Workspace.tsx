@@ -57,7 +57,7 @@ export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ workspace }) => {
  */
 export const WorkspaceHeroIcon: React.FC = () => {
   return (
-    <Box mr={"1em"}>
+    <Box mr="1em">
       <CloudCircleIcon width={Constants.TitleIconSize} height={Constants.TitleIconSize} />
     </Box>
   )
