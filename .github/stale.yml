@@ -2,6 +2,8 @@
 daysUntilStale: 14
 # Number of days of inactivity before a stale issue is closed
 daysUntilClose: 5
+# Only apply the stale logic to pulls, since we are using issues to manage work
+only: pulls
 # Label to apply when stale.
 staleLabel: stale
 # Comment to post when marking an issue as stale. Set to `false` to disable
