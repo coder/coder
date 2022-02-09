@@ -10,7 +10,9 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 
 require (
 	cdr.dev/slog v1.4.1
+	github.com/briandowns/spinner v1.18.1
 	github.com/coder/retry v1.3.0
+	github.com/fatih/color v1.13.0
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.10.0
@@ -21,7 +23,10 @@ require (
 	github.com/hashicorp/terraform-exec v0.15.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/justinas/nosurf v1.1.1
+	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/lib/pq v1.10.4
+	github.com/manifoldco/promptui v0.9.0
+	github.com/mattn/go-isatty v0.0.14
 	github.com/moby/moby v20.10.12+incompatible
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
@@ -51,6 +56,7 @@ require (
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/containerd/continuity v0.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dhui/dktest v0.3.9 // indirect
@@ -59,7 +65,6 @@ require (
 	github.com/docker/docker v20.10.12+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -77,7 +82,6 @@ require (
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
