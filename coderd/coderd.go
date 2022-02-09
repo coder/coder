@@ -126,7 +126,7 @@ func New(options *Options) http.Handler {
 			})
 		})
 	})
-	r.NotFound(site.Handler().ServeHTTP)
+	r.NotFound(site.Handler(options.Logger).ServeHTTP)
 	return r
 }
 
