@@ -21,10 +21,18 @@ const WorkspacesPage: React.FC = () => {
 
   const { user: userQueryParam, workspace: workspaceQueryParam } = router.query
 
-  const userParam = firstOrItem(userQueryParam, null)
-  const workspaceParam = firstOrItem(workspaceQueryParam, null)
+  const { data: workspace, error: workspaceError } = useSWR<API.Workspace, Error>(() => {
+    const userParam = firstOrItem(userQueryParam, null)
+    const workspaceParam = firstOrItem(workspaceQueryParam, null)
 
-  const { data: workspace, error: workspaceError } = useSWR<API.Workspace, Error>(() => `/api/v2/workspaces/${(userParam as any).toString()}/${(workspaceParam as any).toString()}`)
+    // TODO: Getting non-personal users isn't supported yet in the backend.
+    // So if the user is the same as 'me', use 'me' as the parameter
+    const normalizedUserParam = me && userParam === me.id ? "me" : userParam
+
+    // The SWR API expects us to 'throw' if the query isn't ready yet, so these casts to `any` are OK
+    // because the API expects exceptions.
+    return `/api/v2/workspaces/${(normalizedUserParam as any).toString()}/${(workspaceParam as any).toString()}`
+  })
 
   if (workspaceError) {
     return <ErrorSummary error={workspaceError} />
@@ -60,4 +68,3 @@ const useStyles = makeStyles(() => ({
 }))
 
 export default WorkspacesPage
-
