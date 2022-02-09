@@ -29,7 +29,7 @@ func TestLogin(t *testing.T) {
 		root.SetIn(console.Tty())
 		root.SetOut(console.Tty())
 		go func() {
-			err = root.Execute()
+			err := root.Execute()
 			require.NoError(t, err)
 		}()
 
