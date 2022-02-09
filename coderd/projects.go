@@ -58,11 +58,9 @@ func (api *api) projects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 	if projects == nil {
 		projects = []database.Project{}
 	}
-	
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, projects)
 }
@@ -80,17 +78,9 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-<<<<<<< HEAD
-	// Don't return 'null'
 	if projects == nil {
 		projects = []database.Project{}
 	}
-||||||| 2afad8b
-=======
-	if projects == nil {
-		projects = []database.Project{}
-	}
->>>>>>> main
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, projects)
 }
