@@ -1,5 +1,6 @@
 {
   "name": "coder-v2",
+  "packageManager": "yarn@3.1.1",
   "description": "Coder V2 (Workspaces V2)",
   "repository": "https://github.com/coder/coder",
   "private": true,
@@ -64,7 +65,6 @@
     "typescript": "4.5.5",
     "yup": "0.32.11"
   },
-  "dependencies": {},
   "browserslist": [
     "chrome 66",
     "firefox 63",
