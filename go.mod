@@ -10,6 +10,7 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 
 require (
 	cdr.dev/slog v1.4.1
+	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/briandowns/spinner v1.18.1
 	github.com/coder/retry v1.3.0
 	github.com/fatih/color v1.13.0
@@ -58,6 +59,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/containerd/continuity v0.2.2 // indirect
+	github.com/creack/pty v1.1.17 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dhui/dktest v0.3.9 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect

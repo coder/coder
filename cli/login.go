@@ -1,18 +1,19 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/codersdk"
 	"github.com/fatih/color"
 	"github.com/go-playground/validator/v10"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/codersdk"
 )
 
 func login() *cobra.Command {
@@ -46,7 +47,7 @@ func login() *cobra.Command {
 				if !isTTY(cmd.InOrStdin()) {
 					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been setup!\n", color.HiBlackString(">"))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been setup!\n", color.HiBlackString(">"))
 
 				_, err := runPrompt(cmd, &promptui.Prompt{
 					Label:     "Would you like to create the first user?",
@@ -59,7 +60,7 @@ func login() *cobra.Command {
 
 				username, err := runPrompt(cmd, &promptui.Prompt{
 					Label:   "What username would you like?",
-					Default: "kyle",
+					Default: os.Getenv("USER"),
 				})
 				if err != nil {
 					return err
@@ -78,7 +79,7 @@ func login() *cobra.Command {
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
 						if err != nil {
-							return errors.New("That's not a valid email address!")
+							return xerrors.New("That's not a valid email address!")
 						}
 						return err
 					},
@@ -121,7 +122,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("write server url: %w", err)
 				}
 
-				fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're logged in.\n", color.HiBlackString(">"), color.HiCyanString(username))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're logged in.\n", color.HiBlackString(">"), color.HiCyanString(username))
 				return nil
 			}
 

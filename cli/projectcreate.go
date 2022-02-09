@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database"
 )
 
 func projectCreate() *cobra.Command {
@@ -48,9 +49,8 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			name := filepath.Base(workingDir)
-			name, err = runPrompt(cmd, &promptui.Prompt{
-				Default: name,
+			name, err := runPrompt(cmd, &promptui.Prompt{
+				Default: filepath.Base(workingDir),
 				Label:   "What's your project's name?",
 				Validate: func(s string) error {
 					_, err = client.Project(cmd.Context(), organization.Name, s)
@@ -69,7 +69,7 @@ func projectCreate() *cobra.Command {
 			spin.Start()
 			defer spin.Stop()
 
-			bytes, err := tarDir(workingDir)
+			bytes, err := tarDirectory(workingDir)
 			if err != nil {
 				return err
 			}
@@ -91,8 +91,6 @@ func projectCreate() *cobra.Command {
 			}
 			spin.Stop()
 
-			time.Sleep(time.Second)
-
 			logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), organization.Name, job.ID, time.Time{})
 			if err != nil {
 				return err
@@ -102,54 +100,50 @@ func projectCreate() *cobra.Command {
 				if !ok {
 					break
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[parse]"), log.Output)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[parse]"), log.Output)
 			}
 
-			fmt.Printf("Projects %+v %+v\n", projects, organization)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Create project %q!\n", name)
 			return nil
 		},
 	}
 }
 
-func tarDir(directory string) ([]byte, error) {
+func tarDirectory(directory string) ([]byte, error) {
 	var buffer bytes.Buffer
-	tw := tar.NewWriter(&buffer)
-	// walk through every file in the folder
-	err := filepath.Walk(directory, func(file string, fi os.FileInfo, err error) error {
-		// generate tar header
-		header, err := tar.FileInfoHeader(fi, file)
+	tarWriter := tar.NewWriter(&buffer)
+	err := filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-
-		// must provide real name
-		// (see https://golang.org/src/archive/tar/common.go?#L626)
+		header, err := tar.FileInfoHeader(fileInfo, file)
+		if err != nil {
+			return err
+		}
 		rel, err := filepath.Rel(directory, file)
 		if err != nil {
 			return err
 		}
 		header.Name = rel
-
-		// write header
-		if err := tw.WriteHeader(header); err != nil {
+		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}
-		// if not a dir, write file content
-		if !fi.IsDir() {
-			data, err := os.Open(file)
-			if err != nil {
-				return err
-			}
-			if _, err := io.Copy(tw, data); err != nil {
-				return err
-			}
+		if fileInfo.IsDir() {
+			return nil
 		}
-		return nil
+		data, err := os.Open(file)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(tarWriter, data); err != nil {
+			return err
+		}
+		return data.Close()
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = tw.Flush()
+	err = tarWriter.Flush()
 	if err != nil {
 		return nil, err
 	}

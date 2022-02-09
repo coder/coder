@@ -7,14 +7,16 @@ import (
 	"os"
 	"strings"
 
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/codersdk"
 	"github.com/fatih/color"
 	"github.com/kirsle/configdir"
 	"github.com/manifoldco/promptui"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/codersdk"
 )
 
 const (
@@ -115,8 +117,15 @@ func isTTY(reader io.Reader) bool {
 }
 
 func runPrompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
-	prompt.Stdin = cmd.InOrStdin().(io.ReadCloser)
-	prompt.Stdout = cmd.OutOrStdout().(io.WriteCloser)
+	var ok bool
+	prompt.Stdin, ok = cmd.InOrStdin().(io.ReadCloser)
+	if !ok {
+		return "", xerrors.New("stdin must be a readcloser")
+	}
+	prompt.Stdout, ok = cmd.OutOrStdout().(io.WriteCloser)
+	if !ok {
+		return "", xerrors.New("stdout must be a readcloser")
+	}
 
 	// The prompt library displays defaults in a jarring way for the user
 	// by attempting to autocomplete it. This sets no default enabling us

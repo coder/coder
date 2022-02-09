@@ -24,7 +24,7 @@ func TestFile(t *testing.T) {
 		require.NoError(t, err)
 		data, err := root.Session().Read()
 		require.NoError(t, err)
-		require.Equal(t, "test", string(data))
+		require.Equal(t, "test", data)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
