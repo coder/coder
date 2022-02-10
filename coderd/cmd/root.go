@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"context"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -11,8 +16,13 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
+	"github.com/coder/coder/provisioner/terraform"
+	"github.com/coder/coder/provisionerd"
+	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func Root() *cobra.Command {
@@ -22,8 +32,9 @@ func Root() *cobra.Command {
 	root := &cobra.Command{
 		Use: "coderd",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			handler := coderd.New(&coderd.Options{
-				Logger:   slog.Make(sloghuman.Sink(os.Stderr)),
+				Logger:   logger,
 				Database: databasefake.New(),
 				Pubsub:   database.NewPubsubInMemory(),
 			})
@@ -33,6 +44,16 @@ func Root() *cobra.Command {
 				return xerrors.Errorf("listen %q: %w", address, err)
 			}
 			defer listener.Close()
+
+			client := codersdk.New(&url.URL{
+				Scheme: "http",
+				Host:   address,
+			})
+			closer, err := newProvisionerDaemon(cmd.Context(), client, logger)
+			if err != nil {
+				return xerrors.Errorf("create provisioner daemon: %w", err)
+			}
+			defer closer.Close()
 
 			errCh := make(chan error)
 			go func() {
@@ -55,4 +76,32 @@ func Root() *cobra.Command {
 	root.Flags().StringVarP(&address, "address", "a", defaultAddress, "The address to serve the API and dashboard.")
 
 	return root
+}
+
+func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger) (io.Closer, error) {
+	terraformClient, terraformServer := provisionersdk.TransportPipe()
+	go func() {
+		err := terraform.Serve(ctx, &terraform.ServeOptions{
+			ServeOptions: &provisionersdk.ServeOptions{
+				Listener: terraformServer,
+			},
+			Logger: logger,
+		})
+		if err != nil {
+			panic(err)
+		}
+	}()
+	tempDir, err := ioutil.TempDir("", "provisionerd")
+	if err != nil {
+		return nil, err
+	}
+	return provisionerd.New(client.ProvisionerDaemonClient, &provisionerd.Options{
+		Logger:         logger,
+		PollInterval:   50 * time.Millisecond,
+		UpdateInterval: 50 * time.Millisecond,
+		Provisioners: provisionerd.Provisioners{
+			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
+		},
+		WorkDirectory: tempDir,
+	}), nil
 }

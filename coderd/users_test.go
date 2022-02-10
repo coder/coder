@@ -13,6 +13,26 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
+func TestUser(t *testing.T) {
+	t.Parallel()
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		has, err := client.HasInitialUser(context.Background())
+		require.NoError(t, err)
+		require.False(t, has)
+	})
+
+	t.Run("Found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		has, err := client.HasInitialUser(context.Background())
+		require.NoError(t, err)
+		require.True(t, has)
+	})
+}
+
 func TestPostUser(t *testing.T) {
 	t.Parallel()
 	t.Run("BadRequest", func(t *testing.T) {

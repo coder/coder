@@ -9,6 +9,23 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
+// HasInitialUser returns whether the initial user has already been
+// created or not.
+func (c *Client) HasInitialUser(ctx context.Context) (bool, error) {
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/user", nil)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return false, readBodyAsError(res)
+	}
+	return true, nil
+}
+
 // CreateInitialUser attempts to create the first user on a Coder deployment.
 // This initial user has superadmin privileges. If >0 users exist, this request
 // will fail.
