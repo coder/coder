@@ -38,7 +38,7 @@ export const FormCloseButton: React.FC<FormCloseButtonProps> = ({ onClose }) => 
 const useStyles = makeStyles((theme) => ({
   closeButton: {
     position: "fixed",
-    top: theme.spacing(6),
+    top: theme.spacing(3),
     right: theme.spacing(6),
     opacity: 0.5,
     color: theme.palette.text.primary,
@@ -46,7 +46,6 @@ const useStyles = makeStyles((theme) => ({
       opacity: 1,
     },
   },
-
   label: {
     position: "absolute",
     left: "50%",
