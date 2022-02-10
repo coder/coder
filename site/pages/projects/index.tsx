@@ -14,6 +14,7 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
 import { Organization, Project } from "./../../api"
 import useSWR from "swr"
+import { CodeBlock } from "../../components/CodeBlock"
 
 const ProjectsPage: React.FC = () => {
   const styles = useStyles()
@@ -38,11 +39,6 @@ const ProjectsPage: React.FC = () => {
     void router.push("/projects/create")
   }
 
-  const action = {
-    text: "Create Project",
-    onClick: createProject,
-  }
-
   // Create a dictionary of organization ID -> organization Name
   // Needed to properly construct links to dive into a project
   const orgDictionary = orgs.reduce((acc: Record<string, string>, curr: Organization) => {
@@ -62,16 +58,14 @@ const ProjectsPage: React.FC = () => {
     },
   ]
 
-  const emptyState = (
-    <EmptyState
-      button={{
-        children: "Create Project",
-        onClick: createProject,
-      }}
-      message="No projects have been created yet"
-      description="Create a project to get started."
-    />
-  )
+  const description = <div>
+    <div>Run the following command to get started:</div>
+    <CodeBlock lines={["coder project create"]} />
+  </div>
+
+  const emptyState = <EmptyState
+    message="No projects have been created yet"
+    description={description} />
 
   const tableProps = {
     title: "All Projects",
@@ -85,7 +79,7 @@ const ProjectsPage: React.FC = () => {
   return (
     <div className={styles.root}>
       <Navbar user={me} onSignOut={signOut} />
-      <Header title="Projects" subTitle={subTitle} action={action} />
+      <Header title="Projects" subTitle={subTitle} />
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
         <Table {...tableProps} />
       </Paper>
