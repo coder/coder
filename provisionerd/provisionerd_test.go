@@ -34,9 +34,8 @@ func TestMain(m *testing.M) {
 func TestProvisionerd(t *testing.T) {
 	t.Parallel()
 
-	noopUpdateJob := func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-		<-stream.Context().Done()
-		return nil
+	noopUpdateJob := func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+		return &proto.UpdateJobResponse{}, nil
 	}
 
 	t.Run("InstantClose", func(t *testing.T) {
@@ -170,14 +169,9 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}, nil
 				},
-				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-					for {
-						_, err := stream.Recv()
-						if err != nil {
-							return err
-						}
-						close(completeChan)
-					}
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					close(completeChan)
+					return &proto.UpdateJobResponse{}, nil
 				},
 				cancelJob: func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {
 					return &proto.Empty{}, nil
@@ -222,18 +216,11 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}, nil
 				},
-				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-					for {
-						msg, err := stream.Recv()
-						if err != nil {
-							return err
-						}
-						if len(msg.Logs) == 0 {
-							continue
-						}
-
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					if len(update.Logs) != 0 {
 						didLog.Store(true)
 					}
+					return &proto.UpdateJobResponse{}, nil
 				},
 				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 					didComplete.Store(true)
@@ -323,18 +310,11 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}, nil
 				},
-				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-					for {
-						msg, err := stream.Recv()
-						if err != nil {
-							return err
-						}
-						if len(msg.Logs) == 0 {
-							continue
-						}
-
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					if len(update.Logs) != 0 {
 						didLog.Store(true)
 					}
+					return &proto.UpdateJobResponse{}, nil
 				},
 				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 					didComplete.Store(true)
@@ -463,7 +443,7 @@ func (p *provisionerTestServer) Provision(request *sdkproto.Provision_Request, s
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
 	acquireJob  func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error)
-	updateJob   func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error
+	updateJob   func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	cancelJob   func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error)
 	completeJob func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
 }
@@ -472,8 +452,8 @@ func (p *provisionerDaemonTestServer) AcquireJob(ctx context.Context, empty *pro
 	return p.acquireJob(ctx, empty)
 }
 
-func (p *provisionerDaemonTestServer) UpdateJob(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-	return p.updateJob(stream)
+func (p *provisionerDaemonTestServer) UpdateJob(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	return p.updateJob(ctx, update)
 }
 
 func (p *provisionerDaemonTestServer) CancelJob(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {

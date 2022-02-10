@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -70,6 +71,7 @@ func TestPostProvisionerImportJobByOrganization(t *testing.T) {
 					},
 				},
 			}},
+			Provision: echo.ProvisionComplete,
 		})
 		require.NoError(t, err)
 		file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
@@ -84,10 +86,10 @@ func TestPostProvisionerImportJobByOrganization(t *testing.T) {
 				SourceScheme:      database.ParameterSourceSchemeData,
 				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 			}},
-			SkipResources: true,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		job = coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		fmt.Printf("Job %+v\n", job)
 		values, err := client.ProvisionerJobParameterValues(context.Background(), user.Organization, job.ID)
 		require.NoError(t, err)
 		require.Equal(t, "somevalue", values[0].SourceValue)

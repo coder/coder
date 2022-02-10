@@ -46,13 +46,10 @@ type ProvisionerJob struct {
 }
 
 type CreateProjectImportJobRequest struct {
-	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	StorageSource string                            `json:"storage_source" validate:"required"`
-	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
-
-	ParameterValues      []CreateParameterValueRequest `json:"parameter_values"`
-	SkipParameterSchemas bool                          `json:"skip_parameter_schemas"`
-	SkipResources        bool                          `json:"skip_resources"`
+	StorageMethod   database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	StorageSource   string                            `json:"storage_source" validate:"required"`
+	Provisioner     database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	ParameterValues []CreateParameterValueRequest     `json:"parameter_values"`
 }
 
 func (*api) provisionerJobByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -84,10 +81,7 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 	}
 
 	input, err := json.Marshal(projectVersionImportJob{
-		// AdditionalParameters: req.AdditionalParameters,
-		OrganizationID:       organization.ID,
-		SkipParameterSchemas: req.SkipParameterSchemas,
-		SkipResources:        req.SkipResources,
+		OrganizationID: organization.ID,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

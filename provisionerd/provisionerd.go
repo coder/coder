@@ -71,7 +71,6 @@ type provisionerDaemon struct {
 
 	clientDialer Dialer
 	client       proto.DRPCProvisionerDaemonClient
-	updateStream proto.DRPCProvisionerDaemon_UpdateJobClient
 
 	// Locked when closing the daemon.
 	closeMutex  sync.Mutex
@@ -104,17 +103,6 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
-		p.updateStream, err = p.client.UpdateJob(ctx)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			if p.isClosed() {
-				return
-			}
-			p.opts.Logger.Warn(context.Background(), "create update job stream", slog.Error(err))
-			continue
-		}
 		p.opts.Logger.Debug(context.Background(), "connected")
 		break
 	}
@@ -131,11 +119,11 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 		select {
 		case <-p.closed:
 			return
-		case <-p.updateStream.Context().Done():
+		case <-p.client.DRPCConn().Closed():
 			// We use the update stream to detect when the connection
 			// has been interrupted. This works well, because logs need
 			// to buffer if a job is running in the background.
-			p.opts.Logger.Debug(context.Background(), "update stream ended", slog.Error(p.updateStream.Context().Err()))
+			p.opts.Logger.Debug(context.Background(), "client stream ended")
 			p.connect(ctx)
 		}
 	}()
@@ -150,7 +138,7 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 			select {
 			case <-p.closed:
 				return
-			case <-p.updateStream.Context().Done():
+			case <-p.client.DRPCConn().Closed():
 				return
 			case <-ticker.C:
 				p.acquireJob(ctx)
@@ -219,7 +207,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			err := p.updateStream.Send(&proto.JobUpdate{
+			_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 			})
 			if err != nil {
@@ -344,48 +332,59 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 }
 
 func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
-	var parameterSchemas []*sdkproto.ParameterSchema
-	var startResources []*sdkproto.Resource
-	var stopResources []*sdkproto.Resource
-	var err error
+	parameterSchemas, err := p.runProjectImportParse(ctx, provisioner, job)
+	if err != nil {
+		p.cancelActiveJobf("run parse: %s", err)
+		return
+	}
 
-	if !job.GetProjectImport().SkipParameterSchemas {
-		parameterSchemas, err = p.runProjectImportParse(ctx, provisioner, job)
-		if err != nil {
-			p.cancelActiveJobf("run parse: %s", err)
+	updateResponse, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		JobId:            job.JobId,
+		ParameterSchemas: parameterSchemas,
+	})
+	if err != nil {
+		p.cancelActiveJobf("update job: %s", err)
+		return
+	}
+
+	valueByName := map[string]*sdkproto.ParameterValue{}
+	for _, parameterValue := range updateResponse.ParameterValues {
+		valueByName[parameterValue.Name] = parameterValue
+	}
+	for _, parameterSchema := range parameterSchemas {
+		_, ok := valueByName[parameterSchema.Name]
+		if !ok {
+			p.cancelActiveJobf("missing parameter: %s", parameterSchema.Name)
 			return
 		}
 	}
 
-	if !job.GetProjectImport().SkipResources {
-		startResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(job.GetProjectImport().GetParameterValues(), &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			// TODO: Make this a constant higher-up in the stack.
-			Name:  "coder_workspace_transition",
-			Value: "start",
-		}))
-		if err != nil {
-			p.cancelActiveJobf("project import provision for start: %s", err)
-			return
-		}
-		stopResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(job.GetProjectImport().GetParameterValues(), &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              "coder_workspace_transition",
-			Value:             "stop",
-		}))
-		if err != nil {
-			p.cancelActiveJobf("project import provision for start: %s", err)
-			return
-		}
+	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
+		DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+		// TODO: Make this a constant higher-up in the stack.
+		Name:  "coder_workspace_transition",
+		Value: "start",
+	}))
+	if err != nil {
+		p.cancelActiveJobf("project import provision for start: %s", err)
+		return
+	}
+	stopResources, err := p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
+		DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+		Name:              "coder_workspace_transition",
+		Value:             "stop",
+	}))
+	if err != nil {
+		p.cancelActiveJobf("project import provision for start: %s", err)
+		return
 	}
 
 	_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
 		JobId: job.JobId,
 		Type: &proto.CompletedJob_ProjectImport_{
 			ProjectImport: &proto.CompletedJob_ProjectImport{
-				ParameterSchemas: parameterSchemas,
-				StartResources:   startResources,
-				StopResources:    stopResources,
+				StartResources: startResources,
+				StopResources:  stopResources,
 			},
 		},
 	})
@@ -416,7 +415,7 @@ func (p *provisionerDaemon) runProjectImportParse(ctx context.Context, provision
 				slog.F("output", msgType.Log.Output),
 			)
 
-			err = p.updateStream.Send(&proto.JobUpdate{
+			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
@@ -466,7 +465,7 @@ func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provi
 				slog.F("output", msgType.Log.Output),
 			)
 
-			err = p.updateStream.Send(&proto.JobUpdate{
+			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
@@ -519,7 +518,7 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 				slog.F("workspace_history_id", job.GetWorkspaceProvision().WorkspaceHistoryId),
 			)
 
-			err = p.updateStream.Send(&proto.JobUpdate{
+			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,

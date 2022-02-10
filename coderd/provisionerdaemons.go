@@ -113,9 +113,6 @@ type workspaceProvisionJob struct {
 type projectVersionImportJob struct {
 	OrganizationID string    `json:"organization_id"`
 	ProjectID      uuid.UUID `json:"project_id"`
-
-	SkipParameterSchemas bool `json:"skip_parameter_schemas"`
-	SkipResources        bool `json:"skip_resources"`
 }
 
 // Implementation of the provisioner daemon protobuf server.
@@ -276,9 +273,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
 			ProjectImport: &proto.AcquiredJob_ProjectImport{
-				ParameterValues:      protoParameters,
-				SkipParameterSchemas: input.SkipParameterSchemas,
-				SkipResources:        input.SkipResources,
+				ParameterValues: protoParameters,
 			},
 		}
 	}
@@ -324,35 +319,89 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 		if err != nil {
 			return xerrors.Errorf("update job: %w", err)
 		}
-		insertParams := database.InsertProvisionerJobLogsParams{
-			JobID: parsedID,
-		}
-		for _, log := range update.Logs {
-			logLevel, err := convertLogLevel(log.Level)
-			if err != nil {
-				return xerrors.Errorf("convert log level: %w", err)
+		if len(update.Logs) > 0 {
+			insertParams := database.InsertProvisionerJobLogsParams{
+				JobID: parsedID,
 			}
-			logSource, err := convertLogSource(log.Source)
-			if err != nil {
-				return xerrors.Errorf("convert log source: %w", err)
+			for _, log := range update.Logs {
+				logLevel, err := convertLogLevel(log.Level)
+				if err != nil {
+					return xerrors.Errorf("convert log level: %w", err)
+				}
+				logSource, err := convertLogSource(log.Source)
+				if err != nil {
+					return xerrors.Errorf("convert log source: %w", err)
+				}
+				insertParams.ID = append(insertParams.ID, uuid.New())
+				insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
+				insertParams.Level = append(insertParams.Level, logLevel)
+				insertParams.Source = append(insertParams.Source, logSource)
+				insertParams.Output = append(insertParams.Output, log.Output)
 			}
-			insertParams.ID = append(insertParams.ID, uuid.New())
-			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
-			insertParams.Level = append(insertParams.Level, logLevel)
-			insertParams.Source = append(insertParams.Source, logSource)
-			insertParams.Output = append(insertParams.Output, log.Output)
+			logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
+			if err != nil {
+				return xerrors.Errorf("insert job logs: %w", err)
+			}
+			data, err := json.Marshal(logs)
+			if err != nil {
+				return xerrors.Errorf("marshal job log: %w", err)
+			}
+			err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
+			if err != nil {
+				return xerrors.Errorf("publish job log: %w", err)
+			}
 		}
-		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
-		if err != nil {
-			return xerrors.Errorf("insert job logs: %w", err)
-		}
-		data, err := json.Marshal(logs)
-		if err != nil {
-			return xerrors.Errorf("marshal job log: %w", err)
-		}
-		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
-		if err != nil {
-			return xerrors.Errorf("publish job log: %w", err)
+
+		if update.GetProjectImport() != nil {
+			// Validate that all parameters send from the provisioner daemon
+			// follow the protocol.
+			parameterSchemas := make([]database.InsertParameterSchemaParams, 0, len(update.GetProjectImport().ParameterSchemas))
+			for _, protoParameter := range update.GetProjectImport().ParameterSchemas {
+				validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
+				if err != nil {
+					return xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
+				}
+
+				parameterSchema := database.InsertParameterSchemaParams{
+					ID:                   uuid.New(),
+					CreatedAt:            database.Now(),
+					JobID:                job.ID,
+					Name:                 protoParameter.Name,
+					Description:          protoParameter.Description,
+					RedisplayValue:       protoParameter.RedisplayValue,
+					ValidationError:      protoParameter.ValidationError,
+					ValidationCondition:  protoParameter.ValidationCondition,
+					ValidationValueType:  protoParameter.ValidationValueType,
+					ValidationTypeSystem: validationTypeSystem,
+
+					DefaultSourceScheme:      database.ParameterSourceSchemeNone,
+					DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
+
+					AllowOverrideDestination: protoParameter.AllowOverrideDestination,
+					AllowOverrideSource:      protoParameter.AllowOverrideSource,
+				}
+
+				// It's possible a parameter doesn't define a default source!
+				if protoParameter.DefaultSource != nil {
+					parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
+					if err != nil {
+						return xerrors.Errorf("convert parameter source scheme: %w", err)
+					}
+					parameterSchema.DefaultSourceScheme = parameterSourceScheme
+					parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
+				}
+
+				// It's possible a parameter doesn't define a default destination!
+				if protoParameter.DefaultDestination != nil {
+					parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
+					if err != nil {
+						return xerrors.Errorf("convert parameter destination scheme: %w", err)
+					}
+					parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
+				}
+
+				parameterSchemas = append(parameterSchemas, parameterSchema)
+			}
 		}
 	}
 }
@@ -412,80 +461,18 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			return nil, xerrors.Errorf("unmarshal job data: %w", err)
 		}
 
-		// Validate that all parameters send from the provisioner daemon
-		// follow the protocol.
-		parameterSchemas := make([]database.InsertParameterSchemaParams, 0, len(jobType.ProjectImport.ParameterSchemas))
-		for _, protoParameter := range jobType.ProjectImport.ParameterSchemas {
-			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
-			if err != nil {
-				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
-			}
-
-			parameterSchema := database.InsertParameterSchemaParams{
-				ID:                   uuid.New(),
-				CreatedAt:            database.Now(),
-				JobID:                job.ID,
-				Name:                 protoParameter.Name,
-				Description:          protoParameter.Description,
-				RedisplayValue:       protoParameter.RedisplayValue,
-				ValidationError:      protoParameter.ValidationError,
-				ValidationCondition:  protoParameter.ValidationCondition,
-				ValidationValueType:  protoParameter.ValidationValueType,
-				ValidationTypeSystem: validationTypeSystem,
-
-				DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-				DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-
-				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
-				AllowOverrideSource:      protoParameter.AllowOverrideSource,
-			}
-
-			// It's possible a parameter doesn't define a default source!
-			if protoParameter.DefaultSource != nil {
-				parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
-				}
-				parameterSchema.DefaultSourceScheme = parameterSourceScheme
-				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
-			}
-
-			// It's possible a parameter doesn't define a default destination!
-			if protoParameter.DefaultDestination != nil {
-				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
-				}
-				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
-			}
-
-			parameterSchemas = append(parameterSchemas, parameterSchema)
-		}
-
-		// This must occur in a transaction in case of failure.
-		err = server.Database.InTx(func(db database.Store) error {
-			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID:        jobID,
-				UpdatedAt: database.Now(),
-				CompletedAt: sql.NullTime{
-					Time:  database.Now(),
-					Valid: true,
-				},
-			})
-			if err != nil {
-				return xerrors.Errorf("update provisioner job: %w", err)
-			}
-			// This could be a bulk-insert operation to improve performance.
-			// See the "InsertWorkspaceHistoryLogs" query.
-			for _, parameterSchema := range parameterSchemas {
-				_, err = db.InsertParameterSchema(ctx, parameterSchema)
-				if err != nil {
-					return xerrors.Errorf("insert parameter schema %q: %w", parameterSchema.Name, err)
-				}
-			}
-			server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
-			return nil
+		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        jobID,
+			UpdatedAt: database.Now(),
+			CompletedAt: sql.NullTime{
+				Time:  database.Now(),
+				Valid: true,
+			},
 		})
+		if err != nil {
+			return nil, xerrors.Errorf("update provisioner job: %w", err)
+		}
+		server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
