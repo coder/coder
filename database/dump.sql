@@ -163,6 +163,15 @@ CREATE TABLE project (
     active_version_id uuid NOT NULL
 );
 
+CREATE TABLE project_import_job_resource (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    type character varying(256) NOT NULL,
+    name character varying(64) NOT NULL
+);
+
 CREATE TABLE project_version (
     id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -291,6 +300,9 @@ ALTER TABLE ONLY parameter_value
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_id_key UNIQUE (id);
 
+ALTER TABLE ONLY project_import_job_resource
+    ADD CONSTRAINT project_import_job_resource_id_key UNIQUE (id);
+
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_organization_id_name_key UNIQUE (organization_id, name);
 
@@ -338,6 +350,9 @@ ALTER TABLE ONLY workspace_resource
 
 ALTER TABLE ONLY parameter_schema
     ADD CONSTRAINT parameter_schema_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY project_import_job_resource
+    ADD CONSTRAINT project_import_job_resource_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);

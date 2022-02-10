@@ -19,18 +19,19 @@ func New() database.Store {
 		organizationMembers: make([]database.OrganizationMember, 0),
 		users:               make([]database.User, 0),
 
-		files:              make([]database.File, 0),
-		parameterValue:     make([]database.ParameterValue, 0),
-		parameterSchema:    make([]database.ParameterSchema, 0),
-		project:            make([]database.Project, 0),
-		projectVersion:     make([]database.ProjectVersion, 0),
-		provisionerDaemons: make([]database.ProvisionerDaemon, 0),
-		provisionerJobs:    make([]database.ProvisionerJob, 0),
-		provisionerJobLog:  make([]database.ProvisionerJobLog, 0),
-		workspace:          make([]database.Workspace, 0),
-		workspaceResource:  make([]database.WorkspaceResource, 0),
-		workspaceHistory:   make([]database.WorkspaceHistory, 0),
-		workspaceAgent:     make([]database.WorkspaceAgent, 0),
+		files:                    make([]database.File, 0),
+		parameterValue:           make([]database.ParameterValue, 0),
+		parameterSchema:          make([]database.ParameterSchema, 0),
+		project:                  make([]database.Project, 0),
+		projectVersion:           make([]database.ProjectVersion, 0),
+		projectImportJobResource: make([]database.ProjectImportJobResource, 0),
+		provisionerDaemons:       make([]database.ProvisionerDaemon, 0),
+		provisionerJobs:          make([]database.ProvisionerJob, 0),
+		provisionerJobLog:        make([]database.ProvisionerJobLog, 0),
+		workspace:                make([]database.Workspace, 0),
+		workspaceResource:        make([]database.WorkspaceResource, 0),
+		workspaceHistory:         make([]database.WorkspaceHistory, 0),
+		workspaceAgent:           make([]database.WorkspaceAgent, 0),
 	}
 }
 
@@ -45,18 +46,19 @@ type fakeQuerier struct {
 	users               []database.User
 
 	// New tables
-	files              []database.File
-	parameterValue     []database.ParameterValue
-	parameterSchema    []database.ParameterSchema
-	project            []database.Project
-	projectVersion     []database.ProjectVersion
-	provisionerDaemons []database.ProvisionerDaemon
-	provisionerJobs    []database.ProvisionerJob
-	provisionerJobLog  []database.ProvisionerJobLog
-	workspace          []database.Workspace
-	workspaceAgent     []database.WorkspaceAgent
-	workspaceHistory   []database.WorkspaceHistory
-	workspaceResource  []database.WorkspaceResource
+	files                    []database.File
+	parameterValue           []database.ParameterValue
+	parameterSchema          []database.ParameterSchema
+	project                  []database.Project
+	projectVersion           []database.ProjectVersion
+	projectImportJobResource []database.ProjectImportJobResource
+	provisionerDaemons       []database.ProvisionerDaemon
+	provisionerJobs          []database.ProvisionerJob
+	provisionerJobLog        []database.ProvisionerJobLog
+	workspace                []database.Workspace
+	workspaceAgent           []database.WorkspaceAgent
+	workspaceHistory         []database.WorkspaceHistory
+	workspaceResource        []database.WorkspaceResource
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -664,6 +666,23 @@ func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjec
 	}
 	q.project = append(q.project, project)
 	return project, nil
+}
+
+func (q *fakeQuerier) InsertProjectImportJobResource(ctx context.Context, arg database.InsertProjectImportJobResourceParams) (database.ProjectImportJobResource, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	projectResource := database.ProjectImportJobResource{
+		ID:         arg.ID,
+		CreatedAt:  arg.CreatedAt,
+		JobID:      arg.JobID,
+		Transition: arg.Transition,
+		Type:       arg.Type,
+		Name:       arg.Name,
+	}
+	q.projectImportJobResource = append(q.projectImportJobResource, projectResource)
+	return projectResource, nil
 }
 
 func (q *fakeQuerier) InsertProjectVersion(_ context.Context, arg database.InsertProjectVersionParams) (database.ProjectVersion, error) {

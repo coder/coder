@@ -48,6 +48,7 @@ type querier interface {
 	InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error)
 	InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error)
 	InsertProject(ctx context.Context, arg InsertProjectParams) (Project, error)
+	InsertProjectImportJobResource(ctx context.Context, arg InsertProjectImportJobResourceParams) (ProjectImportJobResource, error)
 	InsertProjectVersion(ctx context.Context, arg InsertProjectVersionParams) (ProjectVersion, error)
 	InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)

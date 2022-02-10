@@ -342,6 +342,15 @@ type Project struct {
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
+type ProjectImportJobResource struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Type       string              `db:"type" json:"type"`
+	Name       string              `db:"name" json:"name"`
+}
+
 type ProjectVersion struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`

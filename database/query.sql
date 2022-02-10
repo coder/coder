@@ -427,6 +427,12 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
+-- name: InsertProjectImportJobResource :one
+INSERT INTO
+  project_import_job_resource (id, created_at, job_id, transition, type, name)
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
+
 -- name: InsertProjectVersion :one
 INSERT INTO
   project_version (

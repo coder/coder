@@ -1569,6 +1569,43 @@ func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams)
 	return i, err
 }
 
+const insertProjectImportJobResource = `-- name: InsertProjectImportJobResource :one
+INSERT INTO
+  project_import_job_resource (id, created_at, job_id, transition, type, name)
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, job_id, transition, type, name
+`
+
+type InsertProjectImportJobResourceParams struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Type       string              `db:"type" json:"type"`
+	Name       string              `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) InsertProjectImportJobResource(ctx context.Context, arg InsertProjectImportJobResourceParams) (ProjectImportJobResource, error) {
+	row := q.db.QueryRowContext(ctx, insertProjectImportJobResource,
+		arg.ID,
+		arg.CreatedAt,
+		arg.JobID,
+		arg.Transition,
+		arg.Type,
+		arg.Name,
+	)
+	var i ProjectImportJobResource
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.JobID,
+		&i.Transition,
+		&i.Type,
+		&i.Name,
+	)
+	return i, err
+}
+
 const insertProjectVersion = `-- name: InsertProjectVersion :one
 INSERT INTO
   project_version (

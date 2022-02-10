@@ -119,3 +119,13 @@ CREATE TABLE parameter_value (
     -- Prevents duplicates for parameters in the same scope.
     UNIQUE(name, scope, scope_id)
 );
+
+-- Resources from multiple workspace states are stored here post project-import job.
+CREATE TABLE project_import_job_resource (
+    id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
+    transition workspace_transition NOT NULL,
+    type varchar(256) NOT NULL,
+    name varchar(64) NOT NULL
+);
