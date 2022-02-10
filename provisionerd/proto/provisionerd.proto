@@ -35,16 +35,6 @@ message CancelledJob {
     string error = 2;
 }
 
-// TransitionedResource represents a resource that knows whether
-// it's existence is dependent on stop or not.
-// 
-// This is used on import to display start + stopped resources
-// for the lifecycle of a workspace.
-message TransitionedResource {
-    provisioner.Resource resource = 1;
-    bool destroy_on_stop = 2;
-}
-
 // CompletedJob is sent when the provisioner daemon completes a job.
 message CompletedJob {
     message WorkspaceProvision {

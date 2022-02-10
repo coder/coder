@@ -55,6 +55,9 @@ func TestParse(t *testing.T) {
 						Name:           "A",
 						RedisplayValue: true,
 						Description:    "Testing!",
+						DefaultDestination: &proto.ParameterDestination{
+							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						},
 					}},
 				},
 			},
@@ -100,8 +103,10 @@ func TestParse(t *testing.T) {
 						RedisplayValue:       true,
 						ValidationCondition:  `var.A == "value"`,
 						ValidationTypeSystem: proto.ParameterSchema_HCL,
-					},
-					},
+						DefaultDestination: &proto.ParameterDestination{
+							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						},
+					}},
 				},
 			},
 		},

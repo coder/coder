@@ -46,6 +46,9 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 		Description:         variable.Description,
 		RedisplayValue:      !variable.Sensitive,
 		ValidationValueType: variable.Type,
+		DefaultDestination: &proto.ParameterDestination{
+			Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		},
 	}
 
 	if variable.Default != nil {
@@ -56,9 +59,6 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 		schema.DefaultSource = &proto.ParameterSource{
 			Scheme: proto.ParameterSource_DATA,
 			Value:  string(defaultData),
-		}
-		schema.DefaultDestination = &proto.ParameterDestination{
-			Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 		}
 	}
 

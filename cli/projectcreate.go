@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -14,9 +15,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
+	"github.com/xlab/treeprint"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd"
@@ -62,61 +65,10 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			spin := spinner.New(spinner.CharSets[0], 25*time.Millisecond)
-			spin.Suffix = " Uploading current directory..."
-			spin.Start()
-
-			defer spin.Stop()
-
-			bytes, err := tarDirectory(directory)
+			job, err := doProjectLoop(cmd, client, organization, directory, []coderd.CreateParameterValueRequest{})
 			if err != nil {
 				return err
 			}
-
-			resp, err := client.UploadFile(cmd.Context(), codersdk.ContentTypeTar, bytes)
-			if err != nil {
-				return err
-			}
-
-			job, err := client.CreateProjectVersionImportProvisionerJob(cmd.Context(), organization.Name, coderd.CreateProjectImportJobRequest{
-				StorageMethod: database.ProvisionerStorageMethodFile,
-				StorageSource: resp.Hash,
-				Provisioner:   database.ProvisionerTypeTerraform,
-			})
-			if err != nil {
-				return err
-			}
-			spin.Stop()
-
-			logs, err := client.FollowProvisionerJobLogsAfter(cmd.Context(), organization.Name, job.ID, time.Time{})
-			if err != nil {
-				return err
-			}
-			for {
-				log, ok := <-logs
-				if !ok {
-					break
-				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
-			}
-
-			job, err = client.ProvisionerJob(cmd.Context(), organization.Name, job.ID)
-			if err != nil {
-				return err
-			}
-
-			if provisionerd.IsMissingParameterError(job.Error) {
-				fmt.Printf("Missing something!\n")
-				return nil
-			}
-
-			resources, err := client.ProvisionerJobResources(cmd.Context(), organization.Name, job.ID)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("Resources: %+v\n", resources)
-
 			project, err := client.CreateProject(cmd.Context(), organization.Name, coderd.CreateProjectRequest{
 				Name:               name,
 				VersionImportJobID: job.ID,
@@ -125,80 +77,17 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Project: %+v\n", project)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", color.HiBlackString(">"), color.HiCyanString(project.Name))
+			_, err = runPrompt(cmd, &promptui.Prompt{
+				Label:     "Create a new workspace?",
+				IsConfirm: true,
+				Default:   "y",
+			})
+			if err != nil {
+				return err
+			}
 
-			// _, _ = fmt.Fprintf(cmd.OutOrStdout(), "Parsed project source... displaying parameters:")
-
-			// schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
-			// if err != nil {
-			// 	return err
-			// }
-
-			// values, err := client.ProvisionerJobParameterValues(cmd.Context(), organization.Name, job.ID)
-			// if err != nil {
-			// 	return err
-			// }
-			// valueBySchemaID := map[string]coderd.ComputedParameterValue{}
-			// for _, value := range values {
-			// 	valueBySchemaID[value.SchemaID.String()] = value
-			// }
-
-			// for _, schema := range schemas {
-			// 	if value, ok := valueBySchemaID[schema.ID.String()]; ok {
-			// 		fmt.Printf("Value for: %s %s\n", value.Name, value.SourceValue)
-			// 		continue
-			// 	}
-			// 	fmt.Printf("No value for: %s\n", schema.Name)
-			// }
-
-			// schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
-			// if err != nil {
-			// 	return err
-			// }
-			// _, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n  %s\n\n", color.HiBlackString("Parameters"))
-
-			// for _, param := range params {
-			// 	if param.Value == nil {
-			// 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    %s = must be set\n", color.HiRedString(param.Schema.Name))
-			// 		continue
-			// 	}
-			// 	value := param.Value.DestinationValue
-			// 	if !param.Schema.RedisplayValue {
-			// 		value = "<redacted>"
-			// 	}
-			// 	output := fmt.Sprintf("    %s = %s", color.HiGreenString(param.Value.SourceValue), color.CyanString(value))
-			// 	param.Value.DefaultSourceValue = false
-			// 	param.Value.Scope = database.ParameterScopeOrganization
-			// 	param.Value.ScopeID = organization.ID
-			// 	if param.Value.DefaultSourceValue {
-			// 		output += " (default value)"
-			// 	} else {
-			// 		output += fmt.Sprintf(" (inherited from %s)", param.Value.Scope)
-			// 	}
-			// 	root := treeprint.NewWithRoot(output)
-			// 	root.AddNode(color.HiBlackString("Description") + "\n" + param.Schema.Description)
-			// 	fmt.Fprintln(cmd.OutOrStdout(), strings.Join(strings.Split(root.String(), "\n"), "\n    "))
-			// }
-
-			// for _, param := range params {
-			// 	if param.Value != nil {
-			// 		continue
-			// 	}
-
-			// 	value, err := runPrompt(cmd, &promptui.Prompt{
-			// 		Label: "Specify value for " + color.HiCyanString(param.Schema.Name),
-			// 		Validate: func(s string) error {
-			// 			// param.Schema.Vali
-			// 			return nil
-			// 		},
-			// 	})
-			// 	if err != nil {
-			// 		continue
-			// 	}
-			// 	fmt.Printf(": %s\n", value)
-			// }
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Create project %q!\n", name)
+			fmt.Printf("Create a new workspace now!\n")
 			return nil
 		},
 	}
@@ -206,6 +95,148 @@ func projectCreate() *cobra.Command {
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 
 	return cmd
+}
+
+func doProjectLoop(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, directory string, params []coderd.CreateParameterValueRequest) (*coderd.ProvisionerJob, error) {
+	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+	spin.Writer = cmd.OutOrStdout()
+	spin.Suffix = " Uploading current directory..."
+	spin.Color("fgHiGreen")
+	spin.Start()
+	defer spin.Stop()
+
+	bytes, err := tarDirectory(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.UploadFile(cmd.Context(), codersdk.ContentTypeTar, bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	job, err := client.CreateProjectVersionImportProvisionerJob(cmd.Context(), organization.Name, coderd.CreateProjectImportJobRequest{
+		StorageMethod:   database.ProvisionerStorageMethodFile,
+		StorageSource:   resp.Hash,
+		Provisioner:     database.ProvisionerTypeTerraform,
+		ParameterValues: params,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	spin.Suffix = " Waiting for the import to complete..."
+
+	logs, err := client.FollowProvisionerJobLogsAfter(cmd.Context(), organization.Name, job.ID, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	for {
+		_, ok := <-logs
+		if !ok {
+			break
+		}
+		// _, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
+	}
+
+	job, err = client.ProvisionerJob(cmd.Context(), organization.Name, job.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	parameterSchemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
+	if err != nil {
+		return nil, err
+	}
+	parameterValues, err := client.ProvisionerJobParameterValues(cmd.Context(), organization.Name, job.ID)
+	if err != nil {
+		return nil, err
+	}
+	spin.Stop()
+
+	if provisionerd.IsMissingParameterError(job.Error) {
+		valuesBySchemaID := map[string]coderd.ComputedParameterValue{}
+		for _, parameterValue := range parameterValues {
+			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
+		}
+		for _, parameterSchema := range parameterSchemas {
+			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
+			if ok {
+				continue
+			}
+			if parameterSchema.Name == parameter.CoderWorkspaceTransition {
+				continue
+			}
+			value, err := runPrompt(cmd, &promptui.Prompt{
+				Label: fmt.Sprintf("Enter value for %s:", color.HiCyanString(parameterSchema.Name)),
+			})
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, coderd.CreateParameterValueRequest{
+				Name:              parameterSchema.Name,
+				SourceValue:       value,
+				SourceScheme:      database.ParameterSourceSchemeData,
+				DestinationScheme: parameterSchema.DefaultDestinationScheme,
+			})
+		}
+		return doProjectLoop(cmd, client, organization, directory, params)
+	}
+
+	if job.Status != coderd.ProvisionerJobStatusSucceeded {
+		return nil, xerrors.New(job.Error)
+	}
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Successfully imported project source!\n", color.HiGreenString("✓"))
+
+	resources, err := client.ProvisionerJobResources(cmd.Context(), organization.Name, job.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &job, outputProjectInformation(cmd, parameterSchemas, parameterValues, resources)
+}
+
+func outputProjectInformation(cmd *cobra.Command, parameterSchemas []coderd.ParameterSchema, parameterValues []coderd.ComputedParameterValue, resources []coderd.ProjectImportJobResource) error {
+	schemaByID := map[string]coderd.ParameterSchema{}
+	for _, schema := range parameterSchemas {
+		schemaByID[schema.ID.String()] = schema
+	}
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n  %s\n\n", color.HiBlackString("Parameters"))
+	for _, value := range parameterValues {
+		schema, ok := schemaByID[value.SchemaID.String()]
+		if !ok {
+			return xerrors.Errorf("schema not found: %s", value.Name)
+		}
+		displayValue := value.SourceValue
+		if !schema.RedisplayValue {
+			displayValue = "<redacted>"
+		}
+		output := fmt.Sprintf("%s %s %s", color.HiCyanString(value.Name), color.HiBlackString("="), displayValue)
+		if value.DefaultSourceValue {
+			output += " (default value)"
+		} else if value.Scope != database.ParameterScopeImportJob {
+			output += fmt.Sprintf(" (inherited from %s)", value.Scope)
+		}
+
+		root := treeprint.NewWithRoot(output)
+		if schema.Description != "" {
+			root.AddBranch(fmt.Sprintf("%s\n%s\n", color.HiBlackString("Description"), schema.Description))
+		}
+		if schema.AllowOverrideSource {
+			root.AddBranch(fmt.Sprintf("%s Users can customize this value!", color.HiYellowString("+")))
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "    "+strings.Join(strings.Split(root.String(), "\n"), "\n    "))
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s\n\n", color.HiBlackString("Resources"))
+	for _, resource := range resources {
+		transition := color.HiGreenString("start")
+		if resource.Transition == database.WorkspaceTransitionStop {
+			transition = color.HiRedString("stop")
+		}
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    %s %s on %s\n\n", color.HiCyanString(resource.Type), color.HiCyanString(resource.Name), transition)
+	}
+	return nil
 }
 
 func tarDirectory(directory string) ([]byte, error) {
