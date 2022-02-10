@@ -401,6 +401,23 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 	return database.Project{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetProjectImportJobResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProjectImportJobResource, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	resources := make([]database.ProjectImportJobResource, 0)
+	for _, resource := range q.projectImportJobResource {
+		if resource.JobID.String() != jobID.String() {
+			continue
+		}
+		resources = append(resources, resource)
+	}
+	if len(resources) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return resources, nil
+}
+
 func (q *fakeQuerier) GetProjectVersionsByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

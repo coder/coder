@@ -20,6 +20,7 @@ type querier interface {
 	GetParameterValuesByScope(ctx context.Context, arg GetParameterValuesByScopeParams) ([]ParameterValue, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectByOrganizationAndName(ctx context.Context, arg GetProjectByOrganizationAndNameParams) (Project, error)
+	GetProjectImportJobResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]ProjectImportJobResource, error)
 	GetProjectVersionByID(ctx context.Context, id uuid.UUID) (ProjectVersion, error)
 	GetProjectVersionByProjectIDAndName(ctx context.Context, arg GetProjectVersionByProjectIDAndNameParams) (ProjectVersion, error)
 	GetProjectVersionsByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectVersion, error)

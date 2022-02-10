@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
@@ -168,5 +169,41 @@ func TestProvisionerJobParametersByID(t *testing.T) {
 		require.Len(t, params, 1)
 		require.NotNil(t, params[0])
 		require.Equal(t, params[0].SourceValue, "")
+	})
+}
+
+func TestProvisionerJobResourcesByID(t *testing.T) {
+	t.Parallel()
+	t.Run("Something", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, &echo.Responses{
+			Parse: []*proto.Parse_Response{{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name: parameter.CoderWorkspaceTransition,
+						}},
+					},
+				},
+			}},
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "hello",
+							Type: "ec2_instance",
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		resources, err := client.ProvisionerJobResources(context.Background(), user.Organization, job.ID)
+		require.NoError(t, err)
+		// One for start, and one for stop!
+		require.Len(t, resources, 2)
 	})
 }

@@ -173,6 +173,14 @@ FROM
 WHERE
   job_id = $1;
 
+-- name: GetProjectImportJobResourcesByJobID :many
+SELECT
+  *
+FROM
+  project_import_job_resource
+WHERE
+  job_id = $1;
+
 -- name: GetProjectVersionsByProjectID :many
 SELECT
   *

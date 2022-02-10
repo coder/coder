@@ -437,6 +437,30 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_ProjectImport_:
+		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
+			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
+			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
+		} {
+			for _, resource := range resources {
+				server.Logger.Info(ctx, "inserting project import job resource",
+					slog.F("job_id", job.ID.String()),
+					slog.F("resource_name", resource.Name),
+					slog.F("resource_type", resource.Type),
+					slog.F("transition", transition))
+				_, err = server.Database.InsertProjectImportJobResource(ctx, database.InsertProjectImportJobResourceParams{
+					ID:         uuid.New(),
+					CreatedAt:  database.Now(),
+					JobID:      jobID,
+					Transition: transition,
+					Type:       resource.Type,
+					Name:       resource.Name,
+				})
+				if err != nil {
+					return nil, xerrors.Errorf("insert resource: %w", err)
+				}
+			}
+		}
+
 		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
 			UpdatedAt: database.Now(),

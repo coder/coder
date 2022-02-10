@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/retry"
@@ -391,7 +392,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		startParameters = append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
 			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
 			Name:              parameter.CoderWorkspaceTransition,
-			Value:             "start",
+			Value:             string(database.WorkspaceTransitionStart),
 		})
 	}
 	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, startParameters)
@@ -404,7 +405,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		stopResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
 			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
 			Name:              "coder_workspace_transition",
-			Value:             "stop",
+			Value:             string(database.WorkspaceTransitionStop),
 		}))
 		if err != nil {
 			p.cancelActiveJobf("project import provision for start: %s", err)

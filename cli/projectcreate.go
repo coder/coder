@@ -11,6 +11,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/provisionerd"
 )
 
 func projectCreate() *cobra.Command {
@@ -49,8 +51,8 @@ func projectCreate() *cobra.Command {
 				Default: filepath.Base(directory),
 				Label:   "What's your project's name?",
 				Validate: func(s string) error {
-					_, err = client.Project(cmd.Context(), organization.Name, s)
-					if err == nil {
+					project, _ := client.Project(cmd.Context(), organization.Name, s)
+					if project.ID.String() != uuid.Nil.String() {
 						return xerrors.New("A project already exists with that name!")
 					}
 					return nil
@@ -63,6 +65,7 @@ func projectCreate() *cobra.Command {
 			spin := spinner.New(spinner.CharSets[0], 25*time.Millisecond)
 			spin.Suffix = " Uploading current directory..."
 			spin.Start()
+
 			defer spin.Stop()
 
 			bytes, err := tarDirectory(directory)
@@ -79,14 +82,6 @@ func projectCreate() *cobra.Command {
 				StorageMethod: database.ProvisionerStorageMethodFile,
 				StorageSource: resp.Hash,
 				Provisioner:   database.ProvisionerTypeTerraform,
-				// SkipResources on first import to detect variables defined by the project.
-				SkipResources: true,
-				// ParameterValues: []coderd.CreateParameterValueRequest{{
-				// 	Name:              "aws_access_key",
-				// 	SourceValue:       "tomato",
-				// 	SourceScheme:      database.ParameterSourceSchemeData,
-				// 	DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
-				// }},
 			})
 			if err != nil {
 				return err
@@ -102,32 +97,59 @@ func projectCreate() *cobra.Command {
 				if !ok {
 					break
 				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[parse]"), log.Output)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Parsed project source... displaying parameters:")
-
-			schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
+			job, err = client.ProvisionerJob(cmd.Context(), organization.Name, job.ID)
 			if err != nil {
 				return err
 			}
 
-			values, err := client.ProvisionerJobParameterValues(cmd.Context(), organization.Name, job.ID)
+			if provisionerd.IsMissingParameterError(job.Error) {
+				fmt.Printf("Missing something!\n")
+				return nil
+			}
+
+			resources, err := client.ProvisionerJobResources(cmd.Context(), organization.Name, job.ID)
 			if err != nil {
 				return err
 			}
-			valueBySchemaID := map[string]coderd.ComputedParameterValue{}
-			for _, value := range values {
-				valueBySchemaID[value.SchemaID.String()] = value
+
+			fmt.Printf("Resources: %+v\n", resources)
+
+			project, err := client.CreateProject(cmd.Context(), organization.Name, coderd.CreateProjectRequest{
+				Name:               name,
+				VersionImportJobID: job.ID,
+			})
+			if err != nil {
+				return err
 			}
 
-			for _, schema := range schemas {
-				if value, ok := valueBySchemaID[schema.ID.String()]; ok {
-					fmt.Printf("Value for: %s %s\n", value.Name, value.SourceValue)
-					continue
-				}
-				fmt.Printf("No value for: %s\n", schema.Name)
-			}
+			fmt.Printf("Project: %+v\n", project)
+
+			// _, _ = fmt.Fprintf(cmd.OutOrStdout(), "Parsed project source... displaying parameters:")
+
+			// schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
+			// if err != nil {
+			// 	return err
+			// }
+
+			// values, err := client.ProvisionerJobParameterValues(cmd.Context(), organization.Name, job.ID)
+			// if err != nil {
+			// 	return err
+			// }
+			// valueBySchemaID := map[string]coderd.ComputedParameterValue{}
+			// for _, value := range values {
+			// 	valueBySchemaID[value.SchemaID.String()] = value
+			// }
+
+			// for _, schema := range schemas {
+			// 	if value, ok := valueBySchemaID[schema.ID.String()]; ok {
+			// 		fmt.Printf("Value for: %s %s\n", value.Name, value.SourceValue)
+			// 		continue
+			// 	}
+			// 	fmt.Printf("No value for: %s\n", schema.Name)
+			// }
 
 			// schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
 			// if err != nil {

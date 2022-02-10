@@ -179,3 +179,16 @@ func (c *Client) ProvisionerJobParameterValues(ctx context.Context, organization
 	var params []coderd.ComputedParameterValue
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
+
+func (c *Client) ProvisionerJobResources(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ProjectImportJobResource, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/resources", organization, job), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var resources []coderd.ProjectImportJobResource
+	return resources, json.NewDecoder(res.Body).Decode(&resources)
+}

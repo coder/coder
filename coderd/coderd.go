@@ -123,6 +123,7 @@ func New(options *Options) http.Handler {
 					r.Get("/", api.provisionerJobByOrganization)
 					r.Get("/schemas", api.provisionerJobParameterSchemasByID)
 					r.Get("/computed", api.provisionerJobComputedParametersByID)
+					r.Get("/resources", api.provisionerJobResourcesByID)
 					r.Get("/logs", api.provisionerJobLogsByID)
 				})
 			})

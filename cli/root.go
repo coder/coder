@@ -161,6 +161,16 @@ func runPrompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
 		Invalid: invalid,
 		Valid:   valid,
 	}
+	oldValidate := prompt.Validate
+	if oldValidate != nil {
+		// Override the validate function to pass our default!
+		prompt.Validate = func(s string) error {
+			if s == "" {
+				s = defaultValue
+			}
+			return oldValidate(s)
+		}
+	}
 	value, err := prompt.Run()
 	if value == "" && !prompt.IsConfirm {
 		value = defaultValue

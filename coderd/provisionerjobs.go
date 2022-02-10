@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
+type ProjectImportJobResource database.ProjectImportJobResource
+
 type ProvisionerJobStatus string
 
 // Completed returns whether the job is still processing.
@@ -125,9 +127,9 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 // Return parsed parameter schemas for a job.
 func (api *api) provisionerJobParameterSchemasByID(rw http.ResponseWriter, r *http.Request) {
 	job := httpmw.ProvisionerJobParam(r)
-	if convertProvisionerJob(job).Status != ProvisionerJobStatusSucceeded {
+	if !convertProvisionerJob(job).Status.Completed() {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("Job is in state %q! Must be %q.", convertProvisionerJob(job).Status, ProvisionerJobStatusSucceeded),
+			Message: "Job hasn't completed!",
 		})
 		return
 	}
@@ -150,9 +152,9 @@ func (api *api) provisionerJobParameterSchemasByID(rw http.ResponseWriter, r *ht
 func (api *api) provisionerJobComputedParametersByID(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	job := httpmw.ProvisionerJobParam(r)
-	if convertProvisionerJob(job).Status != ProvisionerJobStatusSucceeded {
+	if !convertProvisionerJob(job).Status.Completed() {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("Job is in state %q! Must be %q.", convertProvisionerJob(job).Status, ProvisionerJobStatusSucceeded),
+			Message: "Job hasn't completed!",
 		})
 		return
 	}
@@ -161,6 +163,29 @@ func (api *api) provisionerJobComputedParametersByID(rw http.ResponseWriter, r *
 		OrganizationID:     job.OrganizationID,
 		UserID:             apiKey.UserID,
 	})
+}
+
+func (api *api) provisionerJobResourcesByID(rw http.ResponseWriter, r *http.Request) {
+	job := httpmw.ProvisionerJobParam(r)
+	if !convertProvisionerJob(job).Status.Completed() {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	resources, err := api.Database.GetProjectImportJobResourcesByJobID(r.Context(), job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get project import job resources: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, resources)
 }
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {

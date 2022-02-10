@@ -424,6 +424,45 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 	return i, err
 }
 
+const getProjectImportJobResourcesByJobID = `-- name: GetProjectImportJobResourcesByJobID :many
+SELECT
+  id, created_at, job_id, transition, type, name
+FROM
+  project_import_job_resource
+WHERE
+  job_id = $1
+`
+
+func (q *sqlQuerier) GetProjectImportJobResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]ProjectImportJobResource, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectImportJobResourcesByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectImportJobResource
+	for rows.Next() {
+		var i ProjectImportJobResource
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.JobID,
+			&i.Transition,
+			&i.Type,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProjectVersionByID = `-- name: GetProjectVersionByID :one
 SELECT
   id, project_id, created_at, updated_at, name, description, import_job_id
