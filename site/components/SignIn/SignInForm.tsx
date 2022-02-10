@@ -83,7 +83,6 @@ export const SignInForm: React.FC<SignInProps> = ({
             fullWidth
             inputProps={{
               id: "signin-form-inpt-email",
-              className: styles.innerText,
             }}
             placeholder="Email"
             variant="outlined"
