@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -46,11 +45,10 @@ func Root() *cobra.Command {
 			}
 			defer listener.Close()
 
-			serverURL, err := url.Parse(fmt.Sprintf("http://%s", address))
-			if err != nil {
-				return xerrors.Errorf("parse %q: %w", address, err)
-			}
-			client := codersdk.New(serverURL)
+			client := codersdk.New(&url.URL{
+				Scheme: "http",
+				Host:   address,
+			})
 			closer, err := newProvisionerDaemon(cmd.Context(), client, logger)
 			if err != nil {
 				return xerrors.Errorf("create provisioner daemon: %w", err)

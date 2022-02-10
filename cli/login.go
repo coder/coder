@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/url"
-	"os"
+	"os/user"
 	"strings"
 
 	"github.com/fatih/color"
@@ -31,7 +31,7 @@ func login() *cobra.Command {
 			}
 			serverURL, err := url.Parse(rawURL)
 			if err != nil {
-				return err
+				return xerrors.Errorf("parse raw url %q: %w", rawURL, err)
 			}
 			// Default to HTTPs. Enables simple URLs like: master.cdr.dev
 			if serverURL.Scheme == "" {
@@ -41,13 +41,13 @@ func login() *cobra.Command {
 			client := codersdk.New(serverURL)
 			hasInitialUser, err := client.HasInitialUser(cmd.Context())
 			if err != nil {
-				return err
+				return xerrors.Errorf("has initial user: %w", err)
 			}
 			if !hasInitialUser {
 				if !isTTY(cmd.InOrStdin()) {
 					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been setup!\n", color.HiBlackString(">"))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", color.HiBlackString(">"))
 
 				_, err := runPrompt(cmd, &promptui.Prompt{
 					Label:     "Would you like to create the first user?",
@@ -55,15 +55,18 @@ func login() *cobra.Command {
 					Default:   "y",
 				})
 				if err != nil {
-					return err
+					return xerrors.Errorf("create user prompt: %w", err)
 				}
-
+				currentUser, err := user.Current()
+				if err != nil {
+					return xerrors.Errorf("get current user: %w", err)
+				}
 				username, err := runPrompt(cmd, &promptui.Prompt{
 					Label:   "What username would you like?",
-					Default: os.Getenv("USER"),
+					Default: currentUser.Username,
 				})
 				if err != nil {
-					return err
+					return xerrors.Errorf("pick username prompt: %w", err)
 				}
 
 				organization, err := runPrompt(cmd, &promptui.Prompt{
@@ -71,7 +74,7 @@ func login() *cobra.Command {
 					Default: "acme-corp",
 				})
 				if err != nil {
-					return err
+					return xerrors.Errorf("pick organization prompt: %w", err)
 				}
 
 				email, err := runPrompt(cmd, &promptui.Prompt{
@@ -85,7 +88,7 @@ func login() *cobra.Command {
 					},
 				})
 				if err != nil {
-					return err
+					return xerrors.Errorf("specify email prompt: %w", err)
 				}
 
 				password, err := runPrompt(cmd, &promptui.Prompt{
@@ -93,7 +96,7 @@ func login() *cobra.Command {
 					Mask:  '*',
 				})
 				if err != nil {
-					return err
+					return xerrors.Errorf("specify password prompt: %w", err)
 				}
 
 				_, err = client.CreateInitialUser(cmd.Context(), coderd.CreateInitialUserRequest{
@@ -122,7 +125,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("write server url: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're logged in.\n", color.HiBlackString(">"), color.HiCyanString(username))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", color.HiBlackString(">"), color.HiCyanString(username))
 				return nil
 			}
 
