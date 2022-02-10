@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
@@ -43,6 +44,8 @@ type ProvisionerJob struct {
 	Provisioner database.ProvisionerType `json:"provisioner"`
 	WorkerID    *uuid.UUID               `json:"worker_id,omitempty"`
 }
+
+type ComputedParameter struct{}
 
 type CreateProjectImportJobRequest struct {
 	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
@@ -116,6 +119,41 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, convertProvisionerJob(job))
+}
+
+// Return parsed parameter schemas for a job.
+func (api *api) provisionerJobParametersByID(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	job := httpmw.ProvisionerJobParam(r)
+	if convertProvisionerJob(job).Status != ProvisionerJobStatusSucceeded {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("Job is in state %q! Must be %q.", convertProvisionerJob(job).Status, ProvisionerJobStatusSucceeded),
+		})
+		return
+	}
+
+	parameter.Compute(r.Context(), api.Database, parameter.Scope{
+		ImportJobID:    job.ID,
+		OrganizationID: job.OrganizationID,
+		UserID:         apiKey.UserID,
+	})
+
+	schemas, err := api.Database.GetParameterSchemasByJobID(r.Context(), job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get parameter schemas: %s", err),
+		})
+		return
+	}
+	apiSchemas := make([]ParameterSchema, 0, len(schemas))
+	for _, parameter := range schemas {
+		apiSchemas = append(apiSchemas, convertParameterSchema(parameter))
+	}
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiSchemas)
 }
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {

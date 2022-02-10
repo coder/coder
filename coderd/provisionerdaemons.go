@@ -22,7 +22,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/coderd/projectparameter"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/provisionerd/proto"
@@ -211,17 +211,14 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 
 		// Compute parameters for the workspace to consume.
-		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.Scope{
 			ImportJobID:    projectVersion.ImportJobID,
 			OrganizationID: organization.ID,
 			ProjectID: uuid.NullUUID{
 				UUID:  project.ID,
 				Valid: true,
 			},
-			UserID: sql.NullString{
-				String: user.ID,
-				Valid:  true,
-			},
+			UserID: user.ID,
 			WorkspaceID: uuid.NullUUID{
 				UUID:  workspace.ID,
 				Valid: true,
@@ -233,7 +230,11 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
 		for _, parameter := range parameters {
-			protoParameters = append(protoParameters, parameter.Proto)
+			converted, err := convertComputedParameter(parameter)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
+			}
+			protoParameters = append(protoParameters, converted)
 		}
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
@@ -252,17 +253,14 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 
 		// Compute parameters for the workspace to consume.
-		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.Scope{
 			ImportJobID:    job.ID,
 			OrganizationID: input.OrganizationID,
 			ProjectID: uuid.NullUUID{
 				UUID:  input.ProjectID,
 				Valid: input.ProjectID.String() != uuid.Nil.String(),
 			},
-			UserID: sql.NullString{
-				String: user.ID,
-				Valid:  true,
-			},
+			UserID: user.ID,
 		}, input.AdditionalParameters...)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
@@ -270,7 +268,11 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
 		for _, parameter := range parameters {
-			protoParameters = append(protoParameters, parameter.Proto)
+			converted, err := convertComputedParameter(parameter)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
+			}
+			protoParameters = append(protoParameters, converted)
 		}
 
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
@@ -613,4 +615,25 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	default:
 		return database.LogSource(""), xerrors.Errorf("unknown log source: %d", logSource)
 	}
+}
+
+func convertComputedParameter(param parameter.Computed) (*sdkproto.ParameterValue, error) {
+	if param.Value == nil {
+		return nil, xerrors.Errorf("no value for computed parameter: %s", param.Schema.Name)
+	}
+	scheme := sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
+	switch param.Value.DestinationScheme {
+	case database.ParameterDestinationSchemeEnvironmentVariable:
+		scheme = sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
+	case database.ParameterDestinationSchemeProvisionerVariable:
+		scheme = sdkproto.ParameterDestination_PROVISIONER_VARIABLE
+	default:
+		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.Value.DestinationScheme)
+	}
+
+	return &sdkproto.ParameterValue{
+		DestinationScheme: scheme,
+		Name:              param.Value.Name,
+		Value:             param.Value.Value,
+	}, nil
 }

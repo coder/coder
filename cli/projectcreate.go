@@ -3,7 +3,6 @@ package cli
 import (
 	"archive/tar"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -91,7 +90,7 @@ func projectCreate() *cobra.Command {
 			}
 			spin.Stop()
 
-			logs, err := client.FollowProvisionerJobLogsAfter(context.Background(), organization.Name, job.ID, time.Time{})
+			logs, err := client.FollowProvisionerJobLogsAfter(cmd.Context(), organization.Name, job.ID, time.Time{})
 			if err != nil {
 				return err
 			}
@@ -101,6 +100,15 @@ func projectCreate() *cobra.Command {
 					break
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[parse]"), log.Output)
+			}
+
+			schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
+			if err != nil {
+				return err
+			}
+
+			for _, schema := range schemas {
+				fmt.Printf("Schema: %+v\n", schema)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Create project %q!\n", name)

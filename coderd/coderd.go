@@ -73,7 +73,6 @@ func New(options *Options) http.Handler {
 						r.Route("/{projectversion}", func(r chi.Router) {
 							r.Use(httpmw.ExtractProjectVersionParam(api.Database))
 							r.Get("/", api.projectVersionByOrganizationAndName)
-							r.Get("/parameters", api.projectVersionParametersByOrganizationAndName)
 						})
 					})
 				})
@@ -122,6 +121,7 @@ func New(options *Options) http.Handler {
 				r.Route("/{provisionerjob}", func(r chi.Router) {
 					r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
 					r.Get("/", api.provisionerJobByOrganization)
+					r.Get("/parameters", api.provisionerJobParametersByID)
 					r.Get("/logs", api.provisionerJobLogsByID)
 				})
 			})

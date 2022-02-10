@@ -133,28 +133,6 @@ func TestCreateProjectVersion(t *testing.T) {
 	})
 }
 
-func TestProjectVersionParameters(t *testing.T) {
-	t.Parallel()
-	t.Run("Error", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t)
-		_, err := client.ProjectVersionParameters(context.Background(), "some", "project", "version")
-		require.Error(t, err)
-	})
-
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t)
-		user := coderdtest.CreateInitialUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
-		_, err := client.ProjectVersionParameters(context.Background(), user.Organization, project.Name, project.ActiveVersionID.String())
-		require.NoError(t, err)
-	})
-}
-
 func TestProjectParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {

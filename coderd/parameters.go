@@ -23,6 +23,26 @@ type CreateParameterValueRequest struct {
 	DestinationValue  string                              `json:"destination_value" validate:"required"`
 }
 
+// ParameterSchema represents a parameter parsed from project version source.
+type ParameterSchema struct {
+	ID                       uuid.UUID                           `json:"id"`
+	CreatedAt                time.Time                           `json:"created_at"`
+	Name                     string                              `json:"name"`
+	Description              string                              `json:"description,omitempty"`
+	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme,omitempty"`
+	DefaultSourceValue       string                              `json:"default_source_value,omitempty"`
+	AllowOverrideSource      bool                                `json:"allow_override_source"`
+	DefaultDestinationScheme database.ParameterDestinationScheme `json:"default_destination_scheme,omitempty"`
+	DefaultDestinationValue  string                              `json:"default_destination_value,omitempty"`
+	AllowOverrideDestination bool                                `json:"allow_override_destination"`
+	DefaultRefresh           string                              `json:"default_refresh"`
+	RedisplayValue           bool                                `json:"redisplay_value"`
+	ValidationError          string                              `json:"validation_error,omitempty"`
+	ValidationCondition      string                              `json:"validation_condition,omitempty"`
+	ValidationTypeSystem     database.ParameterTypeSystem        `json:"validation_type_system,omitempty"`
+	ValidationValueType      string                              `json:"validation_value_type,omitempty"`
+}
+
 // ParameterValue represents a set value for the scope.
 type ParameterValue struct {
 	ID                uuid.UUID                           `json:"id"`
@@ -90,6 +110,27 @@ func parametersForScope(rw http.ResponseWriter, r *http.Request, db database.Sto
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiParameterValues)
+}
+
+func convertParameterSchema(parameter database.ParameterSchema) ParameterSchema {
+	return ParameterSchema{
+		ID:                       parameter.ID,
+		CreatedAt:                parameter.CreatedAt,
+		Name:                     parameter.Name,
+		Description:              parameter.Description,
+		DefaultSourceScheme:      parameter.DefaultSourceScheme,
+		DefaultSourceValue:       parameter.DefaultSourceValue.String,
+		AllowOverrideSource:      parameter.AllowOverrideSource,
+		DefaultDestinationScheme: parameter.DefaultDestinationScheme,
+		DefaultDestinationValue:  parameter.DefaultDestinationValue.String,
+		AllowOverrideDestination: parameter.AllowOverrideDestination,
+		DefaultRefresh:           parameter.DefaultRefresh,
+		RedisplayValue:           parameter.RedisplayValue,
+		ValidationError:          parameter.ValidationError,
+		ValidationCondition:      parameter.ValidationCondition,
+		ValidationTypeSystem:     parameter.ValidationTypeSystem,
+		ValidationValueType:      parameter.ValidationValueType,
+	}
 }
 
 func convertParameterValue(parameterValue database.ParameterValue) ParameterValue {

@@ -151,3 +151,17 @@ func (c *Client) FollowProvisionerJobLogsAfter(ctx context.Context, organization
 	}()
 	return logs, nil
 }
+
+// ProvisionerJobParameterSchemas returns project parameters for a version by name.
+func (c *Client) ProvisionerJobParameterSchemas(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ParameterSchema, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/parameters", organization, job), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var params []coderd.ParameterSchema
+	return params, json.NewDecoder(res.Body).Decode(&params)
+}

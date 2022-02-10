@@ -106,3 +106,10 @@ func TestFollowProvisionerJobLogsAfter(t *testing.T) {
 		require.False(t, ok)
 	})
 }
+
+func TestProvisionerJobParameterSchemas(t *testing.T) {
+	t.Parallel()
+	t.Run("Error", func(t *testing.T) {
+
+	})
+}
