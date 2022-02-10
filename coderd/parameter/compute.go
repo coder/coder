@@ -11,6 +11,11 @@ import (
 	"github.com/coder/coder/database"
 )
 
+const (
+	CoderUsername            = "coder_username"
+	CoderWorkspaceTransition = "coder_workspace_transition"
+)
+
 // ComputeScope targets identifiers to pull parameters from.
 type ComputeScope struct {
 	ProjectImportJobID uuid.UUID

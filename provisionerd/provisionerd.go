@@ -19,10 +19,22 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/retry"
 )
+
+const (
+	missingParameterErrorText = "missing parameter"
+)
+
+// IsMissingParameterError returns whether the error message provided
+// is a missing parameter error. This can indicate to consumers that
+// they should check parameters.
+func IsMissingParameterError(err string) bool {
+	return strings.Contains(err, missingParameterErrorText)
+}
 
 // Dialer represents the function to create a daemon client connection.
 type Dialer func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error)
@@ -352,31 +364,52 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		valueByName[parameterValue.Name] = parameterValue
 	}
 	for _, parameterSchema := range parameterSchemas {
+		if parameterSchema.Name == parameter.CoderWorkspaceTransition {
+			// Hardcode the workspace transition variable. We'll
+			// make it do stuff later!
+			continue
+		}
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			p.cancelActiveJobf("missing parameter: %s", parameterSchema.Name)
+			p.cancelActiveJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 			return
 		}
 	}
+	// Checks if the schema has defined a workspace transition variable.
+	// If not, we don't need to check for resources provisioned in a stopped state.
+	hasWorkspaceTransition := false
+	for _, parameterSchema := range parameterSchemas {
+		if parameterSchema.Name != parameter.CoderWorkspaceTransition {
+			continue
+		}
+		hasWorkspaceTransition = true
+		break
+	}
 
-	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
-		DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-		// TODO: Make this a constant higher-up in the stack.
-		Name:  "coder_workspace_transition",
-		Value: "start",
-	}))
+	startParameters := updateResponse.ParameterValues
+	if hasWorkspaceTransition {
+		startParameters = append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
+			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+			Name:              parameter.CoderWorkspaceTransition,
+			Value:             "start",
+		})
+	}
+	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, startParameters)
 	if err != nil {
 		p.cancelActiveJobf("project import provision for start: %s", err)
 		return
 	}
-	stopResources, err := p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
-		DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-		Name:              "coder_workspace_transition",
-		Value:             "stop",
-	}))
-	if err != nil {
-		p.cancelActiveJobf("project import provision for start: %s", err)
-		return
+	stopResources := startResources
+	if hasWorkspaceTransition {
+		stopResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
+			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+			Name:              "coder_workspace_transition",
+			Value:             "stop",
+		}))
+		if err != nil {
+			p.cancelActiveJobf("project import provision for start: %s", err)
+			return
+		}
 	}
 
 	_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{

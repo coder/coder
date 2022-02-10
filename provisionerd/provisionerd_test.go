@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -195,6 +196,7 @@ func TestProvisionerd(t *testing.T) {
 			didComplete   atomic.Bool
 			didLog        atomic.Bool
 			didAcquireJob atomic.Bool
+			didDryRun     atomic.Bool
 		)
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
@@ -247,7 +249,9 @@ func TestProvisionerd(t *testing.T) {
 					err = stream.Send(&sdkproto.Parse_Response{
 						Type: &sdkproto.Parse_Response_Complete{
 							Complete: &sdkproto.Parse_Complete{
-								ParameterSchemas: []*sdkproto.ParameterSchema{},
+								ParameterSchemas: []*sdkproto.ParameterSchema{{
+									Name: parameter.CoderWorkspaceTransition,
+								}},
 							},
 						},
 					})
@@ -255,6 +259,9 @@ func TestProvisionerd(t *testing.T) {
 					return nil
 				},
 				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					if request.DryRun {
+						didDryRun.Store(true)
+					}
 					err := stream.Send(&sdkproto.Provision_Response{
 						Type: &sdkproto.Provision_Response_Log{
 							Log: &sdkproto.Log{
@@ -280,6 +287,7 @@ func TestProvisionerd(t *testing.T) {
 		<-completeChan
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
+		require.True(t, didDryRun.Load())
 		require.NoError(t, closer.Close())
 	})
 
