@@ -78,7 +78,6 @@ func TestParse(t *testing.T) {
 						},
 						DefaultDestination: &proto.ParameterDestination{
 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							Value:  "A",
 						},
 					}},
 				},

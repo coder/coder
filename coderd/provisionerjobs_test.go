@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -89,7 +88,6 @@ func TestPostProvisionerImportJobByOrganization(t *testing.T) {
 		})
 		require.NoError(t, err)
 		job = coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
-		fmt.Printf("Job %+v\n", job)
 		values, err := client.ProvisionerJobParameterValues(context.Background(), user.Organization, job.ID)
 		require.NoError(t, err)
 		require.Equal(t, "somevalue", values[0].SourceValue)
@@ -120,16 +118,23 @@ func TestProvisionerJobParametersByID(t *testing.T) {
 					Complete: &proto.Parse_Complete{
 						ParameterSchemas: []*proto.ParameterSchema{{
 							Name: "example",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "hello",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
 						}},
 					},
 				},
 			}},
 			Provision: echo.ProvisionComplete,
 		})
-		coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+		job = coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
 		params, err := client.ProvisionerJobParameterValues(context.Background(), user.Organization, job.ID)
 		require.NoError(t, err)
-		require.Len(t, params, 0)
+		require.Len(t, params, 1)
 	})
 
 	t.Run("ListNoRedisplay", func(t *testing.T) {
@@ -149,7 +154,6 @@ func TestProvisionerJobParametersByID(t *testing.T) {
 							},
 							DefaultDestination: &proto.ParameterDestination{
 								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								Value:  "example",
 							},
 							RedisplayValue: false,
 						}},

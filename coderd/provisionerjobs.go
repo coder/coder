@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -80,16 +79,6 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 		return
 	}
 
-	input, err := json.Marshal(projectVersionImportJob{
-		OrganizationID: organization.ID,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("marshal job: %s", err),
-		})
-		return
-	}
-
 	jobID := uuid.New()
 	for _, parameterValue := range req.ParameterValues {
 		_, err = api.Database.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
@@ -121,7 +110,6 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 		StorageMethod:  database.ProvisionerStorageMethodFile,
 		StorageSource:  file.Hash,
 		Type:           database.ProvisionerJobTypeProjectVersionImport,
-		Input:          input,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

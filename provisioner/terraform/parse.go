@@ -59,7 +59,6 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 		}
 		schema.DefaultDestination = &proto.ParameterDestination{
 			Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-			Value:  variable.Name,
 		}
 	}
 
