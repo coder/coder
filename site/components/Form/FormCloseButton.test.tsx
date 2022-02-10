@@ -26,8 +26,11 @@ describe("FormCloseButton", () => {
 
     // Then
     const element = await screen.findByText("ESC")
+
+    // When
     fireEvent.click(element)
 
+    // Then
     expect(onClose).toBeCalledTimes(1)
   })
 
