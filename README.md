@@ -30,6 +30,11 @@ This repository contains source code for Coder V2. Additional documentation:
 
 The `develop.sh` script runs the server locally on port `3000`, and runs a hot-reload server for front-end code on `8080`.
 
+### CLI
+
+- `./install.sh` will `go install` the `coder` CLI
+- `coder --help`
+
 ## Front-End Plan
 
 For the front-end team, we're planning on 2 phases to the 'v2' work:
