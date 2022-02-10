@@ -4,7 +4,14 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 
-import { DropdownItem, FormDropdownField, FormTextField, FormTitle, FormSection } from "../components/Form"
+import {
+  DropdownItem,
+  FormDropdownField,
+  FormTextField,
+  FormTitle,
+  FormSection,
+  FormCloseButton,
+} from "../components/Form"
 import { LoadingButton } from "../components/Button"
 import { Organization, Project, Provisioner, CreateProjectRequest } from "./../api"
 
@@ -59,6 +66,7 @@ export const CreateProjectForm: React.FC<CreateProjectFormProps> = ({
   return (
     <div className={styles.root}>
       <FormTitle title="Create Project" />
+      <FormCloseButton onClose={onCancel} />
 
       <FormSection title="Name">
         <FormTextField
