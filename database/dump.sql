@@ -28,6 +28,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
 CREATE TYPE parameter_scope AS ENUM (
     'organization',
     'project',
+    'import_job',
     'user',
     'workspace'
 );
@@ -87,7 +88,7 @@ CREATE TABLE api_keys (
 );
 
 CREATE TABLE file (
-    hash character varying(32) NOT NULL,
+    hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     created_by text NOT NULL,
     mimetype character varying(64) NOT NULL,
@@ -128,10 +129,9 @@ CREATE TABLE parameter_schema (
     name character varying(64) NOT NULL,
     description character varying(8192) DEFAULT ''::character varying NOT NULL,
     default_source_scheme parameter_source_scheme,
-    default_source_value text,
+    default_source_value text NOT NULL,
     allow_override_source boolean NOT NULL,
     default_destination_scheme parameter_destination_scheme,
-    default_destination_value text,
     allow_override_destination boolean NOT NULL,
     default_refresh text NOT NULL,
     redisplay_value boolean NOT NULL,
@@ -150,8 +150,7 @@ CREATE TABLE parameter_value (
     scope_id text NOT NULL,
     source_scheme parameter_source_scheme NOT NULL,
     source_value text NOT NULL,
-    destination_scheme parameter_destination_scheme NOT NULL,
-    destination_value text NOT NULL
+    destination_scheme parameter_destination_scheme NOT NULL
 );
 
 CREATE TABLE project (

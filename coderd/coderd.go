@@ -121,7 +121,8 @@ func New(options *Options) http.Handler {
 				r.Route("/{provisionerjob}", func(r chi.Router) {
 					r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
 					r.Get("/", api.provisionerJobByOrganization)
-					r.Get("/parameters", api.provisionerJobParametersByID)
+					r.Get("/schemas", api.provisionerJobParameterSchemasByID)
+					r.Get("/computed", api.provisionerJobComputedParametersByID)
 					r.Get("/logs", api.provisionerJobLogsByID)
 				})
 			})

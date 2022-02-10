@@ -643,7 +643,6 @@ func (q *fakeQuerier) InsertParameterValue(_ context.Context, arg database.Inser
 		SourceScheme:      arg.SourceScheme,
 		SourceValue:       arg.SourceValue,
 		DestinationScheme: arg.DestinationScheme,
-		DestinationValue:  arg.DestinationValue,
 	}
 	q.parameterValue = append(q.parameterValue, parameterValue)
 	return parameterValue, nil
@@ -719,7 +718,6 @@ func (q *fakeQuerier) InsertParameterSchema(_ context.Context, arg database.Inse
 		DefaultSourceValue:       arg.DefaultSourceValue,
 		AllowOverrideSource:      arg.AllowOverrideSource,
 		DefaultDestinationScheme: arg.DefaultDestinationScheme,
-		DefaultDestinationValue:  arg.DefaultDestinationValue,
 		AllowOverrideDestination: arg.AllowOverrideDestination,
 		DefaultRefresh:           arg.DefaultRefresh,
 		RedisplayValue:           arg.RedisplayValue,

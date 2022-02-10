@@ -45,16 +45,14 @@ type ProvisionerJob struct {
 	WorkerID    *uuid.UUID               `json:"worker_id,omitempty"`
 }
 
-type ComputedParameter struct{}
-
 type CreateProjectImportJobRequest struct {
 	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
 	StorageSource string                            `json:"storage_source" validate:"required"`
 	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 
-	AdditionalParameters []ParameterValue `json:"parameter_values"`
-	SkipParameterSchemas bool             `json:"skip_parameter_schemas"`
-	SkipResources        bool             `json:"skip_resources"`
+	ParameterValues      []CreateParameterValueRequest `json:"parameter_values"`
+	SkipParameterSchemas bool                          `json:"skip_parameter_schemas"`
+	SkipResources        bool                          `json:"skip_resources"`
 }
 
 func (*api) provisionerJobByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -98,8 +96,29 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 		return
 	}
 
+	jobID := uuid.New()
+	for _, parameterValue := range req.ParameterValues {
+		_, err = api.Database.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+			ID:                uuid.New(),
+			Name:              parameterValue.Name,
+			CreatedAt:         database.Now(),
+			UpdatedAt:         database.Now(),
+			Scope:             database.ParameterScopeImportJob,
+			ScopeID:           jobID.String(),
+			SourceScheme:      parameterValue.SourceScheme,
+			SourceValue:       parameterValue.SourceValue,
+			DestinationScheme: parameterValue.DestinationScheme,
+		})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("insert parameter value: %s", err),
+			})
+			return
+		}
+	}
+
 	job, err := api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-		ID:             uuid.New(),
+		ID:             jobID,
 		CreatedAt:      database.Now(),
 		UpdatedAt:      database.Now(),
 		OrganizationID: organization.ID,
@@ -122,8 +141,7 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 }
 
 // Return parsed parameter schemas for a job.
-func (api *api) provisionerJobParametersByID(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
+func (api *api) provisionerJobParameterSchemasByID(rw http.ResponseWriter, r *http.Request) {
 	job := httpmw.ProvisionerJobParam(r)
 	if convertProvisionerJob(job).Status != ProvisionerJobStatusSucceeded {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
@@ -132,28 +150,35 @@ func (api *api) provisionerJobParametersByID(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	parameter.Compute(r.Context(), api.Database, parameter.Scope{
-		ImportJobID:    job.ID,
-		OrganizationID: job.OrganizationID,
-		UserID:         apiKey.UserID,
-	})
-
 	schemas, err := api.Database.GetParameterSchemasByJobID(r.Context(), job.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get parameter schemas: %s", err),
+			Message: fmt.Sprintf("list parameter schemas: %s", err),
 		})
 		return
 	}
-	apiSchemas := make([]ParameterSchema, 0, len(schemas))
-	for _, parameter := range schemas {
-		apiSchemas = append(apiSchemas, convertParameterSchema(parameter))
-	}
+
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiSchemas)
+	render.JSON(rw, r, schemas)
+}
+
+func (api *api) provisionerJobComputedParametersByID(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	job := httpmw.ProvisionerJobParam(r)
+	if convertProvisionerJob(job).Status != ProvisionerJobStatusSucceeded {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("Job is in state %q! Must be %q.", convertProvisionerJob(job).Status, ProvisionerJobStatusSucceeded),
+		})
+		return
+	}
+	computedParametersForScope(rw, r, api.Database, parameter.ComputeScope{
+		ProjectImportJobID: job.ID,
+		OrganizationID:     job.OrganizationID,
+		UserID:             apiKey.UserID,
+	})
 }
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {

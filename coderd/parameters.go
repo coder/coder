@@ -5,14 +5,23 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 )
+
+// ParameterSchema represents a parameter parsed from project version source.
+type ParameterSchema database.ParameterSchema
+
+// ParameterValue represents a set value for the scope.
+type ParameterValue database.ParameterValue
+
+// ComputedParameterValue represents a computed parameter value.
+type ComputedParameterValue parameter.ComputedValue
 
 // CreateParameterValueRequest is used to create a new parameter value for a scope.
 type CreateParameterValueRequest struct {
@@ -20,40 +29,6 @@ type CreateParameterValueRequest struct {
 	SourceValue       string                              `json:"source_value" validate:"required"`
 	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
 	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
-	DestinationValue  string                              `json:"destination_value" validate:"required"`
-}
-
-// ParameterSchema represents a parameter parsed from project version source.
-type ParameterSchema struct {
-	ID                       uuid.UUID                           `json:"id"`
-	CreatedAt                time.Time                           `json:"created_at"`
-	Name                     string                              `json:"name"`
-	Description              string                              `json:"description,omitempty"`
-	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme,omitempty"`
-	DefaultSourceValue       string                              `json:"default_source_value,omitempty"`
-	AllowOverrideSource      bool                                `json:"allow_override_source"`
-	DefaultDestinationScheme database.ParameterDestinationScheme `json:"default_destination_scheme,omitempty"`
-	DefaultDestinationValue  string                              `json:"default_destination_value,omitempty"`
-	AllowOverrideDestination bool                                `json:"allow_override_destination"`
-	DefaultRefresh           string                              `json:"default_refresh"`
-	RedisplayValue           bool                                `json:"redisplay_value"`
-	ValidationError          string                              `json:"validation_error,omitempty"`
-	ValidationCondition      string                              `json:"validation_condition,omitempty"`
-	ValidationTypeSystem     database.ParameterTypeSystem        `json:"validation_type_system,omitempty"`
-	ValidationValueType      string                              `json:"validation_value_type,omitempty"`
-}
-
-// ParameterValue represents a set value for the scope.
-type ParameterValue struct {
-	ID                uuid.UUID                           `json:"id"`
-	Name              string                              `json:"name"`
-	CreatedAt         time.Time                           `json:"created_at"`
-	UpdatedAt         time.Time                           `json:"updated_at"`
-	Scope             database.ParameterScope             `json:"scope"`
-	ScopeID           string                              `json:"scope_id"`
-	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme"`
-	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme"`
-	DestinationValue  string                              `json:"destination_value"`
 }
 
 // Abstracts creating parameters into a single request/response format.
@@ -74,7 +49,6 @@ func postParameterValueForScope(rw http.ResponseWriter, r *http.Request, db data
 		SourceScheme:      createRequest.SourceScheme,
 		SourceValue:       createRequest.SourceValue,
 		DestinationScheme: createRequest.DestinationScheme,
-		DestinationValue:  createRequest.DestinationValue,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -112,37 +86,24 @@ func parametersForScope(rw http.ResponseWriter, r *http.Request, db database.Sto
 	render.JSON(rw, r, apiParameterValues)
 }
 
-func convertParameterSchema(parameter database.ParameterSchema) ParameterSchema {
-	return ParameterSchema{
-		ID:                       parameter.ID,
-		CreatedAt:                parameter.CreatedAt,
-		Name:                     parameter.Name,
-		Description:              parameter.Description,
-		DefaultSourceScheme:      parameter.DefaultSourceScheme,
-		DefaultSourceValue:       parameter.DefaultSourceValue.String,
-		AllowOverrideSource:      parameter.AllowOverrideSource,
-		DefaultDestinationScheme: parameter.DefaultDestinationScheme,
-		DefaultDestinationValue:  parameter.DefaultDestinationValue.String,
-		AllowOverrideDestination: parameter.AllowOverrideDestination,
-		DefaultRefresh:           parameter.DefaultRefresh,
-		RedisplayValue:           parameter.RedisplayValue,
-		ValidationError:          parameter.ValidationError,
-		ValidationCondition:      parameter.ValidationCondition,
-		ValidationTypeSystem:     parameter.ValidationTypeSystem,
-		ValidationValueType:      parameter.ValidationValueType,
+// Returns parameters for a specific scope.
+func computedParametersForScope(rw http.ResponseWriter, r *http.Request, db database.Store, scope parameter.ComputeScope) {
+	values, err := parameter.Compute(r.Context(), db, scope, &parameter.ComputeOptions{
+		// We *never* want to send the client secret parameter values.
+		HideRedisplayValues: true,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("compute values: %s", err),
+		})
+		return
 	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, values)
 }
 
 func convertParameterValue(parameterValue database.ParameterValue) ParameterValue {
-	return ParameterValue{
-		ID:                parameterValue.ID,
-		Name:              parameterValue.Name,
-		CreatedAt:         parameterValue.CreatedAt,
-		UpdatedAt:         parameterValue.UpdatedAt,
-		Scope:             parameterValue.Scope,
-		ScopeID:           parameterValue.ScopeID,
-		SourceScheme:      parameterValue.SourceScheme,
-		DestinationScheme: parameterValue.DestinationScheme,
-		DestinationValue:  parameterValue.DestinationValue,
-	}
+	parameterValue.SourceValue = ""
+	return ParameterValue(parameterValue)
 }

@@ -173,7 +173,6 @@ func TestCreateProjectParameter(t *testing.T) {
 			SourceValue:       "source-value",
 			SourceScheme:      database.ParameterSourceSchemeData,
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
-			DestinationValue:  "destination-value",
 		})
 		require.NoError(t, err)
 	})

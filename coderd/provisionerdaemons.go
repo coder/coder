@@ -114,9 +114,8 @@ type projectVersionImportJob struct {
 	OrganizationID string    `json:"organization_id"`
 	ProjectID      uuid.UUID `json:"project_id"`
 
-	AdditionalParameters []database.ParameterValue `json:"parameters"`
-	SkipParameterSchemas bool                      `json:"skip_parameter_schemas"`
-	SkipResources        bool                      `json:"skip_resources"`
+	SkipParameterSchemas bool `json:"skip_parameter_schemas"`
+	SkipResources        bool `json:"skip_resources"`
 }
 
 // Implementation of the provisioner daemon protobuf server.
@@ -211,9 +210,9 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 
 		// Compute parameters for the workspace to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.Scope{
-			ImportJobID:    projectVersion.ImportJobID,
-			OrganizationID: organization.ID,
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
+			ProjectImportJobID: projectVersion.ImportJobID,
+			OrganizationID:     organization.ID,
 			ProjectID: uuid.NullUUID{
 				UUID:  project.ID,
 				Valid: true,
@@ -223,14 +222,14 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				UUID:  workspace.ID,
 				Valid: true,
 			},
-		})
+		}, nil)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
 		}
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
 		for _, parameter := range parameters {
-			converted, err := convertComputedParameter(parameter)
+			converted, err := convertComputedParameterValue(parameter)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
 			}
@@ -253,22 +252,22 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 
 		// Compute parameters for the workspace to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.Scope{
-			ImportJobID:    job.ID,
-			OrganizationID: input.OrganizationID,
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
+			ProjectImportJobID: job.ID,
+			OrganizationID:     input.OrganizationID,
 			ProjectID: uuid.NullUUID{
 				UUID:  input.ProjectID,
 				Valid: input.ProjectID.String() != uuid.Nil.String(),
 			},
 			UserID: user.ID,
-		}, input.AdditionalParameters...)
+		}, nil)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
 		}
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
 		for _, parameter := range parameters {
-			converted, err := convertComputedParameter(parameter)
+			converted, err := convertComputedParameterValue(parameter)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
 			}
@@ -448,10 +447,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
 				}
 				parameterSchema.DefaultSourceScheme = parameterSourceScheme
-				parameterSchema.DefaultSourceValue = sql.NullString{
-					String: protoParameter.DefaultSource.Value,
-					Valid:  protoParameter.DefaultSource.Value != "",
-				}
+				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
 			}
 
 			// It's possible a parameter doesn't define a default destination!
@@ -461,10 +457,6 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
 				}
 				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
-				parameterSchema.DefaultDestinationValue = sql.NullString{
-					String: protoParameter.DefaultDestination.Value,
-					Valid:  protoParameter.DefaultDestination.Value != "",
-				}
 			}
 
 			parameterSchemas = append(parameterSchemas, parameterSchema)
@@ -617,23 +609,20 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	}
 }
 
-func convertComputedParameter(param parameter.Computed) (*sdkproto.ParameterValue, error) {
-	if param.Value == nil {
-		return nil, xerrors.Errorf("no value for computed parameter: %s", param.Schema.Name)
-	}
+func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {
 	scheme := sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
-	switch param.Value.DestinationScheme {
+	switch param.DestinationScheme {
 	case database.ParameterDestinationSchemeEnvironmentVariable:
 		scheme = sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
 	case database.ParameterDestinationSchemeProvisionerVariable:
 		scheme = sdkproto.ParameterDestination_PROVISIONER_VARIABLE
 	default:
-		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.Value.DestinationScheme)
+		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.DestinationScheme)
 	}
 
 	return &sdkproto.ParameterValue{
 		DestinationScheme: scheme,
-		Name:              param.Value.Name,
-		Value:             param.Value.Value,
+		Name:              param.Name,
+		Value:             param.SourceValue,
 	}, nil
 }

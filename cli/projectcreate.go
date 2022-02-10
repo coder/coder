@@ -21,7 +21,10 @@ import (
 )
 
 func projectCreate() *cobra.Command {
-	return &cobra.Command{
+	var (
+		directory string
+	)
+	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a project from the current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -33,23 +36,17 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			workingDir, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-
 			_, err = runPrompt(cmd, &promptui.Prompt{
 				Default:   "y",
 				IsConfirm: true,
-				Label:     fmt.Sprintf("Set up %s in your organization?", color.New(color.FgHiCyan).Sprintf("%q", workingDir)),
+				Label:     fmt.Sprintf("Set up %s in your organization?", color.New(color.FgHiCyan).Sprintf("%q", directory)),
 			})
 			if err != nil {
 				return err
 			}
 
 			name, err := runPrompt(cmd, &promptui.Prompt{
-				Default: filepath.Base(workingDir),
+				Default: filepath.Base(directory),
 				Label:   "What's your project's name?",
 				Validate: func(s string) error {
 					_, err = client.Project(cmd.Context(), organization.Name, s)
@@ -63,12 +60,12 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			spin := spinner.New(spinner.CharSets[0], 50*time.Millisecond)
+			spin := spinner.New(spinner.CharSets[0], 25*time.Millisecond)
 			spin.Suffix = " Uploading current directory..."
 			spin.Start()
 			defer spin.Stop()
 
-			bytes, err := tarDirectory(workingDir)
+			bytes, err := tarDirectory(directory)
 			if err != nil {
 				return err
 			}
@@ -84,6 +81,12 @@ func projectCreate() *cobra.Command {
 				Provisioner:   database.ProvisionerTypeTerraform,
 				// SkipResources on first import to detect variables defined by the project.
 				SkipResources: true,
+				// ParameterValues: []coderd.CreateParameterValueRequest{{
+				// 	Name:              "aws_access_key",
+				// 	SourceValue:       "tomato",
+				// 	SourceScheme:      database.ParameterSourceSchemeData,
+				// 	DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+				// }},
 			})
 			if err != nil {
 				return err
@@ -102,19 +105,85 @@ func projectCreate() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[parse]"), log.Output)
 			}
 
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Parsed project source... displaying parameters:")
+
 			schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
 			if err != nil {
 				return err
 			}
 
-			for _, schema := range schemas {
-				fmt.Printf("Schema: %+v\n", schema)
+			values, err := client.ProvisionerJobParameterValues(cmd.Context(), organization.Name, job.ID)
+			if err != nil {
+				return err
 			}
+			valueBySchemaID := map[string]coderd.ComputedParameterValue{}
+			for _, value := range values {
+				valueBySchemaID[value.SchemaID.String()] = value
+			}
+
+			for _, schema := range schemas {
+				if value, ok := valueBySchemaID[schema.ID.String()]; ok {
+					fmt.Printf("Value for: %s %s\n", value.Name, value.SourceValue)
+					continue
+				}
+				fmt.Printf("No value for: %s\n", schema.Name)
+			}
+
+			// schemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
+			// if err != nil {
+			// 	return err
+			// }
+			// _, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n  %s\n\n", color.HiBlackString("Parameters"))
+
+			// for _, param := range params {
+			// 	if param.Value == nil {
+			// 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    %s = must be set\n", color.HiRedString(param.Schema.Name))
+			// 		continue
+			// 	}
+			// 	value := param.Value.DestinationValue
+			// 	if !param.Schema.RedisplayValue {
+			// 		value = "<redacted>"
+			// 	}
+			// 	output := fmt.Sprintf("    %s = %s", color.HiGreenString(param.Value.SourceValue), color.CyanString(value))
+			// 	param.Value.DefaultSourceValue = false
+			// 	param.Value.Scope = database.ParameterScopeOrganization
+			// 	param.Value.ScopeID = organization.ID
+			// 	if param.Value.DefaultSourceValue {
+			// 		output += " (default value)"
+			// 	} else {
+			// 		output += fmt.Sprintf(" (inherited from %s)", param.Value.Scope)
+			// 	}
+			// 	root := treeprint.NewWithRoot(output)
+			// 	root.AddNode(color.HiBlackString("Description") + "\n" + param.Schema.Description)
+			// 	fmt.Fprintln(cmd.OutOrStdout(), strings.Join(strings.Split(root.String(), "\n"), "\n    "))
+			// }
+
+			// for _, param := range params {
+			// 	if param.Value != nil {
+			// 		continue
+			// 	}
+
+			// 	value, err := runPrompt(cmd, &promptui.Prompt{
+			// 		Label: "Specify value for " + color.HiCyanString(param.Schema.Name),
+			// 		Validate: func(s string) error {
+			// 			// param.Schema.Vali
+			// 			return nil
+			// 		},
+			// 	})
+			// 	if err != nil {
+			// 		continue
+			// 	}
+			// 	fmt.Printf(": %s\n", value)
+			// }
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Create project %q!\n", name)
 			return nil
 		},
 	}
+	currentDirectory, _ := os.Getwd()
+	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
+
+	return cmd
 }
 
 func tarDirectory(directory string) ([]byte, error) {

@@ -114,7 +114,6 @@ func TestPostParametersByProject(t *testing.T) {
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
-			DestinationValue:  "moo",
 		})
 		require.NoError(t, err)
 	})
@@ -144,7 +143,6 @@ func TestParametersByProject(t *testing.T) {
 			SourceValue:       "source-value",
 			SourceScheme:      database.ParameterSourceSchemeData,
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
-			DestinationValue:  "destination-value",
 		})
 		require.NoError(t, err)
 		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)

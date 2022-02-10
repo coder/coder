@@ -44,7 +44,7 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 	schema := &proto.ParameterSchema{
 		Name:                variable.Name,
 		Description:         variable.Description,
-		RedisplayValue:      variable.Sensitive,
+		RedisplayValue:      !variable.Sensitive,
 		ValidationValueType: variable.Type,
 	}
 

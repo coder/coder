@@ -152,9 +152,9 @@ func (c *Client) FollowProvisionerJobLogsAfter(ctx context.Context, organization
 	return logs, nil
 }
 
-// ProvisionerJobParameterSchemas returns project parameters for a version by name.
+// ProvisionerJobParameters returns computed project parameters for a job by ID.
 func (c *Client) ProvisionerJobParameterSchemas(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ParameterSchema, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/parameters", organization, job), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/schemas", organization, job), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -163,5 +163,19 @@ func (c *Client) ProvisionerJobParameterSchemas(ctx context.Context, organizatio
 		return nil, readBodyAsError(res)
 	}
 	var params []coderd.ParameterSchema
+	return params, json.NewDecoder(res.Body).Decode(&params)
+}
+
+// ProvisionerJobParameterValues returns computed parameters for a provisioner job.
+func (c *Client) ProvisionerJobParameterValues(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ComputedParameterValue, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/computed", organization, job), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var params []coderd.ComputedParameterValue
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }

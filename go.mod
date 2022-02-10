@@ -42,6 +42,7 @@ require (
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.9
+	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838

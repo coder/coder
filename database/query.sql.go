@@ -271,7 +271,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string
 
 const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
 SELECT
-  id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+  id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
 FROM
   parameter_schema
 WHERE
@@ -297,7 +297,6 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 			&i.DefaultSourceValue,
 			&i.AllowOverrideSource,
 			&i.DefaultDestinationScheme,
-			&i.DefaultDestinationValue,
 			&i.AllowOverrideDestination,
 			&i.DefaultRefresh,
 			&i.RedisplayValue,
@@ -321,7 +320,7 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 
 const getParameterValuesByScope = `-- name: GetParameterValuesByScope :many
 SELECT
-  id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme, destination_value
+  id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme
 FROM
   parameter_value
 WHERE
@@ -353,7 +352,6 @@ func (q *sqlQuerier) GetParameterValuesByScope(ctx context.Context, arg GetParam
 			&i.SourceScheme,
 			&i.SourceValue,
 			&i.DestinationScheme,
-			&i.DestinationValue,
 		); err != nil {
 			return nil, err
 		}
@@ -1378,7 +1376,6 @@ INSERT INTO
     default_source_value,
     allow_override_source,
     default_destination_scheme,
-    default_destination_value,
     allow_override_destination,
     default_refresh,
     redisplay_value,
@@ -1404,9 +1401,8 @@ VALUES
     $13,
     $14,
     $15,
-    $16,
-    $17
-  ) RETURNING id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, default_destination_value, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
+    $16
+  ) RETURNING id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
 `
 
 type InsertParameterSchemaParams struct {
@@ -1416,10 +1412,9 @@ type InsertParameterSchemaParams struct {
 	Name                     string                     `db:"name" json:"name"`
 	Description              string                     `db:"description" json:"description"`
 	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
+	DefaultSourceValue       string                     `db:"default_source_value" json:"default_source_value"`
 	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
 	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
 	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
 	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
 	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
@@ -1440,7 +1435,6 @@ func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParame
 		arg.DefaultSourceValue,
 		arg.AllowOverrideSource,
 		arg.DefaultDestinationScheme,
-		arg.DefaultDestinationValue,
 		arg.AllowOverrideDestination,
 		arg.DefaultRefresh,
 		arg.RedisplayValue,
@@ -1460,7 +1454,6 @@ func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParame
 		&i.DefaultSourceValue,
 		&i.AllowOverrideSource,
 		&i.DefaultDestinationScheme,
-		&i.DefaultDestinationValue,
 		&i.AllowOverrideDestination,
 		&i.DefaultRefresh,
 		&i.RedisplayValue,
@@ -1483,11 +1476,10 @@ INSERT INTO
     scope_id,
     source_scheme,
     source_value,
-    destination_scheme,
-    destination_value
+    destination_scheme
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme, destination_value
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme
 `
 
 type InsertParameterValueParams struct {
@@ -1500,7 +1492,6 @@ type InsertParameterValueParams struct {
 	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
 	SourceValue       string                     `db:"source_value" json:"source_value"`
 	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
-	DestinationValue  string                     `db:"destination_value" json:"destination_value"`
 }
 
 func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error) {
@@ -1514,7 +1505,6 @@ func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParamet
 		arg.SourceScheme,
 		arg.SourceValue,
 		arg.DestinationScheme,
-		arg.DestinationValue,
 	)
 	var i ParameterValue
 	err := row.Scan(
@@ -1527,7 +1517,6 @@ func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParamet
 		&i.SourceScheme,
 		&i.SourceValue,
 		&i.DestinationScheme,
-		&i.DestinationValue,
 	)
 	return i, err
 }

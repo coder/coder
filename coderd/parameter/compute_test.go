@@ -201,4 +201,22 @@ func TestCompute(t *testing.T) {
 		require.Len(t, computed, 1)
 		require.Equal(t, false, computed[0].DefaultSourceValue)
 	})
+
+	t.Run("HideRedisplay", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		scope := generateScope()
+		_ = generateParameter(t, db, parameterOptions{
+			ProjectImportJobID:       scope.ProjectImportJobID,
+			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+		})
+		computed, err := parameter.Compute(context.Background(), db, scope, &parameter.ComputeOptions{
+			HideRedisplayValues: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, computed, 1)
+		computedValue := computed[0]
+		require.True(t, computedValue.DefaultSourceValue)
+		require.Equal(t, computedValue.SourceValue, "")
+	})
 }
