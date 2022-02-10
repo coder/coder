@@ -1,21 +1,18 @@
 package site
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
-	"io"
 	"io/fs"
 	"net/http"
-	"path"
-	"path/filepath"
 	"strings"
-	"text/template" // html/template escapes some nonces
-	"time"
 
 	"github.com/justinas/nosurf"
 	"github.com/unrolled/secure"
-	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+
+	"github.com/coder/coder/site/nextrouter"
 )
 
 // The `embed` package ignores recursively including directories
@@ -27,53 +24,33 @@ import (
 var site embed.FS
 
 // Handler returns an HTTP handler for serving the static site.
-func Handler() http.Handler {
+func Handler(logger slog.Logger) http.Handler {
 	filesystem, err := fs.Sub(site, "out")
 	if err != nil {
 		// This can't happen... Go would throw a compilation error.
 		panic(err)
 	}
 
-	// html files are handled by a text/template. Non-html files
-	// are served by the default file server.
-	files, err := htmlFiles(filesystem)
-	if err != nil {
-		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
+	// Render CSP and CSRF in the served pages
+	templateFunc := func(r *http.Request) interface{} {
+		return htmlState{
+			// Nonce is the CSP nonce for the given request (if there is one present)
+			CSP: cspState{Nonce: secure.CSPNonce(r.Context())},
+			// Token is the CSRF token for the given request
+			CSRF: csrfState{Token: nosurf.Token(r)},
+		}
 	}
 
-	return secureHeaders(&handler{
-		fs:        filesystem,
-		htmlFiles: files,
-		h:         http.FileServer(http.FS(filesystem)), // All other non-html static files
+	nextRouterHandler, err := nextrouter.Handler(filesystem, &nextrouter.Options{
+		Logger:           logger,
+		TemplateDataFunc: templateFunc,
 	})
-}
-
-type handler struct {
-	fs fs.FS
-	// htmlFiles is the text/template for all *.html files.
-	// This is needed to support Content Security Policy headers.
-	// Due to material UI, we are forced to use a nonce to allow inline
-	// scripts, and that nonce is passed through a template.
-	// We only do this for html files to reduce the amount of in memory caching
-	// of duplicate files as `fs`.
-	htmlFiles *htmlTemplates
-	h         http.Handler
-}
-
-// filePath returns the filepath of the requested file.
-func (*handler) filePath(p string) string {
-	if !strings.HasPrefix(p, "/") {
-		p = "/" + p
+	if err != nil {
+		// There was an error setting up our file system handler.
+		// This likely means a problem with our embedded file system.
+		panic(err)
 	}
-	return strings.TrimPrefix(path.Clean(p), "/")
-}
-
-func (h *handler) exists(filePath string) bool {
-	f, err := h.fs.Open(filePath)
-	if err == nil {
-		_ = f.Close()
-	}
-	return err == nil
+	return secureHeaders(nextRouterHandler)
 }
 
 type htmlState struct {
@@ -87,80 +64,6 @@ type cspState struct {
 
 type csrfState struct {
 	Token string
-}
-
-func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	// reqFile is the static file requested
-	reqFile := h.filePath(r.URL.Path)
-	state := htmlState{
-		// Nonce is the CSP nonce for the given request (if there is one present)
-		CSP: cspState{Nonce: secure.CSPNonce(r.Context())},
-		// Token is the CSRF token for the given request
-		CSRF: csrfState{Token: nosurf.Token(r)},
-	}
-
-	// First check if it's a file we have in our templates
-	if h.serveHTML(rw, r, reqFile, state) {
-		return
-	}
-
-	// If the original file path exists we serve it.
-	if h.exists(reqFile) {
-		h.h.ServeHTTP(rw, r)
-		return
-	}
-
-	// Serve the file assuming it's an html file
-	// This matches paths like `/app/terminal.html`
-	r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
-	r.URL.Path += ".html"
-
-	reqFile = h.filePath(r.URL.Path)
-	// All html files should be served by the htmlFile templates
-	if h.serveHTML(rw, r, reqFile, state) {
-		return
-	}
-
-	// If we don't have the file... we should redirect to `/`
-	// for our single-page-app.
-	r.URL.Path = "/"
-	if h.serveHTML(rw, r, "", state) {
-		return
-	}
-
-	// This will send a correct 404
-	h.h.ServeHTTP(rw, r)
-}
-
-func (h *handler) serveHTML(rw http.ResponseWriter, r *http.Request, reqPath string, state htmlState) bool {
-	if data, err := h.htmlFiles.renderWithState(reqPath, state); err == nil {
-		if reqPath == "" {
-			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
-			reqPath = "index.html"
-		}
-		http.ServeContent(rw, r, reqPath, time.Time{}, bytes.NewReader(data))
-		return true
-	}
-	return false
-}
-
-type htmlTemplates struct {
-	tpls *template.Template
-}
-
-// renderWithState will render the file using the given nonce if the file exists
-// as a template. If it does not, it will return an error.
-func (t *htmlTemplates) renderWithState(filePath string, state htmlState) ([]byte, error) {
-	var buf bytes.Buffer
-	if filePath == "" {
-		filePath = "index.html"
-	}
-	err := t.tpls.ExecuteTemplate(&buf, filePath, state)
-	if err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
 }
 
 // cspDirectives is a map of all csp fetch directives to their values.
@@ -263,53 +166,4 @@ func secureHeaders(next http.Handler) http.Handler {
 		// Prevent the browser from sending Referer header with requests
 		ReferrerPolicy: "no-referrer",
 	}).Handler(next)
-}
-
-// htmlFiles recursively walks the file system passed finding all *.html files.
-// The template returned has all html files parsed.
-func htmlFiles(files fs.FS) (*htmlTemplates, error) {
-	// root is the collection of html templates. All templates are named by their pathing.
-	// So './404.html' is named '404.html'. './subdir/index.html' is 'subdir/index.html'
-	root := template.New("")
-
-	rootPath := "."
-	err := fs.WalkDir(files, rootPath, func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if dirEntry.IsDir() {
-			return nil
-		}
-
-		if filepath.Ext(dirEntry.Name()) != ".html" {
-			return nil
-		}
-
-		file, err := files.Open(path)
-		if err != nil {
-			return err
-		}
-
-		data, err := io.ReadAll(file)
-		if err != nil {
-			return err
-		}
-
-		tPath := strings.TrimPrefix(path, rootPath+string(filepath.Separator))
-		_, err = root.New(tPath).Parse(string(data))
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &htmlTemplates{
-		tpls: root,
-	}, nil
 }

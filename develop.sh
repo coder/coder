@@ -21,6 +21,9 @@ function create_initial_user() {
     http://localhost:3000/api/v2/user
 }
 
+# Run yarn install, to make sure node_modules are ready to go
+yarn --cwd=./site install
+
 # Do initial build - a dev build for coderd.
 # It's OK that we don't build the front-end before - because the front-end
 # assets are handled by the `yarn dev` devserver.

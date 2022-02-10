@@ -9,13 +9,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/site"
 )
 
 func TestIndexPageRenders(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(site.Handler())
+	srv := httptest.NewServer(site.Handler(slog.Logger{}))
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	require.NoError(t, err)
