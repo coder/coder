@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Netflix/go-expect"
+	"github.com/coder/coder/expect"
 )
 
 func TestLogin(t *testing.T) {
@@ -28,8 +28,8 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 		client := coderdtest.New(t)
 		root, _ := clitest.New(t, "login", client.URL.String())
-		root.SetIn(console.Tty())
-		root.SetOut(console.Tty())
+		root.SetIn(console.InTty())
+		root.SetOut(console.OutTty())
 		go func() {
 			err := root.Execute()
 			require.NoError(t, err)
