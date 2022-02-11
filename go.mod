@@ -13,7 +13,7 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 
 require (
 	cdr.dev/slog v1.4.1
-	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
+	github.com/ActiveState/termtest/expect v0.7.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/coder/retry v1.3.0
 	github.com/fatih/color v1.13.0
@@ -55,8 +55,12 @@ require (
 
 require (
 	cloud.google.com/go/compute v0.1.0 // indirect
+	github.com/ActiveState/termtest/conpty v0.5.0 // indirect
+	github.com/ActiveState/termtest/xpty v0.6.0 // indirect
+	github.com/ActiveState/vt10x v1.3.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.5.1 // indirect
+	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
@@ -88,6 +92,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/kr/pty v1.1.8 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect

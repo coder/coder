@@ -1,5 +1,3 @@
-//go:build !windows
-
 package cli_test
 
 import (
@@ -9,7 +7,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Netflix/go-expect"
+	"github.com/ActiveState/termtest/expect"
 )
 
 func TestLogin(t *testing.T) {

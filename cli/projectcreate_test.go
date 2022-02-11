@@ -3,7 +3,7 @@ package cli_test
 import (
 	"testing"
 
-	"github.com/Netflix/go-expect"
+	"github.com/ActiveState/termtest/expect"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/database"
