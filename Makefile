@@ -1,3 +1,5 @@
+INSTALL_DIR=$(shell go env GOPATH)/bin
+
 bin/coder:
 	mkdir -p bin
 	go build -o bin/coder cmd/coder/main.go
@@ -50,6 +52,12 @@ fmt: fmt/prettier fmt/sql
 
 gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 .PHONY: gen
+
+install: 
+	@echo "--- Copying from bin to $(INSTALL_DIR)"
+	cp -r ./bin $(INSTALL_DIR)
+	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
+.PHONY: install
 
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	protoc \
