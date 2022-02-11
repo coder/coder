@@ -15,6 +15,12 @@ This repository contains source code for Coder V2. Additional documentation:
 
 ## Development
 
+### Pre-requisites
+
+- `git` installed
+- `node` and `yarn` installed
+- `go` version 1.17, with the `GOPATH` environment variable set
+
 ### Cloning
 
 - `git clone https://github.com/coder/coder`
@@ -23,17 +29,15 @@ This repository contains source code for Coder V2. Additional documentation:
 ### Building
 
 - `make build`
+- `make install`
+
+The `coder` CLI binary will now be available at `$GOPATH/bin/coder`
 
 ### Development
 
 - `./develop.sh`
 
 The `develop.sh` script runs the server locally on port `3000`, and runs a hot-reload server for front-end code on `8080`.
-
-### CLI
-
-- `./install.sh` will `go install` the `coder` CLI
-- `coder --help`
 
 ## Front-End Plan
 
