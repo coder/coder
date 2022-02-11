@@ -17,9 +17,10 @@ This repository contains source code for Coder V2. Additional documentation:
 
 ### Pre-requisites
 
-- `git` installed
-- `node` and `yarn` installed
+- `git`
 - `go` version 1.17, with the `GOPATH` environment variable set
+- `node`
+- `yarn`
 
 ### Cloning
 
