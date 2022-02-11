@@ -16,6 +16,17 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
+// ParameterValue represents a set value for the scope.
+type ParameterValue database.ParameterValue
+
+// CreateParameterValueRequest is used to create a new parameter value for a scope.
+type CreateParameterValueRequest struct {
+	Name              string                              `json:"name" validate:"required"`
+	SourceValue       string                              `json:"source_value" validate:"required"`
+	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
+	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
+}
+
 // Project is the JSON representation of a Coder project.
 // This type matches the database object for now, but is
 // abstracted for ease of change later on.
@@ -177,16 +188,60 @@ func (*api) projectByOrganization(rw http.ResponseWriter, r *http.Request) {
 // This should validate the calling user has permissions!
 func (api *api) postParametersByProject(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
+	var createRequest CreateParameterValueRequest
+	if !httpapi.Read(rw, r, &createRequest) {
+		return
+	}
+	parameterValue, err := api.Database.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+		ID:                uuid.New(),
+		Name:              createRequest.Name,
+		CreatedAt:         database.Now(),
+		UpdatedAt:         database.Now(),
+		Scope:             database.ParameterScopeProject,
+		ScopeID:           project.ID.String(),
+		SourceScheme:      createRequest.SourceScheme,
+		SourceValue:       createRequest.SourceValue,
+		DestinationScheme: createRequest.DestinationScheme,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert parameter value: %s", err),
+		})
+		return
+	}
 
-	postParameterValueForScope(rw, r, api.Database, database.ParameterScopeProject, project.ID.String())
+	render.Status(r, http.StatusCreated)
+	render.JSON(rw, r, parameterValue)
 }
 
 // Lists parameters for a project.
 func (api *api) parametersByProject(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
-
-	parametersForScope(rw, r, api.Database, database.GetParameterValuesByScopeParams{
+	parameterValues, err := api.Database.GetParameterValuesByScope(r.Context(), database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeProject,
 		ScopeID: project.ID.String(),
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+		parameterValues = []database.ParameterValue{}
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get parameter values: %s", err),
+		})
+		return
+	}
+
+	apiParameterValues := make([]ParameterValue, 0, len(parameterValues))
+	for _, parameterValue := range parameterValues {
+		apiParameterValues = append(apiParameterValues, convertParameterValue(parameterValue))
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiParameterValues)
+}
+
+func convertParameterValue(parameterValue database.ParameterValue) ParameterValue {
+	parameterValue.SourceValue = ""
+	return ParameterValue(parameterValue)
 }

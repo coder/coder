@@ -64,15 +64,15 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			parameterSchemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, projectVersion.ImportJobID)
+			parameterSchemas, err := client.ProjectImportJobSchemas(cmd.Context(), organization.Name, projectVersion.ImportJobID)
 			if err != nil {
 				return err
 			}
-			parameterValues, err := client.ProvisionerJobParameterValues(cmd.Context(), organization.Name, projectVersion.ImportJobID)
+			parameterValues, err := client.ProjectImportJobParameters(cmd.Context(), organization.Name, projectVersion.ImportJobID)
 			if err != nil {
 				return err
 			}
-			resources, err := client.ProvisionerJobResources(cmd.Context(), organization.Name, projectVersion.ImportJobID)
+			resources, err := client.ProjectImportJobResources(cmd.Context(), organization.Name, projectVersion.ImportJobID)
 			if err != nil {
 				return err
 			}
@@ -108,7 +108,7 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			logs, err := client.FollowProvisionerJobLogsAfter(cmd.Context(), organization.Name, history.ProvisionJobID, time.Time{})
+			logs, err := client.WorkspaceProvisionJobLogsAfter(cmd.Context(), organization.Name, history.ProvisionJobID, time.Time{})
 			if err != nil {
 				return err
 			}

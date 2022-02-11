@@ -139,7 +139,8 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		return nil, err
 	}
 
-	job, err := client.CreateProjectVersionImportProvisionerJob(cmd.Context(), organization.Name, coderd.CreateProjectImportJobRequest{
+	before := time.Now()
+	job, err := client.CreateProjectImportJob(cmd.Context(), organization.Name, coderd.CreateProjectImportJobRequest{
 		StorageMethod:   database.ProvisionerStorageMethodFile,
 		StorageSource:   resp.Hash,
 		Provisioner:     provisioner,
@@ -148,10 +149,8 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	if err != nil {
 		return nil, err
 	}
-
 	spin.Suffix = " Waiting for the import to complete..."
-
-	logs, err := client.FollowProvisionerJobLogsAfter(cmd.Context(), organization.Name, job.ID, time.Time{})
+	logs, err := client.ProjectImportJobLogsAfter(cmd.Context(), organization.Name, job.ID, before)
 	if err != nil {
 		return nil, err
 	}
@@ -164,16 +163,15 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		logBuffer = append(logBuffer, log)
 	}
 
-	job, err = client.ProvisionerJob(cmd.Context(), organization.Name, job.ID)
+	job, err = client.ProjectImportJob(cmd.Context(), organization.Name, job.ID)
 	if err != nil {
 		return nil, err
 	}
-
-	parameterSchemas, err := client.ProvisionerJobParameterSchemas(cmd.Context(), organization.Name, job.ID)
+	parameterSchemas, err := client.ProjectImportJobSchemas(cmd.Context(), organization.Name, job.ID)
 	if err != nil {
 		return nil, err
 	}
-	parameterValues, err := client.ProvisionerJobParameterValues(cmd.Context(), organization.Name, job.ID)
+	parameterValues, err := client.ProjectImportJobParameters(cmd.Context(), organization.Name, job.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +216,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Successfully imported project source!\n", color.HiGreenString("✓"))
 
-	resources, err := client.ProvisionerJobResources(cmd.Context(), organization.Name, job.ID)
+	resources, err := client.ProjectImportJobResources(cmd.Context(), organization.Name, job.ID)
 	if err != nil {
 		return nil, err
 	}
