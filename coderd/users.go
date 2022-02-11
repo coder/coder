@@ -55,6 +55,26 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
+// Returns whether the initial user has been created or not.
+func (api *api) user(rw http.ResponseWriter, r *http.Request) {
+	userCount, err := api.Database.GetUserCount(r.Context())
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user count: %s", err.Error()),
+		})
+		return
+	}
+	if userCount == 0 {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "The initial user has not been created!",
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "The initial user has already been created!",
+	})
+}
+
 // Creates the initial user for a Coder deployment.
 func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 	var createUser CreateInitialUserRequest
