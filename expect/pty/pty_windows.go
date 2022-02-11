@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/hashicorp/waypoint-plugin-sdk/internal/pkg/conpty"
+	"github.com/coder/coder/expect/conpty"
 )
 
 func newPty() (Pty, error) {
