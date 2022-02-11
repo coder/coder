@@ -3,11 +3,11 @@ package cli
 import (
 	"archive/tar"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
-	"github.com/xlab/treeprint"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
@@ -27,7 +26,8 @@ import (
 
 func projectCreate() *cobra.Command {
 	var (
-		directory string
+		directory   string
+		provisioner string
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -41,16 +41,19 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = runPrompt(cmd, &promptui.Prompt{
+			_, err = prompt(cmd, &promptui.Prompt{
 				Default:   "y",
 				IsConfirm: true,
 				Label:     fmt.Sprintf("Set up %s in your organization?", color.New(color.FgHiCyan).Sprintf("%q", directory)),
 			})
 			if err != nil {
+				if errors.Is(err, promptui.ErrAbort) {
+					return nil
+				}
 				return err
 			}
 
-			name, err := runPrompt(cmd, &promptui.Prompt{
+			name, err := prompt(cmd, &promptui.Prompt{
 				Default: filepath.Base(directory),
 				Label:   "What's your project's name?",
 				Validate: func(s string) error {
@@ -65,7 +68,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			job, err := doProjectLoop(cmd, client, organization, directory, []coderd.CreateParameterValueRequest{})
+			job, err := validateProjectVersionSource(cmd, client, organization, database.ProvisionerType(provisioner), directory)
 			if err != nil {
 				return err
 			}
@@ -77,27 +80,44 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
+			_, err = prompt(cmd, &promptui.Prompt{
+				Label:     "Create project?",
+				IsConfirm: true,
+				Default:   "y",
+			})
+			if err != nil {
+				if errors.Is(err, promptui.ErrAbort) {
+					return nil
+				}
+				return err
+			}
+
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", color.HiBlackString(">"), color.HiCyanString(project.Name))
-			_, err = runPrompt(cmd, &promptui.Prompt{
+			_, err = prompt(cmd, &promptui.Prompt{
 				Label:     "Create a new workspace?",
 				IsConfirm: true,
 				Default:   "y",
 			})
 			if err != nil {
+				if errors.Is(err, promptui.ErrAbort) {
+					return nil
+				}
 				return err
 			}
 
-			fmt.Printf("Create a new workspace now!\n")
 			return nil
 		},
 	}
 	currentDirectory, _ := os.Getwd()
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
+	cmd.Flags().StringVarP(&provisioner, "provisioner", "p", "terraform", "Customize the provisioner backend")
+	// This is for testing! There's only 1 provisioner type right now.
+	cmd.Flags().MarkHidden("provisioner")
 
 	return cmd
 }
 
-func doProjectLoop(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, directory string, params []coderd.CreateParameterValueRequest) (*coderd.ProvisionerJob, error) {
+func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, provisioner database.ProvisionerType, directory string, parameters ...coderd.CreateParameterValueRequest) (*coderd.ProvisionerJob, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
@@ -118,8 +138,8 @@ func doProjectLoop(cmd *cobra.Command, client *codersdk.Client, organization cod
 	job, err := client.CreateProjectVersionImportProvisionerJob(cmd.Context(), organization.Name, coderd.CreateProjectImportJobRequest{
 		StorageMethod:   database.ProvisionerStorageMethodFile,
 		StorageSource:   resp.Hash,
-		Provisioner:     database.ProvisionerTypeTerraform,
-		ParameterValues: params,
+		Provisioner:     provisioner,
+		ParameterValues: parameters,
 	})
 	if err != nil {
 		return nil, err
@@ -168,20 +188,20 @@ func doProjectLoop(cmd *cobra.Command, client *codersdk.Client, organization cod
 			if parameterSchema.Name == parameter.CoderWorkspaceTransition {
 				continue
 			}
-			value, err := runPrompt(cmd, &promptui.Prompt{
+			value, err := prompt(cmd, &promptui.Prompt{
 				Label: fmt.Sprintf("Enter value for %s:", color.HiCyanString(parameterSchema.Name)),
 			})
 			if err != nil {
 				return nil, err
 			}
-			params = append(params, coderd.CreateParameterValueRequest{
+			parameters = append(parameters, coderd.CreateParameterValueRequest{
 				Name:              parameterSchema.Name,
 				SourceValue:       value,
 				SourceScheme:      database.ParameterSourceSchemeData,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
 		}
-		return doProjectLoop(cmd, client, organization, directory, params)
+		return validateProjectVersionSource(cmd, client, organization, provisioner, directory, parameters...)
 	}
 
 	if job.Status != coderd.ProvisionerJobStatusSucceeded {
@@ -198,50 +218,7 @@ func doProjectLoop(cmd *cobra.Command, client *codersdk.Client, organization cod
 	if err != nil {
 		return nil, err
 	}
-	return &job, outputProjectInformation(cmd, parameterSchemas, parameterValues, resources)
-}
-
-func outputProjectInformation(cmd *cobra.Command, parameterSchemas []coderd.ParameterSchema, parameterValues []coderd.ComputedParameterValue, resources []coderd.ProjectImportJobResource) error {
-	schemaByID := map[string]coderd.ParameterSchema{}
-	for _, schema := range parameterSchemas {
-		schemaByID[schema.ID.String()] = schema
-	}
-
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n  %s\n\n", color.HiBlackString("Parameters"))
-	for _, value := range parameterValues {
-		schema, ok := schemaByID[value.SchemaID.String()]
-		if !ok {
-			return xerrors.Errorf("schema not found: %s", value.Name)
-		}
-		displayValue := value.SourceValue
-		if !schema.RedisplayValue {
-			displayValue = "<redacted>"
-		}
-		output := fmt.Sprintf("%s %s %s", color.HiCyanString(value.Name), color.HiBlackString("="), displayValue)
-		if value.DefaultSourceValue {
-			output += " (default value)"
-		} else if value.Scope != database.ParameterScopeImportJob {
-			output += fmt.Sprintf(" (inherited from %s)", value.Scope)
-		}
-
-		root := treeprint.NewWithRoot(output)
-		if schema.Description != "" {
-			root.AddBranch(fmt.Sprintf("%s\n%s\n", color.HiBlackString("Description"), schema.Description))
-		}
-		if schema.AllowOverrideSource {
-			root.AddBranch(fmt.Sprintf("%s Users can customize this value!", color.HiYellowString("+")))
-		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "    "+strings.Join(strings.Split(root.String(), "\n"), "\n    "))
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s\n\n", color.HiBlackString("Resources"))
-	for _, resource := range resources {
-		transition := color.HiGreenString("start")
-		if resource.Transition == database.WorkspaceTransitionStop {
-			transition = color.HiRedString("stop")
-		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    %s %s on %s\n\n", color.HiCyanString(resource.Type), color.HiCyanString(resource.Name), transition)
-	}
-	return nil
+	return &job, displayProjectImportInfo(cmd, parameterSchemas, parameterValues, resources)
 }
 
 func tarDirectory(directory string) ([]byte, error) {

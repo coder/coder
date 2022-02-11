@@ -44,6 +44,7 @@
     "nhooyr",
     "nolint",
     "nosec",
+    "ntqry",
     "oneof",
     "parameterscopeid",
     "promptui",

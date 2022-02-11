@@ -69,6 +69,8 @@ func Root() *cobra.Command {
 	return cmd
 }
 
+// createClient returns a new client from the command context.
+// The configuration directory will be read from the global flag.
 func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	root := createConfig(cmd)
 	rawURL, err := root.URL().Read()
@@ -87,6 +89,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	return client, client.SetSessionToken(token)
 }
 
+// currentOrganization returns the currently active organization for the authenticated user.
 func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (coderd.Organization, error) {
 	orgs, err := client.UserOrganizations(cmd.Context(), "me")
 	if err != nil {
@@ -97,6 +100,7 @@ func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (coderd.Or
 	return orgs[0], nil
 }
 
+// createConfig consumes the global configuration flag to produce a config root.
 func createConfig(cmd *cobra.Command) config.Root {
 	globalRoot, err := cmd.Flags().GetString(varGlobalConfig)
 	if err != nil {
@@ -116,7 +120,7 @@ func isTTY(reader io.Reader) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
-func runPrompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
+func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
 	var ok bool
 	prompt.Stdin, ok = cmd.InOrStdin().(io.ReadCloser)
 	if !ok {
