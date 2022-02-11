@@ -56,7 +56,7 @@ gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 install: 
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
 	cp -r ./bin $(INSTALL_DIR)
-	@echo "-- CLI available at $(INSTALL_DIR)/coder"
+	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
 peerbroker/proto: peerbroker/proto/peerbroker.proto
