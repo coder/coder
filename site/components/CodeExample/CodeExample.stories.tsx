@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { CodeExample, CodeExampleProps } from "./index"
+import { CodeExample, CodeExampleProps } from "./CodeExample"
 
 const sampleCode = `echo "Hello, world"`
 

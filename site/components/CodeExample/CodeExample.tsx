@@ -2,12 +2,15 @@ import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
-import { CopyButton } from "./../Button"
+import { CopyButton } from "../Button"
 
 export interface CodeExampleProps {
   code: string
 }
 
+/**
+ * Component to show single-line code examples, with a copy button
+ */
 export const CodeExample: React.FC<CodeExampleProps> = ({ code }) => {
   const styles = useStyles()
 
@@ -23,7 +26,8 @@ const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "row",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
+    alignItems: "center",
     background: theme.palette.background.default,
     color: theme.palette.codeBlock.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
