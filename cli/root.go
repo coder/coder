@@ -86,7 +86,8 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		return nil, err
 	}
 	client := codersdk.New(serverURL)
-	return client, client.SetSessionToken(token)
+	client.SessionToken = token
+	return client, nil
 }
 
 // currentOrganization returns the currently active organization for the authenticated user.

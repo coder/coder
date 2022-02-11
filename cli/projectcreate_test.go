@@ -3,7 +3,6 @@ package cli_test
 import (
 	"testing"
 
-	"github.com/ActiveState/termtest/expect"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -17,18 +16,16 @@ func TestProjectCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("NoParameters", func(t *testing.T) {
 		t.Parallel()
-		console, err := expect.NewConsole(expect.WithStdout(clitest.StdoutLogs(t)))
-		require.NoError(t, err)
 		client := coderdtest.New(t)
+		coderdtest.CreateInitialUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
-		_ = clitest.CreateInitialUser(t, client, root)
+		clitest.SetupConfig(t, client, root)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		cmd.SetIn(console.Tty())
-		cmd.SetOut(console.Tty())
+		console := clitest.NewConsole(t, cmd)
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()
@@ -45,7 +42,7 @@ func TestProjectCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			_, err = console.ExpectString(match)
+			_, err := console.ExpectString(match)
 			require.NoError(t, err)
 			_, err = console.SendLine(value)
 			require.NoError(t, err)
@@ -55,9 +52,8 @@ func TestProjectCreate(t *testing.T) {
 
 	t.Run("Parameter", func(t *testing.T) {
 		t.Parallel()
-		console, err := expect.NewConsole(expect.WithStdout(clitest.StdoutLogs(t)))
-		require.NoError(t, err)
 		client := coderdtest.New(t)
+		coderdtest.CreateInitialUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
@@ -74,10 +70,9 @@ func TestProjectCreate(t *testing.T) {
 			Provision: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
-		_ = clitest.CreateInitialUser(t, client, root)
-		_ = coderdtest.NewProvisionerDaemon(t, client)
-		cmd.SetIn(console.Tty())
-		cmd.SetOut(console.Tty())
+		clitest.SetupConfig(t, client, root)
+		coderdtest.NewProvisionerDaemon(t, client)
+		console := clitest.NewConsole(t, cmd)
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()
@@ -95,7 +90,7 @@ func TestProjectCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			_, err = console.ExpectString(match)
+			_, err := console.ExpectString(match)
 			require.NoError(t, err)
 			_, err = console.SendLine(value)
 			require.NoError(t, err)

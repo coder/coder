@@ -73,7 +73,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 			Password: anotherUser.Password,
 		})
 		require.NoError(t, err)
-		err = client.SetSessionToken(token.SessionToken)
+		client.SessionToken = token.SessionToken
 		require.NoError(t, err)
 
 		_, err = client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{

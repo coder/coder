@@ -117,8 +117,7 @@ func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateIniti
 		Password: req.Password,
 	})
 	require.NoError(t, err)
-	err = client.SetSessionToken(login.SessionToken)
-	require.NoError(t, err)
+	client.SessionToken = login.SessionToken
 	return req
 }
 

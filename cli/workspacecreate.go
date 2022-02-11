@@ -36,6 +36,9 @@ func workspaceCreate() *cobra.Command {
 				name, err = prompt(cmd, &promptui.Prompt{
 					Label: "What's your workspace's name?",
 					Validate: func(s string) error {
+						if s == "" {
+							return xerrors.Errorf("You must provide a name!")
+						}
 						workspace, _ := client.Workspace(cmd.Context(), "", s)
 						if workspace.ID.String() != uuid.Nil.String() {
 							return xerrors.New("A workspace already exists with that name!")

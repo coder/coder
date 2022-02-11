@@ -112,6 +112,7 @@ func (api *api) postProvisionerImportJobByOrganization(rw http.ResponseWriter, r
 		StorageMethod:  database.ProvisionerStorageMethodFile,
 		StorageSource:  file.Hash,
 		Type:           database.ProvisionerJobTypeProjectVersionImport,
+		Input:          []byte{'{', '}'},
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

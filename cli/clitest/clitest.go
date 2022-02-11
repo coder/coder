@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"os"
@@ -12,14 +11,13 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/Netflix/go-expect"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 )
@@ -39,20 +37,12 @@ func New(t *testing.T, args ...string) (*cobra.Command, config.Root) {
 	return cmd, root
 }
 
-// CreateInitialUser creates the initial user and write's the session
-// token to the config root provided.
-func CreateInitialUser(t *testing.T, client *codersdk.Client, root config.Root) coderd.CreateInitialUserRequest {
-	user := coderdtest.CreateInitialUser(t, client)
-	resp, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-		Email:    user.Email,
-		Password: user.Password,
-	})
-	require.NoError(t, err)
-	err = root.Session().Write(resp.SessionToken)
+// SetupConfig applies the URL and SessionToken of the client to the config.
+func SetupConfig(t *testing.T, client *codersdk.Client, root config.Root) {
+	err := root.Session().Write(client.SessionToken)
 	require.NoError(t, err)
 	err = root.URL().Write(client.URL.String())
 	require.NoError(t, err)
-	return user
 }
 
 // CreateProjectVersionSource writes the echo provisioner responses into a
@@ -66,9 +56,9 @@ func CreateProjectVersionSource(t *testing.T, responses *echo.Responses) string 
 	return directory
 }
 
-// StdoutLogs provides a writer to t.Log that strips
-// all ANSI escape codes.
-func StdoutLogs(t *testing.T) io.Writer {
+// NewConsole creates a new TTY bound to the command provided.
+// All ANSI escape codes are stripped to provide clean output.
+func NewConsole(t *testing.T, cmd *cobra.Command) *expect.Console {
 	reader, writer := io.Pipe()
 	scanner := bufio.NewScanner(reader)
 	t.Cleanup(func() {
@@ -83,7 +73,12 @@ func StdoutLogs(t *testing.T) io.Writer {
 			t.Log(stripAnsi.ReplaceAllString(scanner.Text(), ""))
 		}
 	}()
-	return writer
+
+	console, err := expect.NewConsole(expect.WithStdout(writer))
+	require.NoError(t, err)
+	cmd.SetIn(console.Tty())
+	cmd.SetOut(console.Tty())
+	return console
 }
 
 func extractTar(data []byte, directory string) error {

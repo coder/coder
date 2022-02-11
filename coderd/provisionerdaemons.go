@@ -195,15 +195,11 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project: %s", err))
 		}
-		organization, err := server.Database.GetOrganizationByID(ctx, project.OrganizationID)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get organization: %s", err))
-		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			ProjectImportJobID: projectVersion.ImportJobID,
-			OrganizationID:     organization.ID,
+			OrganizationID:     job.OrganizationID,
 			ProjectID: uuid.NullUUID{
 				UUID:  project.ID,
 				Valid: true,
@@ -226,6 +222,11 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			}
 			protoParameters = append(protoParameters, converted)
 		}
+		protoParameters = append(protoParameters, &sdkproto.ParameterValue{
+			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+			Name:              parameter.CoderWorkspaceTransition,
+			Value:             string(workspaceHistory.Transition),
+		})
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
 			WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
