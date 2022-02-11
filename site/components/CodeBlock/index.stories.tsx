@@ -12,7 +12,7 @@ export default {
   title: "CodeBlock",
   component: CodeBlock,
   argTypes: {
-    lines: { control: "object", defaultValue: sampleLines },
+    lines: { control: "text", defaultValue: sampleLines },
   },
 }
 
