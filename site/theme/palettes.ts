@@ -9,6 +9,14 @@ declare module "@material-ui/core/styles/createPalette" {
       contrastText: string
       // Background color for codeblocks
       main: string
+      button: {
+        // Background for buttons inside a codeblock
+        main: string
+        // Hover background color for buttons inside a codeblock
+        hover: string
+        // Text color for buttons inside a codeblock
+        contrastText: string
+      }
     }
     navbar: {
       main: string
@@ -26,6 +34,11 @@ declare module "@material-ui/core/styles/createPalette" {
     codeBlock: {
       contrastText: string
       main: string
+      button: {
+        main: string
+        hover: string
+        contrastText: string
+      }
     }
     navbar: {
       main: string
@@ -71,6 +84,11 @@ export const lightPalette: CustomPalette = {
   codeBlock: {
     main: "#F3F3F3",
     contrastText: "rgba(0, 0, 0, 0.9)",
+    button: {
+      main: "#E6ECE6",
+      hover: "#DAEBDA",
+      contrastText: "#000",
+    },
   },
   primary: {
     main: "#519A54",
@@ -135,6 +153,11 @@ export const darkPalette: CustomPalette = {
   codeBlock: {
     main: "rgb(24, 26, 27)",
     contrastText: "rgba(255, 255, 255, 0.8)",
+    button: {
+      main: "rgba(255, 255, 255, 0.1)",
+      hover: "rgba(255, 255, 255, 0.25)",
+      contrastText: "#FFF",
+    },
   },
   hero: {
     main: "#141414",

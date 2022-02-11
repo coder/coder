@@ -7,29 +7,24 @@ import { FileCopy } from "../Icons"
 interface CopyButtonProps {
   text: string
   className?: string
-  onFailure: () => void
-  onSuccess: () => void
 }
 
 /**
  * Copy button used inside the CodeBlock component internally
  */
-export const CopyButton: React.FC<CopyButtonProps> = ({ className = "", text, onSuccess, onFailure }) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({ className = "", text }) => {
   const styles = useStyles()
 
 
   const copyToClipboard = async (): Promise<void> => {
     try {
       await window.navigator.clipboard.writeText(text)
-      onSuccess()
     } catch (err) {
       const wrappedErr = new Error("copyToClipboard: failed to copy text to clipboard")
       if (err instanceof Error) {
         wrappedErr.stack = err.stack
       }
       console.error(wrappedErr)
-
-      onFailure()
     }
   }
 

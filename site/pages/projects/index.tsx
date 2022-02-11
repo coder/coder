@@ -14,7 +14,7 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
 import { Organization, Project } from "./../../api"
 import useSWR from "swr"
-import { CodeBlock } from "../../components/CodeBlock"
+import { CodeExample } from "../../components/CodeExample"
 
 const ProjectsPage: React.FC = () => {
   const styles = useStyles()
@@ -60,7 +60,7 @@ const ProjectsPage: React.FC = () => {
 
   const description = <div>
     <div>Run the following command to get started:</div>
-    <CodeBlock lines={["coder project create"]} />
+    <CodeExample code="coder project create" />
   </div>
 
   const emptyState = <EmptyState
