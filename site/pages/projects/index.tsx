@@ -1,7 +1,6 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import { useRouter } from "next/router"
 import Link from "next/link"
 import { EmptyState } from "../../components"
 import { ErrorSummary } from "../../components/ErrorSummary"
@@ -14,10 +13,10 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
 import { Organization, Project } from "./../../api"
 import useSWR from "swr"
+import { CodeExample } from "../../components/CodeExample/CodeExample"
 
 const ProjectsPage: React.FC = () => {
   const styles = useStyles()
-  const router = useRouter()
   const { me, signOut } = useUser(true)
   const { data: projects, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
   const { data: orgs, error: orgsError } = useSWR<Organization[], Error>("/api/v2/users/me/organizations")
@@ -32,15 +31,6 @@ const ProjectsPage: React.FC = () => {
 
   if (!me || !projects || !orgs) {
     return <FullScreenLoader />
-  }
-
-  const createProject = () => {
-    void router.push("/projects/create")
-  }
-
-  const action = {
-    text: "Create Project",
-    onClick: createProject,
   }
 
   // Create a dictionary of organization ID -> organization Name
@@ -62,16 +52,14 @@ const ProjectsPage: React.FC = () => {
     },
   ]
 
-  const emptyState = (
-    <EmptyState
-      button={{
-        children: "Create Project",
-        onClick: createProject,
-      }}
-      message="No projects have been created yet"
-      description="Create a project to get started."
-    />
+  const description = (
+    <div>
+      <div className={styles.descriptionLabel}>Run the following command to get started:</div>
+      <CodeExample code="coder project create" />
+    </div>
   )
+
+  const emptyState = <EmptyState message="No projects have been created yet" description={description} />
 
   const tableProps = {
     title: "All Projects",
@@ -85,7 +73,7 @@ const ProjectsPage: React.FC = () => {
   return (
     <div className={styles.root}>
       <Navbar user={me} onSignOut={signOut} />
-      <Header title="Projects" subTitle={subTitle} action={action} />
+      <Header title="Projects" subTitle={subTitle} />
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
         <Table {...tableProps} />
       </Paper>
@@ -94,10 +82,13 @@ const ProjectsPage: React.FC = () => {
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
     flexDirection: "column",
+  },
+  descriptionLabel: {
+    marginBottom: theme.spacing(1),
   },
 }))
 
