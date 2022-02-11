@@ -11,6 +11,9 @@ replace github.com/hashicorp/terraform-exec => github.com/kylecarbs/terraform-ex
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
+// Required until https://github.com/chzyer/readline/pull/198 is merged.
+replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
+
 require (
 	cdr.dev/slog v1.4.1
 	github.com/ActiveState/termtest/expect v0.7.0
