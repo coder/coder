@@ -219,8 +219,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, parameter := range parameters {
-			converted, err := convertComputedParameterValue(parameter)
+		for _, computedParameter := range parameters {
+			converted, err := convertComputedParameterValue(computedParameter)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
 			}
@@ -371,8 +371,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		}
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, parameter := range parameters {
-			converted, err := convertComputedParameterValue(parameter)
+		for _, computedParameter := range parameters {
+			converted, err := convertComputedParameterValue(computedParameter)
 			if err != nil {
 				return nil, xerrors.Errorf("convert parameter: %s", err)
 			}
@@ -597,7 +597,7 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 }
 
 func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {
-	scheme := sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
+	var scheme sdkproto.ParameterDestination_Scheme
 	switch param.DestinationScheme {
 	case database.ParameterDestinationSchemeEnvironmentVariable:
 		scheme = sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE

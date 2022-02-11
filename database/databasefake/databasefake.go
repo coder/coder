@@ -401,7 +401,7 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 	return database.Project{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectImportJobResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProjectImportJobResource, error) {
+func (q *fakeQuerier) GetProjectImportJobResourcesByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProjectImportJobResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -685,7 +685,7 @@ func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjec
 	return project, nil
 }
 
-func (q *fakeQuerier) InsertProjectImportJobResource(ctx context.Context, arg database.InsertProjectImportJobResourceParams) (database.ProjectImportJobResource, error) {
+func (q *fakeQuerier) InsertProjectImportJobResource(_ context.Context, arg database.InsertProjectImportJobResourceParams) (database.ProjectImportJobResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

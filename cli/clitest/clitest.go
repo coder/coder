@@ -96,6 +96,7 @@ func extractTar(data []byte, directory string) error {
 		if err != nil {
 			return xerrors.Errorf("read project source archive: %w", err)
 		}
+		// #nosec
 		path := filepath.Join(directory, header.Name)
 		mode := header.FileInfo().Mode()
 		if mode == 0 {

@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/database"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/xlab/treeprint"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/database"
 )
 
 func projects() *cobra.Command {

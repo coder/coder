@@ -112,8 +112,10 @@ func projectCreate() *cobra.Command {
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "provisioner", "p", "terraform", "Customize the provisioner backend")
 	// This is for testing! There's only 1 provisioner type right now.
-	cmd.Flags().MarkHidden("provisioner")
-
+	err := cmd.Flags().MarkHidden("provisioner")
+	if err != nil {
+		panic(err)
+	}
 	return cmd
 }
 
@@ -121,16 +123,18 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
-	spin.Color("fgHiGreen")
-	spin.Start()
-	defer spin.Stop()
-
-	bytes, err := tarDirectory(directory)
+	err := spin.Color("fgHiGreen")
 	if err != nil {
 		return nil, err
 	}
+	spin.Start()
+	defer spin.Stop()
 
-	resp, err := client.UploadFile(cmd.Context(), codersdk.ContentTypeTar, bytes)
+	tarData, err := tarDirectory(directory)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.UploadFile(cmd.Context(), codersdk.ContentTypeTar, tarData)
 	if err != nil {
 		return nil, err
 	}

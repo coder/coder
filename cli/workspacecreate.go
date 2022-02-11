@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/database"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/database"
 )
 
 func workspaceCreate() *cobra.Command {
@@ -108,17 +109,17 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logBuffer := make([]coderd.ProvisionerJobLog, 0, 64)
+			// logBuffer := make([]coderd.ProvisionerJobLog, 0, 64)
 			for {
 				log, ok := <-logs
 				if !ok {
 					break
 				}
-				fmt.Printf("Logging: %s\n", log.Output)
-				logBuffer = append(logBuffer, log)
+				_, _ = fmt.Printf("Logging: %s\n", log.Output)
+				// logBuffer = append(logBuffer, log)
 			}
 
-			fmt.Printf("Create workspace! %s\n", name)
+			_, _ = fmt.Printf("Create workspace! %s\n", name)
 
 			return nil
 		},

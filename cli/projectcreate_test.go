@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/ActiveState/termtest/expect"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProjectCreate(t *testing.T) {
@@ -19,13 +20,13 @@ func TestProjectCreate(t *testing.T) {
 		console, err := expect.NewConsole(expect.WithStdout(clitest.StdoutLogs(t)))
 		require.NoError(t, err)
 		client := coderdtest.New(t)
-		_ = coderdtest.NewProvisionerDaemon(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		_ = clitest.CreateInitialUser(t, client, root)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
 		cmd.SetIn(console.Tty())
 		cmd.SetOut(console.Tty())
 		closeChan := make(chan struct{})
@@ -57,7 +58,6 @@ func TestProjectCreate(t *testing.T) {
 		console, err := expect.NewConsole(expect.WithStdout(clitest.StdoutLogs(t)))
 		require.NoError(t, err)
 		client := coderdtest.New(t)
-		_ = coderdtest.NewProvisionerDaemon(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
@@ -75,6 +75,7 @@ func TestProjectCreate(t *testing.T) {
 		})
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		_ = clitest.CreateInitialUser(t, client, root)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
 		cmd.SetIn(console.Tty())
 		cmd.SetOut(console.Tty())
 		closeChan := make(chan struct{})
