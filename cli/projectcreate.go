@@ -131,12 +131,13 @@ func doProjectLoop(cmd *cobra.Command, client *codersdk.Client, organization cod
 	if err != nil {
 		return nil, err
 	}
+	logBuffer := make([]coderd.ProvisionerJobLog, 0, 64)
 	for {
-		_, ok := <-logs
+		log, ok := <-logs
 		if !ok {
 			break
 		}
-		// _, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
+		logBuffer = append(logBuffer, log)
 	}
 
 	job, err = client.ProvisionerJob(cmd.Context(), organization.Name, job.ID)
@@ -184,6 +185,10 @@ func doProjectLoop(cmd *cobra.Command, client *codersdk.Client, organization cod
 	}
 
 	if job.Status != coderd.ProvisionerJobStatusSucceeded {
+		for _, log := range logBuffer {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
+		}
+
 		return nil, xerrors.New(job.Error)
 	}
 
