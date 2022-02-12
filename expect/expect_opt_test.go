@@ -16,12 +16,12 @@ package expect_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	. "github.com/coder/coder/expect"
 )
@@ -258,8 +258,8 @@ func TestExpectOptThen(t *testing.T) {
 	t.Parallel()
 
 	var (
-		errFirst  = errors.New("first")
-		errSecond = errors.New("second")
+		errFirst  = xerrors.New("first")
+		errSecond = xerrors.New("second")
 	)
 
 	tests := []struct {

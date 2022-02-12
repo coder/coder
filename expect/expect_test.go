@@ -49,8 +49,7 @@ func Prompt(in io.Reader, out io.Writer) error {
 			"What is Netflix backwards?", "xilfteN",
 		},
 	} {
-
-		_, err := fmt.Fprint(out, fmt.Sprintf("%s: ", survey.Prompt))
+		_, err := fmt.Fprintf(out, "%s: ", survey.Prompt)
 		if err != nil {
 			return err
 		}
