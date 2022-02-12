@@ -17,6 +17,8 @@ func newPty() (Pty, error) {
 	vsn := windows.RtlGetVersion()
 	if vsn.MajorVersion < 10 ||
 		vsn.BuildNumber < 17763 {
+		// If the CreatePseudoConsole API is not available, we fall back to a simpler
+		// implementation that doesn't create an actual PTY - just uses os.Pipe
 		return pipePty()
 	}
 
@@ -24,43 +26,43 @@ func newPty() (Pty, error) {
 }
 
 func pipePty() (Pty, error) {
-	inputR, inputW, err := os.Pipe()
+	inFilePipeSide, inFileOurSide, err := os.Pipe()
 	if err != nil {
 		return nil, err
 	}
 
-	outputR, outputW, err := os.Pipe()
+	outFileOurSide, outFilePipeSide, err := os.Pipe()
 	if err != nil {
 		return nil, err
 	}
 
 	return &pipePtyVal{
-		inputR,
-		inputW,
-		outputR,
-		outputW,
+		inFilePipeSide,
+		inFileOurSide,
+		outFileOurSide,
+		outFilePipeSide,
 	}, nil
 }
 
 type pipePtyVal struct {
-	inputR, inputW   *os.File
-	outputR, outputW *os.File
+	inFilePipeSide, inFileOurSide   *os.File
+	outFileOurSide, outFilePipeSide *os.File
 }
 
 func (p *pipePtyVal) InPipe() *os.File {
-	return p.inputR
+	return p.inFilePipeSide
 }
 
 func (p *pipePtyVal) OutPipe() *os.File {
-	return p.outputW
+	return p.outFilePipeSide
 }
 
 func (p *pipePtyVal) Reader() io.Reader {
-	return p.outputR
+	return p.outFileOurSide
 }
 
 func (p *pipePtyVal) WriteString(str string) (int, error) {
-	return p.inputW.WriteString(str)
+	return p.inFileOurSide.WriteString(str)
 }
 
 func (p *pipePtyVal) Resize(uint16, uint16) error {
@@ -68,9 +70,9 @@ func (p *pipePtyVal) Resize(uint16, uint16) error {
 }
 
 func (p *pipePtyVal) Close() error {
-	p.inputW.Close()
-	p.inputR.Close()
-	p.outputW.Close()
-	p.outputR.Close()
+	p.inFileOurSide.Close()
+	p.inFilePipeSide.Close()
+	p.outFilePipeSide.Close()
+	p.outFileOurSide.Close()
 	return nil
 }
