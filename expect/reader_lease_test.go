@@ -1,4 +1,4 @@
-package expect
+package expect_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	. "github.com/coder/coder/expect"
 )
 
 func TestReaderLease(t *testing.T) {
@@ -14,7 +16,7 @@ func TestReaderLease(t *testing.T) {
 	defer out.Close()
 	defer in.Close()
 
-	rm := NewReaderLease(in)
+	readerLease := NewReaderLease(in)
 
 	tests := []struct {
 		title    string
@@ -39,7 +41,7 @@ func TestReaderLease(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				io.Copy(tout, rm.NewReader(ctx))
+				io.Copy(tout, readerLease.NewReader(ctx))
 			}()
 
 			wg.Add(1)

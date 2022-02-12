@@ -50,7 +50,14 @@ func (p *unixPty) Resize(cols uint16, rows uint16) error {
 }
 
 func (p *unixPty) Close() error {
-	p.pty.Close()
-	p.tty.Close()
+	err := p.pty.Close()
+	if err != nil {
+		return err
+	}
+
+	err = p.tty.Close()
+	if err != nil {
+		return err
+	}
 	return nil
 }

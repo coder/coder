@@ -33,7 +33,7 @@ type ConsoleCallback func(buf *bytes.Buffer) error
 
 // Then returns an Expect condition to execute a callback if a match is found
 // for the chained matcher.
-func (eo ExpectOpt) Then(f ConsoleCallback) ExpectOpt {
+func (eo ExpectOpt) Then(consoleCallback ConsoleCallback) ExpectOpt {
 	return func(opts *ExpectOpts) error {
 		var options ExpectOpts
 		err := eo(&options)
@@ -43,7 +43,7 @@ func (eo ExpectOpt) Then(f ConsoleCallback) ExpectOpt {
 
 		for _, matcher := range options.Matchers {
 			opts.Matchers = append(opts.Matchers, &callbackMatcher{
-				f:       f,
+				f:       consoleCallback,
 				matcher: matcher,
 			})
 		}
@@ -206,11 +206,11 @@ func (am *allMatcher) Match(v interface{}) bool {
 }
 
 func (am *allMatcher) Criteria() interface{} {
-	var criterias []interface{}
+	var criteria []interface{}
 	for _, matcher := range am.options.Matchers {
-		criterias = append(criterias, matcher.Criteria())
+		criteria = append(criteria, matcher.Criteria())
 	}
-	return criterias
+	return criteria
 }
 
 // All adds an Expect condition to exit if the content read from Console's tty

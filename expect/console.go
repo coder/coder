@@ -62,7 +62,7 @@ type ExpectObserver func(matchers []Matcher, buf string, err error)
 // be called after each Send operation.
 // msg is the string that was sent.
 // num is the number of bytes actually sent.
-// err is the error that might have occured.  May be nil.
+// err is the error that might have occurred.  May be nil.
 type SendObserver func(msg string, num int, err error)
 
 // WithStdout adds writers that Console duplicates writes to, similar to the
@@ -137,7 +137,7 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 	}
 	closers = append(closers, passthroughPipe)
 
-	c := &Console{
+	console := &Console{
 		opts:            options,
 		pty:             pty,
 		passthroughPipe: passthroughPipe,
@@ -145,7 +145,7 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 		closers:         closers,
 	}
 
-	return c, nil
+	return console, nil
 }
 
 // Tty returns an input Tty for accepting input

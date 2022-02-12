@@ -29,31 +29,31 @@ type ReaderLease struct {
 // NewReaderLease returns a new ReaderLease that begins reading the given
 // io.Reader.
 func NewReaderLease(reader io.Reader) *ReaderLease {
-	rm := &ReaderLease{
+	readerLease := &ReaderLease{
 		reader: reader,
 		bytec:  make(chan byte),
 	}
 
 	go func() {
 		for {
-			p := make([]byte, 1)
-			n, err := rm.reader.Read(p)
+			bytes := make([]byte, 1)
+			n, err := readerLease.reader.Read(bytes)
 			if err != nil {
 				return
 			}
 			if n == 0 {
 				panic("non eof read 0 bytes")
 			}
-			rm.bytec <- p[0]
+			readerLease.bytec <- bytes[0]
 		}
 	}()
 
-	return rm
+	return readerLease
 }
 
 // NewReader returns a cancellable io.Reader for the underlying io.Reader.
-// Readers can be cancelled without interrupting other Readers, and once
-// a reader is a cancelled it will not read anymore bytes from ReaderLease's
+// Readers can be canceled without interrupting other Readers, and once
+// a reader is a canceled it will not read anymore bytes from ReaderLease's
 // underlying io.Reader.
 func (rm *ReaderLease) NewReader(ctx context.Context) io.Reader {
 	return NewChanReader(ctx, rm.bytec)
@@ -64,7 +64,7 @@ type chanReader struct {
 	bytec <-chan byte
 }
 
-// NewChanReader returns a io.Reader over a byte chan. If context is cancelled,
+// NewChanReader returns a io.Reader over a byte chan. If context is canceled,
 // future Reads will return io.EOF.
 func NewChanReader(ctx context.Context, bytec <-chan byte) io.Reader {
 	return &chanReader{
@@ -73,15 +73,15 @@ func NewChanReader(ctx context.Context, bytec <-chan byte) io.Reader {
 	}
 }
 
-func (cr *chanReader) Read(p []byte) (n int, err error) {
+func (cr *chanReader) Read(bytes []byte) (n int, err error) {
 	select {
 	case <-cr.ctx.Done():
 		return 0, io.EOF
 	case b := <-cr.bytec:
-		if len(p) < 1 {
+		if len(bytes) < 1 {
 			return 0, fmt.Errorf("cannot read into 0 len byte slice")
 		}
-		p[0] = b
+		bytes[0] = b
 		return 1, nil
 	}
 }

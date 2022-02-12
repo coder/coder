@@ -36,13 +36,13 @@ func NewTestConsole(t *testing.T, opts ...ConsoleOpt) (*Console, error) {
 // NewTestWriter returns an io.Writer where bytes written to the file are
 // logged by go's testing logger. Bytes are flushed to the logger on line end.
 func NewTestWriter(t *testing.T) (io.Writer, error) {
-	r, w := io.Pipe()
-	tw := testWriter{t}
+	pipeReader, pipeWriter := io.Pipe()
+	testWriter := testWriter{t}
 
 	go func() {
-		defer r.Close()
+		defer pipeReader.Close()
 
-		br := bufio.NewReader(r)
+		br := bufio.NewReader(pipeReader)
 
 		for {
 			line, _, err := br.ReadLine()
@@ -50,14 +50,14 @@ func NewTestWriter(t *testing.T) (io.Writer, error) {
 				return
 			}
 
-			_, err = tw.Write(line)
+			_, err = testWriter.Write(line)
 			if err != nil {
 				return
 			}
 		}
 	}()
 
-	return w, nil
+	return pipeWriter, nil
 }
 
 // testWriter provides a io.Writer interface to go's testing logger.

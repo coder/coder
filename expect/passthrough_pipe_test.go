@@ -1,26 +1,29 @@
-package expect
+package expect_test
 
 import (
 	"errors"
 	"io"
+
 	//"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	. "github.com/coder/coder/expect"
 )
 
 func TestPassthroughPipe(t *testing.T) {
-	r, w := io.Pipe()
+	pipeReader, pipeWriter := io.Pipe()
 
-	passthroughPipe, err := NewPassthroughPipe(r)
+	passthroughPipe, err := NewPassthroughPipe(pipeReader)
 	require.NoError(t, err)
 
 	err = passthroughPipe.SetReadDeadline(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
 	pipeError := errors.New("pipe error")
-	err = w.CloseWithError(pipeError)
+	err = pipeWriter.CloseWithError(pipeError)
 	require.NoError(t, err)
 
 	p := make([]byte, 1)

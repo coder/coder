@@ -111,23 +111,23 @@ func testCloser(t *testing.T, closer io.Closer) {
 func TestExpectf(t *testing.T) {
 	t.Parallel()
 
-	c, err := newTestConsole(t)
+	console, err := newTestConsole(t)
 	if err != nil {
 		t.Errorf("Expected no error but got'%s'", err)
 	}
-	defer testCloser(t, c)
+	defer testCloser(t, console)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c.Expectf("What is 1+%d?", 1)
-		c.SendLine("2")
-		c.Expectf("What is %s backwards?", "Netflix")
-		c.SendLine("xilfteN")
+		console.Expectf("What is 1+%d?", 1)
+		console.SendLine("2")
+		console.Expectf("What is %s backwards?", "Netflix")
+		console.SendLine("xilfteN")
 	}()
 
-	err = Prompt(c.InTty(), c.OutTty())
+	err = Prompt(console.InTty(), console.OutTty())
 	if err != nil {
 		t.Errorf("Expected no error but got '%s'", err)
 	}
@@ -137,23 +137,23 @@ func TestExpectf(t *testing.T) {
 func TestExpect(t *testing.T) {
 	t.Parallel()
 
-	c, err := newTestConsole(t)
+	console, err := newTestConsole(t)
 	if err != nil {
 		t.Errorf("Expected no error but got'%s'", err)
 	}
-	defer testCloser(t, c)
+	defer testCloser(t, console)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c.ExpectString("What is 1+1?")
-		c.SendLine("2")
-		c.ExpectString("What is Netflix backwards?")
-		c.SendLine("xilfteN")
+		console.ExpectString("What is 1+1?")
+		console.SendLine("2")
+		console.ExpectString("What is Netflix backwards?")
+		console.SendLine("xilfteN")
 	}()
 
-	err = Prompt(c.InTty(), c.OutTty())
+	err = Prompt(console.InTty(), console.OutTty())
 	if err != nil {
 		t.Errorf("Expected no error but got '%s'", err)
 	}
@@ -163,21 +163,21 @@ func TestExpect(t *testing.T) {
 func TestExpectOutput(t *testing.T) {
 	t.Parallel()
 
-	c, err := newTestConsole(t)
+	console, err := newTestConsole(t)
 	if err != nil {
 		t.Errorf("Expected no error but got'%s'", err)
 	}
-	defer testCloser(t, c)
+	defer testCloser(t, console)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c.ExpectString("What is 1+1?")
-		c.SendLine("3")
+		console.ExpectString("What is 1+1?")
+		console.SendLine("3")
 	}()
 
-	err = Prompt(c.InTty(), c.OutTty())
+	err = Prompt(console.InTty(), console.OutTty())
 	if err == nil || err != ErrWrongAnswer {
 		t.Errorf("Expected error '%s' but got '%s' instead", ErrWrongAnswer, err)
 	}
