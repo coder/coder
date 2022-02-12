@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/fatih/color"
@@ -22,6 +21,7 @@ import (
 
 const (
 	varGlobalConfig = "global-config"
+	varForceTty     = "force-tty"
 )
 
 func Root() *cobra.Command {
@@ -66,6 +66,7 @@ func Root() *cobra.Command {
 	cmd.AddCommand(users())
 
 	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coder"), "Path to the global `coder` config directory")
+	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
 
 	return cmd
 }
@@ -110,11 +111,6 @@ func createConfig(cmd *cobra.Command) config.Root {
 // This accepts a reader to work with Cobra's "InOrStdin"
 // function for simple testing.
 func isTTY(reader io.Reader) bool {
-	// TODO(Bryan): Is there a reliable way to check this on windows?
-	if runtime.GOOS == "windows" {
-		return true
-	}
-
 	file, ok := reader.(*os.File)
 	if !ok {
 		return false

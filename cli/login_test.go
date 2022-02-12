@@ -26,7 +26,7 @@ func TestLogin(t *testing.T) {
 		console, err := expect.NewConsole(expect.WithStdout(clitest.StdoutLogs(t)))
 		require.NoError(t, err)
 		client := coderdtest.New(t)
-		root, _ := clitest.New(t, "login", client.URL.String())
+		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
 		root.SetIn(console.InTty())
 		root.SetOut(console.OutTty())
 		go func() {
