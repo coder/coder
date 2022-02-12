@@ -29,7 +29,7 @@ func TestWorkspaces(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
 		workspaces, err := client.Workspaces(context.Background(), "")
@@ -58,7 +58,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 
 		anotherUser := coderd.CreateUserRequest{
@@ -73,7 +73,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 			Password: anotherUser.Password,
 		})
 		require.NoError(t, err)
-		err = client.SetSessionToken(token.SessionToken)
+		client.SessionToken = token.SessionToken
 		require.NoError(t, err)
 
 		_, err = client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
@@ -90,7 +90,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
@@ -107,7 +107,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
 	})
@@ -117,7 +117,7 @@ func TestWorkspaceByUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t)
 	user := coderdtest.CreateInitialUser(t, client)
-	job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 	_, err := client.Workspace(context.Background(), "", workspace.Name)
@@ -130,7 +130,7 @@ func TestWorkspacesByProject(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		workspaces, err := client.WorkspacesByProject(context.Background(), user.Organization, project.Name)
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestWorkspacesByProject(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
 		workspaces, err := client.WorkspacesByProject(context.Background(), user.Organization, project.Name)

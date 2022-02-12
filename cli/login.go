@@ -49,7 +49,7 @@ func login() *cobra.Command {
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", color.HiBlackString(">"))
 
-				_, err := runPrompt(cmd, &promptui.Prompt{
+				_, err := prompt(cmd, &promptui.Prompt{
 					Label:     "Would you like to create the first user?",
 					IsConfirm: true,
 					Default:   "y",
@@ -61,7 +61,7 @@ func login() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("get current user: %w", err)
 				}
-				username, err := runPrompt(cmd, &promptui.Prompt{
+				username, err := prompt(cmd, &promptui.Prompt{
 					Label:   "What username would you like?",
 					Default: currentUser.Username,
 				})
@@ -69,7 +69,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("pick username prompt: %w", err)
 				}
 
-				organization, err := runPrompt(cmd, &promptui.Prompt{
+				organization, err := prompt(cmd, &promptui.Prompt{
 					Label:   "What is the name of your organization?",
 					Default: "acme-corp",
 				})
@@ -77,7 +77,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("pick organization prompt: %w", err)
 				}
 
-				email, err := runPrompt(cmd, &promptui.Prompt{
+				email, err := prompt(cmd, &promptui.Prompt{
 					Label: "What's your email?",
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
@@ -91,7 +91,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("specify email prompt: %w", err)
 				}
 
-				password, err := runPrompt(cmd, &promptui.Prompt{
+				password, err := prompt(cmd, &promptui.Prompt{
 					Label: "Enter a password:",
 					Mask:  '*',
 				})

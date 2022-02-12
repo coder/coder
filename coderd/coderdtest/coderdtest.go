@@ -28,8 +28,8 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-// New constructs a new coderd test instance. This returned Server
-// should contain no side-effects.
+// New constructs an in-memory coderd instance and returns
+// the connected client.
 func New(t *testing.T) *codersdk.Client {
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
@@ -117,20 +117,19 @@ func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateIniti
 		Password: req.Password,
 	})
 	require.NoError(t, err)
-	err = client.SetSessionToken(login.SessionToken)
-	require.NoError(t, err)
+	client.SessionToken = login.SessionToken
 	return req
 }
 
-// CreateProjectImportProvisionerJob creates a project import provisioner job
+// CreateProjectImportJob creates a project import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateProjectImportProvisionerJob(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProvisionerJob {
+func CreateProjectImportJob(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProvisionerJob {
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
-	job, err := client.CreateProjectVersionImportProvisionerJob(context.Background(), organization, coderd.CreateProjectImportJobRequest{
+	job, err := client.CreateProjectImportJob(context.Background(), organization, coderd.CreateProjectImportJobRequest{
 		StorageSource: file.Hash,
 		StorageMethod: database.ProvisionerStorageMethodFile,
 		Provisioner:   database.ProvisionerTypeEcho,
@@ -150,12 +149,24 @@ func CreateProject(t *testing.T, client *codersdk.Client, organization string, j
 	return project
 }
 
-// AwaitProvisionerJob awaits for a job to reach completed status.
-func AwaitProvisionerJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
+// AwaitProjectImportJob awaits for an import job to reach completed status.
+func AwaitProjectImportJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
 	var provisionerJob coderd.ProvisionerJob
 	require.Eventually(t, func() bool {
 		var err error
-		provisionerJob, err = client.ProvisionerJob(context.Background(), organization, job)
+		provisionerJob, err = client.ProjectImportJob(context.Background(), organization, job)
+		require.NoError(t, err)
+		return provisionerJob.Status.Completed()
+	}, 3*time.Second, 25*time.Millisecond)
+	return provisionerJob
+}
+
+// AwaitWorkspaceProvisionJob awaits for a workspace provision job to reach completed status.
+func AwaitWorkspaceProvisionJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
+	var provisionerJob coderd.ProvisionerJob
+	require.Eventually(t, func() bool {
+		var err error
+		provisionerJob, err = client.WorkspaceProvisionJob(context.Background(), organization, job)
 		require.NoError(t, err)
 		return provisionerJob.Status.Completed()
 	}, 3*time.Second, 25*time.Millisecond)

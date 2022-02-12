@@ -173,6 +173,14 @@ FROM
 WHERE
   job_id = $1;
 
+-- name: GetProjectImportJobResourcesByJobID :many
+SELECT
+  *
+FROM
+  project_import_job_resource
+WHERE
+  job_id = $1;
+
 -- name: GetProjectVersionsByProjectID :many
 SELECT
   *
@@ -408,11 +416,10 @@ INSERT INTO
     scope_id,
     source_scheme,
     source_value,
-    destination_scheme,
-    destination_value
+    destination_scheme
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
 -- name: InsertProject :one
 INSERT INTO
@@ -427,6 +434,12 @@ INSERT INTO
   )
 VALUES
   ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+
+-- name: InsertProjectImportJobResource :one
+INSERT INTO
+  project_import_job_resource (id, created_at, job_id, transition, type, name)
+VALUES
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: InsertProjectVersion :one
 INSERT INTO
@@ -454,7 +467,6 @@ INSERT INTO
     default_source_value,
     allow_override_source,
     default_destination_scheme,
-    default_destination_value,
     allow_override_destination,
     default_refresh,
     redisplay_value,
@@ -480,8 +492,7 @@ VALUES
     $13,
     $14,
     $15,
-    $16,
-    $17
+    $16
   ) RETURNING *;
 
 -- name: InsertProvisionerDaemon :one

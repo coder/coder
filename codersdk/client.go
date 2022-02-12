@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"strings"
 
@@ -28,25 +27,10 @@ func New(serverURL *url.URL) *Client {
 
 // Client is an HTTP caller for methods to the Coder API.
 type Client struct {
-	URL *url.URL
+	URL          *url.URL
+	SessionToken string
 
 	httpClient *http.Client
-}
-
-// SetSessionToken applies the provided token to the current client.
-func (c *Client) SetSessionToken(token string) error {
-	if c.httpClient.Jar == nil {
-		var err error
-		c.httpClient.Jar, err = cookiejar.New(nil)
-		if err != nil {
-			return err
-		}
-	}
-	c.httpClient.Jar.SetCookies(c.URL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
-		Value: token,
-	}})
-	return nil
 }
 
 // request performs an HTTP request with the body provided.
@@ -76,6 +60,10 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
+	req.AddCookie(&http.Cookie{
+		Name:  httpmw.AuthCookie,
+		Value: c.SessionToken,
+	})
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
