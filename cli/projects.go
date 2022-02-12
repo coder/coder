@@ -17,7 +17,6 @@ func projects() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "projects",
 		Aliases: []string{"project"},
-		Long:    "Testing something",
 		Example: `
   - Create a project for developers to create workspaces
 

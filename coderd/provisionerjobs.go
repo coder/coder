@@ -170,7 +170,6 @@ func (api *api) provisionerJobLogsByID(rw http.ResponseWriter, r *http.Request) 
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		provisionerJobLogs = []database.ProvisionerJobLog{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

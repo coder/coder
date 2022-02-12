@@ -120,8 +120,9 @@ func workspaceCreate() *cobra.Command {
 				_, _ = fmt.Printf("Terraform: %s\n", log.Output)
 			}
 
-			_, _ = fmt.Printf("Created workspace! %s\n", name)
+			// This command is WIP, and output will change!
 
+			_, _ = fmt.Printf("Created workspace! %s\n", name)
 			return nil
 		},
 	}

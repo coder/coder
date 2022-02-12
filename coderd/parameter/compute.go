@@ -88,7 +88,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 			continue
 		}
 		if _, ok := compute.computedParameterByName[parameterSchema.Name]; ok {
-			// We already have a value! No need to use th default.
+			// We already have a value! No need to use the default.
 			continue
 		}
 

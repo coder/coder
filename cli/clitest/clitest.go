@@ -23,6 +23,7 @@ import (
 
 var (
 	// Used to ensure terminal output doesn't have anything crazy!
+	// See: https://stackoverflow.com/a/29497680
 	stripAnsi = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
 )
 
