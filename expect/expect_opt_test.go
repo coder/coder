@@ -27,9 +27,11 @@ import (
 )
 
 func TestExpectOptString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		title    string
-		opt      ExpectOpt
+		opt      Opt
 		data     string
 		expected bool
 	}{
@@ -60,8 +62,11 @@ func TestExpectOptString(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.title, func(t *testing.T) {
-			var options ExpectOpts
+			t.Parallel()
+
+			var options Opts
 			err := test.opt(&options)
 			require.Nil(t, err)
 
@@ -80,9 +85,11 @@ func TestExpectOptString(t *testing.T) {
 }
 
 func TestExpectOptRegexp(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		title    string
-		opt      ExpectOpt
+		opt      Opt
 		data     string
 		expected bool
 	}{
@@ -113,8 +120,11 @@ func TestExpectOptRegexp(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.title, func(t *testing.T) {
-			var options ExpectOpts
+			t.Parallel()
+
+			var options Opts
 			err := test.opt(&options)
 			require.Nil(t, err)
 
@@ -133,9 +143,11 @@ func TestExpectOptRegexp(t *testing.T) {
 }
 
 func TestExpectOptRegexpPattern(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		title    string
-		opt      ExpectOpt
+		opt      Opt
 		data     string
 		expected bool
 	}{
@@ -166,8 +178,11 @@ func TestExpectOptRegexpPattern(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.title, func(t *testing.T) {
-			var options ExpectOpts
+			t.Parallel()
+
+			var options Opts
 			err := test.opt(&options)
 			require.Nil(t, err)
 
@@ -186,9 +201,11 @@ func TestExpectOptRegexpPattern(t *testing.T) {
 }
 
 func TestExpectOptError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		title    string
-		opt      ExpectOpt
+		opt      Opt
 		data     error
 		expected bool
 	}{
@@ -219,8 +236,11 @@ func TestExpectOptError(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.title, func(t *testing.T) {
-			var options ExpectOpts
+			t.Parallel()
+
+			var options Opts
 			err := test.opt(&options)
 			require.Nil(t, err)
 
@@ -235,6 +255,8 @@ func TestExpectOptError(t *testing.T) {
 }
 
 func TestExpectOptThen(t *testing.T) {
+	t.Parallel()
+
 	var (
 		errFirst  = errors.New("first")
 		errSecond = errors.New("second")
@@ -242,7 +264,7 @@ func TestExpectOptThen(t *testing.T) {
 
 	tests := []struct {
 		title    string
-		opt      ExpectOpt
+		opt      Opt
 		data     string
 		match    bool
 		expected error
@@ -290,8 +312,11 @@ func TestExpectOptThen(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.title, func(t *testing.T) {
-			var options ExpectOpts
+			t.Parallel()
+
+			var options Opts
 			err := test.opt(&options)
 			require.Nil(t, err)
 
@@ -318,9 +343,11 @@ func TestExpectOptThen(t *testing.T) {
 }
 
 func TestExpectOptAll(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		title    string
-		opt      ExpectOpt
+		opt      Opt
 		data     string
 		expected bool
 	}{
@@ -387,8 +414,10 @@ func TestExpectOptAll(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.title, func(t *testing.T) {
-			var options ExpectOpts
+			t.Parallel()
+			var options Opts
 			err := test.opt(&options)
 			require.Nil(t, err)
 

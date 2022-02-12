@@ -16,8 +16,9 @@ package expect
 
 import (
 	"context"
-	"fmt"
 	"io"
+
+	"golang.org/x/xerrors"
 )
 
 // ReaderLease provides cancellable io.Readers from an underlying io.Reader.
@@ -79,7 +80,7 @@ func (cr *chanReader) Read(bytes []byte) (n int, err error) {
 		return 0, io.EOF
 	case b := <-cr.bytec:
 		if len(bytes) < 1 {
-			return 0, fmt.Errorf("cannot read into 0 len byte slice")
+			return 0, xerrors.Errorf("cannot read into 0 len byte slice")
 		}
 		bytes[0] = b
 		return 1, nil

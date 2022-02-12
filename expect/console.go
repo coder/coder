@@ -46,17 +46,17 @@ type ConsoleOpts struct {
 	Logger          *log.Logger
 	Stdouts         []io.Writer
 	Closers         []io.Closer
-	ExpectObservers []ExpectObserver
+	ExpectObservers []Observer
 	SendObservers   []SendObserver
 }
 
-// ExpectObserver provides an interface for a function callback that will
+// Observer provides an interface for a function callback that will
 // be called after each Expect operation.
 // matchers will be the list of active matchers when an error occurred,
 //   or a list of matchers that matched `buf` when err is nil.
 // buf is the captured output that was matched against.
 // err is error that might have occurred. May be nil.
-type ExpectObserver func(matchers []Matcher, buf string, err error)
+type Observer func(matchers []Matcher, buf string, err error)
 
 // SendObserver provides an interface for a function callback that will
 // be called after each Send operation.
@@ -97,7 +97,7 @@ func WithLogger(logger *log.Logger) ConsoleOpt {
 }
 
 // WithExpectObserver adds an ExpectObserver to allow monitoring Expect operations.
-func WithExpectObserver(observers ...ExpectObserver) ConsoleOpt {
+func WithExpectObserver(observers ...Observer) ConsoleOpt {
 	return func(opts *ConsoleOpts) error {
 		opts.ExpectObservers = append(opts.ExpectObservers, observers...)
 		return nil
@@ -124,12 +124,12 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 		}
 	}
 
-	pty, err := pty.New()
+	consolePty, err := pty.New()
 	if err != nil {
 		return nil, err
 	}
-	closers := append(options.Closers, pty)
-	reader := pty.Reader()
+	closers := append(options.Closers, consolePty)
+	reader := consolePty.Reader()
 
 	passthroughPipe, err := NewPassthroughPipe(reader)
 	if err != nil {
@@ -139,7 +139,7 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 
 	console := &Console{
 		opts:            options,
-		pty:             pty,
+		pty:             consolePty,
 		passthroughPipe: passthroughPipe,
 		runeReader:      bufio.NewReaderSize(passthroughPipe, utf8.UTFMax),
 		closers:         closers,

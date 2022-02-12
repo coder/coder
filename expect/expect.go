@@ -46,8 +46,8 @@ func (c *Console) ExpectEOF() (string, error) {
 // expecting input yet, it will be blocked. Sends are queued up in tty's
 // internal buffer so that the next Expect will read the remaining bytes (i.e.
 // rest of prompt) as well as its conditions.
-func (c *Console) Expect(opts ...ExpectOpt) (string, error) {
-	var options ExpectOpts
+func (c *Console) Expect(opts ...Opt) (string, error) {
+	var options Opts
 	for _, opt := range opts {
 		if err := opt(&options); err != nil {
 			return "", err

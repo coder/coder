@@ -11,14 +11,14 @@ import (
 )
 
 func newPty() (Pty, error) {
-	pty, tty, err := pty.Open()
+	ptyFile, ttyFile, err := pty.Open()
 	if err != nil {
 		return nil, err
 	}
 
 	return &unixPty{
-		pty: pty,
-		tty: tty,
+		pty: ptyFile,
+		tty: ttyFile,
 	}, nil
 }
 

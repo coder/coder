@@ -11,12 +11,15 @@ import (
 	. "github.com/coder/coder/expect"
 )
 
+//nolint:paralleltest
 func TestReaderLease(t *testing.T) {
-	in, out := io.Pipe()
-	defer out.Close()
-	defer in.Close()
+	pipeReader, pipeWriter := io.Pipe()
+	t.Cleanup(func() {
+		_ = pipeWriter.Close()
+		_ = pipeReader.Close()
+	})
 
-	readerLease := NewReaderLease(in)
+	readerLease := NewReaderLease(pipeReader)
 
 	tests := []struct {
 		title    string
@@ -32,6 +35,7 @@ func TestReaderLease(t *testing.T) {
 		},
 	}
 
+	//nolint:paralleltest
 	for _, test := range tests {
 		t.Run(test.title, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -47,7 +51,7 @@ func TestReaderLease(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				_, err := out.Write([]byte(test.expected))
+				_, err := pipeWriter.Write([]byte(test.expected))
 				require.Nil(t, err)
 			}()
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expect
+package expect_test
 
 import (
 	"bufio"
@@ -23,10 +23,14 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"golang.org/x/xerrors"
+
+	. "github.com/coder/coder/expect"
 )
 
 var (
-	ErrWrongAnswer = errors.New("wrong answer")
+	ErrWrongAnswer = xerrors.New("wrong answer")
 )
 
 type Survey struct {
@@ -45,13 +49,20 @@ func Prompt(in io.Reader, out io.Writer) error {
 			"What is Netflix backwards?", "xilfteN",
 		},
 	} {
-		fmt.Fprint(out, fmt.Sprintf("%s: ", survey.Prompt))
+
+		_, err := fmt.Fprint(out, fmt.Sprintf("%s: ", survey.Prompt))
+		if err != nil {
+			return err
+		}
 		text, err := reader.ReadString('\n')
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprint(out, text)
+		_, err = fmt.Fprint(out, text)
+		if err != nil {
+			return err
+		}
 		text = strings.TrimSpace(text)
 		if text != survey.Answer {
 			return ErrWrongAnswer
@@ -178,7 +189,7 @@ func TestExpectOutput(t *testing.T) {
 	}()
 
 	err = Prompt(console.InTty(), console.OutTty())
-	if err == nil || err != ErrWrongAnswer {
+	if err == nil || !errors.Is(err, ErrWrongAnswer) {
 		t.Errorf("Expected error '%s' but got '%s' instead", ErrWrongAnswer, err)
 	}
 	wg.Wait()
