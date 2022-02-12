@@ -217,7 +217,7 @@ func (c *Console) Send(s string) (int, error) {
 
 // SendLine writes string s to Console's tty with a trailing newline.
 func (c *Console) SendLine(s string) (int, error) {
-	bytes, err := c.Send(fmt.Sprintf("%s\r\n", s))
+	bytes, err := c.Send(fmt.Sprintf("%s\n", s))
 
 	return bytes, err
 }
