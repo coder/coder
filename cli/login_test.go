@@ -26,7 +26,7 @@ func TestLogin(t *testing.T) {
 		console, err := expect.NewConsole(expect.WithStdout(clitest.StdoutLogs(t)))
 		require.NoError(t, err)
 		client := coderdtest.New(t)
-		// The --force-tty is required on Windows, because the `isatty` library does not
+		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
