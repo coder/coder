@@ -160,7 +160,6 @@ func TestExpect(t *testing.T) {
 	wg.Wait()
 }
 
-
 func TestExpectOutput(t *testing.T) {
 	t.Parallel()
 
