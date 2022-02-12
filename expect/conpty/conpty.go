@@ -8,6 +8,7 @@ package conpty
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"golang.org/x/sys/windows"
@@ -42,6 +43,10 @@ func (c *ConPty) Close() error {
 
 // OutPipe returns the output pipe of the pseudo terminal
 func (c *ConPty) OutPipe() *os.File {
+	return c.inPipe
+}
+
+func (c *ConPty) Reader() io.Reader {
 	return c.outPipe
 }
 
@@ -49,7 +54,11 @@ func (c *ConPty) OutPipe() *os.File {
 // Note: It is safer to use the Write method to prevent partially-written VT sequences
 // from corrupting the terminal
 func (c *ConPty) InPipe() *os.File {
-	return c.inPipe
+	return c.outPipe
+}
+
+func (c *ConPty) WriteString(str string) (int, error) {
+	return c.inPipe.WriteString(str)
 }
 
 func (c *ConPty) createPseudoConsoleAndPipes() error {

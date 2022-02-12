@@ -17,6 +17,7 @@ package expect
 import (
 	"io"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -91,5 +92,10 @@ func (pp *PassthroughPipe) Close() error {
 }
 
 func (pp *PassthroughPipe) SetReadDeadline(t time.Time) error {
-	return pp.reader.SetReadDeadline(t)
+	// TODO(Bryan): Is there a way to set read deadlines on Windows?
+	if runtime.GOOS == "windows" {
+		return nil
+	} else {
+		return pp.reader.SetReadDeadline(t)
+	}
 }

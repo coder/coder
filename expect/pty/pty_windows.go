@@ -7,49 +7,60 @@ import (
 	"io"
 	"os"
 
-	//"golang.org/x/sys/windows"
+	// "golang.org/x/sys/windows"
 
-	//"github.com/coder/coder/expect/conpty"
+	// "github.com/coder/coder/expect/conpty"
 )
 
-// func pipePty() (Pty, error) {
-	// We use the CreatePseudoConsole API which was introduced in build 17763
-// 	vsn := windows.RtlGetVersion()
-// 	if vsn.MajorVersion < 10 ||
-// 		vsn.BuildNumber < 17763 {
-// 		return pipePty()
-// 	}
-
-// 	return conpty.New(80, 80)
-// }
-
 func newPty() (Pty, error) {
-	r, w, err := os.Pipe()
+	// We use the CreatePseudoConsole API which was introduced in build 17763
+	//vsn := windows.RtlGetVersion()
+	//if vsn.MajorVersion < 10 ||
+	//	vsn.BuildNumber < 17763 {
+		return pipePty()
+	// }
+
+	//return conpty.New(80, 80)
+}
+
+func pipePty() (Pty, error) {
+	inputR, inputW, err := os.Pipe()
 	if err != nil {
 		return nil, err
 	}
 
-	return &pipePtyVal{r: r, w: w}, nil
+	outputR, outputW, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+
+	return &pipePtyVal{
+		inputR,
+		inputW,
+		outputR,
+		outputW,
+	}, nil
 }
 
 type pipePtyVal struct {
-	r, w *os.File
+	inputR, inputW *os.File
+	outputR, outputW *os.File
 }
 
 func (p *pipePtyVal) InPipe() *os.File {
-	return p.w
+	return p.inputR
 }
 
 func (p *pipePtyVal) OutPipe() *os.File {
-	return p.r
+	return p.outputW
 }
 
 func (p *pipePtyVal) Reader() io.Reader {
-	return p.r
+	return p.outputR
 }
 
 func (p *pipePtyVal) WriteString(str string) (int, error) {
-	return p.w.WriteString(str)
+	return p.inputW.WriteString(str)
 }
 
 func (p *pipePtyVal) Resize(uint16, uint16) error {
@@ -57,7 +68,9 @@ func (p *pipePtyVal) Resize(uint16, uint16) error {
 }
 
 func (p *pipePtyVal) Close() error {
-	p.w.Close()
-	p.r.Close()
+	p.inputW.Close()
+	p.inputR.Close()
+	p.outputW.Close()
+	p.outputR.Close()
 	return nil
 }
