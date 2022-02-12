@@ -1,10 +1,7 @@
 package expect_test
 
 import (
-	"errors"
 	"io"
-
-	//"os"
 	"testing"
 	"time"
 
