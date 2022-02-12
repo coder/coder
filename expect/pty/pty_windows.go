@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 
-	 "golang.org/x/sys/windows"
+	"golang.org/x/sys/windows"
 
-	 "github.com/coder/coder/expect/conpty"
+	"github.com/coder/coder/expect/conpty"
 )
 
 func newPty() (Pty, error) {
@@ -18,7 +18,7 @@ func newPty() (Pty, error) {
 	if vsn.MajorVersion < 10 ||
 		vsn.BuildNumber < 17763 {
 		return pipePty()
-	 }
+	}
 
 	return conpty.New(80, 80)
 }
@@ -43,7 +43,7 @@ func pipePty() (Pty, error) {
 }
 
 type pipePtyVal struct {
-	inputR, inputW *os.File
+	inputR, inputW   *os.File
 	outputR, outputW *os.File
 }
 
