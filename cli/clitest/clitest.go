@@ -14,7 +14,6 @@ import (
 	"github.com/Netflix/go-expect"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/config"
@@ -51,8 +50,7 @@ func CreateProjectVersionSource(t *testing.T, responses *echo.Responses) string 
 	directory := t.TempDir()
 	data, err := echo.Tar(responses)
 	require.NoError(t, err)
-	err = extractTar(data, directory)
-	require.NoError(t, err)
+	extractTar(t, data, directory)
 	return directory
 }
 
@@ -81,16 +79,14 @@ func NewConsole(t *testing.T, cmd *cobra.Command) *expect.Console {
 	return console
 }
 
-func extractTar(data []byte, directory string) error {
+func extractTar(t *testing.T, data []byte, directory string) {
 	reader := tar.NewReader(bytes.NewBuffer(data))
 	for {
 		header, err := reader.Next()
 		if errors.Is(err, io.EOF) {
 			break
 		}
-		if err != nil {
-			return xerrors.Errorf("read project source archive: %w", err)
-		}
+		require.NoError(t, err)
 		// #nosec
 		path := filepath.Join(directory, header.Name)
 		mode := header.FileInfo().Mode()
@@ -100,28 +96,18 @@ func extractTar(data []byte, directory string) error {
 		switch header.Typeflag {
 		case tar.TypeDir:
 			err = os.MkdirAll(path, mode)
-			if err != nil {
-				return xerrors.Errorf("mkdir: %w", err)
-			}
+			require.NoError(t, err)
 		case tar.TypeReg:
 			file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
-			if err != nil {
-				return xerrors.Errorf("create file %q: %w", path, err)
-			}
+			require.NoError(t, err)
 			// Max file size of 10MB.
 			_, err = io.CopyN(file, reader, (1<<20)*10)
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
-			if err != nil {
-				_ = file.Close()
-				return err
-			}
+			require.NoError(t, err)
 			err = file.Close()
-			if err != nil {
-				return err
-			}
+			require.NoError(t, err)
 		}
 	}
-	return nil
 }

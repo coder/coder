@@ -111,7 +111,7 @@ func projectCreate() *cobra.Command {
 	currentDirectory, _ := os.Getwd()
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "provisioner", "p", "terraform", "Customize the provisioner backend")
-	// This is for testing! There's only 1 provisioner type right now.
+	// This is for testing!
 	err := cmd.Flags().MarkHidden("provisioner")
 	if err != nil {
 		panic(err)
