@@ -45,9 +45,9 @@ func login() *cobra.Command {
 			}
 			if !hasInitialUser {
 				// TODO: Bryan - is this check correct on windows?
-				// if !isTTY(cmd.InOrStdin()) {
-				// 	return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
-				// }
+				if !isTTY(cmd.InOrStdin()) {
+					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
+				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", color.HiBlackString(">"))
 
 				_, err := runPrompt(cmd, &promptui.Prompt{
