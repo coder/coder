@@ -145,15 +145,6 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 		closers:         closers,
 	}
 
-	/*for _, stdin := range options.Stdins {
-		go func(stdin io.Reader) {
-			_, err := io.Copy(c, stdin)
-			if err != nil {
-				c.Logf("failed to copy stdin: %s", err)
-			}
-		}(stdin)
-	}*/
-
 	return c, nil
 }
 
@@ -166,23 +157,6 @@ func (c *Console) InTty() *os.File {
 func (c *Console) OutTty() *os.File {
 	return c.pty.OutPipe()
 }
-
-// Read reads bytes b from Console's tty.
-/*func (c *Console) Read(b []byte) (int, error) {
-	return c.ptm.Read(b)
-}*/
-
-// Write writes bytes b to Console's tty.
-/*func (c *Console) Write(b []byte) (int, error) {
-	c.Logf("console write: %q", b)
-	return c.ptm.Write(b)
-}*/
-
-// Fd returns Console's file descripting referencing the master part of its
-// pty.
-/*func (c *Console) Fd() uintptr {
-	return c.ptm.Fd()
-}*/
 
 // Close closes Console's tty. Calling Close will unblock Expect and ExpectEOF.
 func (c *Console) Close() error {

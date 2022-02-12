@@ -27,14 +27,6 @@ import (
 // ExpectOpt allows settings Expect options.
 type ExpectOpt func(*ExpectOpts) error
 
-// WithTimeout sets a read timeout for an Expect statement.
-func WithTimeout(timeout time.Duration) ExpectOpt {
-	return func(opts *ExpectOpts) error {
-		opts.ReadTimeout = &timeout
-		return nil
-	}
-}
-
 // ConsoleCallback is a callback function to execute if a match is found for
 // the chained matcher.
 type ConsoleCallback func(buf *bytes.Buffer) error
