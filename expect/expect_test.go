@@ -18,16 +18,11 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	 "io"
-	// "io/ioutil"
-	//"log"
-	// "os"
-	// "os/exec"
+	"io"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 var (
@@ -70,7 +65,6 @@ func newTestConsole(t *testing.T, opts ...ConsoleOpt) (*Console, error) {
 	opts = append([]ConsoleOpt{
 		expectNoError(t),
 		sendNoError(t),
-		WithDefaultTimeout(time.Second),
 	}, opts...)
 	return NewTestConsole(t, opts...)
 }
@@ -131,14 +125,12 @@ func TestExpectf(t *testing.T) {
 		c.SendLine("2")
 		c.Expectf("What is %s backwards?", "Netflix")
 		c.SendLine("xilfteN")
-		c.ExpectEOF()
 	}()
 
 	err = Prompt(c.InTty(), c.OutTty())
 	if err != nil {
 		t.Errorf("Expected no error but got '%s'", err)
 	}
-	testCloser(t, c)
 	wg.Wait()
 }
 
@@ -159,15 +151,12 @@ func TestExpect(t *testing.T) {
 		c.SendLine("2")
 		c.ExpectString("What is Netflix backwards?")
 		c.SendLine("xilfteN")
-		//c.ExpectEOF()
 	}()
 
 	err = Prompt(c.InTty(), c.OutTty())
 	if err != nil {
 		t.Errorf("Expected no error but got '%s'", err)
 	}
-	// close the pts so we can expect EOF
-	testCloser(t, c)
 	wg.Wait()
 }
 
@@ -187,174 +176,11 @@ func TestExpectOutput(t *testing.T) {
 		defer wg.Done()
 		c.ExpectString("What is 1+1?")
 		c.SendLine("3")
-		//c.ExpectEOF()
 	}()
 
 	err = Prompt(c.InTty(), c.OutTty())
 	if err == nil || err != ErrWrongAnswer {
 		t.Errorf("Expected error '%s' but got '%s' instead", ErrWrongAnswer, err)
 	}
-	testCloser(t, c)
 	wg.Wait()
 }
-
-// TODO: Needs to be updated to work on Windows
-// func TestExpectDefaultTimeout(t *testing.T) {
-// 	t.Parallel()
-
-// 	c, err := NewTestConsole(t, WithDefaultTimeout(0))
-// 	if err != nil {
-// 		t.Errorf("Expected no error but got'%s'", err)
-// 	}
-// 	defer testCloser(t, c)
-
-// 	var wg sync.WaitGroup
-// 	wg.Add(1)
-// 	go func() {
-// 		defer wg.Done()
-// 		Prompt(c.InTty(), c.OutTty())
-// 	}()
-
-// 	_, err = c.ExpectString("What is 1+2?")
-// 	if err == nil || !strings.Contains(err.Error(), "i/o timeout") {
-// 		t.Errorf("Expected error to contain 'i/o timeout' but got '%s' instead", err)
-// 	}
-
-// 	//Close to unblock Prompt and wait for the goroutine to exit.
-// 	c.Close()
-// 	wg.Wait()
-// }
-
-// func TestExpectTimeout(t *testing.T) {
-// 	t.Parallel()
-
-// 	c, err := NewTestConsole(t)
-// 	if err != nil {
-// 		t.Errorf("Expected no error but got'%s'", err)
-// 	}
-// 	defer testCloser(t, c)
-
-// 	var wg sync.WaitGroup
-// 	wg.Add(1)
-// 	go func() {
-// 		defer wg.Done()
-// 		Prompt(c.InTty(), c.OutTty())
-// 	}()
-
-// 	_, err = c.Expect(String("What is 1+2?"), WithTimeout(0))
-// 	if err == nil || !strings.Contains(err.Error(), "i/o timeout") {
-// 		t.Errorf("Expected error to contain 'i/o timeout' but got '%s' instead", err)
-// 	}
-
-// 	//Close to unblock Prompt and wait for the goroutine to exit.
-// 	c.Close()
-// 	wg.Wait()
-// }
-
-// func TestExpectDefaultTimeoutOverride(t *testing.T) {
-// 	t.Parallel()
-
-// 	c, err := newTestConsole(t, WithDefaultTimeout(100*time.Millisecond))
-// 	if err != nil {
-// 		t.Errorf("Expected no error but got'%s'", err)
-// 	}
-// 	defer testCloser(t, c)
-
-// 	var wg sync.WaitGroup
-// 	wg.Add(1)
-// 	go func() {
-// 		defer wg.Done()
-// 		err = Prompt(c.InTty(), c.OutTty())
-// 		if err != nil {
-// 			t.Errorf("Expected no error but got '%s'", err)
-// 		}
-// 		time.Sleep(200 * time.Millisecond)
-// 		c.Close()
-// 	}()
-
-// 	c.ExpectString("What is 1+1?")
-// 	c.SendLine("2")
-// 	c.ExpectString("What is Netflix backwards?")
-// 	c.SendLine("xilfteN")
-// 	c.Expect(EOF, PTSClosed, WithTimeout(time.Second))
-
-// 	wg.Wait()
-// }
-
-// func TestEditor(t *testing.T) {
-// 	if _, err := exec.LookPath("vi"); err != nil {
-// 		t.Skip("vi not found in PATH")
-// 	}
-// 	t.Parallel()
-
-// 	c, err := NewConsole(expectNoError(t), sendNoError(t))
-// 	if err != nil {
-// 		t.Errorf("Expected no error but got '%s'", err)
-// 	}
-// 	defer testCloser(t, c)
-
-// 	file, err := ioutil.TempFile("", "")
-// 	if err != nil {
-// 		t.Errorf("Expected no error but got '%s'", err)
-// 	}
-
-// 	cmd := exec.Command("vi", file.Name())
-// 	cmd.Stdin = c.InTty()
-// 	cmd.Stdout = c.OutTty()
-// 	cmd.Stderr = c.OutTty()
-
-// 	var wg sync.WaitGroup
-// 	wg.Add(1)
-// 	go func() {
-// 		defer wg.Done()
-// 		c.Send("iHello world\x1b")
-// 		c.SendLine(":wq!")
-// 		c.ExpectEOF()
-// 	}()
-
-// 	err = cmd.Run()
-// 	if err != nil {
-// 		t.Errorf("Expected no error but got '%s'", err)
-// 	}
-
-// 	testCloser(t, c)
-// 	wg.Wait()
-
-// 	data, err := ioutil.ReadFile(file.Name())
-// 	if err != nil {
-// 		t.Errorf("Expected no error but got '%s'", err)
-// 	}
-// 	if string(data) != "Hello world\n" {
-// 		t.Errorf("Expected '%s' to equal '%s'", string(data), "Hello world\n")
-// 	}
-// }
-
-// func ExampleConsole_echo() {
-// 	c, err := NewConsole(WithStdout(os.Stdout))
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	defer c.Close()
-
-// 	cmd := exec.Command("echo")
-// 	cmd.Stdin = c.InTty()
-// 	cmd.Stdout = c.OutTty()
-// 	cmd.Stderr = c.OutTty()
-
-// 	err = cmd.Start()
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	c.Send("Hello world")
-// 	c.ExpectString("Hello world")
-// 	c.Close()
-// 	c.ExpectEOF()
-
-// 	err = cmd.Wait()
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-	// Output: Hello world
-// }

@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"time"
 	"unicode/utf8"
 
 	"github.com/coder/coder/expect/pty"
@@ -49,7 +48,6 @@ type ConsoleOpts struct {
 	Closers         []io.Closer
 	ExpectObservers []ExpectObserver
 	SendObservers   []SendObserver
-	ReadTimeout     *time.Duration
 }
 
 // ExpectObserver provides an interface for a function callback that will
@@ -110,14 +108,6 @@ func WithExpectObserver(observers ...ExpectObserver) ConsoleOpt {
 func WithSendObserver(observers ...SendObserver) ConsoleOpt {
 	return func(opts *ConsoleOpts) error {
 		opts.SendObservers = append(opts.SendObservers, observers...)
-		return nil
-	}
-}
-
-// WithDefaultTimeout sets a default read timeout during Expect statements.
-func WithDefaultTimeout(timeout time.Duration) ConsoleOpt {
-	return func(opts *ConsoleOpts) error {
-		opts.ReadTimeout = &timeout
 		return nil
 	}
 }

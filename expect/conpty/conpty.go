@@ -19,9 +19,14 @@ type ConPty struct {
 	hpCon       windows.Handle
 	pipeFdIn    windows.Handle
 	pipeFdOut   windows.Handle
+	pipe3 windows.Handle
+	pipe4 windows.Handle
 	consoleSize uintptr
-	inPipe      *os.File
-	outPipe     *os.File
+	outputR      *os.File
+	outputW     *os.File
+	inputR      *os.File
+	inputW     *os.File
+	closed     bool
 }
 
 // New returns a new ConPty pseudo terminal device
@@ -35,30 +40,37 @@ func New(columns int16, rows int16) (*ConPty, error) {
 
 // Close closes the pseudo-terminal and cleans up all attached resources
 func (c *ConPty) Close() error {
+	if (c.closed) {
+		return nil
+	}
+
 	err := closePseudoConsole(c.hpCon)
-	c.inPipe.Close()
-	c.outPipe.Close()
+	c.outputR.Close()
+	c.outputW.Close()
+	c.inputR.Close()
+	c.inputW.Close()
+	c.closed = true
 	return err
 }
 
 // OutPipe returns the output pipe of the pseudo terminal
 func (c *ConPty) OutPipe() *os.File {
-	return c.inPipe
+	return c.outputR
 }
 
 func (c *ConPty) Reader() io.Reader {
-	return c.outPipe
+	return c.outputW
 }
 
 // InPipe returns input pipe of the pseudo terminal
 // Note: It is safer to use the Write method to prevent partially-written VT sequences
 // from corrupting the terminal
 func (c *ConPty) InPipe() *os.File {
-	return c.outPipe
+	return c.inputR
 }
 
 func (c *ConPty) WriteString(str string) (int, error) {
-	return c.inPipe.WriteString(str)
+	return c.inputW.WriteString(str)
 }
 
 func (c *ConPty) createPseudoConsoleAndPipes() error {
@@ -66,7 +78,7 @@ func (c *ConPty) createPseudoConsoleAndPipes() error {
 	// successfully call CreatePseudoConsole. After, we can throw it away.
 	var hPipeInW, hPipeInR windows.Handle
 
-	// Create the stdin pipe although we never use this.
+	// Create the stdin pipe
 	if err := windows.CreatePipe(&hPipeInR, &hPipeInW, nil, 0); err != nil {
 		return err
 	}
@@ -81,16 +93,15 @@ func (c *ConPty) createPseudoConsoleAndPipes() error {
 		return fmt.Errorf("failed to create pseudo console: %d, %v", uintptr(c.hpCon), err)
 	}
 
-	// Close our stdin cause we're never going to use it
-	if hPipeInR != windows.InvalidHandle {
-		windows.CloseHandle(hPipeInR)
-	}
-	if hPipeInW != windows.InvalidHandle {
-		windows.CloseHandle(hPipeInW)
-	}
+	c.pipe3 = hPipeInR
+	c.pipe4 = hPipeInW
 
-	c.inPipe = os.NewFile(uintptr(c.pipeFdIn), "|0")
-	c.outPipe = os.NewFile(uintptr(c.pipeFdOut), "|1")
+	c.outputR = os.NewFile(uintptr(c.pipeFdIn), "|0")
+	c.outputW = os.NewFile(uintptr(c.pipeFdOut), "|1")
+
+	c.inputR = os.NewFile(uintptr(c.pipe3), "|2")
+	c.inputW = os.NewFile(uintptr(c.pipe4), "|3")
+	c.closed = false
 
 	return nil
 }
