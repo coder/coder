@@ -44,7 +44,6 @@ func login() *cobra.Command {
 				return xerrors.Errorf("has initial user: %w", err)
 			}
 			if !hasInitialUser {
-				// TODO: Bryan - is this check correct on windows?
 				if !isTTY(cmd.InOrStdin()) {
 					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 				}

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/fatih/color"
@@ -109,6 +110,11 @@ func createConfig(cmd *cobra.Command) config.Root {
 // This accepts a reader to work with Cobra's "InOrStdin"
 // function for simple testing.
 func isTTY(reader io.Reader) bool {
+	// TODO(Bryan): Is there a reliable way to check this on windows?
+	if runtime.GOOS == "windows" {
+		return true
+	}
+
 	file, ok := reader.(*os.File)
 	if !ok {
 		return false
