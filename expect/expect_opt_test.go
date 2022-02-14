@@ -17,7 +17,6 @@ package expect_test
 import (
 	"bytes"
 	"io"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -55,122 +54,6 @@ func TestExpectOptString(t *testing.T) {
 		{
 			"No matches",
 			String("hello"),
-			"Hello world",
-			false,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.title, func(t *testing.T) {
-			t.Parallel()
-
-			var options Opts
-			err := test.opt(&options)
-			require.Nil(t, err)
-
-			buf := new(bytes.Buffer)
-			_, err = buf.WriteString(test.data)
-			require.Nil(t, err)
-
-			matcher := options.Match(buf)
-			if test.expected {
-				require.NotNil(t, matcher)
-			} else {
-				require.Nil(t, matcher)
-			}
-		})
-	}
-}
-
-func TestExpectOptRegexp(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		title    string
-		opt      Opt
-		data     string
-		expected bool
-	}{
-		{
-			"No args",
-			Regexp(),
-			"Hello world",
-			false,
-		},
-		{
-			"Single arg",
-			Regexp(regexp.MustCompile(`^Hello`)),
-			"Hello world",
-			true,
-		},
-		{
-			"Multiple arg",
-			Regexp(regexp.MustCompile(`^Hello$`), regexp.MustCompile(`world$`)),
-			"Hello world",
-			true,
-		},
-		{
-			"No matches",
-			Regexp(regexp.MustCompile(`^Hello$`)),
-			"Hello world",
-			false,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.title, func(t *testing.T) {
-			t.Parallel()
-
-			var options Opts
-			err := test.opt(&options)
-			require.Nil(t, err)
-
-			buf := new(bytes.Buffer)
-			_, err = buf.WriteString(test.data)
-			require.Nil(t, err)
-
-			matcher := options.Match(buf)
-			if test.expected {
-				require.NotNil(t, matcher)
-			} else {
-				require.Nil(t, matcher)
-			}
-		})
-	}
-}
-
-func TestExpectOptRegexpPattern(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		title    string
-		opt      Opt
-		data     string
-		expected bool
-	}{
-		{
-			"No args",
-			RegexpPattern(),
-			"Hello world",
-			false,
-		},
-		{
-			"Single arg",
-			RegexpPattern(`^Hello`),
-			"Hello world",
-			true,
-		},
-		{
-			"Multiple arg",
-			RegexpPattern(`^Hello$`, `world$`),
-			"Hello world",
-			true,
-		},
-		{
-			"No matches",
-			RegexpPattern(`^Hello$`),
 			"Hello world",
 			false,
 		},
@@ -309,18 +192,6 @@ func TestExpectOptAll(t *testing.T) {
 			All(String("Hello"), String("Hello")),
 			"Hello world",
 			true,
-		},
-		{
-			"Mixed opts match",
-			All(String("Hello"), RegexpPattern(`wo[a-z]{1}ld`)),
-			"Hello woxld",
-			true,
-		},
-		{
-			"Mixed opts no match",
-			All(String("Hello"), RegexpPattern(`wo[a-z]{1}ld`)),
-			"Hello wo4ld",
-			false,
 		},
 	}
 

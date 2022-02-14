@@ -225,36 +225,6 @@ func String(strs ...string) Opt {
 	}
 }
 
-// Regexp adds an Expect condition to exit if the content read from Console's
-// tty matches the given Regexp.
-func Regexp(res ...*regexp.Regexp) Opt {
-	return func(opts *Opts) error {
-		for _, re := range res {
-			opts.Matchers = append(opts.Matchers, &regexpMatcher{
-				re: re,
-			})
-		}
-		return nil
-	}
-}
-
-// RegexpPattern adds an Expect condition to exit if the content read from
-// Console's tty matches the given Regexp patterns. Expect returns an error if
-// the patterns were unsuccessful in compiling the Regexp.
-func RegexpPattern(ps ...string) Opt {
-	return func(opts *Opts) error {
-		var res []*regexp.Regexp
-		for _, p := range ps {
-			re, err := regexp.Compile(p)
-			if err != nil {
-				return err
-			}
-			res = append(res, re)
-		}
-		return Regexp(res...)(opts)
-	}
-}
-
 // Error adds an Expect condition to exit if reading from Console's tty returns
 // one of the provided errors.
 func Error(errs ...error) Opt {
