@@ -75,6 +75,9 @@ func NewConsole(t *testing.T, cmd *cobra.Command) *expect.Console {
 
 	console, err := expect.NewConsole(expect.WithStdout(writer))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		console.Close()
+	})
 	cmd.SetIn(console.InTty())
 	cmd.SetOut(console.OutTty())
 	return console

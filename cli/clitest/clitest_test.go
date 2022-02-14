@@ -20,9 +20,6 @@ func TestCli(t *testing.T) {
 	cmd, config := clitest.New(t)
 	clitest.SetupConfig(t, client, config)
 	console := clitest.NewConsole(t, cmd)
-	t.Cleanup(func () {
-		console.Close()
-	})
 	go func() {
 		err := cmd.Execute()
 		require.NoError(t, err)
