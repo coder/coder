@@ -16,9 +16,6 @@ package expect
 
 import (
 	"bytes"
-	"errors"
-	"os"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -62,70 +59,6 @@ type Matcher interface {
 	Criteria() interface{}
 }
 
-// callbackMatcher fulfills the Matcher and CallbackMatcher interface to match
-// using its embedded matcher and provide a callback function.
-type callbackMatcher struct {
-	f       ConsoleCallback
-	matcher Matcher
-}
-
-func (cm *callbackMatcher) Match(v interface{}) bool {
-	return cm.matcher.Match(v)
-}
-
-func (cm *callbackMatcher) Criteria() interface{} {
-	return cm.matcher.Criteria()
-}
-
-func (cm *callbackMatcher) Callback(buf *bytes.Buffer) error {
-	cb, ok := cm.matcher.(CallbackMatcher)
-	if ok {
-		err := cb.Callback(buf)
-		if err != nil {
-			return err
-		}
-	}
-	err := cm.f(buf)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// errorMatcher fulfills the Matcher interface to match a specific error.
-type errorMatcher struct {
-	err error
-}
-
-func (em *errorMatcher) Match(v interface{}) bool {
-	err, ok := v.(error)
-	if !ok {
-		return false
-	}
-	return errors.Is(err, em.err)
-}
-
-func (em *errorMatcher) Criteria() interface{} {
-	return em.err
-}
-
-// pathErrorMatcher fulfills the Matcher interface to match a specific os.PathError.
-type pathErrorMatcher struct {
-	pathError os.PathError
-}
-
-func (em *pathErrorMatcher) Match(v interface{}) bool {
-	pathError, ok := v.(*os.PathError)
-	if !ok {
-		return false
-	}
-	return *pathError == em.pathError
-}
-
-func (em *pathErrorMatcher) Criteria() interface{} {
-	return em.pathError
-}
-
 // stringMatcher fulfills the Matcher interface to match strings against a given
 // bytes.Buffer.
 type stringMatcher struct {
@@ -145,24 +78,6 @@ func (sm *stringMatcher) Match(v interface{}) bool {
 
 func (sm *stringMatcher) Criteria() interface{} {
 	return sm.str
-}
-
-// regexpMatcher fulfills the Matcher interface to match Regexp against a given
-// bytes.Buffer.
-type regexpMatcher struct {
-	re *regexp.Regexp
-}
-
-func (rm *regexpMatcher) Match(v interface{}) bool {
-	buf, ok := v.(*bytes.Buffer)
-	if !ok {
-		return false
-	}
-	return rm.re.Match(buf.Bytes())
-}
-
-func (rm *regexpMatcher) Criteria() interface{} {
-	return rm.re
 }
 
 // allMatcher fulfills the Matcher interface to match a group of ExpectOpt
