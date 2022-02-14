@@ -44,10 +44,15 @@ module.exports = {
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
   ],
-        reporters: [ "default", 
-      ["jest-junit", {
+  reporters: [
+    "default",
+    [
+      "jest-junit",
+      {
         suiteName: "Front-end Jest Tests",
         outputDirectory: "./test_results",
         outputName: "junit.xml",
-      }]],
+      },
+    ],
+  ],
 }
