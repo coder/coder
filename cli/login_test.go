@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/expect"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,7 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
-		console := clitest.NewConsole(t, root)
+		console := expect.NewTestConsole(t, root)
 		go func() {
 			err := root.Execute()
 			require.NoError(t, err)

@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/expect"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -25,7 +26,7 @@ func TestProjectCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		console := clitest.NewConsole(t, cmd)
+		console := expect.NewTestConsole(t, cmd)
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()
@@ -72,7 +73,7 @@ func TestProjectCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		coderdtest.NewProvisionerDaemon(t, client)
-		console := clitest.NewConsole(t, cmd)
+		console := expect.NewTestConsole(t, cmd)
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()

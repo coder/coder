@@ -5,6 +5,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/expect"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
@@ -19,7 +20,7 @@ func TestCli(t *testing.T) {
 	client := coderdtest.New(t)
 	cmd, config := clitest.New(t)
 	clitest.SetupConfig(t, client, config)
-	console := clitest.NewConsole(t, cmd)
+	console := expect.NewTestConsole(t, cmd)
 	go func() {
 		err := cmd.Execute()
 		require.NoError(t, err)

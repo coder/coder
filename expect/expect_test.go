@@ -75,7 +75,7 @@ func newTestConsole(t *testing.T, opts ...ConsoleOpt) (*Console, error) {
 	opts = append([]ConsoleOpt{
 		expectNoError(t),
 	}, opts...)
-	return NewTestConsole(t, opts...)
+	return NewConsole(opts...)
 }
 
 func expectNoError(t *testing.T) ConsoleOpt {
