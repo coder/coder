@@ -22,7 +22,7 @@
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
     "@react-theming/storybook-addon": "1.1.5",
-    "@storybook/addon-actions": "6.4.18",
+    "@storybook/addon-actions": "6.4.19",
     "@storybook/addon-essentials": "6.4.19",
     "@storybook/addon-links": "6.4.19",
     "@storybook/react": "6.4.19",
