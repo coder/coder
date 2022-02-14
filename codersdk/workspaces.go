@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd"
 )
@@ -130,4 +133,27 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 	}
 	var workspaceHistory coderd.WorkspaceHistory
 	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
+}
+
+func (c *Client) WorkspaceProvisionJob(ctx context.Context, organization string, job uuid.UUID) (coderd.ProvisionerJob, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceprovision/%s/%s", organization, job), nil)
+	if err != nil {
+		return coderd.ProvisionerJob{}, nil
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.ProvisionerJob{}, readBodyAsError(res)
+	}
+	var resp coderd.ProvisionerJob
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// WorkspaceProvisionJobLogsBefore returns logs that occurred before a specific time.
+func (c *Client) WorkspaceProvisionJobLogsBefore(ctx context.Context, organization string, job uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
+	return c.provisionerJobLogsBefore(ctx, "workspaceprovision", organization, job, before)
+}
+
+// WorkspaceProvisionJobLogsAfter streams logs for a workspace provision operation that occurred after a specific time.
+func (c *Client) WorkspaceProvisionJobLogsAfter(ctx context.Context, organization string, job uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
+	return c.provisionerJobLogsAfter(ctx, "workspaceprovision", organization, job, after)
 }

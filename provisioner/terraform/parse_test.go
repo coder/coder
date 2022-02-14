@@ -52,8 +52,12 @@ func TestParse(t *testing.T) {
 			Type: &proto.Parse_Response_Complete{
 				Complete: &proto.Parse_Complete{
 					ParameterSchemas: []*proto.ParameterSchema{{
-						Name:        "A",
-						Description: "Testing!",
+						Name:           "A",
+						RedisplayValue: true,
+						Description:    "Testing!",
+						DefaultDestination: &proto.ParameterDestination{
+							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						},
 					}},
 				},
 			},
@@ -69,14 +73,14 @@ func TestParse(t *testing.T) {
 			Type: &proto.Parse_Response_Complete{
 				Complete: &proto.Parse_Complete{
 					ParameterSchemas: []*proto.ParameterSchema{{
-						Name: "A",
+						Name:           "A",
+						RedisplayValue: true,
 						DefaultSource: &proto.ParameterSource{
 							Scheme: proto.ParameterSource_DATA,
 							Value:  "\"wow\"",
 						},
 						DefaultDestination: &proto.ParameterDestination{
 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							Value:  "A",
 						},
 					}},
 				},
@@ -96,10 +100,13 @@ func TestParse(t *testing.T) {
 				Complete: &proto.Parse_Complete{
 					ParameterSchemas: []*proto.ParameterSchema{{
 						Name:                 "A",
+						RedisplayValue:       true,
 						ValidationCondition:  `var.A == "value"`,
 						ValidationTypeSystem: proto.ParameterSchema_HCL,
-					},
-					},
+						DefaultDestination: &proto.ParameterDestination{
+							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						},
+					}},
 				},
 			},
 		},

@@ -73,7 +73,6 @@ func New(options *Options) http.Handler {
 						r.Route("/{projectversion}", func(r chi.Router) {
 							r.Use(httpmw.ExtractProjectVersionParam(api.Database))
 							r.Get("/", api.projectVersionByOrganizationAndName)
-							r.Get("/parameters", api.projectVersionParametersByOrganizationAndName)
 						})
 					})
 				})
@@ -108,23 +107,37 @@ func New(options *Options) http.Handler {
 			r.Post("/", api.postFiles)
 		})
 
-		r.Route("/provisioners", func(r chi.Router) {
-			r.Route("/daemons", func(r chi.Router) {
-				r.Get("/", api.provisionerDaemons)
-				r.Get("/serve", api.provisionerDaemonsServe)
+		r.Route("/projectimport/{organization}", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Post("/", api.postProjectImportByOrganization)
+			r.Route("/{provisionerjob}", func(r chi.Router) {
+				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
+				r.Get("/", api.provisionerJobByID)
+				r.Get("/schemas", api.projectImportJobSchemasByID)
+				r.Get("/parameters", api.projectImportJobParametersByID)
+				r.Get("/resources", api.projectImportJobResourcesByID)
+				r.Get("/logs", api.provisionerJobLogsByID)
 			})
-			r.Route("/jobs/{organization}", func(r chi.Router) {
-				r.Use(
-					httpmw.ExtractAPIKey(options.Database, nil),
-					httpmw.ExtractOrganizationParam(options.Database),
-				)
-				r.Post("/import", api.postProvisionerImportJobByOrganization)
-				r.Route("/{provisionerjob}", func(r chi.Router) {
-					r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
-					r.Get("/", api.provisionerJobByOrganization)
-					r.Get("/logs", api.provisionerJobLogsByID)
-				})
+		})
+
+		r.Route("/workspaceprovision/{organization}", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Route("/{provisionerjob}", func(r chi.Router) {
+				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
+				r.Get("/", api.provisionerJobByID)
+				r.Get("/logs", api.provisionerJobLogsByID)
 			})
+		})
+
+		r.Route("/provisioners/daemons", func(r chi.Router) {
+			r.Get("/", api.provisionerDaemons)
+			r.Get("/serve", api.provisionerDaemonsServe)
 		})
 	})
 	r.NotFound(site.Handler(options.Logger).ServeHTTP)

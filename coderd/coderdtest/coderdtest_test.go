@@ -22,8 +22,8 @@ func TestNew(t *testing.T) {
 	client := coderdtest.New(t)
 	user := coderdtest.CreateInitialUser(t, client)
 	closer := coderdtest.NewProvisionerDaemon(t, client)
-	job := coderdtest.CreateProjectImportProvisionerJob(t, client, user.Organization, nil)
-	coderdtest.AwaitProvisionerJob(t, client, user.Organization, job.ID)
+	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
+	coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
 	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 	history, err := client.CreateWorkspaceHistory(context.Background(), "me", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
@@ -31,6 +31,6 @@ func TestNew(t *testing.T) {
 		Transition:       database.WorkspaceTransitionStart,
 	})
 	require.NoError(t, err)
-	coderdtest.AwaitProvisionerJob(t, client, user.Organization, history.ProvisionJobID)
+	coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, history.ProvisionJobID)
 	closer.Close()
 }

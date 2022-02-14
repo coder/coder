@@ -28,6 +28,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
 CREATE TYPE parameter_scope AS ENUM (
     'organization',
     'project',
+    'import_job',
     'user',
     'workspace'
 );
@@ -87,7 +88,7 @@ CREATE TABLE api_keys (
 );
 
 CREATE TABLE file (
-    hash character varying(32) NOT NULL,
+    hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     created_by text NOT NULL,
     mimetype character varying(64) NOT NULL,
@@ -128,10 +129,9 @@ CREATE TABLE parameter_schema (
     name character varying(64) NOT NULL,
     description character varying(8192) DEFAULT ''::character varying NOT NULL,
     default_source_scheme parameter_source_scheme,
-    default_source_value text,
+    default_source_value text NOT NULL,
     allow_override_source boolean NOT NULL,
     default_destination_scheme parameter_destination_scheme,
-    default_destination_value text,
     allow_override_destination boolean NOT NULL,
     default_refresh text NOT NULL,
     redisplay_value boolean NOT NULL,
@@ -150,8 +150,7 @@ CREATE TABLE parameter_value (
     scope_id text NOT NULL,
     source_scheme parameter_source_scheme NOT NULL,
     source_value text NOT NULL,
-    destination_scheme parameter_destination_scheme NOT NULL,
-    destination_value text NOT NULL
+    destination_scheme parameter_destination_scheme NOT NULL
 );
 
 CREATE TABLE project (
@@ -162,6 +161,15 @@ CREATE TABLE project (
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
     active_version_id uuid NOT NULL
+);
+
+CREATE TABLE project_import_job_resource (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    type character varying(256) NOT NULL,
+    name character varying(64) NOT NULL
 );
 
 CREATE TABLE project_version (
@@ -292,6 +300,9 @@ ALTER TABLE ONLY parameter_value
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_id_key UNIQUE (id);
 
+ALTER TABLE ONLY project_import_job_resource
+    ADD CONSTRAINT project_import_job_resource_id_key UNIQUE (id);
+
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_organization_id_name_key UNIQUE (organization_id, name);
 
@@ -339,6 +350,9 @@ ALTER TABLE ONLY workspace_resource
 
 ALTER TABLE ONLY parameter_schema
     ADD CONSTRAINT parameter_schema_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY project_import_job_resource
+    ADD CONSTRAINT project_import_job_resource_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_version
     ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);

@@ -40,8 +40,18 @@ func (api *api) postFiles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hashBytes := sha256.Sum256(data)
-	file, err := api.Database.InsertFile(r.Context(), database.InsertFileParams{
-		Hash:      hex.EncodeToString(hashBytes[:]),
+	hash := hex.EncodeToString(hashBytes[:])
+	file, err := api.Database.GetFileByHash(r.Context(), hash)
+	if err == nil {
+		// The file already exists!
+		render.Status(r, http.StatusOK)
+		render.JSON(rw, r, UploadFileResponse{
+			Hash: file.Hash,
+		})
+		return
+	}
+	file, err = api.Database.InsertFile(r.Context(), database.InsertFileParams{
+		Hash:      hash,
 		CreatedBy: apiKey.UserID,
 		CreatedAt: database.Now(),
 		Mimetype:  contentType,

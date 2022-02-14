@@ -11,6 +11,9 @@ replace github.com/hashicorp/terraform-exec => github.com/kylecarbs/terraform-ex
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
+// Required until https://github.com/chzyer/readline/pull/198 is merged.
+replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
+
 require (
 	cdr.dev/slog v1.4.1
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
@@ -42,6 +45,7 @@ require (
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.9
+	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838

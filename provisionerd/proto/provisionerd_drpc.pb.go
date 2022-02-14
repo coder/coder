@@ -39,7 +39,7 @@ type DRPCProvisionerDaemonClient interface {
 	DRPCConn() drpc.Conn
 
 	AcquireJob(ctx context.Context, in *Empty) (*AcquiredJob, error)
-	UpdateJob(ctx context.Context) (DRPCProvisionerDaemon_UpdateJobClient, error)
+	UpdateJob(ctx context.Context, in *UpdateJobRequest) (*UpdateJobResponse, error)
 	CancelJob(ctx context.Context, in *CancelledJob) (*Empty, error)
 	CompleteJob(ctx context.Context, in *CompletedJob) (*Empty, error)
 }
@@ -63,45 +63,13 @@ func (c *drpcProvisionerDaemonClient) AcquireJob(ctx context.Context, in *Empty)
 	return out, nil
 }
 
-func (c *drpcProvisionerDaemonClient) UpdateJob(ctx context.Context) (DRPCProvisionerDaemon_UpdateJobClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/provisionerd.ProvisionerDaemon/UpdateJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+func (c *drpcProvisionerDaemonClient) UpdateJob(ctx context.Context, in *UpdateJobRequest) (*UpdateJobResponse, error) {
+	out := new(UpdateJobResponse)
+	err := c.cc.Invoke(ctx, "/provisionerd.ProvisionerDaemon/UpdateJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
-	x := &drpcProvisionerDaemon_UpdateJobClient{stream}
-	return x, nil
-}
-
-type DRPCProvisionerDaemon_UpdateJobClient interface {
-	drpc.Stream
-	Send(*JobUpdate) error
-	CloseAndRecv() (*Empty, error)
-}
-
-type drpcProvisionerDaemon_UpdateJobClient struct {
-	drpc.Stream
-}
-
-func (x *drpcProvisionerDaemon_UpdateJobClient) Send(m *JobUpdate) error {
-	return x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
-}
-
-func (x *drpcProvisionerDaemon_UpdateJobClient) CloseAndRecv() (*Empty, error) {
-	if err := x.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(Empty)
-	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (x *drpcProvisionerDaemon_UpdateJobClient) CloseAndRecvMsg(m *Empty) error {
-	if err := x.CloseSend(); err != nil {
-		return err
-	}
-	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+	return out, nil
 }
 
 func (c *drpcProvisionerDaemonClient) CancelJob(ctx context.Context, in *CancelledJob) (*Empty, error) {
@@ -124,7 +92,7 @@ func (c *drpcProvisionerDaemonClient) CompleteJob(ctx context.Context, in *Compl
 
 type DRPCProvisionerDaemonServer interface {
 	AcquireJob(context.Context, *Empty) (*AcquiredJob, error)
-	UpdateJob(DRPCProvisionerDaemon_UpdateJobStream) error
+	UpdateJob(context.Context, *UpdateJobRequest) (*UpdateJobResponse, error)
 	CancelJob(context.Context, *CancelledJob) (*Empty, error)
 	CompleteJob(context.Context, *CompletedJob) (*Empty, error)
 }
@@ -135,8 +103,8 @@ func (s *DRPCProvisionerDaemonUnimplementedServer) AcquireJob(context.Context, *
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCProvisionerDaemonUnimplementedServer) UpdateJob(DRPCProvisionerDaemon_UpdateJobStream) error {
-	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+func (s *DRPCProvisionerDaemonUnimplementedServer) UpdateJob(context.Context, *UpdateJobRequest) (*UpdateJobResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 func (s *DRPCProvisionerDaemonUnimplementedServer) CancelJob(context.Context, *CancelledJob) (*Empty, error) {
@@ -165,9 +133,10 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 	case 1:
 		return "/provisionerd.ProvisionerDaemon/UpdateJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return nil, srv.(DRPCProvisionerDaemonServer).
+				return srv.(DRPCProvisionerDaemonServer).
 					UpdateJob(
-						&drpcProvisionerDaemon_UpdateJobStream{in1.(drpc.Stream)},
+						ctx,
+						in1.(*UpdateJobRequest),
 					)
 			}, DRPCProvisionerDaemonServer.UpdateJob, true
 	case 2:
@@ -215,31 +184,18 @@ func (x *drpcProvisionerDaemon_AcquireJobStream) SendAndClose(m *AcquiredJob) er
 
 type DRPCProvisionerDaemon_UpdateJobStream interface {
 	drpc.Stream
-	SendAndClose(*Empty) error
-	Recv() (*JobUpdate, error)
+	SendAndClose(*UpdateJobResponse) error
 }
 
 type drpcProvisionerDaemon_UpdateJobStream struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisionerDaemon_UpdateJobStream) SendAndClose(m *Empty) error {
+func (x *drpcProvisionerDaemon_UpdateJobStream) SendAndClose(m *UpdateJobResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
 		return err
 	}
 	return x.CloseSend()
-}
-
-func (x *drpcProvisionerDaemon_UpdateJobStream) Recv() (*JobUpdate, error) {
-	m := new(JobUpdate)
-	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (x *drpcProvisionerDaemon_UpdateJobStream) RecvMsg(m *JobUpdate) error {
-	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
 
 type DRPCProvisionerDaemon_CancelJobStream interface {

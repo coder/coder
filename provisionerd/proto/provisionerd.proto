@@ -18,9 +18,6 @@ message AcquiredJob {
         bytes state = 4;
     }
     message ProjectImport {
-        repeated provisioner.ParameterValue parameter_values = 1;
-        bool skip_parameter_schemas = 2;
-        bool skip_resources = 3;
     }
     string job_id = 1;
     int64 created_at = 2;
@@ -38,16 +35,6 @@ message CancelledJob {
     string error = 2;
 }
 
-// TransitionedResource represents a resource that knows whether
-// it's existence is dependent on stop or not.
-// 
-// This is used on import to display start + stopped resources
-// for the lifecycle of a workspace.
-message TransitionedResource {
-    provisioner.Resource resource = 1;
-    bool destroy_on_stop = 2;
-}
-
 // CompletedJob is sent when the provisioner daemon completes a job.
 message CompletedJob {
     message WorkspaceProvision {
@@ -55,9 +42,8 @@ message CompletedJob {
         repeated provisioner.Resource resources = 2;
     }
     message ProjectImport {
-        repeated provisioner.ParameterSchema parameter_schemas = 1;
-        repeated provisioner.Resource start_resources = 2;
-        repeated provisioner.Resource stop_resources = 3;
+        repeated provisioner.Resource start_resources = 1;
+        repeated provisioner.Resource stop_resources = 2;
     }
     string job_id = 1;
     oneof type {
@@ -80,12 +66,17 @@ message Log {
     string output = 4;
 }
 
-// JobUpdate represents an update to a job.
-// There may be no log output, but this message
-// should still be sent periodically as a heartbeat.
-message JobUpdate {
+// This message should be sent periodically as a heartbeat.
+message UpdateJobRequest {
     string job_id = 1;
     repeated Log logs = 2;
+    repeated provisioner.ParameterSchema parameter_schemas = 3;
+}
+
+message UpdateJobResponse {
+    // If parameter schemas are sent, the job will respond
+    // with resolved parameter values.
+    repeated provisioner.ParameterValue parameter_values = 1;
 }
 
 service ProvisionerDaemon {
@@ -97,8 +88,8 @@ service ProvisionerDaemon {
     // UpdateJob streams periodic updates for a job.
     // Implementations should buffer logs so this stream
     // is non-blocking.
-    rpc UpdateJob(stream JobUpdate) returns (Empty);
-    
+    rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
+
     // CancelJob indicates a job has been cancelled with
     // an error message.
     rpc CancelJob(CancelledJob) returns (Empty);

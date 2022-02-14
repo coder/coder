@@ -22,7 +22,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/coderd/projectparameter"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/provisionerd/proto"
@@ -107,16 +107,6 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 type workspaceProvisionJob struct {
 	WorkspaceHistoryID uuid.UUID `json:"workspace_history_id"`
 	DryRun             bool      `json:"dry_run"`
-}
-
-// The input for a "project_import" job.
-type projectVersionImportJob struct {
-	OrganizationID string    `json:"organization_id"`
-	ProjectID      uuid.UUID `json:"project_id"`
-
-	AdditionalParameters []database.ParameterValue `json:"parameters"`
-	SkipParameterSchemas bool                      `json:"skip_parameter_schemas"`
-	SkipResources        bool                      `json:"skip_resources"`
 }
 
 // Implementation of the provisioner daemon protobuf server.
@@ -205,36 +195,38 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project: %s", err))
 		}
-		organization, err := server.Database.GetOrganizationByID(ctx, project.OrganizationID)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get organization: %s", err))
-		}
 
 		// Compute parameters for the workspace to consume.
-		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
-			ImportJobID:    projectVersion.ImportJobID,
-			OrganizationID: organization.ID,
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
+			ProjectImportJobID: projectVersion.ImportJobID,
+			OrganizationID:     job.OrganizationID,
 			ProjectID: uuid.NullUUID{
 				UUID:  project.ID,
 				Valid: true,
 			},
-			UserID: sql.NullString{
-				String: user.ID,
-				Valid:  true,
-			},
+			UserID: user.ID,
 			WorkspaceID: uuid.NullUUID{
 				UUID:  workspace.ID,
 				Valid: true,
 			},
-		})
+		}, nil)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
 		}
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, parameter := range parameters {
-			protoParameters = append(protoParameters, parameter.Proto)
+		for _, computedParameter := range parameters {
+			converted, err := convertComputedParameterValue(computedParameter)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
+			}
+			protoParameters = append(protoParameters, converted)
 		}
+		protoParameters = append(protoParameters, &sdkproto.ParameterValue{
+			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+			Name:              parameter.CoderWorkspaceTransition,
+			Value:             string(workspaceHistory.Transition),
+		})
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
 			WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
@@ -245,40 +237,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			},
 		}
 	case database.ProvisionerJobTypeProjectVersionImport:
-		var input projectVersionImportJob
-		err = json.Unmarshal(job.Input, &input)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
-		}
-
-		// Compute parameters for the workspace to consume.
-		parameters, err := projectparameter.Compute(ctx, server.Database, projectparameter.Scope{
-			ImportJobID:    job.ID,
-			OrganizationID: input.OrganizationID,
-			ProjectID: uuid.NullUUID{
-				UUID:  input.ProjectID,
-				Valid: input.ProjectID.String() != uuid.Nil.String(),
-			},
-			UserID: sql.NullString{
-				String: user.ID,
-				Valid:  true,
-			},
-		}, input.AdditionalParameters...)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
-		}
-		// Convert parameters to the protobuf type.
-		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, parameter := range parameters {
-			protoParameters = append(protoParameters, parameter.Proto)
-		}
-
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
-			ProjectImport: &proto.AcquiredJob_ProjectImport{
-				ParameterValues:      protoParameters,
-				SkipParameterSchemas: input.SkipParameterSchemas,
-				SkipResources:        input.SkipResources,
-			},
+			ProjectImport: &proto.AcquiredJob_ProjectImport{},
 		}
 	}
 	switch job.StorageMethod {
@@ -295,45 +255,41 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	return protoJob, err
 }
 
-func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-	for {
-		update, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-		parsedID, err := uuid.Parse(update.JobId)
-		if err != nil {
-			return xerrors.Errorf("parse job id: %w", err)
-		}
-		job, err := server.Database.GetProvisionerJobByID(stream.Context(), parsedID)
-		if err != nil {
-			return xerrors.Errorf("get job: %w", err)
-		}
-		if !job.WorkerID.Valid {
-			return xerrors.New("job isn't running yet")
-		}
-		if job.WorkerID.UUID.String() != server.ID.String() {
-			return xerrors.New("you don't own this job")
-		}
+func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	parsedID, err := uuid.Parse(request.JobId)
+	if err != nil {
+		return nil, xerrors.Errorf("parse job id: %w", err)
+	}
+	job, err := server.Database.GetProvisionerJobByID(ctx, parsedID)
+	if err != nil {
+		return nil, xerrors.Errorf("get job: %w", err)
+	}
+	if !job.WorkerID.Valid {
+		return nil, xerrors.New("job isn't running yet")
+	}
+	if job.WorkerID.UUID.String() != server.ID.String() {
+		return nil, xerrors.New("you don't own this job")
+	}
+	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+		ID:        parsedID,
+		UpdatedAt: database.Now(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("update job: %w", err)
+	}
 
-		err = server.Database.UpdateProvisionerJobByID(stream.Context(), database.UpdateProvisionerJobByIDParams{
-			ID:        parsedID,
-			UpdatedAt: database.Now(),
-		})
-		if err != nil {
-			return xerrors.Errorf("update job: %w", err)
-		}
+	if len(request.Logs) > 0 {
 		insertParams := database.InsertProvisionerJobLogsParams{
 			JobID: parsedID,
 		}
-		for _, log := range update.Logs {
+		for _, log := range request.Logs {
 			logLevel, err := convertLogLevel(log.Level)
 			if err != nil {
-				return xerrors.Errorf("convert log level: %w", err)
+				return nil, xerrors.Errorf("convert log level: %w", err)
 			}
 			logSource, err := convertLogSource(log.Source)
 			if err != nil {
-				return xerrors.Errorf("convert log source: %w", err)
+				return nil, xerrors.Errorf("convert log source: %w", err)
 			}
 			insertParams.ID = append(insertParams.ID, uuid.New())
 			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
@@ -343,17 +299,93 @@ func (server *provisionerdServer) UpdateJob(stream proto.DRPCProvisionerDaemon_U
 		}
 		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
 		if err != nil {
-			return xerrors.Errorf("insert job logs: %w", err)
+			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
 		data, err := json.Marshal(logs)
 		if err != nil {
-			return xerrors.Errorf("marshal job log: %w", err)
+			return nil, xerrors.Errorf("marshal job log: %w", err)
 		}
 		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
 		if err != nil {
-			return xerrors.Errorf("publish job log: %w", err)
+			return nil, xerrors.Errorf("publish job log: %w", err)
 		}
 	}
+
+	if len(request.ParameterSchemas) > 0 {
+		for _, protoParameter := range request.ParameterSchemas {
+			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
+			if err != nil {
+				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
+			}
+
+			parameterSchema := database.InsertParameterSchemaParams{
+				ID:                   uuid.New(),
+				CreatedAt:            database.Now(),
+				JobID:                job.ID,
+				Name:                 protoParameter.Name,
+				Description:          protoParameter.Description,
+				RedisplayValue:       protoParameter.RedisplayValue,
+				ValidationError:      protoParameter.ValidationError,
+				ValidationCondition:  protoParameter.ValidationCondition,
+				ValidationValueType:  protoParameter.ValidationValueType,
+				ValidationTypeSystem: validationTypeSystem,
+
+				DefaultSourceScheme:      database.ParameterSourceSchemeNone,
+				DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
+
+				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
+				AllowOverrideSource:      protoParameter.AllowOverrideSource,
+			}
+
+			// It's possible a parameter doesn't define a default source!
+			if protoParameter.DefaultSource != nil {
+				parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
+				if err != nil {
+					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
+				}
+				parameterSchema.DefaultSourceScheme = parameterSourceScheme
+				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
+			}
+
+			// It's possible a parameter doesn't define a default destination!
+			if protoParameter.DefaultDestination != nil {
+				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
+				if err != nil {
+					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
+				}
+				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
+			}
+
+			_, err = server.Database.InsertParameterSchema(ctx, parameterSchema)
+			if err != nil {
+				return nil, xerrors.Errorf("insert parameter schema: %w", err)
+			}
+		}
+
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
+			ProjectImportJobID: job.ID,
+			OrganizationID:     job.OrganizationID,
+			UserID:             job.InitiatorID,
+		}, nil)
+		if err != nil {
+			return nil, xerrors.Errorf("compute parameters: %w", err)
+		}
+		// Convert parameters to the protobuf type.
+		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
+		for _, computedParameter := range parameters {
+			converted, err := convertComputedParameterValue(computedParameter)
+			if err != nil {
+				return nil, xerrors.Errorf("convert parameter: %s", err)
+			}
+			protoParameters = append(protoParameters, converted)
+		}
+
+		return &proto.UpdateJobResponse{
+			ParameterValues: protoParameters,
+		}, nil
+	}
+
+	return &proto.UpdateJobResponse{}, nil
 }
 
 func (server *provisionerdServer) CancelJob(ctx context.Context, cancelJob *proto.CancelledJob) (*proto.Empty, error) {
@@ -400,98 +432,48 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	if err != nil {
 		return nil, xerrors.Errorf("get job by id: %w", err)
 	}
-	// TODO: Check if the worker ID matches!
-	// If it doesn't, a provisioner daemon could be impersonating another job!
+	if job.WorkerID.UUID.String() != server.ID.String() {
+		return nil, xerrors.Errorf("you don't have permission to update this job")
+	}
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_ProjectImport_:
-		var input projectVersionImportJob
-		err = json.Unmarshal(job.Input, &input)
-		if err != nil {
-			return nil, xerrors.Errorf("unmarshal job data: %w", err)
+		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
+			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
+			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
+		} {
+			for _, resource := range resources {
+				server.Logger.Info(ctx, "inserting project import job resource",
+					slog.F("job_id", job.ID.String()),
+					slog.F("resource_name", resource.Name),
+					slog.F("resource_type", resource.Type),
+					slog.F("transition", transition))
+				_, err = server.Database.InsertProjectImportJobResource(ctx, database.InsertProjectImportJobResourceParams{
+					ID:         uuid.New(),
+					CreatedAt:  database.Now(),
+					JobID:      jobID,
+					Transition: transition,
+					Type:       resource.Type,
+					Name:       resource.Name,
+				})
+				if err != nil {
+					return nil, xerrors.Errorf("insert resource: %w", err)
+				}
+			}
 		}
 
-		// Validate that all parameters send from the provisioner daemon
-		// follow the protocol.
-		parameterSchemas := make([]database.InsertParameterSchemaParams, 0, len(jobType.ProjectImport.ParameterSchemas))
-		for _, protoParameter := range jobType.ProjectImport.ParameterSchemas {
-			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
-			if err != nil {
-				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
-			}
-
-			parameterSchema := database.InsertParameterSchemaParams{
-				ID:                   uuid.New(),
-				CreatedAt:            database.Now(),
-				JobID:                job.ID,
-				Name:                 protoParameter.Name,
-				Description:          protoParameter.Description,
-				RedisplayValue:       protoParameter.RedisplayValue,
-				ValidationError:      protoParameter.ValidationError,
-				ValidationCondition:  protoParameter.ValidationCondition,
-				ValidationValueType:  protoParameter.ValidationValueType,
-				ValidationTypeSystem: validationTypeSystem,
-
-				DefaultSourceScheme:      database.ParameterSourceSchemeNone,
-				DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
-
-				AllowOverrideDestination: protoParameter.AllowOverrideDestination,
-				AllowOverrideSource:      protoParameter.AllowOverrideSource,
-			}
-
-			// It's possible a parameter doesn't define a default source!
-			if protoParameter.DefaultSource != nil {
-				parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
-				}
-				parameterSchema.DefaultSourceScheme = parameterSourceScheme
-				parameterSchema.DefaultSourceValue = sql.NullString{
-					String: protoParameter.DefaultSource.Value,
-					Valid:  protoParameter.DefaultSource.Value != "",
-				}
-			}
-
-			// It's possible a parameter doesn't define a default destination!
-			if protoParameter.DefaultDestination != nil {
-				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
-				if err != nil {
-					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
-				}
-				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
-				parameterSchema.DefaultDestinationValue = sql.NullString{
-					String: protoParameter.DefaultDestination.Value,
-					Valid:  protoParameter.DefaultDestination.Value != "",
-				}
-			}
-
-			parameterSchemas = append(parameterSchemas, parameterSchema)
-		}
-
-		// This must occur in a transaction in case of failure.
-		err = server.Database.InTx(func(db database.Store) error {
-			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID:        jobID,
-				UpdatedAt: database.Now(),
-				CompletedAt: sql.NullTime{
-					Time:  database.Now(),
-					Valid: true,
-				},
-			})
-			if err != nil {
-				return xerrors.Errorf("update provisioner job: %w", err)
-			}
-			// This could be a bulk-insert operation to improve performance.
-			// See the "InsertWorkspaceHistoryLogs" query.
-			for _, parameterSchema := range parameterSchemas {
-				_, err = db.InsertParameterSchema(ctx, parameterSchema)
-				if err != nil {
-					return xerrors.Errorf("insert parameter schema %q: %w", parameterSchema.Name, err)
-				}
-			}
-			server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
-			return nil
+		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        jobID,
+			UpdatedAt: database.Now(),
+			CompletedAt: sql.NullTime{
+				Time:  database.Now(),
+				Valid: true,
+			},
 		})
+		if err != nil {
+			return nil, xerrors.Errorf("update provisioner job: %w", err)
+		}
+		server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
@@ -613,4 +595,22 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	default:
 		return database.LogSource(""), xerrors.Errorf("unknown log source: %d", logSource)
 	}
+}
+
+func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.ParameterValue, error) {
+	var scheme sdkproto.ParameterDestination_Scheme
+	switch param.DestinationScheme {
+	case database.ParameterDestinationSchemeEnvironmentVariable:
+		scheme = sdkproto.ParameterDestination_ENVIRONMENT_VARIABLE
+	case database.ParameterDestinationSchemeProvisionerVariable:
+		scheme = sdkproto.ParameterDestination_PROVISIONER_VARIABLE
+	default:
+		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.DestinationScheme)
+	}
+
+	return &sdkproto.ParameterValue{
+		DestinationScheme: scheme,
+		Name:              param.Name,
+		Value:             param.SourceValue,
+	}, nil
 }

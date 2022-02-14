@@ -20,7 +20,6 @@ message ParameterDestination {
         PROVISIONER_VARIABLE = 1;
     }
     Scheme scheme = 1;
-    string value = 2;
 }
 
 // ParameterValue represents the resolved source and destination of a parameter.
