@@ -16,7 +16,6 @@ package expect_test
 
 import (
 	"bytes"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -73,60 +72,6 @@ func TestExpectOptString(t *testing.T) {
 			require.Nil(t, err)
 
 			matcher := options.Match(buf)
-			if test.expected {
-				require.NotNil(t, matcher)
-			} else {
-				require.Nil(t, matcher)
-			}
-		})
-	}
-}
-
-func TestExpectOptError(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		title    string
-		opt      Opt
-		data     error
-		expected bool
-	}{
-		{
-			"No args",
-			Error(),
-			io.EOF,
-			false,
-		},
-		{
-			"Single arg",
-			Error(io.EOF),
-			io.EOF,
-			true,
-		},
-		{
-			"Multiple arg",
-			Error(io.ErrShortWrite, io.EOF),
-			io.EOF,
-			true,
-		},
-		{
-			"No matches",
-			Error(io.ErrShortWrite),
-			io.EOF,
-			false,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.title, func(t *testing.T) {
-			t.Parallel()
-
-			var options Opts
-			err := test.opt(&options)
-			require.Nil(t, err)
-
-			matcher := options.Match(test.data)
 			if test.expected {
 				require.NotNil(t, matcher)
 			} else {

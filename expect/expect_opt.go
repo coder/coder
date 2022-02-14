@@ -17,11 +17,9 @@ package expect
 import (
 	"bytes"
 	"errors"
-	"io"
 	"os"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -223,39 +221,4 @@ func String(strs ...string) Opt {
 		}
 		return nil
 	}
-}
-
-// Error adds an Expect condition to exit if reading from Console's tty returns
-// one of the provided errors.
-func Error(errs ...error) Opt {
-	return func(opts *Opts) error {
-		for _, err := range errs {
-			opts.Matchers = append(opts.Matchers, &errorMatcher{
-				err: err,
-			})
-		}
-		return nil
-	}
-}
-
-// EOF adds an Expect condition to exit if io.EOF is returned from reading
-// Console's tty.
-func EOF(opts *Opts) error {
-	return Error(io.EOF)(opts)
-}
-
-// PTSClosed adds an Expect condition to exit if we get an
-// "read /dev/ptmx: input/output error" error which can occur
-// on Linux while reading from the ptm after the pts is closed.
-// Further Reading:
-// https://github.com/kr/pty/issues/21#issuecomment-129381749
-func PTSClosed(opts *Opts) error {
-	opts.Matchers = append(opts.Matchers, &pathErrorMatcher{
-		pathError: os.PathError{
-			Op:   "read",
-			Path: "/dev/ptmx",
-			Err:  syscall.Errno(0x5),
-		},
-	})
-	return nil
 }
