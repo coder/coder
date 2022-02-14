@@ -20,6 +20,7 @@ site/.eslintcache
 site/.next/
 site/node_modules/
 site/storybook-static/
+site/test_results/
 site/yarn-error.log
 coverage/
 
