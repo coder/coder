@@ -11,13 +11,13 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/Netflix/go-expect"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/expect"
 	"github.com/coder/coder/provisioner/echo"
 )
 
@@ -75,8 +75,8 @@ func NewConsole(t *testing.T, cmd *cobra.Command) *expect.Console {
 
 	console, err := expect.NewConsole(expect.WithStdout(writer))
 	require.NoError(t, err)
-	cmd.SetIn(console.Tty())
-	cmd.SetOut(console.Tty())
+	cmd.SetIn(console.InTty())
+	cmd.SetOut(console.OutTty())
 	return console
 }
 
