@@ -31,11 +31,10 @@ import (
 // input back on it's tty. Console can also multiplex other sources of input
 // and multiplex its output to other writers.
 type Console struct {
-	opts            ConsoleOpts
-	pty             pty.Pty
-	passthroughPipe *PassthroughPipe
-	runeReader      *bufio.Reader
-	closers         []io.Closer
+	opts       ConsoleOpts
+	pty        pty.Pty
+	runeReader *bufio.Reader
+	closers    []io.Closer
 }
 
 // ConsoleOpt allows setting Console options.
@@ -106,18 +105,17 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 	closers := []io.Closer{consolePty}
 	reader := consolePty.Reader()
 
-	passthroughPipe, err := NewPassthroughPipe(reader)
+	/*passthroughPipe, err := NewPassthroughPipe(reader)
 	if err != nil {
 		return nil, err
 	}
-	closers = append(closers, passthroughPipe)
+	closers = append(closers, passthroughPipe)*/
 
 	console := &Console{
-		opts:            options,
-		pty:             consolePty,
-		passthroughPipe: passthroughPipe,
-		runeReader:      bufio.NewReaderSize(passthroughPipe, utf8.UTFMax),
-		closers:         closers,
+		opts:       options,
+		pty:        consolePty,
+		runeReader: bufio.NewReaderSize(reader, utf8.UTFMax),
+		closers:    closers,
 	}
 
 	return console, nil
