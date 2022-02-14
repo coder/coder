@@ -239,6 +239,11 @@ jobs:
             .eslintcache
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
 
+      # Go is required for uploading the test results to datadog
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
       - uses: actions/setup-node@v2
         with:
           node-version: "14"
