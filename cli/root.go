@@ -67,7 +67,11 @@ func Root() *cobra.Command {
 
 	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coder"), "Path to the global `coder` config directory")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
-	cmd.PersistentFlags().MarkHidden(varForceTty)
+	err := cmd.PersistentFlags().MarkHidden(varForceTty)
+	if (err != nil) {
+		// This should never return an error, because we just added the `--force-tty`` flag prior to calling MarkHidden.
+		panic(err)
+	}
 	
 	return cmd
 }
