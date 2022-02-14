@@ -50,6 +50,7 @@
     "formik": "2.2.9",
     "http-proxy-middleware": "2.0.3",
     "jest": "27.5.1",
+    "jest-junit": "13.0.0",
     "jest-runner-eslint": "1.0.0",
     "next": "12.0.10",
     "next-router-mock": "^0.6.5",
