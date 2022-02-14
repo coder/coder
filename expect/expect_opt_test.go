@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	. "github.com/coder/coder/expect"
 )
@@ -247,94 +246,6 @@ func TestExpectOptError(t *testing.T) {
 			matcher := options.Match(test.data)
 			if test.expected {
 				require.NotNil(t, matcher)
-			} else {
-				require.Nil(t, matcher)
-			}
-		})
-	}
-}
-
-func TestExpectOptThen(t *testing.T) {
-	t.Parallel()
-
-	var (
-		errFirst  = xerrors.New("first")
-		errSecond = xerrors.New("second")
-	)
-
-	tests := []struct {
-		title    string
-		opt      Opt
-		data     string
-		match    bool
-		expected error
-	}{
-		{
-			"Noop",
-			String("Hello").Then(func(buf *bytes.Buffer) error {
-				return nil
-			}),
-			"Hello world",
-			true,
-			nil,
-		},
-		{
-			"Short circuit",
-			String("Hello").Then(func(buf *bytes.Buffer) error {
-				return errFirst
-			}).Then(func(buf *bytes.Buffer) error {
-				return errSecond
-			}),
-			"Hello world",
-			true,
-			errFirst,
-		},
-		{
-			"Chain",
-			String("Hello").Then(func(buf *bytes.Buffer) error {
-				return nil
-			}).Then(func(buf *bytes.Buffer) error {
-				return errSecond
-			}),
-			"Hello world",
-			true,
-			errSecond,
-		},
-		{
-			"No matches",
-			String("other").Then(func(buf *bytes.Buffer) error {
-				return errFirst
-			}),
-			"Hello world",
-			false,
-			nil,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.title, func(t *testing.T) {
-			t.Parallel()
-
-			var options Opts
-			err := test.opt(&options)
-			require.Nil(t, err)
-
-			buf := new(bytes.Buffer)
-			_, err = buf.WriteString(test.data)
-			require.Nil(t, err)
-
-			matcher := options.Match(buf)
-			if test.match {
-				require.NotNil(t, matcher)
-
-				cb, ok := matcher.(CallbackMatcher)
-				if ok {
-					require.True(t, ok)
-
-					err = cb.Callback(nil)
-					require.Equal(t, test.expected, err)
-				}
 			} else {
 				require.Nil(t, matcher)
 			}

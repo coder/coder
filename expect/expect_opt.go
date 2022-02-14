@@ -32,26 +32,6 @@ type Opt func(*Opts) error
 // the chained matcher.
 type ConsoleCallback func(buf *bytes.Buffer) error
 
-// Then returns an Expect condition to execute a callback if a match is found
-// for the chained matcher.
-func (eo Opt) Then(consoleCallback ConsoleCallback) Opt {
-	return func(opts *Opts) error {
-		var options Opts
-		err := eo(&options)
-		if err != nil {
-			return err
-		}
-
-		for _, matcher := range options.Matchers {
-			opts.Matchers = append(opts.Matchers, &callbackMatcher{
-				f:       consoleCallback,
-				matcher: matcher,
-			})
-		}
-		return nil
-	}
-}
-
 // Opts provides additional options on Expect.
 type Opts struct {
 	Matchers    []Matcher
