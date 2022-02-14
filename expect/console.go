@@ -45,9 +45,7 @@ type ConsoleOpt func(*ConsoleOpts) error
 type ConsoleOpts struct {
 	Logger          *log.Logger
 	Stdouts         []io.Writer
-	Closers         []io.Closer
 	ExpectObservers []Observer
-	SendObservers   []SendObserver
 }
 
 // Observer provides an interface for a function callback that will
@@ -57,13 +55,6 @@ type ConsoleOpts struct {
 // buf is the captured output that was matched against.
 // err is error that might have occurred. May be nil.
 type Observer func(matchers []Matcher, buf string, err error)
-
-// SendObserver provides an interface for a function callback that will
-// be called after each Send operation.
-// msg is the string that was sent.
-// num is the number of bytes actually sent.
-// err is the error that might have occurred.  May be nil.
-type SendObserver func(msg string, num int, err error)
 
 // WithStdout adds writers that Console duplicates writes to, similar to the
 // Unix tee(1) command.
@@ -75,14 +66,6 @@ type SendObserver func(msg string, num int, err error)
 func WithStdout(writers ...io.Writer) ConsoleOpt {
 	return func(opts *ConsoleOpts) error {
 		opts.Stdouts = append(opts.Stdouts, writers...)
-		return nil
-	}
-}
-
-// WithCloser adds closers that are closed in order when Console is closed.
-func WithCloser(closer ...io.Closer) ConsoleOpt {
-	return func(opts *ConsoleOpts) error {
-		opts.Closers = append(opts.Closers, closer...)
 		return nil
 	}
 }
@@ -104,14 +87,6 @@ func WithExpectObserver(observers ...Observer) ConsoleOpt {
 	}
 }
 
-// WithSendObserver adds a SendObserver to allow monitoring Send operations.
-func WithSendObserver(observers ...SendObserver) ConsoleOpt {
-	return func(opts *ConsoleOpts) error {
-		opts.SendObservers = append(opts.SendObservers, observers...)
-		return nil
-	}
-}
-
 // NewConsole returns a new Console with the given options.
 func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 	options := ConsoleOpts{
@@ -128,7 +103,7 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 	if err != nil {
 		return nil, err
 	}
-	closers := append(options.Closers, consolePty)
+	closers := []io.Closer{consolePty}
 	reader := consolePty.Reader()
 
 	passthroughPipe, err := NewPassthroughPipe(reader)
@@ -173,9 +148,6 @@ func (c *Console) Close() error {
 func (c *Console) Send(s string) (int, error) {
 	c.Logf("console send: %q", s)
 	n, err := c.pty.WriteString(s)
-	for _, observer := range c.opts.SendObservers {
-		observer(s, n, err)
-	}
 	return n, err
 }
 

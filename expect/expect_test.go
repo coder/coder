@@ -74,7 +74,6 @@ func Prompt(in io.Reader, out io.Writer) error {
 func newTestConsole(t *testing.T, opts ...ConsoleOpt) (*Console, error) {
 	opts = append([]ConsoleOpt{
 		expectNoError(t),
-		sendNoError(t),
 	}, opts...)
 	return NewTestConsole(t, opts...)
 }
@@ -93,19 +92,6 @@ func expectNoError(t *testing.T) ConsoleOpt {
 					criteria = append(criteria, fmt.Sprintf("%q", matcher.Criteria()))
 				}
 				t.Fatalf("Failed to find [%s] in %q: %s\n%s", strings.Join(criteria, ", "), buf, err, string(debug.Stack()))
-			}
-		},
-	)
-}
-
-func sendNoError(t *testing.T) ConsoleOpt {
-	return WithSendObserver(
-		func(msg string, n int, err error) {
-			if err != nil {
-				t.Fatalf("Failed to send %q: %s\n%s", msg, err, string(debug.Stack()))
-			}
-			if len(msg) != n {
-				t.Fatalf("Only sent %d of %d bytes for %q\n%s", n, len(msg), msg, string(debug.Stack()))
 			}
 		},
 	)
