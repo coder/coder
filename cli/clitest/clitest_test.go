@@ -1,5 +1,3 @@
-//go:build !windows
-
 package clitest_test
 
 import (
