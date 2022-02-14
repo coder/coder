@@ -105,12 +105,6 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 	closers := []io.Closer{consolePty}
 	reader := consolePty.Reader()
 
-	/*passthroughPipe, err := NewPassthroughPipe(reader)
-	if err != nil {
-		return nil, err
-	}
-	closers = append(closers, passthroughPipe)*/
-
 	console := &Console{
 		opts:       options,
 		pty:        consolePty,
