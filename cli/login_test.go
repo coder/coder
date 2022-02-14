@@ -1,5 +1,3 @@
-//go:build !windows
-
 package cli_test
 
 import (
