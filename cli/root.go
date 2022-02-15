@@ -125,7 +125,7 @@ func isTTY(cmd *cobra.Command) bool {
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
 	forceTty, err := cmd.Flags().GetBool(varForceTty)
-	if forceTty && err != nil {
+	if forceTty && err == nil {
 		return true
 	}
 
