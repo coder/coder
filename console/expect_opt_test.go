@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expect_test
+package console_test
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	. "github.com/coder/coder/expect"
+	. "github.com/coder/coder/console"
 )
 
 func TestExpectOptString(t *testing.T) {

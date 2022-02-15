@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expect_test
+package console_test
 
 import (
 	"bufio"
@@ -26,7 +26,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	. "github.com/coder/coder/expect"
+	. "github.com/coder/coder/console"
 )
 
 var (

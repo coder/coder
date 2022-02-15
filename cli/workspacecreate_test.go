@@ -5,7 +5,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/expect"
+	"github.com/coder/coder/console"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func TestWorkspaceCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "workspaces", "create", project.Name)
 		clitest.SetupConfig(t, client, root)
 
-		console := expect.NewTestConsole(t, cmd)
+		console := console.New(t, cmd)
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()

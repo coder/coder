@@ -1,4 +1,4 @@
-package expect
+package console
 
 import (
 	"bufio"
@@ -16,9 +16,9 @@ var (
 	stripAnsi = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
 )
 
-// NewTestConsole creates a new TTY bound to the command provided.
+// New creates a new TTY bound to the command provided.
 // All ANSI escape codes are stripped to provide clean output.
-func NewTestConsole(t *testing.T, cmd *cobra.Command) *Console {
+func New(t *testing.T, cmd *cobra.Command) *Console {
 	reader, writer := io.Pipe()
 	scanner := bufio.NewScanner(reader)
 	t.Cleanup(func() {

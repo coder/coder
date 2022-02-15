@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expect
+package console
 
 import (
 	"bufio"
@@ -23,7 +23,7 @@ import (
 	"os"
 	"unicode/utf8"
 
-	"github.com/coder/coder/expect/pty"
+	"github.com/coder/coder/console/pty"
 )
 
 // Console is an interface to automate input and output for interactive
