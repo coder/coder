@@ -16,3 +16,4 @@ coverage/
 out/
 storybook-static/
 test_results/
+test-results/
