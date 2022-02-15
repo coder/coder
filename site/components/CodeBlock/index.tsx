@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 export interface CodeBlockProps {
   lines: string[]
@@ -18,8 +19,6 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ lines }) => {
     </div>
   )
 }
-const MONOSPACE_FONT_FAMILY =
-  "'Fira Code', 'Lucida Console', 'Lucida Sans Typewriter', 'Liberation Mono', 'Monaco', 'Courier New', Courier, monospace"
 
 const useStyles = makeStyles((theme) => ({
   root: {

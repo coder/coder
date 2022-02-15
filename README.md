@@ -13,6 +13,33 @@ This repository contains source code for Coder V2. Additional documentation:
   - [`semantic.yaml`](./github/semantic.yaml): Configuration for [semantic pull requests](https://github.com/apps/semantic-pull-requests)
 - `site`: Front-end UI code.
 
+## Development
+
+### Pre-requisites
+
+- `git`
+- `go` version 1.17, with the `GOPATH` environment variable set
+- `node`
+- `yarn`
+
+### Cloning
+
+- `git clone https://github.com/coder/coder`
+- `cd coder`
+
+### Building
+
+- `make build`
+- `make install`
+
+The `coder` CLI binary will now be available at `$GOPATH/bin/coder`
+
+### Development
+
+- `./develop.sh`
+
+The `develop.sh` script runs the server locally on port `3000`, and runs a hot-reload server for front-end code on `8080`.
+
 ## Front-End Plan
 
 For the front-end team, we're planning on 2 phases to the 'v2' work:

@@ -92,8 +92,6 @@ rules:
           message:
             "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
-        - name: "@material-ui/core/Tooltip"
-          message: "Use the custom Tooltip on componens/Tooltip"
   no-storage/no-browser-storage: error
   no-unused-vars: "off"
   "object-curly-spacing": "off"

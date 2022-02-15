@@ -31,33 +31,8 @@ const useStyles = makeStyles((theme) => ({
     borderTop: `1px solid ${theme.palette.action.disabled}`,
     paddingTop: theme.spacing(3),
   },
-  loginTypeToggleWrapper: {
+  loginTextField: {
     marginTop: theme.spacing(2),
-    display: "flex",
-    justifyContent: "center",
-  },
-  loginTypeToggleBtn: {
-    color: theme.palette.text.primary,
-    // We want opacity so that this isn't super highlighted for the user.
-    // In most cases, they shouldn't want to switch login types.
-    opacity: 0.5,
-    "&:hover": {
-      cursor: "pointer",
-      opacity: 1,
-      textDecoration: "underline",
-    },
-  },
-  loginTypeToggleBtnFocusVisible: {
-    opacity: 1,
-    textDecoration: "underline",
-  },
-  loginTypeBtn: {
-    backgroundColor: "#2A2B45",
-    textTransform: "none",
-
-    "&:not(:first-child)": {
-      marginTop: theme.spacing(2),
-    },
   },
   submitBtn: {
     marginTop: theme.spacing(2),
@@ -101,6 +76,7 @@ export const SignInForm: React.FC<SignInProps> = ({
           <FormTextField
             autoComplete="email"
             autoFocus
+            className={styles.loginTextField}
             eventTransform={(email: string) => email.trim()}
             form={form}
             formFieldName="email"
@@ -108,12 +84,12 @@ export const SignInForm: React.FC<SignInProps> = ({
             inputProps={{
               id: "signin-form-inpt-email",
             }}
-            margin="none"
             placeholder="Email"
             variant="outlined"
           />
           <FormTextField
             autoComplete="current-password"
+            className={styles.loginTextField}
             form={form}
             formFieldName="password"
             fullWidth
@@ -121,7 +97,6 @@ export const SignInForm: React.FC<SignInProps> = ({
               id: "signin-form-inpt-password",
             }}
             isPassword
-            margin="none"
             placeholder="Password"
             variant="outlined"
           />

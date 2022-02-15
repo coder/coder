@@ -27,4 +27,15 @@ func TestPostFiles(t *testing.T) {
 		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, make([]byte, 1024))
 		require.NoError(t, err)
 	})
+
+	t.Run("InsertAlreadyExists", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		data := make([]byte, 1024)
+		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+		require.NoError(t, err)
+		_, err = client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+		require.NoError(t, err)
+	})
 }

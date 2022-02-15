@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS provisioner_job_log (
 CREATE TYPE parameter_scope AS ENUM (
      'organization',
      'project',
+     'import_job',
      'user',
      'workspace'
 );
@@ -70,22 +71,6 @@ CREATE TYPE parameter_source_scheme AS ENUM('none', 'data');
 
 -- Supported schemes for a parameter destination.
 CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable', 'provisioner_variable');
-
--- Parameters are provided to jobs for provisioning and to workspaces.
-CREATE TABLE parameter_value (
-    id uuid NOT NULL UNIQUE,
-    name varchar(64) NOT NULL,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    scope parameter_scope NOT NULL,
-    scope_id text NOT NULL,
-    source_scheme parameter_source_scheme NOT NULL,
-    source_value text NOT NULL,
-    destination_scheme parameter_destination_scheme NOT NULL,
-    destination_value text NOT NULL,
-    -- Prevents duplicates for parameters in the same scope.
-    UNIQUE(name, scope, scope_id)
-);
 
 -- Stores project version parameters parsed on import.
 -- No secrets are stored here.
@@ -103,12 +88,10 @@ CREATE TABLE parameter_schema (
     name varchar(64) NOT NULL,
     description varchar(8192) NOT NULL DEFAULT '',
     default_source_scheme parameter_source_scheme,
-    default_source_value text,
+    default_source_value text NOT NULL,
     -- Allows the user to override the source.
     allow_override_source boolean NOT null,
-    -- eg. env://SOME_VARIABLE, tfvars://example
     default_destination_scheme parameter_destination_scheme,
-    default_destination_value text,
     -- Allows the user to override the destination.
     allow_override_destination boolean NOT null,
     default_refresh text NOT NULL,
@@ -120,4 +103,29 @@ CREATE TABLE parameter_schema (
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type varchar(64) NOT NULL,
     UNIQUE(job_id, name)
+);
+
+-- Parameters are provided to jobs for provisioning and to workspaces.
+CREATE TABLE parameter_value (
+    id uuid NOT NULL UNIQUE,
+    name varchar(64) NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    scope parameter_scope NOT NULL,
+    scope_id text NOT NULL,
+    source_scheme parameter_source_scheme NOT NULL,
+    source_value text NOT NULL,
+    destination_scheme parameter_destination_scheme NOT NULL,
+    -- Prevents duplicates for parameters in the same scope.
+    UNIQUE(name, scope, scope_id)
+);
+
+-- Resources from multiple workspace states are stored here post project-import job.
+CREATE TABLE project_import_job_resource (
+    id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
+    transition workspace_transition NOT NULL,
+    type varchar(256) NOT NULL,
+    name varchar(64) NOT NULL
 );
