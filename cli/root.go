@@ -21,6 +21,7 @@ import (
 
 const (
 	varGlobalConfig = "global-config"
+	varForceTty     = "force-tty"
 )
 
 func Root() *cobra.Command {
@@ -65,6 +66,12 @@ func Root() *cobra.Command {
 	cmd.AddCommand(users())
 
 	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coder"), "Path to the global `coder` config directory")
+	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
+	err := cmd.PersistentFlags().MarkHidden(varForceTty)
+	if err != nil {
+		// This should never return an error, because we just added the `--force-tty`` flag prior to calling MarkHidden.
+		panic(err)
+	}
 
 	return cmd
 }
@@ -113,7 +120,16 @@ func createConfig(cmd *cobra.Command) config.Root {
 // isTTY returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "InOrStdin"
 // function for simple testing.
-func isTTY(reader io.Reader) bool {
+func isTTY(cmd *cobra.Command) bool {
+	// If the `--force-tty` command is available, and set,
+	// assume we're in a tty. This is primarily for cases on Windows
+	// where we may not be able to reliably detect this automatically (ie, tests)
+	forceTty, err := cmd.Flags().GetBool(varForceTty)
+	if forceTty && err == nil {
+		return true
+	}
+
+	reader := cmd.InOrStdin()
 	file, ok := reader.(*os.File)
 	if !ok {
 		return false

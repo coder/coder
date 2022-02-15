@@ -1,11 +1,10 @@
-//go:build !windows
-
 package cli_test
 
 import (
 	"testing"
 
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/expect"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/stretchr/testify/require"
 )
@@ -23,8 +22,11 @@ func TestLogin(t *testing.T) {
 	t.Run("InitialUserTTY", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
-		root, _ := clitest.New(t, "login", client.URL.String())
-		console := clitest.NewConsole(t, root)
+		// The --force-tty flag is required on Windows, because the `isatty` library does not
+		// accurately detect Windows ptys when they are not attached to a process:
+		// https://github.com/mattn/go-isatty/issues/59
+		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
+		console := expect.NewTestConsole(t, root)
 		go func() {
 			err := root.Execute()
 			require.NoError(t, err)

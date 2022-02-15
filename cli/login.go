@@ -22,6 +22,7 @@ func login() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rawURL := args[0]
+
 			if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
 				scheme := "https"
 				if strings.HasPrefix(rawURL, "localhost") {
@@ -44,7 +45,7 @@ func login() *cobra.Command {
 				return xerrors.Errorf("has initial user: %w", err)
 			}
 			if !hasInitialUser {
-				if !isTTY(cmd.InOrStdin()) {
+				if !isTTY(cmd) {
 					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", color.HiBlackString(">"))
