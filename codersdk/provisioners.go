@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
+// ProvisionerDaemons returns registered provisionerd instances.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]coderd.ProvisionerDaemon, error) {
 	res, err := c.request(ctx, http.MethodGet, "/api/v2/provisioners/daemons", nil)
 	if err != nil {
@@ -59,51 +60,15 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(session)), nil
 }
 
-// CreateProjectVersionImportProvisionerJob creates a job for importing
-// the provided project version.
-func (c *Client) CreateProjectVersionImportProvisionerJob(ctx context.Context, organization string, req coderd.CreateProjectImportJobRequest) (coderd.ProvisionerJob, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/provisioners/jobs/%s/import", organization), req)
-	if err != nil {
-		return coderd.ProvisionerJob{}, err
-	}
-	if res.StatusCode != http.StatusCreated {
-		defer res.Body.Close()
-		return coderd.ProvisionerJob{}, readBodyAsError(res)
-	}
-	var job coderd.ProvisionerJob
-	return job, json.NewDecoder(res.Body).Decode(&job)
-}
-
-// ProvisionerJob returns a job by ID.
-func (c *Client) ProvisionerJob(ctx context.Context, organization string, job uuid.UUID) (coderd.ProvisionerJob, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s", organization, job), nil)
-	if err != nil {
-		return coderd.ProvisionerJob{}, nil
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return coderd.ProvisionerJob{}, readBodyAsError(res)
-	}
-	var resp coderd.ProvisionerJob
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// ProvisionerJobLogs returns all logs for workspace history.
-// To stream logs, use the FollowProvisionerJobLogs function.
-func (c *Client) ProvisionerJobLogs(ctx context.Context, organization string, jobID uuid.UUID) ([]coderd.ProvisionerJobLog, error) {
-	return c.ProvisionerJobLogsBetween(ctx, organization, jobID, time.Time{}, time.Time{})
-}
-
-// ProvisionerJobLogsBetween returns logs between a specific time.
-func (c *Client) ProvisionerJobLogsBetween(ctx context.Context, organization string, jobID uuid.UUID, after, before time.Time) ([]coderd.ProvisionerJobLog, error) {
+// provisionerJobLogsBefore provides log output that occurred before a time.
+// This is abstracted from a specific job type to provide consistency between
+// APIs. Logs is the only shared route between jobs.
+func (c *Client) provisionerJobLogsBefore(ctx context.Context, jobType, organization string, job uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
 	values := url.Values{}
-	if !after.IsZero() {
-		values["after"] = []string{strconv.FormatInt(after.UTC().UnixMilli(), 10)}
-	}
 	if !before.IsZero() {
 		values["before"] = []string{strconv.FormatInt(before.UTC().UnixMilli(), 10)}
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/logs?%s", organization, jobID, values.Encode()), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/%s/%s/%s/logs?%s", jobType, organization, job, values.Encode()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -116,14 +81,13 @@ func (c *Client) ProvisionerJobLogsBetween(ctx context.Context, organization str
 	return logs, json.NewDecoder(res.Body).Decode(&logs)
 }
 
-// FollowProvisionerJobLogsAfter returns a stream of workspace history logs.
-// The channel will close when the workspace history job is no longer active.
-func (c *Client) FollowProvisionerJobLogsAfter(ctx context.Context, organization string, jobID uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
+// provisionerJobLogsAfter streams logs that occurred after a specific time.
+func (c *Client) provisionerJobLogsAfter(ctx context.Context, jobType, organization string, job uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
 	afterQuery := ""
 	if !after.IsZero() {
 		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/provisioners/jobs/%s/%s/logs?follow%s", organization, jobID, afterQuery), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/%s/%s/%s/logs?follow%s", jobType, organization, job, afterQuery), nil)
 	if err != nil {
 		return nil, err
 	}

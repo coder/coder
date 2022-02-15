@@ -97,6 +97,7 @@ type ParameterScope string
 const (
 	ParameterScopeOrganization ParameterScope = "organization"
 	ParameterScopeProject      ParameterScope = "project"
+	ParameterScopeImportJob    ParameterScope = "import_job"
 	ParameterScopeUser         ParameterScope = "user"
 	ParameterScopeWorkspace    ParameterScope = "workspace"
 )
@@ -307,10 +308,9 @@ type ParameterSchema struct {
 	Name                     string                     `db:"name" json:"name"`
 	Description              string                     `db:"description" json:"description"`
 	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       sql.NullString             `db:"default_source_value" json:"default_source_value"`
+	DefaultSourceValue       string                     `db:"default_source_value" json:"default_source_value"`
 	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
 	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	DefaultDestinationValue  sql.NullString             `db:"default_destination_value" json:"default_destination_value"`
 	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
 	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
 	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
@@ -330,7 +330,6 @@ type ParameterValue struct {
 	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
 	SourceValue       string                     `db:"source_value" json:"source_value"`
 	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
-	DestinationValue  string                     `db:"destination_value" json:"destination_value"`
 }
 
 type Project struct {
@@ -341,6 +340,15 @@ type Project struct {
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+}
+
+type ProjectImportJobResource struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Type       string              `db:"type" json:"type"`
+	Name       string              `db:"name" json:"name"`
 }
 
 type ProjectVersion struct {

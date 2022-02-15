@@ -15,6 +15,13 @@ This repository contains source code for Coder V2. Additional documentation:
 
 ## Development
 
+### Pre-requisites
+
+- `git`
+- `go` version 1.17, with the `GOPATH` environment variable set
+- `node`
+- `yarn`
+
 ### Cloning
 
 - `git clone https://github.com/coder/coder`
@@ -23,6 +30,9 @@ This repository contains source code for Coder V2. Additional documentation:
 ### Building
 
 - `make build`
+- `make install`
+
+The `coder` CLI binary will now be available at `$GOPATH/bin/coder`
 
 ### Development
 

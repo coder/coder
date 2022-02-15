@@ -20,7 +20,7 @@ func (c *Client) UploadFile(ctx context.Context, contentType string, content []b
 		return coderd.UploadFileResponse{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != http.StatusCreated && res.StatusCode != http.StatusOK {
 		return coderd.UploadFileResponse{}, readBodyAsError(res)
 	}
 	var resp coderd.UploadFileResponse

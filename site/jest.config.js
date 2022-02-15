@@ -9,6 +9,7 @@ module.exports = {
       coverageReporters: ["text", "lcov"],
       displayName: "test",
       preset: "ts-jest",
+
       roots: ["<rootDir>"],
       setupFilesAfterEnv: ["<rootDir>/_jest/setupTests.ts"],
       transform: {
@@ -42,5 +43,16 @@ module.exports = {
     "!<rootDir>/next.config.js",
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
+  ],
+  reporters: [
+    "default",
+    [
+      "jest-junit",
+      {
+        suiteName: "Front-end Jest Tests",
+        outputDirectory: "./test_results",
+        outputName: "junit.xml",
+      },
+    ],
   ],
 }

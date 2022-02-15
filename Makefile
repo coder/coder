@@ -1,9 +1,16 @@
+INSTALL_DIR=$(shell go env GOPATH)/bin
+
+bin/coder:
+	mkdir -p bin
+	go build -o bin/coder cmd/coder/main.go
+.PHONY: bin/coder
+
 bin/coderd:
 	mkdir -p bin
 	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
-build: site/out bin/coderd
+build: site/out bin/coder bin/coderd
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
@@ -45,6 +52,12 @@ fmt: fmt/prettier fmt/sql
 
 gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 .PHONY: gen
+
+install: 
+	@echo "--- Copying from bin to $(INSTALL_DIR)"
+	cp -r ./bin $(INSTALL_DIR)
+	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
+.PHONY: install
 
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	protoc \

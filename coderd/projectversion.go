@@ -26,26 +26,6 @@ type ProjectVersion struct {
 	ImportJobID uuid.UUID `json:"import_job_id"`
 }
 
-// ProjectVersionParameter represents a parameter parsed from project version source on creation.
-type ProjectVersionParameter struct {
-	ID                       uuid.UUID                           `json:"id"`
-	CreatedAt                time.Time                           `json:"created_at"`
-	Name                     string                              `json:"name"`
-	Description              string                              `json:"description,omitempty"`
-	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme,omitempty"`
-	DefaultSourceValue       string                              `json:"default_source_value,omitempty"`
-	AllowOverrideSource      bool                                `json:"allow_override_source"`
-	DefaultDestinationScheme database.ParameterDestinationScheme `json:"default_destination_scheme,omitempty"`
-	DefaultDestinationValue  string                              `json:"default_destination_value,omitempty"`
-	AllowOverrideDestination bool                                `json:"allow_override_destination"`
-	DefaultRefresh           string                              `json:"default_refresh"`
-	RedisplayValue           bool                                `json:"redisplay_value"`
-	ValidationError          string                              `json:"validation_error,omitempty"`
-	ValidationCondition      string                              `json:"validation_condition,omitempty"`
-	ValidationTypeSystem     database.ParameterTypeSystem        `json:"validation_type_system,omitempty"`
-	ValidationValueType      string                              `json:"validation_value_type,omitempty"`
-}
-
 // CreateProjectVersionRequest enables callers to create a new Project Version.
 type CreateProjectVersionRequest struct {
 	ImportJobID uuid.UUID `json:"import_job_id" validate:"required"`
@@ -121,50 +101,6 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 	render.JSON(rw, r, convertProjectVersion(projectVersion))
 }
 
-func (api *api) projectVersionParametersByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
-	projectVersion := httpmw.ProjectVersionParam(r)
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.ImportJobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
-		})
-		return
-	}
-	apiJob := convertProvisionerJob(job)
-	if !apiJob.Status.Completed() {
-		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
-			Message: fmt.Sprintf("import job hasn't completed: %s", apiJob.Status),
-		})
-		return
-	}
-	if apiJob.Status != ProvisionerJobStatusSucceeded {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "import job wasn't successful. no parameters were parsed",
-		})
-		return
-	}
-
-	parameters, err := api.Database.GetParameterSchemasByJobID(r.Context(), projectVersion.ImportJobID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-		parameters = []database.ParameterSchema{}
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project parameters: %s", err),
-		})
-		return
-	}
-
-	apiParameters := make([]ProjectVersionParameter, 0, len(parameters))
-	for _, parameter := range parameters {
-		apiParameters = append(apiParameters, convertProjectParameter(parameter))
-	}
-
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiParameters)
-}
-
 func convertProjectVersion(version database.ProjectVersion) ProjectVersion {
 	return ProjectVersion{
 		ID:          version.ID,
@@ -173,26 +109,5 @@ func convertProjectVersion(version database.ProjectVersion) ProjectVersion {
 		UpdatedAt:   version.UpdatedAt,
 		Name:        version.Name,
 		ImportJobID: version.ImportJobID,
-	}
-}
-
-func convertProjectParameter(parameter database.ParameterSchema) ProjectVersionParameter {
-	return ProjectVersionParameter{
-		ID:                       parameter.ID,
-		CreatedAt:                parameter.CreatedAt,
-		Name:                     parameter.Name,
-		Description:              parameter.Description,
-		DefaultSourceScheme:      parameter.DefaultSourceScheme,
-		DefaultSourceValue:       parameter.DefaultSourceValue.String,
-		AllowOverrideSource:      parameter.AllowOverrideSource,
-		DefaultDestinationScheme: parameter.DefaultDestinationScheme,
-		DefaultDestinationValue:  parameter.DefaultDestinationValue.String,
-		AllowOverrideDestination: parameter.AllowOverrideDestination,
-		DefaultRefresh:           parameter.DefaultRefresh,
-		RedisplayValue:           parameter.RedisplayValue,
-		ValidationError:          parameter.ValidationError,
-		ValidationCondition:      parameter.ValidationCondition,
-		ValidationTypeSystem:     parameter.ValidationTypeSystem,
-		ValidationValueType:      parameter.ValidationValueType,
 	}
 }

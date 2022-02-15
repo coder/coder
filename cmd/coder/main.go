@@ -1,7 +1,14 @@
 package main
 
-import "fmt"
+import (
+	"os"
+
+	"github.com/coder/coder/cli"
+)
 
 func main() {
-	_, _ = fmt.Println("Hello World!")
+	err := cli.Root().Execute()
+	if err != nil {
+		os.Exit(1)
+	}
 }

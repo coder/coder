@@ -239,6 +239,11 @@ jobs:
             .eslintcache
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
 
+      # Go is required for uploading the test results to datadog
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
       - uses: actions/setup-node@v2
         with:
           node-version: "14"
@@ -262,3 +267,11 @@ jobs:
           files: ./site/coverage/lcov.info
           flags: unittest-js
           fail_ci_if_error: true
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_DATABASE: postgresql
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go site/test_results/junit.xml

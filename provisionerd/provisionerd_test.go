@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -34,9 +35,8 @@ func TestMain(m *testing.M) {
 func TestProvisionerd(t *testing.T) {
 	t.Parallel()
 
-	noopUpdateJob := func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-		<-stream.Context().Done()
-		return nil
+	noopUpdateJob := func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+		return &proto.UpdateJobResponse{}, nil
 	}
 
 	t.Run("InstantClose", func(t *testing.T) {
@@ -170,14 +170,9 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}, nil
 				},
-				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-					for {
-						_, err := stream.Recv()
-						if err != nil {
-							return err
-						}
-						close(completeChan)
-					}
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					close(completeChan)
+					return &proto.UpdateJobResponse{}, nil
 				},
 				cancelJob: func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {
 					return &proto.Empty{}, nil
@@ -201,6 +196,7 @@ func TestProvisionerd(t *testing.T) {
 			didComplete   atomic.Bool
 			didLog        atomic.Bool
 			didAcquireJob atomic.Bool
+			didDryRun     atomic.Bool
 		)
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
@@ -222,18 +218,11 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}, nil
 				},
-				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-					for {
-						msg, err := stream.Recv()
-						if err != nil {
-							return err
-						}
-						if len(msg.Logs) == 0 {
-							continue
-						}
-
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					if len(update.Logs) != 0 {
 						didLog.Store(true)
 					}
+					return &proto.UpdateJobResponse{}, nil
 				},
 				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 					didComplete.Store(true)
@@ -260,7 +249,9 @@ func TestProvisionerd(t *testing.T) {
 					err = stream.Send(&sdkproto.Parse_Response{
 						Type: &sdkproto.Parse_Response_Complete{
 							Complete: &sdkproto.Parse_Complete{
-								ParameterSchemas: []*sdkproto.ParameterSchema{},
+								ParameterSchemas: []*sdkproto.ParameterSchema{{
+									Name: parameter.CoderWorkspaceTransition,
+								}},
 							},
 						},
 					})
@@ -268,6 +259,9 @@ func TestProvisionerd(t *testing.T) {
 					return nil
 				},
 				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					if request.DryRun {
+						didDryRun.Store(true)
+					}
 					err := stream.Send(&sdkproto.Provision_Response{
 						Type: &sdkproto.Provision_Response_Log{
 							Log: &sdkproto.Log{
@@ -293,6 +287,7 @@ func TestProvisionerd(t *testing.T) {
 		<-completeChan
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
+		require.True(t, didDryRun.Load())
 		require.NoError(t, closer.Close())
 	})
 
@@ -323,18 +318,11 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}, nil
 				},
-				updateJob: func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-					for {
-						msg, err := stream.Recv()
-						if err != nil {
-							return err
-						}
-						if len(msg.Logs) == 0 {
-							continue
-						}
-
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					if len(update.Logs) != 0 {
 						didLog.Store(true)
 					}
+					return &proto.UpdateJobResponse{}, nil
 				},
 				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 					didComplete.Store(true)
@@ -463,7 +451,7 @@ func (p *provisionerTestServer) Provision(request *sdkproto.Provision_Request, s
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
 	acquireJob  func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error)
-	updateJob   func(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error
+	updateJob   func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	cancelJob   func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error)
 	completeJob func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
 }
@@ -472,8 +460,8 @@ func (p *provisionerDaemonTestServer) AcquireJob(ctx context.Context, empty *pro
 	return p.acquireJob(ctx, empty)
 }
 
-func (p *provisionerDaemonTestServer) UpdateJob(stream proto.DRPCProvisionerDaemon_UpdateJobStream) error {
-	return p.updateJob(stream)
+func (p *provisionerDaemonTestServer) UpdateJob(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	return p.updateJob(ctx, update)
 }
 
 func (p *provisionerDaemonTestServer) CancelJob(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {

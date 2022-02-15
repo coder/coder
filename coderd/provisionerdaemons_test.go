@@ -11,11 +11,8 @@ import (
 )
 
 func TestProvisionerDaemons(t *testing.T) {
-	// Tests for properly processing specific job
-	// types should be placed in their respective
-	// resource location.
-	//
-	// eg. project import is a project-related job
+	// Tests for properly processing specific job types should be placed
+	// in their respective files.
 	t.Parallel()
 
 	client := coderdtest.New(t)
