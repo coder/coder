@@ -267,6 +267,23 @@ func TestConn(t *testing.T) {
 		_, err := client.Ping()
 		require.NoError(t, err)
 	})
+
+	t.Run("ShortBuffer", func(t *testing.T) {
+		t.Parallel()
+		client, server, _ := createPair(t)
+		exchange(client, server)
+		go func() {
+			channel, err := client.Dial(context.Background(), "test", nil)
+			require.NoError(t, err)
+			_, err = channel.Write([]byte{'1', '2'})
+			require.NoError(t, err)
+		}()
+
+		channel, err := server.Accept(context.Background())
+		require.NoError(t, err)
+		_, err = channel.Read(make([]byte, 1))
+		require.NoError(t, err)
+	})
 }
 
 func createPair(t *testing.T) (client *peer.Conn, server *peer.Conn, wan *vnet.Router) {
