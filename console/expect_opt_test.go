@@ -28,7 +28,7 @@ func TestExpectOptString(t *testing.T) {
 
 	tests := []struct {
 		title    string
-		opt      Opt
+		opt      ExpectOpt
 		data     string
 		expected bool
 	}{
@@ -63,7 +63,7 @@ func TestExpectOptString(t *testing.T) {
 		t.Run(test.title, func(t *testing.T) {
 			t.Parallel()
 
-			var options Opts
+			var options ExpectOpts
 			err := test.opt(&options)
 			require.Nil(t, err)
 
@@ -86,7 +86,7 @@ func TestExpectOptAll(t *testing.T) {
 
 	tests := []struct {
 		title    string
-		opt      Opt
+		opt      ExpectOpt
 		data     string
 		expected bool
 	}{
@@ -144,7 +144,7 @@ func TestExpectOptAll(t *testing.T) {
 		test := test
 		t.Run(test.title, func(t *testing.T) {
 			t.Parallel()
-			var options Opts
+			var options ExpectOpts
 			err := test.opt(&options)
 			require.Nil(t, err)
 

@@ -71,14 +71,14 @@ func Prompt(in io.Reader, out io.Writer) error {
 	return nil
 }
 
-func newTestConsole(t *testing.T, opts ...ConsoleOpt) (*Console, error) {
-	opts = append([]ConsoleOpt{
+func newTestConsole(t *testing.T, opts ...Opt) (*Console, error) {
+	opts = append([]Opt{
 		expectNoError(t),
 	}, opts...)
 	return NewConsole(opts...)
 }
 
-func expectNoError(t *testing.T) ConsoleOpt {
+func expectNoError(t *testing.T) Opt {
 	return WithExpectObserver(
 		func(matchers []Matcher, buf string, err error) {
 			if err == nil {
