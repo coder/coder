@@ -3,11 +3,12 @@ package clitest_test
 import (
 	"testing"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/expect"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/console"
 )
 
 func TestMain(m *testing.M) {
@@ -20,11 +21,11 @@ func TestCli(t *testing.T) {
 	client := coderdtest.New(t)
 	cmd, config := clitest.New(t)
 	clitest.SetupConfig(t, client, config)
-	console := expect.NewTestConsole(t, cmd)
+	cons := console.New(t, cmd)
 	go func() {
 		err := cmd.Execute()
 		require.NoError(t, err)
 	}()
-	_, err := console.ExpectString("coder")
+	_, err := cons.ExpectString("coder")
 	require.NoError(t, err)
 }

@@ -275,14 +275,18 @@ func TestConn(t *testing.T) {
 		go func() {
 			channel, err := client.Dial(context.Background(), "test", nil)
 			require.NoError(t, err)
-			_, err = channel.Write([]byte{'1', '2'})
+			_, err = channel.Write([]byte{1, 2})
 			require.NoError(t, err)
 		}()
-
 		channel, err := server.Accept(context.Background())
 		require.NoError(t, err)
-		_, err = channel.Read(make([]byte, 1))
+		data := make([]byte, 1)
+		_, err = channel.Read(data)
 		require.NoError(t, err)
+		require.Equal(t, uint8(0x1), data[0])
+		_, err = channel.Read(data)
+		require.NoError(t, err)
+		require.Equal(t, uint8(0x2), data[0])
 	})
 }
 

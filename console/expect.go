@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expect
+package console
 
 import (
 	"bufio"
@@ -40,8 +40,8 @@ func (c *Console) ExpectString(s string) (string, error) {
 // expecting input yet, it will be blocked. Sends are queued up in tty's
 // internal buffer so that the next Expect will read the remaining bytes (i.e.
 // rest of prompt) as well as its conditions.
-func (c *Console) Expect(opts ...Opt) (string, error) {
-	var options Opts
+func (c *Console) Expect(opts ...ExpectOpt) (string, error) {
+	var options ExpectOpts
 	for _, opt := range opts {
 		if err := opt(&options); err != nil {
 			return "", err
