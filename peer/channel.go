@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"net"
@@ -78,7 +79,8 @@ type Channel struct {
 	dc   *webrtc.DataChannel
 	// This field can be nil. It becomes set after the DataChannel
 	// has been opened and is detached.
-	rwc datachannel.ReadWriteCloser
+	rwc    datachannel.ReadWriteCloser
+	reader io.Reader
 
 	closed     chan struct{}
 	closeMutex sync.Mutex
@@ -129,6 +131,21 @@ func (c *Channel) init() {
 		if err != nil {
 			_ = c.closeWithError(xerrors.Errorf("detach: %w", err))
 			return
+		}
+		// pion/webrtc will return an io.ErrShortBuffer when a read
+		// is triggerred with a buffer size less than the chunks written.
+		//
+		// This makes sense when considering UDP connections, because
+		// bufferring of data that has no transmit guarantees is likely
+		// to cause unexpected behavior.
+		//
+		// When ordered, this adds a bufio.Reader. This ensures additional
+		// data on TCP-like connections can be read in parts, while still
+		// being bufferred.
+		if c.opts.Unordered {
+			c.reader = c.rwc
+		} else {
+			c.reader = bufio.NewReader(c.rwc)
 		}
 		close(c.opened)
 	})
@@ -181,7 +198,7 @@ func (c *Channel) Read(bytes []byte) (int, error) {
 		}
 	}
 
-	bytesRead, err := c.rwc.Read(bytes)
+	bytesRead, err := c.reader.Read(bytes)
 	if err != nil {
 		if c.isClosed() {
 			return 0, c.closeError
