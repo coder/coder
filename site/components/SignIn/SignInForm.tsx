@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
-import { useRouter } from "next/router"
+import { NextRouter, useRouter } from "next/router"
 import React from "react"
 import { useSWRConfig } from "swr"
 import * as Yup from "yup"
@@ -63,12 +63,7 @@ export const SignInForm: React.FC<SignInProps> = ({
         // Tell SWR to invalidate the cache for the user endpoint
         await mutate("/api/v2/users/me")
 
-        let redirect = "/"
-        if (router.query?.redirect) {
-          redirect = firstOrItem(router.query.redirect, redirect)
-        }
-
-        console.log("Using redirect: " + redirect)
+        const redirect = getRedirectFromRouter(router)
         await router.push(redirect)
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")
@@ -124,4 +119,13 @@ export const SignInForm: React.FC<SignInProps> = ({
       </form>
     </>
   )
+}
+
+const getRedirectFromRouter = (router: NextRouter) => {
+  const defaultRedirect = "/"
+  if (router.query?.redirect) {
+    return firstOrItem(router.query.redirect, defaultRedirect)
+  } else {
+    return defaultRedirect
+  }
 }
