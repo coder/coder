@@ -105,14 +105,14 @@ func NewConsole(opts ...Opt) (*Console, error) {
 	closers := []io.Closer{consolePty}
 	reader := consolePty.Reader()
 
-	console := &Console{
+	cons := &Console{
 		opts:       options,
 		pty:        consolePty,
 		runeReader: bufio.NewReaderSize(reader, utf8.UTFMax),
 		closers:    closers,
 	}
 
-	return console, nil
+	return cons, nil
 }
 
 // Tty returns an input Tty for accepting input

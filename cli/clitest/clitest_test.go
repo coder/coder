@@ -21,11 +21,11 @@ func TestCli(t *testing.T) {
 	client := coderdtest.New(t)
 	cmd, config := clitest.New(t)
 	clitest.SetupConfig(t, client, config)
-	testConsole := console.New(t, cmd)
+	cons := console.New(t, cmd)
 	go func() {
 		err := cmd.Execute()
 		require.NoError(t, err)
 	}()
-	_, err := testConsole.ExpectString("coder")
+	_, err := cons.ExpectString("coder")
 	require.NoError(t, err)
 }
