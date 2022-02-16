@@ -55,7 +55,29 @@ describe("SignInForm", () => {
     act(() => elem.click())
 
     // Then
-    // Should redirect because login was successfully
+    // Should redirect because login was successful
     await waitFor(() => expect(singletonRouter).toMatchObject({ asPath: "/" }))
+  })
+
+  it("respects ?redirect query parameter when complete", async () => {
+    // Given
+    const loginHandler = (_email: string, _password: string) => Promise.resolve()
+    // Set a path to redirect to after login is successful
+    mockRouter.setCurrentUrl("/login?redirect=%2Fsome%2Fother%2Fpath")
+
+    // When
+    // Render the component
+    const { container } = render(<SignInForm loginHandler={loginHandler} />)
+    // Set user / password
+    const inputs = container.querySelectorAll("input")
+    fireEvent.change(inputs[0], { target: { value: "test@coder.com" } })
+    fireEvent.change(inputs[1], { target: { value: "password" } })
+    // Click sign-in
+    const elem = await screen.findByText("Sign In")
+    act(() => elem.click())
+
+    // Then
+    // Should redirect to /some/other/path because ?redirect was specified and login was successful
+    await waitFor(() => expect(singletonRouter).toMatchObject({ asPath: "/some/other/path" }))
   })
 })
