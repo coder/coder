@@ -9,6 +9,7 @@ import { Welcome } from "./Welcome"
 import { FormTextField } from "../Form"
 import * as API from "./../../api"
 import { LoadingButton } from "./../Button"
+import { firstOrItem } from "../../util/array"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -61,7 +62,14 @@ export const SignInForm: React.FC<SignInProps> = ({
         await loginHandler(email, password)
         // Tell SWR to invalidate the cache for the user endpoint
         await mutate("/api/v2/users/me")
-        await router.push("/")
+
+        let redirect = "/"
+        if (router.query?.redirect) {
+          redirect = firstOrItem(router.query.redirect, redirect)
+        }
+
+        console.log("Using redirect: " + redirect)
+        await router.push(redirect)
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")
       }
