@@ -1,5 +1,5 @@
-import { Typography } from "@material-ui/core"
 import Paper from "@material-ui/core/Paper"
+import Typography from "@material-ui/core/Typography"
 import { makeStyles } from "@material-ui/core/styles"
 import React, { useEffect, useState } from "react"
 import { getApiKey } from "../api"
@@ -16,7 +16,7 @@ const CliAuthenticationPage: React.FC = () => {
 
   useEffect(() => {
     if (me?.id) {
-      getApiKey().then(({ key }) => {
+      void getApiKey().then(({ key }) => {
         setApiKey(key)
       })
     }
