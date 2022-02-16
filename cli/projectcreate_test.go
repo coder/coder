@@ -7,8 +7,8 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/console"
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/expect"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -26,7 +26,7 @@ func TestProjectCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		console := expect.NewTestConsole(t, cmd)
+		console := console.New(t, cmd)
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()
@@ -73,7 +73,7 @@ func TestProjectCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		coderdtest.NewProvisionerDaemon(t, client)
-		console := expect.NewTestConsole(t, cmd)
+		cons := console.New(t, cmd)
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()
@@ -91,9 +91,9 @@ func TestProjectCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			_, err := console.ExpectString(match)
+			_, err := cons.ExpectString(match)
 			require.NoError(t, err)
-			_, err = console.SendLine(value)
+			_, err = cons.SendLine(value)
 			require.NoError(t, err)
 		}
 		<-closeChan

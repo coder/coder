@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/coder/coder/expect/conpty"
+	"github.com/coder/coder/console/conpty"
 )
 
 func newPty() (Pty, error) {
