@@ -3,10 +3,8 @@ package peer
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"io"
 	"net"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -205,7 +203,6 @@ func (c *Channel) Read(bytes []byte) (int, error) {
 		if c.isClosed() {
 			return 0, c.closeError
 		}
-		debug.PrintStack()
 		// An EOF always occurs when the connection is closed.
 		// Alternative close errors will occur first if an unexpected
 		// close has occurred.
@@ -252,8 +249,6 @@ func (c *Channel) Write(bytes []byte) (n int, err error) {
 	//
 	// See: https://github.com/pion/sctp/issues/181
 	time.Sleep(time.Microsecond)
-
-	fmt.Printf("Writing %d\n", len(bytes))
 
 	return c.rwc.Write(bytes)
 }

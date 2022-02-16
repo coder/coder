@@ -2,8 +2,12 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"sync"
 	"time"
 
@@ -47,15 +51,37 @@ type server struct {
 
 func (s *server) init(ctx context.Context) {
 	forwardHandler := &ssh.ForwardedTCPHandler{}
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		panic(err)
+	}
+	signer, err := gossh.NewSignerFromKey(key)
+	if err != nil {
+		panic(err)
+	}
 	s.sshServer = &ssh.Server{
-		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
-			return false
+		ChannelHandlers: ssh.DefaultChannelHandlers,
+		ConnectionFailedCallback: func(conn net.Conn, err error) {
+			fmt.Printf("Conn failed: %s\n", err)
 		},
-		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
-			return false
+		Handler: func(s ssh.Session) {
+			fmt.Printf("WE GOT %q %q\n", s.User(), s.RawCommand())
+		},
+		HostSigners: []ssh.Signer{signer},
+		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
+			// Allow local port forwarding all!
+			return true
 		},
 		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
 			return false
+		},
+		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
+			// Allow revere port forwarding all!
+			return true
+		},
+		RequestHandlers: map[string]ssh.RequestHandler{
+			"tcpip-forward":        forwardHandler.HandleSSHRequest,
+			"cancel-tcpip-forward": forwardHandler.HandleSSHRequest,
 		},
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
@@ -65,12 +91,11 @@ func (s *server) init(ctx context.Context) {
 					// encrypted. If possible, we'd disable encryption entirely here.
 					Ciphers: []string{"arcfour"},
 				},
+				PublicKeyCallback: func(conn gossh.ConnMetadata, key gossh.PublicKey) (*gossh.Permissions, error) {
+					return &gossh.Permissions{}, nil
+				},
 				NoClientAuth: true,
 			}
-		},
-		RequestHandlers: map[string]ssh.RequestHandler{
-			"tcpip-forward":        forwardHandler.HandleSSHRequest,
-			"cancel-tcpip-forward": forwardHandler.HandleSSHRequest,
 		},
 	}
 

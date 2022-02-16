@@ -2,7 +2,6 @@ package agent_test
 
 import (
 	"context"
-	"net"
 	"os"
 	"testing"
 
@@ -14,8 +13,13 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestAgent(t *testing.T) {
 	t.Run("asd", func(t *testing.T) {
@@ -45,9 +49,10 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 		sshConn, channels, requests, err := ssh.NewClientConn(channel.NetConn(), "localhost:22", &ssh.ClientConfig{
 			User: "kyle",
-			HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-				return nil
+			Config: ssh.Config{
+				Ciphers: []string{"arcfour"},
 			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 		require.NoError(t, err)
 		sshClient := ssh.NewClient(sshConn, channels, requests)
