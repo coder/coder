@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expect
+package console
 
 import (
 	"bytes"
@@ -20,22 +20,22 @@ import (
 	"time"
 )
 
-// Opt allows settings Expect options.
-type Opt func(*Opts) error
+// ExpectOpt allows settings Expect options.
+type ExpectOpt func(*ExpectOpts) error
 
-// ConsoleCallback is a callback function to execute if a match is found for
+// Callback is a callback function to execute if a match is found for
 // the chained matcher.
-type ConsoleCallback func(buf *bytes.Buffer) error
+type Callback func(buf *bytes.Buffer) error
 
-// Opts provides additional options on Expect.
-type Opts struct {
+// ExpectOpts provides additional options on Expect.
+type ExpectOpts struct {
 	Matchers    []Matcher
 	ReadTimeout *time.Duration
 }
 
 // Match sequentially calls Match on all matchers in ExpectOpts and returns the
 // first matcher if a match exists, otherwise nil.
-func (eo Opts) Match(v interface{}) Matcher {
+func (eo ExpectOpts) Match(v interface{}) Matcher {
 	for _, matcher := range eo.Matchers {
 		if matcher.Match(v) {
 			return matcher
@@ -83,7 +83,7 @@ func (sm *stringMatcher) Criteria() interface{} {
 // allMatcher fulfills the Matcher interface to match a group of ExpectOpt
 // against any value.
 type allMatcher struct {
-	options Opts
+	options ExpectOpts
 }
 
 func (am *allMatcher) Match(v interface{}) bool {
@@ -109,9 +109,9 @@ func (am *allMatcher) Criteria() interface{} {
 
 // All adds an Expect condition to exit if the content read from Console's tty
 // matches all of the provided ExpectOpt, in any order.
-func All(expectOpts ...Opt) Opt {
-	return func(opts *Opts) error {
-		var options Opts
+func All(expectOpts ...ExpectOpt) ExpectOpt {
+	return func(opts *ExpectOpts) error {
+		var options ExpectOpts
 		for _, opt := range expectOpts {
 			if err := opt(&options); err != nil {
 				return err
@@ -127,8 +127,8 @@ func All(expectOpts ...Opt) Opt {
 
 // String adds an Expect condition to exit if the content read from Console's
 // tty contains any of the given strings.
-func String(strs ...string) Opt {
-	return func(opts *Opts) error {
+func String(strs ...string) ExpectOpt {
+	return func(opts *ExpectOpts) error {
 		for _, str := range strs {
 			opts.Matchers = append(opts.Matchers, &stringMatcher{
 				str: str,

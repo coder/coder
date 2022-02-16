@@ -16,4 +16,4 @@
 // applications. It is unlike expect in that it does not spawn or manage
 // process lifecycle. This package only focuses on expecting output and sending
 // input through it's psuedoterminal.
-package expect
+package console

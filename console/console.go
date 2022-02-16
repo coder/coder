@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package expect
+package console
 
 import (
 	"bufio"
@@ -23,7 +23,7 @@ import (
 	"os"
 	"unicode/utf8"
 
-	"github.com/coder/coder/expect/pty"
+	"github.com/coder/coder/console/pty"
 )
 
 // Console is an interface to automate input and output for interactive
@@ -31,17 +31,17 @@ import (
 // input back on it's tty. Console can also multiplex other sources of input
 // and multiplex its output to other writers.
 type Console struct {
-	opts       ConsoleOpts
+	opts       Opts
 	pty        pty.Pty
 	runeReader *bufio.Reader
 	closers    []io.Closer
 }
 
-// ConsoleOpt allows setting Console options.
-type ConsoleOpt func(*ConsoleOpts) error
+// Opt allows setting Console options.
+type Opt func(*Opts) error
 
-// ConsoleOpts provides additional options on creating a Console.
-type ConsoleOpts struct {
+// Opts provides additional options on creating a Console.
+type Opts struct {
 	Logger          *log.Logger
 	Stdouts         []io.Writer
 	ExpectObservers []Observer
@@ -62,8 +62,8 @@ type Observer func(matchers []Matcher, buf string, err error)
 // last writer, writing to it's internal buffer for matching expects.
 // If a listed writer returns an error, that overall write operation stops and
 // returns the error; it does not continue down the list.
-func WithStdout(writers ...io.Writer) ConsoleOpt {
-	return func(opts *ConsoleOpts) error {
+func WithStdout(writers ...io.Writer) Opt {
+	return func(opts *Opts) error {
 		opts.Stdouts = append(opts.Stdouts, writers...)
 		return nil
 	}
@@ -71,24 +71,24 @@ func WithStdout(writers ...io.Writer) ConsoleOpt {
 
 // WithLogger adds a logger for Console to log debugging information to. By
 // default Console will discard logs.
-func WithLogger(logger *log.Logger) ConsoleOpt {
-	return func(opts *ConsoleOpts) error {
+func WithLogger(logger *log.Logger) Opt {
+	return func(opts *Opts) error {
 		opts.Logger = logger
 		return nil
 	}
 }
 
 // WithExpectObserver adds an ExpectObserver to allow monitoring Expect operations.
-func WithExpectObserver(observers ...Observer) ConsoleOpt {
-	return func(opts *ConsoleOpts) error {
+func WithExpectObserver(observers ...Observer) Opt {
+	return func(opts *Opts) error {
 		opts.ExpectObservers = append(opts.ExpectObservers, observers...)
 		return nil
 	}
 }
 
 // NewConsole returns a new Console with the given options.
-func NewConsole(opts ...ConsoleOpt) (*Console, error) {
-	options := ConsoleOpts{
+func NewConsole(opts ...Opt) (*Console, error) {
+	options := Opts{
 		Logger: log.New(ioutil.Discard, "", 0),
 	}
 
@@ -105,14 +105,14 @@ func NewConsole(opts ...ConsoleOpt) (*Console, error) {
 	closers := []io.Closer{consolePty}
 	reader := consolePty.Reader()
 
-	console := &Console{
+	cons := &Console{
 		opts:       options,
 		pty:        consolePty,
 		runeReader: bufio.NewReaderSize(reader, utf8.UTFMax),
 		closers:    closers,
 	}
 
-	return console, nil
+	return cons, nil
 }
 
 // Tty returns an input Tty for accepting input
