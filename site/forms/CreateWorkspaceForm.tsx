@@ -4,7 +4,7 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 
-import { FormTextField, FormTitle, FormSection } from "../components/Form"
+import { FormCloseButton, FormTextField, FormTitle, FormSection } from "../components/Form"
 import { LoadingButton } from "../components/Button"
 import { Project, Workspace, CreateWorkspaceRequest } from "../api"
 
@@ -45,6 +45,8 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ project, on
           </span>
         }
       />
+      <FormCloseButton onClose={onCancel} />
+
       <FormSection title="Name">
         <FormTextField
           form={form}
