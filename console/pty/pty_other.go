@@ -38,6 +38,10 @@ func (p *unixPty) Reader() io.Reader {
 	return p.pty
 }
 
+func (p *unixPty) Writer() io.Writer {
+	return p.pty
+}
+
 func (p *unixPty) WriteString(str string) (int, error) {
 	return p.pty.WriteString(str)
 }

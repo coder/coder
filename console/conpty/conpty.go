@@ -65,6 +65,10 @@ func (c *ConPty) Reader() io.Reader {
 	return c.outFileOurSide
 }
 
+func (c *ConPty) Writer() io.Writer {
+	return c.inFileOurSide
+}
+
 // InPipe returns input pipe of the pseudo terminal
 // Note: It is safer to use the Write method to prevent partially-written VT sequences
 // from corrupting the terminal

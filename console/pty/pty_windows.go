@@ -61,6 +61,10 @@ func (p *pipePtyVal) Reader() io.Reader {
 	return p.outFileOurSide
 }
 
+func (p *pipePtyVal) Writer() io.Writer {
+	return p.inFileOurSide
+}
+
 func (p *pipePtyVal) WriteString(str string) (int, error) {
 	return p.inFileOurSide.WriteString(str)
 }

@@ -12,6 +12,7 @@ type Pty interface {
 	Resize(cols uint16, rows uint16) error
 	WriteString(str string) (int, error)
 	Reader() io.Reader
+	Writer() io.Writer
 	Close() error
 }
 

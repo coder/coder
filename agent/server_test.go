@@ -58,6 +58,8 @@ func TestAgent(t *testing.T) {
 		sshClient := ssh.NewClient(sshConn, channels, requests)
 		session, err := sshClient.NewSession()
 		require.NoError(t, err)
+		err = session.RequestPty("xterm-256color", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
 		session.Stdout = os.Stdout
 		session.Stderr = os.Stderr
 		err = session.Run("echo test")
