@@ -36,6 +36,13 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/login", api.postLogin)
 		r.Post("/logout", api.postLogout)
+		r.Route("/api-keys", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+			)
+			r.Post("/", api.postApiKey)
+		})
+
 		// Used for setup.
 		r.Get("/user", api.user)
 		r.Post("/user", api.postUser)
