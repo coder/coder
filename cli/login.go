@@ -144,6 +144,7 @@ func login() *cobra.Command {
 
 			apiKey, err := prompt(cmd, &promptui.Prompt{
 				Label: "Paste your token here:",
+				Mask:  '*',
 				Validate: func(token string) error {
 					client.SessionToken = token
 					_, err := client.User(cmd.Context(), "me")
