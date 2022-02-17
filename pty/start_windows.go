@@ -6,6 +6,7 @@ package pty
 import (
 	"os"
 	"os/exec"
+	"strings"
 	"unicode/utf16"
 	"unsafe"
 
