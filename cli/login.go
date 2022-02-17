@@ -219,5 +219,10 @@ func openURL(urlToOpen string) error {
 		return exec.Command(cmd, args...).Start()
 	}
 
+	// Hide output from the browser library,
+	// otherwise we can get really verbose and non-actionable messages
+	// when in SSH or another type of headless session
+	browser.Stderr = ioutil.Discard
+	browser.Stdout = ioutil.Discard
 	return browser.OpenURL(urlToOpen)
 }
