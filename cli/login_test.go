@@ -7,7 +7,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/expect"
+	"github.com/coder/coder/console"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +28,7 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
-		console := expect.NewTestConsole(t, root)
+		cons := console.New(t, root)
 		go func() {
 			err := root.Execute()
 			require.NoError(t, err)
@@ -44,12 +44,12 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			_, err := console.ExpectString(match)
+			_, err := cons.ExpectString(match)
 			require.NoError(t, err)
-			_, err = console.SendLine(value)
+			_, err = cons.SendLine(value)
 			require.NoError(t, err)
 		}
-		_, err := console.ExpectString("Welcome to Coder")
+		_, err := cons.ExpectString("Welcome to Coder")
 		require.NoError(t, err)
 	})
 
@@ -70,17 +70,17 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
-		console := expect.NewTestConsole(t, root)
+		cons := console.New(t, root)
 		go func() {
 			err := root.Execute()
 			require.NoError(t, err)
 		}()
 
-		_, err = console.ExpectString("Paste your token here:")
+		_, err = cons.ExpectString("Paste your token here:")
 		require.NoError(t, err)
-		_, err = console.SendLine(token.SessionToken)
+		_, err = cons.SendLine(token.SessionToken)
 		require.NoError(t, err)
-		_, err = console.ExpectString("Welcome to Coder")
+		_, err = cons.ExpectString("Welcome to Coder")
 		require.NoError(t, err)
 	})
 
@@ -96,17 +96,17 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
-		console := expect.NewTestConsole(t, root)
+		cons := console.New(t, root)
 		go func() {
 			err := root.Execute()
 			require.Error(t, err)
 		}()
 
-		_, err = console.ExpectString("Paste your token here:")
+		_, err = cons.ExpectString("Paste your token here:")
 		require.NoError(t, err)
-		_, err = console.SendLine("an-invalid-token")
+		_, err = cons.SendLine("an-invalid-token")
 		require.NoError(t, err)
-		_, err = console.ExpectString("That's not a valid token!")
+		_, err = cons.ExpectString("That's not a valid token!")
 		require.NoError(t, err)
 	})
 }
