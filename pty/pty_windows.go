@@ -41,7 +41,7 @@ func newPty() (PTY, error) {
 	}
 	ptyWindows.outputRead, ptyWindows.outputWrite, err = os.Pipe()
 
-	consoleSize := uintptr((int32(20) << 16) | int32(20))
+	consoleSize := uintptr(80) + (uintptr(80) << 16)
 	ret, _, err := procCreatePseudoConsole.Call(
 		consoleSize,
 		uintptr(ptyWindows.inputRead.Fd()),
