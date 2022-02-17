@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
