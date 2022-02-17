@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/console"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestLogin(t *testing.T) {
@@ -29,7 +29,9 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
-		cons := console.New(t, root)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		go func() {
 			err := root.Execute()
 			require.NoError(t, err)
@@ -45,13 +47,10 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			_, err := cons.ExpectString(match)
-			require.NoError(t, err)
-			_, err = cons.SendLine(value)
-			require.NoError(t, err)
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
 		}
-		_, err := cons.ExpectString("Welcome to Coder")
-		require.NoError(t, err)
+		pty.ExpectMatch("Welcome to Coder")
 	})
 
 	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
@@ -71,18 +70,17 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
-		cons := console.New(t, root)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		go func() {
 			err := root.Execute()
 			require.NoError(t, err)
 		}()
 
-		_, err = cons.ExpectString("Paste your token here:")
-		require.NoError(t, err)
-		_, err = cons.SendLine(token.SessionToken)
-		require.NoError(t, err)
-		_, err = cons.ExpectString("Welcome to Coder")
-		require.NoError(t, err)
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(token.SessionToken)
+		pty.ExpectMatch("Welcome to Coder")
 	})
 
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
@@ -97,17 +95,17 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
-		cons := console.New(t, root)
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
 		go func() {
 			err := root.Execute()
+			// An error is expected in this case, since the login wasn't successful:
 			require.Error(t, err)
 		}()
 
-		_, err = cons.ExpectString("Paste your token here:")
-		require.NoError(t, err)
-		_, err = cons.SendLine("an-invalid-token")
-		require.NoError(t, err)
-		_, err = cons.ExpectString("That's not a valid token!")
-		require.NoError(t, err)
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine("an-invalid-token")
+		pty.ExpectMatch("That's not a valid token!")
 	})
 }

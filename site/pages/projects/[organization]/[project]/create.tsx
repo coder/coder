@@ -32,7 +32,7 @@ const CreateWorkspacePage: React.FC = () => {
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
     const workspace = await API.Workspace.create(req)
-    await router.push(`/workspaces/${workspace.id}`)
+    await router.push(`/workspaces/me/${workspace.name}`)
     return workspace
   }
 

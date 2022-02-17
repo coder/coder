@@ -154,7 +154,7 @@ func login() *cobra.Command {
 				},
 			})
 			if err != nil {
-				return xerrors.Errorf("specify email prompt: %w", err)
+				return xerrors.Errorf("paste token prompt: %w", err)
 			}
 
 			err = saveSessionToken(cmd, client, apiKey, serverURL)

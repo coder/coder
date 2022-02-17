@@ -10,46 +10,44 @@ import (
 	"github.com/creack/pty"
 )
 
-func newPty() (Pty, error) {
+func newPty() (PTY, error) {
 	ptyFile, ttyFile, err := pty.Open()
 	if err != nil {
 		return nil, err
 	}
 
-	return &unixPty{
+	return &otherPty{
 		pty: ptyFile,
 		tty: ttyFile,
 	}, nil
 }
 
-type unixPty struct {
+type otherPty struct {
 	pty, tty *os.File
 }
 
-func (p *unixPty) InPipe() *os.File {
-	return p.tty
+func (p *otherPty) Input() io.ReadWriter {
+	return readWriter{
+		Reader: p.tty,
+		Writer: p.pty,
+	}
 }
 
-func (p *unixPty) OutPipe() *os.File {
-	return p.tty
+func (p *otherPty) Output() io.ReadWriter {
+	return readWriter{
+		Reader: p.pty,
+		Writer: p.tty,
+	}
 }
 
-func (p *unixPty) Reader() io.Reader {
-	return p.pty
-}
-
-func (p *unixPty) WriteString(str string) (int, error) {
-	return p.pty.WriteString(str)
-}
-
-func (p *unixPty) Resize(cols uint16, rows uint16) error {
+func (p *otherPty) Resize(cols uint16, rows uint16) error {
 	return pty.Setsize(p.tty, &pty.Winsize{
 		Rows: rows,
 		Cols: cols,
 	})
 }
 
-func (p *unixPty) Close() error {
+func (p *otherPty) Close() error {
 	err := p.pty.Close()
 	if err != nil {
 		return err
