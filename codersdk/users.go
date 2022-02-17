@@ -56,6 +56,20 @@ func (c *Client) CreateUser(ctx context.Context, req coderd.CreateUserRequest) (
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
+// CreateApiKey calls the /api-key API
+func (c *Client) CreateApiKey(ctx context.Context) (*coderd.GenerateAPIKeyResponse, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/api-keys"), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusCreated {
+		return nil, readBodyAsError(res)
+	}
+	apiKey := &coderd.GenerateAPIKeyResponse{}
+	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+}
+
 // LoginWithPassword creates a session token authenticating with an email and password.
 // Call `SetSessionToken()` to apply the newly acquired token to the client.
 func (c *Client) LoginWithPassword(ctx context.Context, req coderd.LoginWithPasswordRequest) (coderd.LoginWithPasswordResponse, error) {
