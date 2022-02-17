@@ -7,6 +7,7 @@ import (
 )
 
 func TestPtytest(t *testing.T) {
+	t.Parallel()
 	pty := ptytest.New(t)
 	pty.Output().Write([]byte("write"))
 	pty.ExpectMatch("write")

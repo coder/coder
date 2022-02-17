@@ -11,7 +11,7 @@ import (
 )
 
 func startPty(cmd *exec.Cmd) (PTY, error) {
-	pty, tty, err := pty.Open()
+	ptty, tty, err := pty.Open()
 	if err != nil {
 		return nil, err
 	}
@@ -24,11 +24,11 @@ func startPty(cmd *exec.Cmd) (PTY, error) {
 	cmd.Stdin = tty
 	err = cmd.Start()
 	if err != nil {
-		_ = pty.Close()
+		_ = ptty.Close()
 		return nil, err
 	}
 	return &otherPty{
-		pty: pty,
+		pty: ptty,
 		tty: tty,
 	}, nil
 }

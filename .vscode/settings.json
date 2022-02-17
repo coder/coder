@@ -52,6 +52,7 @@
     "protobuf",
     "provisionerd",
     "provisionersdk",
+    "ptty",
     "ptytest",
     "retrier",
     "sdkproto",

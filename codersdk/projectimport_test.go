@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCreateProjectImportJob(t *testing.T) {

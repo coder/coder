@@ -11,8 +11,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/coder/coder/pty"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/pty"
 )
 
 var (
@@ -22,18 +23,18 @@ var (
 )
 
 func New(t *testing.T) *PTY {
-	pty, err := pty.New()
+	ptty, err := pty.New()
 	require.NoError(t, err)
-	return create(t, pty)
+	return create(t, ptty)
 }
 
 func Start(t *testing.T, cmd *exec.Cmd) *PTY {
-	pty, err := pty.Start(cmd)
+	ptty, err := pty.Start(cmd)
 	require.NoError(t, err)
-	return create(t, pty)
+	return create(t, ptty)
 }
 
-func create(t *testing.T, pty pty.PTY) *PTY {
+func create(t *testing.T, ptty pty.PTY) *PTY {
 	reader, writer := io.Pipe()
 	scanner := bufio.NewScanner(reader)
 	t.Cleanup(func() {
@@ -50,14 +51,14 @@ func create(t *testing.T, pty pty.PTY) *PTY {
 	}()
 
 	t.Cleanup(func() {
-		_ = pty.Close()
+		_ = ptty.Close()
 	})
 	return &PTY{
 		t:   t,
-		PTY: pty,
+		PTY: ptty,
 
 		outputWriter: writer,
-		runeReader:   bufio.NewReaderSize(pty.Output(), utf8.UTFMax),
+		runeReader:   bufio.NewReaderSize(ptty.Output(), utf8.UTFMax),
 	}
 }
 
