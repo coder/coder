@@ -65,8 +65,7 @@ func startPty(cmd *exec.Cmd) (PTY, error) {
 		false,
 		// https://docs.microsoft.com/en-us/windows/win32/procthread/process-creation-flags#create_unicode_environment
 		windows.CREATE_UNICODE_ENVIRONMENT|windows.EXTENDED_STARTUPINFO_PRESENT,
-		// Environment variables can come later!
-		createEnvBlock([]string{"SYSTEMROOT=" + os.Getenv("SYSTEMROOT")}),
+		createEnvBlock(addCriticalEnv(dedupEnvCase(true, cmd.Env))),
 		dirPtr,
 		&startupInfo.StartupInfo,
 		&processInfo,
@@ -102,4 +101,47 @@ func createEnvBlock(envv []string) *uint16 {
 	copy(b[i:i+1], []byte{0})
 
 	return &utf16.Encode([]rune(string(b)))[0]
+}
+
+// dedupEnvCase is dedupEnv with a case option for testing.
+// If caseInsensitive is true, the case of keys is ignored.
+func dedupEnvCase(caseInsensitive bool, env []string) []string {
+	out := make([]string, 0, len(env))
+	saw := make(map[string]int, len(env)) // key => index into out
+	for _, kv := range env {
+		eq := strings.Index(kv, "=")
+		if eq < 0 {
+			out = append(out, kv)
+			continue
+		}
+		k := kv[:eq]
+		if caseInsensitive {
+			k = strings.ToLower(k)
+		}
+		if dupIdx, isDup := saw[k]; isDup {
+			out[dupIdx] = kv
+			continue
+		}
+		saw[k] = len(out)
+		out = append(out, kv)
+	}
+	return out
+}
+
+// addCriticalEnv adds any critical environment variables that are required
+// (or at least almost always required) on the operating system.
+// Currently this is only used for Windows.
+func addCriticalEnv(env []string) []string {
+	for _, kv := range env {
+		eq := strings.Index(kv, "=")
+		if eq < 0 {
+			continue
+		}
+		k := kv[:eq]
+		if strings.EqualFold(k, "SYSTEMROOT") {
+			// We already have it.
+			return env
+		}
+	}
+	return append(env, "SYSTEMROOT="+os.Getenv("SYSTEMROOT"))
 }
