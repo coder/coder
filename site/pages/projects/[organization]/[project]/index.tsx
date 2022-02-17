@@ -62,7 +62,7 @@ const ProjectPage: React.FC = () => {
       key: "name",
       name: "Name",
       renderer: (nameField: string, data: Workspace) => {
-        return <Link href={`/projects/${organization}/${project}/${data.id}`}>{nameField}</Link>
+        return <Link href={`/workspaces/me/${nameField}`}>{nameField}</Link>
       },
     },
   ]
