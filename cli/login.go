@@ -25,6 +25,16 @@ const (
 	goosDarwin  = "darwin"
 )
 
+func init() {
+	// Hide output from the browser library,
+	// otherwise we can get really verbose and non-actionable messages
+	// when in SSH or another type of headless session
+	// NOTE: This needs to be in `init` to prevent data races
+	// (multiple threads trying to set the global browser.Std* variables)
+	browser.Stderr = ioutil.Discard
+	browser.Stdout = ioutil.Discard
+}
+
 func login() *cobra.Command {
 	return &cobra.Command{
 		Use:  "login <url>",
@@ -223,10 +233,5 @@ func openURL(urlToOpen string) error {
 		return exec.Command(cmd, args...).Start()
 	}
 
-	// Hide output from the browser library,
-	// otherwise we can get really verbose and non-actionable messages
-	// when in SSH or another type of headless session
-	browser.Stderr = ioutil.Discard
-	browser.Stdout = ioutil.Discard
 	return browser.OpenURL(urlToOpen)
 }
