@@ -22,7 +22,6 @@ import (
 
 const (
 	goosWindows = "windows"
-	goosLinux   = "linux"
 	goosDarwin  = "darwin"
 )
 
@@ -173,7 +172,7 @@ func saveSessionToken(cmd *cobra.Command, client *codersdk.Client, sessionToken 
 	client.SessionToken = sessionToken
 	resp, err := client.User(cmd.Context(), "me")
 	if err != nil {
-		return xerrors.Errorf("get user: ", err)
+		return xerrors.Errorf("get user: %w", err)
 	}
 
 	config := createConfig(cmd)
@@ -203,7 +202,7 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(url string) error {
+func openURL(urlToOpen string) error {
 	var cmd string
 	var args []string
 
@@ -215,10 +214,10 @@ func openURL(url string) error {
 	if wsl {
 		cmd = "cmd.exe"
 		args = []string{"/c", "start"}
-		url = strings.ReplaceAll(url, "&", "^&")
-		args = append(args, url)
+		urlToOpen = strings.ReplaceAll(urlToOpen, "&", "^&")
+		args = append(args, urlToOpen)
 		return exec.Command(cmd, args...).Start()
 	}
 
-	return browser.OpenURL(url)
+	return browser.OpenURL(urlToOpen)
 }

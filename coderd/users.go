@@ -318,7 +318,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new API key, used for logging in via the CLI
-func (api *api) postApiKey(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	userID := apiKey.UserID
 
@@ -348,10 +348,10 @@ func (api *api) postApiKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// This format is consumed by the APIKey middleware.
-	generatedApiKey := fmt.Sprintf("%s-%s", keyID, keySecret)
+	generatedAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, GenerateAPIKeyResponse{Key: generatedApiKey})
+	render.JSON(rw, r, GenerateAPIKeyResponse{Key: generatedAPIKey})
 }
 
 // Clear the user's session cookie

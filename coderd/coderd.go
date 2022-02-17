@@ -40,7 +40,7 @@ func New(options *Options) http.Handler {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 			)
-			r.Post("/", api.postApiKey)
+			r.Post("/", api.postAPIKey)
 		})
 
 		// Used for setup.

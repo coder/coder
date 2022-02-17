@@ -129,7 +129,7 @@ func TestPostAPIKey(t *testing.T) {
 		// Clear session token
 		client.SessionToken = ""
 		// ...and request an API key
-		_, err := client.CreateApiKey(context.Background())
+		_, err := client.CreateAPIKey(context.Background())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -139,7 +139,7 @@ func TestPostAPIKey(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t)
 		_ = coderdtest.CreateInitialUser(t, client)
-		apiKey, err := client.CreateApiKey(context.Background())
+		apiKey, err := client.CreateAPIKey(context.Background())
 		require.NotNil(t, apiKey)
 		require.GreaterOrEqual(t, len(apiKey.Key), 2)
 		require.NoError(t, err)

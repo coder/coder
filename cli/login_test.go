@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/console"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLogin(t *testing.T) {

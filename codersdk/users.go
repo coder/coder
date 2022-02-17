@@ -56,9 +56,9 @@ func (c *Client) CreateUser(ctx context.Context, req coderd.CreateUserRequest) (
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// CreateApiKey calls the /api-key API
-func (c *Client) CreateApiKey(ctx context.Context) (*coderd.GenerateAPIKeyResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/api-keys"), nil)
+// CreateAPIKey calls the /api-key API
+func (c *Client) CreateAPIKey(ctx context.Context) (*coderd.GenerateAPIKeyResponse, error) {
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/api-keys", nil)
 	if err != nil {
 		return nil, err
 	}
