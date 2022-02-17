@@ -8,7 +8,12 @@ import (
 	"testing"
 
 	"github.com/coder/coder/pty/ptytest"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestStart(t *testing.T) {
 	t.Parallel()
