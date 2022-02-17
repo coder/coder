@@ -317,10 +317,17 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Creates a new API key, used for logging in via the CLI
-func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
+// Creates a new session key, used for logging in via the CLI
+func (api *api) postKeyForUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
 	apiKey := httpmw.APIKey(r)
-	userID := apiKey.UserID
+
+	if user.ID != apiKey.UserID {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "Keys can only be generated for the authenticated user",
+		})
+		return
+	}
 
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
@@ -333,7 +340,7 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 
 	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 		ID:           keyID,
-		UserID:       userID,
+		UserID:       apiKey.UserID,
 		ExpiresAt:    database.Now().AddDate(1, 0, 0), // Expire after 1 year (same as v1)
 		CreatedAt:    database.Now(),
 		UpdatedAt:    database.Now(),

@@ -36,12 +36,6 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/login", api.postLogin)
 		r.Post("/logout", api.postLogout)
-		r.Route("/api-keys", func(r chi.Router) {
-			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
-			)
-			r.Post("/", api.postAPIKey)
-		})
 
 		// Used for setup.
 		r.Get("/user", api.user)
@@ -51,10 +45,12 @@ func New(options *Options) http.Handler {
 				httpmw.ExtractAPIKey(options.Database, nil),
 			)
 			r.Post("/", api.postUsers)
-			r.Group(func(r chi.Router) {
+
+			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/{user}", api.userByName)
-				r.Get("/{user}/organizations", api.organizationsByUser)
+				r.Get("/", api.userByName)
+				r.Get("/organizations", api.organizationsByUser)
+				r.Post("/keys", api.postKeyForUser)
 			})
 		})
 		r.Route("/projects", func(r chi.Router) {

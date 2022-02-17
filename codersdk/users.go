@@ -58,7 +58,7 @@ func (c *Client) CreateUser(ctx context.Context, req coderd.CreateUserRequest) (
 
 // CreateAPIKey calls the /api-key API
 func (c *Client) CreateAPIKey(ctx context.Context) (*coderd.GenerateAPIKeyResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/api-keys", nil)
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/users/me/keys", nil)
 	if err != nil {
 		return nil, err
 	}

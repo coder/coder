@@ -119,7 +119,7 @@ func TestOrganizationsByUser(t *testing.T) {
 	require.Len(t, orgs, 1)
 }
 
-func TestPostAPIKey(t *testing.T) {
+func TestPostKey(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidUser", func(t *testing.T) {
 		t.Parallel()
