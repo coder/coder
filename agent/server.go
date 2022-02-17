@@ -5,16 +5,15 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
-	"fmt"
 	"io"
 	"net"
-	"os/exec"
+	"os"
 	"sync"
 	"syscall"
 	"time"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/console/pty"
+	"github.com/ActiveState/termtest/conpty"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/retry"
@@ -72,46 +71,31 @@ func (s *server) init(ctx context.Context) {
 			sshLogger.Info(ctx, "ssh connection ended", slog.Error(err))
 		},
 		Handler: func(session ssh.Session) {
-			fmt.Printf("WE GOT %q %q\n", session.User(), session.RawCommand())
-
 			sshPty, windowSize, isPty := session.Pty()
 			if isPty {
-				cmd := exec.CommandContext(ctx, session.Command()[0], session.Command()[1:]...)
-				cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
-				cmd.SysProcAttr = &syscall.SysProcAttr{
-					Setsid:  true,
-					Setctty: true,
-				}
-				pty, err := pty.New()
+				cpty, err := conpty.New(int16(sshPty.Window.Width), int16(sshPty.Window.Height))
 				if err != nil {
 					panic(err)
 				}
-				err = pty.Resize(uint16(sshPty.Window.Width), uint16(sshPty.Window.Height))
-				if err != nil {
-					panic(err)
-				}
-				cmd.Stdout = pty.OutPipe()
-				cmd.Stderr = pty.OutPipe()
-				cmd.Stdin = pty.InPipe()
-				err = cmd.Start()
+				_, _, err = cpty.Spawn("C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", []string{}, &syscall.ProcAttr{
+					Env: os.Environ(),
+				})
 				if err != nil {
 					panic(err)
 				}
 				go func() {
 					for win := range windowSize {
-						err := pty.Resize(uint16(win.Width), uint16(win.Height))
+						err := cpty.Resize(uint16(win.Width), uint16(win.Height))
 						if err != nil {
 							panic(err)
 						}
 					}
 				}()
+
 				go func() {
-					io.Copy(pty.Writer(), session)
+					io.Copy(session, cpty)
 				}()
-				fmt.Printf("Got here!\n")
-				io.Copy(session, pty.Reader())
-				fmt.Printf("Done!\n")
-				cmd.Wait()
+				io.Copy(cpty, session)
 			}
 		},
 		HostSigners: []ssh.Signer{randomSigner},

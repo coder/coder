@@ -75,7 +75,7 @@ func newTestConsole(t *testing.T, opts ...Opt) (*Console, error) {
 	opts = append([]Opt{
 		expectNoError(t),
 	}, opts...)
-	return NewConsole(opts...)
+	return NewWithOptions(opts...)
 }
 
 func expectNoError(t *testing.T) Opt {
@@ -123,7 +123,7 @@ func TestExpectf(t *testing.T) {
 		console.SendLine("xilfteN")
 	}()
 
-	err = Prompt(console.InTty(), console.OutTty())
+	err = Prompt(console.Input(), console.Output())
 	if err != nil {
 		t.Errorf("Expected no error but got '%s'", err)
 	}
@@ -149,7 +149,7 @@ func TestExpect(t *testing.T) {
 		console.SendLine("xilfteN")
 	}()
 
-	err = Prompt(console.InTty(), console.OutTty())
+	err = Prompt(console.Input(), console.Output())
 	if err != nil {
 		t.Errorf("Expected no error but got '%s'", err)
 	}
@@ -173,7 +173,7 @@ func TestExpectOutput(t *testing.T) {
 		console.SendLine("3")
 	}()
 
-	err = Prompt(console.InTty(), console.OutTty())
+	err = Prompt(console.Input(), console.Output())
 	if err == nil || !errors.Is(err, ErrWrongAnswer) {
 		t.Errorf("Expected error '%s' but got '%s' instead", ErrWrongAnswer, err)
 	}

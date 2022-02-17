@@ -16,6 +16,7 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 
 require (
 	cdr.dev/slog v1.4.1
+	github.com/ActiveState/termtest/conpty v0.5.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/coder/retry v1.3.0
 	github.com/creack/pty v1.1.17

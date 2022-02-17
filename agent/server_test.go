@@ -62,7 +62,10 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 		session.Stdout = os.Stdout
 		session.Stderr = os.Stderr
-		err = session.Run("echo test")
+		err = session.Run("cmd.exe /k echo test")
 		require.NoError(t, err)
 	})
 }
+
+// Read + write for input
+// Read + write for output

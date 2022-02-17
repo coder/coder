@@ -16,44 +16,44 @@ func newPty() (Pty, error) {
 		return nil, err
 	}
 
-	return &unixPty{
+	return &otherPty{
 		pty: ptyFile,
 		tty: ttyFile,
 	}, nil
 }
 
-type unixPty struct {
+type otherPty struct {
 	pty, tty *os.File
 }
 
-func (p *unixPty) InPipe() *os.File {
+func (p *otherPty) InPipe() *os.File {
 	return p.tty
 }
 
-func (p *unixPty) OutPipe() *os.File {
+func (p *otherPty) OutPipe() *os.File {
 	return p.tty
 }
 
-func (p *unixPty) Reader() io.Reader {
+func (p *otherPty) Reader() io.Reader {
 	return p.pty
 }
 
-func (p *unixPty) Writer() io.Writer {
+func (p *otherPty) Writer() io.Writer {
 	return p.pty
 }
 
-func (p *unixPty) WriteString(str string) (int, error) {
+func (p *otherPty) WriteString(str string) (int, error) {
 	return p.pty.WriteString(str)
 }
 
-func (p *unixPty) Resize(cols uint16, rows uint16) error {
+func (p *otherPty) Resize(cols uint16, rows uint16) error {
 	return pty.Setsize(p.tty, &pty.Winsize{
 		Rows: rows,
 		Cols: cols,
 	})
 }
 
-func (p *unixPty) Close() error {
+func (p *otherPty) Close() error {
 	err := p.pty.Close()
 	if err != nil {
 		return err

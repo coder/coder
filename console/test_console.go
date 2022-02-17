@@ -34,12 +34,12 @@ func New(t *testing.T, cmd *cobra.Command) *Console {
 		}
 	}()
 
-	console, err := NewConsole(WithStdout(writer))
+	console, err := NewWithOptions(WithStdout(writer))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		console.Close()
 	})
-	cmd.SetIn(console.InTty())
-	cmd.SetOut(console.OutTty())
+	cmd.SetIn(console.Input())
+	cmd.SetOut(console.Output())
 	return console
 }

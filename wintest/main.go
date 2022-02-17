@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"testing"
 
@@ -14,15 +15,15 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/windows"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func main() {
-	state, err := MakeOutputRaw(os.Stdout.Fd())
+	oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		panic(err)
+		log.Fatalf("Could not put terminal in raw mode: %v\n", err)
 	}
-	defer Restore(os.Stdout.Fd(), state)
+	defer terminal.Restore(0, oldState)
 
 	t := &testing.T{}
 	ctx := context.Background()
@@ -60,54 +61,13 @@ func main() {
 	sshClient := ssh.NewClient(sshConn, channels, requests)
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
-	err = session.RequestPty("xterm-256color", 128, 128, ssh.TerminalModes{
-		ssh.ECHO: 1,
+	err = session.RequestPty("", 1024, 1024, ssh.TerminalModes{
+		ssh.IGNCR: 1,
 	})
 	require.NoError(t, err)
 	session.Stdin = os.Stdin
 	session.Stdout = os.Stdout
 	session.Stderr = os.Stderr
-	err = session.Run("bash")
+	err = session.Run("C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
 	require.NoError(t, err)
-}
-
-// State differs per-platform.
-type State struct {
-	mode uint32
-}
-
-// makeRaw sets the terminal in raw mode and returns the previous state so it can be restored.
-func makeRaw(handle windows.Handle, input bool) (uint32, error) {
-	var prevState uint32
-	if err := windows.GetConsoleMode(handle, &prevState); err != nil {
-		return 0, err
-	}
-
-	var raw uint32
-	if input {
-		raw = prevState &^ (windows.ENABLE_ECHO_INPUT | windows.ENABLE_PROCESSED_INPUT | windows.ENABLE_LINE_INPUT | windows.ENABLE_PROCESSED_OUTPUT)
-		raw |= windows.ENABLE_VIRTUAL_TERMINAL_INPUT
-	} else {
-		raw = prevState | windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING
-	}
-
-	if err := windows.SetConsoleMode(handle, raw); err != nil {
-		return 0, err
-	}
-	return prevState, nil
-}
-
-// MakeOutputRaw sets an output terminal to raw and enables VT100 processing.
-func MakeOutputRaw(handle uintptr) (*State, error) {
-	prevState, err := makeRaw(windows.Handle(handle), false)
-	if err != nil {
-		return nil, err
-	}
-
-	return &State{mode: prevState}, nil
-}
-
-// Restore terminal back to original state.
-func Restore(handle uintptr, state *State) error {
-	return windows.SetConsoleMode(windows.Handle(handle), state.mode)
 }

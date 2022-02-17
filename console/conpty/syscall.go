@@ -18,7 +18,74 @@ var (
 	procResizePseudoConsole = kernel32.NewProc("ResizePseudoConsole")
 	procCreatePseudoConsole = kernel32.NewProc("CreatePseudoConsole")
 	procClosePseudoConsole  = kernel32.NewProc("ClosePseudoConsole")
+
+	// Required for executing processes!
+	procInitializeProcThreadAttributeList = kernel32.NewProc("InitializeProcThreadAttributeList")
+	procUpdateProcThreadAttribute         = kernel32.NewProc("UpdateProcThreadAttribute")
+	procLocalAlloc                        = kernel32.NewProc("LocalAlloc")
+	procDeleteProcThreadAttributeList     = kernel32.NewProc("DeleteProcThreadAttributeList")
+	procCreateProcessW                    = kernel32.NewProc("CreateProcessW")
 )
+
+// An extended version of process startup information that points
+// to a pseudo terminal object.
+type startupInfoEx struct {
+	startupInfo     windows.StartupInfo
+	lpAttributeList windows.Handle
+}
+
+// Constant in CreateProcessW indicating that extended startup information is present.
+const extendedStartupinfoPresent uint32 = 0x00080000
+
+type procThreadAttribute uintptr
+
+// windows constant needed during initialization of extended startupinfo
+const procThreadAttributePseudoconsole procThreadAttribute = 22 | 0x00020000
+
+func initializeProcThreadAttributeList(attributeList uintptr, attributeCount uint32, listSize *uint64) (err error) {
+	if attributeList == 0 {
+		procInitializeProcThreadAttributeList.Call(0, uintptr(attributeCount), 0, uintptr(unsafe.Pointer(listSize)))
+		return
+	}
+	r1, _, e1 := procInitializeProcThreadAttributeList.Call(attributeList, uintptr(attributeCount), 0, uintptr(unsafe.Pointer(listSize)))
+
+	if r1 == 0 { // boolean FALSE
+		err = e1
+	}
+
+	return
+}
+
+func updateProcThreadAttributeList(attributeList windows.Handle, attribute procThreadAttribute, lpValue windows.Handle, lpSize uintptr) (err error) {
+
+	r1, _, e1 := procUpdateProcThreadAttribute.Call(uintptr(attributeList), 0, uintptr(attribute), uintptr(lpValue), lpSize, 0, 0)
+
+	if r1 == 0 { // boolean FALSE
+		err = e1
+	}
+
+	return
+}
+func deleteProcThreadAttributeList(handle windows.Handle) (err error) {
+	r1, _, e1 := procDeleteProcThreadAttributeList.Call(uintptr(handle))
+
+	if r1 == 0 { // boolean FALSE
+		err = e1
+	}
+
+	return
+}
+
+func localAlloc(size uint64) (ptr windows.Handle, err error) {
+	r1, _, e1 := procLocalAlloc.Call(uintptr(0x0040), uintptr(size))
+	if r1 == 0 {
+		err = e1
+		ptr = windows.InvalidHandle
+		return
+	}
+	ptr = windows.Handle(r1)
+	return
+}
 
 func createPseudoConsole(consoleSize uintptr, ptyIn windows.Handle, ptyOut windows.Handle, hpCon *windows.Handle) (err error) {
 	r1, _, e1 := procCreatePseudoConsole.Call(

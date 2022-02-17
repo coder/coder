@@ -20,7 +20,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"os"
 	"unicode/utf8"
 
 	"github.com/coder/coder/console/pty"
@@ -86,8 +85,8 @@ func WithExpectObserver(observers ...Observer) Opt {
 	}
 }
 
-// NewConsole returns a new Console with the given options.
-func NewConsole(opts ...Opt) (*Console, error) {
+// NewWithOptions returns a new Console with the given options.
+func NewWithOptions(opts ...Opt) (*Console, error) {
 	options := Opts{
 		Logger: log.New(ioutil.Discard, "", 0),
 	}
@@ -103,7 +102,7 @@ func NewConsole(opts ...Opt) (*Console, error) {
 		return nil, err
 	}
 	closers := []io.Closer{consolePty}
-	reader := consolePty.Reader()
+	reader := consolePty.Output()
 
 	cons := &Console{
 		opts:       options,
@@ -116,13 +115,13 @@ func NewConsole(opts ...Opt) (*Console, error) {
 }
 
 // Tty returns an input Tty for accepting input
-func (c *Console) InTty() *os.File {
-	return c.pty.InPipe()
+func (c *Console) Input() io.ReadWriter {
+	return c.pty.Input()
 }
 
 // OutTty returns an output tty for writing
-func (c *Console) OutTty() *os.File {
-	return c.pty.OutPipe()
+func (c *Console) Output() io.ReadWriter {
+	return c.pty.Output()
 }
 
 // Close closes Console's tty. Calling Close will unblock Expect and ExpectEOF.
@@ -139,7 +138,7 @@ func (c *Console) Close() error {
 // Send writes string s to Console's tty.
 func (c *Console) Send(s string) (int, error) {
 	c.Logf("console send: %q", s)
-	n, err := c.pty.WriteString(s)
+	n, err := c.pty.Input().Write([]byte(s))
 	return n, err
 }
 
