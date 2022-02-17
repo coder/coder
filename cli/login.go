@@ -198,11 +198,6 @@ func login() *cobra.Command {
 	}
 }
 
-func saveSessionToken(cmd *cobra.Command, client *codersdk.Client, sessionToken string, serverURL *url.URL) error {
-
-	return nil
-}
-
 // isWSL determines if coder-cli is running within Windows Subsystem for Linux
 func isWSL() (bool, error) {
 	if runtime.GOOS == goosDarwin || runtime.GOOS == goosWindows {
