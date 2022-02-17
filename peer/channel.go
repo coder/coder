@@ -263,6 +263,11 @@ func (c *Channel) Label() string {
 	return c.dc.Label()
 }
 
+// Protocol returns the protocol of the underlying DataChannel.
+func (c *Channel) Protocol() string {
+	return c.dc.Protocol()
+}
+
 // NetConn wraps the DataChannel in a struct fulfilling net.Conn.
 // Read, Write, and Close operations can still be used on the *Channel struct.
 func (c *Channel) NetConn() net.Conn {
