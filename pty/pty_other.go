@@ -26,19 +26,11 @@ type otherPty struct {
 	pty, tty *os.File
 }
 
-func (p *otherPty) InPipe() *os.File {
-	return p.tty
-}
-
-func (p *otherPty) OutPipe() *os.File {
-	return p.tty
-}
-
-func (p *otherPty) Reader() io.Reader {
+func (p *otherPty) Input() io.ReadWriter {
 	return p.pty
 }
 
-func (p *otherPty) Writer() io.Writer {
+func (p *otherPty) Output() io.ReadWriter {
 	return p.pty
 }
 

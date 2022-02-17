@@ -7,13 +7,12 @@ import (
 	"errors"
 	"io"
 	"net"
-	"os"
+	"os/exec"
 	"sync"
-	"syscall"
 	"time"
 
 	"cdr.dev/slog"
-	"github.com/ActiveState/termtest/conpty"
+	"github.com/coder/coder/console/pty"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/retry"
@@ -71,31 +70,24 @@ func (s *server) init(ctx context.Context) {
 			sshLogger.Info(ctx, "ssh connection ended", slog.Error(err))
 		},
 		Handler: func(session ssh.Session) {
-			sshPty, windowSize, isPty := session.Pty()
+			_, windowSize, isPty := session.Pty()
 			if isPty {
-				cpty, err := conpty.New(int16(sshPty.Window.Width), int16(sshPty.Window.Height))
-				if err != nil {
-					panic(err)
-				}
-				_, _, err = cpty.Spawn("C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", []string{}, &syscall.ProcAttr{
-					Env: os.Environ(),
-				})
+				pty, err := pty.Start(exec.Command("powershell.exe"))
 				if err != nil {
 					panic(err)
 				}
 				go func() {
 					for win := range windowSize {
-						err := cpty.Resize(uint16(win.Width), uint16(win.Height))
+						err := pty.Resize(uint16(win.Width), uint16(win.Height))
 						if err != nil {
 							panic(err)
 						}
 					}
 				}()
-
 				go func() {
-					io.Copy(session, cpty)
+					io.Copy(session, pty.Output())
 				}()
-				io.Copy(cpty, session)
+				io.Copy(pty.Input(), session)
 			}
 		},
 		HostSigners: []ssh.Signer{randomSigner},

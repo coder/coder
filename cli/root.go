@@ -139,13 +139,20 @@ func isTTY(cmd *cobra.Command) bool {
 
 func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
 	var ok bool
-	prompt.Stdin, ok = cmd.InOrStdin().(io.ReadCloser)
+	reader, ok := cmd.InOrStdin().(io.Reader)
 	if !ok {
 		return "", xerrors.New("stdin must be a readcloser")
 	}
-	prompt.Stdout, ok = cmd.OutOrStdout().(io.WriteCloser)
+	prompt.Stdin = readWriteCloser{
+		Reader: reader,
+	}
+
+	writer, ok := cmd.OutOrStdout().(io.Writer)
 	if !ok {
 		return "", xerrors.New("stdout must be a readcloser")
+	}
+	prompt.Stdout = readWriteCloser{
+		Writer: writer,
 	}
 
 	// The prompt library displays defaults in a jarring way for the user
@@ -198,4 +205,11 @@ func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
 	}
 
 	return value, err
+}
+
+// readWriteCloser fakes reads, writes, and closing!
+type readWriteCloser struct {
+	io.Reader
+	io.Writer
+	io.Closer
 }

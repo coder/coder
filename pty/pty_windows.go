@@ -22,77 +22,67 @@ var (
 )
 
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session
-func newPty() (Pty, error) {
+func newPty() (PTY, error) {
 	// We use the CreatePseudoConsole API which was introduced in build 17763
 	vsn := windows.RtlGetVersion()
 	if vsn.MajorVersion < 10 ||
 		vsn.BuildNumber < 17763 {
 		// If the CreatePseudoConsole API is not available, we fall back to a simpler
 		// implementation that doesn't create an actual PTY - just uses os.Pipe
-		return pipePty()
+		return nil, xerrors.Errorf("pty not supported")
 	}
 
 	ptyWindows := &ptyWindows{}
 
-	// Create the stdin pipe
-	if err := windows.CreatePipe(&ptyWindows.inputReadSide, &ptyWindows.inputWriteSide, nil, 0); err != nil {
+	var err error
+	ptyWindows.inputRead, ptyWindows.inputWrite, err = os.Pipe()
+	if err != nil {
 		return nil, err
 	}
+	ptyWindows.outputRead, ptyWindows.outputWrite, err = os.Pipe()
 
-	// Create the stdout pipe
-	if err := windows.CreatePipe(&ptyWindows.outputReadSide, &ptyWindows.outputWriteSide, nil, 0); err != nil {
-		return nil, err
-	}
-
-	consoleSize := uintptr((int32(80) << 16) | int32(80))
+	consoleSize := uintptr((int32(20) << 16) | int32(20))
 	ret, _, err := procCreatePseudoConsole.Call(
 		consoleSize,
-		uintptr(ptyWindows.inputReadSide),
-		uintptr(ptyWindows.outputWriteSide),
+		uintptr(ptyWindows.inputRead.Fd()),
+		uintptr(ptyWindows.outputWrite.Fd()),
 		0,
 		uintptr(unsafe.Pointer(&ptyWindows.console)),
 	)
-	if ret != 0 {
-		return nil, xerrors.Errorf("create pseudo console (%d): %w", ret, err)
+	if int32(ret) < 0 {
+		return nil, xerrors.Errorf("create pseudo console (%d): %w", int32(ret), err)
 	}
-
-	ptyWindows.outputWriteSideFile = os.NewFile(uintptr(ptyWindows.outputWriteSide), "|0")
-	ptyWindows.outputReadSideFile = os.NewFile(uintptr(ptyWindows.outputReadSide), "|1")
-	ptyWindows.inputReadSideFile = os.NewFile(uintptr(ptyWindows.inputReadSide), "|2")
-	ptyWindows.inputWriteSideFile = os.NewFile(uintptr(ptyWindows.inputWriteSide), "|3")
-	ptyWindows.closed = false
-
 	return ptyWindows, nil
 }
 
 type ptyWindows struct {
 	console windows.Handle
 
-	outputWriteSide windows.Handle
-	outputReadSide  windows.Handle
-	inputReadSide   windows.Handle
-	inputWriteSide  windows.Handle
-
-	outputWriteSideFile *os.File
-	outputReadSideFile  *os.File
-	inputReadSideFile   *os.File
-	inputWriteSideFile  *os.File
+	outputWrite *os.File
+	outputRead  *os.File
+	inputWrite  *os.File
+	inputRead   *os.File
 
 	closeMutex sync.Mutex
 	closed     bool
 }
 
-func (p *ptyWindows) Input() io.ReadWriter {
-	return readWriter{
-		Writer: p.inputWriteSideFile,
-		Reader: p.inputReadSideFile,
-	}
+type readWriter struct {
+	io.Reader
+	io.Writer
 }
 
 func (p *ptyWindows) Output() io.ReadWriter {
 	return readWriter{
-		Writer: p.outputWriteSideFile,
-		Reader: p.outputReadSideFile,
+		Reader: p.outputRead,
+		Writer: p.outputWrite,
+	}
+}
+
+func (p *ptyWindows) Input() io.ReadWriter {
+	return readWriter{
+		Reader: p.inputRead,
+		Writer: p.inputWrite,
 	}
 }
 
@@ -116,9 +106,7 @@ func (p *ptyWindows) Close() error {
 	if ret != 0 {
 		return xerrors.Errorf("close pseudo console: %w", err)
 	}
-	_ = p.outputWriteSideFile.Close()
-	_ = p.outputReadSideFile.Close()
-	_ = p.inputReadSideFile.Close()
-	_ = p.inputWriteSideFile.Close()
+	_ = p.outputRead.Close()
+	_ = p.inputWrite.Close()
 	return nil
 }

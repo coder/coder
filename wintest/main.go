@@ -25,6 +25,19 @@ func main() {
 	}
 	defer terminal.Restore(0, oldState)
 
+	// if true {
+	// 	pty, err := pty.Run(exec.Command("powershell.exe"))
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	go func() {
+	// 		_, _ = io.Copy(pty.Input(), os.Stdin)
+
+	// 	}()
+	// 	_, _ = io.Copy(os.Stdout, pty.Output())
+	// 	return
+	// }
+
 	t := &testing.T{}
 	ctx := context.Background()
 	client, server := provisionersdk.TransportPipe()
@@ -61,9 +74,7 @@ func main() {
 	sshClient := ssh.NewClient(sshConn, channels, requests)
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
-	err = session.RequestPty("", 1024, 1024, ssh.TerminalModes{
-		ssh.IGNCR: 1,
-	})
+	err = session.RequestPty("", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
 	session.Stdin = os.Stdin
 	session.Stdout = os.Stdout
