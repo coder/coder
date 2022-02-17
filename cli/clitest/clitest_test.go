@@ -3,11 +3,12 @@ package clitest_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/expect"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 )
 
 func TestMain(m *testing.M) {

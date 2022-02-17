@@ -1,11 +1,13 @@
 package cli_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/expect"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/expect"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,6 +50,63 @@ func TestLogin(t *testing.T) {
 			require.NoError(t, err)
 		}
 		_, err := console.ExpectString("Welcome to Coder")
+		require.NoError(t, err)
+	})
+
+	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
+			Username:     "test-user",
+			Email:        "test-user@coder.com",
+			Organization: "acme-corp",
+			Password:     "password",
+		})
+		require.NoError(t, err)
+		token, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+			Email:    "test-user@coder.com",
+			Password: "password",
+		})
+		require.NoError(t, err)
+
+		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
+		console := expect.NewTestConsole(t, root)
+		go func() {
+			err := root.Execute()
+			require.NoError(t, err)
+		}()
+
+		_, err = console.ExpectString("Paste your token here:")
+		require.NoError(t, err)
+		_, err = console.SendLine(token.SessionToken)
+		require.NoError(t, err)
+		_, err = console.ExpectString("Welcome to Coder")
+		require.NoError(t, err)
+	})
+
+	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
+			Username:     "test-user",
+			Email:        "test-user@coder.com",
+			Organization: "acme-corp",
+			Password:     "password",
+		})
+		require.NoError(t, err)
+
+		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
+		console := expect.NewTestConsole(t, root)
+		go func() {
+			err := root.Execute()
+			require.Error(t, err)
+		}()
+
+		_, err = console.ExpectString("Paste your token here:")
+		require.NoError(t, err)
+		_, err = console.SendLine("an-invalid-token")
+		require.NoError(t, err)
+		_, err = console.ExpectString("That's not a valid token!")
 		require.NoError(t, err)
 	})
 }
