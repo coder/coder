@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
-import { useRouter } from "next/router"
+import { NextRouter, useRouter } from "next/router"
 import React from "react"
 import { useSWRConfig } from "swr"
 import * as Yup from "yup"
@@ -9,6 +9,7 @@ import { Welcome } from "./Welcome"
 import { FormTextField } from "../Form"
 import * as API from "./../../api"
 import { LoadingButton } from "./../Button"
+import { firstOrItem } from "../../util/array"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -61,7 +62,9 @@ export const SignInForm: React.FC<SignInProps> = ({
         await loginHandler(email, password)
         // Tell SWR to invalidate the cache for the user endpoint
         await mutate("/api/v2/users/me")
-        await router.push("/")
+
+        const redirect = getRedirectFromRouter(router)
+        await router.push(redirect)
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")
       }
@@ -116,4 +119,13 @@ export const SignInForm: React.FC<SignInProps> = ({
       </form>
     </>
   )
+}
+
+const getRedirectFromRouter = (router: NextRouter) => {
+  const defaultRedirect = "/"
+  if (router.query?.redirect) {
+    return firstOrItem(router.query.redirect, defaultRedirect)
+  } else {
+    return defaultRedirect
+  }
 }
