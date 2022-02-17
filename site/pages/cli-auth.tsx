@@ -31,7 +31,7 @@ const CliAuthenticationPage: React.FC = () => {
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   root: {
     width: "100vw",
     height: "100vh",
