@@ -126,11 +126,18 @@ func login() *cobra.Command {
 					return xerrors.Errorf("login with password: %w", err)
 				}
 
-				err = saveSessionToken(cmd, client, resp.SessionToken, serverURL)
+				sessionToken := resp.SessionToken
+				config := createConfig(cmd)
+				err = config.Session().Write(sessionToken)
 				if err != nil {
-					return xerrors.Errorf("save session token: %w", err)
+					return xerrors.Errorf("write session token: %w", err)
+				}
+				err = config.URL().Write(serverURL.String())
+				if err != nil {
+					return xerrors.Errorf("write server url: %w", err)
 				}
 
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", color.HiBlackString(">"), color.HiCyanString(username))
 				return nil
 			}
 
@@ -142,7 +149,7 @@ func login() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
 			}
 
-			apiKey, err := prompt(cmd, &promptui.Prompt{
+			sessionToken, err := prompt(cmd, &promptui.Prompt{
 				Label: "Paste your token here:",
 				Mask:  '*',
 				Validate: func(token string) error {
@@ -158,35 +165,31 @@ func login() *cobra.Command {
 				return xerrors.Errorf("paste token prompt: %w", err)
 			}
 
-			err = saveSessionToken(cmd, client, apiKey, serverURL)
+			// Login to get user data - verify it is OK before persisting
+			client.SessionToken = sessionToken
+			resp, err := client.User(cmd.Context(), "me")
 			if err != nil {
-				return xerrors.Errorf("save session token after login: %w", err)
+				return xerrors.Errorf("get user: %w", err)
 			}
 
+			config := createConfig(cmd)
+			err = config.Session().Write(sessionToken)
+			if err != nil {
+				return xerrors.Errorf("write session token: %w", err)
+			}
+			err = config.URL().Write(serverURL.String())
+			if err != nil {
+				return xerrors.Errorf("write server url: %w", err)
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", color.HiBlackString(">"), color.HiCyanString(resp.Username))
 			return nil
 		},
 	}
 }
 
 func saveSessionToken(cmd *cobra.Command, client *codersdk.Client, sessionToken string, serverURL *url.URL) error {
-	// Login to get user data - verify it is OK before persisting
-	client.SessionToken = sessionToken
-	resp, err := client.User(cmd.Context(), "me")
-	if err != nil {
-		return xerrors.Errorf("get user: %w", err)
-	}
 
-	config := createConfig(cmd)
-	err = config.Session().Write(sessionToken)
-	if err != nil {
-		return xerrors.Errorf("write session token: %w", err)
-	}
-	err = config.URL().Write(serverURL.String())
-	if err != nil {
-		return xerrors.Errorf("write server url: %w", err)
-	}
-
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", color.HiBlackString(">"), color.HiCyanString(resp.Username))
 	return nil
 }
 
