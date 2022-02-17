@@ -9,7 +9,7 @@ import (
 	"github.com/creack/pty"
 )
 
-func runPty(cmd *exec.Cmd) (Pty, error) {
+func startPty(cmd *exec.Cmd) (PTY, error) {
 	pty, err := pty.Start(cmd)
 	if err != nil {
 		return nil, err

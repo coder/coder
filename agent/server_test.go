@@ -22,6 +22,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestAgent(t *testing.T) {
+	t.Skip()
+	return
+
 	t.Run("asd", func(t *testing.T) {
 		ctx := context.Background()
 		client, server := provisionersdk.TransportPipe()

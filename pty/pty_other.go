@@ -10,7 +10,7 @@ import (
 	"github.com/creack/pty"
 )
 
-func newPty() (Pty, error) {
+func newPty() (PTY, error) {
 	ptyFile, ttyFile, err := pty.Open()
 	if err != nil {
 		return nil, err
