@@ -66,6 +66,3 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
-
-// Read + write for input
-// Read + write for output

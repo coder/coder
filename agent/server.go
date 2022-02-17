@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/console/pty"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
+	"github.com/coder/coder/pty"
 	"github.com/coder/retry"
 
 	"github.com/gliderlabs/ssh"
