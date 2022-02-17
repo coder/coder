@@ -12,7 +12,6 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
@@ -138,21 +137,9 @@ func isTTY(cmd *cobra.Command) bool {
 }
 
 func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
-	var ok bool
-	reader, ok := cmd.InOrStdin().(io.Reader)
-	if !ok {
-		return "", xerrors.New("stdin must be a readcloser")
-	}
-	prompt.Stdin = readWriteCloser{
-		Reader: reader,
-	}
-
-	writer, ok := cmd.OutOrStdout().(io.Writer)
-	if !ok {
-		return "", xerrors.New("stdout must be a readcloser")
-	}
+	prompt.Stdin = io.NopCloser(cmd.InOrStdin())
 	prompt.Stdout = readWriteCloser{
-		Writer: writer,
+		Writer: cmd.OutOrStdout(),
 	}
 
 	// The prompt library displays defaults in a jarring way for the user

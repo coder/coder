@@ -67,11 +67,6 @@ type ptyWindows struct {
 	closed     bool
 }
 
-type readWriter struct {
-	io.Reader
-	io.Writer
-}
-
 func (p *ptyWindows) Output() io.ReadWriter {
 	return readWriter{
 		Reader: p.outputRead,

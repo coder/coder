@@ -3,6 +3,7 @@ package ptytest
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os/exec"
 	"regexp"
@@ -88,6 +89,6 @@ func (p *PTY) ExpectMatch(str string) string {
 }
 
 func (p *PTY) WriteLine(str string) {
-	_, err := p.PTY.Input().Write([]byte(str + "\n"))
+	_, err := fmt.Fprintf(p.PTY.Input(), "%s\n", str)
 	require.NoError(p.t, err)
 }

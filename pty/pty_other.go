@@ -27,15 +27,17 @@ type otherPty struct {
 }
 
 func (p *otherPty) Input() io.ReadWriter {
-	return p.pty
+	return readWriter{
+		Reader: p.tty,
+		Writer: p.pty,
+	}
 }
 
 func (p *otherPty) Output() io.ReadWriter {
-	return p.pty
-}
-
-func (p *otherPty) WriteString(str string) (int, error) {
-	return p.pty.WriteString(str)
+	return readWriter{
+		Reader: p.pty,
+		Writer: p.tty,
+	}
 }
 
 func (p *otherPty) Resize(cols uint16, rows uint16) error {
