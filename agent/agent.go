@@ -9,6 +9,8 @@ import (
 	"io"
 	"net"
 	"os/exec"
+	"os/user"
+	"sync"
 	"time"
 
 	"cdr.dev/slog"
@@ -39,7 +41,6 @@ func DialSSHClient(conn *peer.Conn) (*gossh.Client, error) {
 		return nil, err
 	}
 	sshConn, channels, requests, err := gossh.NewClientConn(netConn, "localhost:22", &gossh.ClientConfig{
-		User: "kyle",
 		Config: gossh.Config{
 			Ciphers: []string{"arcfour"},
 		},
@@ -66,6 +67,7 @@ func New(dialer Dialer, options *Options) io.Closer {
 		clientDialer: dialer,
 		options:      options,
 		closeCancel:  cancelFunc,
+		closed:       make(chan struct{}),
 	}
 	server.init(ctx)
 	return server
@@ -76,6 +78,7 @@ type server struct {
 	options      *Options
 
 	closeCancel context.CancelFunc
+	closeMutex  sync.Mutex
 	closed      chan struct{}
 
 	sshServer *ssh.Server
@@ -153,10 +156,19 @@ func (*server) handleSSHSession(session ssh.Session) error {
 		err     error
 	)
 
+	username := session.User()
+	if username == "" {
+		currentUser, err := user.Current()
+		if err != nil {
+			return xerrors.Errorf("get current user: %w", err)
+		}
+		username = currentUser.Username
+	}
+
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
 	if len(session.Command()) == 0 {
-		command, err = usershell.Get(session.User())
+		command, err = usershell.Get(username)
 		if err != nil {
 			return xerrors.Errorf("get user shell: %w", err)
 		}
@@ -208,6 +220,7 @@ func (*server) handleSSHSession(session ssh.Session) error {
 			_, _ = io.Copy(session, ptty.Output())
 		}()
 		_, _ = process.Wait()
+		_ = ptty.Close()
 		return nil
 	}
 
@@ -254,7 +267,11 @@ func (s *server) run(ctx context.Context) {
 	for {
 		conn, err := peerListener.Accept()
 		if err != nil {
-			// This is closed!
+			if s.isClosed() {
+				return
+			}
+			s.options.Logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
+			s.run(ctx)
 			return
 		}
 		go s.handlePeerConn(ctx, conn)
@@ -265,15 +282,21 @@ func (s *server) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	for {
 		channel, err := conn.Accept(ctx)
 		if err != nil {
-			// TODO: Log here!
+			if s.isClosed() {
+				return
+			}
+			s.options.Logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
 			return
 		}
 
 		switch channel.Protocol() {
 		case "ssh":
 			s.sshServer.HandleConn(channel.NetConn())
-		case "proxy":
-			// Proxy the port provided.
+		default:
+			s.options.Logger.Warn(ctx, "unhandled protocol from channel",
+				slog.F("protocol", channel.Protocol()),
+				slog.F("label", channel.Label()),
+			)
 		}
 	}
 }
@@ -289,6 +312,13 @@ func (s *server) isClosed() bool {
 }
 
 func (s *server) Close() error {
-	s.sshServer.Close()
+	s.closeMutex.Lock()
+	defer s.closeMutex.Unlock()
+	if s.isClosed() {
+		return nil
+	}
+	close(s.closed)
+	s.closeCancel()
+	_ = s.sshServer.Close()
 	return nil
 }

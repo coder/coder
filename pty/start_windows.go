@@ -83,10 +83,6 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	if err != nil {
 		return nil, nil, xerrors.Errorf("find process %d: %w", processInfo.ProcessId, err)
 	}
-	go func() {
-		_, _ = process.Wait()
-		_ = pty.Close()
-	}()
 	return pty, process, nil
 }
 

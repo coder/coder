@@ -11,6 +11,7 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/peer"
@@ -35,7 +36,9 @@ func TestAgent(t *testing.T) {
 			Logger: slogtest.Make(t, nil),
 		})
 		require.NoError(t, err)
-		defer conn.Close()
+		t.Cleanup(func() {
+			_ = conn.Close()
+		})
 		sshClient, err := agent.DialSSHClient(conn)
 		require.NoError(t, err)
 		session, err := sshClient.NewSession()
@@ -58,7 +61,9 @@ func TestAgent(t *testing.T) {
 			Logger: slogtest.Make(t, nil),
 		})
 		require.NoError(t, err)
-		defer conn.Close()
+		t.Cleanup(func() {
+			_ = conn.Close()
+		})
 		sshClient, err := agent.DialSSHClient(conn)
 		require.NoError(t, err)
 		session, err := sshClient.NewSession()
@@ -94,7 +99,7 @@ func setup(t *testing.T) proto.DRPCPeerBrokerClient {
 			Logger: slogtest.Make(t, nil),
 		})
 	}, &agent.Options{
-		Logger: slogtest.Make(t, nil),
+		Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 	})
 	t.Cleanup(func() {
 		_ = client.Close()

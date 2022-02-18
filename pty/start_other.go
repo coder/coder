@@ -32,9 +32,5 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 		pty: ptty,
 		tty: tty,
 	}
-	go func() {
-		_ = cmd.Wait()
-		_ = oPty.Close()
-	}()
 	return oPty, cmd.Process, nil
 }

@@ -41,6 +41,7 @@ require (
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
 	github.com/pion/webrtc/v3 v3.1.23
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/psanford/memfs v0.0.0-20210214183328-a001468d78ef
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
 	github.com/spf13/cobra v1.3.0
@@ -115,7 +116,6 @@ require (
 	github.com/pion/stun v0.3.5 // indirect
 	github.com/pion/turn/v2 v2.0.6 // indirect
 	github.com/pion/udp v0.1.1 // indirect
-	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
