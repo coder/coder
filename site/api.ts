@@ -139,3 +139,16 @@ export const logout = async (): Promise<void> => {
 
   return
 }
+
+export const getApiKey = async (): Promise<{ key: string }> => {
+  const response = await fetch("/api/v2/users/me/keys", {
+    method: "POST",
+  })
+
+  if (!response.ok) {
+    const body = await response.json()
+    throw new Error(body.message)
+  }
+
+  return await response.json()
+}

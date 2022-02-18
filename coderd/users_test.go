@@ -119,6 +119,33 @@ func TestOrganizationsByUser(t *testing.T) {
 	require.Len(t, orgs, 1)
 }
 
+func TestPostKey(t *testing.T) {
+	t.Parallel()
+	t.Run("InvalidUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+
+		// Clear session token
+		client.SessionToken = ""
+		// ...and request an API key
+		_, err := client.CreateAPIKey(context.Background())
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		_ = coderdtest.CreateInitialUser(t, client)
+		apiKey, err := client.CreateAPIKey(context.Background())
+		require.NotNil(t, apiKey)
+		require.GreaterOrEqual(t, len(apiKey.Key), 2)
+		require.NoError(t, err)
+	})
+}
+
 func TestPostLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidUser", func(t *testing.T) {
