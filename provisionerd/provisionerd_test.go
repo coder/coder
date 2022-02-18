@@ -406,9 +406,9 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 	err := proto.DRPCRegisterProvisionerDaemon(mux, &server)
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
 	go func() {
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
 		_ = srv.Serve(ctx, serverPipe)
 	}()
 	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(clientPipe))
@@ -426,9 +426,9 @@ func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkprot
 	err := sdkproto.DRPCRegisterProvisioner(mux, &server)
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
 	go func() {
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
 		_ = srv.Serve(ctx, serverPipe)
 	}()
 	return sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(clientPipe))
