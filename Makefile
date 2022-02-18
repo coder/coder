@@ -5,9 +5,9 @@ bin/coder:
 	go build -o bin/coder cmd/coder/main.go
 .PHONY: bin/coder
 
-bin/coderd:
+bin/coderd: site/out/.default
 	mkdir -p bin
-	go build -tags embed -o bin/coderd cmd/coderd/main.go
+	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
 build: site/out bin/coder bin/coderd
@@ -85,6 +85,12 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
+
+site/out/.default:
+	mkdir --parents site/out/_next/chunks/pages/app
+	cp --no-clobber site/index.html site/out/index.html
+	touch site/out/_next/chunks/pages/app/placeholder.html
+	touch $@
 
 site/out: 
 	cd site && yarn install

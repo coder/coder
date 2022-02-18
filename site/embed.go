@@ -1,6 +1,7 @@
 package site
 
 import (
+	"embed"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -13,6 +14,14 @@ import (
 
 	"github.com/coder/coder/site/nextrouter"
 )
+
+// The `embed` package ignores recursively including directories
+// that prefix with `_`. Wildcarding nested is janky, but seems to
+// work quite well for edge-cases.
+//go:embed out/_next/*/*/*/*
+//go:embed out/_next/*/*/*
+//go:embed out
+var site embed.FS
 
 // Handler returns an HTTP handler for serving the static site.
 func Handler(logger slog.Logger) http.Handler {
