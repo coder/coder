@@ -10,6 +10,8 @@ import (
 )
 
 var site fs.FS = fstest.MapFS{
+	// Create a fake filesystem for go tests, so that we can avoid
+	// building the frontend
 	"out/test": &fstest.MapFile{
 		Data: []byte("dummy file"),
 	},
