@@ -100,9 +100,6 @@ func (s *server) init(ctx context.Context) {
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	s.sshServer = &ssh.Server{
 		ChannelHandlers: ssh.DefaultChannelHandlers,
-		ConnectionFailedCallback: func(conn net.Conn, err error) {
-			sshLogger.Info(ctx, "ssh connection ended", slog.Error(err))
-		},
 		Handler: func(session ssh.Session) {
 			err := s.handleSSHSession(session)
 			if err != nil {
