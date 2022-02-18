@@ -20,7 +20,6 @@ require (
 	github.com/coder/retry v1.3.0
 	github.com/creack/pty v1.1.17
 	github.com/fatih/color v1.13.0
-	github.com/gliderlabs/ssh v0.3.3
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.10.0
@@ -41,6 +40,7 @@ require (
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
 	github.com/pion/webrtc/v3 v3.1.23
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/psanford/memfs v0.0.0-20210214183328-a001468d78ef
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
 	github.com/spf13/cobra v1.3.0
@@ -65,7 +65,6 @@ require (
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
-	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
@@ -115,7 +114,6 @@ require (
 	github.com/pion/stun v0.3.5 // indirect
 	github.com/pion/turn/v2 v2.0.6 // indirect
 	github.com/pion/udp v0.1.1 // indirect
-	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
