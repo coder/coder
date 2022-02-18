@@ -150,9 +150,11 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with Mock Database
+        env:
+          GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage"
-          -timeout=3m -count=5 -race -short -parallel=2
+          -covermode=atomic -coverprofile="gotests.coverage" -failfast
+          -timeout=3m -count=5 -race -short
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
@@ -166,7 +168,7 @@ jobs:
         if: runner.os == 'Linux'
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=1 -race -parallel=2
+          -count=1 -race -parallel=2 -failfast
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
@@ -187,12 +189,7 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
-    # Temporarily disable the 'deploy' job until issue is fixed:
-    # https://github.com/coder/coder/issues/287
-    # As a part of a fix for that, uncomment the below line
-    # and delete the 'if' after:
-    # if: github.event_name != 'pull_request'
-    if: false
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
       id-token: write
