@@ -7,7 +7,7 @@ bin/coder:
 
 bin/coderd:
 	mkdir -p bin
-	go build -o bin/coderd cmd/coderd/main.go
+	go build -tags embed -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
 build: site/out bin/coder bin/coderd

@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/stretchr/testify/require"
+	"time"
 
 	"cdr.dev/slog"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/site"
 )
@@ -18,12 +18,20 @@ func TestIndexPageRenders(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(site.Handler(slog.Logger{}))
+	defer srv.Close()
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	// As a special case, check the root page is not cached
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	require.NoError(t, err, "create request")
+
+	resp, err := srv.Client().Do(req)
 	require.NoError(t, err, "get index")
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
+
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err, "read response")
 	require.NotEmpty(t, data, "index should have contents")
+	require.NoError(t, resp.Body.Close(), "closing response")
 }

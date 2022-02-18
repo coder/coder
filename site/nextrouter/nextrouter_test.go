@@ -20,6 +20,7 @@ func TestNextRouter(t *testing.T) {
 
 	t.Run("Serves file at root", func(t *testing.T) {
 		t.Parallel()
+
 		rootFS := memfs.New()
 		err := rootFS.WriteFile("test.html", []byte("test123"), 0755)
 		require.NoError(t, err)
