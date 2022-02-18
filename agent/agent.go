@@ -260,8 +260,16 @@ func (s *server) run(ctx context.Context) {
 			s.options.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
+		defer func() {
+			_ = peerListener.Close()
+		}()
 		s.options.Logger.Debug(context.Background(), "connected")
 		break
+	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
 	}
 
 	for {
