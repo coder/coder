@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"io"
+	"net"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -59,7 +60,13 @@ func New(t *testing.T) *codersdk.Client {
 		Database: db,
 		Pubsub:   pubsub,
 	})
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewUnstartedServer(handler)
+	srv.Config.BaseContext = func(_ net.Listener) context.Context {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+		return ctx
+	}
+	srv.Start()
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	t.Cleanup(srv.Close)

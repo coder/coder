@@ -6,6 +6,7 @@ package pty
 import (
 	"io"
 	"os"
+	"sync"
 
 	"github.com/creack/pty"
 )
@@ -23,6 +24,7 @@ func newPty() (PTY, error) {
 }
 
 type otherPty struct {
+	mutex    sync.Mutex
 	pty, tty *os.File
 }
 
@@ -41,6 +43,8 @@ func (p *otherPty) Output() io.ReadWriter {
 }
 
 func (p *otherPty) Resize(cols uint16, rows uint16) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	return pty.Setsize(p.tty, &pty.Winsize{
 		Rows: rows,
 		Cols: cols,
@@ -48,6 +52,9 @@ func (p *otherPty) Resize(cols uint16, rows uint16) error {
 }
 
 func (p *otherPty) Close() error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	err := p.pty.Close()
 	if err != nil {
 		return err
