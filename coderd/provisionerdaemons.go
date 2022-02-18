@@ -84,10 +84,6 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("multiplex server: %s", err))
 		return
 	}
-	go func() {
-		<-r.Context().Done()
-		_, _ = fmt.Printf("\n\n\n\nDONE\n\n\n\n")
-	}()
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
 		ID:           daemon.ID,
