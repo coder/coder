@@ -5,7 +5,7 @@ bin/coder:
 	go build -o bin/coder cmd/coder/main.go
 .PHONY: bin/coder
 
-bin/coderd: site/out/.default
+bin/coderd: site/out/index.html
 	mkdir -p bin
 	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
@@ -86,11 +86,11 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 		./provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
-site/out/.default:
+site/out/index.html:
 	mkdir --parents site/out/_next/chunks/pages/app
 	cp --no-clobber site/index.html site/out/index.html
 	touch site/out/_next/chunks/pages/app/placeholder.html
-	touch $@
+.PHONY: site/out/index.html
 
 site/out: 
 	cd site && yarn install
