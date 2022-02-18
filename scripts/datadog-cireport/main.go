@@ -59,6 +59,11 @@ func main() {
 	}
 	commitParts := strings.Split(string(commitData), ",")
 
+	branch := os.Getenv("GITHUB_HEAD_REF")
+	if branch == "" {
+		branch = os.Getenv("GITHUB_BASE_REF")
+	}
+
 	tags := map[string]string{
 		"service":              "coder",
 		"_dd.cireport_version": "2",
@@ -78,7 +83,7 @@ func main() {
 		"ci.provider.name":   "github",
 		"ci.workspace_path":  os.Getenv("GITHUB_WORKSPACE"),
 
-		"git.branch":         os.Getenv("GITHUB_REF_NAME"),
+		"git.branch":         branch,
 		"git.commit.sha":     githubSHA,
 		"git.repository_url": fmt.Sprintf("%s/%s.git", githubServerURL, githubRepository),
 
