@@ -41,7 +41,6 @@ require (
 	github.com/pion/transport v0.13.0
 	github.com/pion/webrtc/v3 v3.1.23
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/psanford/memfs v0.0.0-20210214183328-a001468d78ef
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
