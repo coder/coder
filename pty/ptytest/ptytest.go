@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -28,10 +30,10 @@ func New(t *testing.T) *PTY {
 	return create(t, ptty)
 }
 
-func Start(t *testing.T, cmd *exec.Cmd) *PTY {
-	ptty, err := pty.Start(cmd)
+func Start(t *testing.T, cmd *exec.Cmd) (*PTY, *os.Process) {
+	ptty, ps, err := pty.Start(cmd)
 	require.NoError(t, err)
-	return create(t, ptty)
+	return create(t, ptty), ps
 }
 
 func create(t *testing.T, ptty pty.PTY) *PTY {
@@ -86,10 +88,15 @@ func (p *PTY) ExpectMatch(str string) string {
 			break
 		}
 	}
+	p.t.Logf("matched %q = %q", str, stripAnsi.ReplaceAllString(buffer.String(), ""))
 	return buffer.String()
 }
 
 func (p *PTY) WriteLine(str string) {
-	_, err := fmt.Fprintf(p.PTY.Input(), "%s\n", str)
+	newline := "\n"
+	if runtime.GOOS == "windows" {
+		newline = "\r\n"
+	}
+	_, err := fmt.Fprintf(p.PTY.Input(), "%s%s", str, newline)
 	require.NoError(p.t, err)
 }
