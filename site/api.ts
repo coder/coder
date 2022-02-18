@@ -141,7 +141,7 @@ export const logout = async (): Promise<void> => {
 }
 
 export const getApiKey = async (): Promise<{ key: string }> => {
-  const response = await fetch("/api/v2/api-keys", {
+  const response = await fetch("/api/v2/users/me/keys", {
     method: "POST",
   })
 
