@@ -148,6 +148,11 @@ jobs:
         with:
           terraform_version: 1.1.2
           terraform_wrapper: false
+      
+      # Check that coderd compiles normally and ensure that the placeholder
+      # files for the frontend exist
+      - name: Compile coderd
+        run: make bin/coderd
 
       - name: Test with Mock Database
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
