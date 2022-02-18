@@ -87,8 +87,8 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
 site/out/index.html:
-	mkdir --parents site/out/_next/chunks/pages/app
-	cp --no-clobber site/index.html site/out/index.html
+	mkdir -p site/out/_next/chunks/pages/app
+	cp -n site/index.html site/out/index.html
 	touch site/out/_next/chunks/pages/app/placeholder.html
 .PHONY: site/out/index.html
 
