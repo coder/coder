@@ -282,7 +282,7 @@ func (s *server) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	for {
 		channel, err := conn.Accept(ctx)
 		if err != nil {
-			if s.isClosed() {
+			if errors.Is(err, peer.ErrClosed) || s.isClosed() {
 				return
 			}
 			s.options.Logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
