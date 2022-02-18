@@ -192,7 +192,7 @@ jobs:
     # As a part of a fix for that, uncomment the below line
     # and delete the 'if' after:
     # if: github.event_name != 'pull_request'
-    if: false
+    if: true
     permissions:
       contents: read
       id-token: write
