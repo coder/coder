@@ -55,6 +55,11 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
+// GenerateAPIKeyResponse contains an API key for a user.
+type GenerateAPIKeyResponse struct {
+	Key string `json:"key"`
+}
+
 // Returns whether the initial user has been created or not.
 func (api *api) user(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
@@ -310,6 +315,50 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, LoginWithPasswordResponse{
 		SessionToken: sessionToken,
 	})
+}
+
+// Creates a new session key, used for logging in via the CLI
+func (api *api) postKeyForUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	if user.ID != apiKey.UserID {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "Keys can only be generated for the authenticated user",
+		})
+		return
+	}
+
+	keyID, keySecret, err := generateAPIKeyIDSecret()
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("generate api key parts: %s", err.Error()),
+		})
+		return
+	}
+	hashed := sha256.Sum256([]byte(keySecret))
+
+	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+		ID:           keyID,
+		UserID:       apiKey.UserID,
+		ExpiresAt:    database.Now().AddDate(1, 0, 0), // Expire after 1 year (same as v1)
+		CreatedAt:    database.Now(),
+		UpdatedAt:    database.Now(),
+		HashedSecret: hashed[:],
+		LoginType:    database.LoginTypeBuiltIn,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert api key: %s", err.Error()),
+		})
+		return
+	}
+
+	// This format is consumed by the APIKey middleware.
+	generatedAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(rw, r, GenerateAPIKeyResponse{Key: generatedAPIKey})
 }
 
 // Clear the user's session cookie
