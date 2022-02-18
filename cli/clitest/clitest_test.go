@@ -8,7 +8,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/console"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestMain(m *testing.M) {
@@ -21,11 +21,12 @@ func TestCli(t *testing.T) {
 	client := coderdtest.New(t)
 	cmd, config := clitest.New(t)
 	clitest.SetupConfig(t, client, config)
-	cons := console.New(t, cmd)
+	pty := ptytest.New(t)
+	cmd.SetIn(pty.Input())
+	cmd.SetOut(pty.Output())
 	go func() {
 		err := cmd.Execute()
 		require.NoError(t, err)
 	}()
-	_, err := cons.ExpectString("coder")
-	require.NoError(t, err)
+	pty.ExpectMatch("coder")
 }

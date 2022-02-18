@@ -78,7 +78,7 @@ func main() {
 		"ci.provider.name":   "github",
 		"ci.workspace_path":  os.Getenv("GITHUB_WORKSPACE"),
 
-		"git.branch":         os.Getenv("GITHUB_HEAD_REF"),
+		"git.branch":         os.Getenv("GITHUB_REF_NAME"),
 		"git.commit.sha":     githubSHA,
 		"git.repository_url": fmt.Sprintf("%s/%s.git", githubServerURL, githubRepository),
 
