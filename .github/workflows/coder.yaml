@@ -187,12 +187,7 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
-    # Temporarily disable the 'deploy' job until issue is fixed:
-    # https://github.com/coder/coder/issues/287
-    # As a part of a fix for that, uncomment the below line
-    # and delete the 'if' after:
-    # if: github.event_name != 'pull_request'
-    if: false
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
       id-token: write
