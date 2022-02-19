@@ -153,7 +153,7 @@ func login() *cobra.Command {
 
 			authURL := *serverURL
 			authURL.Path = serverURL.Path + "/cli-auth"
-			if err := openURL(authURL.String()); err != nil {
+			if err := openURL(cmd, authURL.String()); err != nil {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 			} else {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
@@ -211,21 +211,22 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(urlToOpen string) error {
-	var cmd string
-	var args []string
-
+func openURL(cmd *cobra.Command, urlToOpen string) error {
+	noOpen, err := cmd.Flags().GetBool(varNoOpen)
+	if err != nil {
+		panic(err)
+	}
+	if noOpen {
+		return xerrors.New("opening is blocked")
+	}
 	wsl, err := isWSL()
 	if err != nil {
 		return xerrors.Errorf("test running Windows Subsystem for Linux: %w", err)
 	}
 
 	if wsl {
-		cmd = "cmd.exe"
-		args = []string{"/c", "start"}
-		urlToOpen = strings.ReplaceAll(urlToOpen, "&", "^&")
-		args = append(args, urlToOpen)
-		return exec.Command(cmd, args...).Start()
+		// #nosec
+		return exec.Command("cmd.exe", "/c", "start", strings.ReplaceAll(urlToOpen, "&", "^&")).Start()
 	}
 
 	return browser.OpenURL(urlToOpen)
