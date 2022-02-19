@@ -110,10 +110,13 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			p.closeMutex.Lock()
 			if p.isClosed() {
+				p.closeMutex.Unlock()
 				return
 			}
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			p.closeMutex.Unlock()
 			continue
 		}
 		p.opts.Logger.Debug(context.Background(), "connected")
