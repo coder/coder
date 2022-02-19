@@ -122,7 +122,7 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-latest
+          - windows-2022
     steps:
       - uses: actions/checkout@v2
 
@@ -138,9 +138,9 @@ jobs:
             ~/.cache/go-build
             ~/Library/Caches/go-build
             %LocalAppData%\go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            ${{ matrix.os }}-go-
 
       - run: go install gotest.tools/gotestsum@latest
 
@@ -150,9 +150,13 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with Mock Database
+        shell: bash
+        env:
+          GOCOUNT: ${{ runner.os == 'Windows' && 3 || 5 }}
+          GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
-          -timeout=3m -count=5 -race -short -parallel=2
+          -timeout=3m -count=$GOCOUNT -race -short -failfast
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
@@ -166,10 +170,10 @@ jobs:
         if: runner.os == 'Linux'
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=1 -race -parallel=2
+          -count=1 -race -parallel=2 -failfast
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: postgresql
