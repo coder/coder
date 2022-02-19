@@ -45,7 +45,7 @@ func (p *otherPty) Output() io.ReadWriter {
 func (p *otherPty) Resize(cols uint16, rows uint16) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-	return pty.Setsize(p.tty, &pty.Winsize{
+	return pty.Setsize(p.pty, &pty.Winsize{
 		Rows: rows,
 		Cols: cols,
 	})

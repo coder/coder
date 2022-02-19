@@ -11,47 +11,48 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/xerrors"
 )
 
 // Allocates a PTY and starts the specified command attached to it.
 // See: https://docs.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session#creating-the-hosted-process
-func startPty(cmd *exec.Cmd) (PTY, error) {
+func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	fullPath, err := exec.LookPath(cmd.Path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pathPtr, err := windows.UTF16PtrFromString(fullPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	argsPtr, err := windows.UTF16PtrFromString(windows.ComposeCommandLine(cmd.Args))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if cmd.Dir == "" {
 		cmd.Dir, err = os.Getwd()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	dirPtr, err := windows.UTF16PtrFromString(cmd.Dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pty, err := newPty()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	winPty := pty.(*ptyWindows)
 
 	attrs, err := windows.NewProcThreadAttributeList(1)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Taken from: https://github.com/microsoft/hcsshim/blob/2314362e977aa03b3ed245a4beb12d00422af0e2/internal/winapi/process.go#L6
 	err = attrs.Update(0x20016, unsafe.Pointer(winPty.console), unsafe.Sizeof(winPty.console))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	startupInfo := &windows.StartupInfoEx{}
@@ -73,12 +74,16 @@ func startPty(cmd *exec.Cmd) (PTY, error) {
 		&processInfo,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer windows.CloseHandle(processInfo.Thread)
 	defer windows.CloseHandle(processInfo.Process)
 
-	return pty, nil
+	process, err := os.FindProcess(int(processInfo.ProcessId))
+	if err != nil {
+		return nil, nil, xerrors.Errorf("find process %d: %w", processInfo.ProcessId, err)
+	}
+	return pty, process, nil
 }
 
 // Taken from: https://github.com/microsoft/hcsshim/blob/7fbdca16f91de8792371ba22b7305bf4ca84170a/internal/exec/exec.go#L476

@@ -1,7 +1,10 @@
 package pty
 
-import "os/exec"
+import (
+	"os"
+	"os/exec"
+)
 
-func Start(cmd *exec.Cmd) (PTY, error) {
+func Start(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	return startPty(cmd)
 }

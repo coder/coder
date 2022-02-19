@@ -164,7 +164,7 @@ func AwaitProjectImportJob(t *testing.T, client *codersdk.Client, organization s
 		provisionerJob, err = client.ProjectImportJob(context.Background(), organization, job)
 		require.NoError(t, err)
 		return provisionerJob.Status.Completed()
-	}, 3*time.Second, 25*time.Millisecond)
+	}, 5*time.Second, 25*time.Millisecond)
 	return provisionerJob
 }
 
@@ -176,7 +176,7 @@ func AwaitWorkspaceProvisionJob(t *testing.T, client *codersdk.Client, organizat
 		provisionerJob, err = client.WorkspaceProvisionJob(context.Background(), organization, job)
 		require.NoError(t, err)
 		return provisionerJob.Status.Completed()
-	}, 3*time.Second, 25*time.Millisecond)
+	}, 5*time.Second, 25*time.Millisecond)
 	return provisionerJob
 }
 

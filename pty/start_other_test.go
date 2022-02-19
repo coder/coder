@@ -7,8 +7,9 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/coder/coder/pty/ptytest"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestMain(m *testing.M) {
@@ -19,7 +20,7 @@ func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
 		t.Parallel()
-		pty := ptytest.Start(t, exec.Command("echo", "test"))
+		pty, _ := ptytest.Start(t, exec.Command("echo", "test"))
 		pty.ExpectMatch("test")
 	})
 }

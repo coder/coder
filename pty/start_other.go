@@ -4,6 +4,7 @@
 package pty
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 
@@ -11,10 +12,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func startPty(cmd *exec.Cmd) (PTY, error) {
+func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	ptty, tty, err := pty.Open()
 	if err != nil {
-		return nil, xerrors.Errorf("open: %w", err)
+		return nil, nil, xerrors.Errorf("open: %w", err)
 	}
 	defer func() {
 		_ = tty.Close()
@@ -29,10 +30,11 @@ func startPty(cmd *exec.Cmd) (PTY, error) {
 	err = cmd.Start()
 	if err != nil {
 		_ = ptty.Close()
-		return nil, xerrors.Errorf("start: %w", err)
+		return nil, nil, xerrors.Errorf("start: %w", err)
 	}
-	return &otherPty{
+	oPty := &otherPty{
 		pty: ptty,
 		tty: tty,
-	}, nil
+	}
+	return oPty, cmd.Process, nil
 }
