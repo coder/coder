@@ -183,12 +183,15 @@ func (c *Conn) init() error {
 		}
 	})
 	c.rtc.OnConnectionStateChange(func(peerConnectionState webrtc.PeerConnectionState) {
-		if c.isClosed() {
-			// Make sure we don't log after Close() has been called.
-			return
-		}
-		c.opts.Logger.Debug(context.Background(), "rtc connection updated",
-			slog.F("state", peerConnectionState))
+		go func() {
+			c.closeMutex.Lock()
+			defer c.closeMutex.Unlock()
+			if c.isClosed() {
+				return
+			}
+			c.opts.Logger.Debug(context.Background(), "rtc connection updated",
+				slog.F("state", peerConnectionState))
+		}()
 
 		switch peerConnectionState {
 		case webrtc.PeerConnectionStateDisconnected:
