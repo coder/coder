@@ -376,6 +376,42 @@ func TestNextRouter(t *testing.T) {
 		require.EqualValues(t, "test-create", body)
 	})
 
+	t.Run("Caching headers for _next resources", func(t *testing.T) {
+		t.Parallel()
+
+		rootFS := fstest.MapFS{
+			"index.html": &fstest.MapFile{
+				Data: []byte("test-root"),
+			},
+			"_next/static/test.js": &fstest.MapFile{
+				Data: []byte("test.js cached forever"),
+			},
+			"_next/static/chunks/app/test.css": &fstest.MapFile{
+				Data: []byte("test.css cached forever"),
+			},
+		}
+
+		router, err := nextrouter.Handler(rootFS, nil)
+		require.NoError(t, err)
+
+		server := httptest.NewServer(router)
+		t.Cleanup(server.Close)
+
+		res, err := request(server, "/index.html")
+		require.NoError(t, err)
+		require.NoError(t, res.Body.Close())
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Empty(t, res.Header.Get("Cache-Control"))
+
+		res, err = request(server, "/_next/static/test.js")
+		require.NoError(t, err)
+		require.NoError(t, res.Body.Close())
+
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "public, max-age=31536000, immutable", res.Header.Get("Cache-Control"))
+	})
+
 	t.Run("Injects template parameters", func(t *testing.T) {
 		t.Parallel()
 
