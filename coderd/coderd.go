@@ -108,7 +108,7 @@ func New(options *Options) http.Handler {
 
 		r.Route("/workspaceagent", func(r chi.Router) {
 			r.Route("/authenticate", func(r chi.Router) {
-				r.Post("/google-instance-identity", api.postWorkspaceAgentAuthenticateGoogleInstanceIdentity)
+				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
 			})
 		})
 

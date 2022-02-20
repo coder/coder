@@ -14,6 +14,11 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/golang-jwt/jwt"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/api/option"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -21,10 +26,6 @@ import (
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/golang-jwt/jwt"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/api/idtoken"
-	"google.golang.org/api/option"
 )
 
 func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
@@ -37,7 +38,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.WorkspaceAgentAuthenticateGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -51,7 +52,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.WorkspaceAgentAuthenticateGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -91,7 +92,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, firstHistory.ProvisionJobID)
 
-		_, err = client.WorkspaceAgentAuthenticateGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err = client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
 		require.NoError(t, err)
 	})
 }
@@ -117,7 +118,7 @@ func createMetadataClient(signedKey string) *metadata.Client {
 }
 
 // Create's a signed JWT with a randomly generated private key.
-func createSignedToken(t *testing.T, instanceID string, claims *jwt.MapClaims) (string, string, *rsa.PrivateKey) {
+func createSignedToken(t *testing.T, instanceID string, claims *jwt.MapClaims) (signedKey string, keyID string, privateKey *rsa.PrivateKey) {
 	keyID, err := cryptorand.String(12)
 	require.NoError(t, err)
 	if claims == nil {
@@ -132,11 +133,11 @@ func createSignedToken(t *testing.T, instanceID string, claims *jwt.MapClaims) (
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = keyID
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	signed, err := token.SignedString(privateKey)
+	signedKey, err = token.SignedString(privateKey)
 	require.NoError(t, err)
-	return signed, keyID, privateKey
+	return signedKey, keyID, privateKey
 }
 
 // Create's a validator that verifies against the provided private key.
