@@ -80,7 +80,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		})
 	}
 
-	handler := coderd.New(&coderd.Options{
+	handler, closeWait := coderd.New(&coderd.Options{
 		Logger:   slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database: db,
 		Pubsub:   pubsub,
@@ -96,7 +96,10 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	srv.Start()
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		srv.Close()
+		closeWait()
+	})
 
 	return codersdk.New(serverURL)
 }

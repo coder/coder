@@ -62,6 +62,8 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+	api.websocketWaitGroup.Add(1)
+	defer api.websocketWaitGroup.Done()
 
 	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
@@ -100,7 +102,9 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 	err = server.Serve(r.Context(), session)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("serve: %s", err))
+		return
 	}
+	_ = conn.Close(websocket.StatusGoingAway, "")
 }
 
 // The input for a "workspace_provision" job.
