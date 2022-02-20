@@ -33,7 +33,7 @@ func Root() *cobra.Command {
 		Use: "coderd",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
-			handler := coderd.New(&coderd.Options{
+			handler, closeCoderd := coderd.New(&coderd.Options{
 				Logger:   logger,
 				Database: databasefake.New(),
 				Pubsub:   database.NewPubsubInMemory(),
@@ -49,11 +49,11 @@ func Root() *cobra.Command {
 				Scheme: "http",
 				Host:   address,
 			})
-			closer, err := newProvisionerDaemon(cmd.Context(), client, logger)
+			daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger)
 			if err != nil {
 				return xerrors.Errorf("create provisioner daemon: %w", err)
 			}
-			defer closer.Close()
+			defer daemonClose.Close()
 
 			errCh := make(chan error)
 			go func() {
@@ -61,6 +61,7 @@ func Root() *cobra.Command {
 				errCh <- http.Serve(listener, handler)
 			}()
 
+			closeCoderd()
 			select {
 			case <-cmd.Context().Done():
 				return cmd.Context().Err()
