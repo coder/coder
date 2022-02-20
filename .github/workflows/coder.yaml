@@ -60,8 +60,7 @@ jobs:
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
 
       - name: Install node_modules
-        run: yarn install
-        working-directory: site
+        run: ./scripts/yarn_install.sh
 
       - name: "yarn lint"
         run: yarn lint
@@ -108,8 +107,7 @@ jobs:
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
 
       - name: Install node_modules
-        run: yarn install
-        working-directory: site
+        run: ./scripts/yarn_install.sh
 
       - name: "make fmt"
         run: "make --output-sync -j fmt"
@@ -214,8 +212,8 @@ jobs:
         with:
           node-version: "14"
 
-      - run: yarn install
-        working-directory: site
+      - name: Install node_modules
+        run: ./scripts/yarn_install.sh
 
       - uses: actions/setup-go@v2
         with:
@@ -252,13 +250,15 @@ jobs:
         with:
           node-version: "14"
 
-      - run: yarn install
+      - name: Install node_modules
+        run: ./scripts/yarn_install.sh
+
+      - name: Build frontend
+        run: yarn build
         working-directory: site
 
-      - run: yarn build
-        working-directory: site
-
-      - run: yarn storybook:build
+      - name: Build Storybook
+        run: yarn storybook:build
         working-directory: site
 
       - run: yarn test:coverage
