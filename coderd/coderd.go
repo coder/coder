@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"google.golang.org/api/idtoken"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/database"
@@ -17,14 +18,14 @@ type Options struct {
 	Logger   slog.Logger
 	Database database.Store
 	Pubsub   database.Pubsub
+
+	GoogleTokenValidator *idtoken.Validator
 }
 
 // New constructs the Coder API into an HTTP handler.
 func New(options *Options) http.Handler {
 	api := &api{
-		Database: options.Database,
-		Logger:   options.Logger,
-		Pubsub:   options.Pubsub,
+		Options: options,
 	}
 
 	r := chi.NewRouter()
@@ -105,6 +106,12 @@ func New(options *Options) http.Handler {
 			})
 		})
 
+		r.Route("/workspaceagent", func(r chi.Router) {
+			r.Route("/authenticate", func(r chi.Router) {
+				r.Post("/google-instance-identity", api.postWorkspaceAgentAuthenticateGoogleInstanceIdentity)
+			})
+		})
+
 		r.Route("/files", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
 			r.Post("/", api.postFiles)
@@ -150,7 +157,5 @@ func New(options *Options) http.Handler {
 // API contains all route handlers. Only HTTP handlers should
 // be added to this struct for code clarity.
 type api struct {
-	Database database.Store
-	Logger   slog.Logger
-	Pubsub   database.Pubsub
+	*Options
 }

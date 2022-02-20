@@ -68,6 +68,13 @@ message Log {
 message Resource {
     string name = 1;
     string type = 2;
+    // An optional identifier used for automating Workspace Agent authentication.
+    // Each cloud has it's own unique instance identity signatures, which can be
+    // used for zero-token authentication. See:
+    // GCP: https://cloud.google.com/compute/docs/instances/verifying-instance-identity
+    // AWS: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
+    // Azure: https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#get-attested-data
+    string instance_id = 3;
 }
 
 // Parse consumes source-code from a directory to produce inputs.
