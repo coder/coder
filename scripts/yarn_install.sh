@@ -18,9 +18,6 @@ yarn_flags=(
   # Check if existing node_modules are valid
   # TODO: determine if this is necessary
   # --check-files
-
-  # Do not install optional dependencies
-  --ignore-optional
 )
 
 if [ -n "${CI:-}" ]; then
