@@ -2,33 +2,20 @@ import Paper from "@material-ui/core/Paper"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
-import { QuestionHelp } from "./QuestionHelp"
 import { CardPadding, CardRadius } from "./constants"
 
 export interface WorkspaceSectionProps {
   title: string
-  helpUrl?: string
 }
 
-export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, helpUrl, children }) => {
+export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, children }) => {
   const styles = useStyles()
-
-  let questionHelp = null
-
-  if (helpUrl) {
-    questionHelp = (
-      <div style={{ margin: "0em 1em" }}>
-        <QuestionHelp />
-      </div>
-    )
-  }
 
   return (
     <Paper elevation={0} className={styles.root}>
       <div className={styles.headerContainer}>
         <div className={styles.header}>
           <Typography variant="h6">{title}</Typography>
-          {questionHelp}
         </div>
       </div>
 
