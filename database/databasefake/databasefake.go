@@ -195,16 +195,28 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceResourceByInstanceID(_ context.Context, instanceID string) (database.WorkspaceResource, error) {
+func (q *fakeQuerier) GetWorkspaceAgentByToken(ctx context.Context, token string) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, workspaceResource := range q.workspaceResource {
-		if workspaceResource.InstanceID.String == instanceID {
-			return workspaceResource, nil
+	for _, workspaceAgent := range q.workspaceAgent {
+		if workspaceAgent.Token == token {
+			return workspaceAgent, nil
 		}
 	}
-	return database.WorkspaceResource{}, sql.ErrNoRows
+	return database.WorkspaceAgent{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceID string) (database.WorkspaceAgent, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspaceAgent := range q.workspaceAgent {
+		if workspaceAgent.InstanceID.String == instanceID {
+			return workspaceAgent, nil
+		}
+	}
+	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceResourcesByHistoryID(_ context.Context, workspaceHistoryID uuid.UUID) ([]database.WorkspaceResource, error) {
@@ -707,6 +719,7 @@ func (q *fakeQuerier) InsertProjectImportJobResource(_ context.Context, arg data
 		CreatedAt:  arg.CreatedAt,
 		JobID:      arg.JobID,
 		Transition: arg.Transition,
+		Agent:      arg.Agent,
 		Type:       arg.Type,
 		Name:       arg.Name,
 	}
@@ -856,9 +869,10 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		ID:                  arg.ID,
 		CreatedAt:           arg.CreatedAt,
 		UpdatedAt:           arg.UpdatedAt,
+		WorkspaceHistoryID:  arg.WorkspaceHistoryID,
 		WorkspaceResourceID: arg.WorkspaceResourceID,
-		InstanceMetadata:    arg.InstanceMetadata,
-		ResourceMetadata:    arg.ResourceMetadata,
+		InstanceID:          arg.InstanceID,
+		Token:               arg.Token,
 	}
 	q.workspaceAgent = append(q.workspaceAgent, workspaceAgent)
 	return workspaceAgent, nil
@@ -890,13 +904,12 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 	defer q.mutex.Unlock()
 
 	workspaceResource := database.WorkspaceResource{
-		ID:                  arg.ID,
-		CreatedAt:           arg.CreatedAt,
-		WorkspaceHistoryID:  arg.WorkspaceHistoryID,
-		InstanceID:          arg.InstanceID,
-		Type:                arg.Type,
-		Name:                arg.Name,
-		WorkspaceAgentToken: arg.WorkspaceAgentToken,
+		ID:                 arg.ID,
+		CreatedAt:          arg.CreatedAt,
+		WorkspaceHistoryID: arg.WorkspaceHistoryID,
+		Type:               arg.Type,
+		Name:               arg.Name,
+		WorkspaceAgentID:   arg.WorkspaceAgentID,
 	}
 	q.workspaceResource = append(q.workspaceResource, workspaceResource)
 	return workspaceResource, nil

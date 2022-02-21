@@ -196,7 +196,7 @@ func TestProvisionerd(t *testing.T) {
 			didComplete   atomic.Bool
 			didLog        atomic.Bool
 			didAcquireJob atomic.Bool
-			didDryRun     atomic.Bool
+			didPlan       atomic.Bool
 		)
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
@@ -250,7 +250,7 @@ func TestProvisionerd(t *testing.T) {
 						Type: &sdkproto.Parse_Response_Complete{
 							Complete: &sdkproto.Parse_Complete{
 								ParameterSchemas: []*sdkproto.ParameterSchema{{
-									Name: parameter.CoderWorkspaceTransition,
+									Name: parameter.WorkspaceTransition,
 								}},
 							},
 						},
@@ -258,12 +258,10 @@ func TestProvisionerd(t *testing.T) {
 					require.NoError(t, err)
 					return nil
 				},
-				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					if request.DryRun {
-						didDryRun.Store(true)
-					}
-					err := stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Log{
+				plan: func(request *sdkproto.Plan_Request, stream sdkproto.DRPCProvisioner_PlanStream) error {
+					didPlan.Store(true)
+					err := stream.Send(&sdkproto.Plan_Response{
+						Type: &sdkproto.Plan_Response_Log{
 							Log: &sdkproto.Log{
 								Level:  sdkproto.LogLevel_INFO,
 								Output: "hello",
@@ -272,10 +270,10 @@ func TestProvisionerd(t *testing.T) {
 					})
 					require.NoError(t, err)
 
-					err = stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Resources: []*sdkproto.Resource{},
+					err = stream.Send(&sdkproto.Plan_Response{
+						Type: &sdkproto.Plan_Response_Complete{
+							Complete: &sdkproto.Plan_Complete{
+								Resources: []*sdkproto.PlannedResource{},
 							},
 						},
 					})
@@ -287,7 +285,7 @@ func TestProvisionerd(t *testing.T) {
 		<-completeChan
 		require.True(t, didLog.Load())
 		require.True(t, didComplete.Load())
-		require.True(t, didDryRun.Load())
+		require.True(t, didPlan.Load())
 		require.NoError(t, closer.Close())
 	})
 
@@ -436,11 +434,16 @@ func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkprot
 
 type provisionerTestServer struct {
 	parse     func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error
+	plan      func(request *sdkproto.Plan_Request, stream sdkproto.DRPCProvisioner_PlanStream) error
 	provision func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error
 }
 
 func (p *provisionerTestServer) Parse(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
 	return p.parse(request, stream)
+}
+
+func (p *provisionerTestServer) Plan(request *sdkproto.Plan_Request, stream sdkproto.DRPCProvisioner_PlanStream) error {
+	return p.plan(request, stream)
 }
 
 func (p *provisionerTestServer) Provision(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {

@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS provisioner_job_log (
 CREATE TYPE parameter_scope AS ENUM (
      'organization',
      'project',
-     'import_job',
+     'provisioner_job',
      'user',
      'workspace'
 );
@@ -126,6 +126,7 @@ CREATE TABLE project_import_job_resource (
     created_at timestamptz NOT NULL,
     job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
     transition workspace_transition NOT NULL,
+    agent boolean NOT NULL DEFAULT FALSE,
     type varchar(256) NOT NULL,
     name varchar(64) NOT NULL
 );

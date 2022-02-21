@@ -7,8 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"golang.org/x/xerrors"
@@ -17,7 +15,7 @@ import (
 )
 
 // Provision executes `terraform apply`.
-func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
+func (t *terraform) Plan(request *proto.Plan_Request, stream proto.DRPCProvisioner_PlanStream) error {
 	ctx := stream.Context()
 	statefilePath := filepath.Join(request.Directory, "terraform.tfstate")
 	if len(request.State) > 0 {
@@ -45,8 +43,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 	go func() {
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
+			_ = stream.Send(&proto.Plan_Response{
+				Type: &proto.Plan_Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_INFO,
 						Output: scanner.Text(),
@@ -64,7 +62,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 	t.logger.Debug(ctx, "ran initialization")
 
 	env := map[string]string{}
-	options := []tfexec.ApplyOption{tfexec.JSON(true)}
+	planfilePath := filepath.Join(request.Directory, "terraform.tfplan")
+	options := []tfexec.PlanOption{tfexec.JSON(true), tfexec.Out(planfilePath)}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {
 		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
@@ -80,10 +79,13 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 		return xerrors.Errorf("apply environment variables: %w", err)
 	}
 
+	resources := make([]*proto.PlannedResource, 0)
 	reader, writer = io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
+	closeChan := make(chan struct{})
 	go func() {
+		defer close(closeChan)
 		decoder := json.NewDecoder(reader)
 		for {
 			var log terraformProvisionLog
@@ -97,8 +99,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 				// Not a big deal, but we should handle this at some point!
 				continue
 			}
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
+			_ = stream.Send(&proto.Plan_Response{
+				Type: &proto.Plan_Response_Log{
 					Log: &proto.Log{
 						Level:  logLevel,
 						Output: log.Message,
@@ -115,8 +117,8 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 			if err != nil {
 				continue
 			}
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
+			_ = stream.Send(&proto.Plan_Response{
+				Type: &proto.Plan_Response_Log{
 					Log: &proto.Log{
 						Level:  logLevel,
 						Output: log.Diagnostic.Detail,
@@ -127,78 +129,41 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 	}()
 
 	terraform.SetStdout(writer)
-	t.logger.Debug(ctx, "running apply")
-	err = terraform.Apply(ctx, options...)
+	t.logger.Debug(ctx, "running plan")
+	_, err = terraform.Plan(ctx, options...)
 	if err != nil {
 		return xerrors.Errorf("apply terraform: %w", err)
 	}
-	t.logger.Debug(ctx, "ran apply")
+	t.logger.Debug(ctx, "ran plan")
 
-	statefileContent, err := os.ReadFile(statefilePath)
+	plan, err := terraform.ShowPlanFile(ctx, planfilePath)
 	if err != nil {
-		return xerrors.Errorf("read file %q: %w", statefilePath, err)
+		return xerrors.Errorf("show plan file: %w", err)
 	}
-	state, err := terraform.ShowStateFile(ctx, statefilePath)
-	if err != nil {
-		return xerrors.Errorf("show state file %q: %w", statefilePath, err)
-	}
+	_ = reader.Close()
+	<-closeChan
 
-	resources := make([]*proto.ProvisionedResource, 0)
-	if state.Values != nil {
-		for _, resource := range state.Values.RootModule.Resources {
-			var instanceID string
-			// This enables automatic authentication by associating the instance ID
-			// with the specific resource.
-			if gcpInstanceID, ok := resource.AttributeValues["instance_id"]; ok {
-				instanceID, ok = gcpInstanceID.(string)
-				if !ok {
-					return xerrors.Errorf("invalid type for instance_id property: %s", reflect.TypeOf(gcpInstanceID).String())
-				}
-			}
-			resources = append(resources, &proto.ProvisionedResource{
-				Name:       resource.Name,
-				Type:       resource.Type,
-				InstanceId: instanceID,
-			})
+	for _, resource := range plan.ResourceChanges {
+		protoResource := &proto.PlannedResource{
+			Name: resource.Name,
+			Type: resource.Type,
 		}
+		afterUnknownMap, ok := resource.Change.AfterUnknown.(map[string]interface{})
+		if ok {
+			// This is the specific key used by the Terraform Google Cloud Provisioner
+			// to identify an instance.
+			if _, hasGoogleCloudInstanceID := afterUnknownMap["instance_id"]; hasGoogleCloudInstanceID {
+				protoResource.AutomaticAgent = true
+			}
+		}
+		resources = append(resources, protoResource)
 	}
 
-	return stream.Send(&proto.Provision_Response{
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{
-				State:     statefileContent,
+	return stream.Send(&proto.Plan_Response{
+		Type: &proto.Plan_Response_Complete{
+			Complete: &proto.Plan_Complete{
 				Resources: resources,
 			},
 		},
 	})
-}
-
-type terraformProvisionLog struct {
-	Level   string `json:"@level"`
-	Message string `json:"@message"`
-
-	Diagnostic *terraformProvisionLogDiagnostic `json:"diagnostic"`
-}
-
-type terraformProvisionLogDiagnostic struct {
-	Severity string `json:"severity"`
-	Summary  string `json:"summary"`
-	Detail   string `json:"detail"`
-}
-
-func convertTerraformLogLevel(logLevel string) (proto.LogLevel, error) {
-	switch strings.ToLower(logLevel) {
-	case "trace":
-		return proto.LogLevel_TRACE, nil
-	case "debug":
-		return proto.LogLevel_DEBUG, nil
-	case "info":
-		return proto.LogLevel_INFO, nil
-	case "warn":
-		return proto.LogLevel_WARN, nil
-	case "error":
-		return proto.LogLevel_ERROR, nil
-	default:
-		return proto.LogLevel(0), xerrors.Errorf("invalid log level %q", logLevel)
-	}
 }

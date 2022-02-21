@@ -21,6 +21,7 @@ func TestProjectCreate(t *testing.T) {
 		coderdtest.CreateInitialUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
+			Plan:      echo.PlanComplete,
 			Provision: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
@@ -68,6 +69,7 @@ func TestProjectCreate(t *testing.T) {
 					},
 				},
 			}},
+			Plan:      echo.PlanComplete,
 			Provision: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))

@@ -28,7 +28,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
 CREATE TYPE parameter_scope AS ENUM (
     'organization',
     'project',
-    'import_job',
+    'provisioner_job',
     'user',
     'workspace'
 );
@@ -168,6 +168,7 @@ CREATE TABLE project_import_job_resource (
     created_at timestamp with time zone NOT NULL,
     job_id uuid NOT NULL,
     transition workspace_transition NOT NULL,
+    agent boolean DEFAULT false NOT NULL,
     type character varying(256) NOT NULL,
     name character varying(64) NOT NULL
 );
@@ -250,9 +251,12 @@ CREATE TABLE workspace (
 
 CREATE TABLE workspace_agent (
     id uuid NOT NULL,
+    workspace_history_id uuid NOT NULL,
     workspace_resource_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    instance_id character varying(64),
+    token character varying(64) NOT NULL,
     instance_metadata jsonb NOT NULL,
     resource_metadata jsonb NOT NULL
 );
@@ -276,10 +280,8 @@ CREATE TABLE workspace_resource (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     workspace_history_id uuid NOT NULL,
-    instance_id character varying(64),
     type character varying(256) NOT NULL,
     name character varying(64) NOT NULL,
-    workspace_agent_token character varying(128) NOT NULL,
     workspace_agent_id uuid
 );
 
@@ -328,6 +330,9 @@ ALTER TABLE ONLY provisioner_job_log
 ALTER TABLE ONLY workspace_agent
     ADD CONSTRAINT workspace_agent_id_key UNIQUE (id);
 
+ALTER TABLE ONLY workspace_agent
+    ADD CONSTRAINT workspace_agent_token_key UNIQUE (token);
+
 ALTER TABLE ONLY workspace_history
     ADD CONSTRAINT workspace_history_id_key UNIQUE (id);
 
@@ -344,9 +349,6 @@ ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_id_key UNIQUE (id);
 
 ALTER TABLE ONLY workspace_resource
-    ADD CONSTRAINT workspace_resource_workspace_agent_token_key UNIQUE (workspace_agent_token);
-
-ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_workspace_history_id_type_name_key UNIQUE (workspace_history_id, type, name);
 
 ALTER TABLE ONLY parameter_schema
@@ -360,6 +362,9 @@ ALTER TABLE ONLY project_version
 
 ALTER TABLE ONLY provisioner_job_log
     ADD CONSTRAINT provisioner_job_log_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent
+    ADD CONSTRAINT workspace_agent_workspace_history_id_fkey FOREIGN KEY (workspace_history_id) REFERENCES workspace_history(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent
     ADD CONSTRAINT workspace_agent_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resource(id) ON DELETE CASCADE;

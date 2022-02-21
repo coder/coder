@@ -228,7 +228,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		}
 		protoParameters = append(protoParameters, &sdkproto.ParameterValue{
 			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              parameter.CoderWorkspaceTransition,
+			Name:              parameter.WorkspaceTransition,
 			Value:             string(workspaceHistory.Transition),
 		})
 
@@ -442,11 +442,28 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_ProjectImport_:
-		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
+		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, job.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("get parameter schemas: %w", err)
+		}
+		parameterSchemaByName := map[string]database.ParameterSchema{}
+		for _, parameterSchema := range parameterSchemas {
+			parameterSchemaByName[parameterSchema.Name] = parameterSchema
+		}
+		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.PlannedResource{
 			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
 		} {
 			for _, resource := range resources {
+				if resource.AutomaticAgent {
+					// Check if the agent parameter schema exists!
+					// If it does, this resource has an agent associated.
+					_, resource.AutomaticAgent = parameterSchemaByName[fmt.Sprintf("%s_%s_%s", parameter.AgentToken, resource.Type, resource.Name)]
+				}
+
 				server.Logger.Info(ctx, "inserting project import job resource",
 					slog.F("job_id", job.ID.String()),
 					slog.F("resource_name", resource.Name),
@@ -457,6 +474,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					CreatedAt:  database.Now(),
 					JobID:      jobID,
 					Transition: transition,
+					Agent:      resource.AutomaticAgent,
 					Type:       resource.Type,
 					Name:       resource.Name,
 				})
@@ -513,21 +531,40 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			if err != nil {
 				return xerrors.Errorf("update workspace history: %w", err)
 			}
+
 			// This could be a bulk insert to improve performance.
 			for _, protoResource := range jobType.WorkspaceProvision.Resources {
+				workspaceResourceID := uuid.New()
+				var agentID uuid.NullUUID
+				if protoResource.InstanceId != "" {
+					agentID = uuid.NullUUID{
+						UUID:  uuid.New(),
+						Valid: true,
+					}
+					_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+						ID:                  agentID.UUID,
+						WorkspaceHistoryID:  workspaceHistory.ID,
+						WorkspaceResourceID: workspaceResourceID,
+						InstanceID: sql.NullString{
+							String: protoResource.InstanceId,
+							Valid:  true,
+						},
+						Token:     uuid.NewString(),
+						CreatedAt: database.Now(),
+						UpdatedAt: database.Now(),
+					})
+					if err != nil {
+						return xerrors.Errorf("insert workspace agent: %w", err)
+					}
+				}
+
 				_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
-					ID:                 uuid.New(),
+					ID:                 workspaceResourceID,
 					CreatedAt:          database.Now(),
 					WorkspaceHistoryID: input.WorkspaceHistoryID,
-					InstanceID: sql.NullString{
-						Valid:  protoResource.InstanceId != "",
-						String: protoResource.InstanceId,
-					},
-					Type: protoResource.Type,
-					Name: protoResource.Name,
-					// TODO: Generate this at the variable validation phase.
-					// Set the value in `default_source`, and disallow overwrite.
-					WorkspaceAgentToken: uuid.NewString(),
+					Type:               protoResource.Type,
+					Name:               protoResource.Name,
+					WorkspaceAgentID:   agentID,
 				})
 				if err != nil {
 					return xerrors.Errorf("insert workspace resource %q: %w", protoResource.Name, err)

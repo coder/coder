@@ -33,10 +33,11 @@ func TestPostProvisionerImportJobByOrganization(t *testing.T) {
 					},
 				},
 			}},
+			Plan: echo.PlanComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
+						Resources: []*proto.ProvisionedResource{{
 							Name: "dev",
 							Type: "ec2_instance",
 						}},
@@ -184,15 +185,15 @@ func TestProvisionerJobResourcesByID(t *testing.T) {
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
 						ParameterSchemas: []*proto.ParameterSchema{{
-							Name: parameter.CoderWorkspaceTransition,
+							Name: parameter.WorkspaceTransition,
 						}},
 					},
 				},
 			}},
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
+			Plan: []*proto.Plan_Response{{
+				Type: &proto.Plan_Response_Complete{
+					Complete: &proto.Plan_Complete{
+						Resources: []*proto.PlannedResource{{
 							Name: "hello",
 							Type: "ec2_instance",
 						}},
@@ -217,6 +218,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
+			Plan:  echo.PlanComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
@@ -253,6 +255,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
+			Plan:  echo.PlanComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
@@ -294,6 +297,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
+			Plan:  echo.PlanComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{

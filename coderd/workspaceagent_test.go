@@ -70,10 +70,11 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
+			Plan:  echo.PlanComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
+						Resources: []*proto.ProvisionedResource{{
 							Name:       "somename",
 							Type:       "someinstance",
 							InstanceId: instanceID,

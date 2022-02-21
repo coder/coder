@@ -70,6 +70,43 @@ func TestEcho(t *testing.T) {
 			complete.GetComplete().ParameterSchemas[0].Name)
 	})
 
+	t.Run("Plan", func(t *testing.T) {
+		t.Parallel()
+
+		responses := []*proto.Plan_Response{{
+			Type: &proto.Plan_Response_Log{
+				Log: &proto.Log{
+					Output: "log-output",
+				},
+			},
+		}, {
+			Type: &proto.Plan_Response_Complete{
+				Complete: &proto.Plan_Complete{
+					Resources: []*proto.PlannedResource{{
+						Name:           "hello",
+						Type:           "example",
+						AutomaticAgent: true,
+					}},
+				},
+			},
+		}}
+		data, err := echo.Tar(&echo.Responses{
+			Plan: responses,
+		})
+		require.NoError(t, err)
+		client, err := api.Plan(ctx, &proto.Plan_Request{
+			Directory: unpackTar(t, data),
+		})
+		require.NoError(t, err)
+		log, err := client.Recv()
+		require.NoError(t, err)
+		require.Equal(t, responses[0].GetLog().Output, log.GetLog().Output)
+		complete, err := client.Recv()
+		require.NoError(t, err)
+		require.Equal(t, responses[1].GetComplete().Resources[0].Name,
+			complete.GetComplete().Resources[0].Name)
+	})
+
 	t.Run("Provision", func(t *testing.T) {
 		t.Parallel()
 
@@ -82,7 +119,7 @@ func TestEcho(t *testing.T) {
 		}, {
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
+					Resources: []*proto.ProvisionedResource{{
 						Name: "resource",
 					}},
 				},

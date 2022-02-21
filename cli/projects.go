@@ -56,7 +56,7 @@ func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.Para
 		output := fmt.Sprintf("%s %s %s", color.HiCyanString(value.Name), color.HiBlackString("="), displayValue)
 		if value.DefaultSourceValue {
 			output += " (default value)"
-		} else if value.Scope != database.ParameterScopeImportJob {
+		} else if value.Scope != database.ParameterScopeProvisionerJob {
 			output += fmt.Sprintf(" (inherited from %s)", value.Scope)
 		}
 

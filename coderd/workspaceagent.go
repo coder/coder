@@ -54,14 +54,14 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
+	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("instance with id %q not found", claims.Google.ComputeEngine.InstanceID),
 		})
 		return
 	}
-	resourceHistory, err := api.Database.GetWorkspaceHistoryByID(r.Context(), resource.WorkspaceHistoryID)
+	resourceHistory, err := api.Database.GetWorkspaceHistoryByID(r.Context(), agent.WorkspaceHistoryID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace history: %s", err),
@@ -86,6 +86,22 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, WorkspaceAgentAuthenticateResponse{
-		SessionToken: resource.WorkspaceAgentToken,
+		SessionToken: agent.Token,
 	})
+}
+
+func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
+	// conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+	// 	// Need to disable compression to avoid a data-race.
+	// 	CompressionMode: websocket.CompressionDisabled,
+	// })
+	// if err != nil {
+	// 	httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+	// 		Message: fmt.Sprintf("accept websocket: %s", err),
+	// 	})
+	// 	return
+	// }
+	// api.websocketWaitGroup.Add(1)
+	// defer api.websocketWaitGroup.Done()
+
 }

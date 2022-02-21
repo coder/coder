@@ -31,6 +31,7 @@ func TestCompute(t *testing.T) {
 		}
 	}
 	type parameterOptions struct {
+		Name                     string
 		AllowOverrideSource      bool
 		AllowOverrideDestination bool
 		DefaultDestinationScheme database.ParameterDestinationScheme
@@ -42,6 +43,9 @@ func TestCompute(t *testing.T) {
 		}
 		name, err := cryptorand.String(8)
 		require.NoError(t, err)
+		if opts.Name != "" {
+			name = opts.Name
+		}
 		sourceValue, err := cryptorand.String(8)
 		require.NoError(t, err)
 		param, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
@@ -87,7 +91,7 @@ func TestCompute(t *testing.T) {
 		require.Len(t, computed, 1)
 		computedValue := computed[0]
 		require.True(t, computedValue.DefaultSourceValue)
-		require.Equal(t, database.ParameterScopeImportJob, computedValue.Scope)
+		require.Equal(t, database.ParameterScopeProvisionerJob, computedValue.Scope)
 		require.Equal(t, scope.ProjectImportJobID.String(), computedValue.ScopeID)
 		require.Equal(t, computedValue.SourceValue, parameterSchema.DefaultSourceValue)
 	})
@@ -113,7 +117,7 @@ func TestCompute(t *testing.T) {
 		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
-			Scope:             database.ParameterScopeImportJob,
+			Scope:             database.ParameterScopeProvisionerJob,
 			ScopeID:           scope.ProjectImportJobID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "secondnop",
@@ -218,5 +222,20 @@ func TestCompute(t *testing.T) {
 		computedValue := computed[0]
 		require.True(t, computedValue.DefaultSourceValue)
 		require.Equal(t, computedValue.SourceValue, "")
+	})
+
+	t.Run("BlockReservedNamespace", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		scope := generateScope()
+		_ = generateParameter(t, db, parameterOptions{
+			Name:                     parameter.Username,
+			ProjectImportJobID:       scope.ProjectImportJobID,
+			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+		})
+		_, err := parameter.Compute(context.Background(), db, scope, &parameter.ComputeOptions{
+			HideRedisplayValues: true,
+		})
+		require.Error(t, err)
 	})
 }

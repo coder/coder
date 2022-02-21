@@ -1,5 +1,3 @@
-//go:build linux
-
 package terraform_test
 
 import (
@@ -11,14 +9,13 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/stretchr/testify/require"
-
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/stretchr/testify/require"
 )
 
-func TestProvision(t *testing.T) {
+func TestPlan(t *testing.T) {
 	t.Parallel()
 
 	client, server := provisionersdk.TransportPipe()
@@ -42,8 +39,8 @@ func TestProvision(t *testing.T) {
 	for _, testCase := range []struct {
 		Name     string
 		Files    map[string]string
-		Request  *proto.Provision_Request
-		Response *proto.Provision_Response
+		Request  *proto.Plan_Request
+		Response *proto.Plan_Response
 		Error    bool
 	}{{
 		Name: "single-variable",
@@ -52,16 +49,16 @@ func TestProvision(t *testing.T) {
 				description = "Testing!"
 			}`,
 		},
-		Request: &proto.Provision_Request{
+		Request: &proto.Plan_Request{
 			ParameterValues: []*proto.ParameterValue{{
 				DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 				Name:              "A",
 				Value:             "example",
 			}},
 		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
+		Response: &proto.Plan_Response{
+			Type: &proto.Plan_Response_Complete{
+				Complete: &proto.Plan_Complete{},
 			},
 		},
 	}, {
@@ -76,10 +73,10 @@ func TestProvision(t *testing.T) {
 		Files: map[string]string{
 			"main.tf": `resource "null_resource" "A" {}`,
 		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.ProvisionedResource{{
+		Response: &proto.Plan_Response{
+			Type: &proto.Plan_Response_Complete{
+				Complete: &proto.Plan_Complete{
+					Resources: []*proto.PlannedResource{{
 						Name: "A",
 						Type: "null_resource",
 					}},
@@ -93,7 +90,7 @@ func TestProvision(t *testing.T) {
 		},
 		Error: true,
 	}, {
-		Name: "dryrun-conditional-single-resource",
+		Name: "conditional-single-resource",
 		Files: map[string]string{
 			"main.tf": `
 			variable "test" {
@@ -103,11 +100,9 @@ func TestProvision(t *testing.T) {
 				count = var.test == "yes" ? 1 : 0
 			}`,
 		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: nil,
-				},
+		Response: &proto.Plan_Response{
+			Type: &proto.Plan_Response_Complete{
+				Complete: &proto.Plan_Complete{},
 			},
 		},
 	}} {
@@ -147,7 +142,6 @@ func TestProvision(t *testing.T) {
 				}
 
 				require.NoError(t, err)
-				require.Greater(t, len(msg.GetComplete().State), 0)
 
 				resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
 				require.NoError(t, err)

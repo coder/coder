@@ -368,7 +368,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		valueByName[parameterValue.Name] = parameterValue
 	}
 	for _, parameterSchema := range parameterSchemas {
-		if parameterSchema.Name == parameter.CoderWorkspaceTransition {
+		if parameterSchema.Name == parameter.WorkspaceTransition {
 			// Hardcode the workspace transition variable. We'll
 			// make it do stuff later!
 			continue
@@ -383,7 +383,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 	// If not, we don't need to check for resources provisioned in a stopped state.
 	hasWorkspaceTransition := false
 	for _, parameterSchema := range parameterSchemas {
-		if parameterSchema.Name != parameter.CoderWorkspaceTransition {
+		if parameterSchema.Name != parameter.WorkspaceTransition {
 			continue
 		}
 		hasWorkspaceTransition = true
@@ -394,7 +394,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 	if hasWorkspaceTransition {
 		startParameters = append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
 			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              parameter.CoderWorkspaceTransition,
+			Name:              parameter.WorkspaceTransition,
 			Value:             string(database.WorkspaceTransitionStart),
 		})
 	}
@@ -411,7 +411,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 			Value:             string(database.WorkspaceTransitionStop),
 		}))
 		if err != nil {
-			p.cancelActiveJobf("project import provision for start: %s", err)
+			p.cancelActiveJobf("project import provision for stop: %s", err)
 			return
 		}
 	}
@@ -479,24 +479,23 @@ func (p *provisionerDaemon) runProjectImportParse(ctx context.Context, provision
 // Performs a dry-run provision when importing a project.
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
-func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue) ([]*sdkproto.Resource, error) {
-	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
+func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue) ([]*sdkproto.PlannedResource, error) {
+	stream, err := provisioner.Plan(ctx, &sdkproto.Plan_Request{
 		Directory:       p.opts.WorkDirectory,
 		ParameterValues: values,
-		DryRun:          true,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("provision: %w", err)
+		return nil, xerrors.Errorf("plan: %w", err)
 	}
 	defer stream.Close()
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, xerrors.Errorf("recv import provision: %w", err)
+			return nil, xerrors.Errorf("recv import plan: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
-		case *sdkproto.Provision_Response_Log:
+		case *sdkproto.Plan_Response_Log:
 			p.opts.Logger.Debug(context.Background(), "project import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
@@ -514,11 +513,10 @@ func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provi
 			if err != nil {
 				return nil, xerrors.Errorf("send job update: %w", err)
 			}
-		case *sdkproto.Provision_Response_Complete:
-			p.opts.Logger.Info(context.Background(), "parse dry-run provision successful",
+		case *sdkproto.Plan_Response_Complete:
+			p.opts.Logger.Info(context.Background(), "plan successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
-				slog.F("state_length", len(msgType.Complete.State)),
 			)
 
 			return msgType.Complete.Resources, nil

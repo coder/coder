@@ -39,6 +39,7 @@ type DRPCProvisionerClient interface {
 	DRPCConn() drpc.Conn
 
 	Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error)
+	Plan(ctx context.Context, in *Plan_Request) (DRPCProvisioner_PlanClient, error)
 	Provision(ctx context.Context, in *Provision_Request) (DRPCProvisioner_ProvisionClient, error)
 }
 
@@ -88,6 +89,42 @@ func (x *drpcProvisioner_ParseClient) RecvMsg(m *Parse_Response) error {
 	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 
+func (c *drpcProvisionerClient) Plan(ctx context.Context, in *Plan_Request) (DRPCProvisioner_PlanClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Plan", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcProvisioner_PlanClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DRPCProvisioner_PlanClient interface {
+	drpc.Stream
+	Recv() (*Plan_Response, error)
+}
+
+type drpcProvisioner_PlanClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisioner_PlanClient) Recv() (*Plan_Response, error) {
+	m := new(Plan_Response)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisioner_PlanClient) RecvMsg(m *Plan_Response) error {
+	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
+}
+
 func (c *drpcProvisionerClient) Provision(ctx context.Context, in *Provision_Request) (DRPCProvisioner_ProvisionClient, error) {
 	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 	if err != nil {
@@ -126,6 +163,7 @@ func (x *drpcProvisioner_ProvisionClient) RecvMsg(m *Provision_Response) error {
 
 type DRPCProvisionerServer interface {
 	Parse(*Parse_Request, DRPCProvisioner_ParseStream) error
+	Plan(*Plan_Request, DRPCProvisioner_PlanStream) error
 	Provision(*Provision_Request, DRPCProvisioner_ProvisionStream) error
 }
 
@@ -135,13 +173,17 @@ func (s *DRPCProvisionerUnimplementedServer) Parse(*Parse_Request, DRPCProvision
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCProvisionerUnimplementedServer) Plan(*Plan_Request, DRPCProvisioner_PlanStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 func (s *DRPCProvisionerUnimplementedServer) Provision(*Provision_Request, DRPCProvisioner_ProvisionStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 type DRPCProvisionerDescription struct{}
 
-func (DRPCProvisionerDescription) NumMethods() int { return 2 }
+func (DRPCProvisionerDescription) NumMethods() int { return 3 }
 
 func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -155,6 +197,15 @@ func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 					)
 			}, DRPCProvisionerServer.Parse, true
 	case 1:
+		return "/provisioner.Provisioner/Plan", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCProvisionerServer).
+					Plan(
+						in1.(*Plan_Request),
+						&drpcProvisioner_PlanStream{in2.(drpc.Stream)},
+					)
+			}, DRPCProvisionerServer.Plan, true
+	case 2:
 		return "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCProvisionerServer).
@@ -182,6 +233,19 @@ type drpcProvisioner_ParseStream struct {
 }
 
 func (x *drpcProvisioner_ParseStream) Send(m *Parse_Response) error {
+	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
+}
+
+type DRPCProvisioner_PlanStream interface {
+	drpc.Stream
+	Send(*Plan_Response) error
+}
+
+type drpcProvisioner_PlanStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisioner_PlanStream) Send(m *Plan_Response) error {
 	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 

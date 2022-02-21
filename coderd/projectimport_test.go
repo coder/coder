@@ -141,10 +141,10 @@ func TestProjectImportJobResourcesByID(t *testing.T) {
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
 			Parse: echo.ParseComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
+			Plan: []*proto.Plan_Response{{
+				Type: &proto.Plan_Response_Complete{
+					Complete: &proto.Plan_Complete{
+						Resources: []*proto.PlannedResource{{
 							Name: "some",
 							Type: "example",
 						}},

@@ -95,11 +95,11 @@ func (e *ParameterDestinationScheme) Scan(src interface{}) error {
 type ParameterScope string
 
 const (
-	ParameterScopeOrganization ParameterScope = "organization"
-	ParameterScopeProject      ParameterScope = "project"
-	ParameterScopeImportJob    ParameterScope = "import_job"
-	ParameterScopeUser         ParameterScope = "user"
-	ParameterScopeWorkspace    ParameterScope = "workspace"
+	ParameterScopeOrganization   ParameterScope = "organization"
+	ParameterScopeProject        ParameterScope = "project"
+	ParameterScopeProvisionerJob ParameterScope = "provisioner_job"
+	ParameterScopeUser           ParameterScope = "user"
+	ParameterScopeWorkspace      ParameterScope = "workspace"
 )
 
 func (e *ParameterScope) Scan(src interface{}) error {
@@ -347,6 +347,7 @@ type ProjectImportJobResource struct {
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
 	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
 	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Agent      bool                `db:"agent" json:"agent"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
 }
@@ -429,9 +430,12 @@ type Workspace struct {
 
 type WorkspaceAgent struct {
 	ID                  uuid.UUID       `db:"id" json:"id"`
+	WorkspaceHistoryID  uuid.UUID       `db:"workspace_history_id" json:"workspace_history_id"`
 	WorkspaceResourceID uuid.UUID       `db:"workspace_resource_id" json:"workspace_resource_id"`
 	CreatedAt           time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	InstanceID          sql.NullString  `db:"instance_id" json:"instance_id"`
+	Token               string          `db:"token" json:"token"`
 	InstanceMetadata    json.RawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata    json.RawMessage `db:"resource_metadata" json:"resource_metadata"`
 }
@@ -452,12 +456,10 @@ type WorkspaceHistory struct {
 }
 
 type WorkspaceResource struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	WorkspaceHistoryID  uuid.UUID      `db:"workspace_history_id" json:"workspace_history_id"`
-	InstanceID          sql.NullString `db:"instance_id" json:"instance_id"`
-	Type                string         `db:"type" json:"type"`
-	Name                string         `db:"name" json:"name"`
-	WorkspaceAgentToken string         `db:"workspace_agent_token" json:"workspace_agent_token"`
-	WorkspaceAgentID    uuid.NullUUID  `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ID                 uuid.UUID     `db:"id" json:"id"`
+	CreatedAt          time.Time     `db:"created_at" json:"created_at"`
+	WorkspaceHistoryID uuid.UUID     `db:"workspace_history_id" json:"workspace_history_id"`
+	Type               string        `db:"type" json:"type"`
+	Name               string        `db:"name" json:"name"`
+	WorkspaceAgentID   uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 }

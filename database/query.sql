@@ -278,6 +278,16 @@ WHERE
   owner_id = $1
   AND project_id = $2;
 
+-- name: GetWorkspaceAgentByToken :one
+SELECT
+  *
+FROM
+  workspace_agent
+WHERE
+  token = $1
+LIMIT
+  1;
+
 -- name: GetWorkspaceHistoryByID :one
 SELECT
   *
@@ -316,11 +326,11 @@ WHERE
 LIMIT
   1;
 
--- name: GetWorkspaceResourceByInstanceID :one
+-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
   *
 FROM
-  workspace_resource
+  workspace_agent
 WHERE
   instance_id = @instance_id :: text
 ORDER BY
@@ -333,14 +343,6 @@ FROM
   workspace_resource
 WHERE
   workspace_history_id = $1;
-
--- name: GetWorkspaceAgentsByResourceIDs :many
-SELECT
-  *
-FROM
-  workspace_agent
-WHERE
-  workspace_resource_id = ANY(@ids :: uuid [ ]);
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -447,9 +449,9 @@ VALUES
 
 -- name: InsertProjectImportJobResource :one
 INSERT INTO
-  project_import_job_resource (id, created_at, job_id, transition, type, name)
+  project_import_job_resource (id, created_at, job_id, transition, agent, type, name)
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertProjectVersion :one
 INSERT INTO
@@ -561,14 +563,15 @@ VALUES
 INSERT INTO
   workspace_agent (
     id,
+    workspace_history_id,
     workspace_resource_id,
     created_at,
     updated_at,
-    instance_metadata,
-    resource_metadata
+    instance_id,
+    token
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertWorkspaceHistory :one
 INSERT INTO
@@ -594,13 +597,12 @@ INSERT INTO
     id,
     created_at,
     workspace_history_id,
-    instance_id,
     type,
     name,
-    workspace_agent_token
+    workspace_agent_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

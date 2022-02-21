@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -11,9 +13,12 @@ import (
 	"github.com/coder/coder/database"
 )
 
-const (
-	CoderUsername            = "coder_username"
-	CoderWorkspaceTransition = "coder_workspace_transition"
+var (
+	namespace = "coder"
+
+	Username            = fmt.Sprintf("%s_username", namespace)
+	WorkspaceTransition = fmt.Sprintf("%s_workspace_transition", namespace)
+	AgentToken          = fmt.Sprintf("%s_agent_token", namespace)
 )
 
 // ComputeScope targets identifiers to pull parameters from.
@@ -75,7 +80,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 
 	// Job parameters come second!
 	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-		Scope:   database.ParameterScopeImportJob,
+		Scope:   database.ParameterScopeProvisionerJob,
 		ScopeID: scope.ProjectImportJobID.String(),
 	})
 	if err != nil {
@@ -105,7 +110,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 				Name:              parameterSchema.Name,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				SourceValue:       parameterSchema.DefaultSourceValue,
-				Scope:             database.ParameterScopeImportJob,
+				Scope:             database.ParameterScopeProvisionerJob,
 				ScopeID:           scope.ProjectImportJobID.String(),
 			}, true)
 			if err != nil {
@@ -181,6 +186,15 @@ func (c *compute) injectScope(ctx context.Context, scopeParams database.GetParam
 }
 
 func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultValue bool) error {
+	// A provisioner job can override any reserved namespace parameters.
+	if scopedParameter.Scope != database.ParameterScopeProvisionerJob {
+		if strings.HasPrefix(scopedParameter.Name, namespace) {
+			return xerrors.Errorf("parameter %q in %q starts with %q; this is a reserved namespace",
+				scopedParameter.Name,
+				string(scopedParameter.Scope),
+				namespace)
+		}
+	}
 	parameterSchema, hasParameterSchema := c.parameterSchemasByName[scopedParameter.Name]
 	if !hasParameterSchema {
 		// Don't inject parameters that aren't defined by the project.

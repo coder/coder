@@ -64,8 +64,14 @@ message Log {
     string output = 2;
 }
 
-// Resource represents created infrastructure.
-message Resource {
+message PlannedResource {
+    string name = 1;
+    string type = 2;
+    // An optional identifier to explicitly state a resource has an agent.
+    bool automatic_agent = 3;
+}
+
+message ProvisionedResource {
     string name = 1;
     string type = 2;
     // An optional identifier used for automating Workspace Agent authentication.
@@ -93,17 +99,34 @@ message Parse {
     }
 }
 
+// Plan consumes source-code from a directory to plan provisioned resources.
+message Plan {
+    message Request {
+        string directory = 1;
+        repeated ParameterValue parameter_values = 2;
+        bytes state = 3;
+    }
+    message Complete {
+        repeated PlannedResource resources = 1;
+    }
+    message Response {
+        oneof type {
+            Log log = 1;
+            Complete complete = 2;
+        }
+    }
+}
+
 // Provision consumes source-code from a directory to produce resources.
 message Provision {
     message Request {
         string directory = 1;
         repeated ParameterValue parameter_values = 2;
         bytes state = 3;
-        bool dry_run = 4;
     }
     message Complete {
         bytes state = 1; 
-        repeated Resource resources = 2;
+        repeated ProvisionedResource resources = 2;
     }
     message Response {
         oneof type {
@@ -115,5 +138,6 @@ message Provision {
 
 service Provisioner {
     rpc Parse(Parse.Request) returns (stream Parse.Response);
+    rpc Plan(Plan.Request) returns (stream Plan.Response);
     rpc Provision(Provision.Request) returns (stream Provision.Response);
 }

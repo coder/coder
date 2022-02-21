@@ -187,7 +187,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 			if ok {
 				continue
 			}
-			if parameterSchema.Name == parameter.CoderWorkspaceTransition {
+			if parameterSchema.Name == parameter.WorkspaceTransition {
 				continue
 			}
 			value, err := prompt(cmd, &promptui.Prompt{

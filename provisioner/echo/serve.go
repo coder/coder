@@ -23,6 +23,12 @@ var (
 			Complete: &proto.Parse_Complete{},
 		},
 	}}
+	// PlanComplete is a helper to indicate an empty plan completion.
+	PlanComplete = []*proto.Plan_Response{{
+		Type: &proto.Plan_Response_Complete{
+			Complete: &proto.Plan_Complete{},
+		},
+	}}
 	// ProvisionComplete is a helper to indicate an empty provision completion.
 	ProvisionComplete = []*proto.Provision_Response{{
 		Type: &proto.Provision_Response_Complete{
@@ -73,6 +79,36 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 }
 
 // Provision reads requests from the provided directory to stream responses.
+func (*echo) Plan(request *proto.Plan_Request, stream proto.DRPCProvisioner_PlanStream) error {
+	for index := 0; ; index++ {
+		path := filepath.Join(request.Directory, fmt.Sprintf("%d.plan.protobuf", index))
+		_, err := os.Stat(path)
+		if err != nil {
+			if index == 0 {
+				// Error if nothing is around to enable failed states.
+				return xerrors.New("no state")
+			}
+			break
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return xerrors.Errorf("read file %q: %w", path, err)
+		}
+		var response proto.Plan_Response
+		err = protobuf.Unmarshal(data, &response)
+		if err != nil {
+			return xerrors.Errorf("unmarshal: %w", err)
+		}
+		err = stream.Send(&response)
+		if err != nil {
+			return err
+		}
+	}
+	<-stream.Context().Done()
+	return stream.Context().Err()
+}
+
+// Provision reads requests from the provided directory to stream responses.
 func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
 	for index := 0; ; index++ {
 		path := filepath.Join(request.Directory, fmt.Sprintf("%d.provision.protobuf", index))
@@ -104,13 +140,14 @@ func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvis
 
 type Responses struct {
 	Parse     []*proto.Parse_Response
+	Plan      []*proto.Plan_Response
 	Provision []*proto.Provision_Response
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
 func Tar(responses *Responses) ([]byte, error) {
 	if responses == nil {
-		responses = &Responses{ParseComplete, ProvisionComplete}
+		responses = &Responses{ParseComplete, PlanComplete, ProvisionComplete}
 	}
 
 	var buffer bytes.Buffer
@@ -122,6 +159,23 @@ func Tar(responses *Responses) ([]byte, error) {
 		}
 		err = writer.WriteHeader(&tar.Header{
 			Name: fmt.Sprintf("%d.parse.protobuf", index),
+			Size: int64(len(data)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = writer.Write(data)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for index, response := range responses.Plan {
+		data, err := protobuf.Marshal(response)
+		if err != nil {
+			return nil, err
+		}
+		err = writer.WriteHeader(&tar.Header{
+			Name: fmt.Sprintf("%d.plan.protobuf", index),
 			Size: int64(len(data)),
 		})
 		if err != nil {

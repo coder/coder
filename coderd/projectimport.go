@@ -63,7 +63,7 @@ func (api *api) postProjectImportByOrganization(rw http.ResponseWriter, r *http.
 			Name:              parameterValue.Name,
 			CreatedAt:         database.Now(),
 			UpdatedAt:         database.Now(),
-			Scope:             database.ParameterScopeImportJob,
+			Scope:             database.ParameterScopeProvisionerJob,
 			ScopeID:           jobID.String(),
 			SourceScheme:      parameterValue.SourceScheme,
 			SourceValue:       parameterValue.SourceValue,

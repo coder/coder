@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -80,6 +81,12 @@ func Root() *cobra.Command {
 func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	root := createConfig(cmd)
 	rawURL, err := root.URL().Read()
+	if errors.Is(err, os.ErrNotExist) {
+		rawURL = os.Getenv("CODER_URL")
+		if rawURL != "" {
+			err = nil
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -87,9 +94,11 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// It's alright if we fail to get a token.
+	// Some client functionality works without auth.
 	token, err := root.Session().Read()
-	if err != nil {
-		return nil, err
+	if errors.Is(err, os.ErrNotExist) {
+		token = os.Getenv("CODER_TOKEN")
 	}
 	client := codersdk.New(serverURL)
 	client.SessionToken = token
