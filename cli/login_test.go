@@ -69,7 +69,7 @@ func TestLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
@@ -94,7 +94,7 @@ func TestLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())

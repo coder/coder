@@ -55,7 +55,7 @@ func New(t *testing.T) *codersdk.Client {
 		})
 	}
 
-	handler := coderd.New(&coderd.Options{
+	handler, closeWait := coderd.New(&coderd.Options{
 		Logger:   slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database: db,
 		Pubsub:   pubsub,
@@ -69,7 +69,10 @@ func New(t *testing.T) *codersdk.Client {
 	srv.Start()
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		srv.Close()
+		closeWait()
+	})
 
 	return codersdk.New(serverURL)
 }
@@ -164,7 +167,7 @@ func AwaitProjectImportJob(t *testing.T, client *codersdk.Client, organization s
 		provisionerJob, err = client.ProjectImportJob(context.Background(), organization, job)
 		require.NoError(t, err)
 		return provisionerJob.Status.Completed()
-	}, 3*time.Second, 25*time.Millisecond)
+	}, 5*time.Second, 25*time.Millisecond)
 	return provisionerJob
 }
 
@@ -176,7 +179,7 @@ func AwaitWorkspaceProvisionJob(t *testing.T, client *codersdk.Client, organizat
 		provisionerJob, err = client.WorkspaceProvisionJob(context.Background(), organization, job)
 		require.NoError(t, err)
 		return provisionerJob.Status.Completed()
-	}, 3*time.Second, 25*time.Millisecond)
+	}, 5*time.Second, 25*time.Millisecond)
 	return provisionerJob
 }
 

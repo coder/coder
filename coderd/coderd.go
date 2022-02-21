@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 
@@ -20,11 +21,12 @@ type Options struct {
 }
 
 // New constructs the Coder API into an HTTP handler.
-func New(options *Options) http.Handler {
+//
+// A wait function is returned to handle awaiting closure
+// of hijacked HTTP requests.
+func New(options *Options) (http.Handler, func()) {
 	api := &api{
-		Database: options.Database,
-		Logger:   options.Logger,
-		Pubsub:   options.Pubsub,
+		Options: options,
 	}
 
 	r := chi.NewRouter()
@@ -144,13 +146,13 @@ func New(options *Options) http.Handler {
 		})
 	})
 	r.NotFound(site.Handler(options.Logger).ServeHTTP)
-	return r
+	return r, api.websocketWaitGroup.Wait
 }
 
 // API contains all route handlers. Only HTTP handlers should
 // be added to this struct for code clarity.
 type api struct {
-	Database database.Store
-	Logger   slog.Logger
-	Pubsub   database.Pubsub
+	*Options
+
+	websocketWaitGroup sync.WaitGroup
 }
