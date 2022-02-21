@@ -14,6 +14,9 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 // Required until https://github.com/chzyer/readline/pull/198 is merged.
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
 
+// Required until https://github.com/pion/ice/pull/425 is merged.
+replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220221154042-43b71b693ef2
+
 require (
 	cdr.dev/slog v1.4.1
 	github.com/briandowns/spinner v1.18.1
@@ -114,7 +117,7 @@ require (
 	github.com/pion/sdp/v3 v3.0.4 // indirect
 	github.com/pion/srtp/v2 v2.0.5 // indirect
 	github.com/pion/stun v0.3.5 // indirect
-	github.com/pion/turn/v2 v2.0.6 // indirect
+	github.com/pion/turn/v2 v2.0.8 // indirect
 	github.com/pion/udp v0.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
