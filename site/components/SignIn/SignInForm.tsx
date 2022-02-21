@@ -123,7 +123,7 @@ export const SignInForm: React.FC<SignInProps> = ({
 
 const getRedirectFromRouter = (router: NextRouter) => {
   const defaultRedirect = "/"
-  if (router.query?.redirect) {
+  if (router.query.redirect) {
     return firstOrItem(router.query.redirect, defaultRedirect)
   } else {
     return defaultRedirect
