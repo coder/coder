@@ -1070,6 +1070,47 @@ func (q *sqlQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(ctx context.Co
 	return i, err
 }
 
+const getWorkspaceOwnerCountsByProjectIDs = `-- name: GetWorkspaceOwnerCountsByProjectIDs :many
+SELECT
+  project_id,
+  COUNT(DISTINCT owner_id)
+FROM
+  workspace
+WHERE
+  project_id = ANY($1 :: uuid [ ])
+GROUP BY
+  project_id,
+  owner_id
+`
+
+type GetWorkspaceOwnerCountsByProjectIDsRow struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Count     int64     `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByProjectIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceOwnerCountsByProjectIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceOwnerCountsByProjectIDsRow
+	for rows.Next() {
+		var i GetWorkspaceOwnerCountsByProjectIDsRow
+		if err := rows.Scan(&i.ProjectID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceResourcesByHistoryID = `-- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
   id, created_at, workspace_history_id, type, name, workspace_agent_token, workspace_agent_id

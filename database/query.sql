@@ -278,6 +278,18 @@ WHERE
   owner_id = $1
   AND project_id = $2;
 
+-- name: GetWorkspaceOwnerCountsByProjectIDs :many
+SELECT
+  project_id,
+  COUNT(DISTINCT owner_id)
+FROM
+  workspace
+WHERE
+  project_id = ANY(@ids :: uuid [ ])
+GROUP BY
+  project_id,
+  owner_id;
+
 -- name: GetWorkspaceHistoryByID :one
 SELECT
   *

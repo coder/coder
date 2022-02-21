@@ -195,6 +195,41 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 	return database.Workspace{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, projectIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByProjectIDsRow, error) {
+	counts := map[string]map[string]struct{}{}
+	for _, projectID := range projectIDs {
+		found := false
+		for _, workspace := range q.workspace {
+			if workspace.ProjectID.String() != projectID.String() {
+				continue
+			}
+			countByOwnerID, ok := counts[projectID.String()]
+			if !ok {
+				countByOwnerID = map[string]struct{}{}
+			}
+			countByOwnerID[workspace.OwnerID] = struct{}{}
+			counts[projectID.String()] = countByOwnerID
+			found = true
+			break
+		}
+		if !found {
+			counts[projectID.String()] = map[string]struct{}{}
+		}
+	}
+	res := make([]database.GetWorkspaceOwnerCountsByProjectIDsRow, 0)
+	for key, value := range counts {
+		uid := uuid.MustParse(key)
+		res = append(res, database.GetWorkspaceOwnerCountsByProjectIDsRow{
+			ProjectID: uid,
+			Count:     int64(len(value)),
+		})
+	}
+	if len(res) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return res, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceResourcesByHistoryID(_ context.Context, workspaceHistoryID uuid.UUID) ([]database.WorkspaceResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

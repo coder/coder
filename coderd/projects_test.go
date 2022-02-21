@@ -36,6 +36,22 @@ func TestProjects(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, projects, 1)
 	})
+
+	t.Run("ListWorkspaceOwnerCount", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t)
+		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
+		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
+		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
+		projects, err := client.Projects(context.Background(), "")
+		require.NoError(t, err)
+		require.Len(t, projects, 1)
+		require.Equal(t, projects[0].WorkspaceOwnerCount, uint32(1))
+	})
 }
 
 func TestProjectsByOrganization(t *testing.T) {
