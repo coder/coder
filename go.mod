@@ -15,7 +15,7 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
 
 // Required until https://github.com/pion/ice/pull/425 is merged.
-replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220221154042-43b71b693ef2
+replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220221162453-b262a62902c3
 
 require (
 	cdr.dev/slog v1.4.1
