@@ -15,7 +15,7 @@ func TestProvisionerDaemons(t *testing.T) {
 	// in their respective files.
 	t.Parallel()
 
-	client := coderdtest.New(t)
+	client := coderdtest.New(t, nil)
 	_ = coderdtest.NewProvisionerDaemon(t, client)
 	require.Eventually(t, func() bool {
 		daemons, err := client.ProvisionerDaemons(context.Background())

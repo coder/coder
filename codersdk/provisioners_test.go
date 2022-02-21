@@ -14,7 +14,7 @@ func TestProvisionerDaemons(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProvisionerDaemons(context.Background())
 		require.NoError(t, err)
 	})
@@ -24,7 +24,7 @@ func TestProvisionerDaemonClient(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		daemon, err := client.ProvisionerDaemonClient(ctx)
 		require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestProvisionerDaemonClient(t *testing.T) {
 
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		daemon, err := client.ProvisionerDaemonClient(ctx)

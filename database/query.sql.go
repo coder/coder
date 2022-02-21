@@ -1111,9 +1111,36 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, id
 	return items, nil
 }
 
+const getWorkspaceResourceByInstanceID = `-- name: GetWorkspaceResourceByInstanceID :one
+SELECT
+  id, created_at, workspace_history_id, instance_id, type, name, workspace_agent_token, workspace_agent_id
+FROM
+  workspace_resource
+WHERE
+  instance_id = $1 :: text
+ORDER BY
+  created_at
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceByInstanceID(ctx context.Context, instanceID string) (WorkspaceResource, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceResourceByInstanceID, instanceID)
+	var i WorkspaceResource
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.WorkspaceHistoryID,
+		&i.InstanceID,
+		&i.Type,
+		&i.Name,
+		&i.WorkspaceAgentToken,
+		&i.WorkspaceAgentID,
+	)
+	return i, err
+}
+
 const getWorkspaceResourcesByHistoryID = `-- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
-  id, created_at, workspace_history_id, type, name, workspace_agent_token, workspace_agent_id
+  id, created_at, workspace_history_id, instance_id, type, name, workspace_agent_token, workspace_agent_id
 FROM
   workspace_resource
 WHERE
@@ -1133,6 +1160,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByHistoryID(ctx context.Context, works
 			&i.ID,
 			&i.CreatedAt,
 			&i.WorkspaceHistoryID,
+			&i.InstanceID,
 			&i.Type,
 			&i.Name,
 			&i.WorkspaceAgentToken,
@@ -2112,21 +2140,23 @@ INSERT INTO
     id,
     created_at,
     workspace_history_id,
+    instance_id,
     type,
     name,
     workspace_agent_token
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING id, created_at, workspace_history_id, type, name, workspace_agent_token, workspace_agent_id
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, workspace_history_id, instance_id, type, name, workspace_agent_token, workspace_agent_id
 `
 
 type InsertWorkspaceResourceParams struct {
-	ID                  uuid.UUID `db:"id" json:"id"`
-	CreatedAt           time.Time `db:"created_at" json:"created_at"`
-	WorkspaceHistoryID  uuid.UUID `db:"workspace_history_id" json:"workspace_history_id"`
-	Type                string    `db:"type" json:"type"`
-	Name                string    `db:"name" json:"name"`
-	WorkspaceAgentToken string    `db:"workspace_agent_token" json:"workspace_agent_token"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	WorkspaceHistoryID  uuid.UUID      `db:"workspace_history_id" json:"workspace_history_id"`
+	InstanceID          sql.NullString `db:"instance_id" json:"instance_id"`
+	Type                string         `db:"type" json:"type"`
+	Name                string         `db:"name" json:"name"`
+	WorkspaceAgentToken string         `db:"workspace_agent_token" json:"workspace_agent_token"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
@@ -2134,6 +2164,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.ID,
 		arg.CreatedAt,
 		arg.WorkspaceHistoryID,
+		arg.InstanceID,
 		arg.Type,
 		arg.Name,
 		arg.WorkspaceAgentToken,
@@ -2143,6 +2174,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.ID,
 		&i.CreatedAt,
 		&i.WorkspaceHistoryID,
+		&i.InstanceID,
 		&i.Type,
 		&i.Name,
 		&i.WorkspaceAgentToken,

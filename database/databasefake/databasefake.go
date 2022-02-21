@@ -195,6 +195,18 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 	return database.Workspace{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceResourceByInstanceID(_ context.Context, instanceID string) (database.WorkspaceResource, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspaceResource := range q.workspaceResource {
+		if workspaceResource.InstanceID.String == instanceID {
+			return workspaceResource, nil
+		}
+	}
+	return database.WorkspaceResource{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, projectIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByProjectIDsRow, error) {
 	counts := map[string]map[string]struct{}{}
 	for _, projectID := range projectIDs {
@@ -916,6 +928,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		ID:                  arg.ID,
 		CreatedAt:           arg.CreatedAt,
 		WorkspaceHistoryID:  arg.WorkspaceHistoryID,
+		InstanceID:          arg.InstanceID,
 		Type:                arg.Type,
 		Name:                arg.Name,
 		WorkspaceAgentToken: arg.WorkspaceAgentToken,

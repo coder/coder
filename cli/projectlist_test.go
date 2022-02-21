@@ -14,7 +14,7 @@ func TestProjectList(t *testing.T) {
 	t.Parallel()
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		coderdtest.CreateInitialUser(t, client)
 		cmd, root := clitest.New(t, "projects", "list")
 		clitest.SetupConfig(t, client, root)
@@ -32,7 +32,7 @@ func TestProjectList(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		daemon := coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
