@@ -67,20 +67,22 @@ message Log {
 message PlannedResource {
     string name = 1;
     string type = 2;
-    // An optional identifier to explicitly state a resource has an agent.
-    bool automatic_agent = 3;
+    // Identifier to state whether a resource has an agent or not.
+    bool agent = 3;
 }
 
 message ProvisionedResource {
     string name = 1;
     string type = 2;
+    // An optional token passed to the resource for a workspace agent.
+    string agent_token = 3;
     // An optional identifier used for automating Workspace Agent authentication.
     // Each cloud has it's own unique instance identity signatures, which can be
     // used for zero-token authentication. See:
     // GCP: https://cloud.google.com/compute/docs/instances/verifying-instance-identity
     // AWS: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
     // Azure: https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#get-attested-data
-    string instance_id = 3;
+    string instance_id = 4;
 }
 
 // Parse consumes source-code from a directory to produce inputs.

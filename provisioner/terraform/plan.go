@@ -153,7 +153,7 @@ func (t *terraform) Plan(request *proto.Plan_Request, stream proto.DRPCProvision
 			// This is the specific key used by the Terraform Google Cloud Provisioner
 			// to identify an instance.
 			if _, hasGoogleCloudInstanceID := afterUnknownMap["instance_id"]; hasGoogleCloudInstanceID {
-				protoResource.AutomaticAgent = true
+				protoResource.Agent = true
 			}
 		}
 		resources = append(resources, protoResource)

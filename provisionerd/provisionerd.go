@@ -373,6 +373,14 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 			// make it do stuff later!
 			continue
 		}
+		if strings.HasPrefix(parameterSchema.Name, parameter.AgentTokenPrefix) {
+			updateResponse.ParameterValues = append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
+				DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+				Name:              parameterSchema.Name,
+				Value:             "",
+			})
+			continue
+		}
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
 			p.cancelActiveJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
@@ -518,6 +526,20 @@ func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provi
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
 			)
+			// Mark resources with an agent token parameter as having an agent!
+			for _, resource := range msgType.Complete.Resources {
+				if resource.Agent {
+					continue
+				}
+				parameter := createAgentTokenParameter(resource.Type, resource.Name)
+				for _, value := range values {
+					if value.Name != parameter {
+						continue
+					}
+					resource.Agent = true
+					break
+				}
+			}
 
 			return msgType.Complete.Resources, nil
 		default:
@@ -572,6 +594,21 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 				slog.F("resources", msgType.Complete.Resources),
 				slog.F("state_length", len(msgType.Complete.State)),
 			)
+
+			// Mark resources with an agent token parameter as having an agent!
+			for _, resource := range msgType.Complete.Resources {
+				if resource.InstanceId != "" {
+					continue
+				}
+				parameter := createAgentTokenParameter(resource.Type, resource.Name)
+				for _, parameterValue := range job.GetWorkspaceProvision().ParameterValues {
+					if parameterValue.Name != parameter {
+						continue
+					}
+					resource.AgentToken = parameterValue.Value
+					break
+				}
+			}
 
 			// Complete job may need to be async if we disconnected...
 			// When we reconnect we can flush any of these cached values.
@@ -666,4 +703,8 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
 
 	return err
+}
+
+func createAgentTokenParameter(resourceType, resourceName string) string {
+	return fmt.Sprintf("%s_%s_%s", parameter.AgentTokenPrefix, resourceType, resourceName)
 }

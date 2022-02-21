@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -185,6 +186,11 @@ func TestProvisionerJobResourcesByID(t *testing.T) {
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
 						ParameterSchemas: []*proto.ParameterSchema{{
+							Name: fmt.Sprintf("%s_resource_type_resource_name", parameter.AgentTokenPrefix),
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}, {
 							Name: parameter.WorkspaceTransition,
 						}},
 					},
@@ -194,8 +200,8 @@ func TestProvisionerJobResourcesByID(t *testing.T) {
 				Type: &proto.Plan_Response_Complete{
 					Complete: &proto.Plan_Complete{
 						Resources: []*proto.PlannedResource{{
-							Name: "hello",
-							Type: "ec2_instance",
+							Name: "resource_name",
+							Type: "resource_type",
 						}},
 					},
 				},
@@ -206,6 +212,7 @@ func TestProvisionerJobResourcesByID(t *testing.T) {
 		require.NoError(t, err)
 		// One for start, and one for stop!
 		require.Len(t, resources, 2)
+		require.Equal(t, true, resources[0].Agent)
 	})
 }
 

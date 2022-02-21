@@ -243,9 +243,7 @@ func TestCompute(t *testing.T) {
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
 		})
 		require.NoError(t, err)
-		_, err = parameter.Compute(context.Background(), db, scope, &parameter.ComputeOptions{
-			HideRedisplayValues: true,
-		})
+		_, err = parameter.Compute(context.Background(), db, scope, nil)
 		require.Error(t, err)
 	})
 }

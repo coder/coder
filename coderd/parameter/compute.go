@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -13,12 +12,12 @@ import (
 	"github.com/coder/coder/database"
 )
 
-var (
-	namespace = "coder"
+const (
+	Namespace = "coder"
 
-	Username            = fmt.Sprintf("%s_username", namespace)
-	WorkspaceTransition = fmt.Sprintf("%s_workspace_transition", namespace)
-	AgentToken          = fmt.Sprintf("%s_agent_token", namespace)
+	Username            = "coder_username"
+	WorkspaceTransition = "coder_workspace_transition"
+	AgentTokenPrefix    = "coder_agent_token"
 )
 
 // ComputeScope targets identifiers to pull parameters from.
@@ -78,7 +77,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		return nil, err
 	}
 
-	// Job parameters come second!
+	// Project job parameters come second!
 	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeProvisionerJob,
 		ScopeID: scope.ProjectImportJobID.String(),
@@ -186,14 +185,11 @@ func (c *compute) injectScope(ctx context.Context, scopeParams database.GetParam
 }
 
 func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultValue bool) error {
-	// A provisioner job can override any reserved namespace parameters.
-	if scopedParameter.Scope != database.ParameterScopeProvisionerJob {
-		if strings.HasPrefix(scopedParameter.Name, namespace) {
-			return xerrors.Errorf("parameter %q in %q starts with %q; this is a reserved namespace",
-				scopedParameter.Name,
-				string(scopedParameter.Scope),
-				namespace)
-		}
+	if strings.HasPrefix(scopedParameter.Name, Namespace) {
+		return xerrors.Errorf("parameter %q in %q starts with %q; this is a reserved namespace",
+			scopedParameter.Name,
+			string(scopedParameter.Scope),
+			Namespace)
 	}
 	parameterSchema, hasParameterSchema := c.parameterSchemasByName[scopedParameter.Name]
 	if !hasParameterSchema {

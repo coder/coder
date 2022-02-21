@@ -83,9 +83,9 @@ func TestEcho(t *testing.T) {
 			Type: &proto.Plan_Response_Complete{
 				Complete: &proto.Plan_Complete{
 					Resources: []*proto.PlannedResource{{
-						Name:           "hello",
-						Type:           "example",
-						AutomaticAgent: true,
+						Name:  "hello",
+						Type:  "example",
+						Agent: true,
 					}},
 				},
 			},

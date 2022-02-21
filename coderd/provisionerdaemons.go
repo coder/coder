@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -233,6 +234,26 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			Value:             string(workspaceHistory.Transition),
 		})
 
+		// TODO: parameter.Compute already fetches all schemas. Reduce database
+		// calls by refactoring this a bit.
+		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, projectVersion.ImportJobID)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("get project parameters: %w", err)
+		}
+		for _, parameterSchema := range parameterSchemas {
+			if !strings.HasPrefix(parameterSchema.Name, parameter.AgentTokenPrefix) {
+				continue
+			}
+			protoParameters = append(protoParameters, &sdkproto.ParameterValue{
+				DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
+				Name:              parameterSchema.Name,
+				Value:             uuid.NewString(),
+			})
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
 			WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
 				WorkspaceHistoryId: workspaceHistory.ID.String(),
@@ -443,28 +464,11 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_ProjectImport_:
-		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, job.ID)
-		if errors.Is(err, sql.ErrNoRows) {
-			err = nil
-		}
-		if err != nil {
-			return nil, xerrors.Errorf("get parameter schemas: %w", err)
-		}
-		parameterSchemaByName := map[string]database.ParameterSchema{}
-		for _, parameterSchema := range parameterSchemas {
-			parameterSchemaByName[parameterSchema.Name] = parameterSchema
-		}
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.PlannedResource{
 			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
 		} {
 			for _, resource := range resources {
-				if resource.AutomaticAgent {
-					// Check if the agent parameter schema exists!
-					// If it does, this resource has an agent associated.
-					_, resource.AutomaticAgent = parameterSchemaByName[fmt.Sprintf("%s_%s_%s", parameter.AgentToken, resource.Type, resource.Name)]
-				}
-
 				server.Logger.Info(ctx, "inserting project import job resource",
 					slog.F("job_id", job.ID.String()),
 					slog.F("resource_name", resource.Name),
@@ -475,7 +479,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					CreatedAt:  database.Now(),
 					JobID:      jobID,
 					Transition: transition,
-					Agent:      resource.AutomaticAgent,
+					Agent:      resource.Agent,
 					Type:       resource.Type,
 					Name:       resource.Name,
 				})
@@ -510,6 +514,21 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		workspaceHistory, err := server.Database.GetWorkspaceHistoryByID(ctx, input.WorkspaceHistoryID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace history: %w", err)
+		}
+		projectVersion, err := server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
+		if err != nil {
+			return nil, xerrors.Errorf("get project version: %w", err)
+		}
+		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, projectVersion.ImportJobID)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("get parameter schemas: %w", err)
+		}
+		parameterSchemaByName := map[string]database.ParameterSchema{}
+		for _, parameterSchema := range parameterSchemas {
+			parameterSchemaByName[parameterSchema.Name] = parameterSchema
 		}
 
 		err = server.Database.InTx(func(db database.Store) error {
