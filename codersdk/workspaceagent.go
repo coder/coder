@@ -29,7 +29,7 @@ func (c *Client) AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(ctx context.
 	if err != nil {
 		return coderd.WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
 	}
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/workspaceagent/authenticate/google-instance-identity", coderd.AuthenticateWorkspaceAgentUsingGoogleInstanceIdentity{
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/workspaceagent/authenticate/google-instance-identity", coderd.GoogleInstanceIdentityToken{
 		JSONWebToken: jwt,
 	})
 	if err != nil {
