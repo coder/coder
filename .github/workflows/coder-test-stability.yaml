@@ -8,7 +8,7 @@ on:
 
   pull_request:
     branches:
-      - master
+      - main
     paths:
       - .github/workflows/coder-test-stability.yaml
   workflow_dispatch:
