@@ -92,7 +92,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", color.HiBlackString(">"), color.HiCyanString(project.Name))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", caret, color.HiCyanString(project.Name))
 			_, err = prompt(cmd, &promptui.Prompt{
 				Label:     "Create a new workspace?",
 				IsConfirm: true,

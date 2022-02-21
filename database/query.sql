@@ -288,6 +288,18 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspaceOwnerCountsByProjectIDs :many
+SELECT
+  project_id,
+  COUNT(DISTINCT owner_id)
+FROM
+  workspace
+WHERE
+  project_id = ANY(@ids :: uuid [ ])
+GROUP BY
+  project_id,
+  owner_id;
+
 -- name: GetWorkspaceHistoryByID :one
 SELECT
   *
@@ -597,12 +609,13 @@ INSERT INTO
     id,
     created_at,
     workspace_history_id,
+    instance_id,
     type,
     name,
     workspace_agent_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

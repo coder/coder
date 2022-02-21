@@ -19,8 +19,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+var (
+	caret = color.HiBlackString(">")
+)
+
 const (
 	varGlobalConfig = "global-config"
+	varNoOpen       = "no-open"
 	varForceTty     = "force-tty"
 )
 
@@ -70,6 +75,11 @@ func Root() *cobra.Command {
 	err := cmd.PersistentFlags().MarkHidden(varForceTty)
 	if err != nil {
 		// This should never return an error, because we just added the `--force-tty`` flag prior to calling MarkHidden.
+		panic(err)
+	}
+	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
+	err = cmd.PersistentFlags().MarkHidden(varNoOpen)
+	if err != nil {
 		panic(err)
 	}
 

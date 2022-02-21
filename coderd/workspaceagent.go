@@ -13,7 +13,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-type AuthenticateWorkspaceAgentUsingGoogleInstanceIdentity struct {
+type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
 }
 
@@ -27,7 +27,7 @@ type WorkspaceAgentAuthenticateResponse struct {
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
 // Using this, we can exchange a signed instance payload for an agent token.
 func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
-	var req AuthenticateWorkspaceAgentUsingGoogleInstanceIdentity
+	var req GoogleInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
@@ -103,5 +103,4 @@ func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 	// }
 	// api.websocketWaitGroup.Add(1)
 	// defer api.websocketWaitGroup.Done()
-
 }

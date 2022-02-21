@@ -228,12 +228,22 @@ func TestCompute(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
-		_ = generateParameter(t, db, parameterOptions{
+		parameterSchema := generateParameter(t, db, parameterOptions{
 			Name:                     parameter.Username,
 			ProjectImportJobID:       scope.ProjectImportJobID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
-		_, err := parameter.Compute(context.Background(), db, scope, &parameter.ComputeOptions{
+		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
+			ID:                uuid.New(),
+			Name:              parameterSchema.Name,
+			Scope:             database.ParameterScopeWorkspace,
+			ScopeID:           scope.WorkspaceID.UUID.String(),
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       "nop",
+			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
+		})
+		require.NoError(t, err)
+		_, err = parameter.Compute(context.Background(), db, scope, &parameter.ComputeOptions{
 			HideRedisplayValues: true,
 		})
 		require.Error(t, err)

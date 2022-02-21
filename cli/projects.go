@@ -30,9 +30,12 @@ func projects() *cobra.Command {
 
     ` + color.New(color.FgHiMagenta).Sprint("$ coder projects update <name>"),
 	}
-	cmd.AddCommand(projectCreate())
-	cmd.AddCommand(projectPlan())
-	cmd.AddCommand(projectUpdate())
+	cmd.AddCommand(
+		projectCreate(),
+		projectList(),
+		projectPlan(),
+		projectUpdate(),
+	)
 
 	return cmd
 }

@@ -67,7 +67,7 @@ func login() *cobra.Command {
 				if !isTTY(cmd) {
 					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", color.HiBlackString(">"))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", caret)
 
 				_, err := prompt(cmd, &promptui.Prompt{
 					Label:     "Would you like to create the first user?",
@@ -147,13 +147,13 @@ func login() *cobra.Command {
 					return xerrors.Errorf("write server url: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", color.HiBlackString(">"), color.HiCyanString(username))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", caret, color.HiCyanString(username))
 				return nil
 			}
 
 			authURL := *serverURL
 			authURL.Path = serverURL.Path + "/cli-auth"
-			if err := openURL(authURL.String()); err != nil {
+			if err := openURL(cmd, authURL.String()); err != nil {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 			} else {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
@@ -192,7 +192,7 @@ func login() *cobra.Command {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", color.HiBlackString(">"), color.HiCyanString(resp.Username))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", caret, color.HiCyanString(resp.Username))
 			return nil
 		},
 	}
@@ -211,21 +211,22 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(urlToOpen string) error {
-	var cmd string
-	var args []string
-
+func openURL(cmd *cobra.Command, urlToOpen string) error {
+	noOpen, err := cmd.Flags().GetBool(varNoOpen)
+	if err != nil {
+		panic(err)
+	}
+	if noOpen {
+		return xerrors.New("opening is blocked")
+	}
 	wsl, err := isWSL()
 	if err != nil {
 		return xerrors.Errorf("test running Windows Subsystem for Linux: %w", err)
 	}
 
 	if wsl {
-		cmd = "cmd.exe"
-		args = []string{"/c", "start"}
-		urlToOpen = strings.ReplaceAll(urlToOpen, "&", "^&")
-		args = append(args, urlToOpen)
-		return exec.Command(cmd, args...).Start()
+		// #nosec
+		return exec.Command("cmd.exe", "/c", "start", strings.ReplaceAll(urlToOpen, "&", "^&")).Start()
 	}
 
 	return browser.OpenURL(urlToOpen)

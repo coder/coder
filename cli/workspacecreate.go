@@ -54,7 +54,7 @@ func workspaceCreate() *cobra.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Previewing project create...\n", color.HiBlackString(">"))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Previewing project create...\n", caret)
 
 			project, err := client.Project(cmd.Context(), organization.Name, args[0])
 			if err != nil {
