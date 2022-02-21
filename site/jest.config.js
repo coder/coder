@@ -24,7 +24,15 @@ module.exports = {
       displayName: "lint",
       runner: "jest-runner-eslint",
       testMatch: ["<rootDir>/**/*.js", "<rootDir>/**/*.ts", "<rootDir>/**/*.tsx"],
-      testPathIgnorePatterns: ["/.next/", "/out/", "/_jest/", "jest.config.js", "jest-runner.*.js", "next.config.js"],
+      testPathIgnorePatterns: [
+        "/.next/",
+        "/out/",
+        "/_jest/",
+        "dev.ts",
+        "jest.config.js",
+        "jest-runner.*.js",
+        "next.config.js",
+      ],
     },
   ],
   collectCoverageFrom: [

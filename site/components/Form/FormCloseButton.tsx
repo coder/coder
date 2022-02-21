@@ -23,7 +23,7 @@ export const FormCloseButton: React.FC<FormCloseButtonProps> = ({ onClose }) => 
     return () => {
       document.body.removeEventListener("keydown", handleKeyPress, false)
     }
-  }, [])
+  }, [onClose])
 
   return (
     <IconButton className={styles.closeButton} onClick={onClose} size="medium">

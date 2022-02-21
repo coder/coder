@@ -25,21 +25,21 @@ const UserContext = React.createContext<UserContext>({
 
 export const useUser = (redirectOnError = false): UserContext => {
   const ctx = useContext(UserContext)
-  const router = useRouter()
+  const { push, asPath } = useRouter()
 
   const requestError = ctx.error
   useEffect(() => {
     if (redirectOnError && requestError) {
       // 'void' means we are ignoring handling the promise returned
       // from router.push (and lets the linter know we're OK with that!)
-      void router.push({
+      void push({
         pathname: "/login",
         query: {
-          redirect: router.asPath,
+          redirect: asPath,
         },
       })
     }
-  }, [redirectOnError, requestError])
+  }, [asPath, push, redirectOnError, requestError])
 
   return ctx
 }
