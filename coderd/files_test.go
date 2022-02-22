@@ -14,7 +14,7 @@ func TestPostFiles(t *testing.T) {
 	t.Parallel()
 	t.Run("BadContentType", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.UploadFile(context.Background(), "bad", []byte{'a'})
 		require.Error(t, err)
@@ -22,7 +22,7 @@ func TestPostFiles(t *testing.T) {
 
 	t.Run("Insert", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, make([]byte, 1024))
 		require.NoError(t, err)
@@ -30,7 +30,7 @@ func TestPostFiles(t *testing.T) {
 
 	t.Run("InsertAlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		data := make([]byte, 1024)
 		_, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)

@@ -276,6 +276,7 @@ CREATE TABLE workspace_resource (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     workspace_history_id uuid NOT NULL,
+    instance_id character varying(64),
     type character varying(256) NOT NULL,
     name character varying(64) NOT NULL,
     workspace_agent_token character varying(128) NOT NULL,

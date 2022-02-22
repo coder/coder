@@ -52,6 +52,9 @@ func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitGroup.Add(1)
+	defer api.websocketWaitGroup.Done()
+
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
@@ -62,8 +65,6 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	api.websocketWaitGroup.Add(1)
-	defer api.websocketWaitGroup.Done()
 
 	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
@@ -519,8 +520,12 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					ID:                 uuid.New(),
 					CreatedAt:          database.Now(),
 					WorkspaceHistoryID: input.WorkspaceHistoryID,
-					Type:               protoResource.Type,
-					Name:               protoResource.Name,
+					InstanceID: sql.NullString{
+						Valid:  protoResource.InstanceId != "",
+						String: protoResource.InstanceId,
+					},
+					Type: protoResource.Type,
+					Name: protoResource.Name,
 					// TODO: Generate this at the variable validation phase.
 					// Set the value in `default_source`, and disallow overwrite.
 					WorkspaceAgentToken: uuid.NewString(),

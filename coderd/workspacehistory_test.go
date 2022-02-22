@@ -20,7 +20,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("NoProjectVersion", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -37,7 +37,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 
 	t.Run("ProjectVersionFailedImport", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -58,7 +58,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 
 	t.Run("AlreadyActive", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
@@ -84,7 +84,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 
 	t.Run("UpdatePriorAfterField", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
@@ -114,7 +114,7 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
@@ -128,7 +128,7 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
@@ -149,7 +149,7 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 
 func TestWorkspaceHistoryByName(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t)
+	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateInitialUser(t, client)
 	coderdtest.NewProvisionerDaemon(t, client)
 	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)

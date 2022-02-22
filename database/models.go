@@ -452,11 +452,12 @@ type WorkspaceHistory struct {
 }
 
 type WorkspaceResource struct {
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	CreatedAt           time.Time     `db:"created_at" json:"created_at"`
-	WorkspaceHistoryID  uuid.UUID     `db:"workspace_history_id" json:"workspace_history_id"`
-	Type                string        `db:"type" json:"type"`
-	Name                string        `db:"name" json:"name"`
-	WorkspaceAgentToken string        `db:"workspace_agent_token" json:"workspace_agent_token"`
-	WorkspaceAgentID    uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	WorkspaceHistoryID  uuid.UUID      `db:"workspace_history_id" json:"workspace_history_id"`
+	InstanceID          sql.NullString `db:"instance_id" json:"instance_id"`
+	Type                string         `db:"type" json:"type"`
+	Name                string         `db:"name" json:"name"`
+	WorkspaceAgentToken string         `db:"workspace_agent_token" json:"workspace_agent_token"`
+	WorkspaceAgentID    uuid.NullUUID  `db:"workspace_agent_id" json:"workspace_agent_id"`
 }

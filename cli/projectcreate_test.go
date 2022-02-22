@@ -17,7 +17,7 @@ func TestProjectCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("NoParameters", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		coderdtest.CreateInitialUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
@@ -53,7 +53,7 @@ func TestProjectCreate(t *testing.T) {
 
 	t.Run("Parameter", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		coderdtest.CreateInitialUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
