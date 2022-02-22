@@ -109,6 +109,10 @@ func New(options *Options) (http.Handler, func()) {
 							r.Get("/", api.workspaceHistoryByName)
 							r.Route("/resources", func(r chi.Router) {
 								r.Get("/", api.workspaceHistoryResources)
+								r.Route("/{workspaceresource}", func(r chi.Router) {
+									r.Use(httpmw.ExtractWorkspaceResource(options.Database))
+									r.Get("/connect", api.workspaceAgentConnectByResource)
+								})
 							})
 						})
 					})

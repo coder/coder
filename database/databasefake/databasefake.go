@@ -207,6 +207,18 @@ func (q *fakeQuerier) GetWorkspaceAgentByToken(ctx context.Context, token string
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspaceAgent := range q.workspaceAgent {
+		if workspaceAgent.ID.String() == id.String() {
+			return workspaceAgent, nil
+		}
+	}
+	return database.WorkspaceAgent{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceID string) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -915,7 +927,6 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	workspaceAgent := database.WorkspaceAgent{
 		ID:                  arg.ID,
 		CreatedAt:           arg.CreatedAt,
-		UpdatedAt:           arg.UpdatedAt,
 		WorkspaceHistoryID:  arg.WorkspaceHistoryID,
 		WorkspaceResourceID: arg.WorkspaceResourceID,
 		InstanceID:          arg.InstanceID,
@@ -1026,6 +1037,21 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.CancelledAt = arg.CancelledAt
 		job.Error = arg.Error
 		q.provisionerJobs[index] = job
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAgentByID(ctx context.Context, arg database.UpdateWorkspaceAgentByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspaceAgent := range q.workspaceAgent {
+		if workspaceAgent.ID.String() != arg.ID.String() {
+			continue
+		}
+		workspaceAgent.UpdatedAt = arg.UpdatedAt
+		q.workspaceAgent[index] = workspaceAgent
 		return nil
 	}
 	return sql.ErrNoRows

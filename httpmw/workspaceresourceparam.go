@@ -56,6 +56,20 @@ func ExtractWorkspaceResource(db database.Store) func(http.Handler) http.Handler
 				})
 				return
 			}
+			workspaceHistory, err := db.GetWorkspaceHistoryByID(r.Context(), workspaceResource.WorkspaceHistoryID)
+			if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("get workspace history: %s", err),
+				})
+				return
+			}
+			workspace := WorkspaceParam(r)
+			if workspaceHistory.WorkspaceID.String() != workspace.ID.String() {
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: "not your resource id",
+				})
+				return
+			}
 
 			ctx := context.WithValue(r.Context(), workspaceResourceContextKey{}, workspaceResource)
 			next.ServeHTTP(rw, r.WithContext(ctx))

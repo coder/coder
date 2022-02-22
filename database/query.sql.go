@@ -835,6 +835,32 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
+SELECT
+  id, workspace_history_id, workspace_resource_id, created_at, updated_at, instance_id, token, instance_metadata, resource_metadata
+FROM
+  workspace_agent
+WHERE
+  id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByID, id)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceHistoryID,
+		&i.WorkspaceResourceID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.InstanceID,
+		&i.Token,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
   id, workspace_history_id, workspace_resource_id, created_at, updated_at, instance_id, token, instance_metadata, resource_metadata
@@ -2091,12 +2117,11 @@ INSERT INTO
     workspace_history_id,
     workspace_resource_id,
     created_at,
-    updated_at,
     instance_id,
     token
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, workspace_history_id, workspace_resource_id, created_at, updated_at, instance_id, token, instance_metadata, resource_metadata
+  ($1, $2, $3, $4, $5, $6) RETURNING id, workspace_history_id, workspace_resource_id, created_at, updated_at, instance_id, token, instance_metadata, resource_metadata
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -2104,7 +2129,6 @@ type InsertWorkspaceAgentParams struct {
 	WorkspaceHistoryID  uuid.UUID      `db:"workspace_history_id" json:"workspace_history_id"`
 	WorkspaceResourceID uuid.UUID      `db:"workspace_resource_id" json:"workspace_resource_id"`
 	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
 	InstanceID          sql.NullString `db:"instance_id" json:"instance_id"`
 	Token               string         `db:"token" json:"token"`
 }
@@ -2115,7 +2139,6 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.WorkspaceHistoryID,
 		arg.WorkspaceResourceID,
 		arg.CreatedAt,
-		arg.UpdatedAt,
 		arg.InstanceID,
 		arg.Token,
 	)
@@ -2349,6 +2372,25 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.CancelledAt,
 		arg.Error,
 	)
+	return err
+}
+
+const updateWorkspaceAgentByID = `-- name: UpdateWorkspaceAgentByID :exec
+UPDATE
+  workspace_agent
+SET
+  updated_at = $2
+WHERE
+  id = $1
+`
+
+type UpdateWorkspaceAgentByIDParams struct {
+	ID        uuid.UUID    `db:"id" json:"id"`
+	UpdatedAt sql.NullTime `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentByID(ctx context.Context, arg UpdateWorkspaceAgentByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentByID, arg.ID, arg.UpdatedAt)
 	return err
 }
 

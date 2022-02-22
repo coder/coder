@@ -57,7 +57,7 @@ CREATE TABLE workspace_agent (
     workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
     workspace_resource_id uuid NOT NULL REFERENCES workspace_resource (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
+    updated_at timestamptz,
     instance_id varchar(64),
     token varchar(64) NOT NULL UNIQUE,
     -- Identifies instance architecture, cloud, etc.

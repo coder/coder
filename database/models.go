@@ -433,7 +433,7 @@ type WorkspaceAgent struct {
 	WorkspaceHistoryID  uuid.UUID       `db:"workspace_history_id" json:"workspace_history_id"`
 	WorkspaceResourceID uuid.UUID       `db:"workspace_resource_id" json:"workspace_resource_id"`
 	CreatedAt           time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
+	UpdatedAt           sql.NullTime    `db:"updated_at" json:"updated_at"`
 	InstanceID          sql.NullString  `db:"instance_id" json:"instance_id"`
 	Token               string          `db:"token" json:"token"`
 	InstanceMetadata    json.RawMessage `db:"instance_metadata" json:"instance_metadata"`

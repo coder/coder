@@ -1,34 +1,49 @@
 package coderd
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
+	"database/sql"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"sync"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"nhooyr.io/websocket"
 
+	"cdr.dev/slog"
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/peerbroker"
+	"github.com/coder/coder/peerbroker/proto"
+	"github.com/coder/coder/provisionersdk"
 )
 
-func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
-	workspaceAgent := httpmw.WorkspaceAgent(r)
-	workspaceHistory, err := api.Database.GetWorkspaceHistoryByID(r.Context(), workspaceAgent.WorkspaceHistoryID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace history: %s", err),
+func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitGroup.Add(1)
+	defer api.websocketWaitGroup.Done()
+
+	resource := httpmw.WorkspaceResource(r)
+	if !resource.WorkspaceAgentID.Valid {
+		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
+			Message: "resource doesn't have an agent",
 		})
 		return
 	}
-	api.websocketWaitGroup.Add(1)
-	defer api.websocketWaitGroup.Done()
+	agent, err := api.Database.GetWorkspaceAgentByID(r.Context(), resource.WorkspaceAgentID.UUID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace agent: %s", err),
+		})
+		return
+	}
+	if !agent.UpdatedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
+			Message: "Agent hasn't connected yet!",
+		})
+		return
+	}
+
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
@@ -42,125 +57,88 @@ func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}()
-	netConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
-	err = agentListener(api, netConn, workspaceHistory.WorkspaceID.String())
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-}
-
-func agentDialer(api *api, conn net.Conn, workspaceID string) error {
-	streamID := uuid.New().String()
-	decoder := json.NewDecoder(conn)
-	cancelSubscribe, err := api.Pubsub.Subscribe(agentPubsubOutID(workspaceID), func(ctx context.Context, message []byte) {
-		if len(message) < len(streamID) {
-			return
-		}
-		gotStreamID := message[0:len(streamID)]
-		if string(gotStreamID) != streamID {
-			return
-		}
-		message = message[len(streamID):]
-		_, _ = conn.Write(message)
+	err = peerbroker.ProxyDial(r.Context(), session, peerbroker.ProxyOptions{
+		ChannelID: resource.WorkspaceAgentID.UUID.String(),
+		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
+		Pubsub:    api.Pubsub,
 	})
 	if err != nil {
-		return fmt.Errorf("subscribe: %w", err)
+		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("serve: %s", err))
+		return
 	}
-	defer cancelSubscribe()
-
-	for {
-		var m json.RawMessage
-		err := decoder.Decode(&m)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("decoding: %w", err)
-		}
-		data, _ := m.MarshalJSON()
-		data = append([]byte(streamID), data...)
-		err = api.Pubsub.Publish(agentPubsubInID(workspaceID), data)
-		if err != nil {
-			return fmt.Errorf("publish: %w", err)
-		}
-
-	}
-	return nil
 }
 
-func agentListener(api *api, conn net.Conn, workspaceID string) error {
-	api.agentBrokerMutex.Lock()
-	if oldConn, ok := api.agentBrokerConnections[workspaceID]; ok {
-		_ = oldConn.Close()
-	}
-	api.agentBrokerConnections[workspaceID] = conn
-	api.agentBrokerMutex.Unlock()
-	c := yamux.DefaultConfig()
-	c.LogOutput = io.Discard
-	session, err := yamux.Client(conn, c)
+func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitGroup.Add(1)
+	defer api.websocketWaitGroup.Done()
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
+	})
 	if err != nil {
-		return fmt.Errorf("create yamux client: %w", err)
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
 	}
-	var (
-		streams      = map[string]*yamux.Stream{}
-		streamLock   sync.Mutex
-		longIDLength = len(uuid.New().String())
-	)
-	cancelSubscribe, err := api.Pubsub.Subscribe(agentPubsubInID(workspaceID), func(ctx context.Context, message []byte) {
-		if len(message) < longIDLength {
-			return
-		}
-		streamID := string(message[0:longIDLength])
-		message = message[longIDLength:]
+	defer func() {
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}()
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+	closer, err := peerbroker.ProxyListen(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
+		ChannelID: workspaceAgent.ID.String(),
+		Pubsub:    api.Pubsub,
+		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
+	})
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
 
-		streamLock.Lock()
-		defer streamLock.Unlock()
-
-		stream, ok := streams[streamID]
-		if !ok {
-			var err error
-			stream, err = session.OpenStream()
+	err = api.Database.UpdateWorkspaceAgentByID(r.Context(), database.UpdateWorkspaceAgentByIDParams{
+		ID: workspaceAgent.ID,
+		UpdatedAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+	defer closer.Close()
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			err = api.Database.UpdateWorkspaceAgentByID(r.Context(), database.UpdateWorkspaceAgentByIDParams{
+				ID: workspaceAgent.ID,
+				UpdatedAt: sql.NullTime{
+					Time:  database.Now(),
+					Valid: true,
+				},
+			})
 			if err != nil {
+				api.Logger.Error(r.Context(), "update workspace agent by id", slog.Error(err), slog.F("id", workspaceAgent.ID.String()))
 				return
 			}
-			streams[streamID] = stream
-			go func() {
-				defer func() {
-					streamLock.Lock()
-					defer streamLock.Unlock()
-					delete(streams, streamID)
-				}()
-				decoder := json.NewDecoder(stream)
-				for {
-					var m json.RawMessage
-					err = decoder.Decode(&m)
-					if err != nil {
-						return
-					}
-					data, _ := m.MarshalJSON()
-					data = append([]byte(streamID), data...)
-					err = api.Pubsub.Publish(agentPubsubOutID(workspaceID), data)
-					if err != nil {
-						return
-					}
-				}
-			}()
+		case <-r.Context().Done():
+			return
 		}
-		_, _ = stream.Write(message)
-	})
-	if err != nil {
-		return fmt.Errorf("subscribe: %w", err)
 	}
-	defer cancelSubscribe()
-	<-session.CloseChan()
-	return nil
-}
-
-func agentPubsubOutID(workspaceID string) string {
-	return workspaceID + "-out"
-}
-
-func agentPubsubInID(workspaceID string) string {
-	return workspaceID + "-in"
 }

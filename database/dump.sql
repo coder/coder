@@ -254,7 +254,7 @@ CREATE TABLE workspace_agent (
     workspace_history_id uuid NOT NULL,
     workspace_resource_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone,
     instance_id character varying(64),
     token character varying(64) NOT NULL,
     instance_metadata jsonb NOT NULL,

@@ -334,6 +334,10 @@ func convertWorkspaceResources(workspaceResources []database.WorkspaceResource, 
 					ID:                  agent.ID,
 					WorkspaceHistoryID:  agent.WorkspaceHistoryID,
 					WorkspaceResourceID: agent.WorkspaceResourceID,
+					CreatedAt:           agent.CreatedAt,
+					UpdatedAt:           agent.UpdatedAt.Time,
+					InstanceMetadata:    agent.InstanceMetadata,
+					ResourceMetadata:    agent.ResourceMetadata,
 				}
 				break
 			}
@@ -487,7 +491,6 @@ func completeWorkspaceProvisionJob(ctx context.Context, db database.Store, job d
 					},
 					Token:     agentToken,
 					CreatedAt: database.Now(),
-					UpdatedAt: database.Now(),
 				})
 				if err != nil {
 					return xerrors.Errorf("insert workspace agent: %w", err)

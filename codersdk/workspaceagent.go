@@ -7,7 +7,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"testing"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -16,6 +19,8 @@ import (
 	"github.com/coder/coder/httpmw"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
+	"github.com/coder/coder/peerbroker/proto"
+	"github.com/coder/coder/provisionersdk"
 	"github.com/hashicorp/yamux"
 )
 
@@ -78,9 +83,57 @@ func (c *Client) WorkspaceAgentClient(ctx context.Context) (*peerbroker.Listener
 	}
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
+	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
 	return peerbroker.Listen(session, &peer.ConnOptions{})
+}
+
+func (c *Client) WorkspaceAgentConnect(ctx context.Context, owner, workspace, history, resource string) (*peer.Conn, error) {
+	if owner == "" {
+		owner = "me"
+	}
+	if history == "" {
+		history = "latest"
+	}
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s/resources/%s/connect", owner, workspace, history, resource))
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  httpmw.AuthCookie,
+		Value: c.SessionToken,
+	}})
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Jar: jar,
+		},
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, readBodyAsError(res)
+	}
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
+	if err != nil {
+		return nil, xerrors.Errorf("multiplex client: %w", err)
+	}
+	client := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session))
+	stream, err := client.NegotiateConnection(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("negotiate connection: %w", err)
+	}
+	return peerbroker.Dial(stream, nil, &peer.ConnOptions{
+		Logger: slogtest.Make(&testing.T{}, nil).Leveled(slog.LevelDebug),
+	})
 }

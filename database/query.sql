@@ -346,6 +346,22 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspaceAgentByID :one
+SELECT
+  *
+FROM
+  workspace_agent
+WHERE
+  id = $1;
+
+-- name: UpdateWorkspaceAgentByID :exec
+UPDATE
+  workspace_agent
+SET
+  updated_at = $2
+WHERE
+  id = $1;
+
 -- name: GetWorkspaceAgentByInstanceID :one
 SELECT
   *
@@ -594,12 +610,11 @@ INSERT INTO
     workspace_history_id,
     workspace_resource_id,
     created_at,
-    updated_at,
     instance_id,
     token
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: InsertWorkspaceHistory :one
 INSERT INTO
