@@ -189,7 +189,7 @@ func (p *proxyDial) onClientToServerMessage(ctx context.Context, message []byte)
 		go func() {
 			defer stream.Close()
 
-			err = p.onServerToClientMessage(streamID, stream)
+			err := p.onServerToClientMessage(streamID, stream)
 			if err != nil {
 				p.logger.Debug(ctx, "failed to accept server message", slog.Error(err))
 			}
