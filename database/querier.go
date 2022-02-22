@@ -34,6 +34,7 @@ type querier interface {
 	GetUserCount(ctx context.Context) (int64, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, instanceID string) (WorkspaceAgent, error)
 	GetWorkspaceAgentByToken(ctx context.Context, token string) (WorkspaceAgent, error)
+	GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWorkspaceByUserIDAndNameParams) (Workspace, error)
 	GetWorkspaceHistoryByID(ctx context.Context, id uuid.UUID) (WorkspaceHistory, error)

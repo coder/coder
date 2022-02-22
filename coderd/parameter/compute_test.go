@@ -17,8 +17,8 @@ func TestCompute(t *testing.T) {
 	t.Parallel()
 	generateScope := func() parameter.ComputeScope {
 		return parameter.ComputeScope{
-			ProjectImportJobID: uuid.New(),
-			OrganizationID:     uuid.NewString(),
+			ProvisionJobID: uuid.New(),
+			OrganizationID: uuid.NewString(),
 			ProjectID: uuid.NullUUID{
 				UUID:  uuid.New(),
 				Valid: true,
@@ -35,7 +35,7 @@ func TestCompute(t *testing.T) {
 		AllowOverrideSource      bool
 		AllowOverrideDestination bool
 		DefaultDestinationScheme database.ParameterDestinationScheme
-		ProjectImportJobID       uuid.UUID
+		ProvisionJobID           uuid.UUID
 	}
 	generateParameter := func(t *testing.T, db database.Store, opts parameterOptions) database.ParameterSchema {
 		if opts.DefaultDestinationScheme == "" {
@@ -48,32 +48,33 @@ func TestCompute(t *testing.T) {
 		}
 		sourceValue, err := cryptorand.String(8)
 		require.NoError(t, err)
-		param, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
+		return database.ParameterSchema{
 			ID:                       uuid.New(),
 			Name:                     name,
-			JobID:                    opts.ProjectImportJobID,
+			JobID:                    opts.ProvisionJobID,
 			DefaultSourceScheme:      database.ParameterSourceSchemeData,
 			DefaultSourceValue:       sourceValue,
 			AllowOverrideSource:      opts.AllowOverrideSource,
 			AllowOverrideDestination: opts.AllowOverrideDestination,
 			DefaultDestinationScheme: opts.DefaultDestinationScheme,
-		})
-		require.NoError(t, err)
-		return param
+		}
 	}
 
 	t.Run("NoValue", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
-		_, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
+		parameterSchema, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
 			ID:                  uuid.New(),
-			JobID:               scope.ProjectImportJobID,
+			JobID:               scope.ProvisionJobID,
 			Name:                "hey",
 			DefaultSourceScheme: database.ParameterSourceSchemeNone,
 		})
 		require.NoError(t, err)
-		computed, err := parameter.Compute(context.Background(), db, scope, nil)
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
 		require.NoError(t, err)
 		require.Len(t, computed, 0)
 	})
@@ -83,16 +84,19 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID:       scope.ProjectImportJobID,
+			ProvisionJobID:           scope.ProvisionJobID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
-		computed, err := parameter.Compute(context.Background(), db, scope, nil)
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
 		require.NoError(t, err)
 		require.Len(t, computed, 1)
 		computedValue := computed[0]
 		require.True(t, computedValue.DefaultSourceValue)
 		require.Equal(t, database.ParameterScopeProvisionerJob, computedValue.Scope)
-		require.Equal(t, scope.ProjectImportJobID.String(), computedValue.ScopeID)
+		require.Equal(t, scope.ProvisionJobID.String(), computedValue.ScopeID)
 		require.Equal(t, computedValue.SourceValue, parameterSchema.DefaultSourceValue)
 	})
 
@@ -101,7 +105,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID: scope.ProjectImportJobID,
+			ProvisionJobID: scope.ProvisionJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -118,17 +122,47 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeProvisionerJob,
-			ScopeID:           scope.ProjectImportJobID.String(),
+			ScopeID:           scope.ProvisionJobID.String(),
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "secondnop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
 		})
 		require.NoError(t, err)
 
-		computed, err := parameter.Compute(context.Background(), db, scope, nil)
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
 		require.NoError(t, err)
 		require.Len(t, computed, 1)
 		require.Equal(t, false, computed[0].DefaultSourceValue)
+		require.Equal(t, value.SourceValue, computed[0].SourceValue)
+	})
+
+	t.Run("NamespacedProvisionJob", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		scope := generateScope()
+		parameterSchema := generateParameter(t, db, parameterOptions{
+			Name:           parameter.AgentTokenPrefix,
+			ProvisionJobID: scope.ProvisionJobID,
+		})
+		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
+			ID:                uuid.New(),
+			Name:              parameterSchema.Name,
+			Scope:             database.ParameterScopeProvisionerJob,
+			ScopeID:           scope.ProvisionJobID.String(),
+			SourceScheme:      database.ParameterSourceSchemeData,
+			SourceValue:       "firstnop",
+			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+		})
+		require.NoError(t, err)
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
+		require.NoError(t, err)
+		require.Len(t, computed, 1)
 		require.Equal(t, value.SourceValue, computed[0].SourceValue)
 	})
 
@@ -137,7 +171,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID: scope.ProjectImportJobID,
+			ProvisionJobID: scope.ProvisionJobID,
 		})
 		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -150,7 +184,10 @@ func TestCompute(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		computed, err := parameter.Compute(context.Background(), db, scope, nil)
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
 		require.NoError(t, err)
 		require.Len(t, computed, 1)
 		require.Equal(t, false, computed[0].DefaultSourceValue)
@@ -162,7 +199,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID: scope.ProjectImportJobID,
+			ProvisionJobID: scope.ProvisionJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -175,7 +212,10 @@ func TestCompute(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		computed, err := parameter.Compute(context.Background(), db, scope, nil)
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
 		require.NoError(t, err)
 		require.Len(t, computed, 1)
 		require.Equal(t, true, computed[0].DefaultSourceValue)
@@ -187,7 +227,7 @@ func TestCompute(t *testing.T) {
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			AllowOverrideSource: true,
-			ProjectImportJobID:  scope.ProjectImportJobID,
+			ProvisionJobID:      scope.ProvisionJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -200,7 +240,10 @@ func TestCompute(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		computed, err := parameter.Compute(context.Background(), db, scope, nil)
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
 		require.NoError(t, err)
 		require.Len(t, computed, 1)
 		require.Equal(t, false, computed[0].DefaultSourceValue)
@@ -210,11 +253,13 @@ func TestCompute(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
-		_ = generateParameter(t, db, parameterOptions{
-			ProjectImportJobID:       scope.ProjectImportJobID,
+		parameterSchema := generateParameter(t, db, parameterOptions{
+			ProvisionJobID:           scope.ProvisionJobID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
-		computed, err := parameter.Compute(context.Background(), db, scope, &parameter.ComputeOptions{
+		computed, err := parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas:    []database.ParameterSchema{parameterSchema},
+			Scope:               scope,
 			HideRedisplayValues: true,
 		})
 		require.NoError(t, err)
@@ -230,7 +275,7 @@ func TestCompute(t *testing.T) {
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			Name:                     parameter.Username,
-			ProjectImportJobID:       scope.ProjectImportJobID,
+			ProvisionJobID:           scope.ProvisionJobID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
@@ -243,7 +288,10 @@ func TestCompute(t *testing.T) {
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
 		})
 		require.NoError(t, err)
-		_, err = parameter.Compute(context.Background(), db, scope, nil)
+		_, err = parameter.Compute(context.Background(), db, parameter.ComputeOptions{
+			ParameterSchemas: []database.ParameterSchema{parameterSchema},
+			Scope:            scope,
+		})
 		require.Error(t, err)
 	})
 }

@@ -288,6 +288,14 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspaceAgentsByResourceIDs :many
+SELECT
+  *
+FROM
+  workspace_agent
+WHERE
+  workspace_resource_id = ANY(@ids :: uuid [ ]);
+
 -- name: GetWorkspaceOwnerCountsByProjectIDs :many
 SELECT
   project_id,

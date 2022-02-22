@@ -13,6 +13,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
@@ -38,6 +39,26 @@ type WorkspaceHistory struct {
 type CreateWorkspaceHistoryRequest struct {
 	ProjectVersionID uuid.UUID                    `json:"project_version_id" validate:"required"`
 	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+}
+
+type WorkspaceAgent struct {
+	ID                  uuid.UUID       `json:"id"`
+	WorkspaceHistoryID  uuid.UUID       `json:"workspace_history_id"`
+	WorkspaceResourceID uuid.UUID       `json:"workspace_resource_id"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+	InstanceMetadata    json.RawMessage `json:"instance_metadata"`
+	ResourceMetadata    json.RawMessage `json:"resource_metadata"`
+}
+
+// WorkspaceResource represents a resource for workspace history.
+type WorkspaceResource struct {
+	ID                 uuid.UUID       `json:"id"`
+	CreatedAt          time.Time       `json:"created_at"`
+	WorkspaceHistoryID uuid.UUID       `json:"workspace_history_id"`
+	Type               string          `json:"type"`
+	Name               string          `json:"name"`
+	Agent              *WorkspaceAgent `json:"agent"`
 }
 
 func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) {
@@ -121,11 +142,32 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	parameterSchemas, err := api.Database.GetParameterSchemasByJobID(r.Context(), projectVersion.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get parameter schemas: %s", err),
+		})
+		return
+	}
+
 	var workspaceHistory database.WorkspaceHistory
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = api.Database.InTx(func(db database.Store) error {
 		provisionerJobID := uuid.New()
+		err = parameter.Inject(r.Context(), db, parameter.InjectOptions{
+			ParameterSchemas: parameterSchemas,
+			ProvisionJobID:   provisionerJobID,
+			Username:         user.Username,
+			Transition:       createBuild.Transition,
+		})
+		if err != nil {
+			return xerrors.Errorf("inject parameters: %w", err)
+		}
+
 		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
 			ID:               uuid.New(),
 			CreatedAt:        database.Now(),
@@ -219,10 +261,70 @@ func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) 
 	render.JSON(rw, r, apiHistory)
 }
 
+func (api *api) workspaceHistoryResources(rw http.ResponseWriter, r *http.Request) {
+	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
+
+	resources, err := api.Database.GetWorkspaceResourcesByHistoryID(r.Context(), workspaceHistory.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace resources: %s", err),
+		})
+		return
+	}
+	resourceIDs := make([]uuid.UUID, 0, len(resources))
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace agents: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertWorkspaceResources(resources, agents))
+}
+
 func (*api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
 	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
+}
+
+func convertWorkspaceResources(workspaceResources []database.WorkspaceResource, workspaceAgents []database.WorkspaceAgent) []WorkspaceResource {
+	apiResources := make([]WorkspaceResource, 0)
+	for _, resource := range workspaceResources {
+		apiResource := WorkspaceResource{
+			ID:                 resource.ID,
+			CreatedAt:          resource.CreatedAt,
+			WorkspaceHistoryID: resource.WorkspaceHistoryID,
+			Type:               resource.Type,
+			Name:               resource.Name,
+		}
+		if resource.WorkspaceAgentID.Valid {
+			for _, agent := range workspaceAgents {
+				if agent.ID.String() != resource.WorkspaceAgentID.UUID.String() {
+					continue
+				}
+				apiResource.Agent = &WorkspaceAgent{
+					ID:                  agent.ID,
+					WorkspaceHistoryID:  agent.WorkspaceHistoryID,
+					WorkspaceResourceID: agent.WorkspaceResourceID,
+				}
+				break
+			}
+		}
+		apiResources = append(apiResources, apiResource)
+	}
+	return apiResources
 }
 
 // Converts the internal history representation to a public external-facing model.

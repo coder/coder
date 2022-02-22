@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -201,21 +200,31 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project: %s", err))
 		}
+		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, projectVersion.ImportJobID)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get parameter schemas: %s", err))
+		}
 
 		// Compute parameters for the workspace to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			ProjectImportJobID: projectVersion.ImportJobID,
-			OrganizationID:     job.OrganizationID,
-			ProjectID: uuid.NullUUID{
-				UUID:  project.ID,
-				Valid: true,
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeOptions{
+			ParameterSchemas: parameterSchemas,
+			Scope: parameter.ComputeScope{
+				ProvisionJobID: job.ID,
+				OrganizationID: job.OrganizationID,
+				ProjectID: uuid.NullUUID{
+					UUID:  project.ID,
+					Valid: true,
+				},
+				UserID: user.ID,
+				WorkspaceID: uuid.NullUUID{
+					UUID:  workspace.ID,
+					Valid: true,
+				},
 			},
-			UserID: user.ID,
-			WorkspaceID: uuid.NullUUID{
-				UUID:  workspace.ID,
-				Valid: true,
-			},
-		}, nil)
+		})
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
 		}
@@ -227,31 +236,6 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
 			}
 			protoParameters = append(protoParameters, converted)
-		}
-		protoParameters = append(protoParameters, &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              parameter.WorkspaceTransition,
-			Value:             string(workspaceHistory.Transition),
-		})
-
-		// TODO: parameter.Compute already fetches all schemas. Reduce database
-		// calls by refactoring this a bit.
-		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, projectVersion.ImportJobID)
-		if errors.Is(err, sql.ErrNoRows) {
-			err = nil
-		}
-		if err != nil {
-			return nil, xerrors.Errorf("get project parameters: %w", err)
-		}
-		for _, parameterSchema := range parameterSchemas {
-			if !strings.HasPrefix(parameterSchema.Name, parameter.AgentTokenPrefix) {
-				continue
-			}
-			protoParameters = append(protoParameters, &sdkproto.ParameterValue{
-				DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-				Name:              parameterSchema.Name,
-				Value:             uuid.NewString(),
-			})
 		}
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
@@ -338,13 +322,14 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	}
 
 	if len(request.ParameterSchemas) > 0 {
+		parameterSchemas := make([]database.ParameterSchema, 0)
 		for _, protoParameter := range request.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
 				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
 			}
 
-			parameterSchema := database.InsertParameterSchemaParams{
+			parameterSchemaParams := database.InsertParameterSchemaParams{
 				ID:                   uuid.New(),
 				CreatedAt:            database.Now(),
 				JobID:                job.ID,
@@ -369,8 +354,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 				if err != nil {
 					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
 				}
-				parameterSchema.DefaultSourceScheme = parameterSourceScheme
-				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
+				parameterSchemaParams.DefaultSourceScheme = parameterSourceScheme
+				parameterSchemaParams.DefaultSourceValue = protoParameter.DefaultSource.Value
 			}
 
 			// It's possible a parameter doesn't define a default destination!
@@ -379,20 +364,33 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 				if err != nil {
 					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
 				}
-				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
+				parameterSchemaParams.DefaultDestinationScheme = parameterDestinationScheme
 			}
 
-			_, err = server.Database.InsertParameterSchema(ctx, parameterSchema)
+			parameterSchema, err := server.Database.InsertParameterSchema(ctx, parameterSchemaParams)
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter schema: %w", err)
 			}
+			parameterSchemas = append(parameterSchemas, parameterSchema)
 		}
 
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			ProjectImportJobID: job.ID,
-			OrganizationID:     job.OrganizationID,
-			UserID:             job.InitiatorID,
-		}, nil)
+		err = parameter.Inject(ctx, server.Database, parameter.InjectOptions{
+			ParameterSchemas: parameterSchemas,
+			ProvisionJobID:   job.ID,
+			Username:         "dry-run",
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("inject parameters: %w", err)
+		}
+
+		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeOptions{
+			ParameterSchemas: parameterSchemas,
+			Scope: parameter.ComputeScope{
+				ProvisionJobID: job.ID,
+				OrganizationID: job.OrganizationID,
+				UserID:         job.InitiatorID,
+			},
+		})
 		if err != nil {
 			return nil, xerrors.Errorf("compute parameters: %w", err)
 		}
@@ -515,21 +513,6 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace history: %w", err)
 		}
-		projectVersion, err := server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
-		if err != nil {
-			return nil, xerrors.Errorf("get project version: %w", err)
-		}
-		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, projectVersion.ImportJobID)
-		if errors.Is(err, sql.ErrNoRows) {
-			err = nil
-		}
-		if err != nil {
-			return nil, xerrors.Errorf("get parameter schemas: %w", err)
-		}
-		parameterSchemaByName := map[string]database.ParameterSchema{}
-		for _, parameterSchema := range parameterSchemas {
-			parameterSchemaByName[parameterSchema.Name] = parameterSchema
-		}
 
 		err = server.Database.InTx(func(db database.Store) error {
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -569,7 +552,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 							String: protoResource.InstanceId,
 							Valid:  true,
 						},
-						Token:     uuid.NewString(),
+						Token:     "something",
 						CreatedAt: database.Now(),
 						UpdatedAt: database.Now(),
 					})

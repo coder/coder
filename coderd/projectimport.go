@@ -137,11 +137,23 @@ func (api *api) projectImportJobParametersByID(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
-	values, err := parameter.Compute(r.Context(), api.Database, parameter.ComputeScope{
-		ProjectImportJobID: job.ID,
-		OrganizationID:     job.OrganizationID,
-		UserID:             apiKey.UserID,
-	}, &parameter.ComputeOptions{
+	parameterSchemas, err := api.Database.GetParameterSchemasByJobID(r.Context(), job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get parameter schemas: %s", err),
+		})
+		return
+	}
+	values, err := parameter.Compute(r.Context(), api.Database, parameter.ComputeOptions{
+		ParameterSchemas: parameterSchemas,
+		Scope: parameter.ComputeScope{
+			ProvisionJobID: job.ID,
+			OrganizationID: job.OrganizationID,
+			UserID:         apiKey.UserID,
+		},
 		// We *never* want to send the client secret parameter values.
 		HideRedisplayValues: true,
 	})

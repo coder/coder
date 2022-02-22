@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"net"
 	"net/http"
 	"sync"
 
@@ -30,6 +31,8 @@ type Options struct {
 func New(options *Options) (http.Handler, func()) {
 	api := &api{
 		Options: options,
+
+		agentBrokerConnections: map[string]net.Conn{},
 	}
 
 	r := chi.NewRouter()
@@ -98,12 +101,15 @@ func New(options *Options) (http.Handler, func()) {
 				r.Route("/{workspace}", func(r chi.Router) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
 					r.Get("/", api.workspaceByUser)
-					r.Route("/version", func(r chi.Router) {
+					r.Route("/history", func(r chi.Router) {
 						r.Post("/", api.postWorkspaceHistoryByUser)
 						r.Get("/", api.workspaceHistoryByUser)
 						r.Route("/{workspacehistory}", func(r chi.Router) {
 							r.Use(httpmw.ExtractWorkspaceHistoryParam(options.Database))
 							r.Get("/", api.workspaceHistoryByName)
+							r.Route("/resources", func(r chi.Router) {
+								r.Get("/", api.workspaceHistoryResources)
+							})
 						})
 					})
 				})
@@ -111,6 +117,10 @@ func New(options *Options) (http.Handler, func()) {
 		})
 
 		r.Route("/workspaceagent", func(r chi.Router) {
+			r.Route("/serve", func(r chi.Router) {
+				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Get("/", api.workspaceAgentServe)
+			})
 			r.Route("/authenticate", func(r chi.Router) {
 				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
 			})
@@ -162,6 +172,9 @@ func New(options *Options) (http.Handler, func()) {
 // be added to this struct for code clarity.
 type api struct {
 	*Options
+
+	agentBrokerConnections map[string]net.Conn
+	agentBrokerMutex       sync.Mutex
 
 	websocketWaitGroup sync.WaitGroup
 }

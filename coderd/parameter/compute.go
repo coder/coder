@@ -21,15 +21,19 @@ const (
 )
 
 // ComputeScope targets identifiers to pull parameters from.
+// The struct is sorted in order of hierarchy.
 type ComputeScope struct {
-	ProjectImportJobID uuid.UUID
-	OrganizationID     string
-	UserID             string
-	ProjectID          uuid.NullUUID
-	WorkspaceID        uuid.NullUUID
+	OrganizationID string
+	ProvisionJobID uuid.UUID
+	ProjectID      uuid.NullUUID
+	UserID         string
+	WorkspaceID    uuid.NullUUID
 }
 
 type ComputeOptions struct {
+	ParameterSchemas []database.ParameterSchema
+	Scope            ComputeScope
+
 	// HideRedisplayValues removes the value from parameters that
 	// come from schemas with RedisplayValue set to false.
 	HideRedisplayValues bool
@@ -45,10 +49,7 @@ type ComputedValue struct {
 // Compute accepts a scope in which parameter values are sourced.
 // These sources are iterated in a hierarchical fashion to determine
 // the runtime parameter values for schemas provided.
-func Compute(ctx context.Context, db database.Store, scope ComputeScope, options *ComputeOptions) ([]ComputedValue, error) {
-	if options == nil {
-		options = &ComputeOptions{}
-	}
+func Compute(ctx context.Context, db database.Store, options ComputeOptions) ([]ComputedValue, error) {
 	compute := &compute{
 		options:                 options,
 		db:                      db,
@@ -56,38 +57,29 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		parameterSchemasByName:  map[string]database.ParameterSchema{},
 	}
 
-	// All parameters for the import job ID!
-	parameterSchemas, err := db.GetParameterSchemasByJobID(ctx, scope.ProjectImportJobID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		return nil, xerrors.Errorf("get project parameters: %w", err)
-	}
-	for _, parameterSchema := range parameterSchemas {
+	for _, parameterSchema := range options.ParameterSchemas {
 		compute.parameterSchemasByName[parameterSchema.Name] = parameterSchema
 	}
 
 	// Organization parameters come first!
-	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
+	err := compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeOrganization,
-		ScopeID: scope.OrganizationID,
+		ScopeID: options.Scope.OrganizationID,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Project job parameters come second!
+	// Job parameters!
 	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeProvisionerJob,
-		ScopeID: scope.ProjectImportJobID.String(),
+		ScopeID: options.Scope.ProvisionJobID.String(),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Default project parameter values come second!
-	for _, parameterSchema := range parameterSchemas {
+	for _, parameterSchema := range options.ParameterSchemas {
 		if parameterSchema.DefaultSourceScheme == database.ParameterSourceSchemeNone {
 			continue
 		}
@@ -110,7 +102,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				SourceValue:       parameterSchema.DefaultSourceValue,
 				Scope:             database.ParameterScopeProvisionerJob,
-				ScopeID:           scope.ProjectImportJobID.String(),
+				ScopeID:           options.Scope.ProvisionJobID.String(),
 			}, true)
 			if err != nil {
 				return nil, xerrors.Errorf("insert default value: %w", err)
@@ -120,31 +112,28 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		}
 	}
 
-	if scope.ProjectID.Valid {
-		// Project parameters come third!
+	if options.Scope.ProjectID.Valid {
 		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 			Scope:   database.ParameterScopeProject,
-			ScopeID: scope.ProjectID.UUID.String(),
+			ScopeID: options.Scope.ProjectID.UUID.String(),
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// User parameters come fourth!
 	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeUser,
-		ScopeID: scope.UserID,
+		ScopeID: options.Scope.UserID,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if scope.WorkspaceID.Valid {
-		// Workspace parameters come last!
+	if options.Scope.WorkspaceID.Valid {
 		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 			Scope:   database.ParameterScopeWorkspace,
-			ScopeID: scope.WorkspaceID.UUID.String(),
+			ScopeID: options.Scope.WorkspaceID.UUID.String(),
 		})
 		if err != nil {
 			return nil, err
@@ -159,7 +148,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 }
 
 type compute struct {
-	options                 *ComputeOptions
+	options                 ComputeOptions
 	db                      database.Store
 	computedParameterByName map[string]ComputedValue
 	parameterSchemasByName  map[string]database.ParameterSchema
@@ -185,12 +174,16 @@ func (c *compute) injectScope(ctx context.Context, scopeParams database.GetParam
 }
 
 func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultValue bool) error {
-	if strings.HasPrefix(scopedParameter.Name, Namespace) {
-		return xerrors.Errorf("parameter %q in %q starts with %q; this is a reserved namespace",
-			scopedParameter.Name,
-			string(scopedParameter.Scope),
-			Namespace)
+	// Namespaced variables are stored inside a provision job scope.
+	if scopedParameter.Scope != database.ParameterScopeProvisionerJob {
+		if strings.HasPrefix(scopedParameter.Name, Namespace) {
+			return xerrors.Errorf("parameter %q in %q starts with %q; this is a reserved namespace",
+				scopedParameter.Name,
+				string(scopedParameter.Scope),
+				Namespace)
+		}
 	}
+
 	parameterSchema, hasParameterSchema := c.parameterSchemasByName[scopedParameter.Name]
 	if !hasParameterSchema {
 		// Don't inject parameters that aren't defined by the project.

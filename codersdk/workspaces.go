@@ -68,7 +68,7 @@ func (c *Client) ListWorkspaceHistory(ctx context.Context, owner, workspace stri
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace, history
 	if history == "" {
 		history = "latest"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version/%s", owner, workspace, history), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s", owner, workspace, history), nil)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}
@@ -123,7 +123,7 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), request)
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), request)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}
@@ -133,6 +133,25 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 	}
 	var workspaceHistory coderd.WorkspaceHistory
 	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
+}
+
+func (c *Client) WorkspaceHistoryResources(ctx context.Context, owner, workspace, history string) ([]coderd.WorkspaceResource, error) {
+	if owner == "" {
+		owner = "me"
+	}
+	if history == "" {
+		history = "latest"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s/resources", owner, workspace, history), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var workspaceResources []coderd.WorkspaceResource
+	return workspaceResources, json.NewDecoder(res.Body).Decode(&workspaceResources)
 }
 
 func (c *Client) WorkspaceProvisionJob(ctx context.Context, organization string, job uuid.UUID) (coderd.ProvisionerJob, error) {

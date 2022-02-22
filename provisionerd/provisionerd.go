@@ -373,14 +373,6 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 			// make it do stuff later!
 			continue
 		}
-		if strings.HasPrefix(parameterSchema.Name, parameter.AgentTokenPrefix) {
-			updateResponse.ParameterValues = append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
-				DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-				Name:              parameterSchema.Name,
-				Value:             "",
-			})
-			continue
-		}
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
 			p.cancelActiveJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
@@ -600,14 +592,14 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 				if resource.InstanceId != "" {
 					continue
 				}
-				parameter := createAgentTokenParameter(resource.Type, resource.Name)
-				for _, parameterValue := range job.GetWorkspaceProvision().ParameterValues {
-					if parameterValue.Name != parameter {
-						continue
-					}
-					resource.AgentToken = parameterValue.Value
-					break
-				}
+				// parameter := createAgentTokenParameter(resource.Type, resource.Name)
+				// for _, parameterValue := range job.GetWorkspaceProvision().ParameterValues {
+				// 	if parameterValue.Name != parameter {
+				// 		continue
+				// 	}
+				// 	resource.AgentToken = parameterValue.Value
+				// 	break
+				// }
 			}
 
 			// Complete job may need to be async if we disconnected...

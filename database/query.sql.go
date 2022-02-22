@@ -891,6 +891,48 @@ func (q *sqlQuerier) GetWorkspaceAgentByToken(ctx context.Context, token string)
 	return i, err
 }
 
+const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
+SELECT
+  id, workspace_history_id, workspace_resource_id, created_at, updated_at, instance_id, token, instance_metadata, resource_metadata
+FROM
+  workspace_agent
+WHERE
+  workspace_resource_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByResourceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceHistoryID,
+			&i.WorkspaceResourceID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.InstanceID,
+			&i.Token,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
   id, created_at, updated_at, owner_id, project_id, name

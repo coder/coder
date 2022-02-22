@@ -4,12 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/cookiejar"
 
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/peer"
+	"github.com/coder/coder/peerbroker"
+	"github.com/hashicorp/yamux"
 )
 
 // AuthenticateWorkspaceAgentUsingGoogleCloudIdentity uses the Google Compute Engine Metadata API to
@@ -41,4 +48,39 @@ func (c *Client) AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(ctx context.
 	}
 	var resp coderd.WorkspaceAgentAuthenticateResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) WorkspaceAgentClient(ctx context.Context) (*peerbroker.Listener, error) {
+	serverURL, err := c.URL.Parse("/api/v2/workspaceagent/serve")
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  httpmw.AuthCookie,
+		Value: c.SessionToken,
+	}})
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Jar: jar,
+		},
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, readBodyAsError(res)
+	}
+	config := yamux.DefaultConfig()
+	config.LogOutput = io.Discard
+	session, err := yamux.Server(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
+	if err != nil {
+		return nil, xerrors.Errorf("multiplex client: %w", err)
+	}
+	return peerbroker.Listen(session, &peer.ConnOptions{})
 }
