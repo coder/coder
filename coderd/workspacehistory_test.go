@@ -195,6 +195,7 @@ func TestWorkspaceResources(t *testing.T) {
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
+		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, history.ProvisionJobID)
 		resources, err := client.WorkspaceHistoryResources(context.Background(), "", workspace.Name, history.Name)
 		require.NoError(t, err)

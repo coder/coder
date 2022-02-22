@@ -19,6 +19,7 @@ const (
 	// WorkspaceTransition represents the moving state of a workspace.
 	WorkspaceTransition = "coder_workspace_transition"
 
+	// #nosec
 	agentTokenPrefix = "coder_agent_token"
 )
 

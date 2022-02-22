@@ -33,7 +33,7 @@ func TestProxy(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	proxyCloser, err := peerbroker.ProxyListen(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(listenerClient)), peerbroker.ProxyOptions{
+	proxyCloser, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(listenerClient)), peerbroker.ProxyOptions{
 		ChannelID: channelID,
 		Logger:    slogtest.Make(t, nil).Named("proxy-listen").Leveled(slog.LevelDebug),
 		Pubsub:    pubsub,
@@ -44,7 +44,7 @@ func TestProxy(t *testing.T) {
 	})
 
 	go func() {
-		err = peerbroker.ProxyDial(ctx, dialerServer, peerbroker.ProxyOptions{
+		err = peerbroker.ProxyListen(ctx, dialerServer, peerbroker.ProxyOptions{
 			ChannelID: channelID,
 			Logger:    slogtest.Make(t, nil).Named("proxy-dial").Leveled(slog.LevelDebug),
 			Pubsub:    pubsub,

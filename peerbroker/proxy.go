@@ -20,19 +20,40 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 )
 
-var streamIDLength = len(uuid.NewString())
+var (
+	// Each NegotiationConnection() function call spawns a new stream.
+	streamIDLength = len(uuid.NewString())
+	// We shouldn't PubSub anything larger than this!
+	maxPayloadSizeBytes = 8192
+)
 
-// ProxyOptions customizes the proxy behavior.
+// ProxyOptions provides values to configure a proxy.
 type ProxyOptions struct {
 	ChannelID string
 	Logger    slog.Logger
 	Pubsub    database.Pubsub
 }
 
-// ProxyDial passes streams through the connection listener over pubsub.
-func ProxyDial(ctx context.Context, connListener net.Listener, options ProxyOptions) error {
+// ProxyDial writes client negotiation streams over PubSub.
+//
+// PubSub is used to geodistribute in a simple way. All message payloads
+// are small in size <=8KB, and we don't require delivery guarantees.
+func ProxyDial(client proto.DRPCPeerBrokerClient, options ProxyOptions) (io.Closer, error) {
+	proxyDial := &proxyDial{
+		channelID:  options.ChannelID,
+		logger:     options.Logger,
+		pubsub:     options.Pubsub,
+		connection: client,
+		streams:    make(map[string]proto.DRPCPeerBroker_NegotiateConnectionClient),
+	}
+	return proxyDial, proxyDial.listen()
+}
+
+// ProxyListen accepts client negotiation streams over PubSub and writes them to the listener
+// as new NegotiateConnection() streams.
+func ProxyListen(ctx context.Context, connListener net.Listener, options ProxyOptions) error {
 	mux := drpcmux.New()
-	err := proto.DRPCRegisterPeerBroker(mux, &proxyDial{
+	err := proto.DRPCRegisterPeerBroker(mux, &proxyListen{
 		channelID: options.ChannelID,
 		pubsub:    options.Pubsub,
 		logger:    options.Logger,
@@ -51,29 +72,17 @@ func ProxyDial(ctx context.Context, connListener net.Listener, options ProxyOpti
 	return nil
 }
 
-// ProxyListen passes streams from the pubsub to the client provided.
-func ProxyListen(client proto.DRPCPeerBrokerClient, options ProxyOptions) (io.Closer, error) {
-	proxyListen := &proxyListen{
-		channelID:  options.ChannelID,
-		logger:     options.Logger,
-		pubsub:     options.Pubsub,
-		connection: client,
-		streams:    make(map[string]proto.DRPCPeerBroker_NegotiateConnectionClient),
-	}
-	return proxyListen, proxyListen.listen()
-}
-
-type proxyDial struct {
+type proxyListen struct {
 	channelID string
 	pubsub    database.Pubsub
 	logger    slog.Logger
 }
 
-func (p *proxyDial) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateConnectionStream) error {
+func (p *proxyListen) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateConnectionStream) error {
 	streamID := uuid.NewString()
 	var err error
 	closeSubscribe, err := p.pubsub.Subscribe(proxyInID(p.channelID), func(ctx context.Context, message []byte) {
-		err := p.onServerMessage(streamID, stream, message)
+		err := p.onServerToClientMessage(streamID, stream, message)
 		if err != nil {
 			p.logger.Debug(ctx, "failed to accept server message", slog.Error(err))
 		}
@@ -94,6 +103,9 @@ func (p *proxyDial) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateCon
 		if err != nil {
 			return xerrors.Errorf("marshal: %w", err)
 		}
+		if len(data) > maxPayloadSizeBytes {
+			return xerrors.Errorf("maximum payload size %d exceeded", maxPayloadSizeBytes)
+		}
 		data = append([]byte(streamID), data...)
 		err = p.pubsub.Publish(proxyOutID(p.channelID), data)
 		if err != nil {
@@ -103,7 +115,7 @@ func (p *proxyDial) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateCon
 	return nil
 }
 
-func (p *proxyDial) onServerMessage(streamID string, stream proto.DRPCPeerBroker_NegotiateConnectionStream, message []byte) error {
+func (*proxyListen) onServerToClientMessage(streamID string, stream proto.DRPCPeerBroker_NegotiateConnectionStream, message []byte) error {
 	if len(message) < streamIDLength {
 		return xerrors.Errorf("got message length %d < %d", len(message), streamIDLength)
 	}
@@ -124,22 +136,21 @@ func (p *proxyDial) onServerMessage(streamID string, stream proto.DRPCPeerBroker
 	return nil
 }
 
-type proxyListen struct {
+type proxyDial struct {
 	channelID string
 	pubsub    database.Pubsub
 	logger    slog.Logger
 
 	connection     proto.DRPCPeerBrokerClient
-	closeMutex     sync.Mutex
 	closeSubscribe func()
 	streamMutex    sync.Mutex
 	streams        map[string]proto.DRPCPeerBroker_NegotiateConnectionClient
 }
 
-func (p *proxyListen) listen() error {
+func (p *proxyDial) listen() error {
 	var err error
 	p.closeSubscribe, err = p.pubsub.Subscribe(proxyOutID(p.channelID), func(ctx context.Context, message []byte) {
-		err := p.onClientMessage(ctx, message)
+		err := p.onClientToServerMessage(ctx, message)
 		if err != nil {
 			p.logger.Debug(ctx, "failed to accept client message", slog.Error(err))
 		}
@@ -150,7 +161,7 @@ func (p *proxyListen) listen() error {
 	return nil
 }
 
-func (p *proxyListen) onClientMessage(ctx context.Context, message []byte) error {
+func (p *proxyDial) onClientToServerMessage(ctx context.Context, message []byte) error {
 	if len(message) < streamIDLength {
 		return xerrors.Errorf("got message length %d < %d", len(message), streamIDLength)
 	}
@@ -168,7 +179,7 @@ func (p *proxyListen) onClientMessage(ctx context.Context, message []byte) error
 		go func() {
 			defer stream.Close()
 
-			err = p.onServerMessage(streamID, stream)
+			err = p.onServerToClientMessage(streamID, stream)
 			if err != nil {
 				p.logger.Debug(ctx, "failed to accept server message", slog.Error(err))
 			}
@@ -194,7 +205,7 @@ func (p *proxyListen) onClientMessage(ctx context.Context, message []byte) error
 	return nil
 }
 
-func (p *proxyListen) onServerMessage(streamID string, stream proto.DRPCPeerBroker_NegotiateConnectionClient) error {
+func (p *proxyDial) onServerToClientMessage(streamID string, stream proto.DRPCPeerBroker_NegotiateConnectionClient) error {
 	for {
 		serverToClientMessage, err := stream.Recv()
 		if err != nil {
@@ -210,6 +221,9 @@ func (p *proxyListen) onServerMessage(streamID string, stream proto.DRPCPeerBrok
 		if err != nil {
 			return xerrors.Errorf("marshal: %w", err)
 		}
+		if len(data) > maxPayloadSizeBytes {
+			return xerrors.Errorf("maximum payload size %d exceeded", maxPayloadSizeBytes)
+		}
 		data = append([]byte(streamID), data...)
 		err = p.pubsub.Publish(proxyInID(p.channelID), data)
 		if err != nil {
@@ -219,7 +233,7 @@ func (p *proxyListen) onServerMessage(streamID string, stream proto.DRPCPeerBrok
 	return nil
 }
 
-func (p *proxyListen) Close() error {
+func (p *proxyDial) Close() error {
 	p.streamMutex.Lock()
 	defer p.streamMutex.Unlock()
 	p.closeSubscribe()

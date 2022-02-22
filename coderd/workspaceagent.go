@@ -64,7 +64,7 @@ func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-	err = peerbroker.ProxyDial(r.Context(), session, peerbroker.ProxyOptions{
+	err = peerbroker.ProxyListen(r.Context(), session, peerbroker.ProxyOptions{
 		ChannelID: resource.WorkspaceAgentID.UUID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 		Pubsub:    api.Pubsub,
@@ -100,7 +100,7 @@ func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-	closer, err := peerbroker.ProxyListen(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
+	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
 		ChannelID: workspaceAgent.ID.String(),
 		Pubsub:    api.Pubsub,
 		Logger:    api.Logger.Named("peerbroker-proxy-listen"),

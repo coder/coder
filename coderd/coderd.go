@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"net"
 	"net/http"
 	"sync"
 
@@ -31,8 +30,6 @@ type Options struct {
 func New(options *Options) (http.Handler, func()) {
 	api := &api{
 		Options: options,
-
-		agentBrokerConnections: map[string]net.Conn{},
 	}
 
 	r := chi.NewRouter()
@@ -178,9 +175,6 @@ func New(options *Options) (http.Handler, func()) {
 // be added to this struct for code clarity.
 type api struct {
 	*Options
-
-	agentBrokerConnections map[string]net.Conn
-	agentBrokerMutex       sync.Mutex
 
 	websocketWaitGroup sync.WaitGroup
 }

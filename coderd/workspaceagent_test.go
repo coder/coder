@@ -79,12 +79,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		conn, err := client.WorkspaceAgentConnect(context.Background(), "", workspace.Name, "", resources[0].ID.String())
 		require.NoError(t, err)
-
-		for i := 0; i < 5; i++ {
-			latency, err := conn.Ping()
-			require.NoError(t, err)
-			fmt.Printf("Latency: %d\n", latency.Microseconds())
-		}
-
+		_, err = conn.Ping()
+		require.NoError(t, err)
 	})
 }

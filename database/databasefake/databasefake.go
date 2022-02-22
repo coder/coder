@@ -195,7 +195,7 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentByToken(ctx context.Context, token string) (database.WorkspaceAgent, error) {
+func (q *fakeQuerier) GetWorkspaceAgentByToken(_ context.Context, token string) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -207,7 +207,7 @@ func (q *fakeQuerier) GetWorkspaceAgentByToken(ctx context.Context, token string
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *fakeQuerier) GetWorkspaceAgentByID(_ context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -266,7 +266,7 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, pro
 	return res, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
+func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -961,6 +961,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	//nolint:gosimple
 	workspaceResource := database.WorkspaceResource{
 		ID:                 arg.ID,
 		CreatedAt:          arg.CreatedAt,
