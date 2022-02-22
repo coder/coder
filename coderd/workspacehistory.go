@@ -472,31 +472,10 @@ func completeWorkspaceProvisionJob(ctx context.Context, db database.Store, job d
 				agentToken, hasAgent = parameter.FindAgentToken(parameterValues, protoResource.Type, protoResource.Name)
 			}
 
-			var agentID uuid.NullUUID
-			if hasAgent {
-				agentID = uuid.NullUUID{
-					UUID:  uuid.New(),
-					Valid: true,
-				}
-				if agentToken == "" {
-					agentToken = uuid.NewString()
-				}
-				_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-					ID:                  agentID.UUID,
-					WorkspaceHistoryID:  workspaceHistory.ID,
-					WorkspaceResourceID: workspaceResourceID,
-					InstanceID: sql.NullString{
-						String: protoResource.InstanceId,
-						Valid:  true,
-					},
-					Token:     agentToken,
-					CreatedAt: database.Now(),
-				})
-				if err != nil {
-					return xerrors.Errorf("insert workspace agent: %w", err)
-				}
+			agentID := uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: hasAgent,
 			}
-
 			_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 				ID:                 workspaceResourceID,
 				CreatedAt:          database.Now(),
@@ -507,6 +486,28 @@ func completeWorkspaceProvisionJob(ctx context.Context, db database.Store, job d
 			})
 			if err != nil {
 				return xerrors.Errorf("insert workspace resource %q: %w", protoResource.Name, err)
+			}
+
+			if !hasAgent {
+				continue
+			}
+
+			if agentToken == "" {
+				agentToken = uuid.NewString()
+			}
+			_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+				ID:                  agentID.UUID,
+				WorkspaceHistoryID:  workspaceHistory.ID,
+				WorkspaceResourceID: workspaceResourceID,
+				InstanceID: sql.NullString{
+					String: protoResource.InstanceId,
+					Valid:  true,
+				},
+				Token:     agentToken,
+				CreatedAt: database.Now(),
+			})
+			if err != nil {
+				return xerrors.Errorf("insert workspace agent: %w", err)
 			}
 		}
 		return nil

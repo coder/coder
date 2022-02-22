@@ -257,8 +257,8 @@ CREATE TABLE workspace_agent (
     updated_at timestamp with time zone,
     instance_id character varying(64),
     token character varying(64) NOT NULL,
-    instance_metadata jsonb NOT NULL,
-    resource_metadata jsonb NOT NULL
+    instance_metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    resource_metadata jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE workspace_history (

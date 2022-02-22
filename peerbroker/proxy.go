@@ -2,6 +2,7 @@ package peerbroker
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -107,7 +108,7 @@ func (p *proxyListen) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateC
 			return xerrors.Errorf("maximum payload size %d exceeded", maxPayloadSizeBytes)
 		}
 		data = append([]byte(streamID), data...)
-		err = p.pubsub.Publish(proxyOutID(p.channelID), data)
+		err = p.pubsub.Publish(proxyOutID(p.channelID), encode(data))
 		if err != nil {
 			return xerrors.Errorf("publish: %w", err)
 		}
@@ -116,6 +117,11 @@ func (p *proxyListen) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateC
 }
 
 func (*proxyListen) onServerToClientMessage(streamID string, stream proto.DRPCPeerBroker_NegotiateConnectionStream, message []byte) error {
+	var err error
+	message, err = decode(message)
+	if err != nil {
+		return xerrors.Errorf("decode: %w", err)
+	}
 	if len(message) < streamIDLength {
 		return xerrors.Errorf("got message length %d < %d", len(message), streamIDLength)
 	}
@@ -125,7 +131,7 @@ func (*proxyListen) onServerToClientMessage(streamID string, stream proto.DRPCPe
 		return nil
 	}
 	var msg proto.NegotiateConnection_ServerToClient
-	err := protobuf.Unmarshal(message[streamIDLength:], &msg)
+	err = protobuf.Unmarshal(message[streamIDLength:], &msg)
 	if err != nil {
 		return xerrors.Errorf("unmarshal message: %w", err)
 	}
@@ -162,10 +168,14 @@ func (p *proxyDial) listen() error {
 }
 
 func (p *proxyDial) onClientToServerMessage(ctx context.Context, message []byte) error {
+	var err error
+	message, err = decode(message)
+	if err != nil {
+		return xerrors.Errorf("decode: %w", err)
+	}
 	if len(message) < streamIDLength {
 		return xerrors.Errorf("got message length %d < %d", len(message), streamIDLength)
 	}
-	var err error
 	streamID := string(message[0:streamIDLength])
 	p.streamMutex.Lock()
 	stream, ok := p.streams[streamID]
@@ -225,7 +235,7 @@ func (p *proxyDial) onServerToClientMessage(streamID string, stream proto.DRPCPe
 			return xerrors.Errorf("maximum payload size %d exceeded", maxPayloadSizeBytes)
 		}
 		data = append([]byte(streamID), data...)
-		err = p.pubsub.Publish(proxyInID(p.channelID), data)
+		err = p.pubsub.Publish(proxyInID(p.channelID), encode(data))
 		if err != nil {
 			return xerrors.Errorf("publish: %w", err)
 		}
@@ -246,4 +256,14 @@ func proxyOutID(channelID string) string {
 
 func proxyInID(channelID string) string {
 	return fmt.Sprintf("%s-in", channelID)
+}
+
+func encode(data []byte) []byte {
+	return []byte(base64.StdEncoding.EncodeToString(data))
+}
+
+func decode(data []byte) ([]byte, error) {
+	buf := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
+	n, err := base64.StdEncoding.Decode(buf, data)
+	return buf[:n], err
 }

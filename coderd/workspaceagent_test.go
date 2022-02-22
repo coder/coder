@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -73,7 +72,6 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Eventually(t, func() bool {
 			resources, err = client.WorkspaceHistoryResources(context.Background(), "", workspace.Name, "")
 			require.NoError(t, err)
-			fmt.Printf("%+v\n", resources[0].Agent)
 			return !resources[0].Agent.UpdatedAt.IsZero()
 		}, 5*time.Second, 25*time.Millisecond)
 

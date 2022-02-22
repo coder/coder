@@ -61,7 +61,7 @@ CREATE TABLE workspace_agent (
     instance_id varchar(64),
     token varchar(64) NOT NULL UNIQUE,
     -- Identifies instance architecture, cloud, etc.
-    instance_metadata jsonb NOT NULL,
+    instance_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     -- Identifies resources.
-    resource_metadata jsonb NOT NULL
+    resource_metadata jsonb NOT NULL DEFAULT '{}'::jsonb
 );
