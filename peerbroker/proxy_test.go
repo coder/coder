@@ -4,6 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/pion/webrtc/v3"
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/database"
@@ -11,8 +14,6 @@ import (
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/pion/webrtc/v3"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProxy(t *testing.T) {

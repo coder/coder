@@ -55,6 +55,7 @@ func TestFindAgentToken(t *testing.T) {
 func TestInject(t *testing.T) {
 	t.Parallel()
 	t.Run("Unknown", func(t *testing.T) {
+		t.Parallel()
 		db := databasefake.New()
 		provisionJobID := uuid.New()
 		err := parameter.Inject(context.Background(), db, parameter.InjectOptions{
@@ -68,6 +69,7 @@ func TestInject(t *testing.T) {
 	})
 
 	t.Run("Username", func(t *testing.T) {
+		t.Parallel()
 		db := databasefake.New()
 		provisionJobID := uuid.New()
 		err := parameter.Inject(context.Background(), db, parameter.InjectOptions{
@@ -90,6 +92,7 @@ func TestInject(t *testing.T) {
 	})
 
 	t.Run("AgentToken", func(t *testing.T) {
+		t.Parallel()
 		db := databasefake.New()
 		provisionJobID := uuid.New()
 		err := parameter.Inject(context.Background(), db, parameter.InjectOptions{
@@ -110,6 +113,7 @@ func TestInject(t *testing.T) {
 	})
 
 	t.Run("WorkspaceTransition", func(t *testing.T) {
+		t.Parallel()
 		db := databasefake.New()
 		provisionJobID := uuid.New()
 		err := parameter.Inject(context.Background(), db, parameter.InjectOptions{

@@ -6,12 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/database/databasefake"
-	"github.com/coder/coder/httpmw"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/database"
+	"github.com/coder/coder/database/databasefake"
+	"github.com/coder/coder/httpmw"
 )
 
 func TestWorkspaceAgent(t *testing.T) {

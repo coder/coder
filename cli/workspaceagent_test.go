@@ -3,8 +3,9 @@ package cli_test
 import (
 	"testing"
 
-	"github.com/coder/coder/cli/clitest"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/cli/clitest"
 )
 
 func TestWorkspaceAgent(t *testing.T) {

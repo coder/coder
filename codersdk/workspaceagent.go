@@ -9,11 +9,14 @@ import (
 	"net/http/cookiejar"
 	"testing"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/hashicorp/yamux"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/httpmw"
@@ -21,7 +24,6 @@ import (
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/hashicorp/yamux"
 )
 
 // AuthenticateWorkspaceAgentUsingGoogleCloudIdentity uses the Google Compute Engine Metadata API to

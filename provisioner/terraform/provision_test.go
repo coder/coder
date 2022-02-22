@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk"

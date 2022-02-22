@@ -1042,7 +1042,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentByID(ctx context.Context, arg database.UpdateWorkspaceAgentByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAgentByID(_ context.Context, arg database.UpdateWorkspaceAgentByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

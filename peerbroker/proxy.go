@@ -8,15 +8,16 @@ import (
 	"net"
 	"sync"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/peerbroker/proto"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/database"
+	"github.com/coder/coder/peerbroker/proto"
 )
 
 var streamIDLength = len(uuid.NewString())
