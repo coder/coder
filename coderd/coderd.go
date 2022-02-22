@@ -116,6 +116,8 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 
+		// This needs to unfortunately go under a separate route until
+		// we have conjoined authentication.
 		r.Route("/workspaceagent", func(r chi.Router) {
 			r.Route("/serve", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))

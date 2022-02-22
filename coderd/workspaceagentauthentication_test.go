@@ -7,21 +7,18 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"math/big"
 	"net/http"
 	"testing"
 	"time"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"cloud.google.com/go/compute/metadata"
 	"github.com/golang-jwt/jwt"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -30,54 +27,6 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
-
-func TestWorkspaceAgentServe(t *testing.T) {
-	t.Parallel()
-	t.Run("Agent", func(t *testing.T) {
-		t.Parallel()
-		instanceID := "instanceidentifier"
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
-			Parse: echo.ParseComplete,
-			Plan:  echo.PlanComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.ProvisionedResource{{
-							Name:       "somename",
-							Type:       "someinstance",
-							InstanceId: instanceID,
-						}},
-					},
-				},
-			}},
-		})
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		firstHistory, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, firstHistory.ProvisionJobID)
-
-		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = "somesample"
-
-		closer := agent.New(agentClient.WorkspaceAgentClient, &agent.Options{
-			Logger: slogtest.Make(t, nil),
-		})
-		time.Sleep(time.Second)
-		_ = closer.Close()
-
-		resources, err := client.WorkspaceHistoryResources(context.Background(), "", workspace.Name, "")
-		require.NoError(t, err)
-		fmt.Printf("Resources: %+v\n", resources[0].Agent)
-	})
-}
 
 func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 	t.Parallel()

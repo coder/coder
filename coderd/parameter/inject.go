@@ -10,12 +10,49 @@ import (
 	"github.com/coder/coder/database"
 )
 
+const (
+	// Namespace is a banned prefix for user-specifiable parameters.
+	Namespace = "coder"
+
+	// Username injects the owner of the workspace at provision.
+	Username = "coder_username"
+	// WorkspaceTransition represents the moving state of a workspace.
+	WorkspaceTransition = "coder_workspace_transition"
+
+	agentTokenPrefix = "coder_agent_token"
+)
+
 type InjectOptions struct {
 	ParameterSchemas []database.ParameterSchema
 	ProvisionJobID   uuid.UUID
 
 	Username   string
 	Transition database.WorkspaceTransition
+}
+
+// AgentToken returns the name of a token parameter.
+func AgentToken(resourceType, resourceName string) string {
+	return strings.Join([]string{agentTokenPrefix, resourceType, resourceName}, "_")
+}
+
+// HasAgentToken returns whether an agent token is specified in an array of parameters.
+func HasAgentToken(parameterSchemas []database.ParameterSchema, resourceType, resourceName string) bool {
+	for _, parameterSchema := range parameterSchemas {
+		if parameterSchema.Name == AgentToken(resourceType, resourceName) {
+			return true
+		}
+	}
+	return false
+}
+
+// FindAgentToken returns an agent token from an array of parameter values.
+func FindAgentToken(parameterValues []database.ParameterValue, resourceType, resourceName string) (string, bool) {
+	for _, parameterValue := range parameterValues {
+		if parameterValue.Name == AgentToken(resourceType, resourceName) {
+			return parameterValue.SourceValue, true
+		}
+	}
+	return "", false
 }
 
 // Inject adds "coder*" parameters to a job.
@@ -44,13 +81,8 @@ func Inject(ctx context.Context, db database.Store, options InjectOptions) error
 			case schema.Name == Username:
 				err = insertParameter(db, schema.Name, options.Username)
 			case schema.Name == WorkspaceTransition:
-				// This is so provisionerd can inject it's own start/stop
-				// for importing a project. This is not ideal.
-				if options.Transition == "" {
-					continue
-				}
 				err = insertParameter(db, schema.Name, string(options.Transition))
-			case strings.HasPrefix(schema.Name, AgentTokenPrefix):
+			case strings.HasPrefix(schema.Name, agentTokenPrefix):
 				// Generate an agent token here!
 				err = insertParameter(db, schema.Name, uuid.NewString())
 			default:

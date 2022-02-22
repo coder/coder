@@ -1171,6 +1171,30 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, id
 	return items, nil
 }
 
+const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
+SELECT
+  id, created_at, workspace_history_id, instance_id, type, name, workspace_agent_id
+FROM
+  workspace_resource
+WHERE
+  id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceResourceByID, id)
+	var i WorkspaceResource
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.WorkspaceHistoryID,
+		&i.InstanceID,
+		&i.Type,
+		&i.Name,
+		&i.WorkspaceAgentID,
+	)
+	return i, err
+}
+
 const getWorkspaceResourcesByHistoryID = `-- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
   id, created_at, workspace_history_id, instance_id, type, name, workspace_agent_id

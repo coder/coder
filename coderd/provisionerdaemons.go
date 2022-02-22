@@ -179,76 +179,23 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	}
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceProvision:
-		var input workspaceProvisionJob
-		err = json.Unmarshal(job.Input, &input)
+		acquired, err := fillAcquiredWorkspaceProvisionJob(ctx, server.Database, user, job)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
+			return nil, failJob(err.Error())
 		}
-		workspaceHistory, err := server.Database.GetWorkspaceHistoryByID(ctx, input.WorkspaceHistoryID)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get workspace history: %s", err))
-		}
-		workspace, err := server.Database.GetWorkspaceByID(ctx, workspaceHistory.WorkspaceID)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get workspace: %s", err))
-		}
-		projectVersion, err := server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get project version: %s", err))
-		}
-		project, err := server.Database.GetProjectByID(ctx, projectVersion.ProjectID)
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get project: %s", err))
-		}
-		parameterSchemas, err := server.Database.GetParameterSchemasByJobID(ctx, projectVersion.ImportJobID)
-		if errors.Is(err, sql.ErrNoRows) {
-			err = nil
-		}
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("get parameter schemas: %s", err))
-		}
-
-		// Compute parameters for the workspace to consume.
-		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeOptions{
-			ParameterSchemas: parameterSchemas,
-			Scope: parameter.ComputeScope{
-				ProvisionJobID: job.ID,
-				OrganizationID: job.OrganizationID,
-				ProjectID: uuid.NullUUID{
-					UUID:  project.ID,
-					Valid: true,
-				},
-				UserID: user.ID,
-				WorkspaceID: uuid.NullUUID{
-					UUID:  workspace.ID,
-					Valid: true,
-				},
-			},
-		})
-		if err != nil {
-			return nil, failJob(fmt.Sprintf("compute parameters: %s", err))
-		}
-		// Convert parameters to the protobuf type.
-		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
-		for _, computedParameter := range parameters {
-			converted, err := convertComputedParameterValue(computedParameter)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("convert parameter: %s", err))
-			}
-			protoParameters = append(protoParameters, converted)
-		}
-
-		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
-			WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
-				WorkspaceHistoryId: workspaceHistory.ID.String(),
-				WorkspaceName:      workspace.Name,
-				State:              workspaceHistory.ProvisionerState,
-				ParameterValues:    protoParameters,
-			},
-		}
+		protoJob.Type = acquired
 	case database.ProvisionerJobTypeProjectVersionImport:
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
 			ProjectImport: &proto.AcquiredJob_ProjectImport{},
+		}
+		protoJob = &proto.AcquiredJob{
+			JobId:       job.ID.String(),
+			CreatedAt:   job.CreatedAt.UnixMilli(),
+			Provisioner: string(job.Provisioner),
+			UserName:    user.Username,
+			Type: &proto.AcquiredJob_ProjectImport_{
+				ProjectImport: &proto.AcquiredJob_ProjectImport{},
+			},
 		}
 	}
 	switch job.StorageMethod {
@@ -377,19 +324,21 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		err = parameter.Inject(ctx, server.Database, parameter.InjectOptions{
 			ParameterSchemas: parameterSchemas,
 			ProvisionJobID:   job.ID,
-			Username:         "dry-run",
+
+			// TODO: Make these values dynamic in a better way!
+			Username:   "dry-run",
+			Transition: database.WorkspaceTransitionStart,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("inject parameters: %w", err)
 		}
 
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeOptions{
-			ParameterSchemas: parameterSchemas,
-			Scope: parameter.ComputeScope{
-				ProvisionJobID: job.ID,
-				OrganizationID: job.OrganizationID,
-				UserID:         job.InitiatorID,
-			},
+			Schemas: parameterSchemas,
+
+			ProvisionJobID: job.ID,
+			OrganizationID: job.OrganizationID,
+			UserID:         job.InitiatorID,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("compute parameters: %w", err)
@@ -462,121 +411,14 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_ProjectImport_:
-		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.PlannedResource{
-			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
-			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
-		} {
-			for _, resource := range resources {
-				server.Logger.Info(ctx, "inserting project import job resource",
-					slog.F("job_id", job.ID.String()),
-					slog.F("resource_name", resource.Name),
-					slog.F("resource_type", resource.Type),
-					slog.F("transition", transition))
-				_, err = server.Database.InsertProjectImportJobResource(ctx, database.InsertProjectImportJobResourceParams{
-					ID:         uuid.New(),
-					CreatedAt:  database.Now(),
-					JobID:      jobID,
-					Transition: transition,
-					Agent:      resource.Agent,
-					Type:       resource.Type,
-					Name:       resource.Name,
-				})
-				if err != nil {
-					return nil, xerrors.Errorf("insert resource: %w", err)
-				}
-			}
-		}
-
-		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID:        jobID,
-			UpdatedAt: database.Now(),
-			CompletedAt: sql.NullTime{
-				Time:  database.Now(),
-				Valid: true,
-			},
-		})
+		err = completeProjectImportJob(ctx, server.Database, job, jobType)
 		if err != nil {
-			return nil, xerrors.Errorf("update provisioner job: %w", err)
-		}
-		server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
-		if err != nil {
-			return nil, xerrors.Errorf("complete job: %w", err)
+			return nil, xerrors.Errorf("complete project import job: %w", err)
 		}
 	case *proto.CompletedJob_WorkspaceProvision_:
-		var input workspaceProvisionJob
-		err = json.Unmarshal(job.Input, &input)
+		err = completeWorkspaceProvisionJob(ctx, server.Database, job, jobType)
 		if err != nil {
-			return nil, xerrors.Errorf("unmarshal job data: %w", err)
-		}
-
-		workspaceHistory, err := server.Database.GetWorkspaceHistoryByID(ctx, input.WorkspaceHistoryID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace history: %w", err)
-		}
-
-		err = server.Database.InTx(func(db database.Store) error {
-			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID:        jobID,
-				UpdatedAt: database.Now(),
-				CompletedAt: sql.NullTime{
-					Time:  database.Now(),
-					Valid: true,
-				},
-			})
-			if err != nil {
-				return xerrors.Errorf("update provisioner job: %w", err)
-			}
-			err = db.UpdateWorkspaceHistoryByID(ctx, database.UpdateWorkspaceHistoryByIDParams{
-				ID:               workspaceHistory.ID,
-				UpdatedAt:        database.Now(),
-				ProvisionerState: jobType.WorkspaceProvision.State,
-			})
-			if err != nil {
-				return xerrors.Errorf("update workspace history: %w", err)
-			}
-
-			// This could be a bulk insert to improve performance.
-			for _, protoResource := range jobType.WorkspaceProvision.Resources {
-				workspaceResourceID := uuid.New()
-				var agentID uuid.NullUUID
-				if protoResource.InstanceId != "" {
-					agentID = uuid.NullUUID{
-						UUID:  uuid.New(),
-						Valid: true,
-					}
-					_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-						ID:                  agentID.UUID,
-						WorkspaceHistoryID:  workspaceHistory.ID,
-						WorkspaceResourceID: workspaceResourceID,
-						InstanceID: sql.NullString{
-							String: protoResource.InstanceId,
-							Valid:  true,
-						},
-						Token:     "something",
-						CreatedAt: database.Now(),
-						UpdatedAt: database.Now(),
-					})
-					if err != nil {
-						return xerrors.Errorf("insert workspace agent: %w", err)
-					}
-				}
-
-				_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
-					ID:                 workspaceResourceID,
-					CreatedAt:          database.Now(),
-					WorkspaceHistoryID: input.WorkspaceHistoryID,
-					Type:               protoResource.Type,
-					Name:               protoResource.Name,
-					WorkspaceAgentID:   agentID,
-				})
-				if err != nil {
-					return xerrors.Errorf("insert workspace resource %q: %w", protoResource.Name, err)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("complete job: %w", err)
+			return nil, xerrors.Errorf("complete provision job: %w", err)
 		}
 	default:
 		return nil, xerrors.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",

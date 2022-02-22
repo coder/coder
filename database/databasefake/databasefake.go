@@ -254,6 +254,18 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, pro
 	return res, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, workspaceResource := range q.workspaceResource {
+		if workspaceResource.ID.String() == id.String() {
+			return workspaceResource, nil
+		}
+	}
+	return database.WorkspaceResource{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceResourcesByHistoryID(_ context.Context, workspaceHistoryID uuid.UUID) ([]database.WorkspaceResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

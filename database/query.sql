@@ -356,6 +356,14 @@ WHERE
 ORDER BY
   created_at;
 
+-- name: GetWorkspaceResourceByID :one
+SELECT
+  *
+FROM
+  workspace_resource
+WHERE
+  id = $1;
+
 -- name: GetWorkspaceResourcesByHistoryID :many
 SELECT
   *

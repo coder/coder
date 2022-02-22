@@ -34,6 +34,45 @@ func TestPostProjectImportByOrganization(t *testing.T) {
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 	})
+
+	t.Run("CreateWithParameters", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateInitialUser(t, client)
+		_ = coderdtest.NewProvisionerDaemon(t, client)
+		data, err := echo.Tar(&echo.Responses{
+			Parse: []*proto.Parse_Response{{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:           "test",
+							RedisplayValue: true,
+						}},
+					},
+				},
+			}},
+			Provision: echo.ProvisionComplete,
+		})
+		require.NoError(t, err)
+		file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+		require.NoError(t, err)
+		job, err := client.CreateProjectImportJob(context.Background(), user.Organization, coderd.CreateProjectImportJobRequest{
+			StorageSource: file.Hash,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Provisioner:   database.ProvisionerTypeEcho,
+			ParameterValues: []coderd.CreateParameterValueRequest{{
+				Name:              "test",
+				SourceValue:       "somevalue",
+				SourceScheme:      database.ParameterSourceSchemeData,
+				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+			}},
+		})
+		require.NoError(t, err)
+		job = coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
+		values, err := client.ProjectImportJobParameters(context.Background(), user.Organization, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, "somevalue", values[0].SourceValue)
+	})
 }
 
 func TestProjectImportJobSchemasByID(t *testing.T) {

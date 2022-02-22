@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -8,11 +9,14 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/provisionerd/proto"
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
 // ParameterSchema represents a parameter parsed from project version source.
@@ -148,12 +152,12 @@ func (api *api) projectImportJobParametersByID(rw http.ResponseWriter, r *http.R
 		return
 	}
 	values, err := parameter.Compute(r.Context(), api.Database, parameter.ComputeOptions{
-		ParameterSchemas: parameterSchemas,
-		Scope: parameter.ComputeScope{
-			ProvisionJobID: job.ID,
-			OrganizationID: job.OrganizationID,
-			UserID:         apiKey.UserID,
-		},
+		Schemas: parameterSchemas,
+
+		ProvisionJobID: job.ID,
+		OrganizationID: job.OrganizationID,
+		UserID:         apiKey.UserID,
+
 		// We *never* want to send the client secret parameter values.
 		HideRedisplayValues: true,
 	})
@@ -194,4 +198,55 @@ func (api *api) projectImportJobResourcesByID(rw http.ResponseWriter, r *http.Re
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, resources)
+}
+
+func completeProjectImportJob(ctx context.Context, db database.Store, job database.ProvisionerJob, completed *proto.CompletedJob_ProjectImport_) error {
+	for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.PlannedResource{
+		database.WorkspaceTransitionStart: completed.ProjectImport.StartResources,
+		database.WorkspaceTransitionStop:  completed.ProjectImport.StopResources,
+	} {
+		parameterSchemas, err := db.GetParameterSchemasByJobID(ctx, job.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			return xerrors.Errorf("get parameter schemas: %w", err)
+		}
+
+		for _, resource := range resources {
+			// Resources can report whether they'll have an agent or not.
+			//
+			// If they don't, we check to see if a parameter was specified
+			// for the token. This marks the resource as having an agent.
+			if !resource.Agent {
+				resource.Agent = parameter.HasAgentToken(parameterSchemas, resource.Type, resource.Name)
+			}
+
+			_, err = db.InsertProjectImportJobResource(ctx, database.InsertProjectImportJobResourceParams{
+				ID:         uuid.New(),
+				CreatedAt:  database.Now(),
+				JobID:      job.ID,
+				Transition: transition,
+				Agent:      resource.Agent,
+				Type:       resource.Type,
+				Name:       resource.Name,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert resource: %w", err)
+			}
+		}
+	}
+
+	err := db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID:        job.ID,
+		UpdatedAt: database.Now(),
+		CompletedAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("update provisioner job: %w", err)
+	}
+	return nil
 }

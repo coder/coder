@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -227,7 +226,6 @@ func TestProvisionerd(t *testing.T) {
 				},
 				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
 					didComplete.Store(true)
-					require.True(t, job.GetProjectImport().StartResources[0].Agent)
 					return &proto.Empty{}, nil
 				},
 			}), nil
@@ -252,8 +250,6 @@ func TestProvisionerd(t *testing.T) {
 						Type: &sdkproto.Parse_Response_Complete{
 							Complete: &sdkproto.Parse_Complete{
 								ParameterSchemas: []*sdkproto.ParameterSchema{{
-									Name: fmt.Sprintf("%s_test_something", parameter.AgentTokenPrefix),
-								}, {
 									Name: parameter.WorkspaceTransition,
 								}},
 							},
@@ -320,11 +316,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceProvision_{
 							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
-								ParameterValues: []*sdkproto.ParameterValue{{
-									DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-									Name:              fmt.Sprintf("%s_type_name", parameter.AgentTokenPrefix),
-									Value:             "token",
-								}},
+								ParameterValues: []*sdkproto.ParameterValue{},
 							},
 						},
 					}, nil

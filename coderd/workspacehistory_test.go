@@ -147,6 +147,61 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 	})
 }
 
+func TestWorkspaceResources(t *testing.T) {
+	t.Parallel()
+	t.Run("ListRunning", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateInitialUser(t, client)
+		daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
+		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
+		daemonCloser.Close()
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectVersionID: project.ActiveVersionID,
+			Transition:       database.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		_, err = client.WorkspaceHistoryResources(context.Background(), "", workspace.Name, history.Name)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+	})
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateInitialUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Plan:  echo.PlanComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.ProvisionedResource{{
+							Name: "example",
+							Type: "google_compute_instance",
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
+		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			ProjectVersionID: project.ActiveVersionID,
+			Transition:       database.WorkspaceTransitionStart,
+		})
+		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, history.ProvisionJobID)
+		resources, err := client.WorkspaceHistoryResources(context.Background(), "", workspace.Name, history.Name)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+	})
+}
+
 func TestWorkspaceHistoryByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

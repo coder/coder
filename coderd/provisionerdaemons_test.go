@@ -11,8 +11,6 @@ import (
 )
 
 func TestProvisionerDaemons(t *testing.T) {
-	// Tests for properly processing specific job types should be placed
-	// in their respective files.
 	t.Parallel()
 
 	client := coderdtest.New(t, nil)
