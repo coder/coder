@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   coder-test-stability:
-    name: "test/go/stability"
+    name: "test/go/stability/${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
