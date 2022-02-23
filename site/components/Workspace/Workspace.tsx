@@ -5,17 +5,12 @@ import { makeStyles } from "@material-ui/core/styles"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import Link from "next/link"
 import React from "react"
-
+import * as Constants from "./constants"
 import * as API from "../../api"
+import { WorkspaceSection } from "./WorkspaceSection"
 
 export interface WorkspaceProps {
   workspace: API.Workspace
-}
-
-namespace Constants {
-  export const TitleIconSize = 48
-  export const CardRadius = 8
-  export const CardPadding = 20
 }
 
 /**
@@ -26,7 +21,32 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
 
   return (
     <div className={styles.root}>
-      <WorkspaceHeader workspace={workspace} />
+      <div className={styles.vertical}>
+        <WorkspaceHeader workspace={workspace} />
+        <div className={styles.horizontal}>
+          <div className={styles.sidebarContainer}>
+            <WorkspaceSection title="Applications">
+              <Placeholder />
+            </WorkspaceSection>
+            <WorkspaceSection title="Dev URLs">
+              <Placeholder />
+            </WorkspaceSection>
+            <WorkspaceSection title="Resources">
+              <Placeholder />
+            </WorkspaceSection>
+          </div>
+          <div className={styles.timelineContainer}>
+            <WorkspaceSection title="Timeline">
+              <div
+                className={styles.vertical}
+                style={{ justifyContent: "center", alignItems: "center", height: "300px" }}
+              >
+                <Placeholder />
+              </div>
+            </WorkspaceSection>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -63,6 +83,18 @@ export const WorkspaceHeroIcon: React.FC = () => {
   )
 }
 
+/**
+ * Temporary placeholder component until we have the sections implemented
+ * Can be removed once the Workspace page has all the necessary sections
+ */
+const Placeholder: React.FC = () => {
+  return (
+    <div style={{ textAlign: "center", opacity: "0.5" }}>
+      <Typography variant="caption">Not yet implemented</Typography>
+    </div>
+  )
+}
+
 export const useStyles = makeStyles((theme) => {
   return {
     root: {
@@ -81,6 +113,15 @@ export const useStyles = makeStyles((theme) => {
       border: `1px solid ${theme.palette.divider}`,
       borderRadius: Constants.CardRadius,
       padding: Constants.CardPadding,
+      margin: theme.spacing(1),
+    },
+    sidebarContainer: {
+      display: "flex",
+      flexDirection: "column",
+      flex: "0 0 350px",
+    },
+    timelineContainer: {
+      flex: 1,
     },
     icon: {
       width: Constants.TitleIconSize,
