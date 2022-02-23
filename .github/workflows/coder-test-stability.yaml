@@ -73,7 +73,7 @@ jobs:
           GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
-          -timeout=3m -count=$GOCOUNT -race -short -failfast
+          -timeout=15m -count=$GOCOUNT -race -short -failfast
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
@@ -88,7 +88,7 @@ jobs:
         env:
           GOCOUNT: ${{ github.event.inputs.iterationCount || 15 }}
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=15m
           -count=$GOCOUNT -race -parallel=2 -failfast
 
       - name: Upload DataDog Trace
