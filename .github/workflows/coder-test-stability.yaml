@@ -66,7 +66,7 @@ jobs:
       - name: Test with Mock Database
         shell: bash
         env:
-          GOCOUNT: ${{ github.event.inputs.logLevel }}
+          GOCOUNT: ${{ github.event.inputs.iterationCount }}
           GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
@@ -84,7 +84,7 @@ jobs:
         if: runner.os == 'Linux'
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -count=${{ github.event.inputs.logLevel }} -race -parallel=2 -failfast
+          -count=${{ github.event.inputs.iterationCount }} -race -parallel=2 -failfast
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
