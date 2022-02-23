@@ -2,6 +2,7 @@ package peerbroker_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/pion/webrtc/v3"
@@ -43,7 +44,10 @@ func TestProxy(t *testing.T) {
 		_ = proxyCloser.Close()
 	})
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err = peerbroker.ProxyListen(ctx, dialerServer, peerbroker.ProxyOptions{
 			ChannelID: channelID,
 			Logger:    slogtest.Make(t, nil).Named("proxy-dial").Leveled(slog.LevelDebug),
@@ -71,4 +75,7 @@ func TestProxy(t *testing.T) {
 
 	_, err = clientConn.Ping()
 	require.NoError(t, err)
+
+	_ = dialerServer.Close()
+	wg.Wait()
 }

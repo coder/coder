@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	// Each NegotiationConnection() function call spawns a new stream.
+	// Each NegotiateConnection() function call spawns a new stream.
 	streamIDLength = len(uuid.NewString())
 	// We shouldn't PubSub anything larger than this!
 	maxPayloadSizeBytes = 8192
@@ -36,8 +36,19 @@ type ProxyOptions struct {
 
 // ProxyDial writes client negotiation streams over PubSub.
 //
-// PubSub is used to geodistribute in a simple way. All message payloads
-// are small in size <=8KB, and we don't require delivery guarantees.
+// PubSub is used to geodistribute WebRTC handshakes. All negotiation
+// messages are small in size (<=8KB), and we don't require delivery
+// guarantees because connections can always be renegotiated.
+//                           ┌────────────────────┐   ┌─────────────────────────────┐
+//                           │      coderd        │   │          coderd             │
+// ┌─────────────────────┐   │/<agent-id>/connect │   │    /<agent-id>/listen       │
+// │       client        │   │                    │   │                             │   ┌─────┐
+// │                     ├──►│Creates a stream ID │◄─►│Subscribe() to the <agent-id>│◄──┤agent│
+// │NegotiateConnection()│   │and Publish() to the│   │channel. Parse the stream ID │   └─────┘
+// └─────────────────────┘   │<agent-id> channel: │   │from payloads to create new  │
+//                           │                    │   │NegotiateConnection() streams│
+//                           │<stream-id><payload>│   │or write to existing ones.   │
+//                           └────────────────────┘   └─────────────────────────────┘
 func ProxyDial(client proto.DRPCPeerBrokerClient, options ProxyOptions) (io.Closer, error) {
 	proxyDial := &proxyDial{
 		channelID:  options.ChannelID,
