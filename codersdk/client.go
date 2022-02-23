@@ -60,10 +60,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-	req.AddCookie(&http.Cookie{
-		Name:  httpmw.AuthCookie,
-		Value: c.SessionToken,
-	})
+	req.AddCookie(c.sessionTokenCookie())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -76,6 +73,13 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("do: %w", err)
 	}
 	return resp, err
+}
+
+func (c *Client) sessionTokenCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:  httpmw.AuthCookie,
+		Value: c.SessionToken,
+	}
 }
 
 // readBodyAsError reads the response as an httpapi.Message, and

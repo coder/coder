@@ -78,7 +78,11 @@ func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.Para
 		if resource.Transition == database.WorkspaceTransitionStop {
 			transition = color.HiRedString("stop")
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    %s %s on %s\n\n", color.HiCyanString(resource.Type), color.HiCyanString(resource.Name), transition)
+		agent := ""
+		if resource.Agent {
+			agent += " with agent"
+		}
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    %s %s on %s%s\n\n", color.HiCyanString(resource.Type), color.HiCyanString(resource.Name), transition, agent)
 	}
 	return nil
 }

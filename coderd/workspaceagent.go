@@ -45,7 +45,6 @@ func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.
 	}
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
@@ -81,7 +80,6 @@ func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
