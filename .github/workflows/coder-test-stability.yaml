@@ -88,7 +88,7 @@ jobs:
         env:
           GOCOUNT: ${{ github.event.inputs.iterationCount || 10 }}
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=15m
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m
           -count=$GOCOUNT -race -parallel=2 -failfast
 
       - name: Upload DataDog Trace
