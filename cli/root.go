@@ -18,6 +18,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+var (
+	caret = color.HiBlackString(">")
+)
+
 const (
 	varGlobalConfig = "global-config"
 	varNoOpen       = "no-open"

@@ -35,11 +35,9 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
       <div>
         <MenuItem onClick={handleDropdownClick}>
           <div className={styles.inner}>
-            {user && (
-              <Badge overlap="circle">
-                <UserAvatar user={user} />
-              </Badge>
-            )}
+            <Badge overlap="circle">
+              <UserAvatar user={user} />
+            </Badge>
             {anchorEl ? (
               <KeyboardArrowUp className={`${styles.arrowIcon} ${styles.arrowIconUp}`} />
             ) : (
@@ -65,20 +63,18 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
         variant="user-dropdown"
         onClose={onPopoverClose}
       >
-        {user && (
-          <div className={styles.userInfo}>
-            <UserProfileCard user={user} />
+        <div className={styles.userInfo}>
+          <UserProfileCard user={user} />
 
-            <Divider className={styles.divider} />
+          <Divider className={styles.divider} />
 
-            <MenuItem className={styles.menuItem} onClick={onSignOut}>
-              <ListItemIcon className={styles.icon}>
-                <LogoutIcon />
-              </ListItemIcon>
-              <ListItemText primary="Sign Out" />
-            </MenuItem>
-          </div>
-        )}
+          <MenuItem className={styles.menuItem} onClick={onSignOut}>
+            <ListItemIcon className={styles.icon}>
+              <LogoutIcon />
+            </ListItemIcon>
+            <ListItemText primary="Sign Out" />
+          </MenuItem>
+        </div>
       </BorderedMenu>
     </>
   )

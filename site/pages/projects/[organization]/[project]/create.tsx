@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useCallback } from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import { useRouter } from "next/router"
 import useSWR from "swr"
@@ -10,13 +10,23 @@ import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
 
 const CreateWorkspacePage: React.FC = () => {
-  const router = useRouter()
+  const { push, query } = useRouter()
   const styles = useStyles()
   const { me } = useUser(/* redirectOnError */ true)
-  const { organization, project: projectName } = router.query
+  const { organization, project: projectName } = query
   const { data: project, error: projectError } = useSWR<API.Project, Error>(
     `/api/v2/projects/${organization}/${projectName}`,
   )
+
+  const onCancel = useCallback(async () => {
+    await push(`/projects/${organization}/${projectName}`)
+  }, [push, organization, projectName])
+
+  const onSubmit = async (req: API.CreateWorkspaceRequest) => {
+    const workspace = await API.Workspace.create(req)
+    await push(`/workspaces/me/${workspace.name}`)
+    return workspace
+  }
 
   if (projectError) {
     return <ErrorSummary error={projectError} />
@@ -24,16 +34,6 @@ const CreateWorkspacePage: React.FC = () => {
 
   if (!me || !project) {
     return <FullScreenLoader />
-  }
-
-  const onCancel = async () => {
-    await router.push(`/projects/${organization}/${projectName}`)
-  }
-
-  const onSubmit = async (req: API.CreateWorkspaceRequest) => {
-    const workspace = await API.Workspace.create(req)
-    await router.push(`/workspaces/me/${workspace.name}`)
-    return workspace
   }
 
   return (

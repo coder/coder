@@ -18,14 +18,14 @@ func TestCreateProjectImportJob(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateProjectImportJob(context.Background(), "", coderd.CreateProjectImportJobRequest{})
 		require.Error(t, err)
 	})
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 	})
@@ -35,14 +35,14 @@ func TestProjectImportJob(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectImportJob(context.Background(), "", uuid.New())
 		require.Error(t, err)
 	})
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		_, err := client.ProjectImportJob(context.Background(), user.Organization, job.ID)
@@ -54,14 +54,14 @@ func TestProjectImportJobLogsBefore(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectImportJobLogsBefore(context.Background(), "", uuid.New(), time.Time{})
 		require.Error(t, err)
 	})
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		before := time.Now()
@@ -85,14 +85,14 @@ func TestProjectImportJobLogsAfter(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectImportJobLogsAfter(context.Background(), "", uuid.New(), time.Time{})
 		require.Error(t, err)
 	})
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -120,7 +120,7 @@ func TestProjectImportJobSchemas(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectImportJobSchemas(context.Background(), "", uuid.New())
 		require.Error(t, err)
 	})
@@ -130,7 +130,7 @@ func TestProjectImportJobParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectImportJobParameters(context.Background(), "", uuid.New())
 		require.Error(t, err)
 	})
@@ -140,7 +140,7 @@ func TestProjectImportJobResources(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectImportJobResources(context.Background(), "", uuid.New())
 		require.Error(t, err)
 	})

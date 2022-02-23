@@ -14,11 +14,15 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 // Required until https://github.com/chzyer/readline/pull/198 is merged.
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
 
+// Required until https://github.com/census-instrumentation/opencensus-go/pull/1272 is merged.
+replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220220184033-4441763886a2
+
 // Required until https://github.com/pion/ice/pull/425 is merged.
 replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220221162453-b262a62902c3
 
 require (
 	cdr.dev/slog v1.4.1
+	cloud.google.com/go/compute v1.3.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/coder/retry v1.3.0
 	github.com/creack/pty v1.1.17
@@ -27,6 +31,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.10.0
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-version v1.4.0
@@ -38,6 +43,7 @@ require (
 	github.com/lib/pq v1.10.4
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mattn/go-isatty v0.0.14
+	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/moby v20.10.12+incompatible
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
@@ -50,21 +56,22 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.10.0
 	github.com/xlab/treeprint v1.1.0
+	go.opencensus.io v0.23.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
-	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
+	golang.org/x/sys v0.0.0-20220209214540-3681064d5158
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+	google.golang.org/api v0.69.0
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.29
 )
 
 require (
-	cloud.google.com/go/compute v0.1.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/Microsoft/go-winio v0.5.1 // indirect
+	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
@@ -95,13 +102,12 @@ require (
 	github.com/hashicorp/terraform-json v0.13.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
-	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/juju/ansiterm v0.0.0-20210929141451-8b71cc96ebdc // indirect
+	github.com/klauspost/compress v1.14.3 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
-	github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a // indirect
+	github.com/lunixbochs/vtclean v1.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
-	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
@@ -128,12 +134,11 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
-	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220118154757-00ab72f36ad5 // indirect
+	google.golang.org/genproto v0.0.0-20220218161850-94dd64e39d7c // indirect
 	google.golang.org/grpc v1.44.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect

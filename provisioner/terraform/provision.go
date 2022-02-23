@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
@@ -245,9 +246,17 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 	resources := make([]*proto.Resource, 0)
 	if state.Values != nil {
 		for _, resource := range state.Values.RootModule.Resources {
+			var instanceID string
+			if gcpInstanceID, ok := resource.AttributeValues["instance_id"]; ok {
+				instanceID, ok = gcpInstanceID.(string)
+				if !ok {
+					return xerrors.Errorf("invalid type for instance_id property: %s", reflect.TypeOf(gcpInstanceID).String())
+				}
+			}
 			resources = append(resources, &proto.Resource{
-				Name: resource.Name,
-				Type: resource.Type,
+				Name:       resource.Name,
+				Type:       resource.Type,
+				InstanceId: instanceID,
 			})
 		}
 	}

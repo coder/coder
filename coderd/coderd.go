@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi/v5"
+	"google.golang.org/api/idtoken"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/database"
@@ -18,6 +19,8 @@ type Options struct {
 	Logger   slog.Logger
 	Database database.Store
 	Pubsub   database.Pubsub
+
+	GoogleTokenValidator *idtoken.Validator
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -104,6 +107,12 @@ func New(options *Options) (http.Handler, func()) {
 						})
 					})
 				})
+			})
+		})
+
+		r.Route("/workspaceagent", func(r chi.Router) {
+			r.Route("/authenticate", func(r chi.Router) {
+				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
 			})
 		})
 

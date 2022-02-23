@@ -19,7 +19,7 @@ func TestPostProjectImportByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("FileNotFound", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_, err := client.CreateProjectImportJob(context.Background(), user.Organization, coderd.CreateProjectImportJobRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
@@ -30,7 +30,7 @@ func TestPostProjectImportByOrganization(t *testing.T) {
 	})
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 	})
@@ -40,7 +40,7 @@ func TestProjectImportJobSchemasByID(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		_, err := client.ProjectImportJobSchemas(context.Background(), user.Organization, job.ID)
@@ -50,7 +50,7 @@ func TestProjectImportJobSchemasByID(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -80,7 +80,7 @@ func TestProjectImportJobParametersByID(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		_, err := client.ProjectImportJobSchemas(context.Background(), user.Organization, job.ID)
@@ -90,7 +90,7 @@ func TestProjectImportJobParametersByID(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -126,7 +126,7 @@ func TestProjectImportJobResourcesByID(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		_, err := client.ProjectImportJobResources(context.Background(), user.Organization, job.ID)
@@ -136,7 +136,7 @@ func TestProjectImportJobResourcesByID(t *testing.T) {
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{

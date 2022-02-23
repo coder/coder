@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
@@ -30,7 +31,16 @@ type CreateParameterValueRequest struct {
 // Project is the JSON representation of a Coder project.
 // This type matches the database object for now, but is
 // abstracted for ease of change later on.
-type Project database.Project
+type Project struct {
+	ID                  uuid.UUID                `json:"id"`
+	CreatedAt           time.Time                `json:"created_at"`
+	UpdatedAt           time.Time                `json:"updated_at"`
+	OrganizationID      string                   `json:"organization_id"`
+	Name                string                   `json:"name"`
+	Provisioner         database.ProvisionerType `json:"provisioner"`
+	ActiveVersionID     uuid.UUID                `json:"active_version_id"`
+	WorkspaceOwnerCount uint32                   `json:"workspace_owner_count"`
+}
 
 // CreateProjectRequest enables callers to create a new Project.
 type CreateProjectRequest struct {
@@ -69,11 +79,22 @@ func (api *api) projects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if projects == nil {
-		projects = []database.Project{}
+	projectIDs := make([]uuid.UUID, 0, len(projects))
+	for _, project := range projects {
+		projectIDs = append(projectIDs, project.ID)
+	}
+	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), projectIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
+		})
+		return
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, projects)
+	render.JSON(rw, r, convertProjects(projects, workspaceCounts))
 }
 
 // Lists all projects in an organization.
@@ -89,11 +110,22 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	if projects == nil {
-		projects = []database.Project{}
+	projectIDs := make([]uuid.UUID, 0, len(projects))
+	for _, project := range projects {
+		projectIDs = append(projectIDs, project.ID)
+	}
+	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), projectIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
+		})
+		return
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, projects)
+	render.JSON(rw, r, convertProjects(projects, workspaceCounts))
 }
 
 // Create a new project in an organization.
@@ -162,7 +194,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			return xerrors.Errorf("insert project version: %s", err)
 		}
-		project = Project(dbProject)
+		project = convertProject(dbProject, 0)
 		return nil
 	})
 	if err != nil {
@@ -239,6 +271,38 @@ func (api *api) parametersByProject(rw http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiParameterValues)
+}
+
+func convertProjects(projects []database.Project, workspaceCounts []database.GetWorkspaceOwnerCountsByProjectIDsRow) []Project {
+	apiProjects := make([]Project, 0, len(projects))
+	for _, project := range projects {
+		found := false
+		for _, workspaceCount := range workspaceCounts {
+			if workspaceCount.ProjectID.String() != project.ID.String() {
+				continue
+			}
+			apiProjects = append(apiProjects, convertProject(project, uint32(workspaceCount.Count)))
+			found = true
+			break
+		}
+		if !found {
+			apiProjects = append(apiProjects, convertProject(project, uint32(0)))
+		}
+	}
+	return apiProjects
+}
+
+func convertProject(project database.Project, workspaceOwnerCount uint32) Project {
+	return Project{
+		ID:                  project.ID,
+		CreatedAt:           project.CreatedAt,
+		UpdatedAt:           project.UpdatedAt,
+		OrganizationID:      project.OrganizationID,
+		Name:                project.Name,
+		Provisioner:         project.Provisioner,
+		ActiveVersionID:     project.ActiveVersionID,
+		WorkspaceOwnerCount: workspaceOwnerCount,
+	}
 }
 
 func convertParameterValue(parameterValue database.ParameterValue) ParameterValue {

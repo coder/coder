@@ -38,6 +38,9 @@ CREATE TABLE workspace_resource (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
+    -- A unique identifier for the resource. This can be used
+    -- to exchange for an agent token with various providers.
+    instance_id varchar(64),
     -- Resource type produced by a provisioner.
     -- eg. "google_compute_instance"
     type varchar(256) NOT NULL,

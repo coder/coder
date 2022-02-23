@@ -16,14 +16,14 @@ func TestProjects(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.Projects(context.Background(), "")
 		require.Error(t, err)
 	})
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.Projects(context.Background(), "")
 		require.NoError(t, err)
@@ -34,14 +34,14 @@ func TestProject(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.Project(context.Background(), "", "")
 		require.Error(t, err)
 	})
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -54,7 +54,7 @@ func TestCreateProject(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateProject(context.Background(), "org", coderd.CreateProjectRequest{
 			Name:               "something",
 			VersionImportJobID: uuid.New(),
@@ -64,7 +64,7 @@ func TestCreateProject(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		_ = coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -75,14 +75,14 @@ func TestProjectVersions(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectVersions(context.Background(), "some", "project")
 		require.Error(t, err)
 	})
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -95,14 +95,14 @@ func TestProjectVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectVersion(context.Background(), "some", "project", "version")
 		require.Error(t, err)
 	})
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -115,14 +115,14 @@ func TestCreateProjectVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateProjectVersion(context.Background(), "some", "project", coderd.CreateProjectVersionRequest{})
 		require.Error(t, err)
 	})
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -137,14 +137,14 @@ func TestProjectParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.ProjectParameters(context.Background(), "some", "project")
 		require.Error(t, err)
 	})
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -157,14 +157,14 @@ func TestCreateProjectParameter(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateProjectParameter(context.Background(), "some", "project", coderd.CreateParameterValueRequest{})
 		require.Error(t, err)
 	})
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)

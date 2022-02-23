@@ -16,7 +16,7 @@ func TestLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InitialUserNoTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		root, _ := clitest.New(t, "login", client.URL.String())
 		err := root.Execute()
 		require.Error(t, err)
@@ -24,7 +24,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
@@ -55,7 +55,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
 			Username:     "test-user",
 			Email:        "test-user@coder.com",
@@ -85,7 +85,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
 			Username:     "test-user",
 			Email:        "test-user@coder.com",
