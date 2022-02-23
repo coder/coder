@@ -27,9 +27,12 @@ const WorkspacesPage: React.FC = () => {
     // So if the user is the same as 'me', use 'me' as the parameter
     const normalizedUserParam = me && userParam === me.id ? "me" : userParam
 
-    // The SWR API expects us to 'throw' if the query isn't ready yet, so these casts to `any` are OK
-    // because the API expects exceptions.
-    return `/api/v2/workspaces/${(normalizedUserParam as any).toString()}/${(workspaceParam as any).toString()}`
+    // The SWR API expects us to 'throw' if the query isn't ready yet:
+    if (normalizedUserParam === null || workspaceParam === null) {
+      throw "Data not yet available to make API call"
+    }
+
+    return `/api/v2/workspaces/${normalizedUserParam}/${workspaceParam}`
   })
 
   if (workspaceError) {

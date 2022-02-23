@@ -25,21 +25,24 @@ const UserContext = React.createContext<UserContext>({
 
 export const useUser = (redirectOnError = false): UserContext => {
   const ctx = useContext(UserContext)
-  const router = useRouter()
+  const { push, asPath } = useRouter()
 
   const requestError = ctx.error
   useEffect(() => {
     if (redirectOnError && requestError) {
       // 'void' means we are ignoring handling the promise returned
       // from router.push (and lets the linter know we're OK with that!)
-      void router.push({
+      void push({
         pathname: "/login",
         query: {
-          redirect: router.asPath,
+          redirect: asPath,
         },
       })
     }
-  }, [redirectOnError, requestError])
+    // Disabling exhaustive deps here because it can cause an
+    // infinite useEffect loop. Should (hopefully) go away
+    // when we switch to an alternate routing strategy.
+  }, [redirectOnError, requestError]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return ctx
 }

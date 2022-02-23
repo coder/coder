@@ -22,7 +22,7 @@ replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.202202211
 
 require (
 	cdr.dev/slog v1.4.1
-	cloud.google.com/go/compute v1.3.0
+	cloud.google.com/go/compute v1.4.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/coder/retry v1.3.0
 	github.com/creack/pty v1.1.17
@@ -49,7 +49,7 @@ require (
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
-	github.com/pion/webrtc/v3 v3.1.23
+	github.com/pion/webrtc/v3 v3.1.24
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
 	github.com/spf13/cobra v1.3.0
@@ -63,7 +63,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sys v0.0.0-20220209214540-3681064d5158
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-	google.golang.org/api v0.69.0
+	google.golang.org/api v0.70.0
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.29
@@ -112,8 +112,8 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.1.0 // indirect
-	github.com/pion/dtls/v2 v2.1.2 // indirect
-	github.com/pion/ice/v2 v2.1.20 // indirect
+	github.com/pion/dtls/v2 v2.1.3 // indirect
+	github.com/pion/ice/v2 v2.2.1 // indirect
 	github.com/pion/interceptor v0.1.7 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
@@ -138,7 +138,7 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220218161850-94dd64e39d7c // indirect
+	google.golang.org/genproto v0.0.0-20220222154240-daf995802d7b // indirect
 	google.golang.org/grpc v1.44.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
