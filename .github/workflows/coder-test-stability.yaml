@@ -18,7 +18,7 @@ on:
       iterationCount:
         description: 'Iteration Count'     
         required: false
-        default: '25'
+        default: '15'
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes, and serialize builds in branches.
@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   coder-test-stability:
-    name: "test/go/stability/${{ matrix.os }}"
+    name: "test/go/stability/${{ matrix.os }}/${{ matrix.instance }}"
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -37,6 +37,9 @@ jobs:
           - ubuntu-latest
           - macos-latest
           - windows-2022
+        instance:
+          - 1
+          - 2
     steps:
       - uses: actions/checkout@v2
 
@@ -66,7 +69,7 @@ jobs:
       - name: Test with Mock Database
         shell: bash
         env:
-          GOCOUNT: ${{ github.event.inputs.iterationCount || 25 }}
+          GOCOUNT: ${{ github.event.inputs.iterationCount || 15 }}
           GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
@@ -83,7 +86,7 @@ jobs:
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
         env:
-          GOCOUNT: ${{ github.event.inputs.iterationCount || 25 }}
+          GOCOUNT: ${{ github.event.inputs.iterationCount || 15 }}
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -count=$GOCOUNT -race -parallel=2 -failfast
