@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
-import { NextRouter, useRouter } from "next/router"
+import { useNavigate, useLocation } from "react-router-dom"
 import React from "react"
 import { useSWRConfig } from "swr"
 import * as Yup from "yup"
@@ -47,7 +47,8 @@ export interface SignInProps {
 export const SignInForm: React.FC<SignInProps> = ({
   loginHandler = (email: string, password: string) => API.login(email, password),
 }) => {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const location = useLocation()
   const styles = useStyles()
   const { mutate } = useSWRConfig()
 
@@ -63,8 +64,8 @@ export const SignInForm: React.FC<SignInProps> = ({
         // Tell SWR to invalidate the cache for the user endpoint
         await mutate("/api/v2/users/me")
 
-        const redirect = getRedirectFromRouter(router)
-        await router.push(redirect)
+        const redirect = getRedirectFromLocation(location)
+        await navigate(redirect)
       } catch (err) {
         helpers.setFieldError("password", "The username or password is incorrect.")
       }
@@ -121,11 +122,17 @@ export const SignInForm: React.FC<SignInProps> = ({
   )
 }
 
-const getRedirectFromRouter = (router: NextRouter) => {
+// TODO: Fix up typing here
+const getRedirectFromLocation = (location: any) => {
   const defaultRedirect = "/"
-  if (router.query.redirect) {
-    return firstOrItem(router.query.redirect, defaultRedirect)
+  // TODO: Fix up search
+  /*
+  location.search()
+  if (location.query.redirect) {
+    return firstOrItem(location.query.redirect, defaultRedirect)
   } else {
     return defaultRedirect
   }
+  */
+  return defaultRedirect
 }

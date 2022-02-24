@@ -1,4 +1,4 @@
-import { useRouter } from "next/router"
+import { useLocation, useNavigate } from "react-router-dom"
 import React, { useContext, useEffect } from "react"
 import useSWR from "swr"
 
@@ -25,19 +25,14 @@ const UserContext = React.createContext<UserContext>({
 
 export const useUser = (redirectOnError = false): UserContext => {
   const ctx = useContext(UserContext)
-  const { push, asPath } = useRouter()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const requestError = ctx.error
   useEffect(() => {
     if (redirectOnError && requestError) {
-      // 'void' means we are ignoring handling the promise returned
-      // from router.push (and lets the linter know we're OK with that!)
-      void push({
-        pathname: "/login",
-        query: {
-          redirect: asPath,
-        },
-      })
+      // TODO: Make sure this is the correct approach
+      navigate("/login?redirect=" + encodeURIComponent(location.pathname))
     }
     // Disabling exhaustive deps here because it can cause an
     // infinite useEffect loop. Should (hopefully) go away
@@ -48,19 +43,16 @@ export const useUser = (redirectOnError = false): UserContext => {
 }
 
 export const UserProvider: React.FC = (props) => {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const location = useLocation()
   const { data, error, mutate } = useSWR("/api/v2/users/me")
 
   const signOut = async () => {
     await API.logout()
     // Tell SWR to invalidate the cache for the user endpoint
     await mutate("/api/v2/users/me")
-    await router.push({
-      pathname: "/login",
-      query: {
-        redirect: router.asPath,
-      },
-    })
+    // TODO: Make sure this is the correct approach
+    navigate("/login?redirect=" + encodeURIComponent(location.pathname))
   }
 
   return (

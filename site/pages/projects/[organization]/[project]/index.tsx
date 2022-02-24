@@ -2,7 +2,7 @@ import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
 import { Link } from "react-router-dom"
-import { useRouter } from "next/router"
+import { useNavigate, useParams } from "react-router-dom";
 import useSWR from "swr"
 
 import { Project, Workspace } from "../../../../api"
@@ -19,9 +19,8 @@ import { EmptyState } from "../../../../components/EmptyState"
 const ProjectPage: React.FC = () => {
   const styles = useStyles()
   const { me, signOut } = useUser(true)
-
-  const router = useRouter()
-  const { project, organization } = router.query
+  const navigate = useNavigate()
+  const { project, organization } = useParams()
 
   const { data: projectInfo, error: projectError } = useSWR<Project, Error>(
     () => `/api/v2/projects/${organization}/${project}`,
@@ -43,7 +42,7 @@ const ProjectPage: React.FC = () => {
   }
 
   const createWorkspace = () => {
-    void router.push(`/projects/${organization}/${project}/create`)
+    navigate(`/projects/${organization}/${project}/create`)
   }
 
   const emptyState = (

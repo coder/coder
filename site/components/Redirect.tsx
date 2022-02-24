@@ -1,5 +1,5 @@
 import React, { useEffect } from "react"
-import { useRouter } from "next/router"
+import { useNavigate } from "react-router-dom"
 
 export interface RedirectProps {
   /**
@@ -13,11 +13,11 @@ export interface RedirectProps {
  * Helper component to perform a client-side redirect
  */
 export const Redirect: React.FC<RedirectProps> = ({ to }) => {
-  const { replace } = useRouter()
+  const navigate = useNavigate()
 
   useEffect(() => {
-    void replace(to)
-  }, [replace, to])
+    void navigate(to, { replace: true })
+  }, [navigate, to])
 
   return null
 }
