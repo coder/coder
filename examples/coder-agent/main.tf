@@ -14,15 +14,6 @@ provider "coder" {
   // This would probably never be actually used... but was testing passing through this to data sources and resources
   coder_agent_additional_args = "--verbose"
 
-
-  //coder_agent_environment_variable = []
-
-  /*coder_agent_environment_variable = {
-    name                 = "test"
-    environment_variable = "TEST_ENV"
-    value                = "Simple string"
-  }*/
-
   coder_agent_environment_variable {
     name                 = "test"
     environment_variable = "TEST_ENV"
