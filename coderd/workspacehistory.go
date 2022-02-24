@@ -145,7 +145,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	parameterSchemas, err := api.Database.GetParameterSchemasByJobID(r.Context(), projectVersion.ID)
+	parameterSchemas, err := api.Database.GetParameterSchemasByJobID(r.Context(), projectVersion.ImportJobID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
