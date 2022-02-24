@@ -1,4 +1,11 @@
 INSTALL_DIR=$(shell go env GOPATH)/bin
+# TFP: Terraform Provider Constants
+TFP_HOSTNAME=coder.com
+TFP_NAMESPACE=internal
+TFP_NAME=coder
+TFP_BINARY=terraform-provider-${TFP_NAME}
+TFP_VERSION=0.2
+OS_ARCH=linux_amd64
 
 bin/coder:
 	mkdir -p bin
@@ -10,7 +17,12 @@ bin/coderd:
 	go build -o bin/coderd cmd/coderd/main.go
 .PHONY: bin/coderd
 
-build: site/out bin/coder bin/coderd
+bin/terraform_provider:
+	mkdir -p bin
+	go build -o bin/${TFP_BINARY} cmd/terraform_provider/main.go
+.PHONY: bin/terraform_provider
+
+build: site/out bin/coder bin/coderd bin/terraform_provider
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
@@ -53,7 +65,14 @@ fmt: fmt/prettier fmt/sql
 gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 .PHONY: gen
 
-install: 
+install/terraform: bin/terraform_provider
+# Move to override path for local development
+# This is the recommended for local TF provider development:
+# https://learn.hashicorp.com/tutorials/terraform/provider-use?in=terraform/providers#install-hashicups-provider
+	mkdir -p ~/.terraform.d/plugins/${TFP_HOSTNAME}/${TFP_NAMESPACE}/${TFP_NAME}/${TFP_VERSION}/${OS_ARCH}
+	cp bin/${TFP_BINARY} ~/.terraform.d/plugins/${TFP_HOSTNAME}/${TFP_NAMESPACE}/${TFP_NAME}/${TFP_VERSION}/${OS_ARCH}
+
+install: bin/coderd install/terraform
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
 	cp -r ./bin $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
