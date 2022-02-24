@@ -59,9 +59,16 @@ func main() {
 	}
 	commitParts := strings.Split(string(commitData), ",")
 
+	// On pull requests, this will be set!
 	branch := os.Getenv("GITHUB_HEAD_REF")
 	if branch == "" {
-		branch = os.Getenv("GITHUB_BASE_REF")
+		githubRef := os.Getenv("GITHUB_REF")
+		for _, prefix := range []string{"refs/heads/", "refs/tags/"} {
+			if !strings.HasPrefix(githubRef, prefix) {
+				continue
+			}
+			branch = strings.TrimPrefix(githubRef, prefix)
+		}
 	}
 
 	tags := map[string]string{
