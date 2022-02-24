@@ -2,6 +2,7 @@ package terraform_provider
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -9,14 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-type coffee struct {
-	id   int
-	name string
-}
-
 func dataSourceAgentScript() *schema.Resource {
 	return &schema.Resource{
-		ReadContext: dataSourceCoffeesRead,
+		ReadContext: dataSourceReadScripts,
 		Schema: map[string]*schema.Schema{
 			"linux": &schema.Schema{
 				Type:     schema.TypeString,
@@ -26,11 +22,16 @@ func dataSourceAgentScript() *schema.Resource {
 	}
 }
 
-func dataSourceCoffeesRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func dataSourceReadScripts(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	if err := d.Set("linux", "coder agent run"); err != nil {
+	additionalArgs := m
+	if additionalArgs == nil {
+		additionalArgs = ""
+	}
+
+	if err := d.Set("linux", fmt.Sprintf("coder agent run %s", additionalArgs)); err != nil {
 		return diag.FromErr(err)
 	}
 
