@@ -55,8 +55,8 @@
     "prettier": "2.5.1",
     "react": "17.0.2",
     "react-dom": "17.0.2",
-    "react-router-dom": "5.1.2",
-    "sql-formatter": "^4.0.2",
+    "react-router-dom": "6.2.1",
+    "sql-formatter": "4.0.2",
     "swr": "1.2.2",
     "ts-jest": "27.1.3",
     "ts-loader": "9.2.6",
@@ -66,7 +66,6 @@
     "webpack-cli": "4.9.1",
     "yup": "0.32.11"
   },
-  "dependencies": {},
   "browserslist": [
     "chrome 66",
     "firefox 63",

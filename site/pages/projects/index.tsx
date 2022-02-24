@@ -1,7 +1,7 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import { EmptyState } from "../../components"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { Navbar } from "../../components/Navbar"
@@ -47,7 +47,7 @@ const ProjectsPage: React.FC = () => {
       key: "name",
       name: "Name",
       renderer: (nameField: string, data: Project) => {
-        return <Link href={`/projects/${orgDictionary[data.organization_id]}/${nameField}`}>{nameField}</Link>
+        return <Link to={`/projects/${orgDictionary[data.organization_id]}/${nameField}`}>{nameField}</Link>
       },
     },
   ]

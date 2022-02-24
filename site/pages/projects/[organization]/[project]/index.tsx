@@ -1,7 +1,7 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import { useRouter } from "next/router"
 import useSWR from "swr"
 
@@ -62,7 +62,7 @@ const ProjectPage: React.FC = () => {
       key: "name",
       name: "Name",
       renderer: (nameField: string) => {
-        return <Link href={`/workspaces/me/${nameField}`}>{nameField}</Link>
+        return <Link to={`/workspaces/me/${nameField}`}>{nameField}</Link>
       },
     },
   ]

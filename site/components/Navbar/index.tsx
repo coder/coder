@@ -1,7 +1,7 @@
 import React from "react"
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 
 import { User } from "../../contexts/UserContext"
 import { Logo } from "../Icons"
@@ -17,7 +17,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user, onSignOut }) => {
   return (
     <div className={styles.root}>
       <div className={styles.fixed}>
-        <Link href="/">
+        <Link to="/">
           <Button className={styles.logo} variant="text">
             <Logo fill="white" opacity={1} />
           </Button>
