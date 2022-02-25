@@ -11,8 +11,6 @@ import (
 	"github.com/unrolled/secure"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/site/nextrouter"
 )
 
 // The `embed` package ignores recursively including directories
@@ -32,7 +30,8 @@ func Handler(logger slog.Logger) http.Handler {
 	}
 
 	// Render CSP and CSRF in the served pages
-	templateFunc := func(r *http.Request) interface{} {
+	// TODO: Bring back templates
+	_ = func(r *http.Request) interface{} {
 		return htmlState{
 			// Nonce is the CSP nonce for the given request (if there is one present)
 			CSP: cspState{Nonce: secure.CSPNonce(r.Context())},
@@ -41,16 +40,39 @@ func Handler(logger slog.Logger) http.Handler {
 		}
 	}
 
-	nextRouterHandler, err := nextrouter.Handler(filesystem, &nextrouter.Options{
-		Logger:           logger,
-		TemplateDataFunc: templateFunc,
-	})
+	staticSiteHandler := http.HandlerFunc(FileHandler(filesystem))
 	if err != nil {
 		// There was an error setting up our file system handler.
 		// This likely means a problem with our embedded file system.
 		panic(err)
 	}
-	return secureHeaders(nextRouterHandler)
+	return secureHeaders(staticSiteHandler)
+}
+
+// FileHandler serves static content, additionally adding immutable
+// cache-control headers for Next.js content
+func FileHandler(fileSystem fs.FS) func(writer http.ResponseWriter, request *http.Request) {
+	// Non-HTML files don't have special routing rules, so we can just leverage
+	// the built-in http.FileServer for it.
+	fileHandler := http.FileServer(http.FS(fileSystem))
+
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// TODO: Double-check this in the context of our webpack content-addressable bundle
+		// From the Next.js documentation:
+		//
+		// "Caching improves response times and reduces the number
+		// of requests to external services. Next.js automatically
+		// adds caching headers to immutable assets served from
+		// /_next/static including JavaScript, CSS, static images,
+		// and other media."
+		//
+		// See: https://nextjs.org/docs/going-to-production
+		if strings.HasPrefix(request.URL.Path, "/_next/static/") {
+			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+		}
+
+		fileHandler.ServeHTTP(writer, request)
+	}
 }
 
 type htmlState struct {
