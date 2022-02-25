@@ -4,9 +4,9 @@
   "repository": "https://github.com/coder/coder",
   "private": true,
   "scripts": {
-    "build": "NODE_ENV=production webpack build",
-    "build:dev": "webpack build",
-    "dev": "webpack-dev-server",
+    "build": "NODE_ENV=production webpack build --config=webpack.prod.ts",
+    "build:dev": "webpack build --config=webpack.dev.ts",
+    "dev": "webpack-dev-server --config=webpack.dev.ts",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}' && sql-formatter -l postgresql ./database/query.sql -o ./database/query.sql",
     "lint": "jest --selectProjects lint",

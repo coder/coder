@@ -38,11 +38,6 @@ const config: webpack.Configuration = {
       },
     ],
   },
-  plugins: [
-    new ReactRefreshWebpackPlugin({
-      overlay: true,
-    }),
-  ],
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
   },
