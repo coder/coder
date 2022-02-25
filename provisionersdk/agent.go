@@ -43,35 +43,29 @@ exec $BINARY_LOCATION agent
 	}
 )
 
-// AgentBinaryName returns the binary name for an operating system and agent.
-func AgentBinaryName(operatingSystem, architecture string) (string, error) {
-
-}
+// CODER_URL, operating system, and architecture can return the URL of the Coder binary.
 
 // AgentScript returns an installation script for the specified operating system
 // and architecture.
 //
 // baseURL is
-func AgentScript(operatingSystem, architecture string, baseURL *url.URL) (string, error) {
-	architectures, ok := agentScript[operatingSystem]
-	if !ok {
+func AgentScript(operatingSystem, architecture string, binaryDownloadURL *url.URL) (string, error) {
+	architectures, exists := agentScript[operatingSystem]
+	if !exists {
 		list := []string{}
 		for key := range agentScript {
 			list = append(list, key)
 		}
 		return "", xerrors.Errorf("operating system %q not supported. must be in: %v", operatingSystem, list)
 	}
-	script, ok := architectures[architecture]
-	if !ok {
+	script, exists := architectures[architecture]
+	if !exists {
 		list := []string{}
 		for key := range architectures {
 			list = append(list, key)
 		}
 		return "", xerrors.Errorf("architecture %q not supported for %q. must be in: %v", architecture, operatingSystem, list)
 	}
-	if !strings.HasPrefix(baseURL.Path, "/api/v2/downloads") {
 
-	}
-
-	return strings.ReplaceAll(script, "${DOWNLOAD_URL}", baseURL.String()), nil
+	return strings.ReplaceAll(script, "${DOWNLOAD_URL}", binaryDownloadURL.String()), nil
 }

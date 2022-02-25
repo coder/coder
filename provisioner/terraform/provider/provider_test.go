@@ -1,7 +1,6 @@
 package provider_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -27,8 +26,12 @@ func TestSomething(t *testing.T) {
 		},
 		IsUnitTest: true,
 		Steps: []resource.TestStep{{
-			Config: `data "coder_agent_script" "new" {
-				arch = "x64"
+			Config: `
+			provider "coder" {
+				url = "https://example.com"
+			}
+			data "coder_agent_script" "new" {
+				arch = "amd64"
 				os = "linux"
 			}`,
 			Check: func(s *terraform.State) error {
@@ -46,7 +49,12 @@ func TestAnother(t *testing.T) {
 		},
 		IsUnitTest: true,
 		Steps: []resource.TestStep{{
-			Config: `resource "coder_agent" "new" {
+			Config: `
+			provider "coder" {
+				url = "https://example.com"
+			}
+
+			resource "coder_agent" "new" {
 				auth {
 					type = "gcp"
 				}
@@ -59,8 +67,8 @@ func TestAnother(t *testing.T) {
 				// for _, mod := range s.Modules {
 				// 	fmt.Printf("check state: %+v\n", mod.Resources)
 				// }
-				data, _ := json.MarshalIndent(s, "", "\t")
-				fmt.Printf("Data: %s\n", data)
+				// data, _ := json.MarshalIndent(s, "", "\t")
+				// fmt.Printf("Data: %s\n", data)
 
 				return nil
 			},

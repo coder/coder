@@ -15,7 +15,7 @@ const (
 )
 
 func (c *Client) UploadFile(ctx context.Context, contentType string, content []byte) (coderd.UploadFileResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/files", content, func(r *http.Request) {
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/upload", content, func(r *http.Request) {
 		r.Header.Set("Content-Type", contentType)
 	})
 	if err != nil {

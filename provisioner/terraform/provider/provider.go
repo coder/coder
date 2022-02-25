@@ -3,39 +3,74 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"os"
+	"strings"
 
+	"github.com/coder/coder/provisionersdk"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-// New returns a new schema provider for Terraform.
+type config struct {
+	URL *url.URL
+}
+
+// New returns a new Terraform provider.
 func New() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
-			"workspace_history_id": {
+			"url": {
 				Type:     schema.TypeString,
 				Optional: true,
+				// The "CODER_URL" environment variable is used by default
+				// as the Access URL when generating scripts.
+				DefaultFunc: func() (interface{}, error) {
+					return os.Getenv("CODER_URL"), nil
+				},
+				ValidateFunc: func(i interface{}, s string) ([]string, []error) {
+					_, err := url.Parse(s)
+					if err != nil {
+						return nil, []error{err}
+					}
+					return nil, nil
+				},
 			},
+		},
+		ConfigureContextFunc: func(c context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
+			rawURL := rd.Get("url").(string)
+			if rawURL == "" {
+				return nil, diag.Errorf("CODER_URL must not be empty; got %q", rawURL)
+			}
+			parsed, err := url.Parse(rd.Get("url").(string))
+			if err != nil {
+				return nil, diag.FromErr(err)
+			}
+			return config{
+				URL: parsed,
+			}, nil
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"coder_agent_script": {
 				Description: "TODO",
 				ReadContext: func(c context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
+					config := i.(config)
 					osRaw := rd.Get("os")
 					os := osRaw.(string)
-
 					archRaw := rd.Get("arch")
 					arch := archRaw.(string)
 
-					fmt.Printf("Got OS: %s_%s\n", os, arch)
-
-					err := rd.Set("value", "SOME SCRIPT")
+					script, err := provisionersdk.AgentScript(os, arch, config.URL)
 					if err != nil {
 						return diag.FromErr(err)
 					}
-					rd.SetId("something")
+					err = rd.Set("value", script)
+					if err != nil {
+						return diag.FromErr(err)
+					}
+					rd.SetId(strings.Join([]string{os, arch}, "_"))
 					return nil
 				},
 				Schema: map[string]*schema.Schema{

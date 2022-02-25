@@ -1,5 +1,0 @@
-package coderd
-
-func downloads() {
-
-}
