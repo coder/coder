@@ -73,6 +73,7 @@
     "safari 13.1"
   ],
   "dependencies": {
+    "history": "^5.3.0",
     "react-hot-loader": "^4.13.0",
     "webpack-dev-server": "^4.7.4"
   }

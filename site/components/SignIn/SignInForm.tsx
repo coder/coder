@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
+import { Location } from "history"
 import { useNavigate, useLocation } from "react-router-dom"
 import React from "react"
 import { useSWRConfig } from "swr"
@@ -122,17 +123,10 @@ export const SignInForm: React.FC<SignInProps> = ({
   )
 }
 
-// TODO: Fix up typing here
-const getRedirectFromLocation = (location: any) => {
+const getRedirectFromLocation = (location: Location) => {
   const defaultRedirect = "/"
-  // TODO: Fix up search
-  /*
-  location.search()
-  if (location.query.redirect) {
-    return firstOrItem(location.query.redirect, defaultRedirect)
-  } else {
-    return defaultRedirect
-  }
-  */
-  return defaultRedirect
+
+  const searchParams = new URLSearchParams(location.search)
+  const redirect = searchParams.get("redirect")
+  return redirect ? redirect : defaultRedirect;
 }
