@@ -26,18 +26,20 @@ const UserContext = React.createContext<UserContext>({
 export const useUser = (redirectOnError = false): UserContext => {
   const ctx = useContext(UserContext)
   const navigate = useNavigate()
-  const location = useLocation()
+  const { pathname } = useLocation()
 
   const requestError = ctx.error
   useEffect(() => {
     if (redirectOnError && requestError) {
-      // TODO: Make sure this is the correct approach
-      navigate("/login?redirect=" + encodeURIComponent(location.pathname))
+      navigate({
+        pathname: "/login",
+        search: "?redirect=" + encodeURIComponent(pathname),
+      })
     }
     // Disabling exhaustive deps here because it can cause an
     // infinite useEffect loop. Should (hopefully) go away
     // when we switch to an alternate routing strategy.
-  }, [location.pathname, redirectOnError, requestError]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [redirectOnError, requestError]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return ctx
 }
@@ -51,8 +53,10 @@ export const UserProvider: React.FC = (props) => {
     await API.logout()
     // Tell SWR to invalidate the cache for the user endpoint
     await mutate("/api/v2/users/me")
-    // TODO: Make sure this is the correct approach
-    navigate("/login?redirect=" + encodeURIComponent(location.pathname))
+    navigate({
+      pathname: "/login",
+      search: "?redirect=" + encodeURIComponent(location.pathname),
+    })
   }
 
   return (

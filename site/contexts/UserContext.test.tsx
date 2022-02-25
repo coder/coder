@@ -3,6 +3,7 @@ import { SWRConfig } from "swr"
 import { screen, waitFor } from "@testing-library/react"
 import { User, UserProvider, useUser } from "./UserContext"
 import { history, MockUser, render } from "../test_helpers"
+import { ExpansionPanelActions } from "@material-ui/core"
 
 namespace Helpers {
   // Helper component that renders out the state of the `useUser` hook.
@@ -65,6 +66,7 @@ describe("UserContext", () => {
     })
     // ...and the route should be unchanged
     expect(history.location.pathname).toEqual("/")
+    expect(history.location.search).toEqual("")
   })
 
   it("should redirect if user fails to load and redirectOnFailure is true", async () => {
@@ -73,7 +75,8 @@ describe("UserContext", () => {
 
     // Then
     // Verify we route to the login page
-    await waitFor(() => expect(history.location.pathname).toEqual("/login?redirect=%2F"))
+    await waitFor(() => expect(history.location.pathname).toEqual("/login"))
+    await waitFor(() => expect(history.location.search).toEqual("?redirect=%2F"))
   })
 
   it("should not redirect if user loads and redirectOnFailure is true", async () => {
@@ -87,5 +90,6 @@ describe("UserContext", () => {
     })
     // ...and the route should be unchanged
     expect(history.location.pathname).toEqual("/")
+    expect(history.location.search).toEqual("")
   })
 })
