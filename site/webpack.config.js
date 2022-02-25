@@ -2,25 +2,25 @@ const path = require("path")
 
 module.exports = {
   devServer: {
-    allowedHosts: 'all',
+    allowedHosts: "all",
     client: {
       overlay: true,
       progress: false,
     },
     devMiddleware: {
-      publicPath: '/',
+      publicPath: "/",
     },
     headers: {
-      'Access-Control-Allow-Origin': '*'
+      "Access-Control-Allow-Origin": "*",
     },
     historyApiFallback: {
-      index: 'index.html'
+      index: "index.html",
     },
     hot: true,
     proxy: {
-      '/api': 'http://localhost:3000',
+      "/api": "http://localhost:3000",
     },
-    static: ["./static"]
+    static: ["./static"],
   },
   entry: "./index.tsx",
   mode: "development",
@@ -29,9 +29,7 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: ["ts-loader"],
-        exclude: [
-          /node_modules/,
-        ],
+        exclude: [/node_modules/],
       },
     ],
   },
@@ -42,5 +40,5 @@ module.exports = {
     filename: "bundle.js",
     path: path.resolve(__dirname, "out"),
   },
-  target: "web"
+  target: "web",
 }

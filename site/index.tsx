@@ -1,7 +1,6 @@
 import React from "react"
 import ReactDOM from "react-dom"
 
-
 import { App } from "./app"
 
 // This is the entry point for the app - where everything start.
