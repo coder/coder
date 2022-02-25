@@ -7,7 +7,6 @@
     "build": "NODE_ENV=production webpack build",
     "build:dev": "webpack build",
     "dev": "webpack-dev-server",
-    "export": "next export",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}' && sql-formatter -l postgresql ./database/query.sql -o ./database/query.sql",
     "lint": "jest --selectProjects lint",
