@@ -1,7 +1,9 @@
-const path = require("path")
-const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
+import * as path from "path"
+import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
+import * as webpack from "webpack"
+import 'webpack-dev-server';
 
-module.exports = {
+const config: webpack.Configuration = {
   devServer: {
     allowedHosts: "all",
     client: {
@@ -50,3 +52,5 @@ module.exports = {
   },
   target: "web",
 }
+
+export default config
