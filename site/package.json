@@ -21,6 +21,7 @@
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.4",
     "@react-theming/storybook-addon": "1.1.5",
     "@storybook/addon-actions": "6.4.19",
     "@storybook/addon-essentials": "6.4.19",

@@ -1,4 +1,5 @@
 const path = require("path")
+const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 module.exports = {
   devServer: {
@@ -6,6 +7,7 @@ module.exports = {
     client: {
       overlay: true,
       progress: false,
+      webSocketURL: "auto://0.0.0.0:0/ws"
     },
     devMiddleware: {
       publicPath: "/",
@@ -23,6 +25,7 @@ module.exports = {
     static: ["./static"],
   },
   entry: "./index.tsx",
+  // TODO: 
   mode: "development",
   module: {
     rules: [
@@ -33,6 +36,11 @@ module.exports = {
       },
     ],
   },
+  plugins: [
+    new ReactRefreshWebpackPlugin({
+      overlay: true,
+    }),
+  ],
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
   },
