@@ -9,7 +9,11 @@ import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 export const history = createMemoryHistory()
 
 export const WrapperComponent: React.FC = ({ children }) => {
-  return <HistoryRouter history={history}><ThemeProvider theme={dark}>{children}</ThemeProvider></HistoryRouter>
+  return (
+    <HistoryRouter history={history}>
+      <ThemeProvider theme={dark}>{children}</ThemeProvider>
+    </HistoryRouter>
+  )
 }
 
 export const render = (component: React.ReactElement): RenderResult => {

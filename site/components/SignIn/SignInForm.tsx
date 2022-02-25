@@ -128,5 +128,5 @@ const getRedirectFromLocation = (location: Location) => {
 
   const searchParams = new URLSearchParams(location.search)
   const redirect = searchParams.get("redirect")
-  return redirect ? redirect : defaultRedirect;
+  return redirect ? redirect : defaultRedirect
 }

@@ -1,13 +1,12 @@
-import { render, waitFor } from "@testing-library/react"
-import singletonRouter from "next/router"
-import mockRouter from "next-router-mock"
+import { waitFor } from "@testing-library/react"
 import React from "react"
 import { Redirect } from "./Redirect"
+import { render, history } from "../test_helpers"
 
 describe("Redirect", () => {
   // Reset the router to '/' before every test
   beforeEach(() => {
-    mockRouter.setCurrentUrl("/")
+    history.replace("/")
   })
 
   it("performs client-side redirect on render", async () => {
@@ -16,7 +15,7 @@ describe("Redirect", () => {
 
     // Then
     await waitFor(() => {
-      expect(singletonRouter).toMatchObject({ asPath: "/workspaces/v2" })
+      expect(history.location.pathname).toEqual("/workspaces/v2")
     })
   })
 })

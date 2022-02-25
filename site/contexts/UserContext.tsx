@@ -37,7 +37,7 @@ export const useUser = (redirectOnError = false): UserContext => {
     // Disabling exhaustive deps here because it can cause an
     // infinite useEffect loop. Should (hopefully) go away
     // when we switch to an alternate routing strategy.
-  }, [redirectOnError, requestError]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.pathname, redirectOnError, requestError]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return ctx
 }
