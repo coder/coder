@@ -89,5 +89,5 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 site/out: 
 	./scripts/yarn_install.sh
 	cd site && yarn build
-	cd site && yarn export
+#	cd site && yarn export
 .PHONY: site/out
