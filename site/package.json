@@ -6,7 +6,7 @@
   "scripts": {
     "build": "NODE_ENV=production webpack build",
     "build:dev": "webpack build",
-    "dev": "ts-node dev.ts",
+    "dev": "webpack-dev-server",
     "export": "next export",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}' && sql-formatter -l postgresql ./database/query.sql -o ./database/query.sql",
@@ -71,5 +71,9 @@
     "firefox 63",
     "edge 79",
     "safari 13.1"
-  ]
+  ],
+  "dependencies": {
+    "react-hot-loader": "^4.13.0",
+    "webpack-dev-server": "^4.7.4"
+  }
 }
