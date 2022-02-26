@@ -10,7 +10,6 @@ import { Welcome } from "./Welcome"
 import { FormTextField } from "../Form"
 import * as API from "./../../api"
 import { LoadingButton } from "./../Button"
-import { firstOrItem } from "../../util/array"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)

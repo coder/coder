@@ -1,7 +1,7 @@
 import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
 import HtmlWebpackPlugin from "html-webpack-plugin"
 import * as webpack from "webpack"
-import 'webpack-dev-server';
+import "webpack-dev-server"
 
 import productionConfig from "./webpack.prod"
 
@@ -12,7 +12,7 @@ const config: webpack.Configuration = {
     client: {
       overlay: true,
       progress: false,
-      webSocketURL: "auto://0.0.0.0:0/ws"
+      webSocketURL: "auto://0.0.0.0:0/ws",
     },
     devMiddleware: {
       publicPath: "/",
@@ -32,9 +32,9 @@ const config: webpack.Configuration = {
   mode: "development",
   plugins: [
     new HtmlWebpackPlugin({
-      title: 'Custom template',
+      title: "Custom template",
       // Load a custom template (lodash by default)
-      template: 'index.html',
+      template: "index.html",
       inject: "body",
       hash: true,
     }),

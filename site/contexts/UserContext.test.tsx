@@ -3,7 +3,6 @@ import { SWRConfig } from "swr"
 import { screen, waitFor } from "@testing-library/react"
 import { User, UserProvider, useUser } from "./UserContext"
 import { history, MockUser, render } from "../test_helpers"
-import { ExpansionPanelActions } from "@material-ui/core"
 
 namespace Helpers {
   // Helper component that renders out the state of the `useUser` hook.

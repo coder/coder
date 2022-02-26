@@ -2,7 +2,7 @@ import * as path from "path"
 import CopyWebpackPlugin from "copy-webpack-plugin"
 import HtmlWebpackPlugin from "html-webpack-plugin"
 import * as webpack from "webpack"
-import 'webpack-dev-server';
+import "webpack-dev-server"
 
 const config: webpack.Configuration = {
   entry: "./index.tsx",
@@ -18,16 +18,14 @@ const config: webpack.Configuration = {
   },
   plugins: [
     new CopyWebpackPlugin({
-      patterns: [
-        { from: "static", to: "." },
-      ],
+      patterns: [{ from: "static", to: "." }],
     }),
     new HtmlWebpackPlugin({
-      title: 'Custom template',
+      title: "Custom template",
       // Load a custom template (lodash by default)
-      template: 'index.html',
-      inject: "body"
-    })
+      template: "index.html",
+      inject: "body",
+    }),
   ],
   resolve: {
     extensions: [".tsx", ".ts", ".js"],

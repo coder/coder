@@ -62,7 +62,7 @@ const ProjectsPage: React.FC = () => {
   const emptyState = <EmptyState message="No projects have been created yet" description={description} />
 
   const tableProps = {
-    title: "All Projects HELLO9",
+    title: "All Projects",
     columns: columns,
     emptyState: emptyState,
     data: projects,

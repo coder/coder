@@ -99,8 +99,6 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 	}
 
 	serveFunc := func(writer http.ResponseWriter, request *http.Request) {
-		//writer.WriteHeader(http.StatusNotFound)
-
 		fileName := filepath.Base(request.URL.Path)
 		normalizedFileName := strings.ToLower(fileName)
 
@@ -114,14 +112,8 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 			fileBytes = indexBytes
 		}
 
-		// TODO: Request path
-		fmt.Println("Requesting: " + request.URL.Path)
+		// TODO: Proper name for content:
 		http.ServeContent(writer, request, "", time.Time{}, bytes.NewReader(fileBytes))
-		//_, err = writer.Write(fileBytes)
-		/*if err != nil {
-			logger.Error(request.Context(), "Unable to write bytes for requested file", slog.F("fileName", normalizedFileName))
-			return
-		}*/
 	}
 
 	return serveFunc, nil
