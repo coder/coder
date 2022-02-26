@@ -27,7 +27,9 @@ func TestAgentScript(t *testing.T) {
 	t.Run("Run", func(t *testing.T) {
 		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			content, err := os.ReadFile("/usr/bin/echo")
+			echoPath, err := exec.LookPath("echo")
+			require.NoError(t, err)
+			content, err := os.ReadFile(echoPath)
 			require.NoError(t, err)
 			render.Status(r, http.StatusOK)
 			render.Data(rw, r, content)
