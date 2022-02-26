@@ -1,4 +1,5 @@
 import * as path from "path"
+import CopyWebpackPlugin from "copy-webpack-plugin"
 import HtmlWebpackPlugin from "html-webpack-plugin"
 import * as webpack from "webpack"
 import 'webpack-dev-server';
@@ -16,6 +17,11 @@ const config: webpack.Configuration = {
     ],
   },
   plugins: [
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: "static", to: "." },
+      ],
+    }),
     new HtmlWebpackPlugin({
       title: 'Custom template',
       // Load a custom template (lodash by default)
