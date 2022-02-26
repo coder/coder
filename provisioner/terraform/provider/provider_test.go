@@ -52,6 +52,7 @@ func TestAgentScript(t *testing.T) {
 func TestAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
 		resource.Test(t, resource.TestCase{
 			Providers: map[string]*schema.Provider{
 				"coder": provider.New(),
@@ -76,6 +77,7 @@ func TestAgent(t *testing.T) {
 	})
 
 	t.Run("Filled", func(t *testing.T) {
+		t.Parallel()
 		resource.Test(t, resource.TestCase{
 			Providers: map[string]*schema.Provider{
 				"coder": provider.New(),
@@ -101,17 +103,17 @@ func TestAgent(t *testing.T) {
 					require.Len(t, state.Modules[0].Resources, 1)
 					resource := state.Modules[0].Resources["coder_agent.new"]
 					require.NotNil(t, resource)
-					for _, k := range []string{
+					for _, key := range []string{
 						"token",
 						"auth.0.type",
 						"auth.0.instance_id",
 						"env.hi",
 						"startup_script",
 					} {
-						v := resource.Primary.Attributes[k]
-						t.Log(fmt.Sprintf("%q = %q", k, v))
-						require.NotNil(t, v)
-						require.Greater(t, len(v), 0)
+						value := resource.Primary.Attributes[key]
+						t.Log(fmt.Sprintf("%q = %q", key, value))
+						require.NotNil(t, value)
+						require.Greater(t, len(value), 0)
 					}
 					return nil
 				},

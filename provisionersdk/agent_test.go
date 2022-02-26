@@ -16,9 +16,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/coder/provisionersdk"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/provisionersdk"
 )
 
 func TestAgentScript(t *testing.T) {

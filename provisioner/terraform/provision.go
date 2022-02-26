@@ -8,12 +8,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
-	"cdr.dev/slog"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -165,24 +167,38 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 		agent := &proto.Agent{
 			Auth: &proto.Agent_Token{},
 		}
-		if env, has := resource.Expressions["env"]; has {
-			agent.Env = env.ConstantValue.(map[string]string)
+		if envRaw, has := resource.Expressions["env"]; has {
+			env, ok := envRaw.ConstantValue.(map[string]string)
+			if !ok {
+				return xerrors.Errorf("unexpected type %q for env map", reflect.TypeOf(envRaw.ConstantValue).String())
+			}
+			agent.Env = env
 		}
-		if startupScript, has := resource.Expressions["startup_script"]; has {
-			agent.StartupScript = startupScript.ConstantValue.(string)
+		if startupScriptRaw, has := resource.Expressions["startup_script"]; has {
+			startupScript, ok := startupScriptRaw.ConstantValue.(string)
+			if !ok {
+				return xerrors.Errorf("unexpected type %q for startup script", reflect.TypeOf(startupScriptRaw.ConstantValue).String())
+			}
+			agent.StartupScript = startupScript
 		}
 		if auth, has := resource.Expressions["auth"]; has {
 			if len(auth.ExpressionData.NestedBlocks) > 0 {
 				block := auth.ExpressionData.NestedBlocks[0]
 				authType, has := block["type"]
 				if has {
-					switch authType.ConstantValue.(string) {
+					authTypeValue, valid := authType.ConstantValue.(string)
+					if !valid {
+						return xerrors.Errorf("unexpected type %q for auth type", reflect.TypeOf(authType.ConstantValue))
+					}
+					switch authTypeValue {
 					case "google-instance-identity":
 						agent.Auth = &proto.Agent_GoogleInstanceIdentity{
 							GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
 								InstanceId: block["instance_id"].ConstantValue.(string),
 							},
 						}
+					default:
+						return xerrors.Errorf("unknown auth type: %q", authTypeValue)
 					}
 				}
 			}

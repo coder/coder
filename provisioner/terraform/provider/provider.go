@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
@@ -39,12 +40,15 @@ func New() *schema.Provider {
 				},
 			},
 		},
-		ConfigureContextFunc: func(c context.Context, rd *schema.ResourceData) (interface{}, diag.Diagnostics) {
-			rawURL := rd.Get("url").(string)
+		ConfigureContextFunc: func(c context.Context, resourceData *schema.ResourceData) (interface{}, diag.Diagnostics) {
+			rawURL, ok := resourceData.Get("url").(string)
+			if !ok {
+				return nil, diag.Errorf("unexpected type %q for url", reflect.TypeOf(resourceData.Get("url")).String())
+			}
 			if rawURL == "" {
 				return nil, diag.Errorf("CODER_URL must not be empty; got %q", rawURL)
 			}
-			parsed, err := url.Parse(rd.Get("url").(string))
+			parsed, err := url.Parse(resourceData.Get("url").(string))
 			if err != nil {
 				return nil, diag.FromErr(err)
 			}
@@ -55,22 +59,28 @@ func New() *schema.Provider {
 		DataSourcesMap: map[string]*schema.Resource{
 			"coder_agent_script": {
 				Description: "TODO",
-				ReadContext: func(c context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
-					config := i.(config)
-					osRaw := rd.Get("os")
-					os := osRaw.(string)
-					archRaw := rd.Get("arch")
-					arch := archRaw.(string)
-
-					script, err := provisionersdk.AgentScript(config.URL, os, arch)
+				ReadContext: func(c context.Context, resourceData *schema.ResourceData, i interface{}) diag.Diagnostics {
+					config, valid := i.(config)
+					if !valid {
+						return diag.Errorf("config was unexpected type %q", reflect.TypeOf(i).String())
+					}
+					operatingSystem, valid := resourceData.Get("os").(string)
+					if !valid {
+						return diag.Errorf("os was unexpected type %q", reflect.TypeOf(resourceData.Get("os")))
+					}
+					arch, valid := resourceData.Get("arch").(string)
+					if !valid {
+						return diag.Errorf("arch was unexpected type %q", reflect.TypeOf(resourceData.Get("arch")))
+					}
+					script, err := provisionersdk.AgentScript(config.URL, operatingSystem, arch)
 					if err != nil {
 						return diag.FromErr(err)
 					}
-					err = rd.Set("value", script)
+					err = resourceData.Set("value", script)
 					if err != nil {
 						return diag.FromErr(err)
 					}
-					rd.SetId(strings.Join([]string{os, arch}, "_"))
+					resourceData.SetId(strings.Join([]string{operatingSystem, arch}, "_"))
 					return nil
 				},
 				Schema: map[string]*schema.Schema{
@@ -96,7 +106,10 @@ func New() *schema.Provider {
 				CreateContext: func(c context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
 					// This should be a real authentication token!
 					rd.SetId(uuid.NewString())
-					rd.Set("token", uuid.NewString())
+					err := rd.Set("token", uuid.NewString())
+					if err != nil {
+						return diag.FromErr(err)
+					}
 					return nil
 				},
 				ReadContext: func(c context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {

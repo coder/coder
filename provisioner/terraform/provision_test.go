@@ -12,9 +12,10 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk"
@@ -30,6 +31,7 @@ func TestProvision(t *testing.T) {
 	providerDest := filepath.Join(homeDir, ".terraform.d", "plugins", "coder.com", "internal", "coder", "0.0.1", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH))
 	err = os.MkdirAll(providerDest, 0700)
 	require.NoError(t, err)
+	//nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 	providerSrc := filepath.Join(filepath.Dir(filename), "..", "..", "cmd", "terraform-provider-coder")
 	output, err := exec.Command("go", "build", "-o", providerDest, providerSrc).CombinedOutput()
