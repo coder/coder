@@ -1,14 +1,19 @@
 package site
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/justinas/nosurf"
 	"github.com/unrolled/secure"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 )
@@ -16,9 +21,7 @@ import (
 // The `embed` package ignores recursively including directories
 // that prefix with `_`. Wildcarding nested is janky, but seems to
 // work quite well for edge-cases.
-//go:embed out/_next/*/*/*/*
-//go:embed out/_next/*/*/*
-//go:embed out
+//go:embed out/*
 var site embed.FS
 
 // Handler returns an HTTP handler for serving the static site.
@@ -40,13 +43,88 @@ func Handler(logger slog.Logger) http.Handler {
 		}
 	}
 
-	staticSiteHandler := http.HandlerFunc(FileHandler(filesystem))
+	router := chi.NewRouter()
+
+	// TODO: Bring back
+	//router.NotFound(FileHandler(filesystem))
+
+	staticFileHandler, err := serveFiles(filesystem, logger)
 	if err != nil {
-		// There was an error setting up our file system handler.
-		// This likely means a problem with our embedded file system.
 		panic(err)
 	}
-	return secureHeaders(staticSiteHandler)
+
+	router.NotFound(staticFileHandler)
+
+	return secureHeaders(router)
+}
+
+func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) {
+
+	fileNameToBytes := map[string][]byte{}
+	var indexBytes []byte
+	indexBytes = nil
+
+	files, err := fs.ReadDir(fileSystem, ".")
+	if err != nil {
+		return nil, err
+	}
+
+	// Loop through everything in the current directory...
+	for _, file := range files {
+		name := file.Name()
+		normalizedName := strings.ToLower(name)
+
+		// If we're working with a file - just serve it up
+		if !file.IsDir() {
+			fileBytes, err := fs.ReadFile(fileSystem, normalizedName)
+
+			if err != nil {
+				// TODO: Log
+				continue
+			}
+
+			fileNameToBytes[normalizedName] = fileBytes
+			if normalizedName == "index.html" {
+				indexBytes = fileBytes
+			}
+
+			continue
+		}
+
+		// TODO: Log that we encountered a directory that we can't serve
+	}
+
+	if indexBytes == nil {
+		return nil, xerrors.Errorf("No index.html available")
+	}
+
+	serveFunc := func(writer http.ResponseWriter, request *http.Request) {
+		//writer.WriteHeader(http.StatusNotFound)
+
+		fileName := filepath.Base(request.URL.Path)
+		normalizedFileName := strings.ToLower(fileName)
+
+		if normalizedFileName == "/" {
+			normalizedFileName = "index.html"
+		}
+
+		fileBytes, ok := fileNameToBytes[normalizedFileName]
+		if !ok {
+			logger.Warn(request.Context(), "Unable to find request file", slog.F("fileName", normalizedFileName))
+			fileBytes = indexBytes
+		}
+
+		// TODO: Request path
+		fmt.Println("Requesting: " + request.URL.Path)
+		http.ServeContent(writer, request, "", time.Time{}, bytes.NewReader(fileBytes))
+		//_, err = writer.Write(fileBytes)
+		/*if err != nil {
+			logger.Error(request.Context(), "Unable to write bytes for requested file", slog.F("fileName", normalizedFileName))
+			return
+		}*/
+	}
+
+	return serveFunc, nil
 }
 
 // FileHandler serves static content, additionally adding immutable
@@ -67,7 +145,7 @@ func FileHandler(fileSystem fs.FS) func(writer http.ResponseWriter, request *htt
 		// and other media."
 		//
 		// See: https://nextjs.org/docs/going-to-production
-		if strings.HasPrefix(request.URL.Path, "/_next/static/") {
+		if strings.HasSuffix(request.URL.Path, ".js") {
 			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
 		}
 

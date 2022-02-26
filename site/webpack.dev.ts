@@ -35,7 +35,8 @@ const config: webpack.Configuration = {
       title: 'Custom template',
       // Load a custom template (lodash by default)
       template: 'index.html',
-      inject: "body"
+      inject: "body",
+      hash: true,
     }),
     new ReactRefreshWebpackPlugin({
       overlay: true,
