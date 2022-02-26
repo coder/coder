@@ -1,7 +1,11 @@
 import * as path from "path"
-import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
+import HtmlWebpackPlugin from "html-webpack-plugin"
 import * as webpack from "webpack"
 import 'webpack-dev-server';
+
+export const commonPlugins = [
+
+]
 
 const config: webpack.Configuration = {
   devServer: {
@@ -38,11 +42,19 @@ const config: webpack.Configuration = {
       },
     ],
   },
+  plugins: [
+    new HtmlWebpackPlugin({
+      title: 'Custom template',
+      // Load a custom template (lodash by default)
+      template: 'index.html',
+      inject: "body"
+    })
+  ],
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
   },
   output: {
-    filename: "bundle.js",
+    filename: "bundle.[contenthash].js",
     path: path.resolve(__dirname, "out"),
   },
   target: "web",

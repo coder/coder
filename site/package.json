@@ -48,6 +48,7 @@
     "eslint-plugin-react-hooks": "4.3.0",
     "express": "4.17.3",
     "formik": "2.2.9",
+    "html-webpack-plugin": "^5.5.0",
     "http-proxy-middleware": "2.0.3",
     "jest": "27.5.1",
     "jest-junit": "13.0.0",

@@ -1,4 +1,5 @@
 import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
+import HtmlWebpackPlugin from "html-webpack-plugin"
 import * as webpack from "webpack"
 import 'webpack-dev-server';
 
@@ -30,6 +31,12 @@ const config: webpack.Configuration = {
   },
   mode: "development",
   plugins: [
+    new HtmlWebpackPlugin({
+      title: 'Custom template',
+      // Load a custom template (lodash by default)
+      template: 'index.html',
+      inject: "body"
+    }),
     new ReactRefreshWebpackPlugin({
       overlay: true,
     }),
