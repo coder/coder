@@ -2,16 +2,16 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"os"
 	"strings"
 
-	"github.com/coder/coder/provisionersdk"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+
+	"github.com/coder/coder/provisionersdk"
 )
 
 type config struct {
@@ -62,7 +62,7 @@ func New() *schema.Provider {
 					archRaw := rd.Get("arch")
 					arch := archRaw.(string)
 
-					script, err := provisionersdk.AgentScript(os, arch, config.URL)
+					script, err := provisionersdk.AgentScript(config.URL, os, arch)
 					if err != nil {
 						return diag.FromErr(err)
 					}
@@ -100,16 +100,6 @@ func New() *schema.Provider {
 					return nil
 				},
 				ReadContext: func(c context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
-					authRaw := rd.Get("auth").([]interface{})[0]
-					if authRaw != nil {
-						auth := authRaw.(map[string]interface{})
-						fmt.Printf("Auth got %+v\n", auth)
-					}
-
-					env := rd.Get("env").(map[string]interface{})
-					for key, value := range env {
-						fmt.Printf("Got: %s, %s\n", key, value)
-					}
 					return nil
 				},
 				DeleteContext: func(c context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {

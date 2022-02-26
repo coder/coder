@@ -19,7 +19,8 @@ func TestProvider(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSomething(t *testing.T) {
+func TestAgentScript(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		Providers: map[string]*schema.Provider{
 			"coder": provider.New(),
@@ -34,15 +35,22 @@ func TestSomething(t *testing.T) {
 				arch = "amd64"
 				os = "linux"
 			}`,
-			Check: func(s *terraform.State) error {
-				fmt.Printf("check state: %+v\n", s)
+			Check: func(state *terraform.State) error {
+				require.Len(t, state.Modules, 1)
+				require.Len(t, state.Modules[0].Resources, 1)
+				resource := state.Modules[0].Resources["data.coder_agent_script.new"]
+				require.NotNil(t, resource)
+				value := resource.Primary.Attributes["value"]
+				require.NotNil(t, value)
+				t.Log(value)
 				return nil
 			},
 		}},
 	})
 }
 
-func TestAnother(t *testing.T) {
+func TestAgent(t *testing.T) {
+	t.Parallel()
 	resource.Test(t, resource.TestCase{
 		Providers: map[string]*schema.Provider{
 			"coder": provider.New(),
@@ -53,23 +61,33 @@ func TestAnother(t *testing.T) {
 			provider "coder" {
 				url = "https://example.com"
 			}
-
 			resource "coder_agent" "new" {
 				auth {
-					type = "gcp"
+					type = "something"
+					instance_id = "instance"
 				}
 				env = {
-					test = "some magic value"
+					hi = "test"
 				}
+				startup_script = "echo test"
 			}`,
-			Check: func(s *terraform.State) error {
-				fmt.Printf("State: %+v\n", s)
-				// for _, mod := range s.Modules {
-				// 	fmt.Printf("check state: %+v\n", mod.Resources)
-				// }
-				// data, _ := json.MarshalIndent(s, "", "\t")
-				// fmt.Printf("Data: %s\n", data)
-
+			Check: func(state *terraform.State) error {
+				require.Len(t, state.Modules, 1)
+				require.Len(t, state.Modules[0].Resources, 1)
+				resource := state.Modules[0].Resources["coder_agent.new"]
+				require.NotNil(t, resource)
+				for _, k := range []string{
+					"token",
+					"auth.0.type",
+					"auth.0.instance_id",
+					"env.hi",
+					"startup_script",
+				} {
+					v := resource.Primary.Attributes[k]
+					t.Log(fmt.Sprintf("%q = %q", k, v))
+					require.NotNil(t, v)
+					require.Greater(t, len(v), 0)
+				}
 				return nil
 			},
 		}},

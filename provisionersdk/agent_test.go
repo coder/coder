@@ -1,8 +1,15 @@
+//go:build !windows
+// +build !windows
+
+// There isn't a portable Windows binary equivalent to "echo".
+// This can be tested, but it's a bit harder.
+
 package provisionersdk_test
 
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -25,8 +32,9 @@ func TestAgentScript(t *testing.T) {
 			render.Data(rw, r, content)
 		}))
 		t.Cleanup(srv.Close)
-
-		script, err := provisionersdk.AgentScript(runtime.GOOS, runtime.GOARCH, srv.URL)
+		srvURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		script, err := provisionersdk.AgentScript(srvURL, runtime.GOOS, runtime.GOARCH)
 		require.NoError(t, err)
 
 		output, err := exec.Command("sh", "-c", script).CombinedOutput()
@@ -39,13 +47,13 @@ func TestAgentScript(t *testing.T) {
 
 	t.Run("UnsupportedOS", func(t *testing.T) {
 		t.Parallel()
-		_, err := provisionersdk.AgentScript("unsupported", "", nil)
+		_, err := provisionersdk.AgentScript(nil, "unsupported", "")
 		require.Error(t, err)
 	})
 
 	t.Run("UnsupportedArch", func(t *testing.T) {
 		t.Parallel()
-		_, err := provisionersdk.AgentScript(runtime.GOOS, "unsupported", nil)
+		_, err := provisionersdk.AgentScript(nil, runtime.GOOS, "unsupported")
 		require.Error(t, err)
 	})
 }

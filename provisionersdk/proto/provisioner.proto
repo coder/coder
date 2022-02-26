@@ -108,6 +108,7 @@ message Provision {
         string directory = 1;
         repeated ParameterValue parameter_values = 2;
         bytes state = 3;
+        bool dry_run = 4;
     }
     message Complete {
         bytes state = 1; 

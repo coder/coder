@@ -1,6 +1,7 @@
 package provisionersdk
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -43,13 +44,9 @@ exec $BINARY_LOCATION agent
 	}
 )
 
-// CODER_URL, operating system, and architecture can return the URL of the Coder binary.
-
 // AgentScript returns an installation script for the specified operating system
 // and architecture.
-//
-// baseURL is
-func AgentScript(operatingSystem, architecture string, binaryDownloadURL *url.URL) (string, error) {
+func AgentScript(coderURL *url.URL, operatingSystem, architecture string) (string, error) {
 	architectures, exists := agentScript[operatingSystem]
 	if !exists {
 		list := []string{}
@@ -66,6 +63,9 @@ func AgentScript(operatingSystem, architecture string, binaryDownloadURL *url.UR
 		}
 		return "", xerrors.Errorf("architecture %q not supported for %q. must be in: %v", architecture, operatingSystem, list)
 	}
-
-	return strings.ReplaceAll(script, "${DOWNLOAD_URL}", binaryDownloadURL.String()), nil
+	parsed, err := coderURL.Parse(fmt.Sprintf("/bin/coder-%s-%s", operatingSystem, architecture))
+	if err != nil {
+		return "", xerrors.Errorf("parse url: %w", err)
+	}
+	return strings.ReplaceAll(script, "${DOWNLOAD_URL}", parsed.String()), nil
 }
