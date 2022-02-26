@@ -3,36 +3,9 @@ import HtmlWebpackPlugin from "html-webpack-plugin"
 import * as webpack from "webpack"
 import 'webpack-dev-server';
 
-export const commonPlugins = [
-
-]
-
 const config: webpack.Configuration = {
-  devServer: {
-    allowedHosts: "all",
-    client: {
-      overlay: true,
-      progress: false,
-      webSocketURL: "auto://0.0.0.0:0/ws"
-    },
-    devMiddleware: {
-      publicPath: "/",
-    },
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-    },
-    historyApiFallback: {
-      index: "index.html",
-    },
-    hot: true,
-    proxy: {
-      "/api": "http://localhost:3000",
-    },
-    static: ["./static"],
-  },
   entry: "./index.tsx",
-  // TODO: 
-  mode: "development",
+  mode: "production",
   module: {
     rules: [
       {
