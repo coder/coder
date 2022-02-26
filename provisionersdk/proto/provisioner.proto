@@ -70,12 +70,13 @@ message GoogleInstanceIdentityAuth {
 
 // Agent represents a running agent on the workspace.
 message Agent {
-    map<string, string> env = 3;
-    string startup_script = 4;
+    string id = 1;
+    map<string, string> env = 2;
+    string startup_script = 3;
     oneof auth {
-        string token = 5;
+        string token = 4;
         // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
-        GoogleInstanceIdentityAuth google_instance_identity = 6;
+        GoogleInstanceIdentityAuth google_instance_identity = 5;
     }
 }
 
@@ -113,7 +114,6 @@ message Provision {
     message Complete {
         bytes state = 1; 
         repeated Resource resources = 2;
-        repeated Agent agents = 3;
     }
     message Response {
         oneof type {

@@ -51,45 +51,71 @@ func TestAgentScript(t *testing.T) {
 
 func TestAgent(t *testing.T) {
 	t.Parallel()
-	resource.Test(t, resource.TestCase{
-		Providers: map[string]*schema.Provider{
-			"coder": provider.New(),
-		},
-		IsUnitTest: true,
-		Steps: []resource.TestStep{{
-			Config: `
-			provider "coder" {
-				url = "https://example.com"
-			}
-			resource "coder_agent" "new" {
-				auth {
-					type = "something"
-					instance_id = "instance"
-				}
-				env = {
-					hi = "test"
-				}
-				startup_script = "echo test"
-			}`,
-			Check: func(state *terraform.State) error {
-				require.Len(t, state.Modules, 1)
-				require.Len(t, state.Modules[0].Resources, 1)
-				resource := state.Modules[0].Resources["coder_agent.new"]
-				require.NotNil(t, resource)
-				for _, k := range []string{
-					"token",
-					"auth.0.type",
-					"auth.0.instance_id",
-					"env.hi",
-					"startup_script",
-				} {
-					v := resource.Primary.Attributes[k]
-					t.Log(fmt.Sprintf("%q = %q", k, v))
-					require.NotNil(t, v)
-					require.Greater(t, len(v), 0)
-				}
-				return nil
+	t.Run("Empty", func(t *testing.T) {
+		resource.Test(t, resource.TestCase{
+			Providers: map[string]*schema.Provider{
+				"coder": provider.New(),
 			},
-		}},
+			IsUnitTest: true,
+			Steps: []resource.TestStep{{
+				Config: `
+				provider "coder" {
+					url = "https://example.com"
+				}
+				resource "coder_agent" "new" {}`,
+				Check: func(state *terraform.State) error {
+					require.Len(t, state.Modules, 1)
+					require.Len(t, state.Modules[0].Resources, 1)
+					resource := state.Modules[0].Resources["coder_agent.new"]
+					require.NotNil(t, resource)
+					require.NotNil(t, resource.Primary.Attributes["token"])
+					return nil
+				},
+			}},
+		})
+	})
+
+	t.Run("Filled", func(t *testing.T) {
+		resource.Test(t, resource.TestCase{
+			Providers: map[string]*schema.Provider{
+				"coder": provider.New(),
+			},
+			IsUnitTest: true,
+			Steps: []resource.TestStep{{
+				Config: `
+				provider "coder" {
+					url = "https://example.com"
+				}
+				resource "coder_agent" "new" {
+					auth {
+						type = "google-instance-identity"
+						instance_id = "instance"
+					}
+					env = {
+						hi = "test"
+					}
+					startup_script = "echo test"
+				}`,
+				Check: func(state *terraform.State) error {
+					require.Len(t, state.Modules, 1)
+					require.Len(t, state.Modules[0].Resources, 1)
+					resource := state.Modules[0].Resources["coder_agent.new"]
+					require.NotNil(t, resource)
+					for _, k := range []string{
+						"token",
+						"auth.0.type",
+						"auth.0.instance_id",
+						"env.hi",
+						"startup_script",
+					} {
+						v := resource.Primary.Attributes[k]
+						t.Log(fmt.Sprintf("%q = %q", k, v))
+						require.NotNil(t, v)
+						require.Greater(t, len(v), 0)
+					}
+					return nil
+				},
+			}},
+		})
 	})
 }

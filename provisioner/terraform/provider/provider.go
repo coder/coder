@@ -115,11 +115,14 @@ func New() *schema.Provider {
 						Elem: &schema.Resource{
 							Schema: map[string]*schema.Schema{
 								"type": {
-									Description: "TODO",
-									Optional:    true,
-									Type:        schema.TypeString,
+									ForceNew:     true,
+									Description:  "TODO",
+									Optional:     true,
+									Type:         schema.TypeString,
+									ValidateFunc: validation.StringInSlice([]string{"google-instance-identity"}, false),
 								},
 								"instance_id": {
+									ForceNew:    true,
 									Description: "TODO",
 									Optional:    true,
 									Type:        schema.TypeString,
@@ -140,6 +143,7 @@ func New() *schema.Provider {
 						Optional:    true,
 					},
 					"token": {
+						ForceNew: true,
 						Type:     schema.TypeString,
 						Computed: true,
 					},
