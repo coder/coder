@@ -38,6 +38,7 @@ func (drpcEncoding_File_provisionersdk_proto_provisioner_proto) JSONUnmarshal(bu
 type DRPCProvisionerClient interface {
 	DRPCConn() drpc.Conn
 
+	Shutdown(ctx context.Context, in *Empty) (*Empty, error)
 	Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error)
 	Provision(ctx context.Context, in *Provision_Request) (DRPCProvisioner_ProvisionClient, error)
 }
@@ -51,6 +52,15 @@ func NewDRPCProvisionerClient(cc drpc.Conn) DRPCProvisionerClient {
 }
 
 func (c *drpcProvisionerClient) DRPCConn() drpc.Conn { return c.cc }
+
+func (c *drpcProvisionerClient) Shutdown(ctx context.Context, in *Empty) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/provisioner.Provisioner/Shutdown", drpcEncoding_File_provisionersdk_proto_provisioner_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 func (c *drpcProvisionerClient) Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error) {
 	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
@@ -125,11 +135,16 @@ func (x *drpcProvisioner_ProvisionClient) RecvMsg(m *Provision_Response) error {
 }
 
 type DRPCProvisionerServer interface {
+	Shutdown(context.Context, *Empty) (*Empty, error)
 	Parse(*Parse_Request, DRPCProvisioner_ParseStream) error
 	Provision(*Provision_Request, DRPCProvisioner_ProvisionStream) error
 }
 
 type DRPCProvisionerUnimplementedServer struct{}
+
+func (s *DRPCProvisionerUnimplementedServer) Shutdown(context.Context, *Empty) (*Empty, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
 
 func (s *DRPCProvisionerUnimplementedServer) Parse(*Parse_Request, DRPCProvisioner_ParseStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
@@ -141,11 +156,20 @@ func (s *DRPCProvisionerUnimplementedServer) Provision(*Provision_Request, DRPCP
 
 type DRPCProvisionerDescription struct{}
 
-func (DRPCProvisionerDescription) NumMethods() int { return 2 }
+func (DRPCProvisionerDescription) NumMethods() int { return 3 }
 
 func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
+		return "/provisioner.Provisioner/Shutdown", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCProvisionerServer).
+					Shutdown(
+						ctx,
+						in1.(*Empty),
+					)
+			}, DRPCProvisionerServer.Shutdown, true
+	case 1:
 		return "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCProvisionerServer).
@@ -154,7 +178,7 @@ func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						&drpcProvisioner_ParseStream{in2.(drpc.Stream)},
 					)
 			}, DRPCProvisionerServer.Parse, true
-	case 1:
+	case 2:
 		return "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCProvisionerServer).
@@ -170,6 +194,22 @@ func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 
 func DRPCRegisterProvisioner(mux drpc.Mux, impl DRPCProvisionerServer) error {
 	return mux.Register(impl, DRPCProvisionerDescription{})
+}
+
+type DRPCProvisioner_ShutdownStream interface {
+	drpc.Stream
+	SendAndClose(*Empty) error
+}
+
+type drpcProvisioner_ShutdownStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisioner_ShutdownStream) SendAndClose(m *Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
 }
 
 type DRPCProvisioner_ParseStream interface {

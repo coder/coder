@@ -276,16 +276,16 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 	case !provisionerJob.StartedAt.Valid:
 		job.Status = ProvisionerJobStatusPending
 	case provisionerJob.CompletedAt.Valid:
-		job.Status = ProvisionerJobStatusSucceeded
+		if job.Error == "" {
+			job.Status = ProvisionerJobStatusSucceeded
+		} else {
+			job.Status = ProvisionerJobStatusFailed
+		}
 	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
 		job.Status = ProvisionerJobStatusFailed
 		job.Error = "Worker failed to update job in time."
 	default:
 		job.Status = ProvisionerJobStatusRunning
-	}
-
-	if !provisionerJob.CancelledAt.Valid && job.Error != "" {
-		job.Status = ProvisionerJobStatusFailed
 	}
 
 	return job
