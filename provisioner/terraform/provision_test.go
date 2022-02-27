@@ -51,7 +51,6 @@ terraform {
 }
 
 provider "coder" {
-	url = "https://example.com"
 }
 	`
 	t.Log(provider)
@@ -174,6 +173,11 @@ provider "coder" {
 				]
 			}`,
 		},
+		Request: &proto.Provision_Request{
+			Metadata: &proto.Provision_Metadata{
+				CoderUrl: "https://example.com",
+			},
+		},
 		Response: &proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
@@ -203,6 +207,11 @@ provider "coder" {
 				}
 			}
 			resource "null_resource" "A" {}`,
+		},
+		Request: &proto.Provision_Request{
+			Metadata: &proto.Provision_Metadata{
+				CoderUrl: "https://example.com",
+			},
 		},
 		Response: &proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
@@ -235,6 +244,9 @@ provider "coder" {
 		},
 		Request: &proto.Provision_Request{
 			DryRun: true,
+			Metadata: &proto.Provision_Metadata{
+				CoderUrl: "https://example.com",
+			},
 		},
 		Response: &proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
@@ -266,6 +278,9 @@ provider "coder" {
 		},
 		Request: &proto.Provision_Request{
 			DryRun: true,
+			Metadata: &proto.Provision_Metadata{
+				CoderUrl: "https://example.com",
+			},
 		},
 		Response: &proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
@@ -302,6 +317,10 @@ provider "coder" {
 				request.ParameterValues = testCase.Request.ParameterValues
 				request.State = testCase.Request.State
 				request.DryRun = testCase.Request.DryRun
+				request.Metadata = testCase.Request.Metadata
+			}
+			if request.Metadata == nil {
+				request.Metadata = &proto.Provision_Metadata{}
 			}
 			response, err := api.Provision(ctx, request)
 			require.NoError(t, err)

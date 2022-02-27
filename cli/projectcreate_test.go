@@ -86,7 +86,7 @@ func TestProjectCreate(t *testing.T) {
 		matches := []string{
 			"organization?", "y",
 			"name?", "test-project",
-			"somevar:", "value",
+			"somevar", "value",
 			"project?", "y",
 			"created!", "n",
 		}

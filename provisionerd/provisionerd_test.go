@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -97,7 +96,9 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
@@ -136,7 +137,9 @@ func TestProvisionerd(t *testing.T) {
 							"../../../etc/passwd": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
@@ -166,7 +169,9 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
@@ -214,7 +219,9 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
@@ -248,11 +255,7 @@ func TestProvisionerd(t *testing.T) {
 
 					err = stream.Send(&sdkproto.Parse_Response{
 						Type: &sdkproto.Parse_Response_Complete{
-							Complete: &sdkproto.Parse_Complete{
-								ParameterSchemas: []*sdkproto.ParameterSchema{{
-									Name: parameter.CoderWorkspaceTransition,
-								}},
-							},
+							Complete: &sdkproto.Parse_Complete{},
 						},
 					})
 					require.NoError(t, err)
@@ -314,7 +317,9 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceProvision_{
-							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{},
+							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},

@@ -103,13 +103,23 @@ message Parse {
     }
 }
 
+enum WorkspaceTransition {
+    START = 0;
+    STOP = 1;
+}
+
 // Provision consumes source-code from a directory to produce resources.
 message Provision {
+    message Metadata {
+        string coder_url = 1;
+        WorkspaceTransition workspace_transition = 2;
+    }
     message Request {
         string directory = 1;
         repeated ParameterValue parameter_values = 2;
-        bytes state = 3;
-        bool dry_run = 4;
+        Metadata metadata = 3;
+        bytes state = 4;
+        bool dry_run = 5;
     }
     message Complete {
         bytes state = 1; 
