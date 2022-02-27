@@ -66,12 +66,10 @@ func New() *schema.Provider {
 				},
 				Schema: map[string]*schema.Schema{
 					"transition": {
-						Type:        schema.TypeString,
-						Optional:    true,
-						Description: "TODO",
-						DefaultFunc: func() (interface{}, error) {
-							return os.Getenv("CODER_WORKSPACE_TRANSITION"), nil
-						},
+						Type:         schema.TypeString,
+						Optional:     true,
+						Description:  "TODO",
+						DefaultFunc:  schema.EnvDefaultFunc("CODER_WORKSPACE_TRANSITION", ""),
 						ValidateFunc: validation.StringInSlice([]string{string(database.WorkspaceTransitionStart), string(database.WorkspaceTransitionStop)}, false),
 					},
 				},

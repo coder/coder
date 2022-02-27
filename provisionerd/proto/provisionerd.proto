@@ -15,9 +15,11 @@ message AcquiredJob {
         string workspace_history_id = 1;
         string workspace_name = 2;
         repeated provisioner.ParameterValue parameter_values = 3;
-        bytes state = 4;
+        provisioner.Provision.Metadata metadata = 4;
+        bytes state = 5;
     }
     message ProjectImport {
+        provisioner.Provision.Metadata metadata = 1;
     }
     string job_id = 1;
     int64 created_at = 2;

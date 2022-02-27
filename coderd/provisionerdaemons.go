@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"time"
 
@@ -90,6 +91,7 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 	}
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
+		AccessURL:    api.AccessURL,
 		ID:           daemon.ID,
 		Database:     api.Database,
 		Pubsub:       api.Pubsub,
@@ -117,6 +119,7 @@ type workspaceProvisionJob struct {
 
 // Implementation of the provisioner daemon protobuf server.
 type provisionerdServer struct {
+	AccessURL    *url.URL
 	ID           uuid.UUID
 	Logger       slog.Logger
 	Provisioners []database.ProvisionerType
@@ -228,11 +231,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			}
 			protoParameters = append(protoParameters, converted)
 		}
-		protoParameters = append(protoParameters, &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              parameter.CoderWorkspaceTransition,
-			Value:             string(workspaceHistory.Transition),
-		})
+		transition, err := convertWorkspaceTransition(workspaceHistory.Transition)
+		if err != nil {
+			return nil, failJob(fmt.Sprint("convert workspace transition: %w", err))
+		}
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
 			WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
@@ -240,11 +242,19 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				WorkspaceName:      workspace.Name,
 				State:              workspaceHistory.ProvisionerState,
 				ParameterValues:    protoParameters,
+				Metadata: &sdkproto.Provision_Metadata{
+					CoderUrl:            server.AccessURL.String(),
+					WorkspaceTransition: transition,
+				},
 			},
 		}
 	case database.ProvisionerJobTypeProjectVersionImport:
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
-			ProjectImport: &proto.AcquiredJob_ProjectImport{},
+			ProjectImport: &proto.AcquiredJob_ProjectImport{
+				Metadata: &sdkproto.Provision_Metadata{
+					CoderUrl: server.AccessURL.String(),
+				},
+			},
 		}
 	}
 	switch job.StorageMethod {
@@ -659,4 +669,15 @@ func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.Par
 		Name:              param.Name,
 		Value:             param.SourceValue,
 	}, nil
+}
+
+func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkproto.WorkspaceTransition, error) {
+	switch transition {
+	case database.WorkspaceTransitionStart:
+		return sdkproto.WorkspaceTransition_START, nil
+	case database.WorkspaceTransitionStop:
+		return sdkproto.WorkspaceTransition_STOP, nil
+	default:
+		return 0, xerrors.Errorf("unrecognized transition: %q", transition)
+	}
 }

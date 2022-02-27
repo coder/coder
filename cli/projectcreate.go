@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd"
@@ -185,9 +184,6 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		for _, parameterSchema := range parameterSchemas {
 			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
 			if ok {
-				continue
-			}
-			if parameterSchema.Name == parameter.CoderWorkspaceTransition {
 				continue
 			}
 			value, err := prompt(cmd, &promptui.Prompt{

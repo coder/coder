@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"net/http"
+	"net/url"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
@@ -16,9 +17,10 @@ import (
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	Logger   slog.Logger
-	Database database.Store
-	Pubsub   database.Pubsub
+	AccessURL *url.URL
+	Logger    slog.Logger
+	Database  database.Store
+	Pubsub    database.Pubsub
 
 	GoogleTokenValidator *idtoken.Validator
 }

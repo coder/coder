@@ -74,7 +74,10 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 }
 
 func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
-	env := map[string]string{}
+	env := map[string]string{
+		"CODER_URL":                  request.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION": strings.ToLower(request.Metadata.WorkspaceTransition.String()),
+	}
 	planfilePath := filepath.Join(request.Directory, "terraform.tfplan")
 	options := []tfexec.PlanOption{tfexec.JSON(true), tfexec.Out(planfilePath)}
 	for _, param := range request.ParameterValues {
@@ -250,7 +253,10 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 }
 
 func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream, statefilePath string) error {
-	env := map[string]string{}
+	env := map[string]string{
+		"CODER_URL":                  request.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION": strings.ToLower(request.Metadata.WorkspaceTransition.String()),
+	}
 	options := []tfexec.ApplyOption{tfexec.JSON(true)}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {

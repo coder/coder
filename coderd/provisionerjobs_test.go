@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
@@ -180,15 +179,7 @@ func TestProvisionerJobResourcesByID(t *testing.T) {
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name: parameter.CoderWorkspaceTransition,
-						}},
-					},
-				},
-			}},
+			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
