@@ -50,6 +50,7 @@
     "ntqry",
     "oneof",
     "parameterscopeid",
+    "pqtype",
     "promptui",
     "protobuf",
     "provisionerd",

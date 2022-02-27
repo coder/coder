@@ -40,7 +40,7 @@ func projects() *cobra.Command {
 	return cmd
 }
 
-func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.ParameterSchema, parameterValues []coderd.ComputedParameterValue, resources []coderd.ProjectImportJobResource) error {
+func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.ParameterSchema, parameterValues []coderd.ComputedParameterValue, resources []coderd.ProvisionerJobResource) error {
 	schemaByID := map[string]coderd.ParameterSchema{}
 	for _, schema := range parameterSchemas {
 		schemaByID[schema.ID.String()] = schema

@@ -21,9 +21,6 @@ type ParameterSchema database.ParameterSchema
 // ComputedParameterValue represents a computed parameter value.
 type ComputedParameterValue parameter.ComputedValue
 
-// ProjectImportJobResource is a resource created by a project import job.
-type ProjectImportJobResource database.ProjectImportJobResource
-
 // CreateProjectImportJobRequest provides options to create a project import job.
 type CreateProjectImportJobRequest struct {
 	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
@@ -167,7 +164,7 @@ func (api *api) projectImportJobResourcesByID(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
-	resources, err := api.Database.GetProjectImportJobResourcesByJobID(r.Context(), job.ID)
+	resources, err := api.Database.GetProvisionerJobResourcesByJobID(r.Context(), job.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -178,7 +175,7 @@ func (api *api) projectImportJobResourcesByID(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	if resources == nil {
-		resources = []database.ProjectImportJobResource{}
+		resources = []database.ProvisionerJobResource{}
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, resources)

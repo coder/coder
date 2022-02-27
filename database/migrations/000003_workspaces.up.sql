@@ -32,36 +32,3 @@ CREATE TABLE workspace_history (
     provision_job_id uuid NOT NULL,
     UNIQUE(workspace_id, name)
 );
-
--- Cloud resources produced by a provision job.
-CREATE TABLE workspace_resource (
-    id uuid NOT NULL UNIQUE,
-    created_at timestamptz NOT NULL,
-    workspace_history_id uuid NOT NULL REFERENCES workspace_history (id) ON DELETE CASCADE,
-    -- A unique identifier for the resource. This can be used
-    -- to exchange for an agent token with various providers.
-    instance_id varchar(64),
-    -- Resource type produced by a provisioner.
-    -- eg. "google_compute_instance"
-    type varchar(256) NOT NULL,
-    -- Name of the resource.
-    -- eg. "kyle-dev-instance"
-    name varchar(64) NOT NULL,
-    -- Token for an agent to connect.
-    workspace_agent_token varchar(128) NOT NULL UNIQUE,
-    -- If an agent has been conencted for this resource,
-    -- the agent table is not null.
-    workspace_agent_id uuid,
-    UNIQUE(workspace_history_id, type, name)
-);
-
-CREATE TABLE workspace_agent (
-    id uuid NOT NULL UNIQUE,
-    workspace_resource_id uuid NOT NULL REFERENCES workspace_resource (id) ON DELETE CASCADE,
-    created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL,
-    -- Identifies instance architecture, cloud, etc.
-    instance_metadata jsonb NOT NULL,
-    -- Identifies resources.
-    resource_metadata jsonb NOT NULL
-);
