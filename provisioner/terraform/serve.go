@@ -62,7 +62,7 @@ type terraform struct {
 }
 
 // Shutdown signals to begin graceful shutdown of any running operations.
-func (t *terraform) Shutdown(ctx context.Context, _ *proto.Empty) (*proto.Empty, error) {
+func (t *terraform) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 	t.shutdownCancel()
 	return &proto.Empty{}, nil
 }

@@ -399,15 +399,13 @@ func TestProvisionerd(t *testing.T) {
 		}, provisionerd.Provisioners{
 			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
 				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					err := stream.Send(&sdkproto.Provision_Response{
+					return stream.Send(&sdkproto.Provision_Response{
 						Type: &sdkproto.Provision_Response_Complete{
 							Complete: &sdkproto.Provision_Complete{
 								Error: "some error",
 							},
 						},
 					})
-					require.NoError(t, err)
-					return nil
 				},
 			}),
 		})

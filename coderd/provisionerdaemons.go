@@ -449,6 +449,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace history state: %w", err)
 		}
+	case *proto.FailedJob_ProjectImport_:
 	}
 	return &proto.Empty{}, nil
 }
