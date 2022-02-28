@@ -3,10 +3,10 @@ import { PlaywrightTestConfig } from "@playwright/test"
 
 const config: PlaywrightTestConfig = {
   testDir: "tests",
-  globalSetup: require.resolve('./globalSetup'),
+  globalSetup: require.resolve("./globalSetup"),
 
   // Create junit report file for upload to DataDog
-  reporter: [['junit', { outputFile: 'test-results/junit.xml' }]],
+  reporter: [["junit", { outputFile: "test-results/junit.xml" }]],
 
   use: {
     baseURL: "http://localhost:3000",
