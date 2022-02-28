@@ -17,7 +17,7 @@ module.exports = {
       },
       testEnvironment: "jsdom",
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
-      testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes"],
+      testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes, " / e2e / "],
       moduleDirectories: ["node_modules", "<rootDir>"],
     },
     {
