@@ -58,7 +58,7 @@ module.exports = {
       "jest-junit",
       {
         suiteName: "Front-end Jest Tests",
-        outputDirectory: "./test_results",
+        outputDirectory: "./test-results",
         outputName: "junit.xml",
       },
     ],
