@@ -29,7 +29,7 @@ func (c *Client) UploadFile(ctx context.Context, contentType string, content []b
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// DownloadURL returns
+// DownloadURL returns the download URL for the specified asset
 func (c *Client) DownloadURL(asset string) (*url.URL, error) {
 	return c.URL.Parse(fmt.Sprintf("/api/v2/downloads/%s", asset))
 }

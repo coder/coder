@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"net/url"
-	"os"
 	"reflect"
 	"strings"
 
@@ -28,9 +27,7 @@ func New() *schema.Provider {
 				Optional: true,
 				// The "CODER_URL" environment variable is used by default
 				// as the Access URL when generating scripts.
-				DefaultFunc: func() (interface{}, error) {
-					return os.Getenv("CODER_URL"), nil
-				},
+				DefaultFunc: schema.EnvDefaultFunc("CODER_URL", ""),
 				ValidateFunc: func(i interface{}, s string) ([]string, []error) {
 					_, err := url.Parse(s)
 					if err != nil {
@@ -90,8 +87,9 @@ func New() *schema.Provider {
 						ValidateFunc: validation.StringInSlice([]string{"linux", "darwin", "windows"}, false),
 					},
 					"arch": {
-						Type:     schema.TypeString,
-						Required: true,
+						Type:         schema.TypeString,
+						Required:     true,
+						ValidateFunc: validation.StringInSlice([]string{"amd64"}, false),
 					},
 					"value": {
 						Type:     schema.TypeString,
