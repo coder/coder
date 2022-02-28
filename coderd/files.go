@@ -18,7 +18,7 @@ type UploadFileResponse struct {
 	Hash string `json:"hash"`
 }
 
-func (api *api) postFiles(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	contentType := r.Header.Get("Content-Type")
 

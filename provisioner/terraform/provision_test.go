@@ -5,11 +5,17 @@ package terraform_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk"
@@ -18,6 +24,37 @@ import (
 
 func TestProvision(t *testing.T) {
 	t.Parallel()
+
+	// Build and output the Terraform Provider that is consumed for these tests.
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+	providerDest := filepath.Join(homeDir, ".terraform.d", "plugins", "coder.com", "internal", "coder", "0.0.1", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH))
+	err = os.MkdirAll(providerDest, 0700)
+	require.NoError(t, err)
+	//nolint:dogsled
+	_, filename, _, _ := runtime.Caller(0)
+	providerSrc := filepath.Join(filepath.Dir(filename), "..", "..", "cmd", "terraform-provider-coder")
+	output, err := exec.Command("go", "build", "-o", providerDest, providerSrc).CombinedOutput()
+	if err != nil {
+		t.Log(string(output))
+	}
+	require.NoError(t, err)
+
+	provider := `
+terraform {
+	required_providers {
+		coder = {
+			source = "coder.com/internal/coder"
+			version = "0.0.1"
+		}
+	}
+}
+
+provider "coder" {
+	url = "https://example.com"
+}
+	`
+	t.Log(provider)
 
 	client, server := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -31,6 +68,7 @@ func TestProvision(t *testing.T) {
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: server,
 			},
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
 	}()
@@ -125,6 +163,127 @@ func TestProvision(t *testing.T) {
 				},
 			},
 		},
+	}, {
+		Name: "resource-associated-with-agent",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {}
+			resource "null_resource" "A" {
+				depends_on = [
+					coder_agent.A
+				]
+			}`,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agent: &proto.Agent{
+							Auth: &proto.Agent_Token{
+								Token: "",
+							},
+						},
+					}},
+				},
+			},
+		},
+	}, {
+		Name: "agent-associated-with-resource",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {
+				depends_on = [
+					null_resource.A
+				]
+				auth {
+					type = "google-instance-identity"
+					instance_id = "an-instance"
+				}
+			}
+			resource "null_resource" "A" {}`,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agent: &proto.Agent{
+							Auth: &proto.Agent_GoogleInstanceIdentity{
+								GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
+									InstanceId: "an-instance",
+								},
+							},
+						},
+					}},
+				},
+			},
+		},
+	}, {
+		Name: "dryrun-resource-associated-with-agent",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {
+			}
+			resource "null_resource" "A" {
+				depends_on = [
+					coder_agent.A
+				]
+			}`,
+		},
+		Request: &proto.Provision_Request{
+			DryRun: true,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agent: &proto.Agent{
+							Auth: &proto.Agent_Token{},
+						},
+					}},
+				},
+			},
+		},
+	}, {
+		Name: "dryrun-agent-associated-with-resource",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {
+				depends_on = [
+					null_resource.A
+				]
+				auth {
+					type = "google-instance-identity"
+					instance_id = "an-instance"
+				}
+			}
+			resource "null_resource" "A" {}`,
+		},
+		Request: &proto.Provision_Request{
+			DryRun: true,
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agent: &proto.Agent{
+							Auth: &proto.Agent_GoogleInstanceIdentity{
+								GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
+									InstanceId: "an-instance",
+								},
+							},
+						},
+					}},
+				},
+			},
+		},
 	}} {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
@@ -165,6 +324,20 @@ func TestProvision(t *testing.T) {
 				require.NoError(t, err)
 				if !request.DryRun {
 					require.Greater(t, len(msg.GetComplete().State), 0)
+				}
+
+				// Remove randomly generated data.
+				for _, resource := range msg.GetComplete().Resources {
+					if resource.Agent == nil {
+						continue
+					}
+					resource.Agent.Id = ""
+					if resource.Agent.GetToken() == "" {
+						continue
+					}
+					resource.Agent.Auth = &proto.Agent_Token{
+						Token: "",
+					}
 				}
 
 				resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
