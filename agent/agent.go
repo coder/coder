@@ -25,6 +25,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// DialSSH creates an SSH DataChannel on the connection provided.
 func DialSSH(conn *peer.Conn) (net.Conn, error) {
 	channel, err := conn.Dial(context.Background(), "ssh", &peer.ChannelOptions{
 		Protocol: "ssh",
@@ -35,6 +36,7 @@ func DialSSH(conn *peer.Conn) (net.Conn, error) {
 	return channel.NetConn(), nil
 }
 
+// DialSSHClient wraps the DialSSH function with a Go SSH client.
 func DialSSHClient(conn *peer.Conn) (*gossh.Client, error) {
 	netConn, err := DialSSH(conn)
 	if err != nil {
@@ -58,6 +60,13 @@ func DialSSHClient(conn *peer.Conn) (*gossh.Client, error) {
 type Options struct {
 	Logger slog.Logger
 }
+
+// Dialer to return the peerbroker.Listener, but that hinges on
+// a proper authentication token. If it fails to dial for that
+// reason, we should check the API error and renegotiate a new
+// authentication method.
+//
+// This also needs to update it's own metadata and such.
 
 type Dialer func(ctx context.Context) (*peerbroker.Listener, error)
 

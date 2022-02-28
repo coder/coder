@@ -617,6 +617,33 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
+const getProvisionerJobAgentByAuthToken = `-- name: GetProvisionerJobAgentByAuthToken :one
+SELECT
+  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+FROM
+  provisioner_job_agent
+WHERE
+  auth_token = $1
+`
+
+func (q *sqlQuerier) GetProvisionerJobAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (ProvisionerJobAgent, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobAgentByAuthToken, authToken)
+	var i ProvisionerJobAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.EnvironmentVariables,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
 const getProvisionerJobAgentByInstanceID = `-- name: GetProvisionerJobAgentByInstanceID :one
 SELECT
   id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
@@ -2204,6 +2231,34 @@ type UpdateProvisionerDaemonByIDParams struct {
 
 func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
+	return err
+}
+
+const updateProvisionerJobAgentByID = `-- name: UpdateProvisionerJobAgentByID :exec
+UPDATE
+  provisioner_job_agent
+SET
+  updated_at = $2,
+  instance_metadata = $3,
+  resource_metadata = $4
+WHERE
+  id = $1
+`
+
+type UpdateProvisionerJobAgentByIDParams struct {
+	ID               uuid.UUID             `db:"id" json:"id"`
+	UpdatedAt        sql.NullTime          `db:"updated_at" json:"updated_at"`
+	InstanceMetadata pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobAgentByID(ctx context.Context, arg UpdateProvisionerJobAgentByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobAgentByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.InstanceMetadata,
+		arg.ResourceMetadata,
+	)
 	return err
 }
 

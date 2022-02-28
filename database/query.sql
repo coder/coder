@@ -226,6 +226,14 @@ SELECT
 FROM
   provisioner_daemon;
 
+-- name: GetProvisionerJobAgentByAuthToken :one
+SELECT
+  *
+FROM
+  provisioner_job_agent
+WHERE
+  auth_token = $1;
+
 -- name: GetProvisionerJobAgentByInstanceID :one
 SELECT
   *
@@ -621,6 +629,16 @@ SET
   oidc_access_token = $4,
   oidc_refresh_token = $5,
   oidc_expiry = $6
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerJobAgentByID :exec
+UPDATE
+  provisioner_job_agent
+SET
+  updated_at = $2,
+  instance_metadata = $3,
+  resource_metadata = $4
 WHERE
   id = $1;
 

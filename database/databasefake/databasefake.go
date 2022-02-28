@@ -522,6 +522,18 @@ func (q *fakeQuerier) GetProvisionerJobAgentByInstanceID(_ context.Context, inst
 	return database.ProvisionerJobAgent{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetProvisionerJobAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.ProvisionerJobAgent, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, agent := range q.provisionerJobAgent {
+		if agent.AuthToken.String() == authToken.String() {
+			return agent, nil
+		}
+	}
+	return database.ProvisionerJobAgent{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetProvisionerJobAgentsByResourceIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJobAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -951,6 +963,23 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg databas
 		daemon.UpdatedAt = arg.UpdatedAt
 		daemon.Provisioners = arg.Provisioners
 		q.provisionerDaemons[index] = daemon
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateProvisionerJobAgentByID(ctx context.Context, arg database.UpdateProvisionerJobAgentByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, agent := range q.provisionerJobAgent {
+		if arg.ID.String() != agent.ID.String() {
+			continue
+		}
+		agent.UpdatedAt = arg.UpdatedAt
+		agent.InstanceMetadata = arg.InstanceMetadata
+		agent.ResourceMetadata = arg.ResourceMetadata
+		q.provisionerJobAgent[index] = agent
 		return nil
 	}
 	return sql.ErrNoRows
