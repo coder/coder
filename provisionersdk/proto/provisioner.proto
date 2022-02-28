@@ -4,6 +4,9 @@ option go_package = "github.com/coder/coder/provisionersdk/proto";
 
 package provisioner;
 
+// Empty indicates a successful request/response.
+message Empty {}
+
 // ParameterSource represents the source location for a parameter to get it's value from.
 message ParameterSource {
     enum Scheme {
@@ -123,7 +126,8 @@ message Provision {
     }
     message Complete {
         bytes state = 1; 
-        repeated Resource resources = 2;
+        string error = 2;
+        repeated Resource resources = 3;
     }
     message Response {
         oneof type {
@@ -134,6 +138,7 @@ message Provision {
 }
 
 service Provisioner {
+    rpc Shutdown(Empty) returns (Empty);
     rpc Parse(Parse.Request) returns (stream Parse.Response);
     rpc Provision(Provision.Request) returns (stream Provision.Response);
 }

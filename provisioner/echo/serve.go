@@ -102,6 +102,10 @@ func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvis
 	return stream.Context().Err()
 }
 
+func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
+	return &proto.Empty{}, nil
+}
+
 type Responses struct {
 	Parse     []*proto.Parse_Response
 	Provision []*proto.Provision_Response

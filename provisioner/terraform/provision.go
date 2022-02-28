@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -253,24 +254,20 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 }
 
 func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream, statefilePath string) error {
-	env := map[string]string{
-		"CODER_URL":                  request.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION": strings.ToLower(request.Metadata.WorkspaceTransition.String()),
+	env := []string{
+		"CODER_URL=" + request.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION=" + strings.ToLower(request.Metadata.WorkspaceTransition.String()),
 	}
-	options := []tfexec.ApplyOption{tfexec.JSON(true)}
+	vars := []string{}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {
 		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			env[param.Name] = param.Value
+			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
 		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			options = append(options, tfexec.Var(fmt.Sprintf("%s=%s", param.Name, param.Value)))
+			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
 		default:
 			return xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
-	}
-	err := terraform.SetEnv(env)
-	if err != nil {
-		return xerrors.Errorf("apply environment variables: %w", err)
 	}
 
 	reader, writer := io.Pipe()
@@ -319,11 +316,24 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 		}
 	}()
 
-	terraform.SetStdout(writer)
-	t.logger.Debug(ctx, "running apply", slog.F("options", options))
-	err = terraform.Apply(ctx, options...)
+	t.logger.Debug(ctx, "running apply", slog.F("vars", len(vars)), slog.F("env", len(env)))
+	err := runApplyCommand(ctx, t.shutdownCtx, terraform.ExecPath(), terraform.WorkingDir(), writer, env, vars)
 	if err != nil {
-		return xerrors.Errorf("apply terraform: %w", err)
+		errorMessage := err.Error()
+		// Terraform can fail and apply and still need to store it's state.
+		// In this case, we return Complete with an explicit error message.
+		statefileContent, err := os.ReadFile(statefilePath)
+		if err != nil {
+			return xerrors.Errorf("read file %q: %w", statefilePath, err)
+		}
+		return stream.Send(&proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					State: statefileContent,
+					Error: errorMessage,
+				},
+			},
+		})
 	}
 	t.logger.Debug(ctx, "ran apply")
 
@@ -426,6 +436,35 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 			},
 		},
 	})
+}
+
+// This couldn't use terraform-exec, because it doesn't support cancellation, and there didn't appear
+// to be a straight-forward way to add it.
+func runApplyCommand(ctx, shutdownCtx context.Context, bin, dir string, stdout io.Writer, env, vars []string) error {
+	args := []string{
+		"apply",
+		"-no-color",
+		"-auto-approve",
+		"-input=false",
+		"-json",
+		"-refresh=true",
+	}
+	for _, variable := range vars {
+		args = append(args, "-var", variable)
+	}
+	cmd := exec.CommandContext(ctx, bin, args...)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-shutdownCtx.Done():
+			_ = cmd.Process.Signal(os.Kill)
+		}
+	}()
+	cmd.Stdout = stdout
+	cmd.Env = env
+	cmd.Dir = dir
+	return cmd.Run()
 }
 
 type terraformProvisionLog struct {

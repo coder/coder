@@ -404,8 +404,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	return &proto.UpdateJobResponse{}, nil
 }
 
-func (server *provisionerdServer) CancelJob(ctx context.Context, cancelJob *proto.CancelledJob) (*proto.Empty, error) {
-	jobID, err := uuid.Parse(cancelJob.JobId)
+func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
+	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
@@ -422,18 +422,34 @@ func (server *provisionerdServer) CancelJob(ctx context.Context, cancelJob *prot
 			Time:  database.Now(),
 			Valid: true,
 		},
-		CancelledAt: sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		},
 		UpdatedAt: database.Now(),
 		Error: sql.NullString{
-			String: cancelJob.Error,
-			Valid:  cancelJob.Error != "",
+			String: failJob.Error,
+			Valid:  failJob.Error != "",
 		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update provisioner job: %w", err)
+	}
+	switch jobType := failJob.Type.(type) {
+	case *proto.FailedJob_WorkspaceProvision_:
+		if jobType.WorkspaceProvision.State == nil {
+			break
+		}
+		var input workspaceProvisionJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
+		}
+		err = server.Database.UpdateWorkspaceHistoryByID(ctx, database.UpdateWorkspaceHistoryByIDParams{
+			ID:               jobID,
+			UpdatedAt:        database.Now(),
+			ProvisionerState: jobType.WorkspaceProvision.State,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace history state: %w", err)
+		}
+	case *proto.FailedJob_ProjectImport_:
 	}
 	return &proto.Empty{}, nil
 }
