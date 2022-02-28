@@ -334,4 +334,11 @@ jobs:
 
       - run: yarn playwright:test
         working-directory: site
-        
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_DATABASE: e2e
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go site/test_results/junit.xml
