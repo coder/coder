@@ -177,6 +177,10 @@ func (api *api) projectImportJobResourcesByID(rw http.ResponseWriter, r *http.Re
 	if resources == nil {
 		resources = []database.ProvisionerJobResource{}
 	}
+	apiResources := make([]ProvisionerJobResource, 0)
+	for _, resource := range resources {
+		apiResources = append(apiResources, convertProvisionerJobResource(resource))
+	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, resources)
+	render.JSON(rw, r, apiResources)
 }

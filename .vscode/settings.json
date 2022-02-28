@@ -62,6 +62,7 @@
     "stretchr",
     "tcpip",
     "tfexec",
+    "tfjson",
     "tfstate",
     "unconvert",
     "webrtc",

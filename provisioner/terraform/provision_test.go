@@ -235,11 +235,10 @@ provider "coder" {
 		Files: map[string]string{
 			"main.tf": provider + `
 			resource "coder_agent" "A" {
+				count = 1
 			}
 			resource "null_resource" "A" {
-				depends_on = [
-					coder_agent.A
-				]
+				count = length(coder_agent.A)
 			}`,
 		},
 		Request: &proto.Provision_Request{
@@ -266,9 +265,7 @@ provider "coder" {
 		Files: map[string]string{
 			"main.tf": provider + `
 			resource "coder_agent" "A" {
-				depends_on = [
-					null_resource.A
-				]
+				count = length(null_resource.A)
 				auth {
 					type = "google-instance-identity"
 					instance_id = "an-instance"

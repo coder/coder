@@ -61,9 +61,10 @@ type ProvisionerJobResource struct {
 	ID         uuid.UUID                    `json:"id"`
 	CreatedAt  time.Time                    `json:"created_at"`
 	JobID      uuid.UUID                    `json:"job_id"`
-	Transition database.WorkspaceTransition `json:"workspace_transition"`
+	Transition database.WorkspaceTransition `json:"transition"`
 	Type       string                       `json:"type"`
 	Name       string                       `json:"name"`
+	AgentID    *uuid.UUID                   `json:"agent_id,omitempty"`
 }
 
 type ProvisionerJobAgent struct {
@@ -289,6 +290,21 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 	}
 
 	return job
+}
+
+func convertProvisionerJobResource(resource database.ProvisionerJobResource) ProvisionerJobResource {
+	apiResource := ProvisionerJobResource{
+		ID:         resource.ID,
+		CreatedAt:  resource.CreatedAt,
+		JobID:      resource.JobID,
+		Transition: resource.Transition,
+		Type:       resource.Type,
+		Name:       resource.Name,
+	}
+	if resource.AgentID.Valid {
+		apiResource.AgentID = &resource.AgentID.UUID
+	}
+	return apiResource
 }
 
 func provisionerJobLogsChannel(jobID uuid.UUID) string {

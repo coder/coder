@@ -71,13 +71,6 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			project, err := client.CreateProject(cmd.Context(), organization.Name, coderd.CreateProjectRequest{
-				Name:               name,
-				VersionImportJobID: job.ID,
-			})
-			if err != nil {
-				return err
-			}
 
 			_, err = prompt(cmd, &promptui.Prompt{
 				Label:     "Create project?",
@@ -88,6 +81,14 @@ func projectCreate() *cobra.Command {
 				if errors.Is(err, promptui.ErrAbort) {
 					return nil
 				}
+				return err
+			}
+
+			project, err := client.CreateProject(cmd.Context(), organization.Name, coderd.CreateProjectRequest{
+				Name:               name,
+				VersionImportJobID: job.ID,
+			})
+			if err != nil {
 				return err
 			}
 
