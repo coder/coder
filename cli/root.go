@@ -64,6 +64,7 @@ func Root() *cobra.Command {
 		`Additional help topics:`, header.Sprint("Additional help:"),
 	).Replace(cmd.UsageTemplate()))
 
+	cmd.AddCommand(agent())
 	cmd.AddCommand(login())
 	cmd.AddCommand(projects())
 	cmd.AddCommand(workspaces())

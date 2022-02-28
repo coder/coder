@@ -1,17 +1,13 @@
 package coderd
 
 import (
-	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/hashicorp/yamux"
 	"nhooyr.io/websocket"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 	"github.com/coder/coder/peerbroker"
@@ -39,15 +35,15 @@ type AgentInstanceMetadata struct {
 	VNC                bool   `json:"vnc"`
 }
 
-func (api *api) workspaceAgentUpdate() {
+func (api *api) agentUpdate() {
 
 }
 
-func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.Request) {
+func (api *api) agentConnectByResource(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitGroup.Add(1)
 	defer api.websocketWaitGroup.Done()
 
-	agent := httpmw.WorkspaceAgent(r)
+	agent := httpmw.Agent(r)
 	if !agent.UpdatedAt.Valid {
 		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
 			Message: "Agent hasn't connected yet!",
@@ -75,7 +71,7 @@ func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.
 		return
 	}
 	err = peerbroker.ProxyListen(r.Context(), session, peerbroker.ProxyOptions{
-		ChannelID: resource.WorkspaceAgentID.UUID.String(),
+		ChannelID: agent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 		Pubsub:    api.Pubsub,
 	})
@@ -85,11 +81,11 @@ func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.
 	}
 }
 
-func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
+func (api *api) agentServe(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitGroup.Add(1)
 	defer api.websocketWaitGroup.Done()
 
-	workspaceAgent := httpmw.WorkspaceAgent(r)
+	agent := httpmw.Agent(r)
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})
@@ -110,7 +106,7 @@ func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
-		ChannelID: workspaceAgent.ID.String(),
+		ChannelID: agent.ID.String(),
 		Pubsub:    api.Pubsub,
 		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
 	})
@@ -118,36 +114,6 @@ func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-
-	err = api.Database.UpdateWorkspaceAgentByID(r.Context(), database.UpdateWorkspaceAgentByIDParams{
-		ID: workspaceAgent.ID,
-		UpdatedAt: sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		},
-	})
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
 	defer closer.Close()
-	ticker := time.NewTicker(5 * time.Second)
-	for {
-		select {
-		case <-ticker.C:
-			err = api.Database.UpdateWorkspaceAgentByID(r.Context(), database.UpdateWorkspaceAgentByIDParams{
-				ID: workspaceAgent.ID,
-				UpdatedAt: sql.NullTime{
-					Time:  database.Now(),
-					Valid: true,
-				},
-			})
-			if err != nil {
-				api.Logger.Error(r.Context(), "update workspace agent by id", slog.Error(err), slog.F("id", workspaceAgent.ID.String()))
-				return
-			}
-		case <-r.Context().Done():
-			return
-		}
-	}
+	<-r.Context().Done()
 }

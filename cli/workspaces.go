@@ -6,7 +6,6 @@ func workspaces() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "workspaces",
 	}
-	cmd.AddCommand(workspaceAgent())
 	cmd.AddCommand(workspaceCreate())
 
 	return cmd

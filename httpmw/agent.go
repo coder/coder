@@ -7,24 +7,25 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
-	"github.com/google/uuid"
 )
 
-type workspaceAgentContextKey struct{}
+type agentContextKey struct{}
 
-// WorkspaceAgent returns the workspace agent from the ExtractWorkspaceAgent handler.
-func WorkspaceAgent(r *http.Request) database.ProvisionerJobAgent {
-	user, ok := r.Context().Value(workspaceAgentContextKey{}).(database.ProvisionerJobAgent)
+// Agent returns the workspace agent from the ExtractAgent handler.
+func Agent(r *http.Request) database.ProvisionerJobAgent {
+	user, ok := r.Context().Value(agentContextKey{}).(database.ProvisionerJobAgent)
 	if !ok {
-		panic("developer error: workspace agent middleware not provided")
+		panic("developer error: agent middleware not provided")
 	}
 	return user
 }
 
-// ExtractWorkspaceAgent requires authentication using a valid agent token.
-func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
+// ExtractAgent requires authentication using a valid agent token.
+func ExtractAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookie)
@@ -41,7 +42,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			workspaceAgent, err := db.GetProvisionerJobAgentByAuthToken(r.Context(), token)
+			agent, err := db.GetProvisionerJobAgentByAuthToken(r.Context(), token)
 			if errors.Is(err, sql.ErrNoRows) {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
@@ -57,7 +58,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), workspaceAgentContextKey{}, workspaceAgent)
+			ctx := context.WithValue(r.Context(), agentContextKey{}, agent)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

@@ -28,7 +28,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
+func TestPostAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 	t.Parallel()
 	t.Run("Expired", func(t *testing.T) {
 		t.Parallel()
@@ -38,7 +38,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthenticateAgentWithGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -52,7 +52,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthenticateAgentWithGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -98,7 +98,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, firstHistory.ProvisionJobID)
 
-		_, err = client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err = client.AuthenticateAgentWithGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
 		require.NoError(t, err)
 	})
 }

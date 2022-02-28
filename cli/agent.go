@@ -4,9 +4,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func workspaceAgent() *cobra.Command {
+func agent() *cobra.Command {
 	return &cobra.Command{
-		Use: "agent",
+		Use:    "agent",
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return nil
 		},
