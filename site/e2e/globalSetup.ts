@@ -1,8 +1,7 @@
 import { FullConfig, request } from "@playwright/test"
 
-async function globalSetup(config: FullConfig) {
+async function globalSetup(config: FullConfig): Promise<void> {
   const { baseURL } = config.projects[0].use
-  console.log(" -- Starting global setup: " + baseURL)
 
   // Create a context that will issue http requests.
   const context = await request.newContext({
@@ -18,8 +17,6 @@ async function globalSetup(config: FullConfig) {
       organization: "acme-corp",
     },
   })
-
-  console.log("-- Created initial user.")
 }
 
 export default globalSetup
