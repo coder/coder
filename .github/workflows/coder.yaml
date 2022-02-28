@@ -326,5 +326,12 @@ jobs:
 
       - run: make build
 
-      - run: yarn test:coverage
+      - run: yarn playwright:install
         working-directory: site
+
+      - run: yarn playwright:install-deps
+        working-directory: site
+
+      - run: yarn playwright:test
+        working-directory: site
+        
