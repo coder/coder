@@ -5,6 +5,9 @@ const config: PlaywrightTestConfig = {
   testDir: "tests",
   globalSetup: require.resolve('./globalSetup'),
 
+  // Create junit report file for upload to DataDog
+  reporter: [['junit', { outputFile: 'junit.xml' }]],
+
   use: {
     baseURL: "http://localhost:3000",
     video: "retain-on-failure",
