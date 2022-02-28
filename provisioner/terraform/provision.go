@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
+	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
@@ -75,10 +76,13 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 }
 
 func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
-	env := map[string]string{
-		"CODER_URL":                  request.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION": strings.ToLower(request.Metadata.WorkspaceTransition.String()),
+	env := map[string]string{}
+	for _, envEntry := range os.Environ() {
+		parts := strings.SplitN(envEntry, "=", 2)
+		env[parts[0]] = parts[1]
 	}
+	env["CODER_URL"] = request.Metadata.CoderUrl
+	env["CODER_WORKSPACE_TRANSITION"] = strings.ToLower(request.Metadata.WorkspaceTransition.String())
 	planfilePath := filepath.Join(request.Directory, "terraform.tfplan")
 	options := []tfexec.PlanOption{tfexec.JSON(true), tfexec.Out(planfilePath)}
 	for _, param := range request.ParameterValues {
@@ -159,9 +163,31 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 	_ = reader.Close()
 	<-closeChan
 
+	// Maps resource dependencies to expression references.
+	// This is *required* for a plan, because "DependsOn"
+	// does not propagate.
+	resourceDependencies := map[string][]string{}
+	for _, resource := range plan.Config.RootModule.Resources {
+		if resource.Expressions == nil {
+			resource.Expressions = map[string]*tfjson.Expression{}
+		}
+		// Count expression is separated for logical reasons,
+		// but it's simpler syntactically for us to combine here.
+		if resource.CountExpression != nil {
+			resource.Expressions["count"] = resource.CountExpression
+		}
+		for _, expression := range resource.Expressions {
+			dependencies, exists := resourceDependencies[resource.Address]
+			if !exists {
+				dependencies = []string{}
+			}
+			dependencies = append(dependencies, expression.References...)
+			resourceDependencies[resource.Address] = dependencies
+		}
+	}
+
 	resources := make([]*proto.Resource, 0)
 	agents := map[string]*proto.Agent{}
-	agentDepends := map[string][]string{}
 
 	// Store all agents inside the maps!
 	for _, resource := range plan.Config.RootModule.Resources {
@@ -196,9 +222,10 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 					}
 					switch authTypeValue {
 					case "google-instance-identity":
+						instanceID, _ := block["instance_id"].ConstantValue.(string)
 						agent.Auth = &proto.Agent_GoogleInstanceIdentity{
 							GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-								InstanceId: block["instance_id"].ConstantValue.(string),
+								InstanceId: instanceID,
 							},
 						}
 					default:
@@ -208,31 +235,33 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 			}
 		}
 
-		resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
-		agents[resourceKey] = agent
-		agentDepends[resourceKey] = resource.DependsOn
+		agents[resource.Address] = agent
 	}
 
-	for _, resource := range plan.Config.RootModule.Resources {
+	for _, resource := range plan.PlannedValues.RootModule.Resources {
 		if resource.Type == "coder_agent" {
 			continue
 		}
+		// The resource address on planned values can include the indexed
+		// value like "[0]", but the config doesn't have these, and we don't
+		// care which index the resource is.
+		resourceAddress := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
 		var agent *proto.Agent
 		// Associate resources that depend on an agent.
-		for _, dep := range resource.DependsOn {
+		for _, dependency := range resourceDependencies[resourceAddress] {
 			var has bool
-			agent, has = agents[dep]
+			agent, has = agents[dependency]
 			if has {
 				break
 			}
 		}
 		// Associate resources where the agent depends on it.
-		for agentKey, dependsOn := range agentDepends {
-			for _, depend := range dependsOn {
-				if depend != strings.Join([]string{resource.Type, resource.Name}, ".") {
+		for agentAddress := range agents {
+			for _, depend := range resourceDependencies[agentAddress] {
+				if depend != resourceAddress {
 					continue
 				}
-				agent = agents[agentKey]
+				agent = agents[agentAddress]
 				break
 			}
 		}
@@ -254,10 +283,11 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 }
 
 func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream, statefilePath string) error {
-	env := []string{
-		"CODER_URL=" + request.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION=" + strings.ToLower(request.Metadata.WorkspaceTransition.String()),
-	}
+	env := os.Environ()
+	env = append(env,
+		"CODER_URL="+request.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(request.Metadata.WorkspaceTransition.String()),
+	)
 	vars := []string{}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {
