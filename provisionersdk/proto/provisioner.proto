@@ -109,6 +109,7 @@ message Parse {
 enum WorkspaceTransition {
     START = 0;
     STOP = 1;
+    DESTROY = 2;
 }
 
 // Provision consumes source-code from a directory to produce resources.

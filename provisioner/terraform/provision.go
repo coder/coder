@@ -317,7 +317,7 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 	}()
 
 	t.logger.Debug(ctx, "running apply", slog.F("vars", len(vars)), slog.F("env", len(env)))
-	err := runApplyCommand(ctx, t.shutdownCtx, terraform.ExecPath(), terraform.WorkingDir(), writer, env, vars)
+	err := runApplyCommand(ctx, t.shutdownCtx, request.Metadata.WorkspaceTransition, terraform.ExecPath(), terraform.WorkingDir(), writer, env, vars)
 	if err != nil {
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
@@ -440,7 +440,7 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 
 // This couldn't use terraform-exec, because it doesn't support cancellation, and there didn't appear
 // to be a straight-forward way to add it.
-func runApplyCommand(ctx, shutdownCtx context.Context, bin, dir string, stdout io.Writer, env, vars []string) error {
+func runApplyCommand(ctx, shutdownCtx context.Context, transition proto.WorkspaceTransition, bin, dir string, stdout io.Writer, env, vars []string) error {
 	args := []string{
 		"apply",
 		"-no-color",
@@ -448,6 +448,9 @@ func runApplyCommand(ctx, shutdownCtx context.Context, bin, dir string, stdout i
 		"-input=false",
 		"-json",
 		"-refresh=true",
+	}
+	if transition == proto.WorkspaceTransition_DESTROY {
+		args = append(args, "-destroy")
 	}
 	for _, variable := range vars {
 		args = append(args, "-var", variable)
