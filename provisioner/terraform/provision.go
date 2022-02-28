@@ -196,9 +196,10 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 					}
 					switch authTypeValue {
 					case "google-instance-identity":
+						instanceID, _ := block["instance_id"].ConstantValue.(string)
 						agent.Auth = &proto.Agent_GoogleInstanceIdentity{
 							GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-								InstanceId: block["instance_id"].ConstantValue.(string),
+								InstanceId: instanceID,
 							},
 						}
 					default:

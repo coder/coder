@@ -4,7 +4,7 @@ GOARCH=$(shell go env GOARCH)
 
 bin/coder:
 	mkdir -p bin
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o bin/coder-$(GOOS)-$(GOARCH) cmd/coder/main.go
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o bin/coder-$(GOOS)-$(GOARCH) cmd/coder/main.go
 .PHONY: bin/coder
 
 bin/coderd:

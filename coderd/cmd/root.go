@@ -37,8 +37,13 @@ func Root() *cobra.Command {
 				Scheme: "http",
 				Host:   address,
 			}
+			realAccessURL, err := url.Parse("https://v2--kyle.master.cdr.dev/")
+			if err != nil {
+				return xerrors.Errorf("parse real access url: %s", err)
+			}
+
 			handler, closeCoderd := coderd.New(&coderd.Options{
-				AccessURL: accessURL,
+				AccessURL: realAccessURL,
 				Logger:    logger,
 				Database:  databasefake.New(),
 				Pubsub:    database.NewPubsubInMemory(),
