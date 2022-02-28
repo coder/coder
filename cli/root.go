@@ -12,15 +12,19 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
 
+var (
+	caret = color.HiBlackString(">")
+)
+
 const (
 	varGlobalConfig = "global-config"
+	varNoOpen       = "no-open"
 	varForceTty     = "force-tty"
 )
 
@@ -70,6 +74,11 @@ func Root() *cobra.Command {
 	err := cmd.PersistentFlags().MarkHidden(varForceTty)
 	if err != nil {
 		// This should never return an error, because we just added the `--force-tty`` flag prior to calling MarkHidden.
+		panic(err)
+	}
+	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
+	err = cmd.PersistentFlags().MarkHidden(varNoOpen)
+	if err != nil {
 		panic(err)
 	}
 
@@ -138,14 +147,9 @@ func isTTY(cmd *cobra.Command) bool {
 }
 
 func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
-	var ok bool
-	prompt.Stdin, ok = cmd.InOrStdin().(io.ReadCloser)
-	if !ok {
-		return "", xerrors.New("stdin must be a readcloser")
-	}
-	prompt.Stdout, ok = cmd.OutOrStdout().(io.WriteCloser)
-	if !ok {
-		return "", xerrors.New("stdout must be a readcloser")
+	prompt.Stdin = io.NopCloser(cmd.InOrStdin())
+	prompt.Stdout = readWriteCloser{
+		Writer: cmd.OutOrStdout(),
 	}
 
 	// The prompt library displays defaults in a jarring way for the user
@@ -198,4 +202,11 @@ func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
 	}
 
 	return value, err
+}
+
+// readWriteCloser fakes reads, writes, and closing!
+type readWriteCloser struct {
+	io.Reader
+	io.Writer
+	io.Closer
 }

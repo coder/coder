@@ -55,6 +55,31 @@ CREATE TABLE IF NOT EXISTS provisioner_job_log (
     output varchar(1024) NOT NULL
 );
 
+-- Resources from multiple workspace states are stored here post project-import job.
+CREATE TABLE provisioner_job_resource (
+    id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
+    transition workspace_transition NOT NULL,
+    type varchar(256) NOT NULL,
+    name varchar(64) NOT NULL,
+    agent_id uuid
+);
+
+-- Agents that associate with a specific resource.
+CREATE TABLE provisioner_job_agent (
+    id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz,
+    resource_id uuid NOT NULL REFERENCES provisioner_job_resource (id) ON DELETE CASCADE,
+    auth_token uuid NOT NULL UNIQUE,
+    auth_instance_id varchar(64),
+    environment_variables jsonb,
+    startup_script varchar(65534),
+    instance_metadata jsonb,
+    resource_metadata jsonb
+);
+
 CREATE TYPE parameter_scope AS ENUM (
      'organization',
      'project',
@@ -118,14 +143,4 @@ CREATE TABLE parameter_value (
     destination_scheme parameter_destination_scheme NOT NULL,
     -- Prevents duplicates for parameters in the same scope.
     UNIQUE(name, scope, scope_id)
-);
-
--- Resources from multiple workspace states are stored here post project-import job.
-CREATE TABLE project_import_job_resource (
-    id uuid NOT NULL UNIQUE,
-    created_at timestamptz NOT NULL,
-    job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
-    transition workspace_transition NOT NULL,
-    type varchar(256) NOT NULL,
-    name varchar(64) NOT NULL
 );

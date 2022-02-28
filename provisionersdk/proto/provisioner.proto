@@ -4,6 +4,9 @@ option go_package = "github.com/coder/coder/provisionersdk/proto";
 
 package provisioner;
 
+// Empty indicates a successful request/response.
+message Empty {}
+
 // ParameterSource represents the source location for a parameter to get it's value from.
 message ParameterSource {
     enum Scheme {
@@ -64,10 +67,27 @@ message Log {
     string output = 2;
 }
 
+message GoogleInstanceIdentityAuth {
+    string instance_id = 1;
+}
+
+// Agent represents a running agent on the workspace.
+message Agent {
+    string id = 1;
+    map<string, string> env = 2;
+    string startup_script = 3;
+    oneof auth {
+        string token = 4;
+        // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
+        GoogleInstanceIdentityAuth google_instance_identity = 5;
+    }
+}
+
 // Resource represents created infrastructure.
 message Resource {
     string name = 1;
     string type = 2;
+    Agent agent = 3;
 }
 
 // Parse consumes source-code from a directory to produce inputs.
@@ -86,17 +106,28 @@ message Parse {
     }
 }
 
+enum WorkspaceTransition {
+    START = 0;
+    STOP = 1;
+}
+
 // Provision consumes source-code from a directory to produce resources.
 message Provision {
+    message Metadata {
+        string coder_url = 1;
+        WorkspaceTransition workspace_transition = 2;
+    }
     message Request {
         string directory = 1;
         repeated ParameterValue parameter_values = 2;
-        bytes state = 3;
-        bool dry_run = 4;
+        Metadata metadata = 3;
+        bytes state = 4;
+        bool dry_run = 5;
     }
     message Complete {
         bytes state = 1; 
-        repeated Resource resources = 2;
+        string error = 2;
+        repeated Resource resources = 3;
     }
     message Response {
         oneof type {
@@ -107,6 +138,7 @@ message Provision {
 }
 
 service Provisioner {
+    rpc Shutdown(Empty) returns (Empty);
     rpc Parse(Parse.Request) returns (stream Parse.Response);
     rpc Provision(Provision.Request) returns (stream Provision.Response);
 }

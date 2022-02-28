@@ -17,7 +17,7 @@ func TestWorkspaces(t *testing.T) {
 	t.Parallel()
 	t.Run("ListNone", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		workspaces, err := client.Workspaces(context.Background(), "")
 		require.NoError(t, err)
@@ -27,7 +27,7 @@ func TestWorkspaces(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -42,7 +42,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidProject", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
 			ProjectID: uuid.New(),
@@ -56,7 +56,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 
 	t.Run("NoProjectAccess", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -88,7 +88,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -105,7 +105,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -115,7 +115,7 @@ func TestPostWorkspaceByUser(t *testing.T) {
 
 func TestWorkspaceByUser(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t)
+	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateInitialUser(t, client)
 	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -128,7 +128,7 @@ func TestWorkspacesByProject(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -139,7 +139,7 @@ func TestWorkspacesByProject(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)

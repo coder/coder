@@ -92,6 +92,11 @@ func TestInt63n(t *testing.T) {
 		require.True(t, v >= 0, "values must be positive")
 		require.True(t, v < 1<<35, "values must be less than 1<<35")
 	}
+
+	// Expect a panic if max is negative
+	require.PanicsWithValue(t, "invalid argument to Int63n", func() {
+		cryptorand.Int63n(0)
+	})
 }
 
 func TestInt31n(t *testing.T) {
@@ -116,6 +121,15 @@ func TestIntn(t *testing.T) {
 		require.True(t, v >= 0, "values must be positive")
 		require.True(t, v < 100, "values must be less than 100")
 	}
+
+	// Ensure Intn works for int larger than 32 bits
+	_, err := cryptorand.Intn(1 << 35)
+	require.NoError(t, err, "expected Intn to work for 64-bit int")
+
+	// Expect a panic if max is negative
+	require.PanicsWithValue(t, "n must be a positive nonzero number", func() {
+		cryptorand.Intn(0)
+	})
 }
 
 func TestFloat64(t *testing.T) {

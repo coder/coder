@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"io"
+	"net"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -14,6 +15,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
+	"go.opencensus.io/stats/view"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/api/option"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -28,9 +32,31 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+type Options struct {
+	GoogleTokenValidator *idtoken.Validator
+}
+
 // New constructs an in-memory coderd instance and returns
 // the connected client.
-func New(t *testing.T) *codersdk.Client {
+func New(t *testing.T, options *Options) *codersdk.Client {
+	// Stops the opencensus.io worker from leaking a goroutine.
+	// The worker isn't used anyways, and is an indirect dependency
+	// of the Google Cloud SDK.
+	t.Cleanup(func() {
+		view.Stop()
+	})
+
+	if options == nil {
+		options = &Options{}
+	}
+	if options.GoogleTokenValidator == nil {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+		var err error
+		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
+		require.NoError(t, err)
+	}
+
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
@@ -54,15 +80,29 @@ func New(t *testing.T) *codersdk.Client {
 		})
 	}
 
-	handler := coderd.New(&coderd.Options{
-		Logger:   slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		Database: db,
-		Pubsub:   pubsub,
-	})
-	srv := httptest.NewServer(handler)
+	srv := httptest.NewUnstartedServer(nil)
+	srv.Config.BaseContext = func(_ net.Listener) context.Context {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+		return ctx
+	}
+	srv.Start()
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	t.Cleanup(srv.Close)
+	var closeWait func()
+	// We set the handler after server creation for the access URL.
+	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
+		AccessURL: serverURL,
+		Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Database:  db,
+		Pubsub:    pubsub,
+
+		GoogleTokenValidator: options.GoogleTokenValidator,
+	})
+	t.Cleanup(func() {
+		srv.Close()
+		closeWait()
+	})
 
 	return codersdk.New(serverURL)
 }
@@ -157,7 +197,7 @@ func AwaitProjectImportJob(t *testing.T, client *codersdk.Client, organization s
 		provisionerJob, err = client.ProjectImportJob(context.Background(), organization, job)
 		require.NoError(t, err)
 		return provisionerJob.Status.Completed()
-	}, 3*time.Second, 25*time.Millisecond)
+	}, 5*time.Second, 25*time.Millisecond)
 	return provisionerJob
 }
 
@@ -169,7 +209,7 @@ func AwaitWorkspaceProvisionJob(t *testing.T, client *codersdk.Client, organizat
 		provisionerJob, err = client.WorkspaceProvisionJob(context.Background(), organization, job)
 		require.NoError(t, err)
 		return provisionerJob.Status.Completed()
-	}, 3*time.Second, 25*time.Millisecond)
+	}, 5*time.Second, 25*time.Millisecond)
 	return provisionerJob
 }
 

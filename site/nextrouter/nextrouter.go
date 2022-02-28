@@ -49,10 +49,7 @@ func Handler(fileSystem fs.FS, options *Options) (http.Handler, error) {
 	}
 
 	// Fallback to static file server for non-HTML files
-	// Non-HTML files don't have special routing rules, so we can just leverage
-	// the built-in http.FileServer for it.
-	fileHandler := http.FileServer(http.FS(fileSystem))
-	router.NotFound(fileHandler.ServeHTTP)
+	router.NotFound(FileHandler(fileSystem))
 
 	// Finally, if there is a 404.html available, serve that
 	err = register404(fileSystem, router, *options)
@@ -62,6 +59,31 @@ func Handler(fileSystem fs.FS, options *Options) (http.Handler, error) {
 	}
 
 	return router, nil
+}
+
+// FileHandler serves static content, additionally adding immutable
+// cache-control headers for Next.js content
+func FileHandler(fileSystem fs.FS) func(writer http.ResponseWriter, request *http.Request) {
+	// Non-HTML files don't have special routing rules, so we can just leverage
+	// the built-in http.FileServer for it.
+	fileHandler := http.FileServer(http.FS(fileSystem))
+
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// From the Next.js documentation:
+		//
+		// "Caching improves response times and reduces the number
+		// of requests to external services. Next.js automatically
+		// adds caching headers to immutable assets served from
+		// /_next/static including JavaScript, CSS, static images,
+		// and other media."
+		//
+		// See: https://nextjs.org/docs/going-to-production
+		if strings.HasPrefix(request.URL.Path, "/_next/static/") {
+			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+		}
+
+		fileHandler.ServeHTTP(writer, request)
+	}
 }
 
 // registerRoutes recursively traverses the file-system, building routes

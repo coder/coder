@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
@@ -21,7 +20,7 @@ func TestPostProvisionerImportJobByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		before := time.Now()
@@ -57,7 +56,7 @@ func TestPostProvisionerImportJobByOrganization(t *testing.T) {
 
 	t.Run("CreateWithParameters", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		data, err := echo.Tar(&echo.Responses{
@@ -99,7 +98,7 @@ func TestProvisionerJobParametersByID(t *testing.T) {
 	t.Parallel()
 	t.Run("NotImported", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		_, err := client.ProjectImportJobParameters(context.Background(), user.Organization, job.ID)
@@ -110,7 +109,7 @@ func TestProvisionerJobParametersByID(t *testing.T) {
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -140,7 +139,7 @@ func TestProvisionerJobParametersByID(t *testing.T) {
 
 	t.Run("ListNoRedisplay", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -174,21 +173,13 @@ func TestProvisionerJobParametersByID(t *testing.T) {
 
 func TestProvisionerJobResourcesByID(t *testing.T) {
 	t.Parallel()
-	t.Run("Something", func(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name: parameter.CoderWorkspaceTransition,
-						}},
-					},
-				},
-			}},
+			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
@@ -212,7 +203,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 	t.Parallel()
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -248,7 +239,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 
 	t.Run("StreamAfterComplete", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
@@ -289,7 +280,7 @@ func TestProvisionerJobLogsByName(t *testing.T) {
 
 	t.Run("StreamWhileRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{

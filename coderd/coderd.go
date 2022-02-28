@@ -2,8 +2,11 @@ package coderd
 
 import (
 	"net/http"
+	"net/url"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
+	"google.golang.org/api/idtoken"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/database"
@@ -14,17 +17,21 @@ import (
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	Logger   slog.Logger
-	Database database.Store
-	Pubsub   database.Pubsub
+	AccessURL *url.URL
+	Logger    slog.Logger
+	Database  database.Store
+	Pubsub    database.Pubsub
+
+	GoogleTokenValidator *idtoken.Validator
 }
 
 // New constructs the Coder API into an HTTP handler.
-func New(options *Options) http.Handler {
+//
+// A wait function is returned to handle awaiting closure
+// of hijacked HTTP requests.
+func New(options *Options) (http.Handler, func()) {
 	api := &api{
-		Database: options.Database,
-		Logger:   options.Logger,
-		Pubsub:   options.Pubsub,
+		Options: options,
 	}
 
 	r := chi.NewRouter()
@@ -36,6 +43,7 @@ func New(options *Options) http.Handler {
 		})
 		r.Post("/login", api.postLogin)
 		r.Post("/logout", api.postLogout)
+
 		// Used for setup.
 		r.Get("/user", api.user)
 		r.Post("/user", api.postUser)
@@ -44,10 +52,12 @@ func New(options *Options) http.Handler {
 				httpmw.ExtractAPIKey(options.Database, nil),
 			)
 			r.Post("/", api.postUsers)
-			r.Group(func(r chi.Router) {
+
+			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/{user}", api.userByName)
-				r.Get("/{user}/organizations", api.organizationsByUser)
+				r.Get("/", api.userByName)
+				r.Get("/organizations", api.organizationsByUser)
+				r.Post("/keys", api.postKeyForUser)
 			})
 		})
 		r.Route("/projects", func(r chi.Router) {
@@ -102,9 +112,15 @@ func New(options *Options) http.Handler {
 			})
 		})
 
-		r.Route("/files", func(r chi.Router) {
+		r.Route("/workspaceagent", func(r chi.Router) {
+			r.Route("/authenticate", func(r chi.Router) {
+				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
+			})
+		})
+
+		r.Route("/upload", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-			r.Post("/", api.postFiles)
+			r.Post("/", api.postUpload)
 		})
 
 		r.Route("/projectimport/{organization}", func(r chi.Router) {
@@ -141,13 +157,13 @@ func New(options *Options) http.Handler {
 		})
 	})
 	r.NotFound(site.Handler(options.Logger).ServeHTTP)
-	return r
+	return r, api.websocketWaitGroup.Wait
 }
 
 // API contains all route handlers. Only HTTP handlers should
 // be added to this struct for code clarity.
 type api struct {
-	Database database.Store
-	Logger   slog.Logger
-	Pubsub   database.Pubsub
+	*Options
+
+	websocketWaitGroup sync.WaitGroup
 }

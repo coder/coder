@@ -19,7 +19,7 @@ func TestMain(m *testing.M) {
 
 func TestNew(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t)
+	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateInitialUser(t, client)
 	closer := coderdtest.NewProvisionerDaemon(t, client)
 	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)

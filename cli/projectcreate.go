@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd"
@@ -92,7 +91,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", color.HiBlackString(">"), color.HiCyanString(project.Name))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", caret, color.HiCyanString(project.Name))
 			_, err = prompt(cmd, &promptui.Prompt{
 				Label:     "Create a new workspace?",
 				IsConfirm: true,
@@ -185,9 +184,6 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		for _, parameterSchema := range parameterSchemas {
 			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
 			if ok {
-				continue
-			}
-			if parameterSchema.Name == parameter.CoderWorkspaceTransition {
 				continue
 			}
 			value, err := prompt(cmd, &promptui.Prompt{

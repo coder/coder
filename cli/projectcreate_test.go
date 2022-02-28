@@ -8,16 +8,16 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/expect"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestProjectCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("NoParameters", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		coderdtest.CreateInitialUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
@@ -26,7 +26,9 @@ func TestProjectCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		console := expect.NewTestConsole(t, cmd)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()
@@ -43,17 +45,15 @@ func TestProjectCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			_, err := console.ExpectString(match)
-			require.NoError(t, err)
-			_, err = console.SendLine(value)
-			require.NoError(t, err)
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
 		}
 		<-closeChan
 	})
 
 	t.Run("Parameter", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		coderdtest.CreateInitialUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
@@ -73,7 +73,9 @@ func TestProjectCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "projects", "create", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		coderdtest.NewProvisionerDaemon(t, client)
-		console := expect.NewTestConsole(t, cmd)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
 		closeChan := make(chan struct{})
 		go func() {
 			err := cmd.Execute()
@@ -84,17 +86,15 @@ func TestProjectCreate(t *testing.T) {
 		matches := []string{
 			"organization?", "y",
 			"name?", "test-project",
-			"somevar:", "value",
+			"somevar", "value",
 			"project?", "y",
 			"created!", "n",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			_, err := console.ExpectString(match)
-			require.NoError(t, err)
-			_, err = console.SendLine(value)
-			require.NoError(t, err)
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
 		}
 		<-closeChan
 	})

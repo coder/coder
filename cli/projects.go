@@ -30,14 +30,17 @@ func projects() *cobra.Command {
 
     ` + color.New(color.FgHiMagenta).Sprint("$ coder projects update <name>"),
 	}
-	cmd.AddCommand(projectCreate())
-	cmd.AddCommand(projectPlan())
-	cmd.AddCommand(projectUpdate())
+	cmd.AddCommand(
+		projectCreate(),
+		projectList(),
+		projectPlan(),
+		projectUpdate(),
+	)
 
 	return cmd
 }
 
-func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.ParameterSchema, parameterValues []coderd.ComputedParameterValue, resources []coderd.ProjectImportJobResource) error {
+func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.ParameterSchema, parameterValues []coderd.ComputedParameterValue, resources []coderd.ProvisionerJobResource) error {
 	schemaByID := map[string]coderd.ParameterSchema{}
 	for _, schema := range parameterSchemas {
 		schemaByID[schema.ID.String()] = schema

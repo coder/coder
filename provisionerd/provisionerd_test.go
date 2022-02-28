@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -97,12 +96,14 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
 				updateJob: noopUpdateJob,
-				cancelJob: func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					close(completeChan)
 					return &proto.Empty{}, nil
 				},
@@ -136,12 +137,14 @@ func TestProvisionerd(t *testing.T) {
 							"../../../etc/passwd": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
 				updateJob: noopUpdateJob,
-				cancelJob: func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					close(completeChan)
 					return &proto.Empty{}, nil
 				},
@@ -166,7 +169,9 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
@@ -174,7 +179,7 @@ func TestProvisionerd(t *testing.T) {
 					close(completeChan)
 					return &proto.UpdateJobResponse{}, nil
 				},
-				cancelJob: func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
@@ -214,7 +219,9 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{},
+							ProjectImport: &proto.AcquiredJob_ProjectImport{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
@@ -248,11 +255,7 @@ func TestProvisionerd(t *testing.T) {
 
 					err = stream.Send(&sdkproto.Parse_Response{
 						Type: &sdkproto.Parse_Response_Complete{
-							Complete: &sdkproto.Parse_Complete{
-								ParameterSchemas: []*sdkproto.ParameterSchema{{
-									Name: parameter.CoderWorkspaceTransition,
-								}},
-							},
+							Complete: &sdkproto.Parse_Complete{},
 						},
 					})
 					require.NoError(t, err)
@@ -314,7 +317,9 @@ func TestProvisionerd(t *testing.T) {
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceProvision_{
-							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{},
+							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
 						},
 					}, nil
 				},
@@ -357,6 +362,127 @@ func TestProvisionerd(t *testing.T) {
 		require.True(t, didComplete.Load())
 		require.NoError(t, closer.Close())
 	})
+
+	t.Run("WorkspaceProvisionFailComplete", func(t *testing.T) {
+		t.Parallel()
+		var (
+			didFail       atomic.Bool
+			didAcquireJob atomic.Bool
+		)
+		completeChan := make(chan struct{})
+		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					if didAcquireJob.Load() {
+						close(completeChan)
+						return &proto.AcquiredJob{}, nil
+					}
+					didAcquireJob.Store(true)
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						ProjectSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_WorkspaceProvision_{
+							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
+						},
+					}, nil
+				},
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+					didFail.Store(true)
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					return stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Error: "some error",
+							},
+						},
+					})
+				},
+			}),
+		})
+		<-completeChan
+		require.True(t, didFail.Load())
+		require.NoError(t, closer.Close())
+	})
+
+	t.Run("Shutdown", func(t *testing.T) {
+		t.Parallel()
+		updateChan := make(chan struct{})
+		completeChan := make(chan struct{})
+		shutdownCtx, shutdownCtxCancel := context.WithCancel(context.Background())
+		defer shutdownCtxCancel()
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						ProjectSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_WorkspaceProvision_{
+							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
+						},
+					}, nil
+				},
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					if len(update.Logs) > 0 {
+						// Close on a log so we know when the job is in progress!
+						close(updateChan)
+					}
+					return &proto.UpdateJobResponse{}, nil
+				},
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+					close(completeChan)
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				shutdown: func(_ context.Context, _ *sdkproto.Empty) (*sdkproto.Empty, error) {
+					shutdownCtxCancel()
+					return &sdkproto.Empty{}, nil
+				},
+				provision: func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					err := stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Log{
+							Log: &sdkproto.Log{
+								Level:  sdkproto.LogLevel_DEBUG,
+								Output: "in progress",
+							},
+						},
+					})
+					require.NoError(t, err)
+					<-shutdownCtx.Done()
+					err = stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Error: "some error",
+							},
+						},
+					})
+					require.NoError(t, err)
+					return nil
+				},
+			}),
+		})
+		<-updateChan
+		err := server.Shutdown(context.Background())
+		require.NoError(t, err)
+		<-completeChan
+		require.NoError(t, server.Close())
+	})
 }
 
 // Creates an in-memory tar of the files provided.
@@ -380,8 +506,8 @@ func createTar(t *testing.T, files map[string]string) []byte {
 }
 
 // Creates a provisionerd implementation with the provided dialer and provisioners.
-func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners provisionerd.Provisioners) io.Closer {
-	closer := provisionerd.New(dialer, &provisionerd.Options{
+func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners provisionerd.Provisioners) *provisionerd.Server {
+	server := provisionerd.New(dialer, &provisionerd.Options{
 		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:   50 * time.Millisecond,
 		UpdateInterval: 50 * time.Millisecond,
@@ -389,9 +515,9 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners p
 		WorkDirectory:  t.TempDir(),
 	})
 	t.Cleanup(func() {
-		_ = closer.Close()
+		_ = server.Close()
 	})
-	return closer
+	return server
 }
 
 // Creates a provisionerd protobuf client that's connected
@@ -406,9 +532,9 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 	err := proto.DRPCRegisterProvisionerDaemon(mux, &server)
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
 	go func() {
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
 		_ = srv.Serve(ctx, serverPipe)
 	}()
 	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(clientPipe))
@@ -426,17 +552,22 @@ func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkprot
 	err := sdkproto.DRPCRegisterProvisioner(mux, &server)
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
 	go func() {
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
 		_ = srv.Serve(ctx, serverPipe)
 	}()
 	return sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(clientPipe))
 }
 
 type provisionerTestServer struct {
+	shutdown  func(_ context.Context, _ *sdkproto.Empty) (*sdkproto.Empty, error)
 	parse     func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error
 	provision func(request *sdkproto.Provision_Request, stream sdkproto.DRPCProvisioner_ProvisionStream) error
+}
+
+func (p *provisionerTestServer) Shutdown(ctx context.Context, empty *sdkproto.Empty) (*sdkproto.Empty, error) {
+	return p.shutdown(ctx, empty)
 }
 
 func (p *provisionerTestServer) Parse(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
@@ -452,7 +583,7 @@ func (p *provisionerTestServer) Provision(request *sdkproto.Provision_Request, s
 type provisionerDaemonTestServer struct {
 	acquireJob  func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error)
 	updateJob   func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
-	cancelJob   func(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error)
+	failJob     func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
 }
 
@@ -464,8 +595,8 @@ func (p *provisionerDaemonTestServer) UpdateJob(ctx context.Context, update *pro
 	return p.updateJob(ctx, update)
 }
 
-func (p *provisionerDaemonTestServer) CancelJob(ctx context.Context, job *proto.CancelledJob) (*proto.Empty, error) {
-	return p.cancelJob(ctx, job)
+func (p *provisionerDaemonTestServer) FailJob(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+	return p.failJob(ctx, job)
 }
 
 func (p *provisionerDaemonTestServer) CompleteJob(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {

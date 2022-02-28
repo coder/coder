@@ -17,7 +17,7 @@ func TestUser(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		has, err := client.HasInitialUser(context.Background())
 		require.NoError(t, err)
 		require.False(t, has)
@@ -25,7 +25,7 @@ func TestUser(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		has, err := client.HasInitialUser(context.Background())
 		require.NoError(t, err)
@@ -37,14 +37,14 @@ func TestPostUser(t *testing.T) {
 	t.Parallel()
 	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{})
 		require.Error(t, err)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
 			Email:        "some@email.com",
@@ -59,7 +59,7 @@ func TestPostUser(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 	})
 }
@@ -68,14 +68,14 @@ func TestPostUsers(t *testing.T) {
 	t.Parallel()
 	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{})
 		require.Error(t, err)
 	})
 
 	t.Run("Conflicting", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
 			Email:        user.Email,
@@ -90,7 +90,7 @@ func TestPostUsers(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
 		_, err := client.CreateUser(context.Background(), coderd.CreateUserRequest{
 			Email:    "another@user.org",
@@ -103,7 +103,7 @@ func TestPostUsers(t *testing.T) {
 
 func TestUserByName(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t)
+	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateInitialUser(t, client)
 	_, err := client.User(context.Background(), "")
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestUserByName(t *testing.T) {
 
 func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t)
+	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateInitialUser(t, client)
 	orgs, err := client.UserOrganizations(context.Background(), "")
 	require.NoError(t, err)
@@ -119,11 +119,38 @@ func TestOrganizationsByUser(t *testing.T) {
 	require.Len(t, orgs, 1)
 }
 
+func TestPostKey(t *testing.T) {
+	t.Parallel()
+	t.Run("InvalidUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateInitialUser(t, client)
+
+		// Clear session token
+		client.SessionToken = ""
+		// ...and request an API key
+		_, err := client.CreateAPIKey(context.Background())
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateInitialUser(t, client)
+		apiKey, err := client.CreateAPIKey(context.Background())
+		require.NotNil(t, apiKey)
+		require.GreaterOrEqual(t, len(apiKey.Key), 2)
+		require.NoError(t, err)
+	})
+}
+
 func TestPostLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidUser", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    "my@email.org",
 			Password: "password",
@@ -135,7 +162,7 @@ func TestPostLogin(t *testing.T) {
 
 	t.Run("BadPassword", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    user.Email,
@@ -148,7 +175,7 @@ func TestPostLogin(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateInitialUser(t, client)
 		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
 			Email:    user.Email,
@@ -164,7 +191,7 @@ func TestPostLogout(t *testing.T) {
 	t.Run("ClearCookie", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t)
+		client := coderdtest.New(t, nil)
 		fullURL, err := client.URL.Parse("/api/v2/logout")
 		require.NoError(t, err, "Server URL should parse successfully")
 

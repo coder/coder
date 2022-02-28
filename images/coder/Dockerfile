@@ -1,5 +1,9 @@
 FROM registry.access.redhat.com/ubi8/ubi:latest
 
+RUN yum install -y yum-utils
+RUN yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+RUN yum install -y terraform
+
 COPY coderd /coder/coderd
 RUN chmod +x /coder/coderd
 

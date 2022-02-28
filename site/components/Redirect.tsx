@@ -13,11 +13,11 @@ export interface RedirectProps {
  * Helper component to perform a client-side redirect
  */
 export const Redirect: React.FC<RedirectProps> = ({ to }) => {
-  const router = useRouter()
+  const { replace } = useRouter()
 
   useEffect(() => {
-    void router.replace(to)
-  }, [])
+    void replace(to)
+  }, [replace, to])
 
   return null
 }
