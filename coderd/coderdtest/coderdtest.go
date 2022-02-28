@@ -80,14 +80,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		})
 	}
 
-	handler, closeWait := coderd.New(&coderd.Options{
-		Logger:   slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		Database: db,
-		Pubsub:   pubsub,
-
-		GoogleTokenValidator: options.GoogleTokenValidator,
-	})
-	srv := httptest.NewUnstartedServer(handler)
+	srv := httptest.NewUnstartedServer(nil)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
@@ -96,6 +89,16 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	srv.Start()
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
+	var closeWait func()
+	// We set the handler after server creation for the access URL.
+	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
+		AccessURL: serverURL,
+		Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Database:  db,
+		Pubsub:    pubsub,
+
+		GoogleTokenValidator: options.GoogleTokenValidator,
+	})
 	t.Cleanup(func() {
 		srv.Close()
 		closeWait()

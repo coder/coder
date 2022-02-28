@@ -19,8 +19,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/retry"
@@ -368,52 +366,28 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		valueByName[parameterValue.Name] = parameterValue
 	}
 	for _, parameterSchema := range parameterSchemas {
-		if parameterSchema.Name == parameter.CoderWorkspaceTransition {
-			// Hardcode the workspace transition variable. We'll
-			// make it do stuff later!
-			continue
-		}
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
 			p.cancelActiveJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 			return
 		}
 	}
-	// Checks if the schema has defined a workspace transition variable.
-	// If not, we don't need to check for resources provisioned in a stopped state.
-	hasWorkspaceTransition := false
-	for _, parameterSchema := range parameterSchemas {
-		if parameterSchema.Name != parameter.CoderWorkspaceTransition {
-			continue
-		}
-		hasWorkspaceTransition = true
-		break
-	}
 
-	startParameters := updateResponse.ParameterValues
-	if hasWorkspaceTransition {
-		startParameters = append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              parameter.CoderWorkspaceTransition,
-			Value:             string(database.WorkspaceTransitionStart),
-		})
-	}
-	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, startParameters)
+	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
+		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
+	})
 	if err != nil {
 		p.cancelActiveJobf("project import provision for start: %s", err)
 		return
 	}
-	stopResources := startResources
-	if hasWorkspaceTransition {
-		stopResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              "coder_workspace_transition",
-			Value:             string(database.WorkspaceTransitionStop),
-		}))
-		if err != nil {
-			p.cancelActiveJobf("project import provision for start: %s", err)
-			return
-		}
+	stopResources, err := p.runProjectImportProvision(ctx, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
+		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
+	})
+	if err != nil {
+		p.cancelActiveJobf("project import provision for start: %s", err)
+		return
 	}
 
 	_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
@@ -479,11 +453,12 @@ func (p *provisionerDaemon) runProjectImportParse(ctx context.Context, provision
 // Performs a dry-run provision when importing a project.
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
-func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue) ([]*sdkproto.Resource, error) {
+func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
 	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
 		Directory:       p.opts.WorkDirectory,
 		ParameterValues: values,
 		DryRun:          true,
+		Metadata:        metadata,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("provision: %w", err)
@@ -533,6 +508,7 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
 		Directory:       p.opts.WorkDirectory,
 		ParameterValues: job.GetWorkspaceProvision().ParameterValues,
+		Metadata:        job.GetWorkspaceProvision().Metadata,
 		State:           job.GetWorkspaceProvision().State,
 	})
 	if err != nil {

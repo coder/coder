@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionersdk"
 )
 
@@ -54,6 +55,22 @@ func New() *schema.Provider {
 			}, nil
 		},
 		DataSourcesMap: map[string]*schema.Resource{
+			"coder_workspace": {
+				Description: "TODO",
+				ReadContext: func(c context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
+					rd.SetId(uuid.NewString())
+					return nil
+				},
+				Schema: map[string]*schema.Schema{
+					"transition": {
+						Type:         schema.TypeString,
+						Optional:     true,
+						Description:  "TODO",
+						DefaultFunc:  schema.EnvDefaultFunc("CODER_WORKSPACE_TRANSITION", ""),
+						ValidateFunc: validation.StringInSlice([]string{string(database.WorkspaceTransitionStart), string(database.WorkspaceTransitionStop)}, false),
+					},
+				},
+			},
 			"coder_agent_script": {
 				Description: "TODO",
 				ReadContext: func(c context.Context, resourceData *schema.ResourceData, i interface{}) diag.Diagnostics {
