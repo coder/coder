@@ -54,13 +54,13 @@ func TestRandError(t *testing.T) {
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Int error")
 	})
 
-	t.Run("Intn", func(t *testing.T) {
+	t.Run("Intn_32bit", func(t *testing.T) {
 		_, err := cryptorand.Intn(100)
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Intn error")
 	})
 
-	t.Run("Intn", func(t *testing.T) {
-		_, err := cryptorand.Intn(int(1 << 32))
+	t.Run("Intn_64bit", func(t *testing.T) {
+		_, err := cryptorand.Intn(int(1 << 35))
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Intn error")
 	})
 
@@ -81,6 +81,6 @@ func TestRandError(t *testing.T) {
 
 	t.Run("StringCharset", func(t *testing.T) {
 		_, err := cryptorand.HexString(10)
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Bool error")
+		require.ErrorIs(t, err, io.ErrShortBuffer, "expected HexString error")
 	})
 }
