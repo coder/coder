@@ -116,9 +116,9 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 
-		r.Route("/files", func(r chi.Router) {
+		r.Route("/upload", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-			r.Post("/", api.postFiles)
+			r.Post("/", api.postUpload)
 		})
 
 		r.Route("/projectimport/{organization}", func(r chi.Router) {

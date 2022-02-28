@@ -516,16 +516,20 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			}
 			// This could be a bulk insert to improve performance.
 			for _, protoResource := range jobType.WorkspaceProvision.Resources {
+				var instanceID sql.NullString
+				if protoResource.Agent != nil && protoResource.Agent.GetGoogleInstanceIdentity() != nil {
+					instanceID = sql.NullString{
+						String: protoResource.Agent.GetGoogleInstanceIdentity().InstanceId,
+						Valid:  true,
+					}
+				}
 				_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 					ID:                 uuid.New(),
 					CreatedAt:          database.Now(),
 					WorkspaceHistoryID: input.WorkspaceHistoryID,
-					InstanceID: sql.NullString{
-						Valid:  protoResource.InstanceId != "",
-						String: protoResource.InstanceId,
-					},
-					Type: protoResource.Type,
-					Name: protoResource.Name,
+					Type:               protoResource.Type,
+					Name:               protoResource.Name,
+					InstanceID:         instanceID,
 					// TODO: Generate this at the variable validation phase.
 					// Set the value in `default_source`, and disallow overwrite.
 					WorkspaceAgentToken: uuid.NewString(),
