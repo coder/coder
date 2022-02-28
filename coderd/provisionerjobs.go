@@ -50,11 +50,30 @@ type ProvisionerJob struct {
 
 // ProvisionerJobLog represents a single log from a provisioner job.
 type ProvisionerJobLog struct {
-	ID        uuid.UUID
+	ID        uuid.UUID          `json:"id"`
 	CreatedAt time.Time          `json:"created_at"`
 	Source    database.LogSource `json:"log_source"`
 	Level     database.LogLevel  `json:"log_level"`
 	Output    string             `json:"output"`
+}
+
+type ProvisionerJobResource struct {
+	ID         uuid.UUID                    `json:"id"`
+	CreatedAt  time.Time                    `json:"created_at"`
+	JobID      uuid.UUID                    `json:"job_id"`
+	Transition database.WorkspaceTransition `json:"workspace_transition"`
+	Type       string                       `json:"type"`
+	Name       string                       `json:"name"`
+}
+
+type ProvisionerJobAgent struct {
+	ID                   uuid.UUID         `json:"id"`
+	CreatedAt            time.Time         `json:"created_at"`
+	UpdatedAt            time.Time         `json:"updated_at"`
+	ResourceID           uuid.UUID         `json:"resource_id"`
+	InstanceID           string            `json:"instance_id,omitempty"`
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	StartupScript        string            `json:"startup_script,omitempty"`
 }
 
 func (*api) provisionerJobByID(rw http.ResponseWriter, r *http.Request) {

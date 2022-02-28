@@ -3,9 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/coder/coder/coderd"
 )
@@ -27,9 +25,4 @@ func (c *Client) UploadFile(ctx context.Context, contentType string, content []b
 	}
 	var resp coderd.UploadFileResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// DownloadURL returns the download URL for the specified asset
-func (c *Client) DownloadURL(asset string) (*url.URL, error) {
-	return c.URL.Parse(fmt.Sprintf("/api/v2/downloads/%s", asset))
 }

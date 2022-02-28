@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -453,14 +454,8 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					slog.F("resource_name", resource.Name),
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
-				_, err = server.Database.InsertProjectImportJobResource(ctx, database.InsertProjectImportJobResourceParams{
-					ID:         uuid.New(),
-					CreatedAt:  database.Now(),
-					JobID:      jobID,
-					Transition: transition,
-					Type:       resource.Type,
-					Name:       resource.Name,
-				})
+
+				err = insertProvisionerJobResource(ctx, server.Database, jobID, transition, resource)
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
@@ -516,26 +511,9 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			}
 			// This could be a bulk insert to improve performance.
 			for _, protoResource := range jobType.WorkspaceProvision.Resources {
-				var instanceID sql.NullString
-				if protoResource.Agent != nil && protoResource.Agent.GetGoogleInstanceIdentity() != nil {
-					instanceID = sql.NullString{
-						String: protoResource.Agent.GetGoogleInstanceIdentity().InstanceId,
-						Valid:  true,
-					}
-				}
-				_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
-					ID:                 uuid.New(),
-					CreatedAt:          database.Now(),
-					WorkspaceHistoryID: input.WorkspaceHistoryID,
-					Type:               protoResource.Type,
-					Name:               protoResource.Name,
-					InstanceID:         instanceID,
-					// TODO: Generate this at the variable validation phase.
-					// Set the value in `default_source`, and disallow overwrite.
-					WorkspaceAgentToken: uuid.NewString(),
-				})
+				err = insertProvisionerJobResource(ctx, db, job.ID, workspaceHistory.Transition, protoResource)
 				if err != nil {
-					return xerrors.Errorf("insert workspace resource %q: %w", protoResource.Name, err)
+					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
 			}
 			return nil
@@ -549,6 +527,61 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	}
 
 	return &proto.Empty{}, nil
+}
+
+func insertProvisionerJobResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource) error {
+	resource, err := db.InsertProvisionerJobResource(ctx, database.InsertProvisionerJobResourceParams{
+		ID:         uuid.New(),
+		CreatedAt:  database.Now(),
+		JobID:      jobID,
+		Transition: transition,
+		Type:       protoResource.Type,
+		Name:       protoResource.Name,
+		AgentID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: protoResource.Agent != nil,
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
+	}
+	if resource.AgentID.Valid {
+		var instanceID sql.NullString
+		if protoResource.Agent.GetGoogleInstanceIdentity() != nil {
+			instanceID = sql.NullString{
+				String: protoResource.Agent.GetGoogleInstanceIdentity().InstanceId,
+				Valid:  true,
+			}
+		}
+		var env pqtype.NullRawMessage
+		if protoResource.Agent.Env != nil {
+			data, err := json.Marshal(protoResource.Agent.Env)
+			if err != nil {
+				return xerrors.Errorf("marshal env: %w", err)
+			}
+			env = pqtype.NullRawMessage{
+				RawMessage: data,
+				Valid:      true,
+			}
+		}
+
+		_, err := db.InsertProvisionerJobAgent(ctx, database.InsertProvisionerJobAgentParams{
+			ID:                   resource.AgentID.UUID,
+			CreatedAt:            database.Now(),
+			ResourceID:           resource.ID,
+			AuthToken:            uuid.New(),
+			AuthInstanceID:       instanceID,
+			EnvironmentVariables: env,
+			StartupScript: sql.NullString{
+				String: protoResource.Agent.StartupScript,
+				Valid:  protoResource.Agent.StartupScript != "",
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert agent: %w", err)
+		}
+	}
+	return nil
 }
 
 func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {

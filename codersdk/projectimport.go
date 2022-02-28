@@ -81,7 +81,7 @@ func (c *Client) ProjectImportJobParameters(ctx context.Context, organization st
 }
 
 // ProjectImportJobResources returns resources for a project import job.
-func (c *Client) ProjectImportJobResources(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ProjectImportJobResource, error) {
+func (c *Client) ProjectImportJobResources(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ProvisionerJobResource, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectimport/%s/%s/resources", organization, job), nil)
 	if err != nil {
 		return nil, err
@@ -90,6 +90,6 @@ func (c *Client) ProjectImportJobResources(ctx context.Context, organization str
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var resources []coderd.ProjectImportJobResource
+	var resources []coderd.ProvisionerJobResource
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }

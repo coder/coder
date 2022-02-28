@@ -173,14 +173,6 @@ FROM
 WHERE
   job_id = $1;
 
--- name: GetProjectImportJobResourcesByJobID :many
-SELECT
-  *
-FROM
-  project_import_job_resource
-WHERE
-  job_id = $1;
-
 -- name: GetProjectVersionsByProjectID :many
 SELECT
   *
@@ -220,12 +212,6 @@ WHERE
 ORDER BY
   created_at;
 
--- name: GetProvisionerDaemons :many
-SELECT
-  *
-FROM
-  provisioner_daemon;
-
 -- name: GetProvisionerDaemonByID :one
 SELECT
   *
@@ -233,6 +219,22 @@ FROM
   provisioner_daemon
 WHERE
   id = $1;
+
+-- name: GetProvisionerDaemons :many
+SELECT
+  *
+FROM
+  provisioner_daemon;
+
+-- name: GetProvisionerJobAgentByInstanceID :one
+SELECT
+  *
+FROM
+  provisioner_job_agent
+WHERE
+  auth_instance_id = @auth_instance_id :: text
+ORDER BY
+  created_at DESC;
 
 -- name: GetProvisionerJobByID :one
 SELECT
@@ -328,31 +330,29 @@ WHERE
 LIMIT
   1;
 
--- name: GetWorkspaceResourceByInstanceID :one
+-- name: GetProvisionerJobResourceByID :one
 SELECT
   *
 FROM
-  workspace_resource
+  provisioner_job_resource
 WHERE
-  instance_id = @instance_id :: text
-ORDER BY
-  created_at;
+  id = $1;
 
--- name: GetWorkspaceResourcesByHistoryID :many
+-- name: GetProvisionerJobResourcesByJobID :many
 SELECT
   *
 FROM
-  workspace_resource
+  provisioner_job_resource
 WHERE
-  workspace_history_id = $1;
+  job_id = $1;
 
--- name: GetWorkspaceAgentsByResourceIDs :many
+-- name: GetProvisionerJobAgentsByResourceIDs :many
 SELECT
   *
 FROM
-  workspace_agent
+  provisioner_job_agent
 WHERE
-  workspace_resource_id = ANY(@ids :: uuid [ ]);
+  resource_id = ANY(@ids :: uuid [ ]);
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -457,11 +457,19 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
--- name: InsertProjectImportJobResource :one
+-- name: InsertProvisionerJobResource :one
 INSERT INTO
-  project_import_job_resource (id, created_at, job_id, transition, type, name)
+  provisioner_job_resource (
+    id,
+    created_at,
+    job_id,
+    transition,
+    type,
+    name,
+    agent_id
+  )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: InsertProjectVersion :one
 INSERT INTO
@@ -569,18 +577,22 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: InsertWorkspaceAgent :one
+-- name: InsertProvisionerJobAgent :one
 INSERT INTO
-  workspace_agent (
+  provisioner_job_agent (
     id,
-    workspace_resource_id,
     created_at,
     updated_at,
+    resource_id,
+    auth_token,
+    auth_instance_id,
+    environment_variables,
+    startup_script,
     instance_metadata,
     resource_metadata
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: InsertWorkspaceHistory :one
 INSERT INTO
@@ -599,20 +611,6 @@ INSERT INTO
   )
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
-
--- name: InsertWorkspaceResource :one
-INSERT INTO
-  workspace_resource (
-    id,
-    created_at,
-    workspace_history_id,
-    instance_id,
-    type,
-    name,
-    workspace_agent_token
-  )
-VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE
