@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-func TestAgent(t *testing.T) {
+func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 
 	setup := func(db database.Store) (*http.Request, uuid.UUID) {
@@ -33,7 +33,7 @@ func TestAgent(t *testing.T) {
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractAgent(db),
+			httpmw.ExtractWorkspaceAgent(db),
 		)
 		rtr.Get("/", nil)
 		r, _ := setup(db)
@@ -50,10 +50,10 @@ func TestAgent(t *testing.T) {
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractAgent(db),
+			httpmw.ExtractWorkspaceAgent(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.Agent(r)
+			_ = httpmw.WorkspaceAgent(r)
 			rw.WriteHeader(http.StatusOK)
 		})
 		r, token := setup(db)

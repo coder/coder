@@ -13,12 +13,12 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 )
 
-func TestAuthenticateAgentUsingGoogleCloudIdentity(t *testing.T) {
+func TestAuthWorkspaceAgentUsingGoogleCloudIdentity(t *testing.T) {
 	t.Parallel()
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.AuthenticateAgentWithGoogleCloudIdentity(context.Background(), "", metadata.NewClient(&http.Client{
+		_, err := client.AuthWorkspaceAgentWithGoogleCloudIdentity(context.Background(), "", metadata.NewClient(&http.Client{
 			Transport: roundTripper(func(req *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,

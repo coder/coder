@@ -16,7 +16,7 @@ import (
 // ProjectImportJob is not associated with a project by default. Projects
 // are created from import.
 func (c *Client) CreateProjectImportJob(ctx context.Context, organization string, req coderd.CreateProjectImportJobRequest) (coderd.ProvisionerJob, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projectimport/%s", organization), req)
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/project/import/%s", organization), req)
 	if err != nil {
 		return coderd.ProvisionerJob{}, err
 	}
@@ -30,7 +30,7 @@ func (c *Client) CreateProjectImportJob(ctx context.Context, organization string
 
 // ProjectImportJob returns an import job by ID.
 func (c *Client) ProjectImportJob(ctx context.Context, organization string, job uuid.UUID) (coderd.ProvisionerJob, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectimport/%s/%s", organization, job), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/import/%s/%s", organization, job), nil)
 	if err != nil {
 		return coderd.ProvisionerJob{}, nil
 	}
@@ -44,17 +44,17 @@ func (c *Client) ProjectImportJob(ctx context.Context, organization string, job 
 
 // ProjectImportJobLogsBefore returns logs that occurred before a specific time.
 func (c *Client) ProjectImportJobLogsBefore(ctx context.Context, organization string, job uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, "projectimport", organization, job, before)
+	return c.provisionerJobLogsBefore(ctx, "project/import", organization, job, before)
 }
 
 // ProjectImportJobLogsAfter streams logs for a project import operation that occurred after a specific time.
 func (c *Client) ProjectImportJobLogsAfter(ctx context.Context, organization string, job uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsAfter(ctx, "projectimport", organization, job, after)
+	return c.provisionerJobLogsAfter(ctx, "project/import", organization, job, after)
 }
 
 // ProjectImportJobSchemas returns schemas for an import job by ID.
 func (c *Client) ProjectImportJobSchemas(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ParameterSchema, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectimport/%s/%s/schemas", organization, job), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/import/%s/%s/schemas", organization, job), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (c *Client) ProjectImportJobSchemas(ctx context.Context, organization strin
 
 // ProjectImportJobParameters returns computed parameters for a project import job.
 func (c *Client) ProjectImportJobParameters(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ComputedParameterValue, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectimport/%s/%s/parameters", organization, job), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/import/%s/%s/parameters", organization, job), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (c *Client) ProjectImportJobParameters(ctx context.Context, organization st
 
 // ProjectImportJobResources returns resources for a project import job.
 func (c *Client) ProjectImportJobResources(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ProvisionerJobResource, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectimport/%s/%s/resources", organization, job), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/import/%s/%s/resources", organization, job), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -60,6 +60,22 @@ func New(options *Options) (http.Handler, func()) {
 				r.Post("/keys", api.postKeyForUser)
 			})
 		})
+
+		r.Route("/project/import/{organization}", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Post("/", api.postProjectImportByOrganization)
+			r.Route("/{provisionerjob}", func(r chi.Router) {
+				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
+				r.Get("/", api.provisionerJobByID)
+				r.Get("/schemas", api.projectImportJobSchemasByID)
+				r.Get("/parameters", api.projectImportJobParametersByID)
+				r.Get("/resources", api.projectImportJobResourcesByID)
+				r.Get("/logs", api.provisionerJobLogsByID)
+			})
+		})
 		r.Route("/projects", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
@@ -89,8 +105,17 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 
-		// Listing operations specific to resources should go under
-		// their respective routes. eg. /orgs/<name>/workspaces
+		r.Route("/workspace/provision/{organization}", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Route("/{provisionerjob}", func(r chi.Router) {
+				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
+				r.Get("/", api.provisionerJobByID)
+				r.Get("/logs", api.provisionerJobLogsByID)
+			})
+		})
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
 			r.Get("/", api.workspaces)
@@ -100,7 +125,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Route("/{workspace}", func(r chi.Router) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
 					r.Get("/", api.workspaceByUser)
-					r.Route("/version", func(r chi.Router) {
+					r.Route("/history", func(r chi.Router) {
 						r.Post("/", api.postWorkspaceHistoryByUser)
 						r.Get("/", api.workspaceHistoryByUser)
 						r.Route("/{workspacehistory}", func(r chi.Router) {
@@ -113,42 +138,17 @@ func New(options *Options) (http.Handler, func()) {
 		})
 
 		r.Route("/agent", func(r chi.Router) {
-			r.Route("/authenticate", func(r chi.Router) {
-				r.Post("/google-instance-identity", api.postAuthenticateAgentUsingGoogleInstanceIdentity)
+			r.Route("/auth", func(r chi.Router) {
+				r.Post("/google-instance-identity", api.postAuthWorkspaceAgentUsingGoogleInstanceIdentity)
+			})
+			r.Route("/{agent}", func(r chi.Router) {
+
 			})
 		})
 
 		r.Route("/upload", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
 			r.Post("/", api.postUpload)
-		})
-
-		r.Route("/projectimport/{organization}", func(r chi.Router) {
-			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
-				httpmw.ExtractOrganizationParam(options.Database),
-			)
-			r.Post("/", api.postProjectImportByOrganization)
-			r.Route("/{provisionerjob}", func(r chi.Router) {
-				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
-				r.Get("/", api.provisionerJobByID)
-				r.Get("/schemas", api.projectImportJobSchemasByID)
-				r.Get("/parameters", api.projectImportJobParametersByID)
-				r.Get("/resources", api.projectImportJobResourcesByID)
-				r.Get("/logs", api.provisionerJobLogsByID)
-			})
-		})
-
-		r.Route("/workspaceprovision/{organization}", func(r chi.Router) {
-			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
-				httpmw.ExtractOrganizationParam(options.Database),
-			)
-			r.Route("/{provisionerjob}", func(r chi.Router) {
-				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
-				r.Get("/", api.provisionerJobByID)
-				r.Get("/logs", api.provisionerJobLogsByID)
-			})
 		})
 
 		r.Route("/provisioners/daemons", func(r chi.Router) {

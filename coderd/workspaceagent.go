@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-type AgentResourceMetadata struct {
+type WorkspaceAgentResourceMetadata struct {
 	MemoryTotal uint64  `json:"memory_total"`
 	DiskTotal   uint64  `json:"disk_total"`
 	CPUCores    uint64  `json:"cpu_cores"`
@@ -23,7 +23,7 @@ type AgentResourceMetadata struct {
 	CPUMhz      float64 `json:"cpu_mhz"`
 }
 
-type AgentInstanceMetadata struct {
+type WorkspaceAgentInstanceMetadata struct {
 	JailOrchestrator   string `json:"jail_orchestrator"`
 	OperatingSystem    string `json:"operating_system"`
 	Platform           string `json:"platform"`
@@ -35,15 +35,11 @@ type AgentInstanceMetadata struct {
 	VNC                bool   `json:"vnc"`
 }
 
-func (api *api) agentUpdate() {
-
-}
-
-func (api *api) agentConnectByResource(rw http.ResponseWriter, r *http.Request) {
+func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitGroup.Add(1)
 	defer api.websocketWaitGroup.Done()
 
-	agent := httpmw.Agent(r)
+	agent := httpmw.WorkspaceAgent(r)
 	if !agent.UpdatedAt.Valid {
 		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
 			Message: "Agent hasn't connected yet!",
@@ -81,11 +77,11 @@ func (api *api) agentConnectByResource(rw http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (api *api) agentServe(rw http.ResponseWriter, r *http.Request) {
+func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitGroup.Add(1)
 	defer api.websocketWaitGroup.Done()
 
-	agent := httpmw.Agent(r)
+	agent := httpmw.WorkspaceAgent(r)
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})

@@ -13,19 +13,19 @@ import (
 	"github.com/coder/coder/httpapi"
 )
 
-type agentContextKey struct{}
+type workspaceAgentContextKey struct{}
 
-// Agent returns the workspace agent from the ExtractAgent handler.
-func Agent(r *http.Request) database.ProvisionerJobAgent {
-	user, ok := r.Context().Value(agentContextKey{}).(database.ProvisionerJobAgent)
+// WorkspaceAgent returns the workspace agent from the ExtractAgent handler.
+func WorkspaceAgent(r *http.Request) database.ProvisionerJobAgent {
+	user, ok := r.Context().Value(workspaceAgentContextKey{}).(database.ProvisionerJobAgent)
 	if !ok {
 		panic("developer error: agent middleware not provided")
 	}
 	return user
 }
 
-// ExtractAgent requires authentication using a valid agent token.
-func ExtractAgent(db database.Store) func(http.Handler) http.Handler {
+// ExtractWorkspaceAgent requires authentication using a valid agent token.
+func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookie)
@@ -58,7 +58,7 @@ func ExtractAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), agentContextKey{}, agent)
+			ctx := context.WithValue(r.Context(), workspaceAgentContextKey{}, agent)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

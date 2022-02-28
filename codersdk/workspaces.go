@@ -68,7 +68,7 @@ func (c *Client) ListWorkspaceHistory(ctx context.Context, owner, workspace stri
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace, history
 	if history == "" {
 		history = "latest"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version/%s", owner, workspace, history), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/history/%s", owner, workspace, history), nil)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}
@@ -123,7 +123,7 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 	if owner == "" {
 		owner = "me"
 	}
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), request)
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/history", owner, workspace), request)
 	if err != nil {
 		return coderd.WorkspaceHistory{}, err
 	}
@@ -136,7 +136,7 @@ func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace st
 }
 
 func (c *Client) WorkspaceProvisionJob(ctx context.Context, organization string, job uuid.UUID) (coderd.ProvisionerJob, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceprovision/%s/%s", organization, job), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace/provision/%s/%s", organization, job), nil)
 	if err != nil {
 		return coderd.ProvisionerJob{}, nil
 	}
@@ -150,10 +150,10 @@ func (c *Client) WorkspaceProvisionJob(ctx context.Context, organization string,
 
 // WorkspaceProvisionJobLogsBefore returns logs that occurred before a specific time.
 func (c *Client) WorkspaceProvisionJobLogsBefore(ctx context.Context, organization string, job uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, "workspaceprovision", organization, job, before)
+	return c.provisionerJobLogsBefore(ctx, "workspace/provision", organization, job, before)
 }
 
 // WorkspaceProvisionJobLogsAfter streams logs for a workspace provision operation that occurred after a specific time.
 func (c *Client) WorkspaceProvisionJobLogsAfter(ctx context.Context, organization string, job uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsAfter(ctx, "workspaceprovision", organization, job, after)
+	return c.provisionerJobLogsAfter(ctx, "workspace/provision", organization, job, after)
 }

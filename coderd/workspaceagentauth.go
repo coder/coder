@@ -19,16 +19,16 @@ type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
 }
 
-// AgentAuthResponse is returned when an instance ID
+// WorkspaceAgentAuthResponse is returned when an instance ID
 // has been exchanged for a session token.
-type AgentAuthResponse struct {
+type WorkspaceAgentAuthResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
 // Google Compute Engine supports instance identity verification:
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
 // Using this, we can exchange a signed instance payload for an agent token.
-func (api *api) postAuthenticateAgentUsingGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postAuthWorkspaceAgentUsingGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	var req GoogleInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -121,7 +121,7 @@ func (api *api) postAuthenticateAgentUsingGoogleInstanceIdentity(rw http.Respons
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, AgentAuthResponse{
+	render.JSON(rw, r, WorkspaceAgentAuthResponse{
 		SessionToken: agent.AuthToken.String(),
 	})
 }
