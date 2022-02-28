@@ -391,6 +391,7 @@ func TestProvisionerd(t *testing.T) {
 						},
 					}, nil
 				},
+				updateJob: noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					didFail.Store(true)
 					return &proto.Empty{}, nil
