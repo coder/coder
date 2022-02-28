@@ -282,3 +282,49 @@ jobs:
           DD_DATABASE: postgresql
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go site/test_results/junit.xml
+
+  test-e2e:
+    name: "test/e2e"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v2
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+
+      # Go is required for uploading the test results to datadog
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.2
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "14"
+
+      - uses: actions/cache@v2
+        with:
+          # Go mod cache, Linux build cache, Mac build cache, Windows build cache
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ matrix.os }}-go-
+
+      - run: make build
+
+      - run: yarn test:coverage
+        working-directory: site
