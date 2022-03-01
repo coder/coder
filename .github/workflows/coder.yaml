@@ -293,6 +293,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
           # TODO: Get `make build` running on Windows 2022
+          # https://github.com/coder/coder/issues/384
           # - windows-2022
     steps:
       - uses: actions/checkout@v2
