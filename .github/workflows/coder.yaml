@@ -232,12 +232,6 @@ jobs:
 
   test-js:
     name: "test/js"
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-2022
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
