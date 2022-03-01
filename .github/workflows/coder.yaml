@@ -164,6 +164,7 @@ jobs:
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: fake
+          DD_CATEGORY: unit
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
@@ -279,7 +280,7 @@ jobs:
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: postgresql
+          DD_CATEGORY: unit
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
 
@@ -339,6 +340,6 @@ jobs:
         if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: e2e
+          DD_CATEGORY: e2e
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
