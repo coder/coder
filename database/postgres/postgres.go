@@ -6,12 +6,17 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 )
+
+// Required to prevent port collision during container creation.
+// Super unlikely, but it happened. See: https://github.com/coder/coder/runs/5375197003
+var openPortMutex sync.Mutex
 
 // Open creates a new PostgreSQL server using a Docker container.
 func Open() (string, func(), error) {
@@ -23,10 +28,12 @@ func Open() (string, func(), error) {
 	if err != nil {
 		return "", nil, xerrors.Errorf("create tempdir: %w", err)
 	}
+	openPortMutex.Lock()
 	// Pick an explicit port on the host to connect to 5432.
 	// This is necessary so we can configure the port to only use ipv4.
 	port, err := getFreePort()
 	if err != nil {
+		openPortMutex.Unlock()
 		return "", nil, xerrors.Errorf("Unable to get free port: %w", err)
 	}
 
@@ -64,8 +71,11 @@ func Open() (string, func(), error) {
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	if err != nil {
+		openPortMutex.Unlock()
 		return "", nil, xerrors.Errorf("could not start resource: %w", err)
 	}
+	openPortMutex.Unlock()
+
 	hostAndPort := resource.GetHostPort("5432/tcp")
 	dbURL := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", hostAndPort)
 
