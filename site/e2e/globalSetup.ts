@@ -1,6 +1,6 @@
 import { FullConfig, request } from "@playwright/test"
 
-async function globalSetup(config: FullConfig): Promise<void> {
+const globalSetup = async (config: FullConfig): Promise<void> => {
   // Grab the 'baseURL' from the webserver (`coderd`)
   const { baseURL } = config.projects[0].use
 
