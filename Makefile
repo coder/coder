@@ -99,7 +99,7 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
 site/out: 
-	./scripts/yarn_install.sh
+	cd site && yarn install
 	cd site && yarn build
 	cd site && yarn export
 .PHONY: site/out

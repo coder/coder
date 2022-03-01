@@ -298,8 +298,7 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          # TODO: Get `make build` running on Windows 2022
-          # - windows-2022
+          - windows-2022
     steps:
       - uses: actions/checkout@v2
 
