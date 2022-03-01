@@ -232,6 +232,12 @@ jobs:
 
   test-js:
     name: "test/js"
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -285,8 +291,14 @@ jobs:
         run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
 
   test-e2e:
-    name: "test/e2e"
-    runs-on: ubuntu-latest
+    name: "test/e2e/${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
     steps:
       - uses: actions/checkout@v2
 
