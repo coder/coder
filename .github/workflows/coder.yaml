@@ -341,4 +341,4 @@ jobs:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: e2e
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test_results/junit.xml
+        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
