@@ -466,15 +466,13 @@ func TestProvisionerd(t *testing.T) {
 					})
 					require.NoError(t, err)
 					<-shutdownCtx.Done()
-					err = stream.Send(&sdkproto.Provision_Response{
+					return stream.Send(&sdkproto.Provision_Response{
 						Type: &sdkproto.Provision_Response_Complete{
 							Complete: &sdkproto.Provision_Complete{
 								Error: "some error",
 							},
 						},
 					})
-					require.NoError(t, err)
-					return nil
 				},
 			}),
 		})
