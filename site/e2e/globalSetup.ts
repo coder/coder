@@ -1,4 +1,5 @@
 import { FullConfig, request } from "@playwright/test"
+import { email, username, password, organization } from "./constants"
 
 const globalSetup = async (config: FullConfig): Promise<void> => {
   // Grab the 'baseURL' from the webserver (`coderd`)
@@ -12,10 +13,10 @@ const globalSetup = async (config: FullConfig): Promise<void> => {
   // Create initial user
   await context.post("/api/v2/user", {
     data: {
-      email: "admin@coder.com",
-      username: "admin",
-      password: "password",
-      organization: "acme-corp",
+      email,
+      username,
+      password,
+      organization,
     },
   })
 }
