@@ -55,7 +55,7 @@ const ProjectsPage: React.FC = () => {
   const description = (
     <div>
       <div className={styles.descriptionLabel}>Run the following command to get started:</div>
-      <CodeExample code="coder project create" />
+      <CodeExample code="coder projects create" />
     </div>
   )
 
