@@ -1,13 +1,17 @@
 import { Page } from "@playwright/test"
 
 export abstract class BasePom {
-  abstract get url(): string
+  protected readonly baseURL: string | undefined
+  protected readonly path: string
+  protected readonly page: Page
 
-  protected page: Page
-  protected baseURL: string | undefined
-
-  constructor(baseURL: string | undefined, page: Page) {
-    this.page = page
+  constructor(baseURL: string | undefined, path: string, page: Page) {
     this.baseURL = baseURL
+    this.path = path
+    this.page = page
+  }
+
+  get url(): string {
+    return this.baseURL + this.path
   }
 }

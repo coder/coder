@@ -2,12 +2,8 @@ import { Page } from "@playwright/test"
 import { BasePom } from "./BasePom"
 
 export class SignInPage extends BasePom {
-  public get url(): string {
-    return this.baseURL + "/login"
-  }
-
   constructor(baseURL: string | undefined, page: Page) {
-    super(baseURL, page)
+    super(baseURL, "/login", page)
   }
 
   async submitBuiltInAuthentication(email: string, password: string): Promise<void> {
