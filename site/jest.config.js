@@ -17,7 +17,7 @@ module.exports = {
       },
       testEnvironment: "jsdom",
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
-      testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes"],
+      testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes", "/e2e/"],
       moduleDirectories: ["node_modules", "<rootDir>"],
     },
     {
@@ -45,6 +45,7 @@ module.exports = {
     "!<rootDir>/api.ts",
     "!<rootDir>/coverage/**/*.*",
     "!<rootDir>/dev.ts",
+    "!<rootDir>/e2e/**/*.*",
     "!<rootDir>/jest-runner.eslint.config.js",
     "!<rootDir>/jest.config.js",
     "!<rootDir>/next-env.d.ts",
@@ -58,7 +59,7 @@ module.exports = {
       "jest-junit",
       {
         suiteName: "Front-end Jest Tests",
-        outputDirectory: "./test_results",
+        outputDirectory: "./test-results",
         outputName: "junit.xml",
       },
     ],

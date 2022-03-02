@@ -164,6 +164,7 @@ jobs:
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: fake
+          DD_CATEGORY: unit
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
@@ -279,6 +280,74 @@ jobs:
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: postgresql
+          DD_CATEGORY: unit
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test_results/junit.xml
+        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
+
+  test-e2e:
+    name: "test/e2e/${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          # TODO: Get `make build` running on Windows 2022
+          # https://github.com/coder/coder/issues/384
+          # - windows-2022
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v2
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+
+      # Go is required for uploading the test results to datadog
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.2
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "14"
+
+      - uses: actions/cache@v2
+        with:
+          # Go mod cache, Linux build cache, Mac build cache, Windows build cache
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ matrix.os }}-go-
+
+      - run: make build
+
+      - run: yarn playwright:install
+        working-directory: site
+
+      - run: yarn playwright:install-deps
+        working-directory: site
+
+      - run: yarn playwright:test
+        working-directory: site
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_CATEGORY: e2e
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml

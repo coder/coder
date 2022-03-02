@@ -75,7 +75,8 @@ func main() {
 		"service":              "coder",
 		"_dd.cireport_version": "2",
 
-		"test.traits": fmt.Sprintf(`{"database":["%s"]}`, os.Getenv("DD_DATABASE")),
+		"test.traits": fmt.Sprintf(`{"database":["%s"], "category":["%s"]}`,
+			os.Getenv("DD_DATABASE"), os.Getenv("DD_CATEGORY")),
 
 		// Additional tags found in DataDog docs. See:
 		// https://docs.datadoghq.com/continuous_integration/setup_tests/junit_upload/#collecting-environment-configuration-metadata
