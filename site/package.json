@@ -31,7 +31,7 @@
     "@types/jest": "27.4.1",
     "@types/node": "14.18.12",
     "@types/react": "17.0.39",
-    "@types/react-dom": "17.0.11",
+    "@types/react-dom": "17.0.12",
     "@types/superagent": "4.1.15",
     "@typescript-eslint/eslint-plugin": "4.33.0",
     "@typescript-eslint/parser": "4.33.0",
