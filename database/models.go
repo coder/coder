@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tabbed/pqtype"
 )
 
 type LogLevel string
@@ -342,15 +343,6 @@ type Project struct {
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
-type ProjectImportJobResource struct {
-	ID         uuid.UUID           `db:"id" json:"id"`
-	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
-	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
-	Transition WorkspaceTransition `db:"transition" json:"transition"`
-	Type       string              `db:"type" json:"type"`
-	Name       string              `db:"name" json:"name"`
-}
-
 type ProjectVersion struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
@@ -387,6 +379,19 @@ type ProvisionerJob struct {
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
 }
 
+type ProvisionerJobAgent struct {
+	ID                   uuid.UUID             `db:"id" json:"id"`
+	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt            sql.NullTime          `db:"updated_at" json:"updated_at"`
+	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+}
+
 type ProvisionerJobLog struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	JobID     uuid.UUID `db:"job_id" json:"job_id"`
@@ -394,6 +399,16 @@ type ProvisionerJobLog struct {
 	Source    LogSource `db:"source" json:"source"`
 	Level     LogLevel  `db:"level" json:"level"`
 	Output    string    `db:"output" json:"output"`
+}
+
+type ProvisionerJobResource struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Type       string              `db:"type" json:"type"`
+	Name       string              `db:"name" json:"name"`
+	AgentID    uuid.NullUUID       `db:"agent_id" json:"agent_id"`
 }
 
 type User struct {
@@ -427,15 +442,6 @@ type Workspace struct {
 	Name      string    `db:"name" json:"name"`
 }
 
-type WorkspaceAgent struct {
-	ID                  uuid.UUID       `db:"id" json:"id"`
-	WorkspaceResourceID uuid.UUID       `db:"workspace_resource_id" json:"workspace_resource_id"`
-	CreatedAt           time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
-	InstanceMetadata    json.RawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata    json.RawMessage `db:"resource_metadata" json:"resource_metadata"`
-}
-
 type WorkspaceHistory struct {
 	ID               uuid.UUID           `db:"id" json:"id"`
 	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
@@ -449,15 +455,4 @@ type WorkspaceHistory struct {
 	Initiator        string              `db:"initiator" json:"initiator"`
 	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
 	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
-}
-
-type WorkspaceResource struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	WorkspaceHistoryID  uuid.UUID      `db:"workspace_history_id" json:"workspace_history_id"`
-	InstanceID          sql.NullString `db:"instance_id" json:"instance_id"`
-	Type                string         `db:"type" json:"type"`
-	Name                string         `db:"name" json:"name"`
-	WorkspaceAgentToken string         `db:"workspace_agent_token" json:"workspace_agent_token"`
-	WorkspaceAgentID    uuid.NullUUID  `db:"workspace_agent_id" json:"workspace_agent_id"`
 }

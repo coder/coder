@@ -19,8 +19,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/retry"
@@ -54,7 +52,7 @@ type Options struct {
 }
 
 // New creates and starts a provisioner daemon.
-func New(clientDialer Dialer, opts *Options) io.Closer {
+func New(clientDialer Dialer, opts *Options) *Server {
 	if opts.PollInterval == 0 {
 		opts.PollInterval = 5 * time.Second
 	}
@@ -62,15 +60,17 @@ func New(clientDialer Dialer, opts *Options) io.Closer {
 		opts.UpdateInterval = 5 * time.Second
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
-	daemon := &provisionerDaemon{
+	daemon := &Server{
 		clientDialer: clientDialer,
 		opts:         opts,
 
 		closeCancel: ctxCancel,
 		closed:      make(chan struct{}),
 
-		jobRunning:   make(chan struct{}),
-		jobCancelled: *atomic.NewBool(true),
+		shutdown: make(chan struct{}),
+
+		jobRunning: make(chan struct{}),
+		jobFailed:  *atomic.NewBool(true),
 	}
 	// Start off with a closed channel so
 	// isRunningJob() returns properly.
@@ -79,7 +79,7 @@ func New(clientDialer Dialer, opts *Options) io.Closer {
 	return daemon
 }
 
-type provisionerDaemon struct {
+type Server struct {
 	opts *Options
 
 	clientDialer Dialer
@@ -91,16 +91,19 @@ type provisionerDaemon struct {
 	closed      chan struct{}
 	closeError  error
 
-	// Locked when acquiring or canceling a job.
-	jobMutex     sync.Mutex
-	jobID        string
-	jobRunning   chan struct{}
-	jobCancelled atomic.Bool
-	jobCancel    context.CancelFunc
+	shutdownMutex sync.Mutex
+	shutdown      chan struct{}
+
+	// Locked when acquiring or failing a job.
+	jobMutex   sync.Mutex
+	jobID      string
+	jobRunning chan struct{}
+	jobFailed  atomic.Bool
+	jobCancel  context.CancelFunc
 }
 
 // Connect establishes a connection to coderd.
-func (p *provisionerDaemon) connect(ctx context.Context) {
+func (p *Server) connect(ctx context.Context) {
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
@@ -163,7 +166,7 @@ func (p *provisionerDaemon) connect(ctx context.Context) {
 	}()
 }
 
-func (p *provisionerDaemon) isRunningJob() bool {
+func (p *Server) isRunningJob() bool {
 	select {
 	case <-p.jobRunning:
 		return false
@@ -173,7 +176,7 @@ func (p *provisionerDaemon) isRunningJob() bool {
 }
 
 // Locks a job in the database, and runs it!
-func (p *provisionerDaemon) acquireJob(ctx context.Context) {
+func (p *Server) acquireJob(ctx context.Context) {
 	p.jobMutex.Lock()
 	defer p.jobMutex.Unlock()
 	if p.isClosed() {
@@ -181,6 +184,10 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	}
 	if p.isRunningJob() {
 		p.opts.Logger.Debug(context.Background(), "skipping acquire; job is already running")
+		return
+	}
+	if p.isShutdown() {
+		p.opts.Logger.Debug(context.Background(), "skipping acquire; provisionerd is shutting down...")
 		return
 	}
 	var err error
@@ -201,7 +208,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	}
 	ctx, p.jobCancel = context.WithCancel(ctx)
 	p.jobRunning = make(chan struct{})
-	p.jobCancelled.Store(false)
+	p.jobFailed.Store(false)
 	p.jobID = job.JobId
 
 	p.opts.Logger.Info(context.Background(), "acquired job",
@@ -213,7 +220,7 @@ func (p *provisionerDaemon) acquireJob(ctx context.Context) {
 	go p.runJob(ctx, job)
 }
 
-func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) {
+func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	go func() {
 		ticker := time.NewTicker(p.opts.UpdateInterval)
 		defer ticker.Stop()
@@ -227,7 +234,7 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 				JobId: job.JobId,
 			})
 			if err != nil {
-				p.cancelActiveJobf("send periodic update: %s", err)
+				p.failActiveJobf("send periodic update: %s", err)
 				return
 			}
 		}
@@ -254,13 +261,13 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 	// It's safe to cast this ProvisionerType. This data is coming directly from coderd.
 	provisioner, hasProvisioner := p.opts.Provisioners[job.Provisioner]
 	if !hasProvisioner {
-		p.cancelActiveJobf("provisioner %q not registered", job.Provisioner)
+		p.failActiveJobf("provisioner %q not registered", job.Provisioner)
 		return
 	}
 
 	err := os.MkdirAll(p.opts.WorkDirectory, 0700)
 	if err != nil {
-		p.cancelActiveJobf("create work directory %q: %s", p.opts.WorkDirectory, err)
+		p.failActiveJobf("create work directory %q: %s", p.opts.WorkDirectory, err)
 		return
 	}
 
@@ -272,13 +279,13 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 			break
 		}
 		if err != nil {
-			p.cancelActiveJobf("read project source archive: %s", err)
+			p.failActiveJobf("read project source archive: %s", err)
 			return
 		}
 		// #nosec
 		path := filepath.Join(p.opts.WorkDirectory, header.Name)
 		if !strings.HasPrefix(path, filepath.Clean(p.opts.WorkDirectory)) {
-			p.cancelActiveJobf("tar attempts to target relative upper directory")
+			p.failActiveJobf("tar attempts to target relative upper directory")
 			return
 		}
 		mode := header.FileInfo().Mode()
@@ -289,14 +296,14 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 		case tar.TypeDir:
 			err = os.MkdirAll(path, mode)
 			if err != nil {
-				p.cancelActiveJobf("mkdir %q: %s", path, err)
+				p.failActiveJobf("mkdir %q: %s", path, err)
 				return
 			}
 			p.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", path))
 		case tar.TypeReg:
 			file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				p.cancelActiveJobf("create file %q (mode %s): %s", path, mode, err)
+				p.failActiveJobf("create file %q (mode %s): %s", path, mode, err)
 				return
 			}
 			// Max file size of 10MB.
@@ -306,12 +313,12 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 			}
 			if err != nil {
 				_ = file.Close()
-				p.cancelActiveJobf("copy file %q: %s", path, err)
+				p.failActiveJobf("copy file %q: %s", path, err)
 				return
 			}
 			err = file.Close()
 			if err != nil {
-				p.cancelActiveJobf("close file %q: %s", path, err)
+				p.failActiveJobf("close file %q: %s", path, err)
 				return
 			}
 			p.opts.Logger.Debug(context.Background(), "extracted file",
@@ -336,21 +343,21 @@ func (p *provisionerDaemon) runJob(ctx context.Context, job *proto.AcquiredJob) 
 
 		p.runWorkspaceProvision(ctx, provisioner, job)
 	default:
-		p.cancelActiveJobf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(job.Type).String())
+		p.failActiveJobf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(job.Type).String())
 		return
 	}
 
 	// Ensure the job is still running to output.
-	// It's possible the job was canceled.
+	// It's possible the job has failed.
 	if p.isRunningJob() {
 		p.opts.Logger.Info(context.Background(), "completed job", slog.F("id", job.JobId))
 	}
 }
 
-func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+func (p *Server) runProjectImport(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
 	parameterSchemas, err := p.runProjectImportParse(ctx, provisioner, job)
 	if err != nil {
-		p.cancelActiveJobf("run parse: %s", err)
+		p.failActiveJobf("run parse: %s", err)
 		return
 	}
 
@@ -359,7 +366,7 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		ParameterSchemas: parameterSchemas,
 	})
 	if err != nil {
-		p.cancelActiveJobf("update job: %s", err)
+		p.failActiveJobf("update job: %s", err)
 		return
 	}
 
@@ -368,52 +375,28 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		valueByName[parameterValue.Name] = parameterValue
 	}
 	for _, parameterSchema := range parameterSchemas {
-		if parameterSchema.Name == parameter.CoderWorkspaceTransition {
-			// Hardcode the workspace transition variable. We'll
-			// make it do stuff later!
-			continue
-		}
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			p.cancelActiveJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
+			p.failActiveJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 			return
 		}
-	}
-	// Checks if the schema has defined a workspace transition variable.
-	// If not, we don't need to check for resources provisioned in a stopped state.
-	hasWorkspaceTransition := false
-	for _, parameterSchema := range parameterSchemas {
-		if parameterSchema.Name != parameter.CoderWorkspaceTransition {
-			continue
-		}
-		hasWorkspaceTransition = true
-		break
 	}
 
-	startParameters := updateResponse.ParameterValues
-	if hasWorkspaceTransition {
-		startParameters = append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              parameter.CoderWorkspaceTransition,
-			Value:             string(database.WorkspaceTransitionStart),
-		})
-	}
-	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, startParameters)
+	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
+		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
+	})
 	if err != nil {
-		p.cancelActiveJobf("project import provision for start: %s", err)
+		p.failActiveJobf("project import provision for start: %s", err)
 		return
 	}
-	stopResources := startResources
-	if hasWorkspaceTransition {
-		stopResources, err = p.runProjectImportProvision(ctx, provisioner, job, append(updateResponse.ParameterValues, &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              "coder_workspace_transition",
-			Value:             string(database.WorkspaceTransitionStop),
-		}))
-		if err != nil {
-			p.cancelActiveJobf("project import provision for start: %s", err)
-			return
-		}
+	stopResources, err := p.runProjectImportProvision(ctx, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
+		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
+	})
+	if err != nil {
+		p.failActiveJobf("project import provision for start: %s", err)
+		return
 	}
 
 	_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
@@ -426,13 +409,13 @@ func (p *provisionerDaemon) runProjectImport(ctx context.Context, provisioner sd
 		},
 	})
 	if err != nil {
-		p.cancelActiveJobf("complete job: %s", err)
+		p.failActiveJobf("complete job: %s", err)
 		return
 	}
 }
 
 // Parses parameter schemas from source.
-func (p *provisionerDaemon) runProjectImportParse(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) ([]*sdkproto.ParameterSchema, error) {
+func (p *Server) runProjectImportParse(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) ([]*sdkproto.ParameterSchema, error) {
 	stream, err := provisioner.Parse(ctx, &sdkproto.Parse_Request{
 		Directory: p.opts.WorkDirectory,
 	})
@@ -479,11 +462,12 @@ func (p *provisionerDaemon) runProjectImportParse(ctx context.Context, provision
 // Performs a dry-run provision when importing a project.
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
-func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue) ([]*sdkproto.Resource, error) {
+func (p *Server) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
 	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
 		Directory:       p.opts.WorkDirectory,
 		ParameterValues: values,
 		DryRun:          true,
+		Metadata:        metadata,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("provision: %w", err)
@@ -529,14 +513,15 @@ func (p *provisionerDaemon) runProjectImportProvision(ctx context.Context, provi
 	}
 }
 
-func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+func (p *Server) runWorkspaceProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
 	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
 		Directory:       p.opts.WorkDirectory,
 		ParameterValues: job.GetWorkspaceProvision().ParameterValues,
+		Metadata:        job.GetWorkspaceProvision().Metadata,
 		State:           job.GetWorkspaceProvision().State,
 	})
 	if err != nil {
-		p.cancelActiveJobf("provision: %s", err)
+		p.failActiveJobf("provision: %s", err)
 		return
 	}
 	defer stream.Close()
@@ -544,7 +529,7 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			p.cancelActiveJobf("recv workspace provision: %s", err)
+			p.failActiveJobf("recv workspace provision: %s", err)
 			return
 		}
 		switch msgType := msg.Type.(type) {
@@ -565,10 +550,26 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 				}},
 			})
 			if err != nil {
-				p.cancelActiveJobf("send job update: %s", err)
+				p.failActiveJobf("send job update: %s", err)
 				return
 			}
 		case *sdkproto.Provision_Response_Complete:
+			if msgType.Complete.Error != "" {
+				p.opts.Logger.Info(context.Background(), "provision failed; updating state",
+					slog.F("state_length", len(msgType.Complete.State)),
+				)
+
+				p.failActiveJob(&proto.FailedJob{
+					Error: msgType.Complete.Error,
+					Type: &proto.FailedJob_WorkspaceProvision_{
+						WorkspaceProvision: &proto.FailedJob_WorkspaceProvision{
+							State: msgType.Complete.State,
+						},
+					},
+				})
+				return
+			}
+
 			p.opts.Logger.Info(context.Background(), "provision successful; marking job as complete",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
@@ -587,53 +588,56 @@ func (p *provisionerDaemon) runWorkspaceProvision(ctx context.Context, provision
 				},
 			})
 			if err != nil {
-				p.cancelActiveJobf("complete job: %s", err)
+				p.failActiveJobf("complete job: %s", err)
 				return
 			}
 			// Return so we stop looping!
 			return
 		default:
-			p.cancelActiveJobf("invalid message type %q received from provisioner",
+			p.failActiveJobf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 			return
 		}
 	}
 }
 
-func (p *provisionerDaemon) cancelActiveJobf(format string, args ...interface{}) {
+func (p *Server) failActiveJobf(format string, args ...interface{}) {
+	p.failActiveJob(&proto.FailedJob{
+		Error: fmt.Sprintf(format, args...),
+	})
+}
+
+func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
 	p.jobMutex.Lock()
 	defer p.jobMutex.Unlock()
-	errMsg := fmt.Sprintf(format, args...)
 	if !p.isRunningJob() {
 		if p.isClosed() {
 			return
 		}
-		p.opts.Logger.Info(context.Background(), "skipping job cancel; none running", slog.F("error_message", errMsg))
+		p.opts.Logger.Info(context.Background(), "skipping job fail; none running", slog.F("error_message", failedJob.Error))
 		return
 	}
-	if p.jobCancelled.Load() {
-		p.opts.Logger.Warn(context.Background(), "job has already been canceled", slog.F("error_messsage", errMsg))
+	if p.jobFailed.Load() {
+		p.opts.Logger.Warn(context.Background(), "job has already been marked as failed", slog.F("error_messsage", failedJob.Error))
 		return
 	}
-	p.jobCancelled.Store(true)
+	p.jobFailed.Store(true)
 	p.jobCancel()
-	p.opts.Logger.Info(context.Background(), "canceling running job",
-		slog.F("error_message", errMsg),
+	p.opts.Logger.Info(context.Background(), "failing running job",
+		slog.F("error_message", failedJob.Error),
 		slog.F("job_id", p.jobID),
 	)
-	_, err := p.client.CancelJob(context.Background(), &proto.CancelledJob{
-		JobId: p.jobID,
-		Error: fmt.Sprintf("provisioner daemon: %s", errMsg),
-	})
+	failedJob.JobId = p.jobID
+	_, err := p.client.FailJob(context.Background(), failedJob)
 	if err != nil {
-		p.opts.Logger.Warn(context.Background(), "failed to notify of cancel; job is no longer running", slog.Error(err))
+		p.opts.Logger.Warn(context.Background(), "failed to notify of error; job is no longer running", slog.Error(err))
 		return
 	}
-	p.opts.Logger.Debug(context.Background(), "canceled running job")
+	p.opts.Logger.Debug(context.Background(), "marked running job as failed")
 }
 
 // isClosed returns whether the API is closed or not.
-func (p *provisionerDaemon) isClosed() bool {
+func (p *Server) isClosed() bool {
 	select {
 	case <-p.closed:
 		return true
@@ -642,13 +646,49 @@ func (p *provisionerDaemon) isClosed() bool {
 	}
 }
 
-// Close ends the provisioner. It will mark any running jobs as canceled.
-func (p *provisionerDaemon) Close() error {
+// isShutdown returns whether the API is shutdown or not.
+func (p *Server) isShutdown() bool {
+	select {
+	case <-p.shutdown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Shutdown triggers a graceful exit of each registered provisioner.
+// It exits when an active job stops.
+func (p *Server) Shutdown(ctx context.Context) error {
+	p.shutdownMutex.Lock()
+	defer p.shutdownMutex.Unlock()
+	if !p.isRunningJob() {
+		return nil
+	}
+	p.opts.Logger.Info(ctx, "attempting graceful shutdown")
+	close(p.shutdown)
+	for id, provisioner := range p.opts.Provisioners {
+		_, err := provisioner.Shutdown(ctx, &sdkproto.Empty{})
+		if err != nil {
+			return xerrors.Errorf("shutdown %q: %w", id, err)
+		}
+	}
+	select {
+	case <-ctx.Done():
+		p.opts.Logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
+		return ctx.Err()
+	case <-p.jobRunning:
+		p.opts.Logger.Info(ctx, "gracefully shutdown")
+		return nil
+	}
+}
+
+// Close ends the provisioner. It will mark any running jobs as failed.
+func (p *Server) Close() error {
 	return p.closeWithError(nil)
 }
 
 // closeWithError closes the provisioner; subsequent reads/writes will return the error err.
-func (p *provisionerDaemon) closeWithError(err error) error {
+func (p *Server) closeWithError(err error) error {
 	p.closeMutex.Lock()
 	defer p.closeMutex.Unlock()
 	if p.isClosed() {
@@ -661,7 +701,7 @@ func (p *provisionerDaemon) closeWithError(err error) error {
 	if err != nil {
 		errMsg = err.Error()
 	}
-	p.cancelActiveJobf(errMsg)
+	p.failActiveJobf(errMsg)
 	<-p.jobRunning
 	p.closeCancel()
 

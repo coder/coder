@@ -74,9 +74,15 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Resources: []*proto.Resource{{
-							Name:       "somename",
-							Type:       "someinstance",
-							InstanceId: instanceID,
+							Name: "somename",
+							Type: "someinstance",
+							Agent: &proto.Agent{
+								Auth: &proto.Agent_GoogleInstanceIdentity{
+									GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
+										InstanceId: instanceID,
+									},
+								},
+							},
 						}},
 					},
 				},

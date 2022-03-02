@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func TestPostFiles(t *testing.T) {
+func TestPostUpload(t *testing.T) {
 	t.Parallel()
 	t.Run("BadContentType", func(t *testing.T) {
 		t.Parallel()

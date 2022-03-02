@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/provisionersdk/proto"
 )
 
 var (
@@ -43,14 +44,25 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		}
 		options.BinaryPath = binaryPath
 	}
-
+	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 	return provisionersdk.Serve(ctx, &terraform{
-		binaryPath: options.BinaryPath,
-		logger:     options.Logger,
+		binaryPath:     options.BinaryPath,
+		logger:         options.Logger,
+		shutdownCtx:    shutdownCtx,
+		shutdownCancel: shutdownCancel,
 	}, options.ServeOptions)
 }
 
 type terraform struct {
 	binaryPath string
 	logger     slog.Logger
+
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
+}
+
+// Shutdown signals to begin graceful shutdown of any running operations.
+func (t *terraform) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
+	t.shutdownCancel()
+	return &proto.Empty{}, nil
 }

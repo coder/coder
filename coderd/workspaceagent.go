@@ -2,12 +2,14 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
 
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 
 	"github.com/mitchellh/mapstructure"
@@ -54,14 +56,48 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
+	agent, err := api.Database.GetProvisionerJobAgentByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("instance with id %q not found", claims.Google.ComputeEngine.InstanceID),
 		})
 		return
 	}
-	resourceHistory, err := api.Database.GetWorkspaceHistoryByID(r.Context(), resource.WorkspaceHistoryID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job agent: %s", err),
+		})
+		return
+	}
+	resource, err := api.Database.GetProvisionerJobResourceByID(r.Context(), agent.ResourceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job resource: %s", err),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	if job.Type != database.ProvisionerJobTypeWorkspaceProvision {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("%q jobs cannot be authenticated", job.Type),
+		})
+		return
+	}
+	var jobData workspaceProvisionJob
+	err = json.Unmarshal(job.Input, &jobData)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("extract job data: %s", err),
+		})
+		return
+	}
+	resourceHistory, err := api.Database.GetWorkspaceHistoryByID(r.Context(), jobData.WorkspaceHistoryID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace history: %s", err),
@@ -86,6 +122,6 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, WorkspaceAgentAuthenticateResponse{
-		SessionToken: resource.WorkspaceAgentToken,
+		SessionToken: agent.AuthToken.String(),
 	})
 }

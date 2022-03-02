@@ -15,9 +15,11 @@ message AcquiredJob {
         string workspace_history_id = 1;
         string workspace_name = 2;
         repeated provisioner.ParameterValue parameter_values = 3;
-        bytes state = 4;
+        provisioner.Provision.Metadata metadata = 4;
+        bytes state = 5;
     }
     message ProjectImport {
+        provisioner.Provision.Metadata metadata = 1;
     }
     string job_id = 1;
     int64 created_at = 2;
@@ -30,9 +32,18 @@ message AcquiredJob {
     }
 }
 
-message CancelledJob {
+message FailedJob {
+    message WorkspaceProvision {
+        bytes state = 1;
+    }
+    message ProjectImport{
+    }
     string job_id = 1;
     string error = 2;
+    oneof type {
+        WorkspaceProvision workspace_provision = 3;
+        ProjectImport project_import = 4;
+    }
 }
 
 // CompletedJob is sent when the provisioner daemon completes a job.
@@ -90,9 +101,8 @@ service ProvisionerDaemon {
     // is non-blocking.
     rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
 
-    // CancelJob indicates a job has been cancelled with
-    // an error message.
-    rpc CancelJob(CancelledJob) returns (Empty);
+    // FailJob indicates a job has failed.
+    rpc FailJob(FailedJob) returns (Empty);
 
     // CompleteJob indicates a job has been completed.
     rpc CompleteJob(CompletedJob) returns (Empty);
