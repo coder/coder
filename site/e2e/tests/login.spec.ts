@@ -1,7 +1,6 @@
 import { test } from "@playwright/test"
-import { SignInPage } from "../pom"
+import { ProjectsPage, SignInPage } from "../pom"
 import { email, password } from "../constants"
-import ProjectPage from "../../pages/projects/[organization]/[project]"
 
 test("Login takes user to /projects", async ({ baseURL, page }) => {
   await page.goto(baseURL + "/", { waitUntil: "networkidle" })
@@ -10,7 +9,7 @@ test("Login takes user to /projects", async ({ baseURL, page }) => {
   const signInPage = new SignInPage(baseURL, page)
   await signInPage.submitBuiltInAuthentication(email, password)
 
-  const projectsPage = new ProjectPage(baseURL, page)
+  const projectsPage = new ProjectsPage(baseURL, page)
   await page.waitForNavigation({ url: projectsPage.url, waitUntil: "networkidle" })
 
   await page.waitForSelector("text=Projects")

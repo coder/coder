@@ -1,7 +1,7 @@
 import { Page } from "@playwright/test"
 
 export abstract class BasePom {
-  abstract readonly url: string
+  abstract get url(): string
 
   protected page: Page
   protected baseURL: string | undefined
