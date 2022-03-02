@@ -37,7 +37,7 @@ jobs:
     name: style/lint/golangci
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-go@v2
         with:
           go-version: "^1.17"
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache Node
         id: cache-node
@@ -73,7 +73,7 @@ jobs:
     name: "style/gen"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: true
@@ -125,7 +125,7 @@ jobs:
           - macos-latest
           - windows-2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions/setup-go@v2
         with:
@@ -197,7 +197,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
@@ -233,7 +233,7 @@ jobs:
     name: "test/js"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Cache Node
         id: cache-node
