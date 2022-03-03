@@ -157,3 +157,16 @@ func (c *Client) WorkspaceProvisionJobLogsBefore(ctx context.Context, organizati
 func (c *Client) WorkspaceProvisionJobLogsAfter(ctx context.Context, organization string, job uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
 	return c.provisionerJobLogsAfter(ctx, "workspaceprovision", organization, job, after)
 }
+
+func (c *Client) WorkspaceProvisionJobResources(ctx context.Context, organization string, job uuid.UUID) ([]coderd.ProvisionerJobResource, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceprovision/%s/%s/resources", organization, job), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var resources []coderd.ProvisionerJobResource
+	return resources, json.NewDecoder(res.Body).Decode(&resources)
+}

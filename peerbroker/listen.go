@@ -22,7 +22,8 @@ import (
 func Listen(connListener net.Listener, opts *peer.ConnOptions) (*Listener, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	listener := &Listener{
-		connectionChannel: make(chan *peer.Conn),
+		connectionChannel:  make(chan *peer.Conn),
+		connectionListener: connListener,
 
 		closeFunc: cancelFunc,
 		closed:    make(chan struct{}),
@@ -47,7 +48,8 @@ func Listen(connListener net.Listener, opts *peer.ConnOptions) (*Listener, error
 }
 
 type Listener struct {
-	connectionChannel chan *peer.Conn
+	connectionChannel  chan *peer.Conn
+	connectionListener net.Listener
 
 	closeFunc  context.CancelFunc
 	closed     chan struct{}
@@ -79,6 +81,7 @@ func (l *Listener) closeWithError(err error) error {
 		return l.closeError
 	}
 
+	_ = l.connectionListener.Close()
 	l.closeError = err
 	l.closeFunc()
 	close(l.closed)

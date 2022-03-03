@@ -508,6 +508,19 @@ func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return q.provisionerDaemons, nil
 }
 
+func (q *fakeQuerier) GetProvisionerJobAgentByAuthToken(_ context.Context, authToken uuid.UUID) (database.ProvisionerJobAgent, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := len(q.provisionerJobAgent) - 1; i >= 0; i-- {
+		agent := q.provisionerJobAgent[i]
+		if agent.AuthToken.String() == authToken.String() {
+			return agent, nil
+		}
+	}
+	return database.ProvisionerJobAgent{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetProvisionerJobAgentByInstanceID(_ context.Context, instanceID string) (database.ProvisionerJobAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

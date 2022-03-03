@@ -26,6 +26,7 @@ type querier interface {
 	GetProjectsByOrganizationIDs(ctx context.Context, ids []string) ([]Project, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
+	GetProvisionerJobAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (ProvisionerJobAgent, error)
 	GetProvisionerJobAgentByInstanceID(ctx context.Context, authInstanceID string) (ProvisionerJobAgent, error)
 	GetProvisionerJobAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJobAgent, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)

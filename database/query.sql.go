@@ -617,6 +617,33 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
+const getProvisionerJobAgentByAuthToken = `-- name: GetProvisionerJobAgentByAuthToken :one
+SELECT
+  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+FROM
+  provisioner_job_agent
+WHERE
+  auth_token = $1
+`
+
+func (q *sqlQuerier) GetProvisionerJobAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (ProvisionerJobAgent, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobAgentByAuthToken, authToken)
+	var i ProvisionerJobAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.EnvironmentVariables,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
 const getProvisionerJobAgentByInstanceID = `-- name: GetProvisionerJobAgentByInstanceID :one
 SELECT
   id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata

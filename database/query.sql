@@ -226,6 +226,14 @@ SELECT
 FROM
   provisioner_daemon;
 
+-- name: GetProvisionerJobAgentByAuthToken :one
+SELECT
+  *
+FROM
+  provisioner_job_agent
+WHERE
+  auth_token = $1;
+
 -- name: GetProvisionerJobAgentByInstanceID :one
 SELECT
   *

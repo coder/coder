@@ -1,0 +1,56 @@
+package cli
+
+import (
+	"net/url"
+	"os"
+
+	"github.com/coder/coder/agent"
+	"github.com/coder/coder/codersdk"
+	"github.com/powersj/whatsthis/pkg/cloud"
+	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+)
+
+func workspaceAgent() *cobra.Command {
+	return &cobra.Command{
+		Use: "agent",
+		// This command isn't useful for users, and seems
+		// more likely to confuse.
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			coderURLRaw, exists := os.LookupEnv("CODER_URL")
+			if !exists {
+				return xerrors.New("CODER_URL must be set")
+			}
+			coderURL, err := url.Parse(coderURLRaw)
+			if err != nil {
+				return xerrors.Errorf("parse %q: %w", coderURLRaw, err)
+			}
+			client := codersdk.New(coderURL)
+			sessionToken, exists := os.LookupEnv("CODER_TOKEN")
+			if !exists {
+				probe, err := cloud.New()
+				if err != nil {
+					return xerrors.Errorf("probe cloud: %w", err)
+				}
+				if !probe.Detected {
+					return xerrors.Errorf("no valid authentication method found; set \"CODER_TOKEN\"")
+				}
+				switch {
+				case probe.GCP():
+					response, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(cmd.Context(), "", nil)
+					if err != nil {
+						return xerrors.Errorf("authenticate workspace with gcp: %w", err)
+					}
+					sessionToken = response.SessionToken
+				default:
+					return xerrors.Errorf("%q authentication not supported; set \"CODER_TOKEN\" instead", probe.Name)
+				}
+			}
+			client.SessionToken = sessionToken
+			closer := agent.New(client.WorkspaceAgentServe, nil)
+			<-cmd.Context().Done()
+			return closer.Close()
+		},
+	}
+}

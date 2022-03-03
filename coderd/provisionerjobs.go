@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -64,6 +65,7 @@ type ProvisionerJobResource struct {
 	Transition database.WorkspaceTransition `json:"workspace_transition"`
 	Type       string                       `json:"type"`
 	Name       string                       `json:"name"`
+	Agent      *ProvisionerJobAgent         `json:"agent,omitempty"`
 }
 
 type ProvisionerJobAgent struct {
@@ -238,6 +240,49 @@ func (api *api) provisionerJobLogsByID(rw http.ResponseWriter, r *http.Request) 
 	}
 }
 
+func (api *api) provisionerJobResourcesByID(rw http.ResponseWriter, r *http.Request) {
+	job := httpmw.ProvisionerJobParam(r)
+	if !convertProvisionerJob(job).Status.Completed() {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	resources, err := api.Database.GetProvisionerJobResourcesByJobID(r.Context(), job.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job resources: %s", err),
+		})
+		return
+	}
+	apiResources := make([]ProvisionerJobResource, 0)
+	for _, resource := range resources {
+		if !resource.AgentID.Valid {
+			apiResources = append(apiResources, convertProvisionerJobResource(resource, nil))
+			continue
+		}
+		// TODO: This should be combined.
+		agents, err := api.Database.GetProvisionerJobAgentsByResourceIDs(r.Context(), []uuid.UUID{resource.ID})
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get provisioner job agent: %s", err),
+			})
+			return
+		}
+		agent := agents[0]
+		apiAgent, err := convertProvisionerJobAgent(agent)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("convert provisioner job agent: %s", err),
+			})
+			return
+		}
+		apiResources = append(apiResources, convertProvisionerJobResource(resource, &apiAgent))
+	}
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiResources)
+}
+
 func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) ProvisionerJobLog {
 	return ProvisionerJobLog{
 		ID:        provisionerJobLog.ID,
@@ -289,6 +334,37 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 	}
 
 	return job
+}
+
+func convertProvisionerJobResource(resource database.ProvisionerJobResource, agent *ProvisionerJobAgent) ProvisionerJobResource {
+	return ProvisionerJobResource{
+		ID:         resource.ID,
+		CreatedAt:  resource.CreatedAt,
+		JobID:      resource.JobID,
+		Transition: resource.Transition,
+		Type:       resource.Type,
+		Name:       resource.Name,
+		Agent:      agent,
+	}
+}
+
+func convertProvisionerJobAgent(agent database.ProvisionerJobAgent) (ProvisionerJobAgent, error) {
+	var envs map[string]string
+	if agent.EnvironmentVariables.Valid {
+		err := json.Unmarshal(agent.EnvironmentVariables.RawMessage, &envs)
+		if err != nil {
+			return ProvisionerJobAgent{}, xerrors.Errorf("unmarshal: %w", err)
+		}
+	}
+	return ProvisionerJobAgent{
+		ID:                   agent.ID,
+		CreatedAt:            agent.CreatedAt,
+		UpdatedAt:            agent.UpdatedAt.Time,
+		ResourceID:           agent.ResourceID,
+		InstanceID:           agent.AuthInstanceID.String,
+		StartupScript:        agent.StartupScript.String,
+		EnvironmentVariables: envs,
+	}, nil
 }
 
 func provisionerJobLogsChannel(jobID uuid.UUID) string {

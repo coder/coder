@@ -125,7 +125,7 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 		require.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(client.ProvisionerDaemonClient, &provisionerd.Options{
+	closer := provisionerd.New(client.ProvisionerDaemonServe, &provisionerd.Options{
 		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:   50 * time.Millisecond,
 		UpdateInterval: 50 * time.Millisecond,

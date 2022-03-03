@@ -116,6 +116,10 @@ func New(options *Options) (http.Handler, func()) {
 			r.Route("/authenticate", func(r chi.Router) {
 				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
 			})
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Get("/serve", api.workspaceAgentServe)
+			})
 		})
 
 		r.Route("/upload", func(r chi.Router) {
@@ -134,7 +138,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.provisionerJobByID)
 				r.Get("/schemas", api.projectImportJobSchemasByID)
 				r.Get("/parameters", api.projectImportJobParametersByID)
-				r.Get("/resources", api.projectImportJobResourcesByID)
+				r.Get("/resources", api.provisionerJobResourcesByID)
 				r.Get("/logs", api.provisionerJobLogsByID)
 			})
 		})
@@ -148,6 +152,13 @@ func New(options *Options) (http.Handler, func()) {
 				r.Use(httpmw.ExtractProvisionerJobParam(options.Database))
 				r.Get("/", api.provisionerJobByID)
 				r.Get("/logs", api.provisionerJobLogsByID)
+				r.Route("/resources", func(r chi.Router) {
+					r.Get("/", api.provisionerJobResourcesByID)
+					r.Route("/{workspaceresource}", func(r chi.Router) {
+						r.Use(httpmw.ExtractWorkspaceResourceParam(options.Database))
+						r.Get("/agent", api.workspaceAgentConnectByResource)
+					})
+				})
 			})
 		})
 

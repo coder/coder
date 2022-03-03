@@ -154,29 +154,3 @@ func (api *api) projectImportJobParametersByID(rw http.ResponseWriter, r *http.R
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, values)
 }
-
-// Returns resources for an import job by ID.
-func (api *api) projectImportJobResourcesByID(rw http.ResponseWriter, r *http.Request) {
-	job := httpmw.ProvisionerJobParam(r)
-	if !convertProvisionerJob(job).Status.Completed() {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "Job hasn't completed!",
-		})
-		return
-	}
-	resources, err := api.Database.GetProvisionerJobResourcesByJobID(r.Context(), job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project import job resources: %s", err),
-		})
-		return
-	}
-	if resources == nil {
-		resources = []database.ProvisionerJobResource{}
-	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, resources)
-}

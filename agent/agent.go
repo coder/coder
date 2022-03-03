@@ -59,9 +59,9 @@ type Options struct {
 	Logger slog.Logger
 }
 
-type Dialer func(ctx context.Context) (*peerbroker.Listener, error)
+type Dialer func(ctx context.Context, options *peer.ConnOptions) (*peerbroker.Listener, error)
 
-func New(dialer Dialer, options *Options) io.Closer {
+func New(dialer Dialer, options *peer.ConnOptions) io.Closer {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &server{
 		clientDialer: dialer,
@@ -75,7 +75,7 @@ func New(dialer Dialer, options *Options) io.Closer {
 
 type server struct {
 	clientDialer Dialer
-	options      *Options
+	options      *peer.ConnOptions
 
 	closeCancel context.CancelFunc
 	closeMutex  sync.Mutex
@@ -249,7 +249,7 @@ func (s *server) run(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		peerListener, err = s.clientDialer(ctx)
+		peerListener, err = s.clientDialer(ctx, s.options)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return

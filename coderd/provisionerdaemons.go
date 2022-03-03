@@ -590,12 +590,19 @@ func insertProvisionerJobResource(ctx context.Context, db database.Store, jobID 
 				Valid:      true,
 			}
 		}
+		authToken := uuid.New()
+		if protoResource.Agent.GetToken() != "" {
+			authToken, err = uuid.Parse(protoResource.Agent.GetToken())
+			if err != nil {
+				return xerrors.Errorf("invalid auth token format; must be uuid: %w", err)
+			}
+		}
 
 		_, err := db.InsertProvisionerJobAgent(ctx, database.InsertProvisionerJobAgentParams{
 			ID:                   resource.AgentID.UUID,
 			CreatedAt:            database.Now(),
 			ResourceID:           resource.ID,
-			AuthToken:            uuid.New(),
+			AuthToken:            authToken,
 			AuthInstanceID:       instanceID,
 			EnvironmentVariables: env,
 			StartupScript: sql.NullString{
