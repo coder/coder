@@ -12,14 +12,15 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"github.com/google/uuid"
+	"github.com/hashicorp/yamux"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/httpmw"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
 )
 
 // AuthenticateWorkspaceAgentUsingGoogleCloudIdentity uses the Google Compute Engine Metadata API to
