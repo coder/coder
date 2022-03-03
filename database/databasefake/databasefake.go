@@ -512,8 +512,7 @@ func (q *fakeQuerier) GetProvisionerJobAgentByAuthToken(_ context.Context, authT
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for i := len(q.provisionerJobAgent) - 1; i >= 0; i-- {
-		agent := q.provisionerJobAgent[i]
+	for _, agent := range q.provisionerJobAgent {
 		if agent.AuthToken.String() == authToken.String() {
 			return agent, nil
 		}
@@ -535,22 +534,16 @@ func (q *fakeQuerier) GetProvisionerJobAgentByInstanceID(_ context.Context, inst
 	return database.ProvisionerJobAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobAgentsByResourceIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJobAgent, error) {
+func (q *fakeQuerier) GetProvisionerJobAgentByResourceID(ctx context.Context, resourceID uuid.UUID) (database.ProvisionerJobAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	agents := make([]database.ProvisionerJobAgent, 0)
 	for _, agent := range q.provisionerJobAgent {
-		for _, id := range ids {
-			if agent.ResourceID.String() == id.String() {
-				agents = append(agents, agent)
-			}
+		if agent.ResourceID.String() == resourceID.String() {
+			return agent, nil
 		}
 	}
-	if len(agents) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return agents, nil
+	return database.ProvisionerJobAgent{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
@@ -964,6 +957,21 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg databas
 		daemon.UpdatedAt = arg.UpdatedAt
 		daemon.Provisioners = arg.Provisioners
 		q.provisionerDaemons[index] = daemon
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateProvisionerJobAgentByID(ctx context.Context, arg database.UpdateProvisionerJobAgentByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, agent := range q.provisionerJobAgent {
+		if agent.ID.String() != arg.ID.String() {
+			continue
+		}
+		agent.UpdatedAt = arg.UpdatedAt
+		q.provisionerJobAgent[index] = agent
 		return nil
 	}
 	return sql.ErrNoRows

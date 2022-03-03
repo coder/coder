@@ -673,47 +673,31 @@ func (q *sqlQuerier) GetProvisionerJobAgentByInstanceID(ctx context.Context, aut
 	return i, err
 }
 
-const getProvisionerJobAgentsByResourceIDs = `-- name: GetProvisionerJobAgentsByResourceIDs :many
+const getProvisionerJobAgentByResourceID = `-- name: GetProvisionerJobAgentByResourceID :one
 SELECT
   id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 FROM
   provisioner_job_agent
 WHERE
-  resource_id = ANY($1 :: uuid [ ])
+  resource_id = $1
 `
 
-func (q *sqlQuerier) GetProvisionerJobAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJobAgent, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobAgentsByResourceIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProvisionerJobAgent
-	for rows.Next() {
-		var i ProvisionerJobAgent
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ResourceID,
-			&i.AuthToken,
-			&i.AuthInstanceID,
-			&i.EnvironmentVariables,
-			&i.StartupScript,
-			&i.InstanceMetadata,
-			&i.ResourceMetadata,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *sqlQuerier) GetProvisionerJobAgentByResourceID(ctx context.Context, resourceID uuid.UUID) (ProvisionerJobAgent, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobAgentByResourceID, resourceID)
+	var i ProvisionerJobAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.EnvironmentVariables,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
@@ -2231,6 +2215,25 @@ type UpdateProvisionerDaemonByIDParams struct {
 
 func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
+	return err
+}
+
+const updateProvisionerJobAgentByID = `-- name: UpdateProvisionerJobAgentByID :exec
+UPDATE
+  provisioner_job_agent
+SET
+  updated_at = $2
+WHERE
+  id = $1
+`
+
+type UpdateProvisionerJobAgentByIDParams struct {
+	ID        uuid.UUID    `db:"id" json:"id"`
+	UpdatedAt sql.NullTime `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateProvisionerJobAgentByID(ctx context.Context, arg UpdateProvisionerJobAgentByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProvisionerJobAgentByID, arg.ID, arg.UpdatedAt)
 	return err
 }
 

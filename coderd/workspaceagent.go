@@ -1,14 +1,16 @@
 package coderd
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"nhooyr.io/websocket"
 
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 	"github.com/coder/coder/peerbroker"
@@ -27,14 +29,13 @@ func (api *api) workspaceAgentConnectByResource(rw http.ResponseWriter, r *http.
 		})
 		return
 	}
-	agents, err := api.Database.GetProvisionerJobAgentsByResourceIDs(r.Context(), []uuid.UUID{resource.ID})
+	agent, err := api.Database.GetProvisionerJobAgentByResourceID(r.Context(), resource.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job agent: %s", err),
 		})
 		return
 	}
-	agent := agents[0]
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})
@@ -99,5 +100,35 @@ func (api *api) workspaceAgentServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closer.Close()
-	<-session.CloseChan()
+	err = api.Database.UpdateProvisionerJobAgentByID(r.Context(), database.UpdateProvisionerJobAgentByIDParams{
+		ID: agent.ID,
+		UpdatedAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-session.CloseChan():
+			return
+		case <-ticker.C:
+			err = api.Database.UpdateProvisionerJobAgentByID(r.Context(), database.UpdateProvisionerJobAgentByIDParams{
+				ID: agent.ID,
+				UpdatedAt: sql.NullTime{
+					Time:  database.Now(),
+					Valid: true,
+				},
+			})
+			if err != nil {
+				_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+				return
+			}
+		}
+	}
 }

@@ -354,13 +354,13 @@ FROM
 WHERE
   job_id = $1;
 
--- name: GetProvisionerJobAgentsByResourceIDs :many
+-- name: GetProvisionerJobAgentByResourceID :one
 SELECT
   *
 FROM
   provisioner_job_agent
 WHERE
-  resource_id = ANY(@ids :: uuid [ ]);
+  resource_id = $1;
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -657,6 +657,14 @@ SET
   completed_at = $3,
   cancelled_at = $4,
   error = $5
+WHERE
+  id = $1;
+
+-- name: UpdateProvisionerJobAgentByID :exec
+UPDATE
+  provisioner_job_agent
+SET
+  updated_at = $2
 WHERE
   id = $1;
 

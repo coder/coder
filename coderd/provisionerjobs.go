@@ -261,15 +261,54 @@ func (api *api) provisionerJobResourcesByID(rw http.ResponseWriter, r *http.Requ
 			apiResources = append(apiResources, convertProvisionerJobResource(resource, nil))
 			continue
 		}
-		// TODO: This should be combined.
-		agents, err := api.Database.GetProvisionerJobAgentsByResourceIDs(r.Context(), []uuid.UUID{resource.ID})
+		agent, err := api.Database.GetProvisionerJobAgentByResourceID(r.Context(), resource.ID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get provisioner job agent: %s", err),
 			})
 			return
 		}
-		agent := agents[0]
+		apiAgent, err := convertProvisionerJobAgent(agent)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("convert provisioner job agent: %s", err),
+			})
+			return
+		}
+		apiResources = append(apiResources, convertProvisionerJobResource(resource, &apiAgent))
+	}
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiResources)
+}
+
+func (api *api) provisionerJobResourceByID(rw http.ResponseWriter, r *http.Request) {
+	job := httpmw.ProvisionerJobParam(r)
+	if !convertProvisionerJob(job).Status.Completed() {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	resources, err := api.Database.GetProvisionerJobResourcesByJobID(r.Context(), job.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job resources: %s", err),
+		})
+		return
+	}
+	apiResources := make([]ProvisionerJobResource, 0)
+	for _, resource := range resources {
+		if !resource.AgentID.Valid {
+			apiResources = append(apiResources, convertProvisionerJobResource(resource, nil))
+			continue
+		}
+		agent, err := api.Database.GetProvisionerJobAgentByResourceID(r.Context(), resource.ID)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get provisioner job agent: %s", err),
+			})
+			return
+		}
 		apiAgent, err := convertProvisionerJobAgent(agent)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
