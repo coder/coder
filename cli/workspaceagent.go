@@ -4,11 +4,12 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/codersdk"
 	"github.com/powersj/whatsthis/pkg/cloud"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/agent"
+	"github.com/coder/coder/codersdk"
 )
 
 func workspaceAgent() *cobra.Command {

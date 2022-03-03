@@ -156,7 +156,6 @@ func New(options *Options) (http.Handler, func()) {
 					r.Get("/", api.provisionerJobResourcesByID)
 					r.Route("/{workspaceresource}", func(r chi.Router) {
 						r.Use(httpmw.ExtractWorkspaceResourceParam(options.Database))
-						r.Get("/", api.provisionerJobResourceByID)
 						r.Get("/agent", api.workspaceAgentConnectByResource)
 					})
 				})

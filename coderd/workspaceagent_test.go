@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
@@ -16,8 +19,6 @@ import (
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWorkspaceAgentServe(t *testing.T) {

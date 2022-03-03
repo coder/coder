@@ -534,7 +534,7 @@ func (q *fakeQuerier) GetProvisionerJobAgentByInstanceID(_ context.Context, inst
 	return database.ProvisionerJobAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobAgentByResourceID(ctx context.Context, resourceID uuid.UUID) (database.ProvisionerJobAgent, error) {
+func (q *fakeQuerier) GetProvisionerJobAgentByResourceID(_ context.Context, resourceID uuid.UUID) (database.ProvisionerJobAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -962,7 +962,7 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg databas
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerJobAgentByID(ctx context.Context, arg database.UpdateProvisionerJobAgentByIDParams) error {
+func (q *fakeQuerier) UpdateProvisionerJobAgentByID(_ context.Context, arg database.UpdateProvisionerJobAgentByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
