@@ -4,12 +4,15 @@ import (
 	"net/url"
 	"os"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/powersj/whatsthis/pkg/cloud"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/peer"
 )
 
 func workspaceAgent() *cobra.Command {
@@ -49,7 +52,9 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 			client.SessionToken = sessionToken
-			closer := agent.New(client.WorkspaceAgentServe, nil)
+			closer := agent.New(client.WorkspaceAgentServe, &peer.ConnOptions{
+				Logger: slog.Make(sloghuman.Sink(cmd.OutOrStdout())).Leveled(slog.LevelDebug),
+			})
 			<-cmd.Context().Done()
 			return closer.Close()
 		},

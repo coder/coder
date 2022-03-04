@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+	"google.golang.org/api/idtoken"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -34,14 +35,19 @@ func Root() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			accessURL := &url.URL{
-				Scheme: "http",
-				Host:   address,
+				Scheme: "https",
+				Host:   "momentum-finals-representation-failed.trycloudflare.com",
+			}
+			googleTokenValidator, err := idtoken.NewValidator(cmd.Context())
+			if err != nil {
+				return xerrors.Errorf("create google token validator: %w", err)
 			}
 			handler, closeCoderd := coderd.New(&coderd.Options{
-				AccessURL: accessURL,
-				Logger:    logger,
-				Database:  databasefake.New(),
-				Pubsub:    database.NewPubsubInMemory(),
+				AccessURL:            accessURL,
+				Logger:               logger,
+				Database:             databasefake.New(),
+				Pubsub:               database.NewPubsubInMemory(),
+				GoogleTokenValidator: googleTokenValidator,
 			})
 
 			listener, err := net.Listen("tcp", address)

@@ -135,12 +135,7 @@ func (s *server) init(ctx context.Context) {
 		},
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
-				Config: gossh.Config{
-					// "arcfour" is the fastest SSH cipher. We prioritize throughput
-					// over encryption here, because the WebRTC connection is already
-					// encrypted. If possible, we'd disable encryption entirely here.
-					Ciphers: []string{"arcfour"},
-				},
+				Config:       gossh.Config{},
 				NoClientAuth: true,
 			}
 		},

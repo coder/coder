@@ -30,7 +30,7 @@ BINARY_LOCATION=$(mktemp -d)/coder
 curl -fsSL ${DOWNLOAD_URL} -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_URL="${ACCESS_URL}"
-exec $BINARY_LOCATION agent
+exec $BINARY_LOCATION workspaces agent
 `,
 		},
 		"darwin": {
@@ -41,7 +41,7 @@ BINARY_LOCATION=$(mktemp -d)/coder
 curl -fsSL ${DOWNLOAD_URL} -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_URL="${ACCESS_URL}"
-exec $BINARY_LOCATION agent
+exec $BINARY_LOCATION workspaces agent
 `,
 		},
 	}

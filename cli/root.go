@@ -68,6 +68,7 @@ func Root() *cobra.Command {
 	cmd.AddCommand(projects())
 	cmd.AddCommand(workspaces())
 	cmd.AddCommand(users())
+	cmd.AddCommand(ssh())
 
 	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coder"), "Path to the global `coder` config directory")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")

@@ -108,7 +108,9 @@ type peerBrokerService struct {
 // NegotiateConnection negotiates a WebRTC connection.
 func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateConnectionStream) error {
 	// Start with no ICE servers. They can be sent by the client if provided.
-	peerConn, err := peer.Server([]webrtc.ICEServer{}, b.connOptions)
+	peerConn, err := peer.Server([]webrtc.ICEServer{{
+		URLs: []string{"stun:stun.l.google.com:19302"},
+	}}, b.connOptions)
 	if err != nil {
 		return xerrors.Errorf("create peer connection: %w", err)
 	}
