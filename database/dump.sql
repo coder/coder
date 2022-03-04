@@ -165,12 +165,12 @@ CREATE TABLE project (
 
 CREATE TABLE project_version (
     id uuid NOT NULL,
-    project_id uuid NOT NULL,
+    project_id uuid,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     description character varying(1048576) NOT NULL,
-    import_job_id uuid NOT NULL
+    job_id uuid NOT NULL
 );
 
 CREATE TABLE provisioner_daemon (

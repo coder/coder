@@ -60,34 +60,108 @@ func New(options *Options) (http.Handler, func()) {
 				r.Post("/keys", api.postKeyForUser)
 			})
 		})
-		r.Route("/projects", func(r chi.Router) {
+		r.Route("/organization/{organization}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractOrganizationParam(options.Database),
 			)
+			r.Route("/projects", func(r chi.Router) {
+				r.Post("/", api.postProjectsByOrganization)
+				r.Get("/", api.projectsByOrganization)
+				r.Get("/{projectname}", api.projectByOrganizationAndName)
+			})
+		})
+		r.Route("/project/{project}", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractProjectParam(options.Database),
+			)
+			r.Get("/", api.projectByOrganization)
+			r.Get("/workspaces", api.workspacesByProject)
+			r.Route("/parameters", func(r chi.Router) {
+				r.Get("/", api.parametersByProject)
+				r.Post("/", api.postParametersByProject)
+			})
+			r.Route("/versions", func(r chi.Router) {
+				r.Get("/", api.projectVersionsByOrganization)
+				r.Post("/", api.postProjectVersionByOrganization)
+				r.Route("/{projectversion}", func(r chi.Router) {
+					r.Use(httpmw.ExtractProjectVersionParam(api.Database))
+					r.Get("/", api.projectVersionByOrganizationAndName)
+				})
+			})
 			r.Get("/", api.projects)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationParam(options.Database))
 				r.Get("/", api.projectsByOrganization)
 				r.Post("/", api.postProjectsByOrganization)
 				r.Route("/{project}", func(r chi.Router) {
-					r.Use(httpmw.ExtractProjectParam(options.Database))
-					r.Get("/", api.projectByOrganization)
-					r.Get("/workspaces", api.workspacesByProject)
-					r.Route("/parameters", func(r chi.Router) {
-						r.Get("/", api.parametersByProject)
-						r.Post("/", api.postParametersByProject)
-					})
-					r.Route("/versions", func(r chi.Router) {
-						r.Get("/", api.projectVersionsByOrganization)
-						r.Post("/", api.postProjectVersionByOrganization)
-						r.Route("/{projectversion}", func(r chi.Router) {
-							r.Use(httpmw.ExtractProjectVersionParam(api.Database))
-							r.Get("/", api.projectVersionByOrganizationAndName)
-						})
-					})
+
 				})
 			})
 		})
+
+		// Upload - Uploads a file.
+
+		// CreateProject(organization) - Creates a project with a version.
+		// ImportProjectVersion(organization, project?) - If a project is provided, it's attached. If a project isn't, it's detached.
+		// ProjectVersions - Returns a list of project versions by project.
+		// ProjectVersionSchema(projectversion) - Return parameter schemas for a job.
+		// ProjectVersionParameters(projectversion) - Returns computed parameters for a job.
+		// ProjectVersionParameters(projectversion) - Returns computed parameters for a job.
+		// ProjectVersionLogs(projectversion) - Returns logs for an executing project version.
+		// ProjectVersionLogsAfter(projectversion, timestamp) - Streams logs that occur after a specific timestamp.
+		// ProjectVersionResources(projectversion, resources) - Returns resources to be created for a project version.
+
+		// CreateWorkspace - Creates a workspace for a project.
+		// ProvisionWorkspace - Creates a new build.
+		// Workspaces - Returns all workspaces the user has access to.
+		// WorkspacesByProject - Returns workspaces inside a project.
+		// WorkspaceByName - Returns a workspace by name.
+		// Workspace - Returns a single workspace by ID.
+		// WorkspaceProvisions - Returns a timeline of provisions for a workspace.
+		// WorkspaceProvisionResources - List resources for a specific workspace version.
+		// WorkspaceProvisionResource - Get a specific resource.
+		// WorkspaceProvisionLogs - Returns a stream of logs.
+		// WorkspaceProvisionLogsAfter - Returns a stream of logs after.
+		// DialWorkspaceAgent - Creates the connection to a workspace agent.
+		// ListenWorkspaceAgent - Listens to the workspace agent as the ID.
+		// AuthWorkspaceAgentWithGoogleInstanceIdentity - Exchanges SA for token.
+
+		// User - Returns the currently authenticated user.
+		// HasFirstUser - Returns whether the first user has been created.
+		// CreateFirstUser - Creates a new user and the organization provided.
+		// CreateUser - Creates a new user and adds them to the organization.
+		// CreateAPIKey - Creates a new API key.
+		// LoginWithPassword - Authenticates with email and password.
+		// Logout - Should clear the session token.
+
+		// ProvisionerDaemons
+		// ListenProvisionerDaemon
+
+		// OrganizationsByUser - Returns organizations by user.
+
+		r.Route("/agent", func(r chi.Router) {
+
+		})
+
+		r.Route("/daemon", func(r chi.Router) {
+
+		})
+
+		r.Route("/job", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Post("/", api.postProjectImportByOrganization)
+		})
+
+		r.Route("/provisioner/job/{job}/resources", func(r chi.Router) {
+
+		})
+
+		// ProjectVersionLogs
 
 		// Listing operations specific to resources should go under
 		// their respective routes. eg. /orgs/<name>/workspaces

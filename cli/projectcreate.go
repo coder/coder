@@ -133,7 +133,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.UploadFile(cmd.Context(), codersdk.ContentTypeTar, tarData)
+	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, tarData)
 	if err != nil {
 		return nil, err
 	}

@@ -344,13 +344,13 @@ type Project struct {
 }
 
 type ProjectVersion struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	ImportJobID uuid.UUID `db:"import_job_id" json:"import_job_id"`
+	ID          uuid.UUID     `db:"id" json:"id"`
+	ProjectID   uuid.NullUUID `db:"project_id" json:"project_id"`
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+	Name        string        `db:"name" json:"name"`
+	Description string        `db:"description" json:"description"`
+	JobID       uuid.UUID     `db:"job_id" json:"job_id"`
 }
 
 type ProvisionerDaemon struct {

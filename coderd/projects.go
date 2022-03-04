@@ -97,37 +97,6 @@ func (api *api) projects(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertProjects(projects, workspaceCounts))
 }
 
-// Lists all projects in an organization.
-func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) {
-	organization := httpmw.OrganizationParam(r)
-	projects, err := api.Database.GetProjectsByOrganizationIDs(r.Context(), []string{organization.ID})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get projects: %s", err.Error()),
-		})
-		return
-	}
-	projectIDs := make([]uuid.UUID, 0, len(projects))
-	for _, project := range projects {
-		projectIDs = append(projectIDs, project.ID)
-	}
-	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), projectIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
-		})
-		return
-	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertProjects(projects, workspaceCounts))
-}
-
 // Create a new project in an organization.
 func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createProject CreateProjectRequest
@@ -184,12 +153,12 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert project: %s", err)
 		}
 		_, err = db.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
-			ID:          projectVersionID,
-			ProjectID:   dbProject.ID,
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-			Name:        namesgenerator.GetRandomName(1),
-			ImportJobID: importJob.ID,
+			ID:        projectVersionID,
+			ProjectID: dbProject.ID,
+			CreatedAt: database.Now(),
+			UpdatedAt: database.Now(),
+			Name:      namesgenerator.GetRandomName(1),
+			JobID:     importJob.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert project version: %s", err)
@@ -271,6 +240,36 @@ func (api *api) parametersByProject(rw http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiParameterValues)
+}
+
+// Returns all workspaces for a specific project.
+func (api *api) workspacesByProject(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	project := httpmw.ProjectParam(r)
+	workspaces, err := api.Database.GetWorkspacesByProjectAndUserID(r.Context(), database.GetWorkspacesByProjectAndUserIDParams{
+		OwnerID:   apiKey.UserID,
+		ProjectID: project.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces: %s", err),
+		})
+		return
+	}
+
+	apiWorkspaces := make([]Workspace, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace))
+	}
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiWorkspaces)
+}
+
+func (api *api) workspaceByProjectAndName(rw http.ResponseWriter, r *http.Request) {
+
 }
 
 func convertProjects(projects []database.Project, workspaceCounts []database.GetWorkspaceOwnerCountsByProjectIDsRow) []Project {

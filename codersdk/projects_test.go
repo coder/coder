@@ -17,7 +17,7 @@ func TestProjects(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.Projects(context.Background(), "")
+		_, err := client.ProjectsByOrganization(context.Background(), uuid.New())
 		require.Error(t, err)
 	})
 
@@ -25,7 +25,7 @@ func TestProjects(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateInitialUser(t, client)
-		_, err := client.Projects(context.Background(), "")
+		_, err := client.ProjectsByOrganization(context.Background(), "")
 		require.NoError(t, err)
 	})
 }

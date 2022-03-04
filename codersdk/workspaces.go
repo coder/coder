@@ -13,12 +13,10 @@ import (
 )
 
 // Workspaces returns all workspaces the authenticated session has access to.
-// If owner is specified, all workspaces for an organization will be returned.
-// If owner is empty, all workspaces the caller has access to will be returned.
-func (c *Client) Workspaces(ctx context.Context, user string) ([]coderd.Workspace, error) {
-	route := "/api/v2/workspaces"
-	if user != "" {
-		route += fmt.Sprintf("/%s", user)
+func (c *Client) WorkspacesByUser(ctx context.Context, user uuid.UUID) ([]coderd.Workspace, error) {
+	route := fmt.Sprintf("/api/v2/user/%s/workspaces", user)
+	if user == Me {
+		route = fmt.Sprintf("/api/v2/user/me/workspaces", user)
 	}
 	res, err := c.request(ctx, http.MethodGet, route, nil)
 	if err != nil {
@@ -33,8 +31,8 @@ func (c *Client) Workspaces(ctx context.Context, user string) ([]coderd.Workspac
 }
 
 // WorkspacesByProject lists all workspaces for a specific project.
-func (c *Client) WorkspacesByProject(ctx context.Context, organization, project string) ([]coderd.Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/%s/workspaces", organization, project), nil)
+func (c *Client) WorkspacesByProject(ctx context.Context, project uuid.UUID) ([]coderd.Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/workspaces", project), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -46,12 +44,14 @@ func (c *Client) WorkspacesByProject(ctx context.Context, organization, project 
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
+// WorkspaceByName returns a workspace for a user that matches the case-insensitive name.
+func (c *Client) WorkspaceByName(ctx context.Context, user uuid.UUID, name string) (coderd.Workspace, error) {
+	return coderd.Workspace{}, nil
+}
+
 // Workspace returns a single workspace by owner and name.
-func (c *Client) Workspace(ctx context.Context, owner, name string) (coderd.Workspace, error) {
-	if owner == "" {
-		owner = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s", owner, name), nil)
+func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (coderd.Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace/%s", id), nil)
 	if err != nil {
 		return coderd.Workspace{}, err
 	}
@@ -61,6 +61,16 @@ func (c *Client) Workspace(ctx context.Context, owner, name string) (coderd.Work
 	}
 	var workspace coderd.Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// WorkspaceProvisions returns a historical list of provision operations for a workspace.
+func (c *Client) WorkspaceProvisions(ctx context.Context, workspace uuid.UUID) ([]coderd.WorkspaceHistory, error) {
+	return nil, nil
+}
+
+// WorkspaceProvision returns
+func (c *Client) WorkspaceVersion(ctx context.Context, provision uuid.UUID) (coderd.WorkspaceHistory, error) {
+	return coderd.WorkspaceHistory{}, nil
 }
 
 // ListWorkspaceHistory returns historical data for workspace builds.

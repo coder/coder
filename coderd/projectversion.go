@@ -18,12 +18,12 @@ import (
 
 // ProjectVersion represents a single version of a project.
 type ProjectVersion struct {
-	ID          uuid.UUID `json:"id"`
-	ProjectID   uuid.UUID `json:"project_id"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Name        string    `json:"name"`
-	ImportJobID uuid.UUID `json:"import_job_id"`
+	ID        uuid.UUID  `json:"id"`
+	ProjectID *uuid.UUID `json:"project_id,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	Name      string     `json:"name"`
+	JobID     uuid.UUID  `json:"import_job_id"`
 }
 
 // CreateProjectVersionRequest enables callers to create a new Project Version.
@@ -103,11 +103,11 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 
 func convertProjectVersion(version database.ProjectVersion) ProjectVersion {
 	return ProjectVersion{
-		ID:          version.ID,
-		ProjectID:   version.ProjectID,
-		CreatedAt:   version.CreatedAt,
-		UpdatedAt:   version.UpdatedAt,
-		Name:        version.Name,
-		ImportJobID: version.ImportJobID,
+		ID:        version.ID,
+		ProjectID: version.ProjectID,
+		CreatedAt: version.CreatedAt,
+		UpdatedAt: version.UpdatedAt,
+		Name:      version.Name,
+		JobID:     version.ImportJobID,
 	}
 }

@@ -23,11 +23,11 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-// AuthenticateWorkspaceAgentUsingGoogleCloudIdentity uses the Google Compute Engine Metadata API to
+// AuthWorkspaceAgentWithGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
 // fetch a signed JWT, and exchange it for a session token for a workspace agent.
 //
 // The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(ctx context.Context, serviceAccount string, gcpClient *metadata.Client) (coderd.WorkspaceAgentAuthenticateResponse, error) {
+func (c *Client) AuthWorkspaceAgentWithGoogleInstanceIdentity(ctx context.Context, serviceAccount string, gcpClient *metadata.Client) (coderd.WorkspaceAgentAuthenticateResponse, error) {
 	if serviceAccount == "" {
 		// This is the default name specified by Google.
 		serviceAccount = "default"
@@ -54,8 +54,9 @@ func (c *Client) AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(ctx context.
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) WorkspaceAgentConnect(ctx context.Context, organization string, job, resource uuid.UUID) (proto.DRPCPeerBrokerClient, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceprovision/%s/%s/resources/%s/agent", organization, job.String(), resource.String()))
+// DialWorkspaceAgent creates a connection to the specified resource.
+func (c *Client) DialWorkspaceAgent(ctx context.Context, resource uuid.UUID) (proto.DRPCPeerBrokerClient, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceresource/%s/dial", resource.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
@@ -90,8 +91,10 @@ func (c *Client) WorkspaceAgentConnect(ctx context.Context, organization string,
 	return proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), nil
 }
 
-func (c *Client) WorkspaceAgentServe(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
-	serverURL, err := c.URL.Parse("/api/v2/workspaceagent/serve")
+// ListenWorkspaceAgent connects as a workspace agent.
+// It obtains the agent ID based off the session token.
+func (c *Client) ListenWorkspaceAgent(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
+	serverURL, err := c.URL.Parse("/api/v2/workspaceagent/listen")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}

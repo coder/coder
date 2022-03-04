@@ -22,7 +22,7 @@ import (
 
 // ProvisionerDaemons returns registered provisionerd instances.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]coderd.ProvisionerDaemon, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/provisioners/daemons", nil)
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/provisionerdaemons", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -34,9 +34,9 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]coderd.ProvisionerDa
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 
-// ProvisionerDaemonServe returns the gRPC service for a provisioner daemon implementation.
-func (c *Client) ProvisionerDaemonServe(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.URL.Parse("/api/v2/provisioners/daemons/serve")
+// ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.
+func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+	serverURL, err := c.URL.Parse("/api/v2/provisionerdaemons/serve")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}

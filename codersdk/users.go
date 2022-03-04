@@ -7,11 +7,16 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd"
+	"github.com/google/uuid"
 )
 
-// HasInitialUser returns whether the initial user has already been
-// created or not.
-func (c *Client) HasInitialUser(ctx context.Context) (bool, error) {
+var (
+	// Me represents an empty UUID, which is used to represent the current entity.
+	Me = uuid.UUID{}
+)
+
+// HasFirstUser returns whether the first user has been created.
+func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 	res, err := c.request(ctx, http.MethodGet, "/api/v2/user", nil)
 	if err != nil {
 		return false, err
@@ -26,10 +31,9 @@ func (c *Client) HasInitialUser(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// CreateInitialUser attempts to create the first user on a Coder deployment.
-// This initial user has superadmin privileges. If >0 users exist, this request
-// will fail.
-func (c *Client) CreateInitialUser(ctx context.Context, req coderd.CreateInitialUserRequest) (coderd.User, error) {
+// CreateFirstUser attempts to create the first user on a Coder deployment.
+// This initial user has superadmin privileges. If >0 users exist, this request will fail.
+func (c *Client) CreateFirstUser(ctx context.Context, req coderd.CreateInitialUserRequest) (coderd.User, error) {
 	res, err := c.request(ctx, http.MethodPost, "/api/v2/user", req)
 	if err != nil {
 		return coderd.User{}, err
@@ -118,21 +122,4 @@ func (c *Client) User(ctx context.Context, id string) (coderd.User, error) {
 	}
 	var user coderd.User
 	return user, json.NewDecoder(res.Body).Decode(&user)
-}
-
-// UserOrganizations fetches organizations a user is part of.
-func (c *Client) UserOrganizations(ctx context.Context, id string) ([]coderd.Organization, error) {
-	if id == "" {
-		id = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", id), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var orgs []coderd.Organization
-	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
 }

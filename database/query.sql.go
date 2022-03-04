@@ -427,7 +427,7 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 
 const getProjectVersionByID = `-- name: GetProjectVersionByID :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, import_job_id
+  id, project_id, created_at, updated_at, name, description, job_id
 FROM
   project_version
 WHERE
@@ -444,14 +444,14 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.ImportJobID,
+		&i.JobID,
 	)
 	return i, err
 }
 
 const getProjectVersionByProjectIDAndName = `-- name: GetProjectVersionByProjectIDAndName :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, import_job_id
+  id, project_id, created_at, updated_at, name, description, job_id
 FROM
   project_version
 WHERE
@@ -460,8 +460,8 @@ WHERE
 `
 
 type GetProjectVersionByProjectIDAndNameParams struct {
-	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
-	Name      string    `db:"name" json:"name"`
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	Name      string        `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, arg GetProjectVersionByProjectIDAndNameParams) (ProjectVersion, error) {
@@ -474,21 +474,21 @@ func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, ar
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.ImportJobID,
+		&i.JobID,
 	)
 	return i, err
 }
 
 const getProjectVersionsByProjectID = `-- name: GetProjectVersionsByProjectID :many
 SELECT
-  id, project_id, created_at, updated_at, name, description, import_job_id
+  id, project_id, created_at, updated_at, name, description, job_id
 FROM
   project_version
 WHERE
   project_id = $1
 `
 
-func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectVersion, error) {
+func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectID uuid.NullUUID) ([]ProjectVersion, error) {
 	rows, err := q.db.QueryContext(ctx, getProjectVersionsByProjectID, projectID)
 	if err != nil {
 		return nil, err
@@ -504,7 +504,7 @@ func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectI
 			&i.UpdatedAt,
 			&i.Name,
 			&i.Description,
-			&i.ImportJobID,
+			&i.JobID,
 		); err != nil {
 			return nil, err
 		}
@@ -1688,20 +1688,20 @@ INSERT INTO
     updated_at,
     name,
     description,
-    import_job_id
+    job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, project_id, created_at, updated_at, name, description, import_job_id
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, project_id, created_at, updated_at, name, description, job_id
 `
 
 type InsertProjectVersionParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	ImportJobID uuid.UUID `db:"import_job_id" json:"import_job_id"`
+	ID          uuid.UUID     `db:"id" json:"id"`
+	ProjectID   uuid.NullUUID `db:"project_id" json:"project_id"`
+	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
+	Name        string        `db:"name" json:"name"`
+	Description string        `db:"description" json:"description"`
+	JobID       uuid.UUID     `db:"job_id" json:"job_id"`
 }
 
 func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProjectVersionParams) (ProjectVersion, error) {
@@ -1712,7 +1712,7 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 		arg.UpdatedAt,
 		arg.Name,
 		arg.Description,
-		arg.ImportJobID,
+		arg.JobID,
 	)
 	var i ProjectVersion
 	err := row.Scan(
@@ -1722,7 +1722,7 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 		&i.UpdatedAt,
 		&i.Name,
 		&i.Description,
-		&i.ImportJobID,
+		&i.JobID,
 	)
 	return i, err
 }

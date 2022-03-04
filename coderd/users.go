@@ -39,9 +39,10 @@ type CreateInitialUserRequest struct {
 
 // CreateUserRequest provides options for creating a new user.
 type CreateUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
+	Email        string `json:"email" validate:"required,email"`
+	Username     string `json:"username" validate:"required,username"`
+	Password     string `json:"password" validate:"required"`
+	Organization string `json:"organization" validate:"required,username"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.

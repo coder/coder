@@ -73,7 +73,7 @@ func TestPostProvisionerImportJobByOrganization(t *testing.T) {
 			Provision: echo.ProvisionComplete,
 		})
 		require.NoError(t, err)
-		file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
 		job, err := client.CreateProjectImportJob(context.Background(), user.Organization, coderd.CreateProjectImportJobRequest{
 			StorageSource: file.Hash,

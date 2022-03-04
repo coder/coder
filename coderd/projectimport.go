@@ -31,6 +31,17 @@ type CreateProjectImportJobRequest struct {
 	ParameterValues []CreateParameterValueRequest `json:"parameter_values"`
 }
 
+type CreateProjectVersion struct {
+	ProjectID *uuid.UUID `json:"project_id"`
+
+	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	StorageSource string                            `json:"storage_source" validate:"required"`
+	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	// ParameterValues allows for additional parameters to be provided
+	// during the dry-run provision stage.
+	ParameterValues []CreateParameterValueRequest `json:"parameter_values"`
+}
+
 // Create a new project import job!
 func (api *api) postProjectImportByOrganization(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)

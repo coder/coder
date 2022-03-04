@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-type UploadFileResponse struct {
+type UploadResponse struct {
 	Hash string `json:"hash"`
 }
 
@@ -45,7 +45,7 @@ func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		// The file already exists!
 		render.Status(r, http.StatusOK)
-		render.JSON(rw, r, UploadFileResponse{
+		render.JSON(rw, r, UploadResponse{
 			Hash: file.Hash,
 		})
 		return
@@ -64,7 +64,7 @@ func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, UploadFileResponse{
+	render.JSON(rw, r, UploadResponse{
 		Hash: file.Hash,
 	})
 }

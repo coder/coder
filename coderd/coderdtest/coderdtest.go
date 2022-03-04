@@ -167,7 +167,7 @@ func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateIniti
 func CreateProjectImportJob(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProvisionerJob {
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
-	file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
 	job, err := client.CreateProjectImportJob(context.Background(), organization, coderd.CreateProjectImportJobRequest{
 		StorageSource: file.Hash,
