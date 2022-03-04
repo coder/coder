@@ -17,12 +17,21 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 )
 
+// ICEServersFunc returns ICEServers when a new connection is requested.
+type ICEServersFunc func(ctx context.Context) ([]webrtc.ICEServer, error)
+
 // Listen consumes the transport as the server-side of the PeerBroker dRPC service.
 // The Accept function must be serviced, or new connections will hang.
-func Listen(connListener net.Listener, opts *peer.ConnOptions) (*Listener, error) {
+func Listen(connListener net.Listener, iceServersFunc ICEServersFunc, opts *peer.ConnOptions) (*Listener, error) {
+	if iceServersFunc == nil {
+		iceServersFunc = func(ctx context.Context) ([]webrtc.ICEServer, error) {
+			return []webrtc.ICEServer{}, nil
+		}
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	listener := &Listener{
 		connectionChannel: make(chan *peer.Conn),
+		iceServersFunc:    iceServersFunc,
 
 		closeFunc: cancelFunc,
 		closed:    make(chan struct{}),
@@ -48,6 +57,7 @@ func Listen(connListener net.Listener, opts *peer.ConnOptions) (*Listener, error
 
 type Listener struct {
 	connectionChannel chan *peer.Conn
+	iceServersFunc    ICEServersFunc
 
 	closeFunc  context.CancelFunc
 	closed     chan struct{}
@@ -104,8 +114,12 @@ type peerBrokerService struct {
 
 // NegotiateConnection negotiates a WebRTC connection.
 func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateConnectionStream) error {
+	iceServers, err := b.listener.iceServersFunc(stream.Context())
+	if err != nil {
+		return xerrors.Errorf("get ice servers: %w", err)
+	}
 	// Start with no ICE servers. They can be sent by the client if provided.
-	peerConn, err := peer.Server([]webrtc.ICEServer{}, b.connOptions)
+	peerConn, err := peer.Server(iceServers, b.connOptions)
 	if err != nil {
 		return xerrors.Errorf("create peer connection: %w", err)
 	}
@@ -121,9 +135,9 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 			case <-peerConn.Closed():
 				return
 			case sessionDescription := <-peerConn.LocalSessionDescription():
-				err = stream.Send(&proto.NegotiateConnection_ServerToClient{
-					Message: &proto.NegotiateConnection_ServerToClient_Answer{
-						Answer: &proto.WebRTCSessionDescription{
+				err = stream.Send(&proto.Exchange{
+					Message: &proto.Exchange_Sdp{
+						Sdp: &proto.WebRTCSessionDescription{
 							SdpType: int32(sessionDescription.Type),
 							Sdp:     sessionDescription.SDP,
 						},
@@ -134,8 +148,8 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 					return
 				}
 			case iceCandidate := <-peerConn.LocalCandidate():
-				err = stream.Send(&proto.NegotiateConnection_ServerToClient{
-					Message: &proto.NegotiateConnection_ServerToClient_IceCandidate{
+				err = stream.Send(&proto.Exchange{
+					Message: &proto.Exchange_IceCandidate{
 						IceCandidate: iceCandidate.Candidate,
 					},
 				})
@@ -156,28 +170,11 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 		}
 
 		switch {
-		case clientToServerMessage.GetOffer() != nil:
+		case clientToServerMessage.GetSdp() != nil:
 			peerConn.SetRemoteSessionDescription(webrtc.SessionDescription{
-				Type: webrtc.SDPType(clientToServerMessage.GetOffer().SdpType),
-				SDP:  clientToServerMessage.GetOffer().Sdp,
+				Type: webrtc.SDPType(clientToServerMessage.GetSdp().SdpType),
+				SDP:  clientToServerMessage.GetSdp().Sdp,
 			})
-		case clientToServerMessage.GetServers() != nil:
-			// Convert protobuf ICE servers to the WebRTC type.
-			iceServers := make([]webrtc.ICEServer, 0, len(clientToServerMessage.GetServers().Servers))
-			for _, iceServer := range clientToServerMessage.GetServers().Servers {
-				iceServers = append(iceServers, webrtc.ICEServer{
-					URLs:           iceServer.Urls,
-					Username:       iceServer.Username,
-					Credential:     iceServer.Credential,
-					CredentialType: webrtc.ICECredentialType(iceServer.CredentialType),
-				})
-			}
-			err = peerConn.SetConfiguration(webrtc.Configuration{
-				ICEServers: iceServers,
-			})
-			if err != nil {
-				return peerConn.CloseWithError(xerrors.Errorf("set ice configuration: %w", err))
-			}
 		case clientToServerMessage.GetIceCandidate() != "":
 			peerConn.AddRemoteCandidate(webrtc.ICECandidateInit{
 				Candidate: clientToServerMessage.GetIceCandidate(),

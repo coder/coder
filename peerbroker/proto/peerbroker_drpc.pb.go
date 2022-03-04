@@ -62,27 +62,27 @@ func (c *drpcPeerBrokerClient) NegotiateConnection(ctx context.Context) (DRPCPee
 
 type DRPCPeerBroker_NegotiateConnectionClient interface {
 	drpc.Stream
-	Send(*NegotiateConnection_ClientToServer) error
-	Recv() (*NegotiateConnection_ServerToClient, error)
+	Send(*Exchange) error
+	Recv() (*Exchange, error)
 }
 
 type drpcPeerBroker_NegotiateConnectionClient struct {
 	drpc.Stream
 }
 
-func (x *drpcPeerBroker_NegotiateConnectionClient) Send(m *NegotiateConnection_ClientToServer) error {
+func (x *drpcPeerBroker_NegotiateConnectionClient) Send(m *Exchange) error {
 	return x.MsgSend(m, drpcEncoding_File_peerbroker_proto_peerbroker_proto{})
 }
 
-func (x *drpcPeerBroker_NegotiateConnectionClient) Recv() (*NegotiateConnection_ServerToClient, error) {
-	m := new(NegotiateConnection_ServerToClient)
+func (x *drpcPeerBroker_NegotiateConnectionClient) Recv() (*Exchange, error) {
+	m := new(Exchange)
 	if err := x.MsgRecv(m, drpcEncoding_File_peerbroker_proto_peerbroker_proto{}); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (x *drpcPeerBroker_NegotiateConnectionClient) RecvMsg(m *NegotiateConnection_ServerToClient) error {
+func (x *drpcPeerBroker_NegotiateConnectionClient) RecvMsg(m *Exchange) error {
 	return x.MsgRecv(m, drpcEncoding_File_peerbroker_proto_peerbroker_proto{})
 }
 
@@ -121,26 +121,26 @@ func DRPCRegisterPeerBroker(mux drpc.Mux, impl DRPCPeerBrokerServer) error {
 
 type DRPCPeerBroker_NegotiateConnectionStream interface {
 	drpc.Stream
-	Send(*NegotiateConnection_ServerToClient) error
-	Recv() (*NegotiateConnection_ClientToServer, error)
+	Send(*Exchange) error
+	Recv() (*Exchange, error)
 }
 
 type drpcPeerBroker_NegotiateConnectionStream struct {
 	drpc.Stream
 }
 
-func (x *drpcPeerBroker_NegotiateConnectionStream) Send(m *NegotiateConnection_ServerToClient) error {
+func (x *drpcPeerBroker_NegotiateConnectionStream) Send(m *Exchange) error {
 	return x.MsgSend(m, drpcEncoding_File_peerbroker_proto_peerbroker_proto{})
 }
 
-func (x *drpcPeerBroker_NegotiateConnectionStream) Recv() (*NegotiateConnection_ClientToServer, error) {
-	m := new(NegotiateConnection_ClientToServer)
+func (x *drpcPeerBroker_NegotiateConnectionStream) Recv() (*Exchange, error) {
+	m := new(Exchange)
 	if err := x.MsgRecv(m, drpcEncoding_File_peerbroker_proto_peerbroker_proto{}); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (x *drpcPeerBroker_NegotiateConnectionStream) RecvMsg(m *NegotiateConnection_ClientToServer) error {
+func (x *drpcPeerBroker_NegotiateConnectionStream) RecvMsg(m *Exchange) error {
 	return x.MsgRecv(m, drpcEncoding_File_peerbroker_proto_peerbroker_proto{})
 }

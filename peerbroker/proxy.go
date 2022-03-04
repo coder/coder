@@ -135,7 +135,7 @@ func (*proxyListen) onServerToClientMessage(streamID string, stream proto.DRPCPe
 		// It's not trying to communicate with this stream!
 		return nil
 	}
-	var msg proto.NegotiateConnection_ServerToClient
+	var msg proto.Exchange
 	err := protobuf.Unmarshal(message[streamIDLength:], &msg)
 	if err != nil {
 		return xerrors.Errorf("unmarshal message: %w", err)
@@ -204,7 +204,7 @@ func (p *proxyDial) onClientToServerMessage(ctx context.Context, message []byte)
 	}
 	p.streamMutex.Unlock()
 
-	var msg proto.NegotiateConnection_ClientToServer
+	var msg proto.Exchange
 	err = protobuf.Unmarshal(message[streamIDLength:], &msg)
 	if err != nil {
 		return xerrors.Errorf("unmarshal message: %w", err)

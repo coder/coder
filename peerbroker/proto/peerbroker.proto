@@ -9,40 +9,20 @@ message WebRTCSessionDescription {
     string sdp = 2;
 }
 
-message WebRTCICEServer {
-    repeated string urls = 1;
-    string username = 2;
-    string credential = 3;
-    int32 credential_type = 4;
-}
-
-message WebRTCICEServers {
-    repeated WebRTCICEServer servers = 1;
-}
-
-message NegotiateConnection {
-    message ClientToServer {
-        oneof message {
-            WebRTCICEServers servers = 1;
-            WebRTCSessionDescription offer = 2;
-            string ice_candidate = 3;
-        }
-    }
-    message ServerToClient {
-        oneof message {
-            WebRTCSessionDescription answer = 1;
-            string ice_candidate = 2;
-        }
+message Exchange {
+    oneof message {
+        WebRTCSessionDescription sdp = 1;
+        string ice_candidate = 2;
     }
 }
 
 // PeerBroker mediates WebRTC connection signaling.
 service PeerBroker {
     // NegotiateConnection establishes a bidirectional stream to negotiate a new WebRTC connection.
-    // 1. Client sends WebRTCSessionDescription and WebRTCICEServers to the server.
+    // 1. Client sends WebRTCSessionDescription to the server.
     // 2. Server sends WebRTCSessionDescription to the client, exchanging encryption keys.
     // 3. Client<->Server exchange ICE Candidates to establish a peered connection.
     // 
     // See: https://davekilian.com/webrtc-the-hard-way.html
-    rpc NegotiateConnection(stream NegotiateConnection.ClientToServer) returns (stream NegotiateConnection.ServerToClient);
+    rpc NegotiateConnection(stream Exchange) returns (stream Exchange);
 }
