@@ -2,11 +2,14 @@ package coderd
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/coder/coder/database"
@@ -67,4 +70,30 @@ func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, UploadResponse{
 		Hash: file.Hash,
 	})
+}
+
+func (api *api) download(rw http.ResponseWriter, r *http.Request) {
+	hash := chi.URLParam(r, "hash")
+	if hash == "" {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "hash must be provided",
+		})
+		return
+	}
+	file, err := api.Database.GetFileByHash(r.Context(), hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "no file exists with that hash",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get file: %s", err),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusOK)
+	rw.Header().Set("Content-Type", file.Mimetype)
+	rw.Write(file.Data)
 }

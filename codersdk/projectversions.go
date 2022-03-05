@@ -12,35 +12,6 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
-// ImportProjectVersion processes source-code and optionally associates the version with a project.
-// Executing without a project is useful for validating source-code.
-func (c *Client) ImportProjectVersion(ctx context.Context, organization uuid.UUID, req coderd.CreateProjectVersion) (coderd.ProjectVersion, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/projectversion", organization), req)
-	if err != nil {
-		return coderd.ProjectVersion{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return coderd.ProjectVersion{}, readBodyAsError(res)
-	}
-	var projectVersion coderd.ProjectVersion
-	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
-}
-
-// ProjectVersions lists versions associated with a project.
-func (c *Client) ProjectVersions(ctx context.Context, project uuid.UUID) ([]coderd.ProjectVersion, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/%s/versions", project), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var projectVersion []coderd.ProjectVersion
-	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
-}
-
 // ProjectVersion returns a project version by ID.
 func (c *Client) ProjectVersion(ctx context.Context, version uuid.UUID) (coderd.ProjectVersion, error) {
 	return coderd.ProjectVersion{}, nil

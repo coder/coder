@@ -41,31 +41,18 @@ func New(options *Options) (http.Handler, func()) {
 				Message: "👋",
 			})
 		})
-		r.Post("/login", api.postLogin)
-		r.Post("/logout", api.postLogout)
-
-		r.Route("/user", func(r chi.Router) {
-			r.Get("/first", api.user)
-			r.Post("/first", api.user)
-			r.Group(func(r chi.Router) {
-				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-				r.Post("/", nil)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/", api.userByName)
-					r.Get("/organizations", api.organizationsByUser)
-					r.Post("/keys", api.postKeyForUser)
-				})
-			})
+		r.Route("/files", func(r chi.Router) {
+			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Post("/", api.postUpload)
+			r.Get("/{hash}", nil)
 		})
-
 		r.Route("/organization/{organization}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			r.Post("/users", nil)
 			r.Get("/provisionerdaemons", nil)
+			r.Post("/projectversion", nil)
 			r.Route("/projects", func(r chi.Router) {
 				r.Post("/", api.postProjectsByOrganization)
 				r.Get("/", api.projectsByOrganization)
@@ -79,11 +66,13 @@ func New(options *Options) (http.Handler, func()) {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.projectByOrganization)
+			r.Delete("/", nil)
 			r.Get("/workspaces", api.workspacesByProject)
 			r.Get("/parameters", api.parametersByProject)
 			r.Post("/parameters", api.postParametersByProject)
 			r.Get("/versions", api.projectVersionsByOrganization)
-			r.Post("/versions", api.postProjectVersionByOrganization)
+			r.Get("/versions/latest", nil)
+			r.Patch("/versions", nil)
 		})
 		r.Route("/projectversion/{projectversion}", func(r chi.Router) {
 			r.Use(
@@ -97,6 +86,36 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/parameters", nil)
 			r.Get("/logs", nil)
 			r.Get("/resources", nil)
+		})
+		r.Route("/provisionerdaemon", func(r chi.Router) {
+			r.Route("/me", func(r chi.Router) {
+				r.Get("/listen", api.provisionerDaemonsServe)
+			})
+		})
+		r.Route("/user", func(r chi.Router) {
+			r.Post("/login", api.postLogin)
+			r.Post("/logout", api.postLogout)
+			r.Get("/first", api.user)
+			r.Post("/first", api.user)
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+				r.Post("/", nil)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Get("/", api.userByName)
+					r.Get("/organizations", api.organizationsByUser)
+					r.Post("/keys", api.postKeyForUser)
+				})
+			})
+		})
+		r.Route("/workspaceagent", func(r chi.Router) {
+			r.Route("/auth", func(r chi.Router) {
+				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
+			})
+			r.Route("/me", func(r chi.Router) {
+				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Get("/listen", nil)
+			})
 		})
 		r.Route("/workspace/{workspace}", func(r chi.Router) {
 			r.Use(
@@ -121,24 +140,6 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", nil)
 				r.Get("/dial", nil)
 			})
-		})
-		r.Route("/workspaceagent", func(r chi.Router) {
-			r.Route("/auth", func(r chi.Router) {
-				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
-			})
-			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/listen", nil)
-			})
-		})
-		r.Route("/provisionerdaemon", func(r chi.Router) {
-			r.Route("/me", func(r chi.Router) {
-				r.Get("/listen", api.provisionerDaemonsServe)
-			})
-		})
-		r.Route("/upload", func(r chi.Router) {
-			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-			r.Post("/", api.postUpload)
 		})
 	})
 	r.NotFound(site.Handler(options.Logger).ServeHTTP)

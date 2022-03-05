@@ -39,3 +39,13 @@ func TestPostUpload(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestDownload(t *testing.T) {
+	t.Parallel()
+	t.Run("BadHash", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateInitialUser(t, client)
+
+	})
+}

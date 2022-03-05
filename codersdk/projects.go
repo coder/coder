@@ -11,30 +11,6 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
-// CreateProject creates a new project inside an organization.
-func (c *Client) CreateProject(ctx context.Context, organization uuid.UUID, request coderd.CreateProjectRequest) (coderd.Project, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/projects", organization), request)
-	if err != nil {
-		return coderd.Project{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return coderd.Project{}, readBodyAsError(res)
-	}
-	var project coderd.Project
-	return project, json.NewDecoder(res.Body).Decode(&project)
-}
-
-// ProjectsByOrganization lists all projects inside of an organization.
-func (c *Client) ProjectsByOrganization(ctx context.Context, organization uuid.UUID) ([]coderd.Project, error) {
-	return nil, nil
-}
-
-// ProjectByName finds a project inside the organization provided with a case-insensitive name.
-func (c *Client) ProjectByName(ctx context.Context, organization uuid.UUID, name string) (coderd.Project, error) {
-	return coderd.Project{}, nil
-}
-
 // Project returns a single project.
 func (c *Client) Project(ctx context.Context, project uuid.UUID) (coderd.Project, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/%s", project), nil)
@@ -47,6 +23,20 @@ func (c *Client) Project(ctx context.Context, project uuid.UUID) (coderd.Project
 	}
 	var resp coderd.Project
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// WorkspacesByProject lists all workspaces for a specific project.
+func (c *Client) WorkspacesByProject(ctx context.Context, project uuid.UUID) ([]coderd.Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/workspaces", project), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var workspaces []coderd.Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
 // ProjectParameters returns parameters scoped to a project.
@@ -75,4 +65,26 @@ func (c *Client) CreateProjectParameter(ctx context.Context, organization, proje
 	}
 	var param coderd.ParameterValue
 	return param, json.NewDecoder(res.Body).Decode(&param)
+}
+
+// ProjectVersionsByProject lists versions associated with a project.
+func (c *Client) ProjectVersionsByProject(ctx context.Context, project uuid.UUID) ([]coderd.ProjectVersion, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/%s/versions", project), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var projectVersion []coderd.ProjectVersion
+	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
+}
+
+func (c *Client) DeleteProject(ctx context.Context, project uuid.UUID) error {
+	return nil
+}
+
+func (c *Client) UpdateProjectVersion() {
+
 }

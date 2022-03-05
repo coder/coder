@@ -30,20 +30,6 @@ func (c *Client) WorkspacesByUser(ctx context.Context, user uuid.UUID) ([]coderd
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
-// WorkspacesByProject lists all workspaces for a specific project.
-func (c *Client) WorkspacesByProject(ctx context.Context, project uuid.UUID) ([]coderd.Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/workspaces", project), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var workspaces []coderd.Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
-
 // WorkspaceByName returns a workspace for a user that matches the case-insensitive name.
 func (c *Client) WorkspaceByName(ctx context.Context, user uuid.UUID, name string) (coderd.Workspace, error) {
 	return coderd.Workspace{}, nil
