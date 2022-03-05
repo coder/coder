@@ -262,7 +262,7 @@ CREATE TABLE workspace (
     name character varying(64) NOT NULL
 );
 
-CREATE TABLE workspace_history (
+CREATE TABLE workspace_build (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -325,11 +325,11 @@ ALTER TABLE ONLY provisioner_job_log
 ALTER TABLE ONLY provisioner_job_resource
     ADD CONSTRAINT provisioner_job_resource_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace_history
-    ADD CONSTRAINT workspace_history_id_key UNIQUE (id);
+ALTER TABLE ONLY workspace_build
+    ADD CONSTRAINT workspace_build_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace_history
-    ADD CONSTRAINT workspace_history_workspace_id_name_key UNIQUE (workspace_id, name);
+ALTER TABLE ONLY workspace_build
+    ADD CONSTRAINT workspace_build_workspace_id_name_key UNIQUE (workspace_id, name);
 
 ALTER TABLE ONLY workspace
     ADD CONSTRAINT workspace_id_key UNIQUE (id);
@@ -352,11 +352,11 @@ ALTER TABLE ONLY provisioner_job_log
 ALTER TABLE ONLY provisioner_job_resource
     ADD CONSTRAINT provisioner_job_resource_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_history
-    ADD CONSTRAINT workspace_history_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspace_build
+    ADD CONSTRAINT workspace_build_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_history
-    ADD CONSTRAINT workspace_history_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspace_build
+    ADD CONSTRAINT workspace_build_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace
     ADD CONSTRAINT workspace_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);

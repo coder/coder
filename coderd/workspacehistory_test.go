@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestPostWorkspaceHistoryByUser(t *testing.T) {
+func TestPostWorkspaceBuildByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("NoProjectVersion", func(t *testing.T) {
 		t.Parallel()
@@ -25,7 +25,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: uuid.New(),
 			Transition:       database.WorkspaceTransitionStart,
 		})
@@ -46,7 +46,7 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
@@ -64,15 +64,15 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-		// Close here so workspace history doesn't process!
+		// Close here so workspace build doesn't process!
 		closeDaemon.Close()
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		_, err = client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err = client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
@@ -91,26 +91,26 @@ func TestPostWorkspaceHistoryByUser(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		firstHistory, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		firstHistory, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, firstHistory.ProvisionJobID)
-		secondHistory, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		secondHistory, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		require.Equal(t, firstHistory.ID.String(), secondHistory.BeforeID.String())
 
-		firstHistory, err = client.WorkspaceHistory(context.Background(), "", workspace.Name, firstHistory.Name)
+		firstHistory, err = client.WorkspaceBuild(context.Background(), "", workspace.Name, firstHistory.Name)
 		require.NoError(t, err)
 		require.Equal(t, secondHistory.ID.String(), firstHistory.AfterID.String())
 	})
 }
 
-func TestWorkspaceHistoryByUser(t *testing.T) {
+func TestWorkspaceBuildByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
@@ -120,7 +120,7 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		history, err := client.ListWorkspaceHistory(context.Background(), "me", workspace.Name)
+		history, err := client.ListWorkspaceBuild(context.Background(), "me", workspace.Name)
 		require.NoError(t, err)
 		require.NotNil(t, history)
 		require.Len(t, history, 0)
@@ -135,19 +135,19 @@ func TestWorkspaceHistoryByUser(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		_, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		history, err := client.ListWorkspaceHistory(context.Background(), "me", workspace.Name)
+		history, err := client.ListWorkspaceBuild(context.Background(), "me", workspace.Name)
 		require.NoError(t, err)
 		require.NotNil(t, history)
 		require.Len(t, history, 1)
 	})
 }
 
-func TestWorkspaceHistoryByName(t *testing.T) {
+func TestWorkspaceBuildByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateInitialUser(t, client)
@@ -156,11 +156,11 @@ func TestWorkspaceHistoryByName(t *testing.T) {
 	coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
 	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-	history, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+	history, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 		ProjectVersionID: project.ActiveVersionID,
 		Transition:       database.WorkspaceTransitionStart,
 	})
 	require.NoError(t, err)
-	_, err = client.WorkspaceHistory(context.Background(), "me", workspace.Name, history.Name)
+	_, err = client.WorkspaceBuild(context.Background(), "me", workspace.Name, history.Name)
 	require.NoError(t, err)
 }

@@ -64,17 +64,17 @@ func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (coderd.Workspace,
 }
 
 // WorkspaceProvisions returns a historical list of provision operations for a workspace.
-func (c *Client) WorkspaceProvisions(ctx context.Context, workspace uuid.UUID) ([]coderd.WorkspaceHistory, error) {
+func (c *Client) WorkspaceProvisions(ctx context.Context, workspace uuid.UUID) ([]coderd.WorkspaceBuild, error) {
 	return nil, nil
 }
 
 // WorkspaceProvision returns
-func (c *Client) WorkspaceVersion(ctx context.Context, provision uuid.UUID) (coderd.WorkspaceHistory, error) {
-	return coderd.WorkspaceHistory{}, nil
+func (c *Client) WorkspaceVersion(ctx context.Context, provision uuid.UUID) (coderd.WorkspaceBuild, error) {
+	return coderd.WorkspaceBuild{}, nil
 }
 
-// ListWorkspaceHistory returns historical data for workspace builds.
-func (c *Client) ListWorkspaceHistory(ctx context.Context, owner, workspace string) ([]coderd.WorkspaceHistory, error) {
+// ListWorkspaceBuild returns historical data for workspace builds.
+func (c *Client) ListWorkspaceBuild(ctx context.Context, owner, workspace string) ([]coderd.WorkspaceBuild, error) {
 	if owner == "" {
 		owner = "me"
 	}
@@ -86,13 +86,13 @@ func (c *Client) ListWorkspaceHistory(ctx context.Context, owner, workspace stri
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var workspaceHistory []coderd.WorkspaceHistory
-	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
+	var workspaceBuild []coderd.WorkspaceBuild
+	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
-// WorkspaceHistory returns a single workspace history for a workspace.
+// WorkspaceBuild returns a single workspace build for a workspace.
 // If history is "", the latest version is returned.
-func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace, history string) (coderd.WorkspaceHistory, error) {
+func (c *Client) WorkspaceBuild(ctx context.Context, owner, workspace, history string) (coderd.WorkspaceBuild, error) {
 	if owner == "" {
 		owner = "me"
 	}
@@ -101,14 +101,14 @@ func (c *Client) WorkspaceHistory(ctx context.Context, owner, workspace, history
 	}
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/%s/version/%s", owner, workspace, history), nil)
 	if err != nil {
-		return coderd.WorkspaceHistory{}, err
+		return coderd.WorkspaceBuild{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return coderd.WorkspaceHistory{}, readBodyAsError(res)
+		return coderd.WorkspaceBuild{}, readBodyAsError(res)
 	}
-	var workspaceHistory coderd.WorkspaceHistory
-	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
+	var workspaceBuild coderd.WorkspaceBuild
+	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
 // CreateWorkspace creates a new workspace for the project specified.
@@ -128,21 +128,21 @@ func (c *Client) CreateWorkspace(ctx context.Context, user string, request coder
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-// CreateWorkspaceHistory queues a new build to occur for a workspace.
-func (c *Client) CreateWorkspaceHistory(ctx context.Context, owner, workspace string, request coderd.CreateWorkspaceHistoryRequest) (coderd.WorkspaceHistory, error) {
+// CreateWorkspaceBuild queues a new build to occur for a workspace.
+func (c *Client) CreateWorkspaceBuild(ctx context.Context, owner, workspace string, request coderd.CreateWorkspaceBuildRequest) (coderd.WorkspaceBuild, error) {
 	if owner == "" {
 		owner = "me"
 	}
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/%s/version", owner, workspace), request)
 	if err != nil {
-		return coderd.WorkspaceHistory{}, err
+		return coderd.WorkspaceBuild{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return coderd.WorkspaceHistory{}, readBodyAsError(res)
+		return coderd.WorkspaceBuild{}, readBodyAsError(res)
 	}
-	var workspaceHistory coderd.WorkspaceHistory
-	return workspaceHistory, json.NewDecoder(res.Body).Decode(&workspaceHistory)
+	var workspaceBuild coderd.WorkspaceBuild
+	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
 func (c *Client) WorkspaceProvisionJob(ctx context.Context, organization string, job uuid.UUID) (coderd.ProvisionerJob, error) {

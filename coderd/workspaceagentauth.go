@@ -117,20 +117,20 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	resourceHistory, err := api.Database.GetWorkspaceHistoryByID(r.Context(), jobData.WorkspaceHistoryID)
+	resourceHistory, err := api.Database.GetWorkspaceBuildByID(r.Context(), jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace history: %s", err),
+			Message: fmt.Sprintf("get workspace build: %s", err),
 		})
 		return
 	}
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
 	// we'd hate to leak access to a user's workspace.
-	latestHistory, err := api.Database.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), resourceHistory.WorkspaceID)
+	latestHistory, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get latest workspace history: %s", err),
+			Message: fmt.Sprintf("get latest workspace build: %s", err),
 		})
 		return
 	}

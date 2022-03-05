@@ -175,11 +175,11 @@ func New(options *Options) (http.Handler, func()) {
 					r.Use(httpmw.ExtractWorkspaceParam(options.Database))
 					r.Get("/", api.workspaceByUser)
 					r.Route("/version", func(r chi.Router) {
-						r.Post("/", api.postWorkspaceHistoryByUser)
-						r.Get("/", api.workspaceHistoryByUser)
-						r.Route("/{workspacehistory}", func(r chi.Router) {
-							r.Use(httpmw.ExtractWorkspaceHistoryParam(options.Database))
-							r.Get("/", api.workspaceHistoryByName)
+						r.Post("/", api.postWorkspaceBuildByUser)
+						r.Get("/", api.workspaceBuildByUser)
+						r.Route("/{workspacebuild}", func(r chi.Router) {
+							r.Use(httpmw.ExtractWorkspaceBuildParam(options.Database))
+							r.Get("/", api.workspaceBuildByName)
 						})
 					})
 				})

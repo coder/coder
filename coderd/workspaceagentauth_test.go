@@ -91,7 +91,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		firstHistory, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		firstHistory, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})

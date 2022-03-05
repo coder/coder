@@ -26,7 +26,7 @@ func TestNew(t *testing.T) {
 	coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
 	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-	history, err := client.CreateWorkspaceHistory(context.Background(), "me", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+	history, err := client.CreateWorkspaceBuild(context.Background(), "me", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 		ProjectVersionID: project.ActiveVersionID,
 		Transition:       database.WorkspaceTransitionStart,
 	})

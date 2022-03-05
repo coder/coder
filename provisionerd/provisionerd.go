@@ -537,7 +537,7 @@ func (p *Server) runWorkspaceProvision(ctx context.Context, provisioner sdkproto
 			p.opts.Logger.Debug(context.Background(), "workspace provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				slog.F("workspace_history_id", job.GetWorkspaceProvision().WorkspaceHistoryId),
+				slog.F("workspace_build_id", job.GetWorkspaceProvision().WorkspaceBuildId),
 			)
 
 			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{

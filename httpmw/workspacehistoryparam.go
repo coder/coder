@@ -13,59 +13,59 @@ import (
 	"github.com/coder/coder/httpapi"
 )
 
-type workspaceHistoryParamContextKey struct{}
+type workspaceBuildParamContextKey struct{}
 
-// WorkspaceHistoryParam returns the workspace history from the ExtractWorkspaceHistoryParam handler.
-func WorkspaceHistoryParam(r *http.Request) database.WorkspaceHistory {
-	workspaceHistory, ok := r.Context().Value(workspaceHistoryParamContextKey{}).(database.WorkspaceHistory)
+// WorkspaceBuildParam returns the workspace build from the ExtractWorkspaceBuildParam handler.
+func WorkspaceBuildParam(r *http.Request) database.WorkspaceBuild {
+	workspaceBuild, ok := r.Context().Value(workspaceBuildParamContextKey{}).(database.WorkspaceBuild)
 	if !ok {
-		panic("developer error: workspace history param middleware not provided")
+		panic("developer error: workspace build param middleware not provided")
 	}
-	return workspaceHistory
+	return workspaceBuild
 }
 
-// ExtractWorkspaceHistoryParam grabs workspace history from the "workspacehistory" URL parameter.
-func ExtractWorkspaceHistoryParam(db database.Store) func(http.Handler) http.Handler {
+// ExtractWorkspaceBuildParam grabs workspace build from the "workspacebuild" URL parameter.
+func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			workspace := WorkspaceParam(r)
-			workspaceHistoryName := chi.URLParam(r, "workspacehistory")
-			if workspaceHistoryName == "" {
+			workspaceBuildName := chi.URLParam(r, "workspacebuild")
+			if workspaceBuildName == "" {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "workspace history name must be provided",
+					Message: "workspace build name must be provided",
 				})
 				return
 			}
-			var workspaceHistory database.WorkspaceHistory
+			var workspaceBuild database.WorkspaceBuild
 			var err error
-			if workspaceHistoryName == "latest" {
-				workspaceHistory, err = db.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+			if workspaceBuildName == "latest" {
+				workspaceBuild, err = db.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-						Message: "there is no workspace history",
+						Message: "there is no workspace build",
 					})
 					return
 				}
 			} else {
-				workspaceHistory, err = db.GetWorkspaceHistoryByWorkspaceIDAndName(r.Context(), database.GetWorkspaceHistoryByWorkspaceIDAndNameParams{
+				workspaceBuild, err = db.GetWorkspaceBuildByWorkspaceIDAndName(r.Context(), database.GetWorkspaceBuildByWorkspaceIDAndNameParams{
 					WorkspaceID: workspace.ID,
-					Name:        workspaceHistoryName,
+					Name:        workspaceBuildName,
 				})
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-						Message: fmt.Sprintf("workspace history %q does not exist", workspaceHistoryName),
+						Message: fmt.Sprintf("workspace build %q does not exist", workspaceBuildName),
 					})
 					return
 				}
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get workspace history: %s", err.Error()),
+					Message: fmt.Sprintf("get workspace build: %s", err.Error()),
 				})
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), workspaceHistoryParamContextKey{}, workspaceHistory)
+			ctx := context.WithValue(r.Context(), workspaceBuildParamContextKey{}, workspaceBuild)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

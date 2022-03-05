@@ -100,7 +100,7 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			history, err := client.CreateWorkspaceHistory(cmd.Context(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			history, err := client.CreateWorkspaceBuild(cmd.Context(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 				ProjectVersionID: projectVersion.ID,
 				Transition:       database.WorkspaceTransitionStart,
 			})

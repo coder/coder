@@ -29,7 +29,7 @@ func New() database.Store {
 		provisionerJobLog:      make([]database.ProvisionerJobLog, 0),
 		workspace:              make([]database.Workspace, 0),
 		provisionerJobResource: make([]database.ProvisionerJobResource, 0),
-		workspaceHistory:       make([]database.WorkspaceHistory, 0),
+		workspaceBuild:         make([]database.WorkspaceBuild, 0),
 		provisionerJobAgent:    make([]database.ProvisionerJobAgent, 0),
 	}
 }
@@ -56,7 +56,7 @@ type fakeQuerier struct {
 	provisionerJobResource []database.ProvisionerJobResource
 	provisionerJobLog      []database.ProvisionerJobLog
 	workspace              []database.Workspace
-	workspaceHistory       []database.WorkspaceHistory
+	workspaceBuild         []database.WorkspaceBuild
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -210,41 +210,41 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, pro
 	return res, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceHistoryByID(_ context.Context, id uuid.UUID) (database.WorkspaceHistory, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, history := range q.workspaceHistory {
+	for _, history := range q.workspaceBuild {
 		if history.ID.String() == id.String() {
 			return history, nil
 		}
 	}
-	return database.WorkspaceHistory{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceHistory, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, workspaceHistory := range q.workspaceHistory {
-		if workspaceHistory.WorkspaceID.String() != workspaceID.String() {
+	for _, workspaceBuild := range q.workspaceBuild {
+		if workspaceBuild.WorkspaceID.String() != workspaceID.String() {
 			continue
 		}
-		if !workspaceHistory.AfterID.Valid {
-			return workspaceHistory, nil
+		if !workspaceBuild.AfterID.Valid {
+			return workspaceBuild, nil
 		}
 	}
-	return database.WorkspaceHistory{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceHistory, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	history := make([]database.WorkspaceHistory, 0)
-	for _, workspaceHistory := range q.workspaceHistory {
-		if workspaceHistory.WorkspaceID.String() == workspaceID.String() {
-			history = append(history, workspaceHistory)
+	history := make([]database.WorkspaceBuild, 0)
+	for _, workspaceBuild := range q.workspaceBuild {
+		if workspaceBuild.WorkspaceID.String() == workspaceID.String() {
+			history = append(history, workspaceBuild)
 		}
 	}
 	if len(history) == 0 {
@@ -253,20 +253,20 @@ func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceID(_ context.Context, worksp
 	return history, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceHistoryByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceHistoryByWorkspaceIDAndNameParams) (database.WorkspaceHistory, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndNameParams) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for _, workspaceHistory := range q.workspaceHistory {
-		if workspaceHistory.WorkspaceID.String() != arg.WorkspaceID.String() {
+	for _, workspaceBuild := range q.workspaceBuild {
+		if workspaceBuild.WorkspaceID.String() != arg.WorkspaceID.String() {
 			continue
 		}
-		if !strings.EqualFold(workspaceHistory.Name, arg.Name) {
+		if !strings.EqualFold(workspaceBuild.Name, arg.Name) {
 			continue
 		}
-		return workspaceHistory, nil
+		return workspaceBuild, nil
 	}
-	return database.WorkspaceHistory{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspacesByProjectAndUserID(_ context.Context, arg database.GetWorkspacesByProjectAndUserIDParams) ([]database.Workspace, error) {
@@ -906,11 +906,11 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 	return workspace, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.InsertWorkspaceHistoryParams) (database.WorkspaceHistory, error) {
+func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	workspaceHistory := database.WorkspaceHistory{
+	workspaceBuild := database.WorkspaceBuild{
 		ID:               arg.ID,
 		CreatedAt:        arg.CreatedAt,
 		UpdatedAt:        arg.UpdatedAt,
@@ -923,8 +923,8 @@ func (q *fakeQuerier) InsertWorkspaceHistory(_ context.Context, arg database.Ins
 		ProvisionJobID:   arg.ProvisionJobID,
 		ProvisionerState: arg.ProvisionerState,
 	}
-	q.workspaceHistory = append(q.workspaceHistory, workspaceHistory)
-	return workspaceHistory, nil
+	q.workspaceBuild = append(q.workspaceBuild, workspaceBuild)
+	return workspaceBuild, nil
 }
 
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
@@ -1010,18 +1010,18 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceHistoryByID(_ context.Context, arg database.UpdateWorkspaceHistoryByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, workspaceHistory := range q.workspaceHistory {
-		if workspaceHistory.ID.String() != arg.ID.String() {
+	for index, workspaceBuild := range q.workspaceBuild {
+		if workspaceBuild.ID.String() != arg.ID.String() {
 			continue
 		}
-		workspaceHistory.UpdatedAt = arg.UpdatedAt
-		workspaceHistory.AfterID = arg.AfterID
-		workspaceHistory.ProvisionerState = arg.ProvisionerState
-		q.workspaceHistory[index] = workspaceHistory
+		workspaceBuild.UpdatedAt = arg.UpdatedAt
+		workspaceBuild.AfterID = arg.AfterID
+		workspaceBuild.ProvisionerState = arg.ProvisionerState
+		q.workspaceBuild[index] = workspaceBuild
 		return nil
 	}
 	return sql.ErrNoRows

@@ -18,9 +18,9 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-// WorkspaceHistory is an at-point representation of a workspace state.
+// WorkspaceBuild is an at-point representation of a workspace state.
 // Iterate on before/after to determine a chronological history.
-type WorkspaceHistory struct {
+type WorkspaceBuild struct {
 	ID               uuid.UUID                    `json:"id"`
 	CreatedAt        time.Time                    `json:"created_at"`
 	UpdatedAt        time.Time                    `json:"updated_at"`
@@ -34,14 +34,14 @@ type WorkspaceHistory struct {
 	ProvisionJobID   uuid.UUID                    `json:"provision_job_id"`
 }
 
-// CreateWorkspaceHistoryRequest provides options to update the latest workspace history.
-type CreateWorkspaceHistoryRequest struct {
+// CreateWorkspaceBuildRequest provides options to update the latest workspace build.
+type CreateWorkspaceBuildRequest struct {
 	ProjectVersionID uuid.UUID                    `json:"project_version_id" validate:"required"`
 	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 }
 
-func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) {
-	var createBuild CreateWorkspaceHistoryRequest
+func (api *api) postWorkspaceBuildByUser(rw http.ResponseWriter, r *http.Request) {
+	var createBuild CreateWorkspaceBuildRequest
 	if !httpapi.Read(rw, r, &createBuild) {
 		return
 	}
@@ -100,7 +100,7 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 
 	// Store prior history ID if it exists to update it after we create new!
 	priorHistoryID := uuid.NullUUID{}
-	priorHistory, err := api.Database.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	priorHistory, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err == nil {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.ProvisionJobID)
 		if err == nil && !convertProvisionerJob(priorJob).Status.Completed() {
@@ -116,17 +116,17 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get prior workspace history: %s", err),
+			Message: fmt.Sprintf("get prior workspace build: %s", err),
 		})
 		return
 	}
 
-	var workspaceHistory database.WorkspaceHistory
+	var workspaceBuild database.WorkspaceBuild
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = api.Database.InTx(func(db database.Store) error {
 		provisionerJobID := uuid.New()
-		workspaceHistory, err = db.InsertWorkspaceHistory(r.Context(), database.InsertWorkspaceHistoryParams{
+		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
 			ID:               uuid.New(),
 			CreatedAt:        database.Now(),
 			UpdatedAt:        database.Now(),
@@ -139,11 +139,11 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 			ProvisionJobID:   provisionerJobID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace history: %w", err)
+			return xerrors.Errorf("insert workspace build: %w", err)
 		}
 
 		input, err := json.Marshal(workspaceProvisionJob{
-			WorkspaceHistoryID: workspaceHistory.ID,
+			WorkspaceBuildID: workspaceBuild.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)
@@ -167,17 +167,17 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 
 		if priorHistoryID.Valid {
 			// Update the prior history entries "after" column.
-			err = db.UpdateWorkspaceHistoryByID(r.Context(), database.UpdateWorkspaceHistoryByIDParams{
+			err = db.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
 				ID:               priorHistory.ID,
 				ProvisionerState: priorHistory.ProvisionerState,
 				UpdatedAt:        database.Now(),
 				AfterID: uuid.NullUUID{
-					UUID:  workspaceHistory.ID,
+					UUID:  workspaceBuild.ID,
 					Valid: true,
 				},
 			})
 			if err != nil {
-				return xerrors.Errorf("update prior workspace history: %w", err)
+				return xerrors.Errorf("update prior workspace build: %w", err)
 			}
 		}
 
@@ -191,54 +191,54 @@ func (api *api) postWorkspaceHistoryByUser(rw http.ResponseWriter, r *http.Reque
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
+	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild))
 }
 
-// Returns all workspace history. This is not sorted. Use before/after to chronologically sort.
-func (api *api) workspaceHistoryByUser(rw http.ResponseWriter, r *http.Request) {
+// Returns all workspace build. This is not sorted. Use before/after to chronologically sort.
+func (api *api) workspaceBuildByUser(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	history, err := api.Database.GetWorkspaceHistoryByWorkspaceID(r.Context(), workspace.ID)
+	history, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
-		history = []database.WorkspaceHistory{}
+		history = []database.WorkspaceBuild{}
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace history: %s", err),
+			Message: fmt.Sprintf("get workspace build: %s", err),
 		})
 		return
 	}
 
-	apiHistory := make([]WorkspaceHistory, 0, len(history))
+	apiHistory := make([]WorkspaceBuild, 0, len(history))
 	for _, history := range history {
-		apiHistory = append(apiHistory, convertWorkspaceHistory(history))
+		apiHistory = append(apiHistory, convertWorkspaceBuild(history))
 	}
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiHistory)
 }
 
-func (*api) workspaceHistoryByName(rw http.ResponseWriter, r *http.Request) {
-	workspaceHistory := httpmw.WorkspaceHistoryParam(r)
+func (*api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceHistory(workspaceHistory))
+	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild))
 }
 
 // Converts the internal history representation to a public external-facing model.
-func convertWorkspaceHistory(workspaceHistory database.WorkspaceHistory) WorkspaceHistory {
+func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild) WorkspaceBuild {
 	//nolint:unconvert
-	return WorkspaceHistory(WorkspaceHistory{
-		ID:               workspaceHistory.ID,
-		CreatedAt:        workspaceHistory.CreatedAt,
-		UpdatedAt:        workspaceHistory.UpdatedAt,
-		WorkspaceID:      workspaceHistory.WorkspaceID,
-		ProjectVersionID: workspaceHistory.ProjectVersionID,
-		BeforeID:         workspaceHistory.BeforeID.UUID,
-		AfterID:          workspaceHistory.AfterID.UUID,
-		Name:             workspaceHistory.Name,
-		Transition:       workspaceHistory.Transition,
-		Initiator:        workspaceHistory.Initiator,
-		ProvisionJobID:   workspaceHistory.ProvisionJobID,
+	return WorkspaceBuild(WorkspaceBuild{
+		ID:               workspaceBuild.ID,
+		CreatedAt:        workspaceBuild.CreatedAt,
+		UpdatedAt:        workspaceBuild.UpdatedAt,
+		WorkspaceID:      workspaceBuild.WorkspaceID,
+		ProjectVersionID: workspaceBuild.ProjectVersionID,
+		BeforeID:         workspaceBuild.BeforeID.UUID,
+		AfterID:          workspaceBuild.AfterID.UUID,
+		Name:             workspaceBuild.Name,
+		Transition:       workspaceBuild.Transition,
+		Initiator:        workspaceBuild.Initiator,
+		ProvisionJobID:   workspaceBuild.ProvisionJobID,
 	})
 }

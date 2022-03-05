@@ -14,8 +14,7 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
--- Workspace transition represents a change in workspace state.
-CREATE TABLE workspace_history (
+CREATE TABLE workspace_build (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,

@@ -442,7 +442,7 @@ type Workspace struct {
 	Name      string    `db:"name" json:"name"`
 }
 
-type WorkspaceHistory struct {
+type WorkspaceBuild struct {
 	ID               uuid.UUID           `db:"id" json:"id"`
 	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time           `db:"updated_at" json:"updated_at"`

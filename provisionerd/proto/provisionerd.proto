@@ -12,7 +12,7 @@ message Empty {}
 // AcquiredJob is returned when a provisioner daemon has a job locked.
 message AcquiredJob {
     message WorkspaceProvision {
-        string workspace_history_id = 1;
+        string workspace_build_id = 1;
         string workspace_name = 2;
         repeated provisioner.ParameterValue parameter_values = 3;
         provisioner.Provision.Metadata metadata = 4;

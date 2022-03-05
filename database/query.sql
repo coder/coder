@@ -300,38 +300,38 @@ GROUP BY
   project_id,
   owner_id;
 
--- name: GetWorkspaceHistoryByID :one
+-- name: GetWorkspaceBuildByID :one
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
 WHERE
   id = $1
 LIMIT
   1;
 
--- name: GetWorkspaceHistoryByWorkspaceIDAndName :one
+-- name: GetWorkspaceBuildByWorkspaceIDAndName :one
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
 WHERE
   workspace_id = $1
   AND name = $2;
 
--- name: GetWorkspaceHistoryByWorkspaceID :many
+-- name: GetWorkspaceBuildByWorkspaceID :many
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
 WHERE
   workspace_id = $1;
 
--- name: GetWorkspaceHistoryByWorkspaceIDWithoutAfter :one
+-- name: GetWorkspaceBuildByWorkspaceIDWithoutAfter :one
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
 WHERE
   workspace_id = $1
   AND after_id IS NULL
@@ -602,9 +602,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
--- name: InsertWorkspaceHistory :one
+-- name: InsertWorkspaceBuild :one
 INSERT INTO
-  workspace_history (
+  workspace_build (
     id,
     created_at,
     updated_at,
@@ -668,9 +668,9 @@ SET
 WHERE
   id = $1;
 
--- name: UpdateWorkspaceHistoryByID :exec
+-- name: UpdateWorkspaceBuildByID :exec
 UPDATE
-  workspace_history
+  workspace_build
 SET
   updated_at = $2,
   after_id = $3,
