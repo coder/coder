@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS provisioner_daemon (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     updated_at timestamptz,
+    organization_id text,
     -- Name is generated for ease of differentiation.
     -- eg. WowBananas16
     name varchar(64) NOT NULL UNIQUE,

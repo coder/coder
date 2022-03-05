@@ -22,7 +22,7 @@ type querier interface {
 	GetProjectByOrganizationAndName(ctx context.Context, arg GetProjectByOrganizationAndNameParams) (Project, error)
 	GetProjectVersionByID(ctx context.Context, id uuid.UUID) (ProjectVersion, error)
 	GetProjectVersionByProjectIDAndName(ctx context.Context, arg GetProjectVersionByProjectIDAndNameParams) (ProjectVersion, error)
-	GetProjectVersionsByProjectID(ctx context.Context, projectID uuid.NullUUID) ([]ProjectVersion, error)
+	GetProjectVersionsByProjectID(ctx context.Context, dollar_1 uuid.UUID) ([]ProjectVersion, error)
 	GetProjectsByOrganizationIDs(ctx context.Context, ids []string) ([]Project, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)

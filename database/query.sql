@@ -179,7 +179,7 @@ SELECT
 FROM
   project_version
 WHERE
-  project_id = $1;
+  project_id = $1 :: uuid;
 
 -- name: GetProjectVersionByProjectIDAndName :one
 SELECT
@@ -484,6 +484,7 @@ INSERT INTO
   project_version (
     id,
     project_id,
+    organization_id,
     created_at,
     updated_at,
     name,
@@ -491,7 +492,7 @@ INSERT INTO
     job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: InsertParameterSchema :one
 INSERT INTO
@@ -535,9 +536,9 @@ VALUES
 
 -- name: InsertProvisionerDaemon :one
 INSERT INTO
-  provisioner_daemon (id, created_at, name, provisioners)
+  provisioner_daemon (id, created_at, organization_id, name, provisioners)
 VALUES
-  ($1, $2, $3, $4) RETURNING *;
+  ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertProvisionerJob :one
 INSERT INTO

@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 )
@@ -29,18 +26,8 @@ func WorkspaceResourceParam(r *http.Request) database.ProvisionerJobResource {
 func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			resourceID := chi.URLParam(r, "workspaceresource")
-			if resourceID == "" {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "workspace resource must be provided",
-				})
-				return
-			}
-			resourceUUID, err := uuid.Parse(resourceID)
-			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "resource id must be a uuid",
-				})
+			resourceUUID, parsed := parseUUID(rw, r, "workspaceresource")
+			if !parsed {
 				return
 			}
 			resource, err := db.GetProvisionerJobResourceByID(r.Context(), resourceUUID)
@@ -53,6 +40,13 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get provisioner resource: %s", err),
+				})
+				return
+			}
+			workspaceBuild := WorkspaceBuildParam(r)
+			if workspaceBuild.ProvisionJobID.String() != resource.JobID.String() {
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: "you don't own this resource",
 				})
 				return
 			}

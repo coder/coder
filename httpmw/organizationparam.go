@@ -40,18 +40,17 @@ func OrganizationMemberParam(r *http.Request) database.OrganizationMember {
 func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			apiKey := APIKey(r)
-			organizationName := chi.URLParam(r, "organization")
-			if organizationName == "" {
+			organizationID := chi.URLParam(r, "organization")
+			if organizationID == "" {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "organization name must be provided",
+					Message: "organization must be provided",
 				})
 				return
 			}
-			organization, err := db.GetOrganizationByName(r.Context(), organizationName)
+			organization, err := db.GetOrganizationByID(r.Context(), organizationID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("organization %q does not exist", organizationName),
+					Message: fmt.Sprintf("organization %q does not exist", organizationID),
 				})
 				return
 			}
@@ -61,6 +60,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				})
 				return
 			}
+			apiKey := APIKey(r)
 			organizationMember, err := db.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
 				OrganizationID: organization.ID,
 				UserID:         apiKey.UserID,

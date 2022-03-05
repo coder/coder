@@ -166,6 +166,7 @@ CREATE TABLE project (
 CREATE TABLE project_version (
     id uuid NOT NULL,
     project_id uuid,
+    organization_id text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
@@ -177,6 +178,7 @@ CREATE TABLE provisioner_daemon (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
+    organization_id text,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL
 );

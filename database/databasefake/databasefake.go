@@ -406,7 +406,7 @@ func (q *fakeQuerier) GetProjectVersionsByProjectID(_ context.Context, projectID
 
 	version := make([]database.ProjectVersion, 0)
 	for _, projectVersion := range q.projectVersion {
-		if projectVersion.ProjectID.String() != projectID.String() {
+		if projectVersion.ProjectID.UUID.String() != projectID.String() {
 			continue
 		}
 		version = append(version, projectVersion)
@@ -422,7 +422,7 @@ func (q *fakeQuerier) GetProjectVersionByProjectIDAndName(_ context.Context, arg
 	defer q.mutex.Unlock()
 
 	for _, projectVersion := range q.projectVersion {
-		if projectVersion.ProjectID.String() != arg.ProjectID.String() {
+		if projectVersion.ProjectID.UUID.String() != arg.ProjectID.UUID.String() {
 			continue
 		}
 		if !strings.EqualFold(projectVersion.Name, arg.Name) {
@@ -740,13 +740,14 @@ func (q *fakeQuerier) InsertProjectVersion(_ context.Context, arg database.Inser
 
 	//nolint:gosimple
 	version := database.ProjectVersion{
-		ID:          arg.ID,
-		ProjectID:   arg.ProjectID,
-		CreatedAt:   arg.CreatedAt,
-		UpdatedAt:   arg.UpdatedAt,
-		Name:        arg.Name,
-		Description: arg.Description,
-		ImportJobID: arg.ImportJobID,
+		ID:             arg.ID,
+		ProjectID:      arg.ProjectID,
+		OrganizationID: arg.OrganizationID,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		Name:           arg.Name,
+		Description:    arg.Description,
+		JobID:          arg.JobID,
 	}
 	q.projectVersion = append(q.projectVersion, version)
 	return version, nil
@@ -803,10 +804,11 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 	defer q.mutex.Unlock()
 
 	daemon := database.ProvisionerDaemon{
-		ID:           arg.ID,
-		CreatedAt:    arg.CreatedAt,
-		Name:         arg.Name,
-		Provisioners: arg.Provisioners,
+		ID:             arg.ID,
+		CreatedAt:      arg.CreatedAt,
+		OrganizationID: arg.OrganizationID,
+		Name:           arg.Name,
+		Provisioners:   arg.Provisioners,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, daemon)
 	return daemon, nil

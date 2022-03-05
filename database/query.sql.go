@@ -427,7 +427,7 @@ func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg Ge
 
 const getProjectVersionByID = `-- name: GetProjectVersionByID :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, job_id
+  id, project_id, organization_id, created_at, updated_at, name, description, job_id
 FROM
   project_version
 WHERE
@@ -440,6 +440,7 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.OrganizationID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
@@ -451,7 +452,7 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 
 const getProjectVersionByProjectIDAndName = `-- name: GetProjectVersionByProjectIDAndName :one
 SELECT
-  id, project_id, created_at, updated_at, name, description, job_id
+  id, project_id, organization_id, created_at, updated_at, name, description, job_id
 FROM
   project_version
 WHERE
@@ -470,6 +471,7 @@ func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, ar
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.OrganizationID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
@@ -481,15 +483,15 @@ func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, ar
 
 const getProjectVersionsByProjectID = `-- name: GetProjectVersionsByProjectID :many
 SELECT
-  id, project_id, created_at, updated_at, name, description, job_id
+  id, project_id, organization_id, created_at, updated_at, name, description, job_id
 FROM
   project_version
 WHERE
-  project_id = $1
+  project_id = $1 :: uuid
 `
 
-func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectID uuid.NullUUID) ([]ProjectVersion, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectVersionsByProjectID, projectID)
+func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, dollar_1 uuid.UUID) ([]ProjectVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectVersionsByProjectID, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -500,6 +502,7 @@ func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, projectI
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProjectID,
+			&i.OrganizationID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Name,
@@ -561,7 +564,7 @@ func (q *sqlQuerier) GetProjectsByOrganizationIDs(ctx context.Context, ids []str
 
 const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
-  id, created_at, updated_at, name, provisioners
+  id, created_at, updated_at, organization_id, name, provisioners
 FROM
   provisioner_daemon
 WHERE
@@ -575,6 +578,7 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 		&i.Name,
 		pq.Array(&i.Provisioners),
 	)
@@ -583,7 +587,7 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-  id, created_at, updated_at, name, provisioners
+  id, created_at, updated_at, organization_id, name, provisioners
 FROM
   provisioner_daemon
 `
@@ -601,6 +605,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrganizationID,
 			&i.Name,
 			pq.Array(&i.Provisioners),
 		); err != nil {
@@ -1684,6 +1689,7 @@ INSERT INTO
   project_version (
     id,
     project_id,
+    organization_id,
     created_at,
     updated_at,
     name,
@@ -1691,23 +1697,25 @@ INSERT INTO
     job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, project_id, created_at, updated_at, name, description, job_id
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, project_id, organization_id, created_at, updated_at, name, description, job_id
 `
 
 type InsertProjectVersionParams struct {
-	ID          uuid.UUID     `db:"id" json:"id"`
-	ProjectID   uuid.NullUUID `db:"project_id" json:"project_id"`
-	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time     `db:"updated_at" json:"updated_at"`
-	Name        string        `db:"name" json:"name"`
-	Description string        `db:"description" json:"description"`
-	JobID       uuid.UUID     `db:"job_id" json:"job_id"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	OrganizationID string        `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 }
 
 func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProjectVersionParams) (ProjectVersion, error) {
 	row := q.db.QueryRowContext(ctx, insertProjectVersion,
 		arg.ID,
 		arg.ProjectID,
+		arg.OrganizationID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Name,
@@ -1718,6 +1726,7 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
+		&i.OrganizationID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
@@ -1729,22 +1738,24 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 
 const insertProvisionerDaemon = `-- name: InsertProvisionerDaemon :one
 INSERT INTO
-  provisioner_daemon (id, created_at, name, provisioners)
+  provisioner_daemon (id, created_at, organization_id, name, provisioners)
 VALUES
-  ($1, $2, $3, $4) RETURNING id, created_at, updated_at, name, provisioners
+  ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, organization_id, name, provisioners
 `
 
 type InsertProvisionerDaemonParams struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
-	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
-	Name         string            `db:"name" json:"name"`
-	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+	ID             uuid.UUID         `db:"id" json:"id"`
+	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
+	OrganizationID sql.NullString    `db:"organization_id" json:"organization_id"`
+	Name           string            `db:"name" json:"name"`
+	Provisioners   []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
 	row := q.db.QueryRowContext(ctx, insertProvisionerDaemon,
 		arg.ID,
 		arg.CreatedAt,
+		arg.OrganizationID,
 		arg.Name,
 		pq.Array(arg.Provisioners),
 	)
@@ -1753,6 +1764,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 		&i.Name,
 		pq.Array(&i.Provisioners),
 	)

@@ -28,35 +28,16 @@ func WorkspaceBuildParam(r *http.Request) database.WorkspaceBuild {
 func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			workspace := WorkspaceParam(r)
-			workspaceBuildName := chi.URLParam(r, "workspacebuild")
-			if workspaceBuildName == "" {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "workspace build name must be provided",
-				})
+			workspaceBuildID, parsed := parseUUID(rw, r, "workspacebuild")
+			if !parsed {
 				return
 			}
-			var workspaceBuild database.WorkspaceBuild
-			var err error
-			if workspaceBuildName == "latest" {
-				workspaceBuild, err = db.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
-				if errors.Is(err, sql.ErrNoRows) {
-					httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-						Message: "there is no workspace build",
-					})
-					return
-				}
-			} else {
-				workspaceBuild, err = db.GetWorkspaceBuildByWorkspaceIDAndName(r.Context(), database.GetWorkspaceBuildByWorkspaceIDAndNameParams{
-					WorkspaceID: workspace.ID,
-					Name:        workspaceBuildName,
+			workspaceBuild, err := db.GetWorkspaceBuildByID(r.Context(), workspaceBuildID)
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+					Message: fmt.Sprintf("workspace build %q does not exist", workspaceBuildID),
 				})
-				if errors.Is(err, sql.ErrNoRows) {
-					httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-						Message: fmt.Sprintf("workspace build %q does not exist", workspaceBuildName),
-					})
-					return
-				}
+				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -66,6 +47,9 @@ func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handl
 			}
 
 			ctx := context.WithValue(r.Context(), workspaceBuildParamContextKey{}, workspaceBuild)
+			// This injects the "workspace" parameter, because it's expected the consumer
+			// will want to use the Workspace middleware to ensure the caller owns the workspace.
+			chi.RouteContext(ctx).URLParams.Add("workspace", workspaceBuild.WorkspaceID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

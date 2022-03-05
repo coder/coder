@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
@@ -29,27 +28,14 @@ func ProjectVersionParam(r *http.Request) database.ProjectVersion {
 func ExtractProjectVersionParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			project := ProjectParam(r)
-			projectVersionName := chi.URLParam(r, "projectversion")
-			if projectVersionName == "" {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "project version name must be provided",
-				})
+			projectVersionID, parsed := parseUUID(rw, r, "projectversion")
+			if !parsed {
 				return
 			}
-			var projectVersion database.ProjectVersion
-			uuid, err := uuid.Parse(projectVersionName)
-			if err == nil {
-				projectVersion, err = db.GetProjectVersionByID(r.Context(), uuid)
-			} else {
-				projectVersion, err = db.GetProjectVersionByProjectIDAndName(r.Context(), database.GetProjectVersionByProjectIDAndNameParams{
-					ProjectID: project.ID,
-					Name:      projectVersionName,
-				})
-			}
+			projectVersion, err := db.GetProjectVersionByID(r.Context(), projectVersionID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("project version %q does not exist", projectVersionName),
+					Message: fmt.Sprintf("project version %q does not exist", projectVersionID),
 				})
 				return
 			}
@@ -61,6 +47,7 @@ func ExtractProjectVersionParam(db database.Store) func(http.Handler) http.Handl
 			}
 
 			ctx := context.WithValue(r.Context(), projectVersionParamContextKey{}, projectVersion)
+			chi.RouteContext(ctx).URLParams.Add("organization", projectVersion.OrganizationID)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

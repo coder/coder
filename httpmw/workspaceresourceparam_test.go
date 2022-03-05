@@ -20,12 +20,17 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	setup := func(db database.Store) (*http.Request, database.ProvisionerJobResource) {
 		r := httptest.NewRequest("GET", "/", nil)
+		workspaceBuild, err := db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
+			ID: uuid.New(),
+		})
+		require.NoError(t, err)
 		resource, err := db.InsertProvisionerJobResource(context.Background(), database.InsertProvisionerJobResourceParams{
 			ID: uuid.New(),
 		})
 		require.NoError(t, err)
 
 		ctx := chi.NewRouteContext()
+		ctx.URLParams.Add("workspacebuild", workspaceBuild.ID.String())
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
 		return r, resource
 	}
@@ -34,30 +39,9 @@ func TestWorkspaceResourceParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractWorkspaceResourceParam(db),
-		)
+		rtr.Use(httpmw.ExtractWorkspaceResourceParam(db))
 		rtr.Get("/", nil)
 		r, _ := setup(db)
-		rw := httptest.NewRecorder()
-		rtr.ServeHTTP(rw, r)
-
-		res := rw.Result()
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-	})
-
-	t.Run("BadUUID", func(t *testing.T) {
-		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractWorkspaceResourceParam(db),
-		)
-		rtr.Get("/", nil)
-
-		r, _ := setup(db)
-		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", "nothin")
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -85,11 +69,12 @@ func TestWorkspaceResourceParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("ProvisionerJob", func(t *testing.T) {
+	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
+			httpmw.ExtractWorkspaceBuildParam(db),
 			httpmw.ExtractWorkspaceResourceParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {

@@ -34,6 +34,7 @@ CREATE TABLE project_version (
     id uuid NOT NULL UNIQUE,
     -- This should be indexed.
     project_id uuid REFERENCES project (id),
+    organization_id text NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     -- Name is generated for ease of differentiation.

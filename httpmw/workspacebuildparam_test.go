@@ -74,12 +74,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-			httpmw.ExtractWorkspaceBuildParam(db),
-		)
+		rtr.Use(httpmw.ExtractWorkspaceBuildParam(db))
 		rtr.Get("/", nil)
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
@@ -94,16 +89,11 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-			httpmw.ExtractWorkspaceBuildParam(db),
-		)
+		rtr.Use(httpmw.ExtractWorkspaceBuildParam(db))
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", "nothin")
+		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -118,9 +108,8 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
 			httpmw.ExtractWorkspaceBuildParam(db),
+			httpmw.ExtractWorkspaceParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.WorkspaceBuildParam(r)
@@ -134,38 +123,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			Name:        "moo",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", workspaceBuild.Name)
-		rw := httptest.NewRecorder()
-		rtr.ServeHTTP(rw, r)
-
-		res := rw.Result()
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-	})
-
-	t.Run("WorkspaceBuildLatest", func(t *testing.T) {
-		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-			httpmw.ExtractWorkspaceBuildParam(db),
-		)
-		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.WorkspaceBuildParam(r)
-			rw.WriteHeader(http.StatusOK)
-		})
-
-		r, workspace := setupAuthentication(db)
-		_, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
-			ID:          uuid.New(),
-			WorkspaceID: workspace.ID,
-			Name:        "moo",
-		})
-		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", "latest")
+		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", workspaceBuild.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

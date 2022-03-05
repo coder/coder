@@ -113,7 +113,7 @@ func TestOrganizationParam(t *testing.T) {
 			UpdatedAt: database.Now(),
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.Name)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID)
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
@@ -147,7 +147,7 @@ func TestOrganizationParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.Name)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID)
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
