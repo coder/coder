@@ -21,7 +21,7 @@ func TestPostWorkspaceBuildByUser(t *testing.T) {
 	t.Run("NoProjectVersion", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
@@ -38,7 +38,7 @@ func TestPostWorkspaceBuildByUser(t *testing.T) {
 	t.Run("ProjectVersionFailedImport", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
 			Provision: []*proto.Provision_Response{{}},
@@ -59,7 +59,7 @@ func TestPostWorkspaceBuildByUser(t *testing.T) {
 	t.Run("AlreadyActive", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -85,7 +85,7 @@ func TestPostWorkspaceBuildByUser(t *testing.T) {
 	t.Run("UpdatePriorAfterField", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -115,7 +115,7 @@ func TestWorkspaceBuildByUser(t *testing.T) {
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -129,7 +129,7 @@ func TestWorkspaceBuildByUser(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
@@ -150,7 +150,7 @@ func TestWorkspaceBuildByUser(t *testing.T) {
 func TestWorkspaceBuildByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateInitialUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	coderdtest.NewProvisionerDaemon(t, client)
 	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
 	coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)

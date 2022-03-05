@@ -64,7 +64,7 @@ func (api *api) postWorkspaceBuildByUser(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	projectVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.ImportJobID)
+	projectVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
@@ -90,7 +90,7 @@ func (api *api) postWorkspaceBuildByUser(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	project, err := api.Database.GetProjectByID(r.Context(), projectVersion.ProjectID)
+	project, err := api.Database.GetProjectByID(r.Context(), projectVersion.ProjectID.UUID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get project: %s", err),

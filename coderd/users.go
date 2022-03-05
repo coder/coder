@@ -62,7 +62,7 @@ type GenerateAPIKeyResponse struct {
 }
 
 // Returns whether the initial user has been created or not.
-func (api *api) user(rw http.ResponseWriter, r *http.Request) {
+func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -82,7 +82,7 @@ func (api *api) user(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates the initial user for a Coder deployment.
-func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	var createUser CreateInitialUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
 		return

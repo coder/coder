@@ -21,7 +21,7 @@ type UploadResponse struct {
 	Hash string `json:"hash"`
 }
 
-func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postFiles(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	contentType := r.Header.Get("Content-Type")
 
@@ -72,7 +72,7 @@ func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) download(rw http.ResponseWriter, r *http.Request) {
+func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 	if hash == "" {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
@@ -93,7 +93,7 @@ func (api *api) download(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	rw.WriteHeader(http.StatusOK)
 	rw.Header().Set("Content-Type", file.Mimetype)
+	rw.WriteHeader(http.StatusOK)
 	rw.Write(file.Data)
 }

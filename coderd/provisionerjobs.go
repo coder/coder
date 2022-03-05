@@ -18,7 +18,6 @@ import (
 
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
-	"github.com/coder/coder/httpmw"
 )
 
 type ProvisionerJobStatus string
@@ -79,9 +78,8 @@ type ProvisionerJobAgent struct {
 }
 
 func (*api) provisionerJobByID(rw http.ResponseWriter, r *http.Request) {
-	job := httpmw.ProvisionerJobParam(r)
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertProvisionerJob(job))
+	// render.Status(r, http.StatusOK)
+	// render.JSON(rw, r, convertProvisionerJob(job))
 }
 
 // Returns provisioner logs based on query parameters.
@@ -133,7 +131,7 @@ func (api *api) provisionerJobLogsByID(rw http.ResponseWriter, r *http.Request) 
 		before = database.Now()
 	}
 
-	job := httpmw.ProvisionerJobParam(r)
+	var job database.ProvisionerJob
 	if !follow {
 		logs, err := api.Database.GetProvisionerLogsByIDBetween(r.Context(), database.GetProvisionerLogsByIDBetweenParams{
 			JobID:         job.ID,
@@ -241,7 +239,7 @@ func (api *api) provisionerJobLogsByID(rw http.ResponseWriter, r *http.Request) 
 }
 
 func (api *api) provisionerJobResourcesByID(rw http.ResponseWriter, r *http.Request) {
-	job := httpmw.ProvisionerJobParam(r)
+	var job database.ProvisionerJob
 	if !convertProvisionerJob(job).Status.Completed() {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
@@ -282,7 +280,7 @@ func (api *api) provisionerJobResourcesByID(rw http.ResponseWriter, r *http.Requ
 }
 
 func (api *api) provisionerJobResourceByID(rw http.ResponseWriter, r *http.Request) {
-	job := httpmw.ProvisionerJobParam(r)
+	var job database.ProvisionerJob
 	if !convertProvisionerJob(job).Status.Completed() {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",

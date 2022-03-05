@@ -43,8 +43,8 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-			r.Post("/", api.postUpload)
-			r.Get("/{hash}", nil)
+			r.Get("/{hash}", api.fileByHash)
+			r.Post("/", api.postFiles)
 		})
 		r.Route("/organization/{organization}", func(r chi.Router) {
 			r.Use(
@@ -95,8 +95,8 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/user", func(r chi.Router) {
 			r.Post("/login", api.postLogin)
 			r.Post("/logout", api.postLogout)
-			r.Get("/first", api.user)
-			r.Post("/first", api.user)
+			r.Get("/first", api.firstUser)
+			r.Post("/first", api.postFirstUser)
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
 				r.Post("/", nil)

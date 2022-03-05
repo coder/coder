@@ -6,6 +6,9 @@
   "go.lintFlags": ["--fast"],
   "go.lintOnSave": "package",
   "go.coverOnSave": true,
+  // The codersdk is used by coderd another other packages extensively.
+  // To reduce redundancy in tests, it's covered by other packages.
+  "go.testFlags": ["-coverpkg=./.,github.com/coder/coder/codersdk"],
   "go.coverageDecorator": {
     "type": "gutter",
     "coveredHighlightColor": "rgba(64,128,128,0.5)",

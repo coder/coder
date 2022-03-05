@@ -33,7 +33,7 @@ func (c *Client) Upload(ctx context.Context, contentType string, content []byte)
 
 // Download fetches a file by uploaded hash.
 func (c *Client) Download(ctx context.Context, hash string) ([]byte, string, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/files/%s", hash), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/files/%s", hash), nil)
 	if err != nil {
 		return nil, "", err
 	}

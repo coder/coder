@@ -83,12 +83,15 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 	}
 	project := httpmw.ProjectParam(r)
 	projectVersion, err := api.Database.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
-		ID:          uuid.New(),
-		ProjectID:   project.ID,
-		CreatedAt:   database.Now(),
-		UpdatedAt:   database.Now(),
-		Name:        namesgenerator.GetRandomName(1),
-		ImportJobID: job.ID,
+		ID: uuid.New(),
+		ProjectID: uuid.NullUUID{
+			UUID:  project.ID,
+			Valid: true,
+		},
+		CreatedAt: database.Now(),
+		UpdatedAt: database.Now(),
+		Name:      namesgenerator.GetRandomName(1),
+		JobID:     job.ID,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -104,10 +107,10 @@ func (api *api) postProjectVersionByOrganization(rw http.ResponseWriter, r *http
 func convertProjectVersion(version database.ProjectVersion) ProjectVersion {
 	return ProjectVersion{
 		ID:        version.ID,
-		ProjectID: version.ProjectID,
+		ProjectID: &version.ProjectID.UUID,
 		CreatedAt: version.CreatedAt,
 		UpdatedAt: version.UpdatedAt,
 		Name:      version.Name,
-		JobID:     version.ImportJobID,
+		JobID:     version.JobID,
 	}
 }

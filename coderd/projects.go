@@ -153,8 +153,11 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert project: %s", err)
 		}
 		_, err = db.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
-			ID:        projectVersionID,
-			ProjectID: dbProject.ID,
+			ID: projectVersionID,
+			ProjectID: uuid.NullUUID{
+				UUID:  dbProject.ID,
+				Valid: true,
+			},
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 			Name:      namesgenerator.GetRandomName(1),

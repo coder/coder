@@ -200,14 +200,14 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project version: %s", err))
 		}
-		project, err := server.Database.GetProjectByID(ctx, projectVersion.ProjectID)
+		project, err := server.Database.GetProjectByID(ctx, projectVersion.ProjectID.UUID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project: %s", err))
 		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			ProjectImportJobID: projectVersion.ImportJobID,
+			ProjectImportJobID: projectVersion.JobID,
 			OrganizationID:     job.OrganizationID,
 			ProjectID: uuid.NullUUID{
 				UUID:  project.ID,

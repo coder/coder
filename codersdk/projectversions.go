@@ -58,7 +58,7 @@ func (c *Client) ProjectVersionResources(ctx context.Context, version uuid.UUID)
 
 // ProjectVersionLogsBefore returns logs that occurred before a specific time.
 func (c *Client) ProjectVersionLogsBefore(ctx context.Context, version uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, "projectimport", organization, job, before)
+	return c.provisionerJobLogsBefore(ctx, "projectimport", "", version, before)
 }
 
 // ProjectVersionLogsAfter streams logs for a project version that occurred after a specific time.

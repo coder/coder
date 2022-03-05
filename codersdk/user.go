@@ -17,7 +17,7 @@ var (
 
 // HasFirstUser returns whether the first user has been created.
 func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/user", nil)
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/user/first", nil)
 	if err != nil {
 		return false, err
 	}
@@ -34,7 +34,7 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 // CreateFirstUser attempts to create the first user on a Coder deployment.
 // This initial user has superadmin privileges. If >0 users exist, this request will fail.
 func (c *Client) CreateFirstUser(ctx context.Context, req coderd.CreateInitialUserRequest) (coderd.User, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/user", req)
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/user/first", req)
 	if err != nil {
 		return coderd.User{}, err
 	}
@@ -77,7 +77,7 @@ func (c *Client) CreateAPIKey(ctx context.Context) (*coderd.GenerateAPIKeyRespon
 // LoginWithPassword creates a session token authenticating with an email and password.
 // Call `SetSessionToken()` to apply the newly acquired token to the client.
 func (c *Client) LoginWithPassword(ctx context.Context, req coderd.LoginWithPasswordRequest) (coderd.LoginWithPasswordResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/login", req)
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/user/login", req)
 	if err != nil {
 		return coderd.LoginWithPasswordResponse{}, err
 	}
@@ -98,7 +98,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, req coderd.LoginWithPass
 func (c *Client) Logout(ctx context.Context) error {
 	// Since `LoginWithPassword` doesn't actually set a SessionToken
 	// (it requires a call to SetSessionToken), this is essentially a no-op
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/logout", nil)
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/user/logout", nil)
 	if err != nil {
 		return err
 	}
