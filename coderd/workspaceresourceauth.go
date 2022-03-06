@@ -25,30 +25,10 @@ type WorkspaceAgentAuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
-type WorkspaceAgentResourceMetadata struct {
-	MemoryTotal uint64  `json:"memory_total"`
-	DiskTotal   uint64  `json:"disk_total"`
-	CPUCores    uint64  `json:"cpu_cores"`
-	CPUModel    string  `json:"cpu_model"`
-	CPUMhz      float64 `json:"cpu_mhz"`
-}
-
-type WorkspaceAgentInstanceMetadata struct {
-	JailOrchestrator   string `json:"jail_orchestrator"`
-	OperatingSystem    string `json:"operating_system"`
-	Platform           string `json:"platform"`
-	PlatformFamily     string `json:"platform_family"`
-	KernelVersion      string `json:"kernel_version"`
-	KernelArchitecture string `json:"kernel_architecture"`
-	Cloud              string `json:"cloud"`
-	Jail               string `json:"jail"`
-	VNC                bool   `json:"vnc"`
-}
-
 // Google Compute Engine supports instance identity verification:
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
 // Using this, we can exchange a signed instance payload for an agent token.
-func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	var req GoogleInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -76,7 +56,7 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	agent, err := api.Database.GetProvisionerJobAgentByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
+	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("instance with id %q not found", claims.Google.ComputeEngine.InstanceID),
@@ -89,7 +69,7 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	resource, err := api.Database.GetProvisionerJobResourceByID(r.Context(), agent.ResourceID)
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job resource: %s", err),
@@ -103,7 +83,7 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	if job.Type != database.ProvisionerJobTypeWorkspaceProvision {
+	if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("%q jobs cannot be authenticated", job.Type),
 		})

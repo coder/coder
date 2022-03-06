@@ -57,7 +57,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			rw.WriteHeader(http.StatusOK)
 		})
 		r, token := setup(db)
-		_, err := db.InsertProvisionerJobAgent(context.Background(), database.InsertProvisionerJobAgentParams{
+		_, err := db.InsertWorkspaceAgent(context.Background(), database.InsertWorkspaceAgentParams{
 			ID:        uuid.New(),
 			AuthToken: token,
 		})

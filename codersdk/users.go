@@ -7,12 +7,6 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd"
-	"github.com/google/uuid"
-)
-
-var (
-	// Me represents an empty UUID, which is used to represent the current entity.
-	Me = uuid.UUID{}
 )
 
 // HasFirstUser returns whether the first user has been created.
@@ -33,16 +27,16 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 
 // CreateFirstUser attempts to create the first user on a Coder deployment.
 // This initial user has superadmin privileges. If >0 users exist, this request will fail.
-func (c *Client) CreateFirstUser(ctx context.Context, req coderd.CreateUserRequest) (coderd.CreateUserResponse, error) {
+func (c *Client) CreateFirstUser(ctx context.Context, req coderd.CreateFirstUserRequest) (coderd.CreateFirstUserResponse, error) {
 	res, err := c.request(ctx, http.MethodPost, "/api/v2/users/first", req)
 	if err != nil {
-		return coderd.CreateUserResponse{}, err
+		return coderd.CreateFirstUserResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return coderd.CreateUserResponse{}, readBodyAsError(res)
+		return coderd.CreateFirstUserResponse{}, readBodyAsError(res)
 	}
-	var resp coderd.CreateUserResponse
+	var resp coderd.CreateFirstUserResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -60,9 +54,12 @@ func (c *Client) CreateUser(ctx context.Context, req coderd.CreateUserRequest) (
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// CreateAPIKey calls the /api-key API
-func (c *Client) CreateAPIKey(ctx context.Context) (*coderd.GenerateAPIKeyResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/users/me/keys", nil)
+// CreateAPIKey generates an API key for the user ID provided.
+func (c *Client) CreateAPIKey(ctx context.Context, id string) (*coderd.GenerateAPIKeyResponse, error) {
+	if id == "" {
+		id = "me"
+	}
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", id), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +126,7 @@ func (c *Client) OrganizationsByUser(ctx context.Context, id string) ([]coderd.O
 	if id == "" {
 		id = "me"
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", id), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", id), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -139,4 +136,87 @@ func (c *Client) OrganizationsByUser(ctx context.Context, id string) ([]coderd.O
 	}
 	var orgs []coderd.Organization
 	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
+}
+
+func (c *Client) OrganizationByName(ctx context.Context, user, name string) (coderd.Organization, error) {
+	if user == "" {
+		user = "me"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", user, name), nil)
+	if err != nil {
+		return coderd.Organization{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.Organization{}, readBodyAsError(res)
+	}
+	var org coderd.Organization
+	return org, json.NewDecoder(res.Body).Decode(&org)
+}
+
+// CreateOrganization creates an organization and adds the provided user as an admin.
+func (c *Client) CreateOrganization(ctx context.Context, user string, req coderd.CreateOrganizationRequest) (coderd.Organization, error) {
+	if user == "" {
+		user = "me"
+	}
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", user), req)
+	if err != nil {
+		return coderd.Organization{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return coderd.Organization{}, readBodyAsError(res)
+	}
+	var org coderd.Organization
+	return org, json.NewDecoder(res.Body).Decode(&org)
+}
+
+// CreateWorkspace creates a new workspace for the project specified.
+func (c *Client) CreateWorkspace(ctx context.Context, user string, request coderd.CreateWorkspaceRequest) (coderd.Workspace, error) {
+	if user == "" {
+		user = "me"
+	}
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
+	if err != nil {
+		return coderd.Workspace{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return coderd.Workspace{}, readBodyAsError(res)
+	}
+	var workspace coderd.Workspace
+	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// WorkspacesByUser returns all workspaces the specified user has access to.
+func (c *Client) WorkspacesByUser(ctx context.Context, user string) ([]coderd.Workspace, error) {
+	if user == "" {
+		user = "me"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", user), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var workspaces []coderd.Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}
+
+func (c *Client) WorkspaceByName(ctx context.Context, user, name string) (coderd.Workspace, error) {
+	if user == "" {
+		user = "me"
+	}
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces/%s", user, name), nil)
+	if err != nil {
+		return coderd.Workspace{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.Workspace{}, readBodyAsError(res)
+	}
+	var workspace coderd.Workspace
+	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }

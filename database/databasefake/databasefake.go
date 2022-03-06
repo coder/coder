@@ -28,9 +28,9 @@ func New() database.Store {
 		provisionerJobs:        make([]database.ProvisionerJob, 0),
 		provisionerJobLog:      make([]database.ProvisionerJobLog, 0),
 		workspace:              make([]database.Workspace, 0),
-		provisionerJobResource: make([]database.ProvisionerJobResource, 0),
+		provisionerJobResource: make([]database.WorkspaceResource, 0),
 		workspaceBuild:         make([]database.WorkspaceBuild, 0),
-		provisionerJobAgent:    make([]database.ProvisionerJobAgent, 0),
+		provisionerJobAgent:    make([]database.WorkspaceAgent, 0),
 	}
 }
 
@@ -52,8 +52,8 @@ type fakeQuerier struct {
 	projectVersion         []database.ProjectVersion
 	provisionerDaemons     []database.ProvisionerDaemon
 	provisionerJobs        []database.ProvisionerJob
-	provisionerJobAgent    []database.ProvisionerJobAgent
-	provisionerJobResource []database.ProvisionerJobResource
+	provisionerJobAgent    []database.WorkspaceAgent
+	provisionerJobResource []database.WorkspaceResource
 	provisionerJobLog      []database.ProvisionerJobLog
 	workspace              []database.Workspace
 	workspaceBuild         []database.WorkspaceBuild
@@ -217,6 +217,18 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 	for _, history := range q.workspaceBuild {
 		if history.ID.String() == id.String() {
 			return history, nil
+		}
+	}
+	return database.WorkspaceBuild{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, build := range q.workspaceBuild {
+		if build.JobID.String() == jobID.String() {
+			return build, nil
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
@@ -508,7 +520,7 @@ func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return q.provisionerDaemons, nil
 }
 
-func (q *fakeQuerier) GetProvisionerJobAgentByAuthToken(_ context.Context, authToken uuid.UUID) (database.ProvisionerJobAgent, error) {
+func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -517,10 +529,10 @@ func (q *fakeQuerier) GetProvisionerJobAgentByAuthToken(_ context.Context, authT
 			return agent, nil
 		}
 	}
-	return database.ProvisionerJobAgent{}, sql.ErrNoRows
+	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobAgentByInstanceID(_ context.Context, instanceID string) (database.ProvisionerJobAgent, error) {
+func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceID string) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -531,10 +543,10 @@ func (q *fakeQuerier) GetProvisionerJobAgentByInstanceID(_ context.Context, inst
 			return agent, nil
 		}
 	}
-	return database.ProvisionerJobAgent{}, sql.ErrNoRows
+	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobAgentByResourceID(_ context.Context, resourceID uuid.UUID) (database.ProvisionerJobAgent, error) {
+func (q *fakeQuerier) GetWorkspaceAgentByResourceID(_ context.Context, resourceID uuid.UUID) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -543,7 +555,7 @@ func (q *fakeQuerier) GetProvisionerJobAgentByResourceID(_ context.Context, reso
 			return agent, nil
 		}
 	}
-	return database.ProvisionerJobAgent{}, sql.ErrNoRows
+	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
@@ -572,7 +584,7 @@ func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (da
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobResourceByID(_ context.Context, id uuid.UUID) (database.ProvisionerJobResource, error) {
+func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -581,14 +593,14 @@ func (q *fakeQuerier) GetProvisionerJobResourceByID(_ context.Context, id uuid.U
 			return resource, nil
 		}
 	}
-	return database.ProvisionerJobResource{}, sql.ErrNoRows
+	return database.WorkspaceResource{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobResourcesByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProvisionerJobResource, error) {
+func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	resources := make([]database.ProvisionerJobResource, 0)
+	resources := make([]database.WorkspaceResource, 0)
 	for _, resource := range q.provisionerJobResource {
 		if resource.JobID.String() != jobID.String() {
 			continue
@@ -599,6 +611,26 @@ func (q *fakeQuerier) GetProvisionerJobResourcesByJobID(_ context.Context, jobID
 		return nil, sql.ErrNoRows
 	}
 	return resources, nil
+}
+
+func (q *fakeQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	jobs := make([]database.ProvisionerJob, 0)
+	for _, job := range q.provisionerJobs {
+		for _, id := range ids {
+			if id.String() == job.ID.String() {
+				jobs = append(jobs, job)
+				break
+			}
+		}
+	}
+	if len(jobs) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return jobs, nil
 }
 
 func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
@@ -834,12 +866,12 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 	return job, nil
 }
 
-func (q *fakeQuerier) InsertProvisionerJobAgent(_ context.Context, arg database.InsertProvisionerJobAgentParams) (database.ProvisionerJobAgent, error) {
+func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	agent := database.ProvisionerJobAgent{
+	agent := database.WorkspaceAgent{
 		ID:                   arg.ID,
 		CreatedAt:            arg.CreatedAt,
 		UpdatedAt:            arg.UpdatedAt,
@@ -855,12 +887,12 @@ func (q *fakeQuerier) InsertProvisionerJobAgent(_ context.Context, arg database.
 	return agent, nil
 }
 
-func (q *fakeQuerier) InsertProvisionerJobResource(_ context.Context, arg database.InsertProvisionerJobResourceParams) (database.ProvisionerJobResource, error) {
+func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	resource := database.ProvisionerJobResource{
+	resource := database.WorkspaceResource{
 		ID:         arg.ID,
 		CreatedAt:  arg.CreatedAt,
 		JobID:      arg.JobID,
@@ -922,7 +954,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		BeforeID:         arg.BeforeID,
 		Transition:       arg.Transition,
 		Initiator:        arg.Initiator,
-		ProvisionJobID:   arg.ProvisionJobID,
+		JobID:            arg.JobID,
 		ProvisionerState: arg.ProvisionerState,
 	}
 	q.workspaceBuild = append(q.workspaceBuild, workspaceBuild)
@@ -948,6 +980,22 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateProjectVersionByID(ctx context.Context, arg database.UpdateProjectVersionByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, projectVersion := range q.projectVersion {
+		if projectVersion.ID.String() != arg.ID.String() {
+			continue
+		}
+		projectVersion.ProjectID = arg.ProjectID
+		projectVersion.UpdatedAt = arg.UpdatedAt
+		q.projectVersion[index] = projectVersion
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -964,7 +1012,7 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg databas
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerJobAgentByID(_ context.Context, arg database.UpdateProvisionerJobAgentByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAgentByID(_ context.Context, arg database.UpdateWorkspaceAgentByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

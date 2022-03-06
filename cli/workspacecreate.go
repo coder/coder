@@ -108,7 +108,7 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			logs, err := client.WorkspaceProvisionJobLogsAfter(cmd.Context(), organization.Name, history.ProvisionJobID, time.Time{})
+			logs, err := client.WorkspaceBuildJobLogsAfter(cmd.Context(), organization.Name, history.ProvisionJobID, time.Time{})
 			if err != nil {
 				return err
 			}

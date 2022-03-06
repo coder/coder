@@ -622,89 +622,6 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
-const getProvisionerJobAgentByAuthToken = `-- name: GetProvisionerJobAgentByAuthToken :one
-SELECT
-  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
-FROM
-  provisioner_job_agent
-WHERE
-  auth_token = $1
-`
-
-func (q *sqlQuerier) GetProvisionerJobAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (ProvisionerJobAgent, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerJobAgentByAuthToken, authToken)
-	var i ProvisionerJobAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.EnvironmentVariables,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-	)
-	return i, err
-}
-
-const getProvisionerJobAgentByInstanceID = `-- name: GetProvisionerJobAgentByInstanceID :one
-SELECT
-  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
-FROM
-  provisioner_job_agent
-WHERE
-  auth_instance_id = $1 :: text
-ORDER BY
-  created_at DESC
-`
-
-func (q *sqlQuerier) GetProvisionerJobAgentByInstanceID(ctx context.Context, authInstanceID string) (ProvisionerJobAgent, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerJobAgentByInstanceID, authInstanceID)
-	var i ProvisionerJobAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.EnvironmentVariables,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-	)
-	return i, err
-}
-
-const getProvisionerJobAgentByResourceID = `-- name: GetProvisionerJobAgentByResourceID :one
-SELECT
-  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
-FROM
-  provisioner_job_agent
-WHERE
-  resource_id = $1
-`
-
-func (q *sqlQuerier) GetProvisionerJobAgentByResourceID(ctx context.Context, resourceID uuid.UUID) (ProvisionerJobAgent, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerJobAgentByResourceID, resourceID)
-	var i ProvisionerJobAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.EnvironmentVariables,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-	)
-	return i, err
-}
-
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
   id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
@@ -737,56 +654,40 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 	return i, err
 }
 
-const getProvisionerJobResourceByID = `-- name: GetProvisionerJobResourceByID :one
+const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-  id, created_at, job_id, transition, type, name, agent_id
+  id, created_at, updated_at, started_at, cancelled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 FROM
-  provisioner_job_resource
+  provisioner_job
 WHERE
-  id = $1
+  id = ANY($1 :: uuid [ ])
 `
 
-func (q *sqlQuerier) GetProvisionerJobResourceByID(ctx context.Context, id uuid.UUID) (ProvisionerJobResource, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerJobResourceByID, id)
-	var i ProvisionerJobResource
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.JobID,
-		&i.Transition,
-		&i.Type,
-		&i.Name,
-		&i.AgentID,
-	)
-	return i, err
-}
-
-const getProvisionerJobResourcesByJobID = `-- name: GetProvisionerJobResourcesByJobID :many
-SELECT
-  id, created_at, job_id, transition, type, name, agent_id
-FROM
-  provisioner_job_resource
-WHERE
-  job_id = $1
-`
-
-func (q *sqlQuerier) GetProvisionerJobResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobResource, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobResourcesByJobID, jobID)
+func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ProvisionerJobResource
+	var items []ProvisionerJob
 	for rows.Next() {
-		var i ProvisionerJobResource
+		var i ProvisionerJob
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
-			&i.JobID,
-			&i.Transition,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CancelledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.StorageSource,
 			&i.Type,
-			&i.Name,
-			&i.AgentID,
+			&i.Input,
+			&i.WorkerID,
 		); err != nil {
 			return nil, err
 		}
@@ -948,9 +849,92 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
+SELECT
+  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+FROM
+  workspace_agent
+WHERE
+  auth_token = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByAuthToken, authToken)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.EnvironmentVariables,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
+const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
+SELECT
+  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+FROM
+  workspace_agent
+WHERE
+  auth_instance_id = $1 :: text
+ORDER BY
+  created_at DESC
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByInstanceID, authInstanceID)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.EnvironmentVariables,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
+const getWorkspaceAgentByResourceID = `-- name: GetWorkspaceAgentByResourceID :one
+SELECT
+  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+FROM
+  workspace_agent
+WHERE
+  resource_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentByResourceID(ctx context.Context, resourceID uuid.UUID) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByResourceID, resourceID)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.EnvironmentVariables,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
   workspace_build
 WHERE
@@ -974,14 +958,45 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.Transition,
 		&i.Initiator,
 		&i.ProvisionerState,
-		&i.ProvisionJobID,
+		&i.JobID,
+	)
+	return i, err
+}
+
+const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
+SELECT
+  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
+FROM
+  workspace_build
+WHERE
+  job_id = $1
+LIMIT
+  1
+`
+
+func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByJobID, jobID)
+	var i WorkspaceBuild
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ProjectVersionID,
+		&i.Name,
+		&i.BeforeID,
+		&i.AfterID,
+		&i.Transition,
+		&i.Initiator,
+		&i.ProvisionerState,
+		&i.JobID,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceID = `-- name: GetWorkspaceBuildByWorkspaceID :many
 SELECT
-  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
   workspace_build
 WHERE
@@ -1009,7 +1024,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspa
 			&i.Transition,
 			&i.Initiator,
 			&i.ProvisionerState,
-			&i.ProvisionJobID,
+			&i.JobID,
 		); err != nil {
 			return nil, err
 		}
@@ -1026,7 +1041,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspa
 
 const getWorkspaceBuildByWorkspaceIDAndName = `-- name: GetWorkspaceBuildByWorkspaceIDAndName :one
 SELECT
-  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
   workspace_build
 WHERE
@@ -1054,14 +1069,14 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, 
 		&i.Transition,
 		&i.Initiator,
 		&i.ProvisionerState,
-		&i.ProvisionJobID,
+		&i.JobID,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceIDWithoutAfter = `-- name: GetWorkspaceBuildByWorkspaceIDWithoutAfter :one
 SELECT
-  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
   workspace_build
 WHERE
@@ -1086,7 +1101,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx context.Cont
 		&i.Transition,
 		&i.Initiator,
 		&i.ProvisionerState,
-		&i.ProvisionJobID,
+		&i.JobID,
 	)
 	return i, err
 }
@@ -1173,6 +1188,70 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, id
 	for rows.Next() {
 		var i GetWorkspaceOwnerCountsByProjectIDsRow
 		if err := rows.Scan(&i.ProjectID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
+SELECT
+  id, created_at, job_id, transition, type, name, agent_id
+FROM
+  workspace_resource
+WHERE
+  id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceResourceByID, id)
+	var i WorkspaceResource
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.JobID,
+		&i.Transition,
+		&i.Type,
+		&i.Name,
+		&i.AgentID,
+	)
+	return i, err
+}
+
+const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
+SELECT
+  id, created_at, job_id, transition, type, name, agent_id
+FROM
+  workspace_resource
+WHERE
+  job_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResourcesByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResource
+	for rows.Next() {
+		var i WorkspaceResource
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.JobID,
+			&i.Transition,
+			&i.Type,
+			&i.Name,
+			&i.AgentID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1836,66 +1915,6 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 	return i, err
 }
 
-const insertProvisionerJobAgent = `-- name: InsertProvisionerJobAgent :one
-INSERT INTO
-  provisioner_job_agent (
-    id,
-    created_at,
-    updated_at,
-    resource_id,
-    auth_token,
-    auth_instance_id,
-    environment_variables,
-    startup_script,
-    instance_metadata,
-    resource_metadata
-  )
-VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
-`
-
-type InsertProvisionerJobAgentParams struct {
-	ID                   uuid.UUID             `db:"id" json:"id"`
-	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            sql.NullTime          `db:"updated_at" json:"updated_at"`
-	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
-	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-}
-
-func (q *sqlQuerier) InsertProvisionerJobAgent(ctx context.Context, arg InsertProvisionerJobAgentParams) (ProvisionerJobAgent, error) {
-	row := q.db.QueryRowContext(ctx, insertProvisionerJobAgent,
-		arg.ID,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.ResourceID,
-		arg.AuthToken,
-		arg.AuthInstanceID,
-		arg.EnvironmentVariables,
-		arg.StartupScript,
-		arg.InstanceMetadata,
-		arg.ResourceMetadata,
-	)
-	var i ProvisionerJobAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.EnvironmentVariables,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-	)
-	return i, err
-}
-
 const insertProvisionerJobLogs = `-- name: InsertProvisionerJobLogs :many
 INSERT INTO
   provisioner_job_log
@@ -1952,54 +1971,6 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 		return nil, err
 	}
 	return items, nil
-}
-
-const insertProvisionerJobResource = `-- name: InsertProvisionerJobResource :one
-INSERT INTO
-  provisioner_job_resource (
-    id,
-    created_at,
-    job_id,
-    transition,
-    type,
-    name,
-    agent_id
-  )
-VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, job_id, transition, type, name, agent_id
-`
-
-type InsertProvisionerJobResourceParams struct {
-	ID         uuid.UUID           `db:"id" json:"id"`
-	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
-	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
-	Transition WorkspaceTransition `db:"transition" json:"transition"`
-	Type       string              `db:"type" json:"type"`
-	Name       string              `db:"name" json:"name"`
-	AgentID    uuid.NullUUID       `db:"agent_id" json:"agent_id"`
-}
-
-func (q *sqlQuerier) InsertProvisionerJobResource(ctx context.Context, arg InsertProvisionerJobResourceParams) (ProvisionerJobResource, error) {
-	row := q.db.QueryRowContext(ctx, insertProvisionerJobResource,
-		arg.ID,
-		arg.CreatedAt,
-		arg.JobID,
-		arg.Transition,
-		arg.Type,
-		arg.Name,
-		arg.AgentID,
-	)
-	var i ProvisionerJobResource
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.JobID,
-		&i.Transition,
-		&i.Type,
-		&i.Name,
-		&i.AgentID,
-	)
-	return i, err
 }
 
 const insertUser = `-- name: InsertUser :one
@@ -2110,6 +2081,66 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
+const insertWorkspaceAgent = `-- name: InsertWorkspaceAgent :one
+INSERT INTO
+  workspace_agent (
+    id,
+    created_at,
+    updated_at,
+    resource_id,
+    auth_token,
+    auth_instance_id,
+    environment_variables,
+    startup_script,
+    instance_metadata,
+    resource_metadata
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+`
+
+type InsertWorkspaceAgentParams struct {
+	ID                   uuid.UUID             `db:"id" json:"id"`
+	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt            sql.NullTime          `db:"updated_at" json:"updated_at"`
+	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAgent,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.ResourceID,
+		arg.AuthToken,
+		arg.AuthInstanceID,
+		arg.EnvironmentVariables,
+		arg.StartupScript,
+		arg.InstanceMetadata,
+		arg.ResourceMetadata,
+	)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.EnvironmentVariables,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
 const insertWorkspaceBuild = `-- name: InsertWorkspaceBuild :one
 INSERT INTO
   workspace_build (
@@ -2122,11 +2153,11 @@ INSERT INTO
     name,
     transition,
     initiator,
-    provision_job_id,
+    job_id,
     provisioner_state
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, provision_job_id
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -2139,7 +2170,7 @@ type InsertWorkspaceBuildParams struct {
 	Name             string              `db:"name" json:"name"`
 	Transition       WorkspaceTransition `db:"transition" json:"transition"`
 	Initiator        string              `db:"initiator" json:"initiator"`
-	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
+	JobID            uuid.UUID           `db:"job_id" json:"job_id"`
 	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
 }
 
@@ -2154,7 +2185,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.Name,
 		arg.Transition,
 		arg.Initiator,
-		arg.ProvisionJobID,
+		arg.JobID,
 		arg.ProvisionerState,
 	)
 	var i WorkspaceBuild
@@ -2170,7 +2201,55 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		&i.Transition,
 		&i.Initiator,
 		&i.ProvisionerState,
-		&i.ProvisionJobID,
+		&i.JobID,
+	)
+	return i, err
+}
+
+const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
+INSERT INTO
+  workspace_resource (
+    id,
+    created_at,
+    job_id,
+    transition,
+    type,
+    name,
+    agent_id
+  )
+VALUES
+  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, job_id, transition, type, name, agent_id
+`
+
+type InsertWorkspaceResourceParams struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Type       string              `db:"type" json:"type"`
+	Name       string              `db:"name" json:"name"`
+	AgentID    uuid.NullUUID       `db:"agent_id" json:"agent_id"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceResource,
+		arg.ID,
+		arg.CreatedAt,
+		arg.JobID,
+		arg.Transition,
+		arg.Type,
+		arg.Name,
+		arg.AgentID,
+	)
+	var i WorkspaceResource
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.JobID,
+		&i.Transition,
+		&i.Type,
+		&i.Name,
+		&i.AgentID,
 	)
 	return i, err
 }
@@ -2209,6 +2288,27 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
+const updateProjectVersionByID = `-- name: UpdateProjectVersionByID :exec
+UPDATE
+  project_version
+SET
+  project_id = $2,
+  updated_at = $3
+WHERE
+  id = $1
+`
+
+type UpdateProjectVersionByIDParams struct {
+	ID        uuid.UUID     `db:"id" json:"id"`
+	ProjectID uuid.NullUUID `db:"project_id" json:"project_id"`
+	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateProjectVersionByID(ctx context.Context, arg UpdateProjectVersionByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateProjectVersionByID, arg.ID, arg.ProjectID, arg.UpdatedAt)
+	return err
+}
+
 const updateProvisionerDaemonByID = `-- name: UpdateProvisionerDaemonByID :exec
 UPDATE
   provisioner_daemon
@@ -2227,25 +2327,6 @@ type UpdateProvisionerDaemonByIDParams struct {
 
 func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
-	return err
-}
-
-const updateProvisionerJobAgentByID = `-- name: UpdateProvisionerJobAgentByID :exec
-UPDATE
-  provisioner_job_agent
-SET
-  updated_at = $2
-WHERE
-  id = $1
-`
-
-type UpdateProvisionerJobAgentByIDParams struct {
-	ID        uuid.UUID    `db:"id" json:"id"`
-	UpdatedAt sql.NullTime `db:"updated_at" json:"updated_at"`
-}
-
-func (q *sqlQuerier) UpdateProvisionerJobAgentByID(ctx context.Context, arg UpdateProvisionerJobAgentByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobAgentByID, arg.ID, arg.UpdatedAt)
 	return err
 }
 
@@ -2296,6 +2377,25 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.CancelledAt,
 		arg.Error,
 	)
+	return err
+}
+
+const updateWorkspaceAgentByID = `-- name: UpdateWorkspaceAgentByID :exec
+UPDATE
+  workspace_agent
+SET
+  updated_at = $2
+WHERE
+  id = $1
+`
+
+type UpdateWorkspaceAgentByIDParams struct {
+	ID        uuid.UUID    `db:"id" json:"id"`
+	UpdatedAt sql.NullTime `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentByID(ctx context.Context, arg UpdateWorkspaceAgentByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentByID, arg.ID, arg.UpdatedAt)
 	return err
 }
 

@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -20,66 +19,33 @@ import (
 	"github.com/coder/coder/httpapi"
 )
 
+// ProvisionerJobStaus represents the at-time state of a job.
 type ProvisionerJobStatus string
 
-// Completed returns whether the job is still processing.
-func (p ProvisionerJobStatus) Completed() bool {
-	return p == ProvisionerJobStatusSucceeded || p == ProvisionerJobStatusFailed || p == ProvisionerJobStatusCancelled
-}
-
 const (
-	ProvisionerJobStatusPending   ProvisionerJobStatus = "pending"
-	ProvisionerJobStatusRunning   ProvisionerJobStatus = "running"
-	ProvisionerJobStatusSucceeded ProvisionerJobStatus = "succeeded"
-	ProvisionerJobStatusCancelled ProvisionerJobStatus = "canceled"
-	ProvisionerJobStatusFailed    ProvisionerJobStatus = "failed"
+	ProvisionerJobPending   ProvisionerJobStatus = "pending"
+	ProvisionerJobRunning   ProvisionerJobStatus = "running"
+	ProvisionerJobSucceeded ProvisionerJobStatus = "succeeded"
+	ProvisionerJobCancelled ProvisionerJobStatus = "canceled"
+	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
 )
 
 type ProvisionerJob struct {
-	ID          uuid.UUID                `json:"id"`
-	CreatedAt   time.Time                `json:"created_at"`
-	UpdatedAt   time.Time                `json:"updated_at"`
-	StartedAt   *time.Time               `json:"started_at,omitempty"`
-	CancelledAt *time.Time               `json:"canceled_at,omitempty"`
-	CompletedAt *time.Time               `json:"completed_at,omitempty"`
-	Status      ProvisionerJobStatus     `json:"status"`
-	Error       string                   `json:"error,omitempty"`
-	Provisioner database.ProvisionerType `json:"provisioner"`
-	WorkerID    *uuid.UUID               `json:"worker_id,omitempty"`
+	ID          uuid.UUID            `json:"id"`
+	CreatedAt   time.Time            `json:"created_at"`
+	StartedAt   *time.Time           `json:"started_at,omitempty"`
+	CompletedAt *time.Time           `json:"completed_at,omitempty"`
+	Error       string               `json:"error,omitempty"`
+	Status      ProvisionerJobStatus `json:"status"`
+	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
 }
 
-// ProvisionerJobLog represents a single log from a provisioner job.
 type ProvisionerJobLog struct {
 	ID        uuid.UUID          `json:"id"`
 	CreatedAt time.Time          `json:"created_at"`
 	Source    database.LogSource `json:"log_source"`
 	Level     database.LogLevel  `json:"log_level"`
 	Output    string             `json:"output"`
-}
-
-type ProvisionerJobResource struct {
-	ID         uuid.UUID                    `json:"id"`
-	CreatedAt  time.Time                    `json:"created_at"`
-	JobID      uuid.UUID                    `json:"job_id"`
-	Transition database.WorkspaceTransition `json:"workspace_transition"`
-	Type       string                       `json:"type"`
-	Name       string                       `json:"name"`
-	Agent      *ProvisionerJobAgent         `json:"agent,omitempty"`
-}
-
-type ProvisionerJobAgent struct {
-	ID                   uuid.UUID         `json:"id"`
-	CreatedAt            time.Time         `json:"created_at"`
-	UpdatedAt            time.Time         `json:"updated_at"`
-	ResourceID           uuid.UUID         `json:"resource_id"`
-	InstanceID           string            `json:"instance_id,omitempty"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script,omitempty"`
-}
-
-func (*api) provisionerJobByID(rw http.ResponseWriter, r *http.Request) {
-	// render.Status(r, http.StatusOK)
-	// render.JSON(rw, r, convertProvisionerJob(job))
 }
 
 // Returns provisioner logs based on query parameters.
@@ -89,7 +55,7 @@ func (*api) provisionerJobByID(rw http.ResponseWriter, r *http.Request) {
 // 2. GET /logs?after=<timestamp>&follow
 // The combination of these responses should provide all current logs
 // to the consumer, and future logs are streamed in the follow request.
-func (api *api) provisionerJobLogsByID(rw http.ResponseWriter, r *http.Request) {
+func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	follow := r.URL.Query().Has("follow")
 	afterRaw := r.URL.Query().Get("after")
 	beforeRaw := r.URL.Query().Get("before")
@@ -131,7 +97,6 @@ func (api *api) provisionerJobLogsByID(rw http.ResponseWriter, r *http.Request) 
 		before = database.Now()
 	}
 
-	var job database.ProvisionerJob
 	if !follow {
 		logs, err := api.Database.GetProvisionerLogsByIDBetween(r.Context(), database.GetProvisionerLogsByIDBetweenParams{
 			JobID:         job.ID,
@@ -231,90 +196,51 @@ func (api *api) provisionerJobLogsByID(rw http.ResponseWriter, r *http.Request) 
 				api.Logger.Warn(r.Context(), "streaming job logs; checking if completed", slog.Error(err), slog.F("job_id", job.ID.String()))
 				continue
 			}
-			if convertProvisionerJob(job).Status.Completed() {
+			if job.CompletedAt.Valid {
 				return
 			}
 		}
 	}
 }
 
-func (api *api) provisionerJobResourcesByID(rw http.ResponseWriter, r *http.Request) {
-	var job database.ProvisionerJob
-	if !convertProvisionerJob(job).Status.Completed() {
+func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
+	if !job.CompletedAt.Valid {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
 	}
-	resources, err := api.Database.GetProvisionerJobResourcesByJobID(r.Context(), job.ID)
+	resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), job.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job resources: %s", err),
 		})
 		return
 	}
-	apiResources := make([]ProvisionerJobResource, 0)
+	apiResources := make([]WorkspaceResource, 0)
 	for _, resource := range resources {
 		if !resource.AgentID.Valid {
-			apiResources = append(apiResources, convertProvisionerJobResource(resource, nil))
+			apiResources = append(apiResources, convertWorkspaceResource(resource, nil))
 			continue
 		}
-		agent, err := api.Database.GetProvisionerJobAgentByResourceID(r.Context(), resource.ID)
+		agent, err := api.Database.GetWorkspaceAgentByResourceID(r.Context(), resource.ID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get provisioner job agent: %s", err),
 			})
 			return
 		}
-		apiAgent, err := convertProvisionerJobAgent(agent)
+		apiAgent, err := convertWorkspaceAgent(agent)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("convert provisioner job agent: %s", err),
 			})
 			return
 		}
-		apiResources = append(apiResources, convertProvisionerJobResource(resource, &apiAgent))
-	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiResources)
-}
-
-func (api *api) provisionerJobResourceByID(rw http.ResponseWriter, r *http.Request) {
-	var job database.ProvisionerJob
-	if !convertProvisionerJob(job).Status.Completed() {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "Job hasn't completed!",
-		})
-		return
-	}
-	resources, err := api.Database.GetProvisionerJobResourcesByJobID(r.Context(), job.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job resources: %s", err),
-		})
-		return
-	}
-	apiResources := make([]ProvisionerJobResource, 0)
-	for _, resource := range resources {
-		if !resource.AgentID.Valid {
-			apiResources = append(apiResources, convertProvisionerJobResource(resource, nil))
-			continue
-		}
-		agent, err := api.Database.GetProvisionerJobAgentByResourceID(r.Context(), resource.ID)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get provisioner job agent: %s", err),
-			})
-			return
-		}
-		apiAgent, err := convertProvisionerJobAgent(agent)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("convert provisioner job agent: %s", err),
-			})
-			return
-		}
-		apiResources = append(apiResources, convertProvisionerJobResource(resource, &apiAgent))
+		apiResources = append(apiResources, convertWorkspaceResource(resource, &apiAgent))
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiResources)
@@ -332,18 +258,13 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) Prov
 
 func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {
 	job := ProvisionerJob{
-		ID:          provisionerJob.ID,
-		CreatedAt:   provisionerJob.CreatedAt,
-		UpdatedAt:   provisionerJob.UpdatedAt,
-		Error:       provisionerJob.Error.String,
-		Provisioner: provisionerJob.Provisioner,
+		ID:        provisionerJob.ID,
+		CreatedAt: provisionerJob.CreatedAt,
+		Error:     provisionerJob.Error.String,
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {
 		job.StartedAt = &provisionerJob.StartedAt.Time
-	}
-	if provisionerJob.CancelledAt.Valid {
-		job.CancelledAt = &provisionerJob.CancelledAt.Time
 	}
 	if provisionerJob.CompletedAt.Valid {
 		job.CompletedAt = &provisionerJob.CompletedAt.Time
@@ -354,54 +275,23 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 
 	switch {
 	case provisionerJob.CancelledAt.Valid:
-		job.Status = ProvisionerJobStatusCancelled
+		job.Status = ProvisionerJobCancelled
 	case !provisionerJob.StartedAt.Valid:
-		job.Status = ProvisionerJobStatusPending
+		job.Status = ProvisionerJobPending
 	case provisionerJob.CompletedAt.Valid:
 		if job.Error == "" {
-			job.Status = ProvisionerJobStatusSucceeded
+			job.Status = ProvisionerJobSucceeded
 		} else {
-			job.Status = ProvisionerJobStatusFailed
+			job.Status = ProvisionerJobFailed
 		}
 	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
-		job.Status = ProvisionerJobStatusFailed
+		job.Status = ProvisionerJobFailed
 		job.Error = "Worker failed to update job in time."
 	default:
-		job.Status = ProvisionerJobStatusRunning
+		job.Status = ProvisionerJobRunning
 	}
 
 	return job
-}
-
-func convertProvisionerJobResource(resource database.ProvisionerJobResource, agent *ProvisionerJobAgent) ProvisionerJobResource {
-	return ProvisionerJobResource{
-		ID:         resource.ID,
-		CreatedAt:  resource.CreatedAt,
-		JobID:      resource.JobID,
-		Transition: resource.Transition,
-		Type:       resource.Type,
-		Name:       resource.Name,
-		Agent:      agent,
-	}
-}
-
-func convertProvisionerJobAgent(agent database.ProvisionerJobAgent) (ProvisionerJobAgent, error) {
-	var envs map[string]string
-	if agent.EnvironmentVariables.Valid {
-		err := json.Unmarshal(agent.EnvironmentVariables.RawMessage, &envs)
-		if err != nil {
-			return ProvisionerJobAgent{}, xerrors.Errorf("unmarshal: %w", err)
-		}
-	}
-	return ProvisionerJobAgent{
-		ID:                   agent.ID,
-		CreatedAt:            agent.CreatedAt,
-		UpdatedAt:            agent.UpdatedAt.Time,
-		ResourceID:           agent.ResourceID,
-		InstanceID:           agent.AuthInstanceID.String,
-		StartupScript:        agent.StartupScript.String,
-		EnvironmentVariables: envs,
-	}, nil
 }
 
 func provisionerJobLogsChannel(jobID uuid.UUID) string {

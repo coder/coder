@@ -226,19 +226,19 @@ SELECT
 FROM
   provisioner_daemon;
 
--- name: GetProvisionerJobAgentByAuthToken :one
+-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
   *
 FROM
-  provisioner_job_agent
+  workspace_agent
 WHERE
   auth_token = $1;
 
--- name: GetProvisionerJobAgentByInstanceID :one
+-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
   *
 FROM
-  provisioner_job_agent
+  workspace_agent
 WHERE
   auth_instance_id = @auth_instance_id :: text
 ORDER BY
@@ -251,6 +251,14 @@ FROM
   provisioner_job
 WHERE
   id = $1;
+
+-- name: GetProvisionerJobsByIDs :many
+SELECT
+  *
+FROM
+  provisioner_job
+WHERE
+  id = ANY(@ids :: uuid [ ]);
 
 -- name: GetWorkspaceByID :one
 SELECT
@@ -310,6 +318,16 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspaceBuildByJobID :one
+SELECT
+  *
+FROM
+  workspace_build
+WHERE
+  job_id = $1
+LIMIT
+  1;
+
 -- name: GetWorkspaceBuildByWorkspaceIDAndName :one
 SELECT
   *
@@ -338,27 +356,27 @@ WHERE
 LIMIT
   1;
 
--- name: GetProvisionerJobResourceByID :one
+-- name: GetWorkspaceResourceByID :one
 SELECT
   *
 FROM
-  provisioner_job_resource
+  workspace_resource
 WHERE
   id = $1;
 
--- name: GetProvisionerJobResourcesByJobID :many
+-- name: GetWorkspaceResourcesByJobID :many
 SELECT
   *
 FROM
-  provisioner_job_resource
+  workspace_resource
 WHERE
   job_id = $1;
 
--- name: GetProvisionerJobAgentByResourceID :one
+-- name: GetWorkspaceAgentByResourceID :one
 SELECT
   *
 FROM
-  provisioner_job_agent
+  workspace_agent
 WHERE
   resource_id = $1;
 
@@ -465,9 +483,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
--- name: InsertProvisionerJobResource :one
+-- name: InsertWorkspaceResource :one
 INSERT INTO
-  provisioner_job_resource (
+  workspace_resource (
     id,
     created_at,
     job_id,
@@ -586,9 +604,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: InsertProvisionerJobAgent :one
+-- name: InsertWorkspaceAgent :one
 INSERT INTO
-  provisioner_job_agent (
+  workspace_agent (
     id,
     created_at,
     updated_at,
@@ -615,7 +633,7 @@ INSERT INTO
     name,
     transition,
     initiator,
-    provision_job_id,
+    job_id,
     provisioner_state
   )
 VALUES
@@ -630,6 +648,15 @@ SET
   oidc_access_token = $4,
   oidc_refresh_token = $5,
   oidc_expiry = $6
+WHERE
+  id = $1;
+
+-- name: UpdateProjectVersionByID :exec
+UPDATE
+  project_version
+SET
+  project_id = $2,
+  updated_at = $3
 WHERE
   id = $1;
 
@@ -661,9 +688,9 @@ SET
 WHERE
   id = $1;
 
--- name: UpdateProvisionerJobAgentByID :exec
+-- name: UpdateWorkspaceAgentByID :exec
 UPDATE
-  provisioner_job_agent
+  workspace_agent
 SET
   updated_at = $2
 WHERE

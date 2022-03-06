@@ -16,8 +16,8 @@ import (
 type workspaceAgentContextKey struct{}
 
 // WorkspaceAgent returns the workspace agent from the ExtractAgent handler.
-func WorkspaceAgent(r *http.Request) database.ProvisionerJobAgent {
-	user, ok := r.Context().Value(workspaceAgentContextKey{}).(database.ProvisionerJobAgent)
+func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
+	user, ok := r.Context().Value(workspaceAgentContextKey{}).(database.WorkspaceAgent)
 	if !ok {
 		panic("developer error: agent middleware not provided")
 	}
@@ -42,7 +42,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			agent, err := db.GetProvisionerJobAgentByAuthToken(r.Context(), token)
+			agent, err := db.GetWorkspaceAgentByAuthToken(r.Context(), token)
 			if errors.Is(err, sql.ErrNoRows) {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{

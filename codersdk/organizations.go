@@ -9,6 +9,19 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
+func (c *Client) Organization(ctx context.Context, id string) (coderd.Organization, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s", id), nil)
+	if err != nil {
+		return coderd.Organization{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.Organization{}, readBodyAsError(res)
+	}
+	var organization coderd.Organization
+	return organization, json.NewDecoder(res.Body).Decode(&organization)
+}
+
 // ProvisionerDaemonsByOrganization returns provisioner daemons available for an organization.
 func (c *Client) ProvisionerDaemonsByOrganization(ctx context.Context, organization string) ([]coderd.ProvisionerDaemon, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organization), nil)

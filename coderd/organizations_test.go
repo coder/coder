@@ -5,13 +5,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProvisionerDaemonsByOrganization(t *testing.T) {

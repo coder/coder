@@ -142,8 +142,8 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
-func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateUserResponse {
-	req := coderd.CreateUserRequest{
+func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateFirstUserResponse {
+	req := coderd.CreateFirstUserRequest{
 		Email:        "testuser@coder.com",
 		Username:     "testuser",
 		Password:     "testpass",
@@ -159,6 +159,28 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateUserRes
 	require.NoError(t, err)
 	client.SessionToken = login.SessionToken
 	return resp
+}
+
+// CreateAnotherUser creates and authenticates a new user.
+func CreateAnotherUser(t *testing.T, client *codersdk.Client, organization string) *codersdk.Client {
+	req := coderd.CreateUserRequest{
+		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
+		Username:       randomUsername(),
+		Password:       "testpass",
+		OrganizationID: organization,
+	}
+	_, err := client.CreateUser(context.Background(), req)
+	require.NoError(t, err)
+
+	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	require.NoError(t, err)
+
+	other := codersdk.New(client.URL)
+	other.SessionToken = login.SessionToken
+	return other
 }
 
 // CreateProjectVersion creates a project import provisioner job
@@ -190,27 +212,47 @@ func CreateProject(t *testing.T, client *codersdk.Client, organization string, v
 }
 
 // AwaitProjectImportJob awaits for an import job to reach completed status.
-func AwaitProjectImportJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
-	var provisionerJob coderd.ProvisionerJob
-	// require.Eventually(t, func() bool {
-	// 	var err error
-	// 	provisionerJob, err = client.ProjectImportJob(context.Background(), organization, job)
-	// 	require.NoError(t, err)
-	// 	return provisionerJob.Status.Completed()
-	// }, 5*time.Second, 25*time.Millisecond)
-	return provisionerJob
-}
-
-// AwaitWorkspaceProvisionJob awaits for a workspace provision job to reach completed status.
-func AwaitWorkspaceProvisionJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
-	var provisionerJob coderd.ProvisionerJob
+func AwaitProjectVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) coderd.ProjectVersion {
+	var projectVersion coderd.ProjectVersion
 	require.Eventually(t, func() bool {
 		var err error
-		provisionerJob, err = client.WorkspaceProvisionJob(context.Background(), organization, job)
+		projectVersion, err = client.ProjectVersion(context.Background(), version)
 		require.NoError(t, err)
-		return provisionerJob.Status.Completed()
+		return projectVersion.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
-	return provisionerJob
+	return projectVersion
+}
+
+// AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
+func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) coderd.WorkspaceBuild {
+	var workspaceBuild coderd.WorkspaceBuild
+	require.Eventually(t, func() bool {
+		var err error
+		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
+		require.NoError(t, err)
+		return workspaceBuild.Job.CompletedAt != nil
+	}, 5*time.Second, 25*time.Millisecond)
+	return workspaceBuild
+}
+
+// AwaitWorkspaceAgents waits for all resources with agents to be connected.
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []coderd.WorkspaceResource {
+	var resources []coderd.WorkspaceResource
+	require.Eventually(t, func() bool {
+		var err error
+		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
+		require.NoError(t, err)
+		for _, resource := range resources {
+			if resource.Agent == nil {
+				continue
+			}
+			if resource.Agent.UpdatedAt.IsZero() {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 25*time.Millisecond)
+	return resources
 }
 
 // CreateWorkspace creates a workspace for the user and project provided.

@@ -18,14 +18,21 @@ import (
 func TestWorkspaceResourceParam(t *testing.T) {
 	t.Parallel()
 
-	setup := func(db database.Store) (*http.Request, database.ProvisionerJobResource) {
+	setup := func(db database.Store) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
-		workspaceBuild, err := db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
-			ID: uuid.New(),
+		job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+			ID:   uuid.New(),
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
 		require.NoError(t, err)
-		resource, err := db.InsertProvisionerJobResource(context.Background(), database.InsertProvisionerJobResourceParams{
-			ID: uuid.New(),
+		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
+			ID:    uuid.New(),
+			JobID: job.ID,
+		})
+		require.NoError(t, err)
+		resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
+			ID:    uuid.New(),
+			JobID: job.ID,
 		})
 		require.NoError(t, err)
 
@@ -74,7 +81,6 @@ func TestWorkspaceResourceParam(t *testing.T) {
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractWorkspaceBuildParam(db),
 			httpmw.ExtractWorkspaceResourceParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {

@@ -13,19 +13,22 @@ import (
 )
 
 // ProjectVersion returns a project version by ID.
-func (c *Client) ProjectVersion(ctx context.Context, version uuid.UUID) (coderd.ProjectVersion, error) {
-	return coderd.ProjectVersion{}, nil
-}
-
-// ProjectVersionByName returns a project version by it's friendly name.
-// This is used for path-based routing. Like: /projects/example/versions/helloworld
-func (c *Client) ProjectVersionByName(ctx context.Context, project uuid.UUID, name string) (coderd.ProjectVersion, error) {
-	return coderd.ProjectVersion{}, nil
+func (c *Client) ProjectVersion(ctx context.Context, id uuid.UUID) (coderd.ProjectVersion, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectversions/%s", id), nil)
+	if err != nil {
+		return coderd.ProjectVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.ProjectVersion{}, readBodyAsError(res)
+	}
+	var version coderd.ProjectVersion
+	return version, json.NewDecoder(res.Body).Decode(&version)
 }
 
 // ProjectVersionSchema returns schemas for a project version by ID.
 func (c *Client) ProjectVersionSchema(ctx context.Context, version uuid.UUID) ([]coderd.ParameterSchema, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectversion/%s/schema", version), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectversions/%s/schema", version), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +41,8 @@ func (c *Client) ProjectVersionSchema(ctx context.Context, version uuid.UUID) ([
 }
 
 // ProjectVersionParameters returns computed parameters for a project version.
-func (c *Client) ProjectVersionComputedParameters(ctx context.Context, version uuid.UUID) ([]coderd.ComputedParameterValue, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectimport/%s/parameters", version), nil)
+func (c *Client) ProjectVersionParameters(ctx context.Context, version uuid.UUID) ([]coderd.ProjectVersionParameter, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectversions/%s/parameters", version), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -47,21 +50,30 @@ func (c *Client) ProjectVersionComputedParameters(ctx context.Context, version u
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []coderd.ComputedParameterValue
+	var params []coderd.ProjectVersionParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
 // ProjectVersionResources returns resources a project version declares.
-func (c *Client) ProjectVersionResources(ctx context.Context, version uuid.UUID) ([]coderd.ProvisionerJobResource, error) {
-	return nil, nil
+func (c *Client) ProjectVersionResources(ctx context.Context, version uuid.UUID) ([]coderd.WorkspaceResource, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectversions/%s/resources", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var resources []coderd.WorkspaceResource
+	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
 // ProjectVersionLogsBefore returns logs that occurred before a specific time.
 func (c *Client) ProjectVersionLogsBefore(ctx context.Context, version uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, "projectimport", "", version, before)
+	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/projectversions/%s/logs", version), before)
 }
 
 // ProjectVersionLogsAfter streams logs for a project version that occurred after a specific time.
-func (c *Client) ProjectVersionLogsAfter(ctx context.Context, organization string, job uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsAfter(ctx, "projectimport", organization, job, after)
+func (c *Client) ProjectVersionLogsAfter(ctx context.Context, version uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
+	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/projectversions/%s/logs", version), after)
 }

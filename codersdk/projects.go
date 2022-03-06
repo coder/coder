@@ -13,7 +13,7 @@ import (
 
 // Project returns a single project.
 func (c *Client) Project(ctx context.Context, project uuid.UUID) (coderd.Project, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/%s", project), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s", project), nil)
 	if err != nil {
 		return coderd.Project{}, nil
 	}
@@ -41,7 +41,7 @@ func (c *Client) WorkspacesByProject(ctx context.Context, project uuid.UUID) ([]
 
 // ProjectParameters returns parameters scoped to a project.
 func (c *Client) ProjectParameters(ctx context.Context, project uuid.UUID) ([]coderd.ParameterValue, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/%s/parameters", project), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/parameters", project), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +54,8 @@ func (c *Client) ProjectParameters(ctx context.Context, project uuid.UUID) ([]co
 }
 
 // CreateProjectParameter creates a new parameter value scoped to a project.
-func (c *Client) CreateProjectParameter(ctx context.Context, organization, project string, req coderd.CreateParameterValueRequest) (coderd.ParameterValue, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s/%s/parameters", organization, project), req)
+func (c *Client) CreateProjectParameter(ctx context.Context, project uuid.UUID, req coderd.CreateParameterValueRequest) (coderd.ParameterValue, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/projects/%s/parameters", project), req)
 	if err != nil {
 		return coderd.ParameterValue{}, err
 	}
@@ -69,7 +69,7 @@ func (c *Client) CreateProjectParameter(ctx context.Context, organization, proje
 
 // ProjectVersionsByProject lists versions associated with a project.
 func (c *Client) ProjectVersionsByProject(ctx context.Context, project uuid.UUID) ([]coderd.ProjectVersion, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/project/%s/versions", project), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/versions", project), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -81,10 +81,17 @@ func (c *Client) ProjectVersionsByProject(ctx context.Context, project uuid.UUID
 	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
 }
 
-func (c *Client) DeleteProject(ctx context.Context, project uuid.UUID) error {
-	return nil
-}
-
-func (c *Client) UpdateProjectVersion() {
-
+// ProjectVersionByName returns a project version by it's friendly name.
+// This is used for path-based routing. Like: /projects/example/versions/helloworld
+func (c *Client) ProjectVersionByName(ctx context.Context, project uuid.UUID, name string) (coderd.ProjectVersion, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s/versions/%s", project, name), nil)
+	if err != nil {
+		return coderd.ProjectVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return coderd.ProjectVersion{}, readBodyAsError(res)
+	}
+	var projectVersion coderd.ProjectVersion
+	return projectVersion, json.NewDecoder(res.Body).Decode(&projectVersion)
 }

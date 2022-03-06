@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
@@ -40,35 +41,10 @@ type Project struct {
 	WorkspaceOwnerCount uint32                   `json:"workspace_owner_count"`
 }
 
-// Lists all projects the authenticated user has access to.
-func (api *api) projects(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
-	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), apiKey.UserID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organizations: %s", err.Error()),
-		})
-		return
-	}
-	organizationIDs := make([]string, 0, len(organizations))
-	for _, organization := range organizations {
-		organizationIDs = append(organizationIDs, organization.ID)
-	}
-	projects, err := api.Database.GetProjectsByOrganizationIDs(r.Context(), organizationIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get projects: %s", err.Error()),
-		})
-		return
-	}
-	projectIDs := make([]uuid.UUID, 0, len(projects))
-	for _, project := range projects {
-		projectIDs = append(projectIDs, project.ID)
-	}
-	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), projectIDs)
+// Returns a single project.
+func (api *api) project(rw http.ResponseWriter, r *http.Request) {
+	project := httpmw.ProjectParam(r)
+	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), []uuid.UUID{project.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -78,16 +54,13 @@ func (api *api) projects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertProjects(projects, workspaceCounts))
-}
-
-// Returns a single project.
-func (*api) projectByOrganization(rw http.ResponseWriter, r *http.Request) {
-	project := httpmw.ProjectParam(r)
+	count := uint32(0)
+	if len(workspaceCounts) > 0 {
+		count = uint32(workspaceCounts[0].Count)
+	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, project)
+	render.JSON(rw, r, convertProject(project, count))
 }
 
 // Creates parameters for a project.
@@ -147,34 +120,82 @@ func (api *api) parametersByProject(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, apiParameterValues)
 }
 
-// Returns all workspaces for a specific project.
-func (api *api) workspacesByProject(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
+func (api *api) projectVersionsByProject(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
-	workspaces, err := api.Database.GetWorkspacesByProjectAndUserID(r.Context(), database.GetWorkspacesByProjectAndUserIDParams{
-		OwnerID:   apiKey.UserID,
-		ProjectID: project.ID,
-	})
+
+	versions, err := api.Database.GetProjectVersionsByProjectID(r.Context(), project.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
+			Message: fmt.Sprintf("get project version: %s", err),
+		})
+		return
+	}
+	jobIDs := make([]uuid.UUID, 0, len(versions))
+	for _, version := range versions {
+		jobIDs = append(jobIDs, version.JobID)
+	}
+	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get jobs: %s", err),
+		})
+		return
+	}
+	jobByID := map[string]database.ProvisionerJob{}
+	for _, job := range jobs {
+		jobByID[job.ID.String()] = job
+	}
+
+	apiVersion := make([]ProjectVersion, 0)
+	for _, version := range versions {
+		job, exists := jobByID[version.JobID.String()]
+		if !exists {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("job %q doesn't exist for version %q", version.JobID, version.ID),
+			})
+			return
+		}
+		apiVersion = append(apiVersion, convertProjectVersion(version, convertProvisionerJob(job)))
+	}
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiVersion)
+}
+
+func (api *api) projectVersionByName(rw http.ResponseWriter, r *http.Request) {
+	project := httpmw.ProjectParam(r)
+	projectVersionName := chi.URLParam(r, "projectversionname")
+	projectVersion, err := api.Database.GetProjectVersionByProjectIDAndName(r.Context(), database.GetProjectVersionByProjectIDAndNameParams{
+		ProjectID: uuid.NullUUID{
+			UUID:  project.ID,
+			Valid: true,
+		},
+		Name: projectVersionName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("no project version found by name %q", projectVersionName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get project version by name: %s", err),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 
-	apiWorkspaces := make([]Workspace, 0, len(workspaces))
-	for _, workspace := range workspaces {
-		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace))
-	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiWorkspaces)
-}
-
-func (api *api) workspaceByProjectAndName(rw http.ResponseWriter, r *http.Request) {
-
+	render.JSON(rw, r, convertProjectVersion(projectVersion, convertProvisionerJob(job)))
 }
 
 func convertProjects(projects []database.Project, workspaceCounts []database.GetWorkspaceOwnerCountsByProjectIDsRow) []Project {

@@ -112,7 +112,7 @@ func (api *api) postProjectImportByOrganization(rw http.ResponseWriter, r *http.
 func (api *api) projectImportJobSchemasByID(rw http.ResponseWriter, r *http.Request) {
 	// job := httpmw.ProvisionerJobParam(r)
 	var job database.ProvisionerJob
-	if !convertProvisionerJob(job).Status.Completed() {
+	if convertProvisionerJob(job).CompletedAt == nil {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
 		})
@@ -140,7 +140,7 @@ func (api *api) projectImportJobSchemasByID(rw http.ResponseWriter, r *http.Requ
 func (api *api) projectImportJobParametersByID(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	var job database.ProvisionerJob
-	if !convertProvisionerJob(job).Status.Completed() {
+	if !job.CompletedAt.Valid {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
 		})

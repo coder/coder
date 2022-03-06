@@ -52,6 +52,12 @@ type CreateProjectRequest struct {
 	VersionID uuid.UUID `json:"project_version_id" validate:"required"`
 }
 
+func (api *api) organization(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertOrganization(organization))
+}
+
 func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
 	if errors.Is(err, sql.ErrNoRows) {
@@ -109,6 +115,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 	}
 
 	var projectVersion database.ProjectVersion
+	var provisionerJob database.ProvisionerJob
 	err = api.Database.InTx(func(db database.Store) error {
 		jobID := uuid.New()
 		for _, parameterValue := range req.ParameterValues {
@@ -128,7 +135,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 			}
 		}
 
-		job, err := api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+		provisionerJob, err = api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -160,7 +167,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 			UpdatedAt:      database.Now(),
 			Name:           namesgenerator.GetRandomName(1),
 			Description:    "",
-			JobID:          job.ID,
+			JobID:          provisionerJob.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert project version: %w", err)
@@ -175,7 +182,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertProjectVersion(projectVersion))
+	render.JSON(rw, r, convertProjectVersion(projectVersion, convertProvisionerJob(provisionerJob)))
 }
 
 // Create a new project in an organization.
@@ -227,7 +234,6 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	var project Project
 	err = api.Database.InTx(func(db database.Store) error {
-		projectVersionID := uuid.New()
 		dbProject, err := db.InsertProject(r.Context(), database.InsertProjectParams{
 			ID:              uuid.New(),
 			CreatedAt:       database.Now(),
@@ -235,21 +241,17 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 			OrganizationID:  organization.ID,
 			Name:            createProject.Name,
 			Provisioner:     importJob.Provisioner,
-			ActiveVersionID: projectVersionID,
+			ActiveVersionID: projectVersion.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert project: %s", err)
 		}
-		_, err = db.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
-			ID: projectVersionID,
+		err = db.UpdateProjectVersionByID(r.Context(), database.UpdateProjectVersionByIDParams{
+			ID: projectVersion.ID,
 			ProjectID: uuid.NullUUID{
 				UUID:  dbProject.ID,
 				Valid: true,
 			},
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
-			Name:      namesgenerator.GetRandomName(1),
-			JobID:     importJob.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert project version: %s", err)
