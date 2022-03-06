@@ -19,7 +19,7 @@ func TestWorkspaceCreate(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -32,8 +32,8 @@ func TestWorkspaceCreate(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+		coderdtest.AwaitProjectImportJob(t, client, user.OrganizationID, job.ID)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
 		cmd, root := clitest.New(t, "workspaces", "create", project.Name)
 		clitest.SetupConfig(t, client, root)
 

@@ -20,20 +20,6 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-// ProvisionerDaemons returns registered provisionerd instances.
-func (c *Client) ProvisionerDaemons(ctx context.Context) ([]coderd.ProvisionerDaemon, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/provisionerdaemons", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var daemons []coderd.ProvisionerDaemon
-	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
-}
-
 // ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.
 func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 	serverURL, err := c.URL.Parse("/api/v2/provisionerdaemons/serve")

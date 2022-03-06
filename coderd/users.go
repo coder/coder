@@ -27,22 +27,18 @@ type User struct {
 	Username  string    `json:"username" validate:"required"`
 }
 
-// CreateInitialUserRequest provides options to create the initial
-// user for a Coder deployment. The organization provided will be
-// created as well.
-type CreateInitialUserRequest struct {
-	Email        string `json:"email" validate:"required,email"`
-	Username     string `json:"username" validate:"required,username"`
-	Password     string `json:"password" validate:"required"`
-	Organization string `json:"organization" validate:"required,username"`
-}
-
 // CreateUserRequest provides options for creating a new user.
 type CreateUserRequest struct {
 	Email        string `json:"email" validate:"required,email"`
 	Username     string `json:"username" validate:"required,username"`
 	Password     string `json:"password" validate:"required"`
 	Organization string `json:"organization" validate:"required,username"`
+}
+
+// CreateUserResponse contains IDs for newly created user info.
+type CreateUserResponse struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -83,7 +79,7 @@ func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 
 // Creates the initial user for a Coder deployment.
 func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
-	var createUser CreateInitialUserRequest
+	var createUser CreateUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
@@ -112,6 +108,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	// Create the user, organization, and membership to the user.
 	var user database.User
+	var organization database.Organization
 	err = api.Database.InTx(func(s database.Store) error {
 		user, err = api.Database.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             uuid.NewString(),
@@ -125,7 +122,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
-		organization, err := api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.NewString(),
 			Name:      createUser.Organization,
 			CreatedAt: database.Now(),
@@ -154,7 +151,10 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertUser(user))
+	render.JSON(rw, r, CreateUserResponse{
+		UserID:         user.ID,
+		OrganizationID: organization.ID,
+	})
 }
 
 // Creates a new user.

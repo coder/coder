@@ -142,14 +142,14 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
-func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateInitialUserRequest {
-	req := coderd.CreateInitialUserRequest{
+func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateUserResponse {
+	req := coderd.CreateUserRequest{
 		Email:        "testuser@coder.com",
 		Username:     "testuser",
 		Password:     "testpass",
 		Organization: "testorg",
 	}
-	_, err := client.CreateFirstUser(context.Background(), req)
+	resp, err := client.CreateFirstUser(context.Background(), req)
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
@@ -158,32 +158,32 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateInitial
 	})
 	require.NoError(t, err)
 	client.SessionToken = login.SessionToken
-	return req
+	return resp
 }
 
-// CreateProjectImportJob creates a project import provisioner job
+// CreateProjectVersion creates a project import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateProjectImportJob(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProvisionerJob {
-	// data, err := echo.Tar(res)
-	// require.NoError(t, err)
-	// file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
-	// require.NoError(t, err)
-	// job, err := client.CreateProjectImportJob(context.Background(), organization, coderd.CreateProjectImportJobRequest{
-	// 	StorageSource: file.Hash,
-	// 	StorageMethod: database.ProvisionerStorageMethodFile,
-	// 	Provisioner:   database.ProvisionerTypeEcho,
-	// })
-	// require.NoError(t, err)
-	return coderd.ProvisionerJob{}
+func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProjectVersion {
+	data, err := echo.Tar(res)
+	require.NoError(t, err)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+	require.NoError(t, err)
+	projectVersion, err := client.CreateProjectVersion(context.Background(), organization, coderd.CreateProjectVersion{
+		StorageSource: file.Hash,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+		Provisioner:   database.ProvisionerTypeEcho,
+	})
+	require.NoError(t, err)
+	return projectVersion
 }
 
 // CreateProject creates a project with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateProject(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.Project {
+func CreateProject(t *testing.T, client *codersdk.Client, organization string, version uuid.UUID) coderd.Project {
 	project, err := client.CreateProject(context.Background(), organization, coderd.CreateProjectRequest{
-		Name:               randomUsername(),
-		VersionImportJobID: job,
+		Name:      randomUsername(),
+		VersionID: version,
 	})
 	require.NoError(t, err)
 	return project

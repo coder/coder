@@ -22,7 +22,7 @@ func TestWorkspaceAgentServe(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
 		authToken := uuid.NewString()
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
@@ -42,15 +42,15 @@ func TestWorkspaceAgentServe(t *testing.T) {
 				},
 			}},
 		})
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+		coderdtest.AwaitProjectImportJob(t, client, user.OrganizationID, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		history, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, history.ProvisionJobID)
+		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.OrganizationID, history.ProvisionJobID)
 		daemonCloser.Close()
 
 		// agentClient := codersdk.New(client.URL)
@@ -61,13 +61,13 @@ func TestWorkspaceAgentServe(t *testing.T) {
 
 		// var resources []coderd.ProvisionerJobResource
 		// require.Eventually(t, func() bool {
-		// 	resources, err = client.WorkspaceProvisionJobResources(context.Background(), user.Organization, history.ProvisionJobID)
+		// 	resources, err = client.WorkspaceProvisionJobResources(context.Background(), user.OrganizationID, history.ProvisionJobID)
 		// 	require.NoError(t, err)
 		// 	require.Len(t, resources, 1)
 		// 	return !resources[0].Agent.UpdatedAt.IsZero()
 		// }, 5*time.Second, 25*time.Millisecond)
 
-		// workspaceClient, err := client.WorkspaceAgentConnect(context.Background(), user.Organization, history.ProvisionJobID, resources[0].ID)
+		// workspaceClient, err := client.WorkspaceAgentConnect(context.Background(), user.OrganizationID, history.ProvisionJobID, resources[0].ID)
 		// require.NoError(t, err)
 		// stream, err := workspaceClient.NegotiateConnection(context.Background())
 		// require.NoError(t, err)

@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -32,25 +31,6 @@ import (
 )
 
 type ProvisionerDaemon database.ProvisionerDaemon
-
-// Lists all registered provisioner daemons.
-func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
-	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner daemons: %s", err),
-		})
-		return
-	}
-	if daemons == nil {
-		daemons = []database.ProvisionerDaemon{}
-	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, daemons)
-}
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request) {

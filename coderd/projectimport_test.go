@@ -14,7 +14,7 @@ func TestPostProjectImportByOrganization(t *testing.T) {
 		t.Parallel()
 		// client := coderdtest.New(t, nil)
 		// user := coderdtest.CreateInitialUser(t, client)
-		// _, err := client.CreateProjectImportJob(context.Background(), user.Organization, coderd.CreateProjectImportJobRequest{
+		// _, err := client.CreateProjectImportJob(context.Background(), user.OrganizationID, coderd.CreateProjectImportJobRequest{
 		// 	StorageMethod: database.ProvisionerStorageMethodFile,
 		// 	StorageSource: "bananas",
 		// 	Provisioner:   database.ProvisionerTypeEcho,
@@ -25,7 +25,7 @@ func TestPostProjectImportByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
+		_ = coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 	})
 }
 
@@ -35,8 +35,8 @@ func TestProjectImportJobSchemasByID(t *testing.T) {
 		t.Parallel()
 		// client := coderdtest.New(t, nil)
 		// user := coderdtest.CreateInitialUser(t, client)
-		// job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		// _, err := client.ProjectImportJobSchemas(context.Background(), user.Organization, job.ID)
+		// job := coderdtest.CreateProjectImportJob(t, client, user.OrganizationID, nil)
+		// _, err := client.ProjectImportJobSchemas(context.Background(), user.OrganizationID, job.ID)
 		// var apiErr *codersdk.Error
 		// require.ErrorAs(t, err, &apiErr)
 		// require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -46,7 +46,7 @@ func TestProjectImportJobSchemasByID(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
@@ -61,8 +61,8 @@ func TestProjectImportJobSchemasByID(t *testing.T) {
 			}},
 			Provision: echo.ProvisionComplete,
 		})
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-		// schemas, err := client.ProjectImportJobSchemas(context.Background(), user.Organization, job.ID)
+		coderdtest.AwaitProjectImportJob(t, client, user.OrganizationID, job.ID)
+		// schemas, err := client.ProjectImportJobSchemas(context.Background(), user.OrganizationID, job.ID)
 		// require.NoError(t, err)
 		// require.NotNil(t, schemas)
 		// require.Len(t, schemas, 1)
@@ -75,8 +75,8 @@ func TestProjectImportJobParametersByID(t *testing.T) {
 		t.Parallel()
 		// client := coderdtest.New(t, nil)
 		// user := coderdtest.CreateInitialUser(t, client)
-		// job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		// _, err := client.ProjectImportJobSchemas(context.Background(), user.Organization, job.ID)
+		// job := coderdtest.CreateProjectImportJob(t, client, user.OrganizationID, nil)
+		// _, err := client.ProjectImportJobSchemas(context.Background(), user.OrganizationID, job.ID)
 		// var apiErr *codersdk.Error
 		// require.ErrorAs(t, err, &apiErr)
 		// require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -86,7 +86,7 @@ func TestProjectImportJobParametersByID(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
@@ -106,8 +106,8 @@ func TestProjectImportJobParametersByID(t *testing.T) {
 			}},
 			Provision: echo.ProvisionComplete,
 		})
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-		// params, err := client.ProjectImportJobParameters(context.Background(), user.Organization, job.ID)
+		coderdtest.AwaitProjectImportJob(t, client, user.OrganizationID, job.ID)
+		// params, err := client.ProjectImportJobParameters(context.Background(), user.OrganizationID, job.ID)
 		// require.NoError(t, err)
 		// require.NotNil(t, params)
 		// require.Len(t, params, 1)
@@ -121,8 +121,8 @@ func TestProjectImportJobResourcesByID(t *testing.T) {
 		t.Parallel()
 		// client := coderdtest.New(t, nil)
 		// user := coderdtest.CreateInitialUser(t, client)
-		// job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		// _, err := client.ProjectImportJobResources(context.Background(), user.Organization, job.ID)
+		// job := coderdtest.CreateProjectImportJob(t, client, user.OrganizationID, nil)
+		// _, err := client.ProjectImportJobResources(context.Background(), user.OrganizationID, job.ID)
 		// var apiErr *codersdk.Error
 		// require.ErrorAs(t, err, &apiErr)
 		// require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -132,7 +132,7 @@ func TestProjectImportJobResourcesByID(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -145,8 +145,8 @@ func TestProjectImportJobResourcesByID(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-		// resources, err := client.ProjectImportJobResources(context.Background(), user.Organization, job.ID)
+		coderdtest.AwaitProjectImportJob(t, client, user.OrganizationID, job.ID)
+		// resources, err := client.ProjectImportJobResources(context.Background(), user.OrganizationID, job.ID)
 		// require.NoError(t, err)
 		// require.NotNil(t, resources)
 		// require.Len(t, resources, 2)

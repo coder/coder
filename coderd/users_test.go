@@ -163,9 +163,8 @@ func TestPostLogin(t *testing.T) {
 	t.Run("BadPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-			Email:    user.Email,
+			Email:    "something",
 			Password: "badpass",
 		})
 		var apiErr *codersdk.Error
@@ -176,10 +175,9 @@ func TestPostLogin(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-			Email:    user.Email,
-			Password: user.Password,
+			Email:    "something",
+			Password: "wow",
 		})
 		require.NoError(t, err)
 	})

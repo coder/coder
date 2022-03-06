@@ -44,22 +44,22 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/files", func(r chi.Router) {
 			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
 			r.Get("/{hash}", api.fileByHash)
-			r.Post("/", api.postFiles)
+			r.Post("/", api.postFile)
 		})
-		r.Route("/organization/{organization}", func(r chi.Router) {
+		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			r.Get("/provisionerdaemons", nil)
-			r.Post("/projectversion", nil)
+			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
+			r.Post("/projectversions", api.postProjectVersionsByOrganization)
 			r.Route("/projects", func(r chi.Router) {
 				r.Post("/", api.postProjectsByOrganization)
 				r.Get("/", api.projectsByOrganization)
 				r.Get("/{projectname}", api.projectByOrganizationAndName)
 			})
 		})
-		r.Route("/project/{project}", func(r chi.Router) {
+		r.Route("/projects/{project}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractProjectParam(options.Database),
@@ -74,7 +74,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/versions/latest", nil)
 			r.Patch("/versions", nil)
 		})
-		r.Route("/projectversion/{projectversion}", func(r chi.Router) {
+		r.Route("/projectversions/{projectversion}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractProjectVersionParam(options.Database),
@@ -87,12 +87,12 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/logs", nil)
 			r.Get("/resources", nil)
 		})
-		r.Route("/provisionerdaemon", func(r chi.Router) {
+		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Route("/me", func(r chi.Router) {
 				r.Get("/listen", api.provisionerDaemonsServe)
 			})
 		})
-		r.Route("/user", func(r chi.Router) {
+		r.Route("/users", func(r chi.Router) {
 			r.Post("/login", api.postLogin)
 			r.Post("/logout", api.postLogout)
 			r.Get("/first", api.firstUser)
@@ -108,7 +108,7 @@ func New(options *Options) (http.Handler, func()) {
 				})
 			})
 		})
-		r.Route("/workspaceagent", func(r chi.Router) {
+		r.Route("/workspaceagents", func(r chi.Router) {
 			r.Route("/auth", func(r chi.Router) {
 				r.Post("/google-instance-identity", api.postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity)
 			})
@@ -117,7 +117,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/listen", nil)
 			})
 		})
-		r.Route("/workspace/{workspace}", func(r chi.Router) {
+		r.Route("/workspaces/{workspace}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractWorkspaceParam(options.Database),
@@ -127,7 +127,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/builds", nil)
 			r.Post("/builds", nil)
 		})
-		r.Route("/workspacebuild/{workspacebuild}", func(r chi.Router) {
+		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractWorkspaceBuildParam(options.Database),

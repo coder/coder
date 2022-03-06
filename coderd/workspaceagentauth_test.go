@@ -62,7 +62,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 	// 	})
 	// 	user := coderdtest.CreateInitialUser(t, client)
 	// 	coderdtest.NewProvisionerDaemon(t, client)
-	// 	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+	// 	job := coderdtest.CreateProjectImportJob(t, client, user.OrganizationID, &echo.Responses{
 	// 		Parse: echo.ParseComplete,
 	// 		Provision: []*proto.Provision_Response{{
 	// 			Type: &proto.Provision_Response_Complete{
@@ -82,15 +82,15 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 	// 			},
 	// 		}},
 	// 	})
-	// 	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-	// 	coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
+	// 	project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+	// 	coderdtest.AwaitProjectImportJob(t, client, user.OrganizationID, job.ID)
 	// 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 	// 	firstHistory, err := client.CreateWorkspaceBuild(context.Background(), "", workspace.Name, coderd.CreateWorkspaceBuildRequest{
 	// 		ProjectVersionID: project.ActiveVersionID,
 	// 		Transition:       database.WorkspaceTransitionStart,
 	// 	})
 	// 	require.NoError(t, err)
-	// 	coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, firstHistory.ProvisionJobID)
+	// 	coderdtest.AwaitWorkspaceProvisionJob(t, client, user.OrganizationID, firstHistory.ProvisionJobID)
 
 	// 	_, err = client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
 	// 	require.NoError(t, err)

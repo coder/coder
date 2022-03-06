@@ -17,11 +17,12 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
+// UploadResponse contains the hash to reference the uploaded file.
 type UploadResponse struct {
 	Hash string `json:"hash"`
 }
 
-func (api *api) postFiles(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	contentType := r.Header.Get("Content-Type")
 
