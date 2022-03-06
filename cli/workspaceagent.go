@@ -39,7 +39,7 @@ func workspaceAgent() *cobra.Command {
 				}
 				switch {
 				case probe.GCP():
-					response, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(cmd.Context(), "", nil)
+					response, err := client.AuthWorkspaceGoogleInstanceIdentity(cmd.Context(), "", nil)
 					if err != nil {
 						return xerrors.Errorf("authenticate workspace with gcp: %w", err)
 					}
@@ -49,7 +49,7 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 			client.SessionToken = sessionToken
-			closer := agent.New(client.WorkspaceAgentServe, nil)
+			closer := agent.New(client.ListenWorkspaceAgent, nil)
 			<-cmd.Context().Done()
 			return closer.Close()
 		},

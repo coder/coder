@@ -59,7 +59,7 @@ func login() *cobra.Command {
 			}
 
 			client := codersdk.New(serverURL)
-			hasInitialUser, err := client.HasInitialUser(cmd.Context())
+			hasInitialUser, err := client.HasFirstUser(cmd.Context())
 			if err != nil {
 				return xerrors.Errorf("has initial user: %w", err)
 			}
@@ -119,7 +119,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("specify password prompt: %w", err)
 				}
 
-				_, err = client.CreateInitialUser(cmd.Context(), coderd.CreateInitialUserRequest{
+				_, err = client.CreateFirstUser(cmd.Context(), coderd.CreateFirstUserRequest{
 					Email:        email,
 					Username:     username,
 					Password:     password,

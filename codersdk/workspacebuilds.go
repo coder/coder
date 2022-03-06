@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/coder/coderd"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd"
 )
 
 // WorkspaceBuild returns a single workspace build for a workspace.

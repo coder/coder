@@ -148,7 +148,3 @@ func convertProjectVersion(version database.ProjectVersion, job ProvisionerJob) 
 		Job:       job,
 	}
 }
-
-func convertProjectVersionParameterSchema(schema database.ParameterSchema) ProjectVersionParameterSchema {
-	return ProjectVersionParameterSchema(schema)
-}

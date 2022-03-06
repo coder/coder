@@ -96,5 +96,5 @@ func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.Header().Set("Content-Type", file.Mimetype)
 	rw.WriteHeader(http.StatusOK)
-	rw.Write(file.Data)
+	_, _ = rw.Write(file.Data)
 }

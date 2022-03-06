@@ -108,7 +108,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 
 // currentOrganization returns the currently active organization for the authenticated user.
 func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (coderd.Organization, error) {
-	orgs, err := client.UserOrganizations(cmd.Context(), "me")
+	orgs, err := client.OrganizationsByUser(cmd.Context(), "me")
 	if err != nil {
 		return coderd.Organization{}, nil
 	}

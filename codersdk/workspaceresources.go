@@ -8,16 +8,17 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 
+	"github.com/google/uuid"
+	"github.com/hashicorp/yamux"
+	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/httpmw"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
-	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 )
 
 func (c *Client) WorkspaceResource(ctx context.Context, id uuid.UUID) (coderd.WorkspaceResource, error) {

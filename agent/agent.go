@@ -77,9 +77,10 @@ type server struct {
 	clientDialer Dialer
 	options      *peer.ConnOptions
 
-	closeCancel context.CancelFunc
-	closeMutex  sync.Mutex
-	closed      chan struct{}
+	connCloseWait sync.WaitGroup
+	closeCancel   context.CancelFunc
+	closeMutex    sync.Mutex
+	closed        chan struct{}
 
 	sshServer *ssh.Server
 }
@@ -279,11 +280,16 @@ func (s *server) run(ctx context.Context) {
 			s.run(ctx)
 			return
 		}
+		s.connCloseWait.Add(1)
 		go s.handlePeerConn(ctx, conn)
 	}
 }
 
 func (s *server) handlePeerConn(ctx context.Context, conn *peer.Conn) {
+	go func() {
+		<-conn.Closed()
+		s.connCloseWait.Done()
+	}()
 	for {
 		channel, err := conn.Accept(ctx)
 		if err != nil {
@@ -325,5 +331,6 @@ func (s *server) Close() error {
 	close(s.closed)
 	s.closeCancel()
 	_ = s.sshServer.Close()
+	s.connCloseWait.Wait()
 	return nil
 }

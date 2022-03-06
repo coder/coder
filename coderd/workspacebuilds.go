@@ -67,6 +67,7 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job ProvisionerJob) WorkspaceBuild {
+	//nolint:unconvert
 	return WorkspaceBuild(WorkspaceBuild{
 		ID:               workspaceBuild.ID,
 		CreatedAt:        workspaceBuild.CreatedAt,

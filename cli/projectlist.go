@@ -23,7 +23,7 @@ func projectList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			projects, err := client.Projects(cmd.Context(), organization.Name)
+			projects, err := client.ProjectsByOrganization(cmd.Context(), organization.ID)
 			if err != nil {
 				return err
 			}

@@ -38,7 +38,7 @@ func (c *Client) ProvisionerDaemonsByOrganization(ctx context.Context, organizat
 
 // CreateProjectVersion processes source-code and optionally associates the version with a project.
 // Executing without a project is useful for validating source-code.
-func (c *Client) CreateProjectVersion(ctx context.Context, organization string, req coderd.CreateProjectVersion) (coderd.ProjectVersion, error) {
+func (c *Client) CreateProjectVersion(ctx context.Context, organization string, req coderd.CreateProjectVersionRequest) (coderd.ProjectVersion, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/projectversions", organization), req)
 	if err != nil {
 		return coderd.ProjectVersion{}, err

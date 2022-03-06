@@ -222,7 +222,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -613,7 +613,7 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 	return resources, nil
 }
 
-func (q *fakeQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
+func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -980,7 +980,7 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProjectVersionByID(ctx context.Context, arg database.UpdateProjectVersionByIDParams) error {
+func (q *fakeQuerier) UpdateProjectVersionByID(_ context.Context, arg database.UpdateProjectVersionByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

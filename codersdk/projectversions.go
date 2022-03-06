@@ -27,7 +27,7 @@ func (c *Client) ProjectVersion(ctx context.Context, id uuid.UUID) (coderd.Proje
 }
 
 // ProjectVersionSchema returns schemas for a project version by ID.
-func (c *Client) ProjectVersionSchema(ctx context.Context, version uuid.UUID) ([]coderd.ParameterSchema, error) {
+func (c *Client) ProjectVersionSchema(ctx context.Context, version uuid.UUID) ([]coderd.ProjectVersionParameterSchema, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectversions/%s/schema", version), nil)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (c *Client) ProjectVersionSchema(ctx context.Context, version uuid.UUID) ([
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []coderd.ParameterSchema
+	var params []coderd.ProjectVersionParameterSchema
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 

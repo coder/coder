@@ -40,7 +40,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		projectID := uuid.New()
-		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersion{
+		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersionRequest{
 			ProjectID:     &projectID,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
@@ -55,7 +55,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersion{
+		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -77,7 +77,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		_, err = client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersion{
+		_, err = client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersionRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: file.Hash,
 			Provisioner:   database.ProvisionerTypeEcho,

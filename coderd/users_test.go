@@ -255,12 +255,12 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		_, err = client.OrganizationByName(context.Background(), "", org.Name)
 		require.NoError(t, err)
 	})
-
 }
 
 func TestPostOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 	t.Run("Conflict", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		org, err := client.Organization(context.Background(), user.OrganizationID)
@@ -274,6 +274,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 	})
 
 	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		_, err := client.CreateOrganization(context.Background(), "", coderd.CreateOrganizationRequest{

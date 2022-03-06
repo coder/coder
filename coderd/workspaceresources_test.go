@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd"

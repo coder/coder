@@ -191,7 +191,7 @@ func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization st
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
-	projectVersion, err := client.CreateProjectVersion(context.Background(), organization, coderd.CreateProjectVersion{
+	projectVersion, err := client.CreateProjectVersion(context.Background(), organization, coderd.CreateProjectVersionRequest{
 		StorageSource: file.Hash,
 		StorageMethod: database.ProvisionerStorageMethodFile,
 		Provisioner:   database.ProvisionerTypeEcho,

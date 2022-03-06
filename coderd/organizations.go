@@ -52,7 +52,7 @@ type CreateProjectRequest struct {
 	VersionID uuid.UUID `json:"project_version_id" validate:"required"`
 }
 
-func (api *api) organization(rw http.ResponseWriter, r *http.Request) {
+func (*api) organization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertOrganization(organization))
