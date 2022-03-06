@@ -281,26 +281,6 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesByProjectAndUserID(_ context.Context, arg database.GetWorkspacesByProjectAndUserIDParams) ([]database.Workspace, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspace {
-		if workspace.OwnerID != arg.OwnerID {
-			continue
-		}
-		if workspace.ProjectID.String() != arg.ProjectID.String() {
-			continue
-		}
-		workspaces = append(workspaces, workspace)
-	}
-	if len(workspaces) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return workspaces, nil
-}
-
 func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, ownerID string) ([]database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -475,17 +455,15 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetProjectsByOrganizationIDs(_ context.Context, ids []string) ([]database.Project, error) {
+func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, id string) ([]database.Project, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	projects := make([]database.Project, 0)
 	for _, project := range q.project {
-		for _, id := range ids {
-			if project.OrganizationID == id {
-				projects = append(projects, project)
-				break
-			}
+		if project.OrganizationID == id {
+			projects = append(projects, project)
+			break
 		}
 	}
 	if len(projects) == 0 {

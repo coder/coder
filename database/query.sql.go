@@ -522,17 +522,17 @@ func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, dollar_1
 	return items, nil
 }
 
-const getProjectsByOrganizationIDs = `-- name: GetProjectsByOrganizationIDs :many
+const getProjectsByOrganization = `-- name: GetProjectsByOrganization :many
 SELECT
   id, created_at, updated_at, organization_id, name, provisioner, active_version_id
 FROM
   project
 WHERE
-  organization_id = ANY($1 :: text [ ])
+  organization_id = $1
 `
 
-func (q *sqlQuerier) GetProjectsByOrganizationIDs(ctx context.Context, ids []string) ([]Project, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectsByOrganizationIDs, pq.Array(ids))
+func (q *sqlQuerier) GetProjectsByOrganization(ctx context.Context, organizationID string) ([]Project, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectsByOrganization, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -1251,51 +1251,6 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Type,
 			&i.Name,
 			&i.AgentID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspacesByProjectAndUserID = `-- name: GetWorkspacesByProjectAndUserID :many
-SELECT
-  id, created_at, updated_at, owner_id, project_id, name
-FROM
-  workspace
-WHERE
-  owner_id = $1
-  AND project_id = $2
-`
-
-type GetWorkspacesByProjectAndUserIDParams struct {
-	OwnerID   string    `db:"owner_id" json:"owner_id"`
-	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
-}
-
-func (q *sqlQuerier) GetWorkspacesByProjectAndUserID(ctx context.Context, arg GetWorkspacesByProjectAndUserIDParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesByProjectAndUserID, arg.OwnerID, arg.ProjectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.ProjectID,
-			&i.Name,
 		); err != nil {
 			return nil, err
 		}

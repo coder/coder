@@ -270,10 +270,9 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 	render.JSON(rw, r, project)
 }
 
-// Lists all projects in an organization.
 func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	projects, err := api.Database.GetProjectsByOrganizationIDs(r.Context(), []string{organization.ID})
+	projects, err := api.Database.GetProjectsByOrganization(r.Context(), organization.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

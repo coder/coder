@@ -157,13 +157,13 @@ WHERE
 LIMIT
   1;
 
--- name: GetProjectsByOrganizationIDs :many
+-- name: GetProjectsByOrganization :many
 SELECT
   *
 FROM
   project
 WHERE
-  organization_id = ANY(@ids :: text [ ]);
+  organization_id = $1;
 
 -- name: GetParameterSchemasByJobID :many
 SELECT
@@ -286,15 +286,6 @@ FROM
 WHERE
   owner_id = @owner_id
   AND LOWER(name) = LOWER(@name);
-
--- name: GetWorkspacesByProjectAndUserID :many
-SELECT
-  *
-FROM
-  workspace
-WHERE
-  owner_id = $1
-  AND project_id = $2;
 
 -- name: GetWorkspaceOwnerCountsByProjectIDs :many
 SELECT
