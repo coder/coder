@@ -18,8 +18,10 @@ import { CodeExample } from "../../components/CodeExample/CodeExample"
 const ProjectsPage: React.FC = () => {
   const styles = useStyles()
   const { me, signOut } = useUser(true)
-  const { data: projects, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
   const { data: orgs, error: orgsError } = useSWR<Organization[], Error>("/api/v2/users/me/organizations")
+  const { data: projects, error } = useSWR<Project[] | null, Error>(
+    orgs ? `/api/v2/organizations/${orgs[0].id}/projects` : null,
+  )
 
   if (error) {
     return <ErrorSummary error={error} />

@@ -97,4 +97,38 @@ func TestProvisionerJobLogs(t *testing.T) {
 		_, ok := <-logs
 		require.False(t, ok)
 	})
+
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_INFO,
+						Output: "log-output",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		})
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
+			ProjectVersionID: project.ActiveVersionID,
+			Transition:       database.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		logs, err := client.WorkspaceBuildLogsBefore(context.Background(), build.ID, time.Now())
+		require.NoError(t, err)
+		require.Len(t, logs, 1)
+	})
 }
