@@ -18,11 +18,11 @@ import (
 func TestWorkspaceResourceParam(t *testing.T) {
 	t.Parallel()
 
-	setup := func(db database.Store) (*http.Request, database.WorkspaceResource) {
+	setup := func(db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
 		job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
 			ID:   uuid.New(),
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
+			Type: jobType,
 		})
 		require.NoError(t, err)
 		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
@@ -48,7 +48,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceResourceParam(db))
 		rtr.Get("/", nil)
-		r, _ := setup(db)
+		r, _ := setup(db, database.ProvisionerJobTypeWorkspaceBuild)
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -66,7 +66,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 		)
 		rtr.Get("/", nil)
 
-		r, _ := setup(db)
+		r, _ := setup(db, database.ProvisionerJobTypeWorkspaceBuild)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
@@ -74,6 +74,28 @@ func TestWorkspaceResourceParam(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("FoundBadJobType", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		rtr := chi.NewRouter()
+		rtr.Use(
+			httpmw.ExtractWorkspaceResourceParam(db),
+		)
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			_ = httpmw.WorkspaceResourceParam(r)
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		r, job := setup(db, database.ProvisionerJobTypeProjectVersionImport)
+		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", job.ID.String())
+		rw := httptest.NewRecorder()
+		rtr.ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
 	t.Run("Found", func(t *testing.T) {
@@ -88,7 +110,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 			rw.WriteHeader(http.StatusOK)
 		})
 
-		r, job := setup(db)
+		r, job := setup(db, database.ProvisionerJobTypeWorkspaceBuild)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", job.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)

@@ -46,8 +46,8 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 
 			apiKey := APIKey(r)
 			if apiKey.UserID != workspace.OwnerID {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "getting non-personal workspaces isn't supported yet",
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: "getting non-personal workspaces isn't supported",
 				})
 				return
 			}

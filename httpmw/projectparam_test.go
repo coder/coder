@@ -110,6 +110,23 @@ func TestProjectParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
+	t.Run("BadUUID", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.ExtractProjectParam(db))
+		rtr.Get("/", nil)
+
+		r, _ := setupAuthentication(db)
+		chi.RouteContext(r.Context()).URLParams.Add("project", "not-a-uuid")
+		rw := httptest.NewRecorder()
+		rtr.ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
 	t.Run("Project", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
