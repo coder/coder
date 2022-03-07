@@ -81,7 +81,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: file.Hash,
 			Provisioner:   database.ProvisionerTypeEcho,
-			ParameterValues: []coderd.CreateParameterValueRequest{{
+			ParameterValues: []coderd.CreateParameterRequest{{
 				Name:              "example",
 				SourceValue:       "value",
 				SourceScheme:      database.ParameterSourceSchemeData,

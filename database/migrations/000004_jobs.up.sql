@@ -132,16 +132,16 @@ CREATE TABLE parameter_schema (
 -- Parameters are provided to jobs for provisioning and to workspaces.
 CREATE TABLE parameter_value (
     id uuid NOT NULL UNIQUE,
-    name varchar(64) NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     scope parameter_scope NOT NULL,
     scope_id text NOT NULL,
+    name varchar(64) NOT NULL,
     source_scheme parameter_source_scheme NOT NULL,
     source_value text NOT NULL,
     destination_scheme parameter_destination_scheme NOT NULL,
     -- Prevents duplicates for parameters in the same scope.
-    UNIQUE(name, scope, scope_id)
+    UNIQUE(scope_id, name)
 );
 
 CREATE TABLE workspace_build (

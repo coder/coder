@@ -323,11 +323,11 @@ type ParameterSchema struct {
 
 type ParameterValue struct {
 	ID                uuid.UUID                  `db:"id" json:"id"`
-	Name              string                     `db:"name" json:"name"`
 	CreatedAt         time.Time                  `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time                  `db:"updated_at" json:"updated_at"`
 	Scope             ParameterScope             `db:"scope" json:"scope"`
 	ScopeID           string                     `db:"scope_id" json:"scope_id"`
+	Name              string                     `db:"name" json:"name"`
 	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
 	SourceValue       string                     `db:"source_value" json:"source_value"`
 	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`

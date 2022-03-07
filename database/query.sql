@@ -36,6 +36,12 @@ WHERE
       1
   ) RETURNING *;
 
+-- name: DeleteParameterValueByID :exec
+DELETE FROM
+  parameter_value
+WHERE
+  id = $1;
+
 -- name: GetAPIKeyByID :one
 SELECT
   *
@@ -135,6 +141,18 @@ FROM
 WHERE
   scope = $1
   AND scope_id = $2;
+
+-- name: GetParameterValueByScopeAndName :one
+SELECT
+  *
+FROM
+  parameter_value
+WHERE
+  scope = $1
+  AND scope_id = $2
+  AND name = $3
+LIMIT
+  1;
 
 -- name: GetProjectByID :one
 SELECT

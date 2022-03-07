@@ -59,10 +59,14 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.projectsByOrganization)
 				r.Get("/{projectname}", api.projectByOrganizationAndName)
 			})
-			r.Get("/parameters", nil)
-			r.Post("/parameters", nil)
-			r.Patch("/parameters/{name}", nil)
-			r.Delete("/parameters/{name}", nil)
+		})
+		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
+			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Post("/", api.postParameter)
+			r.Get("/", api.parameters)
+			r.Route("/{name}", func(r chi.Router) {
+				r.Delete("/", api.deleteParameter)
+			})
 		})
 		r.Route("/projects/{project}", func(r chi.Router) {
 			r.Use(
@@ -71,10 +75,6 @@ func New(options *Options) (http.Handler, func()) {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.project)
-			r.Get("/parameters", api.parametersByProject)
-			r.Post("/parameters", api.postParametersByProject)
-			r.Patch("/parameters/{name}", nil)
-			r.Delete("/parameters/{name}", nil)
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", api.projectVersionsByProject)
 				r.Patch("/versions", nil)

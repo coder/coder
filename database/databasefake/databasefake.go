@@ -92,6 +92,21 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, parameterValue := range q.parameterValue {
+		if parameterValue.ID.String() != id.String() {
+			continue
+		}
+		q.parameterValue[index] = q.parameterValue[len(q.parameterValue)-1]
+		q.parameterValue = q.parameterValue[:len(q.parameterValue)-1]
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -453,6 +468,25 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 		return nil, sql.ErrNoRows
 	}
 	return parameters, nil
+}
+
+func (q *fakeQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, parameterValue := range q.parameterValue {
+		if parameterValue.Scope != arg.Scope {
+			continue
+		}
+		if parameterValue.ScopeID != arg.ScopeID {
+			continue
+		}
+		if parameterValue.Name != arg.Name {
+			continue
+		}
+		return parameterValue, nil
+	}
+	return database.ParameterValue{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, id string) ([]database.Project, error) {

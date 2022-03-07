@@ -36,7 +36,7 @@ type CreateProjectVersionRequest struct {
 	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
-	ParameterValues []CreateParameterValueRequest `json:"parameter_values"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values"`
 }
 
 // CreateProjectRequest provides options when creating a project.

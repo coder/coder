@@ -143,11 +143,11 @@ CREATE TABLE parameter_schema (
 
 CREATE TABLE parameter_value (
     id uuid NOT NULL,
-    name character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     scope parameter_scope NOT NULL,
     scope_id text NOT NULL,
+    name character varying(64) NOT NULL,
     source_scheme parameter_source_scheme NOT NULL,
     source_value text NOT NULL,
     destination_scheme parameter_destination_scheme NOT NULL
@@ -292,7 +292,7 @@ ALTER TABLE ONLY parameter_value
     ADD CONSTRAINT parameter_value_id_key UNIQUE (id);
 
 ALTER TABLE ONLY parameter_value
-    ADD CONSTRAINT parameter_value_name_scope_scope_id_key UNIQUE (name, scope, scope_id);
+    ADD CONSTRAINT parameter_value_scope_id_name_key UNIQUE (scope_id, name);
 
 ALTER TABLE ONLY project
     ADD CONSTRAINT project_id_key UNIQUE (id);

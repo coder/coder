@@ -76,6 +76,18 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 	return i, err
 }
 
+const deleteParameterValueByID = `-- name: DeleteParameterValueByID :exec
+DELETE FROM
+  parameter_value
+WHERE
+  id = $1
+`
+
+func (q *sqlQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteParameterValueByID, id)
+	return err
+}
+
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
   id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
@@ -319,9 +331,45 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const getParameterValueByScopeAndName = `-- name: GetParameterValueByScopeAndName :one
+SELECT
+  id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
+FROM
+  parameter_value
+WHERE
+  scope = $1
+  AND scope_id = $2
+  AND name = $3
+LIMIT
+  1
+`
+
+type GetParameterValueByScopeAndNameParams struct {
+	Scope   ParameterScope `db:"scope" json:"scope"`
+	ScopeID string         `db:"scope_id" json:"scope_id"`
+	Name    string         `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error) {
+	row := q.db.QueryRowContext(ctx, getParameterValueByScopeAndName, arg.Scope, arg.ScopeID, arg.Name)
+	var i ParameterValue
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Scope,
+		&i.ScopeID,
+		&i.Name,
+		&i.SourceScheme,
+		&i.SourceValue,
+		&i.DestinationScheme,
+	)
+	return i, err
+}
+
 const getParameterValuesByScope = `-- name: GetParameterValuesByScope :many
 SELECT
-  id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme
+  id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
 FROM
   parameter_value
 WHERE
@@ -345,11 +393,11 @@ func (q *sqlQuerier) GetParameterValuesByScope(ctx context.Context, arg GetParam
 		var i ParameterValue
 		if err := rows.Scan(
 			&i.ID,
-			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Scope,
 			&i.ScopeID,
+			&i.Name,
 			&i.SourceScheme,
 			&i.SourceValue,
 			&i.DestinationScheme,
@@ -1628,7 +1676,7 @@ INSERT INTO
     destination_scheme
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name, created_at, updated_at, scope, scope_id, source_scheme, source_value, destination_scheme
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
 `
 
 type InsertParameterValueParams struct {
@@ -1658,11 +1706,11 @@ func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParamet
 	var i ParameterValue
 	err := row.Scan(
 		&i.ID,
-		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Scope,
 		&i.ScopeID,
+		&i.Name,
 		&i.SourceScheme,
 		&i.SourceValue,
 		&i.DestinationScheme,
