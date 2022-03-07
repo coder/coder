@@ -14,11 +14,8 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 // Required until https://github.com/chzyer/readline/pull/198 is merged.
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
 
-// Required until https://github.com/census-instrumentation/opencensus-go/pull/1272 is merged.
-replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220220184033-4441763886a2
-
-// Required until https://github.com/pion/ice/pull/425 is merged.
-replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220221162453-b262a62902c3
+// opencensus-go leaks a goroutine by default.
+replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
 require (
 	cdr.dev/slog v1.4.1
