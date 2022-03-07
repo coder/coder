@@ -47,7 +47,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
-		logs, err := client.WorkspaceBuildLogsAfter(context.Background(), build.ID, before)
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+		logs, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, before)
 		require.NoError(t, err)
 		log, ok := <-logs
 		require.True(t, ok)
@@ -86,7 +88,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		logs, err := client.WorkspaceBuildLogsAfter(context.Background(), build.ID, before)
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		t.Cleanup(cancelFunc)
+		logs, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, before)
 		require.NoError(t, err)
 		log := <-logs
 		require.Equal(t, "log-output", log.Output)

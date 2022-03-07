@@ -141,7 +141,9 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 		Transition:       database.WorkspaceTransitionStart,
 	})
 	require.NoError(t, err)
-	logs, err := client.WorkspaceBuildLogsAfter(context.Background(), build.ID, before)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
+	logs, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, before)
 	require.NoError(t, err)
 	log := <-logs
 	require.Equal(t, "example", log.Output)

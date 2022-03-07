@@ -196,7 +196,9 @@ func TestProjectVersionLogs(t *testing.T) {
 			},
 		}},
 	})
-	logs, err := client.ProjectVersionLogsAfter(context.Background(), version.ID, before)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
+	logs, err := client.ProjectVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
 	log := <-logs
 	require.Equal(t, "example", log.Output)
