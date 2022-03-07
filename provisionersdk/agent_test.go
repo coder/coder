@@ -7,6 +7,7 @@
 package provisionersdk_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -37,26 +38,18 @@ func TestAgentScript(t *testing.T) {
 		t.Cleanup(srv.Close)
 		srvURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
-		script, err := provisionersdk.AgentScript(srvURL, runtime.GOOS, runtime.GOARCH)
-		require.NoError(t, err)
 
+		script, exists := provisionersdk.AgentScriptEnv()[fmt.Sprintf("CODER_AGENT_SCRIPT_%s_%s", runtime.GOOS, runtime.GOARCH)]
+		if !exists {
+			t.Skip("Agent not supported...")
+			return
+		}
+		script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String())
 		output, err := exec.Command("sh", "-c", script).CombinedOutput()
 		t.Log(string(output))
 		require.NoError(t, err)
 		// Because we use the "echo" binary, we should expect the arguments provided
 		// as the response to executing our script.
 		require.Equal(t, "agent", strings.TrimSpace(string(output)))
-	})
-
-	t.Run("UnsupportedOS", func(t *testing.T) {
-		t.Parallel()
-		_, err := provisionersdk.AgentScript(nil, "unsupported", "")
-		require.Error(t, err)
-	})
-
-	t.Run("UnsupportedArch", func(t *testing.T) {
-		t.Parallel()
-		_, err := provisionersdk.AgentScript(nil, runtime.GOOS, "unsupported")
-		require.Error(t, err)
 	})
 }
