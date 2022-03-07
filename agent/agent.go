@@ -280,7 +280,9 @@ func (s *server) run(ctx context.Context) {
 			s.run(ctx)
 			return
 		}
+		s.closeMutex.Lock()
 		s.connCloseWait.Add(1)
+		s.closeMutex.Unlock()
 		go s.handlePeerConn(ctx, conn)
 	}
 }
