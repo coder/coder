@@ -12,11 +12,11 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
-// AuthenticateWorkspaceAgentUsingGoogleCloudIdentity uses the Google Compute Engine Metadata API to
+// AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
 // fetch a signed JWT, and exchange it for a session token for a workspace agent.
 //
 // The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(ctx context.Context, serviceAccount string, gcpClient *metadata.Client) (coderd.WorkspaceAgentAuthenticateResponse, error) {
+func (c *Client) AuthWorkspaceGoogleInstanceIdentity(ctx context.Context, serviceAccount string, gcpClient *metadata.Client) (coderd.WorkspaceAgentAuthenticateResponse, error) {
 	if serviceAccount == "" {
 		// This is the default name specified by Google.
 		serviceAccount = "default"
@@ -29,7 +29,7 @@ func (c *Client) AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(ctx context.
 	if err != nil {
 		return coderd.WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
 	}
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/workspaceagent/authenticate/google-instance-identity", coderd.GoogleInstanceIdentityToken{
+	res, err := c.request(ctx, http.MethodPost, "/api/v2/workspaceresources/auth/google-instance-identity", coderd.GoogleInstanceIdentityToken{
 		JSONWebToken: jwt,
 	})
 	if err != nil {

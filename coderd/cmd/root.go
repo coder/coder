@@ -98,7 +98,7 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 	if err != nil {
 		return nil, err
 	}
-	return provisionerd.New(client.ProvisionerDaemonClient, &provisionerd.Options{
+	return provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
 		PollInterval:   50 * time.Millisecond,
 		UpdateInterval: 50 * time.Millisecond,

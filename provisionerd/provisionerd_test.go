@@ -294,7 +294,7 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
-	t.Run("WorkspaceProvision", func(t *testing.T) {
+	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		var (
 			didComplete   atomic.Bool
@@ -316,8 +316,8 @@ func TestProvisionerd(t *testing.T) {
 						ProjectSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
-						Type: &proto.AcquiredJob_WorkspaceProvision_{
-							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
+						Type: &proto.AcquiredJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 								Metadata: &sdkproto.Provision_Metadata{},
 							},
 						},
@@ -363,7 +363,7 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
-	t.Run("WorkspaceProvisionFailComplete", func(t *testing.T) {
+	t.Run("WorkspaceBuildFailComplete", func(t *testing.T) {
 		t.Parallel()
 		var (
 			didFail       atomic.Bool
@@ -384,8 +384,8 @@ func TestProvisionerd(t *testing.T) {
 						ProjectSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
-						Type: &proto.AcquiredJob_WorkspaceProvision_{
-							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
+						Type: &proto.AcquiredJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 								Metadata: &sdkproto.Provision_Metadata{},
 							},
 						},
@@ -430,8 +430,8 @@ func TestProvisionerd(t *testing.T) {
 						ProjectSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
-						Type: &proto.AcquiredJob_WorkspaceProvision_{
-							WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
+						Type: &proto.AcquiredJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 								Metadata: &sdkproto.Provision_Metadata{},
 							},
 						},

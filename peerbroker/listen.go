@@ -30,8 +30,9 @@ func Listen(connListener net.Listener, iceServersFunc ICEServersFunc, opts *peer
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	listener := &Listener{
-		connectionChannel: make(chan *peer.Conn),
-		iceServersFunc:    iceServersFunc,
+		connectionChannel:  make(chan *peer.Conn),
+		connectionListener: connListener,
+		iceServersFunc:     iceServersFunc,
 
 		closeFunc: cancelFunc,
 		closed:    make(chan struct{}),
@@ -56,8 +57,9 @@ func Listen(connListener net.Listener, iceServersFunc ICEServersFunc, opts *peer
 }
 
 type Listener struct {
-	connectionChannel chan *peer.Conn
-	iceServersFunc    ICEServersFunc
+	connectionChannel  chan *peer.Conn
+	connectionListener net.Listener
+	iceServersFunc     ICEServersFunc
 
 	closeFunc  context.CancelFunc
 	closed     chan struct{}
@@ -89,6 +91,7 @@ func (l *Listener) closeWithError(err error) error {
 		return l.closeError
 	}
 
+	_ = l.connectionListener.Close()
 	l.closeError = err
 	l.closeFunc()
 	close(l.closed)

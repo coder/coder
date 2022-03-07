@@ -74,7 +74,6 @@ func TestProjectParam(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := chi.NewRouteContext()
-		ctx.URLParams.Add("organization", organization.Name)
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
 		return r, organization
 	}
@@ -83,11 +82,7 @@ func TestProjectParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractProjectParam(db),
-		)
+		rtr.Use(httpmw.ExtractProjectParam(db))
 		rtr.Get("/", nil)
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
@@ -102,15 +97,11 @@ func TestProjectParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractProjectParam(db),
-		)
+		rtr.Use(httpmw.ExtractProjectParam(db))
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("project", "nothin")
+		chi.RouteContext(r.Context()).URLParams.Add("project", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -119,14 +110,31 @@ func TestProjectParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
+	t.Run("BadUUID", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.ExtractProjectParam(db))
+		rtr.Get("/", nil)
+
+		r, _ := setupAuthentication(db)
+		chi.RouteContext(r.Context()).URLParams.Add("project", "not-a-uuid")
+		rw := httptest.NewRecorder()
+		rtr.ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
 	t.Run("Project", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractProjectParam(db),
+			httpmw.ExtractOrganizationParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.ProjectParam(r)
@@ -140,7 +148,7 @@ func TestProjectParam(t *testing.T) {
 			Name:           "moo",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("project", project.Name)
+		chi.RouteContext(r.Context()).URLParams.Add("project", project.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

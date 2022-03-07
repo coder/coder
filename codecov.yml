@@ -26,9 +26,13 @@ ignore:
   # This is generated code.
   - database/models.go
   - database/query.sql.go
-  # All coderd tests fail if this doesn't work.
   - database/databasefake
+  # These are generated or don't require tests.
+  - cmd
+  - database/dump
+  - database/postgres
   - peerbroker/proto
   - provisionerd/proto
   - provisionersdk/proto
   - scripts/datadog-cireport
+  - rules.go

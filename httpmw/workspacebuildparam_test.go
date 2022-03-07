@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-func TestWorkspaceHistoryParam(t *testing.T) {
+func TestWorkspaceBuildParam(t *testing.T) {
 	t.Parallel()
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.Workspace) {
@@ -74,12 +74,7 @@ func TestWorkspaceHistoryParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-			httpmw.ExtractWorkspaceHistoryParam(db),
-		)
+		rtr.Use(httpmw.ExtractWorkspaceBuildParam(db))
 		rtr.Get("/", nil)
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
@@ -94,16 +89,11 @@ func TestWorkspaceHistoryParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-			httpmw.ExtractWorkspaceHistoryParam(db),
-		)
+		rtr.Use(httpmw.ExtractWorkspaceBuildParam(db))
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacehistory", "nothin")
+		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -112,60 +102,28 @@ func TestWorkspaceHistoryParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("WorkspaceHistory", func(t *testing.T) {
+	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
+			httpmw.ExtractWorkspaceBuildParam(db),
 			httpmw.ExtractWorkspaceParam(db),
-			httpmw.ExtractWorkspaceHistoryParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.WorkspaceHistoryParam(r)
+			_ = httpmw.WorkspaceBuildParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
 
 		r, workspace := setupAuthentication(db)
-		workspaceHistory, err := db.InsertWorkspaceHistory(context.Background(), database.InsertWorkspaceHistoryParams{
+		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
 			ID:          uuid.New(),
 			WorkspaceID: workspace.ID,
 			Name:        "moo",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacehistory", workspaceHistory.Name)
-		rw := httptest.NewRecorder()
-		rtr.ServeHTTP(rw, r)
-
-		res := rw.Result()
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-	})
-
-	t.Run("WorkspaceHistoryLatest", func(t *testing.T) {
-		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-			httpmw.ExtractWorkspaceHistoryParam(db),
-		)
-		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.WorkspaceHistoryParam(r)
-			rw.WriteHeader(http.StatusOK)
-		})
-
-		r, workspace := setupAuthentication(db)
-		_, err := db.InsertWorkspaceHistory(context.Background(), database.InsertWorkspaceHistoryParams{
-			ID:          uuid.New(),
-			WorkspaceID: workspace.ID,
-			Name:        "moo",
-		})
-		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacehistory", "latest")
+		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", workspaceBuild.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

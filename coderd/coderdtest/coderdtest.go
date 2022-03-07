@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
-	"go.opencensus.io/stats/view"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
@@ -39,13 +38,6 @@ type Options struct {
 // New constructs an in-memory coderd instance and returns
 // the connected client.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	// Stops the opencensus.io worker from leaking a goroutine.
-	// The worker isn't used anyways, and is an indirect dependency
-	// of the Google Cloud SDK.
-	t.Cleanup(func() {
-		view.Stop()
-	})
-
 	if options == nil {
 		options = &Options{}
 	}
@@ -125,7 +117,7 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 		require.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(client.ProvisionerDaemonClient, &provisionerd.Options{
+	closer := provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:   50 * time.Millisecond,
 		UpdateInterval: 50 * time.Millisecond,
@@ -140,16 +132,16 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 	return closer
 }
 
-// CreateInitialUser creates a user with preset credentials and authenticates
+// CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
-func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateInitialUserRequest {
-	req := coderd.CreateInitialUserRequest{
+func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateFirstUserResponse {
+	req := coderd.CreateFirstUserRequest{
 		Email:        "testuser@coder.com",
 		Username:     "testuser",
 		Password:     "testpass",
 		Organization: "testorg",
 	}
-	_, err := client.CreateInitialUser(context.Background(), req)
+	resp, err := client.CreateFirstUser(context.Background(), req)
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
@@ -158,59 +150,101 @@ func CreateInitialUser(t *testing.T, client *codersdk.Client) coderd.CreateIniti
 	})
 	require.NoError(t, err)
 	client.SessionToken = login.SessionToken
-	return req
+	return resp
 }
 
-// CreateProjectImportJob creates a project import provisioner job
+// CreateAnotherUser creates and authenticates a new user.
+func CreateAnotherUser(t *testing.T, client *codersdk.Client, organization string) *codersdk.Client {
+	req := coderd.CreateUserRequest{
+		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
+		Username:       randomUsername(),
+		Password:       "testpass",
+		OrganizationID: organization,
+	}
+	_, err := client.CreateUser(context.Background(), req)
+	require.NoError(t, err)
+
+	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	require.NoError(t, err)
+
+	other := codersdk.New(client.URL)
+	other.SessionToken = login.SessionToken
+	return other
+}
+
+// CreateProjectVersion creates a project import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateProjectImportJob(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProvisionerJob {
+func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProjectVersion {
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
-	file, err := client.UploadFile(context.Background(), codersdk.ContentTypeTar, data)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
-	job, err := client.CreateProjectImportJob(context.Background(), organization, coderd.CreateProjectImportJobRequest{
+	projectVersion, err := client.CreateProjectVersion(context.Background(), organization, coderd.CreateProjectVersionRequest{
 		StorageSource: file.Hash,
 		StorageMethod: database.ProvisionerStorageMethodFile,
 		Provisioner:   database.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
-	return job
+	return projectVersion
 }
 
 // CreateProject creates a project with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateProject(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.Project {
+func CreateProject(t *testing.T, client *codersdk.Client, organization string, version uuid.UUID) coderd.Project {
 	project, err := client.CreateProject(context.Background(), organization, coderd.CreateProjectRequest{
-		Name:               randomUsername(),
-		VersionImportJobID: job,
+		Name:      randomUsername(),
+		VersionID: version,
 	})
 	require.NoError(t, err)
 	return project
 }
 
 // AwaitProjectImportJob awaits for an import job to reach completed status.
-func AwaitProjectImportJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
-	var provisionerJob coderd.ProvisionerJob
+func AwaitProjectVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) coderd.ProjectVersion {
+	var projectVersion coderd.ProjectVersion
 	require.Eventually(t, func() bool {
 		var err error
-		provisionerJob, err = client.ProjectImportJob(context.Background(), organization, job)
+		projectVersion, err = client.ProjectVersion(context.Background(), version)
 		require.NoError(t, err)
-		return provisionerJob.Status.Completed()
+		return projectVersion.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
-	return provisionerJob
+	return projectVersion
 }
 
-// AwaitWorkspaceProvisionJob awaits for a workspace provision job to reach completed status.
-func AwaitWorkspaceProvisionJob(t *testing.T, client *codersdk.Client, organization string, job uuid.UUID) coderd.ProvisionerJob {
-	var provisionerJob coderd.ProvisionerJob
+// AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
+func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) coderd.WorkspaceBuild {
+	var workspaceBuild coderd.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
-		provisionerJob, err = client.WorkspaceProvisionJob(context.Background(), organization, job)
+		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
 		require.NoError(t, err)
-		return provisionerJob.Status.Completed()
+		return workspaceBuild.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
-	return provisionerJob
+	return workspaceBuild
+}
+
+// AwaitWorkspaceAgents waits for all resources with agents to be connected.
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []coderd.WorkspaceResource {
+	var resources []coderd.WorkspaceResource
+	require.Eventually(t, func() bool {
+		var err error
+		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
+		require.NoError(t, err)
+		for _, resource := range resources {
+			if resource.Agent == nil {
+				continue
+			}
+			if resource.Agent.UpdatedAt.IsZero() {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 25*time.Millisecond)
+	return resources
 }
 
 // CreateWorkspace creates a workspace for the user and project provided.

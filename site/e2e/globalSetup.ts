@@ -11,7 +11,7 @@ const globalSetup = async (config: FullConfig): Promise<void> => {
   })
 
   // Create initial user
-  await context.post("/api/v2/user", {
+  await context.post("/api/v2/users/first", {
     data: {
       email,
       username,

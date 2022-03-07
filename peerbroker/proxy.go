@@ -2,6 +2,7 @@ package peerbroker
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -118,7 +119,7 @@ func (p *proxyListen) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateC
 			return xerrors.Errorf("maximum payload size %d exceeded", maxPayloadSizeBytes)
 		}
 		data = append([]byte(streamID), data...)
-		err = p.pubsub.Publish(proxyOutID(p.channelID), data)
+		err = p.pubsub.Publish(proxyOutID(p.channelID), marshal(data))
 		if err != nil {
 			return xerrors.Errorf("publish: %w", err)
 		}
@@ -127,6 +128,11 @@ func (p *proxyListen) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateC
 }
 
 func (*proxyListen) onServerToClientMessage(streamID string, stream proto.DRPCPeerBroker_NegotiateConnectionStream, message []byte) error {
+	var err error
+	message, err = unmarshal(message)
+	if err != nil {
+		return xerrors.Errorf("decode: %w", err)
+	}
 	if len(message) < streamIDLength {
 		return xerrors.Errorf("got message length %d < %d", len(message), streamIDLength)
 	}
@@ -136,7 +142,7 @@ func (*proxyListen) onServerToClientMessage(streamID string, stream proto.DRPCPe
 		return nil
 	}
 	var msg proto.Exchange
-	err := protobuf.Unmarshal(message[streamIDLength:], &msg)
+	err = protobuf.Unmarshal(message[streamIDLength:], &msg)
 	if err != nil {
 		return xerrors.Errorf("unmarshal message: %w", err)
 	}
@@ -173,10 +179,14 @@ func (p *proxyDial) listen() error {
 }
 
 func (p *proxyDial) onClientToServerMessage(ctx context.Context, message []byte) error {
+	var err error
+	message, err = unmarshal(message)
+	if err != nil {
+		return xerrors.Errorf("decode: %w", err)
+	}
 	if len(message) < streamIDLength {
 		return xerrors.Errorf("got message length %d < %d", len(message), streamIDLength)
 	}
-	var err error
 	streamID := string(message[0:streamIDLength])
 	p.streamMutex.Lock()
 	stream, ok := p.streams[streamID]
@@ -190,7 +200,7 @@ func (p *proxyDial) onClientToServerMessage(ctx context.Context, message []byte)
 		go func() {
 			defer stream.Close()
 
-			err = p.onServerToClientMessage(streamID, stream)
+			err := p.onServerToClientMessage(streamID, stream)
 			if err != nil {
 				p.logger.Debug(ctx, "failed to accept server message", slog.Error(err))
 			}
@@ -236,7 +246,7 @@ func (p *proxyDial) onServerToClientMessage(streamID string, stream proto.DRPCPe
 			return xerrors.Errorf("maximum payload size %d exceeded", maxPayloadSizeBytes)
 		}
 		data = append([]byte(streamID), data...)
-		err = p.pubsub.Publish(proxyInID(p.channelID), data)
+		err = p.pubsub.Publish(proxyInID(p.channelID), marshal(data))
 		if err != nil {
 			return xerrors.Errorf("publish: %w", err)
 		}
@@ -249,6 +259,16 @@ func (p *proxyDial) Close() error {
 	defer p.streamMutex.Unlock()
 	p.closeSubscribe()
 	return nil
+}
+
+// base64 needs to be used here to keep the pubsub messages in UTF-8 range.
+// PostgreSQL cannot handle non UTF-8 messages over pubsub.
+func marshal(data []byte) []byte {
+	return []byte(base64.StdEncoding.EncodeToString(data))
+}
+
+func unmarshal(data []byte) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(string(data))
 }
 
 func proxyOutID(channelID string) string {

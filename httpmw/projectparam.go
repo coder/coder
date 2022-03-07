@@ -28,32 +28,25 @@ func ProjectParam(r *http.Request) database.Project {
 func ExtractProjectParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			organization := OrganizationParam(r)
-			projectName := chi.URLParam(r, "project")
-			if projectName == "" {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "project name must be provided",
-				})
+			projectID, parsed := parseUUID(rw, r, "project")
+			if !parsed {
 				return
 			}
-			project, err := db.GetProjectByOrganizationAndName(r.Context(), database.GetProjectByOrganizationAndNameParams{
-				OrganizationID: organization.ID,
-				Name:           projectName,
-			})
+			project, err := db.GetProjectByID(r.Context(), projectID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("project %q does not exist", projectName),
+					Message: fmt.Sprintf("project %q does not exist", projectID),
 				})
-				return
 			}
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get project: %s", err.Error()),
+					Message: fmt.Sprintf("get project: %s", err),
 				})
 				return
 			}
 
 			ctx := context.WithValue(r.Context(), projectParamContextKey{}, project)
+			chi.RouteContext(ctx).URLParams.Add("organization", project.OrganizationID)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

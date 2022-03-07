@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS provisioner_daemon (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     updated_at timestamptz,
+    organization_id text,
     -- Name is generated for ease of differentiation.
     -- eg. WowBananas16
     name varchar(64) NOT NULL UNIQUE,
@@ -10,7 +11,7 @@ CREATE TABLE IF NOT EXISTS provisioner_daemon (
 
 CREATE TYPE provisioner_job_type AS ENUM (
     'project_version_import',
-    'workspace_provision'
+    'workspace_build'
 );
 
 CREATE TYPE provisioner_storage_method AS ENUM ('file');
@@ -55,8 +56,7 @@ CREATE TABLE IF NOT EXISTS provisioner_job_log (
     output varchar(1024) NOT NULL
 );
 
--- Resources from multiple workspace states are stored here post project-import job.
-CREATE TABLE provisioner_job_resource (
+CREATE TABLE workspace_resource (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
@@ -66,12 +66,11 @@ CREATE TABLE provisioner_job_resource (
     agent_id uuid
 );
 
--- Agents that associate with a specific resource.
-CREATE TABLE provisioner_job_agent (
+CREATE TABLE workspace_agent (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     updated_at timestamptz,
-    resource_id uuid NOT NULL REFERENCES provisioner_job_resource (id) ON DELETE CASCADE,
+    resource_id uuid NOT NULL REFERENCES workspace_resource (id) ON DELETE CASCADE,
     auth_token uuid NOT NULL UNIQUE,
     auth_instance_id varchar(64),
     environment_variables jsonb,
@@ -133,14 +132,32 @@ CREATE TABLE parameter_schema (
 -- Parameters are provided to jobs for provisioning and to workspaces.
 CREATE TABLE parameter_value (
     id uuid NOT NULL UNIQUE,
-    name varchar(64) NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     scope parameter_scope NOT NULL,
     scope_id text NOT NULL,
+    name varchar(64) NOT NULL,
     source_scheme parameter_source_scheme NOT NULL,
     source_value text NOT NULL,
     destination_scheme parameter_destination_scheme NOT NULL,
     -- Prevents duplicates for parameters in the same scope.
-    UNIQUE(name, scope, scope_id)
+    UNIQUE(scope_id, name)
+);
+
+CREATE TABLE workspace_build (
+    id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    workspace_id uuid NOT NULL REFERENCES workspace (id) ON DELETE CASCADE,
+    project_version_id uuid NOT NULL REFERENCES project_version (id) ON DELETE CASCADE,
+    name varchar(64) NOT NULL,
+    before_id uuid,
+    after_id uuid,
+    transition workspace_transition NOT NULL,
+    initiator varchar(255) NOT NULL,
+    -- State stored by the provisioner
+    provisioner_state bytea,
+    -- Job ID of the action
+    job_id uuid NOT NULL UNIQUE REFERENCES provisioner_job(id) ON DELETE CASCADE,
+    UNIQUE(workspace_id, name)
 );

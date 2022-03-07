@@ -28,7 +28,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
+func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 	t.Parallel()
 	t.Run("Expired", func(t *testing.T) {
 		t.Parallel()
@@ -38,7 +38,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -52,7 +52,7 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		_, err := client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -66,9 +66,9 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		user := coderdtest.CreateInitialUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, &echo.Responses{
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -88,17 +88,17 @@ func TestPostWorkspaceAgentAuthenticateGoogleInstanceIdentity(t *testing.T) {
 				},
 			}},
 		})
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		firstHistory, err := client.CreateWorkspaceHistory(context.Background(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, firstHistory.ProvisionJobID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
-		_, err = client.AuthenticateWorkspaceAgentUsingGoogleCloudIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err = client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
 		require.NoError(t, err)
 	})
 }

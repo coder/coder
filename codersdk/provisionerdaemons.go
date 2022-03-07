@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -20,23 +19,9 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-// ProvisionerDaemons returns registered provisionerd instances.
-func (c *Client) ProvisionerDaemons(ctx context.Context) ([]coderd.ProvisionerDaemon, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/provisioners/daemons", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-	var daemons []coderd.ProvisionerDaemon
-	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
-}
-
-// ProvisionerDaemonClient returns the gRPC service for a provisioner daemon implementation.
-func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.URL.Parse("/api/v2/provisioners/daemons/serve")
+// ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.
+func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+	serverURL, err := c.URL.Parse("/api/v2/provisionerdaemons/me/listen")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
@@ -63,12 +48,12 @@ func (c *Client) ProvisionerDaemonClient(ctx context.Context) (proto.DRPCProvisi
 // provisionerJobLogsBefore provides log output that occurred before a time.
 // This is abstracted from a specific job type to provide consistency between
 // APIs. Logs is the only shared route between jobs.
-func (c *Client) provisionerJobLogsBefore(ctx context.Context, jobType, organization string, job uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
+func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, before time.Time) ([]coderd.ProvisionerJobLog, error) {
 	values := url.Values{}
 	if !before.IsZero() {
 		values["before"] = []string{strconv.FormatInt(before.UTC().UnixMilli(), 10)}
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/%s/%s/%s/logs?%s", jobType, organization, job, values.Encode()), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("%s?%s", path, values.Encode()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -82,12 +67,12 @@ func (c *Client) provisionerJobLogsBefore(ctx context.Context, jobType, organiza
 }
 
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
-func (c *Client) provisionerJobLogsAfter(ctx context.Context, jobType, organization string, job uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
+func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
 	afterQuery := ""
 	if !after.IsZero() {
 		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/%s/%s/%s/logs?follow%s", jobType, organization, job, afterQuery), nil)
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("%s?follow%s", path, afterQuery), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -157,6 +157,7 @@ jobs:
           GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
+          -coverpkg=./...,github.com/coder/coder/codersdk
           -timeout=3m -count=$GOCOUNT -race -short -failfast
 
       - name: Upload DataDog Trace
@@ -172,6 +173,7 @@ jobs:
         if: runner.os == 'Linux'
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+          -coverpkg=./...,github.com/coder/coder/codersdk
           -count=1 -race -parallel=2 -failfast
 
       - name: Upload DataDog Trace

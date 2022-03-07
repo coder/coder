@@ -18,6 +18,7 @@ var (
 $ProgressPreference = "SilentlyContinue"
 $ErrorActionPreference = "Stop"
 Invoke-WebRequest -Uri ${DOWNLOAD_URL} -OutFile $env:TEMP\coder.exe
+$env:CODER_URL = "${ACCESS_URL}"
 Start-Process -FilePath $env:TEMP\coder.exe workspaces agent
 `,
 		},
@@ -28,6 +29,7 @@ set -eu pipefail
 BINARY_LOCATION=$(mktemp -d)/coder
 curl -fsSL ${DOWNLOAD_URL} -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
+export CODER_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent
 `,
 		},
@@ -38,6 +40,7 @@ set -eu pipefail
 BINARY_LOCATION=$(mktemp -d)/coder
 curl -fsSL ${DOWNLOAD_URL} -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
+export CODER_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent
 `,
 		},
@@ -63,9 +66,16 @@ func AgentScript(coderURL *url.URL, operatingSystem, architecture string) (strin
 		}
 		return "", xerrors.Errorf("architecture %q not supported for %q. must be in: %v", architecture, operatingSystem, list)
 	}
-	parsed, err := coderURL.Parse(fmt.Sprintf("/bin/coder-%s-%s", operatingSystem, architecture))
+	downloadURL, err := coderURL.Parse(fmt.Sprintf("/bin/coder-%s-%s", operatingSystem, architecture))
 	if err != nil {
-		return "", xerrors.Errorf("parse url: %w", err)
+		return "", xerrors.Errorf("parse download url: %w", err)
 	}
-	return strings.ReplaceAll(script, "${DOWNLOAD_URL}", parsed.String()), nil
+	accessURL, err := coderURL.Parse("/")
+	if err != nil {
+		return "", xerrors.Errorf("parse access url: %w", err)
+	}
+	return strings.NewReplacer(
+		"${DOWNLOAD_URL}", downloadURL.String(),
+		"${ACCESS_URL}", accessURL.String(),
+	).Replace(script), nil
 }

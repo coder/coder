@@ -28,7 +28,7 @@ type WorkspaceAgentAuthenticateResponse struct {
 // Google Compute Engine supports instance identity verification:
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
 // Using this, we can exchange a signed instance payload for an agent token.
-func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	var req GoogleInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -56,7 +56,7 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	agent, err := api.Database.GetProvisionerJobAgentByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
+	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("instance with id %q not found", claims.Google.ComputeEngine.InstanceID),
@@ -69,7 +69,7 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	resource, err := api.Database.GetProvisionerJobResourceByID(r.Context(), agent.ResourceID)
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job resource: %s", err),
@@ -83,7 +83,7 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	if job.Type != database.ProvisionerJobTypeWorkspaceProvision {
+	if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("%q jobs cannot be authenticated", job.Type),
 		})
@@ -97,20 +97,20 @@ func (api *api) postAuthenticateWorkspaceAgentUsingGoogleInstanceIdentity(rw htt
 		})
 		return
 	}
-	resourceHistory, err := api.Database.GetWorkspaceHistoryByID(r.Context(), jobData.WorkspaceHistoryID)
+	resourceHistory, err := api.Database.GetWorkspaceBuildByID(r.Context(), jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace history: %s", err),
+			Message: fmt.Sprintf("get workspace build: %s", err),
 		})
 		return
 	}
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
 	// we'd hate to leak access to a user's workspace.
-	latestHistory, err := api.Database.GetWorkspaceHistoryByWorkspaceIDWithoutAfter(r.Context(), resourceHistory.WorkspaceID)
+	latestHistory, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get latest workspace history: %s", err),
+			Message: fmt.Sprintf("get latest workspace build: %s", err),
 		})
 		return
 	}

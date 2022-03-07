@@ -2,11 +2,14 @@ package coderd
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/coder/coder/database"
@@ -14,11 +17,12 @@ import (
 	"github.com/coder/coder/httpmw"
 )
 
-type UploadFileResponse struct {
+// UploadResponse contains the hash to reference the uploaded file.
+type UploadResponse struct {
 	Hash string `json:"hash"`
 }
 
-func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	contentType := r.Header.Get("Content-Type")
 
@@ -45,7 +49,7 @@ func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		// The file already exists!
 		render.Status(r, http.StatusOK)
-		render.JSON(rw, r, UploadFileResponse{
+		render.JSON(rw, r, UploadResponse{
 			Hash: file.Hash,
 		})
 		return
@@ -64,7 +68,33 @@ func (api *api) postUpload(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, UploadFileResponse{
+	render.JSON(rw, r, UploadResponse{
 		Hash: file.Hash,
 	})
+}
+
+func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
+	hash := chi.URLParam(r, "hash")
+	if hash == "" {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: "hash must be provided",
+		})
+		return
+	}
+	file, err := api.Database.GetFileByHash(r.Context(), hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "no file exists with that hash",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get file: %s", err),
+		})
+		return
+	}
+	rw.Header().Set("Content-Type", file.Mimetype)
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(file.Data)
 }

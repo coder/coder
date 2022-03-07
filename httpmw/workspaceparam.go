@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 )
@@ -28,18 +26,11 @@ func WorkspaceParam(r *http.Request) database.Workspace {
 func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			user := UserParam(r)
-			workspaceName := chi.URLParam(r, "workspace")
-			if workspaceName == "" {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "workspace id must be provided",
-				})
+			workspaceID, parsed := parseUUID(rw, r, "workspace")
+			if !parsed {
 				return
 			}
-			workspace, err := db.GetWorkspaceByUserIDAndName(r.Context(), database.GetWorkspaceByUserIDAndNameParams{
-				OwnerID: user.ID,
-				Name:    workspaceName,
-			})
+			workspace, err := db.GetWorkspaceByID(r.Context(), workspaceID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("workspace %q does not exist", workspace),
@@ -49,6 +40,14 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get workspace: %s", err.Error()),
+				})
+				return
+			}
+
+			apiKey := APIKey(r)
+			if apiKey.UserID != workspace.OwnerID {
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: "getting non-personal workspaces isn't supported",
 				})
 				return
 			}
