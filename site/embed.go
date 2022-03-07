@@ -1,3 +1,6 @@
+//go:build !slim
+// +build !slim
+
 package site
 
 import (
@@ -20,6 +23,7 @@ import (
 // work quite well for edge-cases.
 //go:embed out/_next/*/*/*/*
 //go:embed out/_next/*/*/*
+//go:embed out/bin/*
 //go:embed out
 var site embed.FS
 

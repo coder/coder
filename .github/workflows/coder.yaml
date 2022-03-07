@@ -323,6 +323,10 @@ jobs:
         with:
           node-version: "14"
 
+      - uses: goreleaser/goreleaser-action@v2
+        with:
+          install-only: true
+
       - uses: actions/cache@v2
         with:
           # Go mod cache, Linux build cache, Mac build cache, Windows build cache

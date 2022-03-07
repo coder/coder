@@ -1,4 +1,4 @@
-package cmd_test
+package cli_test
 
 import (
 	"context"
@@ -6,13 +6,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/cmd"
+	"github.com/coder/coder/cli/clitest"
 )
 
-func TestRoot(t *testing.T) {
+func TestDaemon(t *testing.T) {
 	t.Parallel()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go cancelFunc()
-	err := cmd.Root().ExecuteContext(ctx)
+	root, _ := clitest.New(t, "daemon")
+	err := root.ExecuteContext(ctx)
 	require.ErrorIs(t, err, context.Canceled)
 }

@@ -25,5 +25,5 @@ site/yarn-error.log
 coverage/
 
 # Build
-bin/
+dist/
 site/out/
