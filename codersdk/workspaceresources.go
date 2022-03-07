@@ -106,5 +106,5 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, opts *peer.ConnOption
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return peerbroker.Listen(session, opts)
+	return peerbroker.Listen(session, nil, opts)
 }

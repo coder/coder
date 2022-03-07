@@ -118,7 +118,7 @@ func projectCreate() *cobra.Command {
 	return cmd
 }
 
-func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, provisioner database.ProvisionerType, directory string, parameters ...coderd.CreateParameterValueRequest) (*coderd.ProjectVersion, error) {
+func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, provisioner database.ProvisionerType, directory string, parameters ...coderd.CreateParameterRequest) (*coderd.ProjectVersion, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
@@ -192,7 +192,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 			if err != nil {
 				return nil, err
 			}
-			parameters = append(parameters, coderd.CreateParameterValueRequest{
+			parameters = append(parameters, coderd.CreateParameterRequest{
 				Name:              parameterSchema.Name,
 				SourceValue:       value,
 				SourceScheme:      database.ParameterSourceSchemeData,

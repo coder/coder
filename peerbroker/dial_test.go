@@ -31,18 +31,26 @@ func TestDial(t *testing.T) {
 		defer client.Close()
 		defer server.Close()
 
-		listener, err := peerbroker.Listen(server, &peer.ConnOptions{
-			Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+		settingEngine := webrtc.SettingEngine{}
+		listener, err := peerbroker.Listen(server, func(ctx context.Context) ([]webrtc.ICEServer, error) {
+			return []webrtc.ICEServer{{
+				URLs: []string{"stun:stun.l.google.com:19302"},
+			}}, nil
+		}, &peer.ConnOptions{
+			Logger:        slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+			SettingEngine: settingEngine,
 		})
 		require.NoError(t, err)
 
 		api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
 		stream, err := api.NegotiateConnection(ctx)
 		require.NoError(t, err)
+
 		clientConn, err := peerbroker.Dial(stream, []webrtc.ICEServer{{
 			URLs: []string{"stun:stun.l.google.com:19302"},
 		}}, &peer.ConnOptions{
-			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+			Logger:        slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+			SettingEngine: settingEngine,
 		})
 		require.NoError(t, err)
 		defer clientConn.Close()

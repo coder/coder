@@ -95,7 +95,7 @@ func TestAgent(t *testing.T) {
 func setup(t *testing.T) proto.DRPCPeerBrokerClient {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(func(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
-		return peerbroker.Listen(server, opts)
+		return peerbroker.Listen(server, nil, opts)
 	}, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 	})
