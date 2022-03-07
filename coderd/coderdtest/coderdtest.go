@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
-	"go.opencensus.io/stats/view"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
@@ -39,13 +38,6 @@ type Options struct {
 // New constructs an in-memory coderd instance and returns
 // the connected client.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	// Stops the opencensus.io worker from leaking a goroutine.
-	// The worker isn't used anyways, and is an indirect dependency
-	// of the Google Cloud SDK.
-	t.Cleanup(func() {
-		view.Stop()
-	})
-
 	if options == nil {
 		options = &Options{}
 	}
