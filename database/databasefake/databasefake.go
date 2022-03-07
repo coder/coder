@@ -92,7 +92,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
+func (q *fakeQuerier) DeleteParameterValueByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -470,7 +470,7 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
+func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -489,13 +489,13 @@ func (q *fakeQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg d
 	return database.ParameterValue{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, id string) ([]database.Project, error) {
+func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, organizationID string) ([]database.Project, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	projects := make([]database.Project, 0)
 	for _, project := range q.project {
-		if project.OrganizationID == id {
+		if project.OrganizationID == organizationID {
 			projects = append(projects, project)
 			break
 		}

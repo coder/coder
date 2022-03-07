@@ -49,13 +49,13 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &createRequest) {
 		return
 	}
-	scope, id, valid := readScopeAndID(rw, r)
+	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
 	}
-	parameterValue, err := api.Database.GetParameterValueByScopeAndName(r.Context(), database.GetParameterValueByScopeAndNameParams{
+	_, err := api.Database.GetParameterValueByScopeAndName(r.Context(), database.GetParameterValueByScopeAndNameParams{
 		Scope:   scope,
-		ScopeID: id,
+		ScopeID: scopeID,
 		Name:    createRequest.Name,
 	})
 	if err == nil {
@@ -70,13 +70,13 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	parameterValue, err = api.Database.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+	parameterValue, err := api.Database.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
 		ID:                uuid.New(),
 		Name:              createRequest.Name,
 		CreatedAt:         database.Now(),
 		UpdatedAt:         database.Now(),
 		Scope:             scope,
-		ScopeID:           id,
+		ScopeID:           scopeID,
 		SourceScheme:      createRequest.SourceScheme,
 		SourceValue:       createRequest.SourceValue,
 		DestinationScheme: createRequest.DestinationScheme,
@@ -93,13 +93,13 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
-	scope, id, valid := readScopeAndID(rw, r)
+	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
 	}
 	parameterValues, err := api.Database.GetParameterValuesByScope(r.Context(), database.GetParameterValuesByScopeParams{
 		Scope:   scope,
-		ScopeID: id,
+		ScopeID: scopeID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -120,14 +120,14 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
-	scope, id, valid := readScopeAndID(rw, r)
+	scope, scopeID, valid := readScopeAndID(rw, r)
 	if !valid {
 		return
 	}
 	name := chi.URLParam(r, "name")
 	parameterValue, err := api.Database.GetParameterValueByScopeAndName(r.Context(), database.GetParameterValueByScopeAndNameParams{
 		Scope:   scope,
-		ScopeID: id,
+		ScopeID: scopeID,
 		Name:    name,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -167,7 +167,8 @@ func convertParameterValue(parameterValue database.ParameterValue) Parameter {
 	}
 }
 
-func readScopeAndID(rw http.ResponseWriter, r *http.Request) (scope database.ParameterScope, id string, valid bool) {
+func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.ParameterScope, string, bool) {
+	var scope database.ParameterScope
 	switch chi.URLParam(r, "scope") {
 	case string(ParameterOrganization):
 		scope = database.ParameterScopeOrganization
@@ -181,10 +182,8 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (scope database.Par
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("invalid scope %q", scope),
 		})
-		return
+		return scope, "", false
 	}
 
-	id = chi.URLParam(r, "id")
-	valid = true
-	return
+	return scope, chi.URLParam(r, "id"), true
 }
