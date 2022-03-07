@@ -1,23 +1,17 @@
 package provisionersdk
 
-import (
-	"fmt"
-	"net/url"
-	"strings"
-
-	"golang.org/x/xerrors"
-)
+import "fmt"
 
 var (
 	// A mapping of operating-system ($GOOS) to architecture ($GOARCH)
 	// to agent install and run script. ${DOWNLOAD_URL} is replaced
 	// with strings.ReplaceAll() when being consumed.
-	agentScript = map[string]map[string]string{
+	agentScripts = map[string]map[string]string{
 		"windows": {
 			"amd64": `
 $ProgressPreference = "SilentlyContinue"
 $ErrorActionPreference = "Stop"
-Invoke-WebRequest -Uri ${DOWNLOAD_URL} -OutFile $env:TEMP\coder.exe
+Invoke-WebRequest -Uri ${ACCESS_URL}/bin/coder-windows-amd64 -OutFile $env:TEMP\coder.exe
 $env:CODER_URL = "${ACCESS_URL}"
 Start-Process -FilePath $env:TEMP\coder.exe workspaces agent
 `,
@@ -27,7 +21,7 @@ Start-Process -FilePath $env:TEMP\coder.exe workspaces agent
 #!/usr/bin/env sh
 set -eu pipefail
 BINARY_LOCATION=$(mktemp -d)/coder
-curl -fsSL ${DOWNLOAD_URL} -o $BINARY_LOCATION
+curl -fsSL ${ACCESS_URL}/bin/coder-linux-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent
@@ -38,7 +32,7 @@ exec $BINARY_LOCATION agent
 #!/usr/bin/env sh
 set -eu pipefail
 BINARY_LOCATION=$(mktemp -d)/coder
-curl -fsSL ${DOWNLOAD_URL} -o $BINARY_LOCATION
+curl -fsSL ${ACCESS_URL}/bin/coder-darwin-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent
@@ -47,35 +41,15 @@ exec $BINARY_LOCATION agent
 	}
 )
 
-// AgentScript returns an installation script for the specified operating system
-// and architecture.
-func AgentScript(coderURL *url.URL, operatingSystem, architecture string) (string, error) {
-	architectures, exists := agentScript[operatingSystem]
-	if !exists {
-		list := []string{}
-		for key := range agentScript {
-			list = append(list, key)
+// AgentScriptEnv returns a key-pair of scripts that are consumed
+// by the Coder Terraform Provider. See:
+// https://github.com/coder/terraform-provider-coder/blob/main/internal/provider/provider.go#L97
+func AgentScriptEnv() map[string]string {
+	env := map[string]string{}
+	for operatingSystem, scripts := range agentScripts {
+		for architecture, script := range scripts {
+			env[fmt.Sprintf("CODER_AGENT_SCRIPT_%s_%s", operatingSystem, architecture)] = script
 		}
-		return "", xerrors.Errorf("operating system %q not supported. must be in: %v", operatingSystem, list)
 	}
-	script, exists := architectures[architecture]
-	if !exists {
-		list := []string{}
-		for key := range architectures {
-			list = append(list, key)
-		}
-		return "", xerrors.Errorf("architecture %q not supported for %q. must be in: %v", architecture, operatingSystem, list)
-	}
-	downloadURL, err := coderURL.Parse(fmt.Sprintf("/bin/coder-%s-%s", operatingSystem, architecture))
-	if err != nil {
-		return "", xerrors.Errorf("parse download url: %w", err)
-	}
-	accessURL, err := coderURL.Parse("/")
-	if err != nil {
-		return "", xerrors.Errorf("parse access url: %w", err)
-	}
-	return strings.NewReplacer(
-		"${DOWNLOAD_URL}", downloadURL.String(),
-		"${ACCESS_URL}", accessURL.String(),
-	).Replace(script), nil
+	return env
 }
