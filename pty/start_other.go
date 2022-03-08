@@ -17,9 +17,6 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	if err != nil {
 		return nil, nil, xerrors.Errorf("open: %w", err)
 	}
-	defer func() {
-		_ = tty.Close()
-	}()
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true,
 		Setctty: true,
