@@ -5,11 +5,8 @@ package terraform_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,27 +22,12 @@ import (
 func TestProvision(t *testing.T) {
 	t.Parallel()
 
-	// Build and output the Terraform Provider that is consumed for these tests.
-	homeDir, err := os.UserHomeDir()
-	require.NoError(t, err)
-	providerDest := filepath.Join(homeDir, ".terraform.d", "plugins", "coder.com", "internal", "coder", "0.0.1", fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH))
-	err = os.MkdirAll(providerDest, 0700)
-	require.NoError(t, err)
-	//nolint:dogsled
-	_, filename, _, _ := runtime.Caller(0)
-	providerSrc := filepath.Join(filepath.Dir(filename), "..", "..", "cmd", "terraform-provider-coder")
-	output, err := exec.Command("go", "build", "-o", providerDest, providerSrc).CombinedOutput()
-	if err != nil {
-		t.Log(string(output))
-	}
-	require.NoError(t, err)
-
 	provider := `
 terraform {
 	required_providers {
 		coder = {
-			source = "coder.com/internal/coder"
-			version = "0.0.1"
+			source = "coder/coder"
+			version = "0.1.0"
 		}
 	}
 }

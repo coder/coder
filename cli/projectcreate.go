@@ -56,7 +56,7 @@ func projectCreate() *cobra.Command {
 				Default: filepath.Base(directory),
 				Label:   "What's your project's name?",
 				Validate: func(s string) error {
-					project, _ := client.Project(cmd.Context(), organization.Name, s)
+					project, _ := client.ProjectByName(cmd.Context(), organization.ID, s)
 					if project.ID.String() != uuid.Nil.String() {
 						return xerrors.New("A project already exists with that name!")
 					}
@@ -71,9 +71,9 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			project, err := client.CreateProject(cmd.Context(), organization.Name, coderd.CreateProjectRequest{
-				Name:               name,
-				VersionImportJobID: job.ID,
+			project, err := client.CreateProject(cmd.Context(), organization.ID, coderd.CreateProjectRequest{
+				Name:      name,
+				VersionID: job.ID,
 			})
 			if err != nil {
 				return err
@@ -118,7 +118,7 @@ func projectCreate() *cobra.Command {
 	return cmd
 }
 
-func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, provisioner database.ProvisionerType, directory string, parameters ...coderd.CreateParameterValueRequest) (*coderd.ProvisionerJob, error) {
+func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, provisioner database.ProvisionerType, directory string, parameters ...coderd.CreateParameterRequest) (*coderd.ProjectVersion, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
@@ -133,13 +133,13 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.UploadFile(cmd.Context(), codersdk.ContentTypeTar, tarData)
+	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, tarData)
 	if err != nil {
 		return nil, err
 	}
 
 	before := time.Now()
-	job, err := client.CreateProjectImportJob(cmd.Context(), organization.Name, coderd.CreateProjectImportJobRequest{
+	version, err := client.CreateProjectVersion(cmd.Context(), organization.ID, coderd.CreateProjectVersionRequest{
 		StorageMethod:   database.ProvisionerStorageMethodFile,
 		StorageSource:   resp.Hash,
 		Provisioner:     provisioner,
@@ -149,7 +149,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		return nil, err
 	}
 	spin.Suffix = " Waiting for the import to complete..."
-	logs, err := client.ProjectImportJobLogsAfter(cmd.Context(), organization.Name, job.ID, before)
+	logs, err := client.ProjectVersionLogsAfter(cmd.Context(), version.ID, before)
 	if err != nil {
 		return nil, err
 	}
@@ -162,22 +162,22 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		logBuffer = append(logBuffer, log)
 	}
 
-	job, err = client.ProjectImportJob(cmd.Context(), organization.Name, job.ID)
+	version, err = client.ProjectVersion(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, err
 	}
-	parameterSchemas, err := client.ProjectImportJobSchemas(cmd.Context(), organization.Name, job.ID)
+	parameterSchemas, err := client.ProjectVersionSchema(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, err
 	}
-	parameterValues, err := client.ProjectImportJobParameters(cmd.Context(), organization.Name, job.ID)
+	parameterValues, err := client.ProjectVersionParameters(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, err
 	}
 	spin.Stop()
 
-	if provisionerd.IsMissingParameterError(job.Error) {
-		valuesBySchemaID := map[string]coderd.ComputedParameterValue{}
+	if provisionerd.IsMissingParameterError(version.Job.Error) {
+		valuesBySchemaID := map[string]coderd.ProjectVersionParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
@@ -192,7 +192,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 			if err != nil {
 				return nil, err
 			}
-			parameters = append(parameters, coderd.CreateParameterValueRequest{
+			parameters = append(parameters, coderd.CreateParameterRequest{
 				Name:              parameterSchema.Name,
 				SourceValue:       value,
 				SourceScheme:      database.ParameterSourceSchemeData,
@@ -202,21 +202,20 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		return validateProjectVersionSource(cmd, client, organization, provisioner, directory, parameters...)
 	}
 
-	if job.Status != coderd.ProvisionerJobStatusSucceeded {
+	if version.Job.Status != coderd.ProvisionerJobSucceeded {
 		for _, log := range logBuffer {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
 		}
-
-		return nil, xerrors.New(job.Error)
+		return nil, xerrors.New(version.Job.Error)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Successfully imported project source!\n", color.HiGreenString("✓"))
 
-	resources, err := client.ProjectImportJobResources(cmd.Context(), organization.Name, job.ID)
+	resources, err := client.ProjectVersionResources(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, err
 	}
-	return &job, displayProjectImportInfo(cmd, parameterSchemas, parameterValues, resources)
+	return &version, displayProjectImportInfo(cmd, parameterSchemas, parameterValues, resources)
 }
 
 func tarDirectory(directory string) ([]byte, error) {

@@ -584,7 +584,7 @@ func (c *Conn) CloseWithError(err error) error {
 	// All logging, goroutines, and async functionality is cleaned up after this.
 	c.dcClosedWaitGroup.Wait()
 
-	close(c.closed)
 	c.opts.Logger.Debug(context.Background(), "closed")
+	close(c.closed)
 	return err
 }

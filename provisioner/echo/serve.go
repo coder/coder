@@ -75,7 +75,11 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 // Provision reads requests from the provided directory to stream responses.
 func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
 	for index := 0; ; index++ {
-		path := filepath.Join(request.Directory, fmt.Sprintf("%d.provision.protobuf", index))
+		extension := ".protobuf"
+		if request.DryRun {
+			extension = ".dry.protobuf"
+		}
+		path := filepath.Join(request.Directory, fmt.Sprintf("%d.provision"+extension, index))
 		_, err := os.Stat(path)
 		if err != nil {
 			if index == 0 {
@@ -107,14 +111,18 @@ func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 }
 
 type Responses struct {
-	Parse     []*proto.Parse_Response
-	Provision []*proto.Provision_Response
+	Parse           []*proto.Parse_Response
+	Provision       []*proto.Provision_Response
+	ProvisionDryRun []*proto.Provision_Response
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
 func Tar(responses *Responses) ([]byte, error) {
 	if responses == nil {
-		responses = &Responses{ParseComplete, ProvisionComplete}
+		responses = &Responses{ParseComplete, ProvisionComplete, ProvisionComplete}
+	}
+	if responses.ProvisionDryRun == nil {
+		responses.ProvisionDryRun = responses.Provision
 	}
 
 	var buffer bytes.Buffer
@@ -143,6 +151,23 @@ func Tar(responses *Responses) ([]byte, error) {
 		}
 		err = writer.WriteHeader(&tar.Header{
 			Name: fmt.Sprintf("%d.provision.protobuf", index),
+			Size: int64(len(data)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = writer.Write(data)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for index, response := range responses.ProvisionDryRun {
+		data, err := protobuf.Marshal(response)
+		if err != nil {
+			return nil, err
+		}
+		err = writer.WriteHeader(&tar.Header{
+			Name: fmt.Sprintf("%d.provision.dry.protobuf", index),
 			Size: int64(len(data)),
 		})
 		if err != nil {

@@ -90,12 +90,7 @@ func TestProjectVersionParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractProjectParam(db),
-			httpmw.ExtractProjectVersionParam(db),
-		)
+		rtr.Use(httpmw.ExtractProjectVersionParam(db))
 		rtr.Get("/", nil)
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
@@ -110,16 +105,11 @@ func TestProjectVersionParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractProjectParam(db),
-			httpmw.ExtractProjectVersionParam(db),
-		)
+		rtr.Use(httpmw.ExtractProjectVersionParam(db))
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("projectversion", "nothin")
+		chi.RouteContext(r.Context()).URLParams.Add("projectversion", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -134,9 +124,8 @@ func TestProjectVersionParam(t *testing.T) {
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractProjectParam(db),
 			httpmw.ExtractProjectVersionParam(db),
+			httpmw.ExtractOrganizationParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.ProjectVersionParam(r)
@@ -145,12 +134,12 @@ func TestProjectVersionParam(t *testing.T) {
 
 		r, project := setupAuthentication(db)
 		projectVersion, err := db.InsertProjectVersion(context.Background(), database.InsertProjectVersionParams{
-			ID:        uuid.New(),
-			ProjectID: project.ID,
-			Name:      "moo",
+			ID:             uuid.New(),
+			OrganizationID: project.OrganizationID,
+			Name:           "moo",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("projectversion", projectVersion.Name)
+		chi.RouteContext(r.Context()).URLParams.Add("projectversion", projectVersion.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

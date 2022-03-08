@@ -33,7 +33,8 @@ CREATE TABLE project (
 CREATE TABLE project_version (
     id uuid NOT NULL UNIQUE,
     -- This should be indexed.
-    project_id uuid NOT NULL REFERENCES project (id),
+    project_id uuid REFERENCES project (id),
+    organization_id text NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     -- Name is generated for ease of differentiation.
@@ -42,9 +43,8 @@ CREATE TABLE project_version (
     -- Extracted from a README.md on import.
     -- Maximum of 1MB.
     description varchar(1048576) NOT NULL,
-    -- The import job for a Project Version. This is used
-    -- to detect if an import was successful.
-    import_job_id uuid NOT NULL,
+    -- The job ID for building the project version.
+    job_id uuid NOT NULL,
     -- Disallow projects to have the same build name
     -- multiple times.
     UNIQUE(project_id, name)

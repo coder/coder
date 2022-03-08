@@ -12,36 +12,6 @@ import (
 
 // Dial consumes the PeerBroker gRPC connection negotiation stream to produce a WebRTC peered connection.
 func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []webrtc.ICEServer, opts *peer.ConnOptions) (*peer.Conn, error) {
-	// Convert WebRTC ICE servers to the protobuf type.
-	protoIceServers := make([]*proto.WebRTCICEServer, 0, len(iceServers))
-	for _, iceServer := range iceServers {
-		var credentialString string
-		if value, ok := iceServer.Credential.(string); ok {
-			credentialString = value
-		}
-		protoIceServers = append(protoIceServers, &proto.WebRTCICEServer{
-			Urls:           iceServer.URLs,
-			Username:       iceServer.Username,
-			Credential:     credentialString,
-			CredentialType: int32(iceServer.CredentialType),
-		})
-	}
-	if len(protoIceServers) > 0 {
-		// Send ICE servers to connect with.
-		// Client sends ICE servers so clients can determine the node
-		// servers will meet at. eg. us-west1.coder.com could be a TURN server.
-		err := stream.Send(&proto.NegotiateConnection_ClientToServer{
-			Message: &proto.NegotiateConnection_ClientToServer_Servers{
-				Servers: &proto.WebRTCICEServers{
-					Servers: protoIceServers,
-				},
-			},
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("write ice servers: %w", err)
-		}
-	}
-
 	peerConn, err := peer.Client(iceServers, opts)
 	if err != nil {
 		return nil, xerrors.Errorf("create peer connection: %w", err)
@@ -54,9 +24,9 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 			case <-peerConn.Closed():
 				return
 			case sessionDescription := <-peerConn.LocalSessionDescription():
-				err = stream.Send(&proto.NegotiateConnection_ClientToServer{
-					Message: &proto.NegotiateConnection_ClientToServer_Offer{
-						Offer: &proto.WebRTCSessionDescription{
+				err = stream.Send(&proto.Exchange{
+					Message: &proto.Exchange_Sdp{
+						Sdp: &proto.WebRTCSessionDescription{
 							SdpType: int32(sessionDescription.Type),
 							Sdp:     sessionDescription.SDP,
 						},
@@ -67,8 +37,8 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 					return
 				}
 			case iceCandidate := <-peerConn.LocalCandidate():
-				err = stream.Send(&proto.NegotiateConnection_ClientToServer{
-					Message: &proto.NegotiateConnection_ClientToServer_IceCandidate{
+				err = stream.Send(&proto.Exchange{
+					Message: &proto.Exchange_IceCandidate{
 						IceCandidate: iceCandidate.Candidate,
 					},
 				})
@@ -89,10 +59,10 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 			}
 
 			switch {
-			case serverToClientMessage.GetAnswer() != nil:
+			case serverToClientMessage.GetSdp() != nil:
 				peerConn.SetRemoteSessionDescription(webrtc.SessionDescription{
-					Type: webrtc.SDPType(serverToClientMessage.GetAnswer().SdpType),
-					SDP:  serverToClientMessage.GetAnswer().Sdp,
+					Type: webrtc.SDPType(serverToClientMessage.GetSdp().SdpType),
+					SDP:  serverToClientMessage.GetSdp().Sdp,
 				})
 			case serverToClientMessage.GetIceCandidate() != "":
 				peerConn.AddRemoteCandidate(webrtc.ICECandidateInit{

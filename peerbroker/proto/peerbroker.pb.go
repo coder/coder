@@ -75,19 +75,19 @@ func (x *WebRTCSessionDescription) GetSdp() string {
 	return ""
 }
 
-type WebRTCICEServer struct {
+type Exchange struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Urls           []string `protobuf:"bytes,1,rep,name=urls,proto3" json:"urls,omitempty"`
-	Username       string   `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	Credential     string   `protobuf:"bytes,3,opt,name=credential,proto3" json:"credential,omitempty"`
-	CredentialType int32    `protobuf:"varint,4,opt,name=credential_type,json=credentialType,proto3" json:"credential_type,omitempty"`
+	// Types that are assignable to Message:
+	//	*Exchange_Sdp
+	//	*Exchange_IceCandidate
+	Message isExchange_Message `protobuf_oneof:"message"`
 }
 
-func (x *WebRTCICEServer) Reset() {
-	*x = WebRTCICEServer{}
+func (x *Exchange) Reset() {
+	*x = Exchange{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -95,13 +95,13 @@ func (x *WebRTCICEServer) Reset() {
 	}
 }
 
-func (x *WebRTCICEServer) String() string {
+func (x *Exchange) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WebRTCICEServer) ProtoMessage() {}
+func (*Exchange) ProtoMessage() {}
 
-func (x *WebRTCICEServer) ProtoReflect() protoreflect.Message {
+func (x *Exchange) ProtoReflect() protoreflect.Message {
 	mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -113,299 +113,47 @@ func (x *WebRTCICEServer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WebRTCICEServer.ProtoReflect.Descriptor instead.
-func (*WebRTCICEServer) Descriptor() ([]byte, []int) {
+// Deprecated: Use Exchange.ProtoReflect.Descriptor instead.
+func (*Exchange) Descriptor() ([]byte, []int) {
 	return file_peerbroker_proto_peerbroker_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *WebRTCICEServer) GetUrls() []string {
-	if x != nil {
-		return x.Urls
-	}
-	return nil
-}
-
-func (x *WebRTCICEServer) GetUsername() string {
-	if x != nil {
-		return x.Username
-	}
-	return ""
-}
-
-func (x *WebRTCICEServer) GetCredential() string {
-	if x != nil {
-		return x.Credential
-	}
-	return ""
-}
-
-func (x *WebRTCICEServer) GetCredentialType() int32 {
-	if x != nil {
-		return x.CredentialType
-	}
-	return 0
-}
-
-type WebRTCICEServers struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Servers []*WebRTCICEServer `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
-}
-
-func (x *WebRTCICEServers) Reset() {
-	*x = WebRTCICEServers{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *WebRTCICEServers) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WebRTCICEServers) ProtoMessage() {}
-
-func (x *WebRTCICEServers) ProtoReflect() protoreflect.Message {
-	mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WebRTCICEServers.ProtoReflect.Descriptor instead.
-func (*WebRTCICEServers) Descriptor() ([]byte, []int) {
-	return file_peerbroker_proto_peerbroker_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *WebRTCICEServers) GetServers() []*WebRTCICEServer {
-	if x != nil {
-		return x.Servers
-	}
-	return nil
-}
-
-type NegotiateConnection struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *NegotiateConnection) Reset() {
-	*x = NegotiateConnection{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NegotiateConnection) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NegotiateConnection) ProtoMessage() {}
-
-func (x *NegotiateConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NegotiateConnection.ProtoReflect.Descriptor instead.
-func (*NegotiateConnection) Descriptor() ([]byte, []int) {
-	return file_peerbroker_proto_peerbroker_proto_rawDescGZIP(), []int{3}
-}
-
-type NegotiateConnection_ClientToServer struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// Types that are assignable to Message:
-	//	*NegotiateConnection_ClientToServer_Servers
-	//	*NegotiateConnection_ClientToServer_Offer
-	//	*NegotiateConnection_ClientToServer_IceCandidate
-	Message isNegotiateConnection_ClientToServer_Message `protobuf_oneof:"message"`
-}
-
-func (x *NegotiateConnection_ClientToServer) Reset() {
-	*x = NegotiateConnection_ClientToServer{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[4]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NegotiateConnection_ClientToServer) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NegotiateConnection_ClientToServer) ProtoMessage() {}
-
-func (x *NegotiateConnection_ClientToServer) ProtoReflect() protoreflect.Message {
-	mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[4]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NegotiateConnection_ClientToServer.ProtoReflect.Descriptor instead.
-func (*NegotiateConnection_ClientToServer) Descriptor() ([]byte, []int) {
-	return file_peerbroker_proto_peerbroker_proto_rawDescGZIP(), []int{3, 0}
-}
-
-func (m *NegotiateConnection_ClientToServer) GetMessage() isNegotiateConnection_ClientToServer_Message {
+func (m *Exchange) GetMessage() isExchange_Message {
 	if m != nil {
 		return m.Message
 	}
 	return nil
 }
 
-func (x *NegotiateConnection_ClientToServer) GetServers() *WebRTCICEServers {
-	if x, ok := x.GetMessage().(*NegotiateConnection_ClientToServer_Servers); ok {
-		return x.Servers
+func (x *Exchange) GetSdp() *WebRTCSessionDescription {
+	if x, ok := x.GetMessage().(*Exchange_Sdp); ok {
+		return x.Sdp
 	}
 	return nil
 }
 
-func (x *NegotiateConnection_ClientToServer) GetOffer() *WebRTCSessionDescription {
-	if x, ok := x.GetMessage().(*NegotiateConnection_ClientToServer_Offer); ok {
-		return x.Offer
-	}
-	return nil
-}
-
-func (x *NegotiateConnection_ClientToServer) GetIceCandidate() string {
-	if x, ok := x.GetMessage().(*NegotiateConnection_ClientToServer_IceCandidate); ok {
+func (x *Exchange) GetIceCandidate() string {
+	if x, ok := x.GetMessage().(*Exchange_IceCandidate); ok {
 		return x.IceCandidate
 	}
 	return ""
 }
 
-type isNegotiateConnection_ClientToServer_Message interface {
-	isNegotiateConnection_ClientToServer_Message()
+type isExchange_Message interface {
+	isExchange_Message()
 }
 
-type NegotiateConnection_ClientToServer_Servers struct {
-	Servers *WebRTCICEServers `protobuf:"bytes,1,opt,name=servers,proto3,oneof"`
+type Exchange_Sdp struct {
+	Sdp *WebRTCSessionDescription `protobuf:"bytes,1,opt,name=sdp,proto3,oneof"`
 }
 
-type NegotiateConnection_ClientToServer_Offer struct {
-	Offer *WebRTCSessionDescription `protobuf:"bytes,2,opt,name=offer,proto3,oneof"`
-}
-
-type NegotiateConnection_ClientToServer_IceCandidate struct {
-	IceCandidate string `protobuf:"bytes,3,opt,name=ice_candidate,json=iceCandidate,proto3,oneof"`
-}
-
-func (*NegotiateConnection_ClientToServer_Servers) isNegotiateConnection_ClientToServer_Message() {}
-
-func (*NegotiateConnection_ClientToServer_Offer) isNegotiateConnection_ClientToServer_Message() {}
-
-func (*NegotiateConnection_ClientToServer_IceCandidate) isNegotiateConnection_ClientToServer_Message() {
-}
-
-type NegotiateConnection_ServerToClient struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// Types that are assignable to Message:
-	//	*NegotiateConnection_ServerToClient_Answer
-	//	*NegotiateConnection_ServerToClient_IceCandidate
-	Message isNegotiateConnection_ServerToClient_Message `protobuf_oneof:"message"`
-}
-
-func (x *NegotiateConnection_ServerToClient) Reset() {
-	*x = NegotiateConnection_ServerToClient{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[5]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NegotiateConnection_ServerToClient) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NegotiateConnection_ServerToClient) ProtoMessage() {}
-
-func (x *NegotiateConnection_ServerToClient) ProtoReflect() protoreflect.Message {
-	mi := &file_peerbroker_proto_peerbroker_proto_msgTypes[5]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NegotiateConnection_ServerToClient.ProtoReflect.Descriptor instead.
-func (*NegotiateConnection_ServerToClient) Descriptor() ([]byte, []int) {
-	return file_peerbroker_proto_peerbroker_proto_rawDescGZIP(), []int{3, 1}
-}
-
-func (m *NegotiateConnection_ServerToClient) GetMessage() isNegotiateConnection_ServerToClient_Message {
-	if m != nil {
-		return m.Message
-	}
-	return nil
-}
-
-func (x *NegotiateConnection_ServerToClient) GetAnswer() *WebRTCSessionDescription {
-	if x, ok := x.GetMessage().(*NegotiateConnection_ServerToClient_Answer); ok {
-		return x.Answer
-	}
-	return nil
-}
-
-func (x *NegotiateConnection_ServerToClient) GetIceCandidate() string {
-	if x, ok := x.GetMessage().(*NegotiateConnection_ServerToClient_IceCandidate); ok {
-		return x.IceCandidate
-	}
-	return ""
-}
-
-type isNegotiateConnection_ServerToClient_Message interface {
-	isNegotiateConnection_ServerToClient_Message()
-}
-
-type NegotiateConnection_ServerToClient_Answer struct {
-	Answer *WebRTCSessionDescription `protobuf:"bytes,1,opt,name=answer,proto3,oneof"`
-}
-
-type NegotiateConnection_ServerToClient_IceCandidate struct {
+type Exchange_IceCandidate struct {
 	IceCandidate string `protobuf:"bytes,2,opt,name=ice_candidate,json=iceCandidate,proto3,oneof"`
 }
 
-func (*NegotiateConnection_ServerToClient_Answer) isNegotiateConnection_ServerToClient_Message() {}
+func (*Exchange_Sdp) isExchange_Message() {}
 
-func (*NegotiateConnection_ServerToClient_IceCandidate) isNegotiateConnection_ServerToClient_Message() {
-}
+func (*Exchange_IceCandidate) isExchange_Message() {}
 
 var File_peerbroker_proto_peerbroker_proto protoreflect.FileDescriptor
 
@@ -417,54 +165,23 @@ var file_peerbroker_proto_peerbroker_proto_rawDesc = []byte{
 	0x44, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x19, 0x0a, 0x08, 0x73,
 	0x64, 0x70, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x73,
 	0x64, 0x70, 0x54, 0x79, 0x70, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x64, 0x70, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x03, 0x73, 0x64, 0x70, 0x22, 0x8a, 0x01, 0x0a, 0x0f, 0x57, 0x65, 0x62,
-	0x52, 0x54, 0x43, 0x49, 0x43, 0x45, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x12, 0x0a, 0x04,
-	0x75, 0x72, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x75, 0x72, 0x6c, 0x73,
-	0x12, 0x1a, 0x0a, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1e, 0x0a, 0x0a,
-	0x63, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x0a, 0x63, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x12, 0x27, 0x0a, 0x0f,
-	0x63, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18,
-	0x04, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0e, 0x63, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61,
-	0x6c, 0x54, 0x79, 0x70, 0x65, 0x22, 0x49, 0x0a, 0x10, 0x57, 0x65, 0x62, 0x52, 0x54, 0x43, 0x49,
-	0x43, 0x45, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x12, 0x35, 0x0a, 0x07, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x70, 0x65, 0x65,
-	0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2e, 0x57, 0x65, 0x62, 0x52, 0x54, 0x43, 0x49, 0x43,
-	0x45, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x52, 0x07, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73,
-	0x22, 0xd7, 0x02, 0x0a, 0x13, 0x4e, 0x65, 0x67, 0x6f, 0x74, 0x69, 0x61, 0x74, 0x65, 0x43, 0x6f,
-	0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0xba, 0x01, 0x0a, 0x0e, 0x43, 0x6c, 0x69,
-	0x65, 0x6e, 0x74, 0x54, 0x6f, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x38, 0x0a, 0x07, 0x73,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x70,
-	0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2e, 0x57, 0x65, 0x62, 0x52, 0x54, 0x43,
-	0x49, 0x43, 0x45, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x48, 0x00, 0x52, 0x07, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x73, 0x12, 0x3c, 0x0a, 0x05, 0x6f, 0x66, 0x66, 0x65, 0x72, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x24, 0x2e, 0x70, 0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65,
-	0x72, 0x2e, 0x57, 0x65, 0x62, 0x52, 0x54, 0x43, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x44,
-	0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00, 0x52, 0x05, 0x6f, 0x66,
-	0x66, 0x65, 0x72, 0x12, 0x25, 0x0a, 0x0d, 0x69, 0x63, 0x65, 0x5f, 0x63, 0x61, 0x6e, 0x64, 0x69,
-	0x64, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x0c, 0x69, 0x63,
-	0x65, 0x43, 0x61, 0x6e, 0x64, 0x69, 0x64, 0x61, 0x74, 0x65, 0x42, 0x09, 0x0a, 0x07, 0x6d, 0x65,
-	0x73, 0x73, 0x61, 0x67, 0x65, 0x1a, 0x82, 0x01, 0x0a, 0x0e, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x54, 0x6f, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x12, 0x3e, 0x0a, 0x06, 0x61, 0x6e, 0x73, 0x77,
-	0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x24, 0x2e, 0x70, 0x65, 0x65, 0x72, 0x62,
-	0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2e, 0x57, 0x65, 0x62, 0x52, 0x54, 0x43, 0x53, 0x65, 0x73, 0x73,
-	0x69, 0x6f, 0x6e, 0x44, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00,
-	0x52, 0x06, 0x61, 0x6e, 0x73, 0x77, 0x65, 0x72, 0x12, 0x25, 0x0a, 0x0d, 0x69, 0x63, 0x65, 0x5f,
-	0x63, 0x61, 0x6e, 0x64, 0x69, 0x64, 0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x48,
-	0x00, 0x52, 0x0c, 0x69, 0x63, 0x65, 0x43, 0x61, 0x6e, 0x64, 0x69, 0x64, 0x61, 0x74, 0x65, 0x42,
-	0x09, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x32, 0x87, 0x01, 0x0a, 0x0a, 0x50,
-	0x65, 0x65, 0x72, 0x42, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x12, 0x79, 0x0a, 0x13, 0x4e, 0x65, 0x67,
-	0x6f, 0x74, 0x69, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e,
-	0x12, 0x2e, 0x2e, 0x70, 0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2e, 0x4e, 0x65,
-	0x67, 0x6f, 0x74, 0x69, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f,
-	0x6e, 0x2e, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x54, 0x6f, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x1a, 0x2e, 0x2e, 0x70, 0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2e, 0x4e, 0x65,
-	0x67, 0x6f, 0x74, 0x69, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f,
-	0x6e, 0x2e, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x54, 0x6f, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74,
-	0x28, 0x01, 0x30, 0x01, 0x42, 0x29, 0x5a, 0x27, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
-	0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x70,
-	0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62,
-	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x01, 0x28, 0x09, 0x52, 0x03, 0x73, 0x64, 0x70, 0x22, 0x76, 0x0a, 0x08, 0x45, 0x78, 0x63, 0x68,
+	0x61, 0x6e, 0x67, 0x65, 0x12, 0x38, 0x0a, 0x03, 0x73, 0x64, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x24, 0x2e, 0x70, 0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2e, 0x57,
+	0x65, 0x62, 0x52, 0x54, 0x43, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x44, 0x65, 0x73, 0x63,
+	0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00, 0x52, 0x03, 0x73, 0x64, 0x70, 0x12, 0x25,
+	0x0a, 0x0d, 0x69, 0x63, 0x65, 0x5f, 0x63, 0x61, 0x6e, 0x64, 0x69, 0x64, 0x61, 0x74, 0x65, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x0c, 0x69, 0x63, 0x65, 0x43, 0x61, 0x6e, 0x64,
+	0x69, 0x64, 0x61, 0x74, 0x65, 0x42, 0x09, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
+	0x32, 0x53, 0x0a, 0x0a, 0x50, 0x65, 0x65, 0x72, 0x42, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x12, 0x45,
+	0x0a, 0x13, 0x4e, 0x65, 0x67, 0x6f, 0x74, 0x69, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x6e, 0x65,
+	0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x14, 0x2e, 0x70, 0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b,
+	0x65, 0x72, 0x2e, 0x45, 0x78, 0x63, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x1a, 0x14, 0x2e, 0x70, 0x65,
+	0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2e, 0x45, 0x78, 0x63, 0x68, 0x61, 0x6e, 0x67,
+	0x65, 0x28, 0x01, 0x30, 0x01, 0x42, 0x29, 0x5a, 0x27, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e,
+	0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f,
+	0x70, 0x65, 0x65, 0x72, 0x62, 0x72, 0x6f, 0x6b, 0x65, 0x72, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -479,27 +196,20 @@ func file_peerbroker_proto_peerbroker_proto_rawDescGZIP() []byte {
 	return file_peerbroker_proto_peerbroker_proto_rawDescData
 }
 
-var file_peerbroker_proto_peerbroker_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_peerbroker_proto_peerbroker_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_peerbroker_proto_peerbroker_proto_goTypes = []interface{}{
-	(*WebRTCSessionDescription)(nil),           // 0: peerbroker.WebRTCSessionDescription
-	(*WebRTCICEServer)(nil),                    // 1: peerbroker.WebRTCICEServer
-	(*WebRTCICEServers)(nil),                   // 2: peerbroker.WebRTCICEServers
-	(*NegotiateConnection)(nil),                // 3: peerbroker.NegotiateConnection
-	(*NegotiateConnection_ClientToServer)(nil), // 4: peerbroker.NegotiateConnection.ClientToServer
-	(*NegotiateConnection_ServerToClient)(nil), // 5: peerbroker.NegotiateConnection.ServerToClient
+	(*WebRTCSessionDescription)(nil), // 0: peerbroker.WebRTCSessionDescription
+	(*Exchange)(nil),                 // 1: peerbroker.Exchange
 }
 var file_peerbroker_proto_peerbroker_proto_depIdxs = []int32{
-	1, // 0: peerbroker.WebRTCICEServers.servers:type_name -> peerbroker.WebRTCICEServer
-	2, // 1: peerbroker.NegotiateConnection.ClientToServer.servers:type_name -> peerbroker.WebRTCICEServers
-	0, // 2: peerbroker.NegotiateConnection.ClientToServer.offer:type_name -> peerbroker.WebRTCSessionDescription
-	0, // 3: peerbroker.NegotiateConnection.ServerToClient.answer:type_name -> peerbroker.WebRTCSessionDescription
-	4, // 4: peerbroker.PeerBroker.NegotiateConnection:input_type -> peerbroker.NegotiateConnection.ClientToServer
-	5, // 5: peerbroker.PeerBroker.NegotiateConnection:output_type -> peerbroker.NegotiateConnection.ServerToClient
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0, // 0: peerbroker.Exchange.sdp:type_name -> peerbroker.WebRTCSessionDescription
+	1, // 1: peerbroker.PeerBroker.NegotiateConnection:input_type -> peerbroker.Exchange
+	1, // 2: peerbroker.PeerBroker.NegotiateConnection:output_type -> peerbroker.Exchange
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_peerbroker_proto_peerbroker_proto_init() }
@@ -521,55 +231,7 @@ func file_peerbroker_proto_peerbroker_proto_init() {
 			}
 		}
 		file_peerbroker_proto_peerbroker_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WebRTCICEServer); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_peerbroker_proto_peerbroker_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WebRTCICEServers); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_peerbroker_proto_peerbroker_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NegotiateConnection); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_peerbroker_proto_peerbroker_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NegotiateConnection_ClientToServer); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_peerbroker_proto_peerbroker_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NegotiateConnection_ServerToClient); i {
+			switch v := v.(*Exchange); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -581,14 +243,9 @@ func file_peerbroker_proto_peerbroker_proto_init() {
 			}
 		}
 	}
-	file_peerbroker_proto_peerbroker_proto_msgTypes[4].OneofWrappers = []interface{}{
-		(*NegotiateConnection_ClientToServer_Servers)(nil),
-		(*NegotiateConnection_ClientToServer_Offer)(nil),
-		(*NegotiateConnection_ClientToServer_IceCandidate)(nil),
-	}
-	file_peerbroker_proto_peerbroker_proto_msgTypes[5].OneofWrappers = []interface{}{
-		(*NegotiateConnection_ServerToClient_Answer)(nil),
-		(*NegotiateConnection_ServerToClient_IceCandidate)(nil),
+	file_peerbroker_proto_peerbroker_proto_msgTypes[1].OneofWrappers = []interface{}{
+		(*Exchange_Sdp)(nil),
+		(*Exchange_IceCandidate)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -596,7 +253,7 @@ func file_peerbroker_proto_peerbroker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_peerbroker_proto_peerbroker_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

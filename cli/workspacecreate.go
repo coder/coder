@@ -39,7 +39,7 @@ func workspaceCreate() *cobra.Command {
 						if s == "" {
 							return xerrors.Errorf("You must provide a name!")
 						}
-						workspace, _ := client.Workspace(cmd.Context(), "", s)
+						workspace, _ := client.WorkspaceByName(cmd.Context(), "", s)
 						if workspace.ID.String() != uuid.Nil.String() {
 							return xerrors.New("A workspace already exists with that name!")
 						}
@@ -56,23 +56,23 @@ func workspaceCreate() *cobra.Command {
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Previewing project create...\n", caret)
 
-			project, err := client.Project(cmd.Context(), organization.Name, args[0])
+			project, err := client.ProjectByName(cmd.Context(), organization.ID, args[0])
 			if err != nil {
 				return err
 			}
-			projectVersion, err := client.ProjectVersion(cmd.Context(), organization.Name, project.Name, project.ActiveVersionID.String())
+			projectVersion, err := client.ProjectVersion(cmd.Context(), project.ActiveVersionID)
 			if err != nil {
 				return err
 			}
-			parameterSchemas, err := client.ProjectImportJobSchemas(cmd.Context(), organization.Name, projectVersion.ImportJobID)
+			parameterSchemas, err := client.ProjectVersionSchema(cmd.Context(), projectVersion.ID)
 			if err != nil {
 				return err
 			}
-			parameterValues, err := client.ProjectImportJobParameters(cmd.Context(), organization.Name, projectVersion.ImportJobID)
+			parameterValues, err := client.ProjectVersionParameters(cmd.Context(), projectVersion.ID)
 			if err != nil {
 				return err
 			}
-			resources, err := client.ProjectImportJobResources(cmd.Context(), organization.Name, projectVersion.ImportJobID)
+			resources, err := client.ProjectVersionResources(cmd.Context(), projectVersion.ID)
 			if err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			history, err := client.CreateWorkspaceHistory(cmd.Context(), "", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+			version, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
 				ProjectVersionID: projectVersion.ID,
 				Transition:       database.WorkspaceTransitionStart,
 			})
@@ -108,7 +108,7 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			logs, err := client.WorkspaceProvisionJobLogsAfter(cmd.Context(), organization.Name, history.ProvisionJobID, time.Time{})
+			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), version.ID, time.Time{})
 			if err != nil {
 				return err
 			}

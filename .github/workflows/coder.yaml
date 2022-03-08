@@ -37,7 +37,7 @@ jobs:
     name: style/lint/golangci
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-go@v2
         with:
           go-version: "^1.17"
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache Node
         id: cache-node
@@ -73,7 +73,7 @@ jobs:
     name: "style/gen"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: true
@@ -125,7 +125,7 @@ jobs:
           - macos-latest
           - windows-2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions/setup-go@v2
         with:
@@ -157,6 +157,7 @@ jobs:
           GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
+          -coverpkg=./...,github.com/coder/coder/codersdk
           -timeout=3m -count=$GOCOUNT -race -short -failfast
 
       - name: Upload DataDog Trace
@@ -164,6 +165,7 @@ jobs:
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: fake
+          DD_CATEGORY: unit
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
@@ -171,6 +173,7 @@ jobs:
         if: runner.os == 'Linux'
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+          -coverpkg=./...,github.com/coder/coder/codersdk
           -count=1 -race -parallel=2 -failfast
 
       - name: Upload DataDog Trace
@@ -197,7 +200,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v0
@@ -233,7 +236,7 @@ jobs:
     name: "test/js"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Cache Node
         id: cache-node
@@ -279,6 +282,78 @@ jobs:
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: postgresql
+          DD_CATEGORY: unit
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go site/test_results/junit.xml
+        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml
+
+  test-e2e:
+    name: "test/e2e/${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          # TODO: Get `make build` running on Windows 2022
+          # https://github.com/coder/coder/issues/384
+          # - windows-2022
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v2
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+
+      # Go is required for uploading the test results to datadog
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.2
+          terraform_wrapper: false
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "14"
+
+      - uses: goreleaser/goreleaser-action@v2
+        with:
+          install-only: true
+
+      - uses: actions/cache@v2
+        with:
+          # Go mod cache, Linux build cache, Mac build cache, Windows build cache
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ matrix.os }}-go-
+
+      - run: make build
+
+      - run: yarn playwright:install
+        working-directory: site
+
+      - run: yarn playwright:install-deps
+        working-directory: site
+
+      - run: yarn playwright:test
+        working-directory: site
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_CATEGORY: e2e
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go site/test-results/junit.xml

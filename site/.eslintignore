@@ -7,4 +7,4 @@ out
 coverage
 .next
 storybook-static
-test_results
+test-results

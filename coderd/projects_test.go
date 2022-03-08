@@ -7,163 +7,59 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 )
 
-func TestProjects(t *testing.T) {
+func TestProject(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ListEmpty", func(t *testing.T) {
+	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateInitialUser(t, client)
-		projects, err := client.Projects(context.Background(), "")
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		_, err := client.Project(context.Background(), project.ID)
 		require.NoError(t, err)
-		require.NotNil(t, projects)
-		require.Len(t, projects, 0)
-	})
-
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		_ = coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		projects, err := client.Projects(context.Background(), "")
-		require.NoError(t, err)
-		require.Len(t, projects, 1)
-	})
-
-	t.Run("ListWorkspaceOwnerCount", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
-		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
-		projects, err := client.Projects(context.Background(), "")
-		require.NoError(t, err)
-		require.Len(t, projects, 1)
-		require.Equal(t, projects[0].WorkspaceOwnerCount, uint32(1))
 	})
 }
 
-func TestProjectsByOrganization(t *testing.T) {
-	t.Parallel()
-	t.Run("ListEmpty", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		projects, err := client.Projects(context.Background(), user.Organization)
-		require.NoError(t, err)
-		require.NotNil(t, projects)
-		require.Len(t, projects, 0)
-	})
-
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		_ = coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		projects, err := client.Projects(context.Background(), "")
-		require.NoError(t, err)
-		require.Len(t, projects, 1)
-	})
-}
-
-func TestPostProjectsByOrganization(t *testing.T) {
-	t.Parallel()
-	t.Run("Create", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		_ = coderdtest.CreateProject(t, client, user.Organization, job.ID)
-	})
-
-	t.Run("AlreadyExists", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		_, err := client.CreateProject(context.Background(), user.Organization, coderd.CreateProjectRequest{
-			Name:               project.Name,
-			VersionImportJobID: job.ID,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
-	})
-}
-
-func TestProjectByOrganization(t *testing.T) {
+func TestProjectVersionsByProject(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		_, err := client.Project(context.Background(), user.Organization, project.Name)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		versions, err := client.ProjectVersionsByProject(context.Background(), project.ID)
 		require.NoError(t, err)
+		require.Len(t, versions, 1)
 	})
 }
 
-func TestPostParametersByProject(t *testing.T) {
+func TestProjectVersionByName(t *testing.T) {
 	t.Parallel()
-	t.Run("Create", func(t *testing.T) {
+	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		_, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
-			Name:              "somename",
-			SourceValue:       "tomato",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
-		})
-		require.NoError(t, err)
-	})
-}
-
-func TestParametersByProject(t *testing.T) {
-	t.Parallel()
-	t.Run("ListEmpty", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
-		require.NoError(t, err)
-		require.NotNil(t, params)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		_, err := client.ProjectVersionByName(context.Background(), project.ID, "nothing")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("List", func(t *testing.T) {
+	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateInitialUser(t, client)
-		job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-		project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
-		_, err := client.CreateProjectParameter(context.Background(), user.Organization, project.Name, coderd.CreateParameterValueRequest{
-			Name:              "example",
-			SourceValue:       "source-value",
-			SourceScheme:      database.ParameterSourceSchemeData,
-			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
-		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		_, err := client.ProjectVersionByName(context.Background(), project.ID, version.Name)
 		require.NoError(t, err)
-		params, err := client.ProjectParameters(context.Background(), user.Organization, project.Name)
-		require.NoError(t, err)
-		require.NotNil(t, params)
-		require.Len(t, params, 1)
 	})
 }

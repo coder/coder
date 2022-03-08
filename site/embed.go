@@ -1,3 +1,6 @@
+//go:build !slim
+// +build !slim
+
 package site
 
 import (
@@ -21,7 +24,8 @@ import (
 // The `embed` package ignores recursively including directories
 // that prefix with `_`. Wildcarding nested is janky, but seems to
 // work quite well for edge-cases.
-//go:embed out/*
+//go:embed out
+//go:embed out/bin/*
 var site embed.FS
 
 // Handler returns an HTTP handler for serving the static site.

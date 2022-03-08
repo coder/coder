@@ -66,11 +66,7 @@ func TestWorkspaceParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-		)
+		rtr.Use(httpmw.ExtractWorkspaceParam(db))
 		rtr.Get("/", nil)
 		r, _ := setup(db)
 		rw := httptest.NewRecorder()
@@ -85,14 +81,10 @@ func TestWorkspaceParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractWorkspaceParam(db),
-		)
+		rtr.Use(httpmw.ExtractWorkspaceParam(db))
 		rtr.Get("/", nil)
 		r, _ := setup(db)
-		chi.RouteContext(r.Context()).URLParams.Add("workspace", "frog")
+		chi.RouteContext(r.Context()).URLParams.Add("workspace", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -101,13 +93,37 @@ func TestWorkspaceParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
+	t.Run("NonPersonal", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		rtr := chi.NewRouter()
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractWorkspaceParam(db),
+		)
+		rtr.Get("/", nil)
+		r, _ := setup(db)
+		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
+			ID:      uuid.New(),
+			OwnerID: "not-me",
+			Name:    "hello",
+		})
+		require.NoError(t, err)
+		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
+		rw := httptest.NewRecorder()
+		rtr.ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractUserParam(db),
 			httpmw.ExtractWorkspaceParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
@@ -121,7 +137,7 @@ func TestWorkspaceParam(t *testing.T) {
 			Name:    "hello",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.Name)
+		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

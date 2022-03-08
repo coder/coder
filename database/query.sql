@@ -36,6 +36,12 @@ WHERE
       1
   ) RETURNING *;
 
+-- name: DeleteParameterValueByID :exec
+DELETE FROM
+  parameter_value
+WHERE
+  id = $1;
+
 -- name: GetAPIKeyByID :one
 SELECT
   *
@@ -136,6 +142,18 @@ WHERE
   scope = $1
   AND scope_id = $2;
 
+-- name: GetParameterValueByScopeAndName :one
+SELECT
+  *
+FROM
+  parameter_value
+WHERE
+  scope = $1
+  AND scope_id = $2
+  AND name = $3
+LIMIT
+  1;
+
 -- name: GetProjectByID :one
 SELECT
   *
@@ -157,13 +175,13 @@ WHERE
 LIMIT
   1;
 
--- name: GetProjectsByOrganizationIDs :many
+-- name: GetProjectsByOrganization :many
 SELECT
   *
 FROM
   project
 WHERE
-  organization_id = ANY(@ids :: text [ ]);
+  organization_id = $1;
 
 -- name: GetParameterSchemasByJobID :many
 SELECT
@@ -179,7 +197,7 @@ SELECT
 FROM
   project_version
 WHERE
-  project_id = $1;
+  project_id = $1 :: uuid;
 
 -- name: GetProjectVersionByProjectIDAndName :one
 SELECT
@@ -226,11 +244,19 @@ SELECT
 FROM
   provisioner_daemon;
 
--- name: GetProvisionerJobAgentByInstanceID :one
+-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
   *
 FROM
-  provisioner_job_agent
+  workspace_agent
+WHERE
+  auth_token = $1;
+
+-- name: GetWorkspaceAgentByInstanceID :one
+SELECT
+  *
+FROM
+  workspace_agent
 WHERE
   auth_instance_id = @auth_instance_id :: text
 ORDER BY
@@ -243,6 +269,14 @@ FROM
   provisioner_job
 WHERE
   id = $1;
+
+-- name: GetProvisionerJobsByIDs :many
+SELECT
+  *
+FROM
+  provisioner_job
+WHERE
+  id = ANY(@ids :: uuid [ ]);
 
 -- name: GetWorkspaceByID :one
 SELECT
@@ -271,15 +305,6 @@ WHERE
   owner_id = @owner_id
   AND LOWER(name) = LOWER(@name);
 
--- name: GetWorkspacesByProjectAndUserID :many
-SELECT
-  *
-FROM
-  workspace
-WHERE
-  owner_id = $1
-  AND project_id = $2;
-
 -- name: GetWorkspaceOwnerCountsByProjectIDs :many
 SELECT
   project_id,
@@ -292,67 +317,77 @@ GROUP BY
   project_id,
   owner_id;
 
--- name: GetWorkspaceHistoryByID :one
+-- name: GetWorkspaceBuildByID :one
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
 WHERE
   id = $1
 LIMIT
   1;
 
--- name: GetWorkspaceHistoryByWorkspaceIDAndName :one
+-- name: GetWorkspaceBuildByJobID :one
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
+WHERE
+  job_id = $1
+LIMIT
+  1;
+
+-- name: GetWorkspaceBuildByWorkspaceIDAndName :one
+SELECT
+  *
+FROM
+  workspace_build
 WHERE
   workspace_id = $1
   AND name = $2;
 
--- name: GetWorkspaceHistoryByWorkspaceID :many
+-- name: GetWorkspaceBuildByWorkspaceID :many
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
 WHERE
   workspace_id = $1;
 
--- name: GetWorkspaceHistoryByWorkspaceIDWithoutAfter :one
+-- name: GetWorkspaceBuildByWorkspaceIDWithoutAfter :one
 SELECT
   *
 FROM
-  workspace_history
+  workspace_build
 WHERE
   workspace_id = $1
   AND after_id IS NULL
 LIMIT
   1;
 
--- name: GetProvisionerJobResourceByID :one
+-- name: GetWorkspaceResourceByID :one
 SELECT
   *
 FROM
-  provisioner_job_resource
+  workspace_resource
 WHERE
   id = $1;
 
--- name: GetProvisionerJobResourcesByJobID :many
+-- name: GetWorkspaceResourcesByJobID :many
 SELECT
   *
 FROM
-  provisioner_job_resource
+  workspace_resource
 WHERE
   job_id = $1;
 
--- name: GetProvisionerJobAgentsByResourceIDs :many
+-- name: GetWorkspaceAgentByResourceID :one
 SELECT
   *
 FROM
-  provisioner_job_agent
+  workspace_agent
 WHERE
-  resource_id = ANY(@ids :: uuid [ ]);
+  resource_id = $1;
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -457,9 +492,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
--- name: InsertProvisionerJobResource :one
+-- name: InsertWorkspaceResource :one
 INSERT INTO
-  provisioner_job_resource (
+  workspace_resource (
     id,
     created_at,
     job_id,
@@ -476,14 +511,15 @@ INSERT INTO
   project_version (
     id,
     project_id,
+    organization_id,
     created_at,
     updated_at,
     name,
     description,
-    import_job_id
+    job_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: InsertParameterSchema :one
 INSERT INTO
@@ -527,9 +563,9 @@ VALUES
 
 -- name: InsertProvisionerDaemon :one
 INSERT INTO
-  provisioner_daemon (id, created_at, name, provisioners)
+  provisioner_daemon (id, created_at, organization_id, name, provisioners)
 VALUES
-  ($1, $2, $3, $4) RETURNING *;
+  ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertProvisionerJob :one
 INSERT INTO
@@ -577,9 +613,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: InsertProvisionerJobAgent :one
+-- name: InsertWorkspaceAgent :one
 INSERT INTO
-  provisioner_job_agent (
+  workspace_agent (
     id,
     created_at,
     updated_at,
@@ -594,9 +630,9 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
--- name: InsertWorkspaceHistory :one
+-- name: InsertWorkspaceBuild :one
 INSERT INTO
-  workspace_history (
+  workspace_build (
     id,
     created_at,
     updated_at,
@@ -606,7 +642,7 @@ INSERT INTO
     name,
     transition,
     initiator,
-    provision_job_id,
+    job_id,
     provisioner_state
   )
 VALUES
@@ -621,6 +657,15 @@ SET
   oidc_access_token = $4,
   oidc_refresh_token = $5,
   oidc_expiry = $6
+WHERE
+  id = $1;
+
+-- name: UpdateProjectVersionByID :exec
+UPDATE
+  project_version
+SET
+  project_id = $2,
+  updated_at = $3
 WHERE
   id = $1;
 
@@ -652,9 +697,17 @@ SET
 WHERE
   id = $1;
 
--- name: UpdateWorkspaceHistoryByID :exec
+-- name: UpdateWorkspaceAgentByID :exec
 UPDATE
-  workspace_history
+  workspace_agent
+SET
+  updated_at = $2
+WHERE
+  id = $1;
+
+-- name: UpdateWorkspaceBuildByID :exec
+UPDATE
+  workspace_build
 SET
   updated_at = $2,
   after_id = $3,

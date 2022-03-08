@@ -334,14 +334,14 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		p.opts.Logger.Debug(context.Background(), "acquired job is project import")
 
 		p.runProjectImport(ctx, provisioner, job)
-	case *proto.AcquiredJob_WorkspaceProvision_:
+	case *proto.AcquiredJob_WorkspaceBuild_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
-			slog.F("workspace_name", jobType.WorkspaceProvision.WorkspaceName),
-			slog.F("state_length", len(jobType.WorkspaceProvision.State)),
-			slog.F("parameters", jobType.WorkspaceProvision.ParameterValues),
+			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
+			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
+			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
 		)
 
-		p.runWorkspaceProvision(ctx, provisioner, job)
+		p.runWorkspaceBuild(ctx, provisioner, job)
 	default:
 		p.failActiveJobf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(job.Type).String())
 		return
@@ -513,12 +513,12 @@ func (p *Server) runProjectImportProvision(ctx context.Context, provisioner sdkp
 	}
 }
 
-func (p *Server) runWorkspaceProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+func (p *Server) runWorkspaceBuild(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
 	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
 		Directory:       p.opts.WorkDirectory,
-		ParameterValues: job.GetWorkspaceProvision().ParameterValues,
-		Metadata:        job.GetWorkspaceProvision().Metadata,
-		State:           job.GetWorkspaceProvision().State,
+		ParameterValues: job.GetWorkspaceBuild().ParameterValues,
+		Metadata:        job.GetWorkspaceBuild().Metadata,
+		State:           job.GetWorkspaceBuild().State,
 	})
 	if err != nil {
 		p.failActiveJobf("provision: %s", err)
@@ -537,7 +537,7 @@ func (p *Server) runWorkspaceProvision(ctx context.Context, provisioner sdkproto
 			p.opts.Logger.Debug(context.Background(), "workspace provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
-				slog.F("workspace_history_id", job.GetWorkspaceProvision().WorkspaceHistoryId),
+				slog.F("workspace_build_id", job.GetWorkspaceBuild().WorkspaceBuildId),
 			)
 
 			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -561,8 +561,8 @@ func (p *Server) runWorkspaceProvision(ctx context.Context, provisioner sdkproto
 
 				p.failActiveJob(&proto.FailedJob{
 					Error: msgType.Complete.Error,
-					Type: &proto.FailedJob_WorkspaceProvision_{
-						WorkspaceProvision: &proto.FailedJob_WorkspaceProvision{
+					Type: &proto.FailedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
 							State: msgType.Complete.State,
 						},
 					},
@@ -580,8 +580,8 @@ func (p *Server) runWorkspaceProvision(ctx context.Context, provisioner sdkproto
 			// When we reconnect we can flush any of these cached values.
 			_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
 				JobId: job.JobId,
-				Type: &proto.CompletedJob_WorkspaceProvision_{
-					WorkspaceProvision: &proto.CompletedJob_WorkspaceProvision{
+				Type: &proto.CompletedJob_WorkspaceBuild_{
+					WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
 						State:     msgType.Complete.State,
 						Resources: msgType.Complete.Resources,
 					},

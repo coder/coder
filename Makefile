@@ -2,22 +2,11 @@ INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-bin/coder:
-	mkdir -p bin
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o bin/coder-$(GOOS)-$(GOARCH) cmd/coder/main.go
-.PHONY: bin/coder
+bin:
+	goreleaser build --single-target --snapshot --rm-dist
+.PHONY: bin
 
-bin/coderd:
-	mkdir -p bin
-	go build -o bin/coderd cmd/coderd/main.go
-.PHONY: bin/coderd
-
-bin/terraform-provider-coder:
-	mkdir -p bin
-	go build -o bin/terraform-provider-coder cmd/terraform-provider-coder/main.go
-.PHONY: bin/terraform-provider-coder
-
-build: site/out bin/coder bin/coderd bin/terraform-provider-coder
+build: site/out bin
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
@@ -60,16 +49,11 @@ fmt: fmt/prettier fmt/sql
 gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 .PHONY: gen
 
-install: 
+install: bin
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
-	cp -r ./bin $(INSTALL_DIR)
+	cp -r ./dist/coder_$(GOOS)_$(GOARCH) $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
-
-install/terraform-provider-coder: bin/terraform-provider-coder
-	$(eval OS_ARCH := $(shell go env GOOS)_$(shell go env GOARCH))
-	mkdir -p ~/.terraform.d/plugins/coder.com/internal/coder/0.2/$(OS_ARCH)
-	cp bin/terraform-provider-coder ~/.terraform.d/plugins/coder.com/internal/coder/0.2/$(OS_ARCH)
 
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	protoc \
@@ -102,4 +86,10 @@ site/out:
 	./scripts/yarn_install.sh
 	cd site && yarn build
 #	cd site && yarn export
+	# Restores GITKEEP files!
+	git checkout HEAD site/out
 .PHONY: site/out
+
+snapshot: 
+	goreleaser release --snapshot --rm-dist
+.PHONY: snapshot
