@@ -20,9 +20,7 @@ const config: webpack.Configuration = {
     headers: {
       "Access-Control-Allow-Origin": "*",
     },
-    historyApiFallback: {
-      index: "html_templates/index.html",
-    },
+    historyApiFallback: true,
     hot: true,
     proxy: {
       "/api": "http://localhost:3000",

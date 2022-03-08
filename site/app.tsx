@@ -7,6 +7,7 @@ import { light } from "./theme"
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom"
 
 import CliAuthenticationPage from "./pages/cli-auth"
+import NotFoundPage from "./pages/404"
 import IndexPage from "./pages/index"
 import LoginPage from "./pages/login"
 import ProjectsPage from "./pages/projects"
@@ -57,7 +58,7 @@ export const App: React.FC = () => {
                 {/* Using path="*"" means "match anything", so this route
                 acts like a catch-all for URLs that we don't have explicit
                 routes for. */}
-                <Route path="*" element={<div>404</div>} />
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>
           </ThemeProvider>
