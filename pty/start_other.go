@@ -35,7 +35,7 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 		// has finished running. See:
 		// https://github.com/creack/pty/issues/127#issuecomment-932764012
 		_ = cmd.Wait()
-		runtime.KeepAlive(tty)
+		runtime.KeepAlive(ptty)
 	}()
 	oPty := &otherPty{
 		pty: ptty,
