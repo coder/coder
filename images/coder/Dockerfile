@@ -10,4 +10,4 @@ RUN chmod +x /coder
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-ENTRYPOINT ["/coder/run.sh"]
+ENTRYPOINT ["/run.sh"]
