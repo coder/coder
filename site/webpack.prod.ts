@@ -5,7 +5,7 @@ import * as webpack from "webpack"
 import "webpack-dev-server"
 
 const config: webpack.Configuration = {
-  entry: "./index.tsx",
+  entry: "./Main.tsx",
   mode: "production",
   module: {
     rules: [
