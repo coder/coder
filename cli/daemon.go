@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"context"
@@ -25,12 +25,12 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func Root() *cobra.Command {
+func daemon() *cobra.Command {
 	var (
 		address string
 	)
 	root := &cobra.Command{
-		Use: "coderd",
+		Use: "daemon",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			accessURL := &url.URL{

@@ -24,11 +24,6 @@ function create_initial_user() {
 # Run yarn install, to make sure node_modules are ready to go
 "$PROJECT_ROOT/scripts/yarn_install.sh"
 
-# Do initial build - a dev build for coderd.
-# It's OK that we don't build the front-end before - because the front-end
-# assets are handled by the `yarn dev` devserver.
-make bin/coderd
-
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
 # to kill both at the same time. For more details, see:
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
@@ -36,5 +31,5 @@ make bin/coderd
   trap 'kill 0' SIGINT
   create_initial_user &
   CODERV2_HOST=http://127.0.0.1:3000 yarn --cwd=./site dev &
-  ./bin/coderd
+  go run cmd/coder/main.go daemon
 )
