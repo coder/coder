@@ -6,6 +6,7 @@ package pty
 import (
 	"os"
 	"os/exec"
+	"runtime"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -29,6 +30,13 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 		_ = ptty.Close()
 		return nil, nil, xerrors.Errorf("start: %w", err)
 	}
+	go func() {
+		// The GC can garbage collect the TTY FD before the command
+		// has finished running. See:
+		// https://github.com/creack/pty/issues/127#issuecomment-932764012
+		_ = cmd.Wait()
+		runtime.KeepAlive(ptty)
+	}()
 	oPty := &otherPty{
 		pty: ptty,
 		tty: tty,
