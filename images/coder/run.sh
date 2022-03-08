@@ -26,5 +26,5 @@ function create_initial_user() {
 (
   trap 'kill 0' SIGINT
   create_initial_user &
-  /coder/coderd --address=":$PORT"
+  /coder daemon --address=":$PORT"
 )

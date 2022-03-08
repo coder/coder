@@ -4,14 +4,10 @@ RUN yum install -y yum-utils
 RUN yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
 RUN yum install -y terraform
 
-COPY coderd /coder/coderd
-RUN chmod +x /coder/coderd
+COPY coder /coder
+RUN chmod +x /coder
 
-COPY run.sh /coder/run.sh
-RUN chmod +x /coder/run.sh
-
-# Once `provisionerd` is available, we'll also need that binary
-# COPY bin/provisionerd /provisionerd
-# RUN chmod +x /provisionerd
+COPY run.sh /run.sh
+RUN chmod +x /run.sh
 
 ENTRYPOINT ["/coder/run.sh"]
