@@ -21,8 +21,8 @@ database/generate: fmt/sql database/dump.sql database/query.sql
 .PHONY: database/generate
 
 docker/image/coder: build
-	cp ./images/coder/run.sh ./bin
-	docker build --network=host -t us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest -f images/coder/Dockerfile ./bin
+	cp ./images/coder/run.sh ./dist/coder_$(GOOS)_$(GOARCH)
+	docker build --network=host -t us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest -f images/coder/Dockerfile ./dist/coder_$(GOOS)_$(GOARCH)
 .PHONY: docker/build
 
 fmt/prettier:
