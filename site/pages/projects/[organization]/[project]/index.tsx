@@ -24,10 +24,10 @@ const ProjectPage: React.FC = () => {
   const { project, organization } = router.query
 
   const { data: projectInfo, error: projectError } = useSWR<Project, Error>(
-    () => `/api/v2/projects/${organization}/${project}`,
+    () => `/api/v2/organizations/${organization}/projects/${project}`,
   )
   const { data: workspaces, error: workspacesError } = useSWR<Workspace[], Error>(
-    () => `/api/v2/projects/${organization}/${project}/workspaces`,
+    () => `/api/v2/users/me/workspaces`,
   )
 
   if (projectError) {

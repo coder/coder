@@ -49,7 +49,7 @@ const ProjectsPage: React.FC = () => {
       key: "name",
       name: "Name",
       renderer: (nameField: string, data: Project) => {
-        return <Link href={`/projects/${orgDictionary[data.organization_id]}/${nameField}`}>{nameField}</Link>
+        return <Link href={`/projects/${data.organization_id}/${nameField}`}>{nameField}</Link>
       },
     },
   ]

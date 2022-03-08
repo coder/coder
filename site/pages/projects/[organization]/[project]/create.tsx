@@ -15,7 +15,7 @@ const CreateWorkspacePage: React.FC = () => {
   const { me } = useUser(/* redirectOnError */ true)
   const { organization, project: projectName } = query
   const { data: project, error: projectError } = useSWR<API.Project, Error>(
-    `/api/v2/projects/${organization}/${projectName}`,
+    `/api/v2/organizations/${organization}/projects/${projectName}`,
   )
 
   const onCancel = useCallback(async () => {
@@ -24,7 +24,7 @@ const CreateWorkspacePage: React.FC = () => {
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
     const workspace = await API.Workspace.create(req)
-    await push(`/workspaces/me/${workspace.name}`)
+    await push(`/workspaces/${workspace.id}`)
     return workspace
   }
 

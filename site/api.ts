@@ -84,7 +84,7 @@ export interface Workspace {
 
 export namespace Workspace {
   export const create = async (request: CreateWorkspaceRequest): Promise<Workspace> => {
-    const response = await fetch(`/api/v2/workspaces/me`, {
+    const response = await fetch(`/api/v2/users/me/workspaces`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
