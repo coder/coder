@@ -111,7 +111,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.1.0 // indirect
 	github.com/pion/dtls/v2 v2.1.3 // indirect
-	github.com/pion/ice/v2 v2.2.1 // indirect
+	github.com/pion/ice/v2 v2.2.2 // indirect
 	github.com/pion/interceptor v0.1.7 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
@@ -133,7 +133,7 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
