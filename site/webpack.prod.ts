@@ -23,7 +23,7 @@ const config: webpack.Configuration = {
     new HtmlWebpackPlugin({
       title: "Custom template",
       // Load a custom template (lodash by default)
-      template: "index.html",
+      template: "html_templates/index.html",
       inject: "body",
     }),
   ],

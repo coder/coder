@@ -21,7 +21,7 @@ const config: webpack.Configuration = {
       "Access-Control-Allow-Origin": "*",
     },
     historyApiFallback: {
-      index: "index.html",
+      index: "html_templates/index.html",
     },
     hot: true,
     proxy: {
@@ -34,7 +34,7 @@ const config: webpack.Configuration = {
     new HtmlWebpackPlugin({
       title: "Custom template",
       // Load a custom template (lodash by default)
-      template: "index.html",
+      template: "html_templates/index.html",
       inject: "body",
       hash: true,
     }),
