@@ -1,14 +1,9 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React, { useEffect, useState } from "react"
-import { getApiKey } from "../api"
-import { CliAuthToken } from "../components/SignIn"
+import React from "react"
 
-import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
-import { useUser } from "../contexts/UserContext"
-import { Typography } from "@material-ui/core"
+import Typography from "@material-ui/core/Typography"
 
 const CliAuthenticationPage: React.FC = () => {
-  const { me } = useUser(true)
   const styles = useStyles()
 
   return (
