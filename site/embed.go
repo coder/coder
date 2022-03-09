@@ -5,6 +5,7 @@ package site
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -88,7 +89,7 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 			fileBytes, err := fs.ReadFile(fileSystem, normalizedName)
 
 			if err != nil {
-				// TODO: Log
+				logger.Warn(context.Background(), "Unable to load file", slog.F("fileName", normalizedName))
 				continue
 			}
 
@@ -100,7 +101,7 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 			continue
 		}
 
-		// TODO: Log that we encountered a directory that we can't serve
+		logger.Warn(context.Background(), "Serving from nested directories is not implemented", slog.F("name", name))
 	}
 
 	if indexBytes == nil {
@@ -122,6 +123,7 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 			logger.Warn(request.Context(), "Unable to find request file", slog.F("fileName", normalizedFileName))
 			fileBytes = indexBytes
 			isCacheable = false
+			normalizedFileName = "index.html"
 		}
 
 		if isCacheable {
@@ -131,8 +133,7 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
 		}
 
-		// TODO: Proper name for content:
-		http.ServeContent(writer, request, "", time.Time{}, bytes.NewReader(fileBytes))
+		http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(fileBytes))
 	}
 
 	return serveFunc, nil
