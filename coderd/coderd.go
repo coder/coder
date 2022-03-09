@@ -168,7 +168,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/resources", api.workspaceBuildResources)
 		})
 	})
-	r.NotFound(site.Handler(options.Logger).ServeHTTP)
+	r.NotFound(site.DefaultHandler(options.Logger).ServeHTTP)
 	return r, api.websocketWaitGroup.Wait
 }
 

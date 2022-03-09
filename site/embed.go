@@ -28,14 +28,21 @@ import (
 //go:embed out/bin/*
 var site embed.FS
 
-// Handler returns an HTTP handler for serving the static site.
-func Handler(logger slog.Logger) http.Handler {
+// DefaultHandler returns an HTTP handler for serving the static site,
+// based on the `embed.FS` compiled into the binary.
+func DefaultHandler(logger slog.Logger) http.Handler {
 	filesystem, err := fs.Sub(site, "out")
 	if err != nil {
 		// This can't happen... Go would throw a compilation error.
 		panic(err)
 	}
 
+	return Handler(filesystem, logger)
+}
+
+// Handler returns an HTTP handler for serving the static site.
+// This takes a filesystem as a parameter.
+func Handler(filesystem fs.FS, logger slog.Logger) http.Handler {
 	// Render CSP and CSRF in the served pages
 	// TODO: Bring back templates
 	_ = func(r *http.Request) interface{} {
@@ -48,9 +55,6 @@ func Handler(logger slog.Logger) http.Handler {
 	}
 
 	router := chi.NewRouter()
-
-	// TODO: Bring back
-	//router.NotFound(FileHandler(filesystem))
 
 	staticFileHandler, err := serveFiles(filesystem, logger)
 	if err != nil {
@@ -110,10 +114,20 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 			normalizedFileName = "index.html"
 		}
 
+		isCacheable := !strings.HasSuffix(normalizedFileName, ".html") && !strings.HasSuffix(normalizedFileName, ".htm")
+
 		fileBytes, ok := fileNameToBytes[normalizedFileName]
 		if !ok {
 			logger.Warn(request.Context(), "Unable to find request file", slog.F("fileName", normalizedFileName))
 			fileBytes = indexBytes
+			isCacheable = false
+		}
+
+		if isCacheable {
+			// All our assets - JavaScript, CSS, images - should be cached.
+			// For cases like JavaScript, we rely on a cache-busting strategy whenever
+			// there is a new version (this is handled in our webpack config).
+			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
 		}
 
 		// TODO: Proper name for content:
@@ -125,29 +139,22 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 
 // FileHandler serves static content, additionally adding immutable
 // cache-control headers for Next.js content
-func FileHandler(fileSystem fs.FS) func(writer http.ResponseWriter, request *http.Request) {
+/*func FileHandler(fileSystem fs.FS) func(writer http.ResponseWriter, request *http.Request) {
 	// Non-HTML files don't have special routing rules, so we can just leverage
 	// the built-in http.FileServer for it.
 	fileHandler := http.FileServer(http.FS(fileSystem))
 
 	return func(writer http.ResponseWriter, request *http.Request) {
-		// TODO: Double-check this in the context of our webpack content-addressable bundle
-		// From the Next.js documentation:
-		//
-		// "Caching improves response times and reduces the number
-		// of requests to external services. Next.js automatically
-		// adds caching headers to immutable assets served from
-		// /_next/static including JavaScript, CSS, static images,
-		// and other media."
-		//
-		// See: https://nextjs.org/docs/going-to-production
-		if strings.HasSuffix(request.URL.Path, ".js") {
+		// All our assets - JavaScript, CSS, images - should be cached.
+		// For cases like JavaScript, we rely on a cache-busting strategy whenever
+		// there is a new version (this is handled in our webpack config).
+		if !strings.HasSuffix(request.URL.Path, ".html") && !strings. {
 			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
 		}
 
 		fileHandler.ServeHTTP(writer, request)
 	}
-}
+}*/
 
 type htmlState struct {
 	CSP  cspState
