@@ -21,15 +21,11 @@ const CreateWorkspacePage: React.FC = () => {
   )
 
   const { data: project, error: projectError } = useSWR<API.Project, Error>(() => {
-    ;`/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/projects/${projectName}`
+    return `/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/projects/${projectName}`
   })
 
   const onCancel = useCallback(async () => {
-    // If `onCancel` is called, we know that `organizationInfo` is actually populated,
-    // because this callback is only used when the UI is rendered.
-    // Because `useCallback` must always be called due to the rules of hooks, the compiler
-    // doesn't know that the `organizationInfo` would always be valid when this called.
-    await push(`/projects/${unsafeSWRArgument(organizationInfo).id}/${projectName}`)
+    await push(`/projects/${organizationName}/${projectName}`)
   }, [push, organizationInfo, projectName])
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
