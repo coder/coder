@@ -8,24 +8,34 @@ import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
+import { unsafeSWRArgument } from "../../../../util"
 
 const CreateWorkspacePage: React.FC = () => {
   const { push, query } = useRouter()
   const styles = useStyles()
   const { me } = useUser(/* redirectOnError */ true)
-  const { organization, project: projectName } = query
-  const { data: project, error: projectError } = useSWR<API.Project, Error>(
-    `/api/v2/projects/${organization}/${projectName}`,
+  const { organization: organizationName, project: projectName } = query
+
+  const { data: organizationInfo, error: organizationError } = useSWR<API.Organization, Error>(
+    () => `/api/v2/users/me/organizations/${organizationName}`,
   )
 
+  const { data: project, error: projectError } = useSWR<API.Project, Error>(() => {
+    return `/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/projects/${projectName}`
+  })
+
   const onCancel = useCallback(async () => {
-    await push(`/projects/${organization}/${projectName}`)
-  }, [push, organization, projectName])
+    await push(`/projects/${organizationName}/${projectName}`)
+  }, [push, organizationName, projectName])
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
     const workspace = await API.Workspace.create(req)
-    await push(`/workspaces/me/${workspace.name}`)
+    await push(`/workspaces/${workspace.id}`)
     return workspace
+  }
+
+  if (organizationError) {
+    return <ErrorSummary error={organizationError} />
   }
 
   if (projectError) {

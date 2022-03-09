@@ -10,19 +10,21 @@ import * as API from "../../api"
 import { WorkspaceSection } from "./WorkspaceSection"
 
 export interface WorkspaceProps {
+  organization: API.Organization
   workspace: API.Workspace
+  project: API.Project
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ organization, project, workspace }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
       <div className={styles.vertical}>
-        <WorkspaceHeader workspace={workspace} />
+        <WorkspaceHeader organization={organization} project={project} workspace={workspace} />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
             <WorkspaceSection title="Applications">
@@ -54,8 +56,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ workspace }) => {
 /**
  * Component for the header at the top of the workspace page
  */
-export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ workspace }) => {
+export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ organization, project, workspace }) => {
   const styles = useStyles()
+
+  const projectLink = `/projects/${organization.name}/${project.name}`
 
   return (
     <Paper elevation={0} className={styles.section}>
@@ -64,7 +68,7 @@ export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ workspace }) => {
         <div className={styles.vertical}>
           <Typography variant="h4">{workspace.name}</Typography>
           <Typography variant="body2" color="textSecondary">
-            <Link href="javascript:;">{workspace.project_id}</Link>
+            <Link href={projectLink}>{project.name}</Link>
           </Typography>
         </div>
       </div>
