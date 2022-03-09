@@ -28,6 +28,9 @@ import (
 //go:embed out/bin/*
 var site embed.FS
 
+// HTMLTemplateHandler is a function that defines how `htmlState` is populated
+type HTMLTemplateHandler func(*http.Request) HtmlState
+
 // DefaultHandler returns an HTTP handler for serving the static site,
 // based on the `embed.FS` compiled into the binary.
 func DefaultHandler(logger slog.Logger) http.Handler {
@@ -37,23 +40,21 @@ func DefaultHandler(logger slog.Logger) http.Handler {
 		panic(err)
 	}
 
-	return Handler(filesystem, logger)
+	templateFunc := func(r *http.Request) HtmlState {
+		return HtmlState{
+			// CSP nonce for the given request (if there is one present)
+			CSPNonce: secure.CSPNonce(r.Context()),
+			// CSRF token for the given request
+			CSRFToken: nosurf.Token(r),
+		}
+	}
+
+	return Handler(filesystem, logger, templateFunc)
 }
 
 // Handler returns an HTTP handler for serving the static site.
 // This takes a filesystem as a parameter.
-func Handler(filesystem fs.FS, logger slog.Logger) http.Handler {
-	// Render CSP and CSRF in the served pages
-	// TODO: Bring back templates
-	_ = func(r *http.Request) interface{} {
-		return htmlState{
-			// Nonce is the CSP nonce for the given request (if there is one present)
-			CSP: cspState{Nonce: secure.CSPNonce(r.Context())},
-			// Token is the CSRF token for the given request
-			CSRF: csrfState{Token: nosurf.Token(r)},
-		}
-	}
-
+func Handler(filesystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateHandler) http.Handler {
 	router := chi.NewRouter()
 
 	staticFileHandler, err := serveFiles(filesystem, logger)
@@ -137,17 +138,9 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 	return serveFunc, nil
 }
 
-type htmlState struct {
-	CSP  cspState
-	CSRF csrfState
-}
-
-type cspState struct {
-	Nonce string
-}
-
-type csrfState struct {
-	Token string
+type HtmlState struct {
+	CSPNonce  string
+	CSRFToken string
 }
 
 // cspDirectives is a map of all csp fetch directives to their values.

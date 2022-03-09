@@ -28,7 +28,7 @@ func TestIndexPageRenders(t *testing.T) {
 		},
 	}
 
-	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}))
+	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc))
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestNestedPathsRenderIndex(t *testing.T) {
 		},
 	}
 
-	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}))
+	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc))
 
 	path := srv.URL + "/some/nested/path"
 
@@ -77,7 +77,7 @@ func TestCacheHeaderseAreCorrect(t *testing.T) {
 		},
 	}
 
-	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}))
+	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc))
 
 	dynamicPaths := []string{
 		"/",
@@ -121,6 +121,13 @@ func TestCacheHeaderseAreCorrect(t *testing.T) {
 		require.NoError(t, resp.Body.Close(), "closing response")
 	}
 
+}
+
+func defaultTemplateFunc(r *http.Request) site.HtmlState {
+	return site.HtmlState{
+		CSPNonce:  "test-csp-none",
+		CSRFToken: "test-csrf-token",
+	}
 }
 
 /*func TestNestedPageRenders(t *testing.T) {
