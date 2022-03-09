@@ -26,7 +26,7 @@ const CreateWorkspacePage: React.FC = () => {
 
   const onCancel = useCallback(async () => {
     await push(`/projects/${organizationName}/${projectName}`)
-  }, [push, organizationInfo, projectName])
+  }, [push, organizationName, projectName])
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
     const workspace = await API.Workspace.create(req)
