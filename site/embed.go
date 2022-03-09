@@ -45,9 +45,9 @@ func DefaultHandler(logger slog.Logger) http.Handler {
 	templateFunc := func(r *http.Request) HtmlState {
 		return HtmlState{
 			// CSP nonce for the given request (if there is one present)
-			CSPNonce: secure.CSPNonce(r.Context()),
+			CSP: CSPState{Nonce: secure.CSPNonce(r.Context())},
 			// CSRF token for the given request
-			CSRFToken: nosurf.Token(r),
+			CSRF: CSRFState{Token: nosurf.Token(r)},
 		}
 	}
 
@@ -59,7 +59,7 @@ func DefaultHandler(logger slog.Logger) http.Handler {
 func Handler(filesystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateHandler) http.Handler {
 	router := chi.NewRouter()
 
-	staticFileHandler, err := serveFiles(filesystem, logger)
+	staticFileHandler, err := serveFiles(filesystem, logger, templateFunc)
 	if err != nil {
 		panic(err)
 	}
@@ -69,7 +69,7 @@ func Handler(filesystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateHand
 	return secureHeaders(router)
 }
 
-func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) {
+func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateHandler) (http.HandlerFunc, error) {
 	// htmlFileToTemplate is a map of html files -> template
 	// We need to use templates in order to inject parameters from `HtmlState`
 	// (like CSRF token and CSP nonce)
@@ -155,11 +155,7 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 		}
 
 		var buf bytes.Buffer
-		// TODO: Fix this
-		templateData := HtmlState{
-			CSRFToken: "TODO",
-			CSPNonce:  "TODO",
-		}
+		templateData := templateFunc(request)
 
 		// Next, lets try and load from our HTML templates
 		template, ok := htmlFileToTemplate[normalizedFileName]
@@ -201,8 +197,16 @@ func isHtmlFile(fileName string) bool {
 }
 
 type HtmlState struct {
-	CSPNonce  string
-	CSRFToken string
+	CSP  CSPState
+	CSRF CSRFState
+}
+
+type CSPState struct {
+	Nonce string
+}
+
+type CSRFState struct {
+	Token string
 }
 
 // cspDirectives is a map of all csp fetch directives to their values.

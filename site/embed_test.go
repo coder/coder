@@ -19,27 +19,7 @@ import (
 	"github.com/coder/coder/site"
 )
 
-func TestIndexPageRenders(t *testing.T) {
-	t.Parallel()
-
-	rootFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{
-			Data: []byte("index-test-file"),
-		},
-	}
-
-	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc))
-
-	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err, "get index")
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
-	require.Equal(t, string(data), "index-test-file")
-}
-
-func TestNestedPathsRenderIndex(t *testing.T) {
+func TestReturnsIndexPageForNestedPaths(t *testing.T) {
 	t.Parallel()
 
 	rootFS := fstest.MapFS{
@@ -148,6 +128,56 @@ func TestCacheHeadersAreCorrect(t *testing.T) {
 	}
 }
 
+func TestTemplateParametersAreInjected(t *testing.T) {
+	rootFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .CSP.Nonce }} | {{ .CSRF.Token }}"),
+		},
+		// Template parameters should  only be injected in HTML,
+		// so this provides a negative case
+		"bundle.js": &fstest.MapFile{
+			Data: []byte("{{ .CSP.Nonce }}"),
+		},
+	}
+
+	templateFunc := func(r *http.Request) site.HtmlState {
+		return site.HtmlState{
+			CSP:  site.CSPState{Nonce: "test-nonce"},
+			CSRF: site.CSRFState{Token: "test-token"},
+		}
+	}
+
+	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, templateFunc))
+
+	var testCases = []struct {
+		path             string
+		expectedContents string
+	}{
+		// Rendered HTML cases
+		{"/index.html", "test-nonce | test-token"},
+		{"/nested/index.html", "test-nonce | test-token"},
+		{"/nested/", "test-nonce | test-token"},
+
+		// Non-HTML cases (template should not render)
+		{"/bundle.js", "{{ .CSP.Nonce }}"},
+	}
+
+	for _, testCase := range testCases {
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancelFunc()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/"+testCase.path, nil)
+		require.NoError(t, err, "create request")
+
+		resp, err := srv.Client().Do(req)
+		require.NoError(t, err, "get index")
+
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(resp.Body)
+		require.Equal(t, string(data), testCase.expectedContents)
+	}
+}
+
 func TestReturnsErrorIfNoIndex(t *testing.T) {
 	rootFS := fstest.MapFS{
 		// No index.html - so our router will have no fallback!
@@ -170,7 +200,7 @@ func TestReturnsErrorIfNoIndex(t *testing.T) {
 
 func defaultTemplateFunc(r *http.Request) site.HtmlState {
 	return site.HtmlState{
-		CSPNonce:  "test-csp-none",
-		CSRFToken: "test-csrf-token",
+		CSP:  site.CSPState{Nonce: "test-csp-nonce"},
+		CSRF: site.CSRFState{Token: "test-csrf-token"},
 	}
 }
