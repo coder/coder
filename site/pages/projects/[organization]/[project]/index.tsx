@@ -15,6 +15,7 @@ import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { firstOrItem } from "../../../../util/array"
 import { EmptyState } from "../../../../components/EmptyState"
+import { unsafeSWRArgument } from "../../../../util"
 
 const ProjectPage: React.FC = () => {
   const styles = useStyles()
@@ -28,7 +29,7 @@ const ProjectPage: React.FC = () => {
   )
 
   const { data: projectInfo, error: projectError } = useSWR<Project, Error>(
-    () => `/api/v2/organizations/${(organizationInfo as any).id}/projects/${projectName}`,
+    () => `/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/projects/${projectName}`,
   )
 
   // TODO: The workspaces endpoint was recently changed, so that we can't get

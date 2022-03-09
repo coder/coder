@@ -8,6 +8,7 @@ import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
+import { unsafeSWRArgument } from "../../../../util"
 
 const CreateWorkspacePage: React.FC = () => {
   const { push, query } = useRouter()
@@ -19,12 +20,16 @@ const CreateWorkspacePage: React.FC = () => {
     () => `/api/v2/users/me/organizations/${organizationName}`,
   )
 
-  const { data: project, error: projectError } = useSWR<API.Project, Error>(
-    `/api/v2/organizations/${(organizationInfo as any).id}/projects/${projectName}`,
-  )
+  const { data: project, error: projectError } = useSWR<API.Project, Error>(() => {
+    ;`/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/projects/${projectName}`
+  })
 
   const onCancel = useCallback(async () => {
-    await push(`/projects/${(organizationInfo as any).id}/${projectName}`)
+    // If `onCancel` is called, we know that `organizationInfo` is actually populated,
+    // because this callback is only used when the UI is rendered.
+    // Because `useCallback` must always be called due to the rules of hooks, the compiler
+    // doesn't know that the `organizationInfo` would always be valid when this called.
+    await push(`/projects/${unsafeSWRArgument(organizationInfo).id}/${projectName}`)
   }, [push, organizationInfo, projectName])
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {

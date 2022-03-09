@@ -9,7 +9,7 @@ import { firstOrItem } from "../../util/array"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace } from "../../components/Workspace"
-
+import { unsafeSWRArgument } from "../../util"
 import * as API from "../../api"
 
 const WorkspacesPage: React.FC = () => {
@@ -27,11 +27,11 @@ const WorkspacesPage: React.FC = () => {
 
   // Fetch parent project
   const { data: project, error: projectError } = useSWR<API.Project, Error>(() => {
-    return `/api/v2/projects/${(workspace as any).project_id}`
+    return `/api/v2/projects/${unsafeSWRArgument(workspace).project_id}`
   })
 
   const { data: organization, error: organizationError } = useSWR<API.Project, Error>(() => {
-    return `/api/v2/organizations/${(project as any).organization_id}`
+    return `/api/v2/organizations/${unsafeSWRArgument(project).organization_id}`
   })
 
   if (workspaceError) {
