@@ -1,40 +1,31 @@
-import * as path from "path"
 import CopyWebpackPlugin from "copy-webpack-plugin"
-import HtmlWebpackPlugin from "html-webpack-plugin"
-import * as webpack from "webpack"
-import "webpack-dev-server"
+import { Configuration } from "webpack"
+import { commonWebpackConfig } from "./webpack.common"
 
-const config: webpack.Configuration = {
-  entry: "./Main.tsx",
+const commonPlugins = commonWebpackConfig.plugins || []
+
+export const config: Configuration = {
+  ...commonWebpackConfig,
   mode: "production",
-  module: {
-    rules: [
-      {
-        test: /\.tsx?$/,
-        use: ["ts-loader"],
-        exclude: [/node_modules/],
-      },
-    ],
+
+  // Don't produce sourcemaps in production, to minmize bundle size
+  devtool: false,
+
+  output: {
+    ...commonWebpackConfig.output,
+
+    // regenerate the entire out/ directory when producing production builds
+    clean: true,
   },
+
   plugins: [
+    ...commonPlugins,
+    // For production builds, we also need to copy all the static
+    // files to the 'out' folder.
     new CopyWebpackPlugin({
       patterns: [{ from: "static", to: "." }],
-    }),
-    new HtmlWebpackPlugin({
-      title: "Custom template",
-      // Load a custom template (lodash by default)
-      template: "html_templates/index.html",
-      inject: "body",
-    }),
-  ],
-  resolve: {
-    extensions: [".tsx", ".ts", ".js"],
-  },
-  output: {
-    filename: "bundle.[contenthash].js",
-    path: path.resolve(__dirname, "out"),
-  },
-  target: "web",
+    })
+  ]
 }
 
 export default config
