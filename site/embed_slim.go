@@ -9,6 +9,6 @@ import (
 	"cdr.dev/slog"
 )
 
-func Handler(logger slog.Logger) http.Handler {
+func DefaultHandler(logger slog.Logger) http.Handler {
 	return http.NotFoundHandler()
 }
