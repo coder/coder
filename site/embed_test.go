@@ -61,13 +61,16 @@ func TestReturnsIndexPageForNestedPaths(t *testing.T) {
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err, "get index")
-		defer resp.Body.Close()
 		data, _ := io.ReadAll(resp.Body)
 		require.Equal(t, string(data), testCase.expected)
+		err = resp.Body.Close()
+		require.NoError(t, err)
 	}
 }
 
 func TestCacheHeadersAreCorrect(t *testing.T) {
+	t.Parallel()
+
 	rootFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("index-test-file"),
@@ -98,10 +101,10 @@ func TestCacheHeadersAreCorrect(t *testing.T) {
 		"/bundle.js",
 		"/icon.svg",
 	}
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
 
 	for _, path := range cachedPaths {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancelFunc()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/"+path, nil)
 		require.NoError(t, err, "create request")
 
@@ -114,8 +117,6 @@ func TestCacheHeadersAreCorrect(t *testing.T) {
 	}
 
 	for _, path := range dynamicPaths {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancelFunc()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/"+path, nil)
 		require.NoError(t, err, "create request")
 
@@ -129,6 +130,8 @@ func TestCacheHeadersAreCorrect(t *testing.T) {
 }
 
 func TestTemplateParametersAreInjected(t *testing.T) {
+	t.Parallel()
+
 	rootFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("{{ .CSP.Nonce }} | {{ .CSRF.Token }}"),
@@ -140,8 +143,8 @@ func TestTemplateParametersAreInjected(t *testing.T) {
 		},
 	}
 
-	templateFunc := func(r *http.Request) site.HtmlState {
-		return site.HtmlState{
+	templateFunc := func(_ *http.Request) site.HTMLState {
+		return site.HTMLState{
 			CSP:  site.CSPState{Nonce: "test-nonce"},
 			CSRF: site.CSRFState{Token: "test-token"},
 		}
@@ -161,24 +164,26 @@ func TestTemplateParametersAreInjected(t *testing.T) {
 		// Non-HTML cases (template should not render)
 		{"/bundle.js", "{{ .CSP.Nonce }}"},
 	}
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
 
 	for _, testCase := range testCases {
-
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
-		defer cancelFunc()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/"+testCase.path, nil)
 		require.NoError(t, err, "create request")
 
 		resp, err := srv.Client().Do(req)
 		require.NoError(t, err, "get index")
 
-		defer resp.Body.Close()
 		data, _ := io.ReadAll(resp.Body)
 		require.Equal(t, string(data), testCase.expectedContents)
+		err = resp.Body.Close()
+		require.NoError(t, err)
 	}
 }
 
 func TestReturnsErrorIfNoIndex(t *testing.T) {
+	t.Parallel()
+
 	rootFS := fstest.MapFS{
 		// No index.html - so our router will have no fallback!
 		"favicon.ico": &fstest.MapFile{
@@ -198,8 +203,8 @@ func TestReturnsErrorIfNoIndex(t *testing.T) {
 	})
 }
 
-func defaultTemplateFunc(r *http.Request) site.HtmlState {
-	return site.HtmlState{
+func defaultTemplateFunc(_ *http.Request) site.HTMLState {
+	return site.HTMLState{
 		CSP:  site.CSPState{Nonce: "test-csp-nonce"},
 		CSRF: site.CSRFState{Token: "test-csrf-token"},
 	}

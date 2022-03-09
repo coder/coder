@@ -31,7 +31,7 @@ import (
 var site embed.FS
 
 // HTMLTemplateHandler is a function that defines how `htmlState` is populated
-type HTMLTemplateHandler func(*http.Request) HtmlState
+type HTMLTemplateHandler func(*http.Request) HTMLState
 
 // DefaultHandler returns an HTTP handler for serving the static site,
 // based on the `embed.FS` compiled into the binary.
@@ -42,8 +42,8 @@ func DefaultHandler(logger slog.Logger) http.Handler {
 		panic(err)
 	}
 
-	templateFunc := func(r *http.Request) HtmlState {
-		return HtmlState{
+	templateFunc := func(r *http.Request) HTMLState {
+		return HTMLState{
 			// CSP nonce for the given request (if there is one present)
 			CSP: CSPState{Nonce: secure.CSPNonce(r.Context())},
 			// CSRF token for the given request
@@ -75,13 +75,13 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateH
 	// (like CSRF token and CSP nonce)
 	htmlFileToTemplate := map[string]*template.Template{}
 
-	// nonHtmlFileToTemplate is a map of files -> byte contents
+	// nonHTMLFileToTemplate is a map of files -> byte contents
 	// This is used for any non-HTML file
-	nonHtmlFileToTemplate := map[string][]byte{}
+	nonHTMLFileToTemplate := map[string][]byte{}
 
-	// fallbackHtmlTemplate is used as the 'default' template if
+	// fallbackHTMLTemplate is used as the 'default' template if
 	// the path requested doesn't match anything on the file systme.
-	var fallbackHtmlTemplate *template.Template
+	var fallbackHTMLTemplate *template.Template
 
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
@@ -102,24 +102,24 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateH
 				continue
 			}
 
-			isHtml := isHtmlFile(normalizedName)
-			if isHtml {
-				// For HTML files, we need to parse and store the template.
+			isHTML := isHTMLFile(normalizedName)
+			if isHTML {
+				// For HTML files, we need to parse and store the htmlTemplate.
 				// If its index.html, we need to keep a reference to it as well.
-				template, err := template.New("").Parse(string(fileBytes))
+				htmlTemplate, err := template.New("").Parse(string(fileBytes))
 				if err != nil {
 					logger.Warn(context.Background(), "Unable to parse html template", slog.F("fileName", normalizedName))
 					continue
 				}
 
-				htmlFileToTemplate[normalizedName] = template
+				htmlFileToTemplate[normalizedName] = htmlTemplate
 				// If this is the index page, use it as the fallback template
 				if strings.HasPrefix(normalizedName, "index.") {
-					fallbackHtmlTemplate = template
+					fallbackHTMLTemplate = htmlTemplate
 				}
 			} else {
 				// Non HTML files are easy - just cache the bytes
-				nonHtmlFileToTemplate[normalizedName] = fileBytes
+				nonHTMLFileToTemplate[normalizedName] = fileBytes
 			}
 
 			continue
@@ -131,7 +131,7 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateH
 	}
 
 	// If we don't have a default template, then there's not much to do!
-	if fallbackHtmlTemplate == nil {
+	if fallbackHTMLTemplate == nil {
 		return nil, xerrors.Errorf("No index.html found")
 	}
 
@@ -144,8 +144,8 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateH
 		}
 
 		// First, let's look at our non-HTML files to see if this matches
-		fileBytes, ok := nonHtmlFileToTemplate[normalizedFileName]
-		if ok {
+		fileBytes, success := nonHTMLFileToTemplate[normalizedFileName]
+		if success {
 			// All our assets - JavaScript, CSS, images - should be cached.
 			// For cases like JavaScript, we rely on a cache-busting strategy whenever
 			// there is a new version (this is handled in our webpack config).
@@ -158,10 +158,10 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateH
 		templateData := templateFunc(request)
 
 		// Next, lets try and load from our HTML templates
-		template, ok := htmlFileToTemplate[normalizedFileName]
-		if ok {
+		htmlTemplate, success := htmlFileToTemplate[normalizedFileName]
+		if success {
 			logger.Debug(context.Background(), "Applying template parameters", slog.F("fileName", normalizedFileName), slog.F("templateData", templateData))
-			err := template.ExecuteTemplate(&buf, "", templateData)
+			err := htmlTemplate.ExecuteTemplate(&buf, "", templateData)
 
 			if err != nil {
 				logger.Error(request.Context(), "Error executing template", slog.F("templateData", templateData))
@@ -177,7 +177,7 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateH
 		// This is expected, because any nested path is going to hit this case.
 		// For that, we'll serve the fallback
 		logger.Debug(context.Background(), "Applying template parameters", slog.F("fileName", normalizedFileName), slog.F("templateData", templateData))
-		err := fallbackHtmlTemplate.ExecuteTemplate(&buf, "", templateData)
+		err := fallbackHTMLTemplate.ExecuteTemplate(&buf, "", templateData)
 
 		if err != nil {
 			logger.Error(request.Context(), "Error executing template", slog.F("templateData", templateData))
@@ -186,17 +186,16 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateH
 		}
 
 		http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(buf.Bytes()))
-
 	}
 
 	return serveFunc, nil
 }
 
-func isHtmlFile(fileName string) bool {
+func isHTMLFile(fileName string) bool {
 	return strings.HasSuffix(fileName, ".html") || strings.HasSuffix(fileName, ".htm")
 }
 
-type HtmlState struct {
+type HTMLState struct {
 	CSP  CSPState
 	CSRF CSRFState
 }
