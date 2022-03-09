@@ -174,17 +174,3 @@ func defaultTemplateFunc(r *http.Request) site.HtmlState {
 		CSRFToken: "test-csrf-token",
 	}
 }
-
-/*func TestNestedPageRenders(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(site.Handler(slog.Logger{}))
-
-	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL+"/some/random/path", nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err, "get index for random path")
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
-	require.NotEmpty(t, data, "index should have contents")
-}*/
