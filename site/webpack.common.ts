@@ -3,7 +3,6 @@
  * be shared between development and production.
  */
 
-
 import * as path from "path"
 import { Configuration } from "webpack"
 import HtmlWebpackPlugin from "html-webpack-plugin"
@@ -17,7 +16,7 @@ const plugins = [
     title: "Custom template",
     template: path.join(templatePath, "index.html"),
     inject: "body",
-  })
+  }),
 ]
 
 export const commonWebpackConfig: Configuration = {
@@ -41,7 +40,7 @@ export const commonWebpackConfig: Configuration = {
   resolve: {
     // Let webpack know to consider ts/tsx files for bundling
     // See: https://webpack.js.org/guides/typescript/
-    extensions: [".tsx", ".ts", ".js"]
+    extensions: [".tsx", ".ts", ".js"],
   },
 
   // output defines the name and location of the final bundle
@@ -53,5 +52,8 @@ export const commonWebpackConfig: Configuration = {
     filename: "bundle.[contenthash].js",
     path: path.resolve(__dirname, "out"),
   },
+
+  plugins: plugins,
+
   target: "web",
 }

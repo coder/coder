@@ -24,8 +24,8 @@ export const config: Configuration = {
     // files to the 'out' folder.
     new CopyWebpackPlugin({
       patterns: [{ from: "static", to: "." }],
-    })
-  ]
+    }),
+  ],
 }
 
 export default config
