@@ -8,6 +8,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"net/http"
 	"path/filepath"
@@ -69,10 +70,18 @@ func Handler(filesystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateHand
 }
 
 func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) {
+	// htmlFileToTemplate is a map of html files -> template
+	// We need to use templates in order to inject parameters from `HtmlState`
+	// (like CSRF token and CSP nonce)
+	htmlFileToTemplate := map[string]*template.Template{}
 
-	fileNameToBytes := map[string][]byte{}
-	var indexBytes []byte
-	indexBytes = nil
+	// nonHtmlFileToTemplate is a map of files -> byte contents
+	// This is used for any non-HTML file
+	nonHtmlFileToTemplate := map[string][]byte{}
+
+	// fallbackHtmlTemplate is used as the 'default' template if
+	// the path requested doesn't match anything on the file systme.
+	var fallbackHtmlTemplate *template.Template
 
 	files, err := fs.ReadDir(fileSystem, ".")
 	if err != nil {
@@ -93,19 +102,37 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 				continue
 			}
 
-			fileNameToBytes[normalizedName] = fileBytes
-			if normalizedName == "index.html" {
-				indexBytes = fileBytes
+			isHtml := isHtmlFile(normalizedName)
+			if isHtml {
+				// For HTML files, we need to parse and store the template.
+				// If its index.html, we need to keep a reference to it as well.
+				template, err := template.New("").Parse(string(fileBytes))
+				if err != nil {
+					logger.Warn(context.Background(), "Unable to parse html template", slog.F("fileName", normalizedName))
+					continue
+				}
+
+				htmlFileToTemplate[normalizedName] = template
+				// If this is the index page, use it as the fallback template
+				if strings.HasPrefix(normalizedName, "index.") {
+					fallbackHtmlTemplate = template
+				}
+			} else {
+				// Non HTML files are easy - just cache the bytes
+				nonHtmlFileToTemplate[normalizedName] = fileBytes
 			}
 
 			continue
 		}
 
+		// If we reached here, there was something on the file system (most likely a directory)
+		// that we were unable to handle in the current code - so log a warning.
 		logger.Warn(context.Background(), "Serving from nested directories is not implemented", slog.F("name", name))
 	}
 
-	if indexBytes == nil {
-		return nil, xerrors.Errorf("No index.html available")
+	// If we don't have a default template, then there's not much to do!
+	if fallbackHtmlTemplate == nil {
+		return nil, xerrors.Errorf("No index.html found")
 	}
 
 	serveFunc := func(writer http.ResponseWriter, request *http.Request) {
@@ -116,27 +143,61 @@ func serveFiles(fileSystem fs.FS, logger slog.Logger) (http.HandlerFunc, error) 
 			normalizedFileName = "index.html"
 		}
 
-		isCacheable := !strings.HasSuffix(normalizedFileName, ".html") && !strings.HasSuffix(normalizedFileName, ".htm")
-
-		fileBytes, ok := fileNameToBytes[normalizedFileName]
-		if !ok {
-			logger.Warn(request.Context(), "Unable to find request file", slog.F("fileName", normalizedFileName))
-			fileBytes = indexBytes
-			isCacheable = false
-			normalizedFileName = "index.html"
-		}
-
-		if isCacheable {
+		// First, let's look at our non-HTML files to see if this matches
+		fileBytes, ok := nonHtmlFileToTemplate[normalizedFileName]
+		if ok {
 			// All our assets - JavaScript, CSS, images - should be cached.
 			// For cases like JavaScript, we rely on a cache-busting strategy whenever
 			// there is a new version (this is handled in our webpack config).
 			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+			http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(fileBytes))
+			return
 		}
 
-		http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(fileBytes))
+		var buf bytes.Buffer
+		// TODO: Fix this
+		templateData := HtmlState{
+			CSRFToken: "TODO",
+			CSPNonce:  "TODO",
+		}
+
+		// Next, lets try and load from our HTML templates
+		template, ok := htmlFileToTemplate[normalizedFileName]
+		if ok {
+			logger.Debug(context.Background(), "Applying template parameters", slog.F("fileName", normalizedFileName), slog.F("templateData", templateData))
+			err := template.ExecuteTemplate(&buf, "", templateData)
+
+			if err != nil {
+				logger.Error(request.Context(), "Error executing template", slog.F("templateData", templateData))
+				http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(buf.Bytes()))
+			return
+		}
+
+		// Finally... the path didn't match any file that we had cached.
+		// This is expected, because any nested path is going to hit this case.
+		// For that, we'll serve the fallback
+		logger.Debug(context.Background(), "Applying template parameters", slog.F("fileName", normalizedFileName), slog.F("templateData", templateData))
+		err := fallbackHtmlTemplate.ExecuteTemplate(&buf, "", templateData)
+
+		if err != nil {
+			logger.Error(request.Context(), "Error executing template", slog.F("templateData", templateData))
+			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(buf.Bytes()))
+
 	}
 
 	return serveFunc, nil
+}
+
+func isHtmlFile(fileName string) bool {
+	return strings.HasSuffix(fileName, ".html") || strings.HasSuffix(fileName, ".htm")
 }
 
 type HtmlState struct {

@@ -46,22 +46,48 @@ func TestNestedPathsRenderIndex(t *testing.T) {
 		"index.html": &fstest.MapFile{
 			Data: []byte("index-test-file"),
 		},
+		"favicon.ico": &fstest.MapFile{
+			Data: []byte("favicon-bytes"),
+		},
+	}
+
+	var nestedPathTests = []struct {
+		path     string
+		expected string
+	}{
+		// HTML cases
+		{"/index.html", "index-test-file"},
+		{"/", "index-test-file"},
+		{"/nested/index.html", "index-test-file"},
+		{"/nested", "index-test-file"},
+		{"/nested/", "index-test-file"},
+		{"/double/nested/index.html", "index-test-file"},
+		{"/double/nested", "index-test-file"},
+		{"/double/nested/", "index-test-file"},
+
+		// Other file cases
+		{"/favicon.ico", "favicon-bytes"},
+		// Ensure that nested still picks up the 'top-level' file
+		{"/nested/favicon.ico", "favicon-bytes"},
+		{"/double/nested/favicon.ico", "favicon-bytes"},
 	}
 
 	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc))
 
-	path := srv.URL + "/some/nested/path"
+	for _, testCase := range nestedPathTests {
+		path := srv.URL + testCase.path
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", path, nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err, "get index")
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(resp.Body)
-	require.Equal(t, string(data), "index-test-file")
+		req, err := http.NewRequestWithContext(context.Background(), "GET", path, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err, "get index")
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(resp.Body)
+		require.Equal(t, string(data), testCase.expected)
+	}
 }
 
-func TestCacheHeaderseAreCorrect(t *testing.T) {
+func TestCacheHeadersAreCorrect(t *testing.T) {
 	rootFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("index-test-file"),
@@ -120,7 +146,26 @@ func TestCacheHeaderseAreCorrect(t *testing.T) {
 		require.Emptyf(t, cache, "expected path %q to be un-cacheable", path)
 		require.NoError(t, resp.Body.Close(), "closing response")
 	}
+}
 
+func TestReturnsErrorIfNoIndex(t *testing.T) {
+	rootFS := fstest.MapFS{
+		// No index.html - so our router will have no fallback!
+		"favicon.ico": &fstest.MapFile{
+			Data: []byte("favicon-bytes"),
+		},
+		"bundle.js": &fstest.MapFile{
+			Data: []byte("bundle-js-bytes"),
+		},
+		"icon.svg": &fstest.MapFile{
+			Data: []byte("svg-bytes"),
+		},
+	}
+
+	// When no index.html is available, the site handler should panic
+	require.Panics(t, func() {
+		site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc)
+	})
 }
 
 func defaultTemplateFunc(r *http.Request) site.HtmlState {
