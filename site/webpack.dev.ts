@@ -1,3 +1,7 @@
+/**
+ * @fileoverview This file contains a development configuration for webpack
+ * meant for webpack-dev-server.
+ */
 import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
 import { Configuration } from "webpack"
 import "webpack-dev-server"

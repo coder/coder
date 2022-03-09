@@ -1,3 +1,8 @@
+/**
+ * @fileoverview This file contains a production configuration for webpack
+ * meant for producing optimized builds.
+ */
+
 import CopyWebpackPlugin from "copy-webpack-plugin"
 import { Configuration } from "webpack"
 import { commonWebpackConfig } from "./webpack.common"
