@@ -13,19 +13,28 @@ const CreateWorkspacePage: React.FC = () => {
   const { push, query } = useRouter()
   const styles = useStyles()
   const { me } = useUser(/* redirectOnError */ true)
-  const { organization, project: projectName } = query
+  const { organization: organizationName, project: projectName } = query
+
+  const { data: organizationInfo, error: organizationError } = useSWR<API.Organization, Error>(
+    () => `/api/v2/users/me/organizations/${organizationName}`,
+  )
+
   const { data: project, error: projectError } = useSWR<API.Project, Error>(
-    `/api/v2/organizations/${organization}/projects/${projectName}`,
+    `/api/v2/organizations/${(organizationInfo as any).id}/projects/${projectName}`,
   )
 
   const onCancel = useCallback(async () => {
-    await push(`/projects/${organization}/${projectName}`)
-  }, [push, organization, projectName])
+    await push(`/projects/${(organizationInfo as any).id}/${projectName}`)
+  }, [push, organizationInfo, projectName])
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
     const workspace = await API.Workspace.create(req)
     await push(`/workspaces/${workspace.id}`)
     return workspace
+  }
+
+  if (organizationError) {
+    return <ErrorSummary error={organizationError} />
   }
 
   if (projectError) {

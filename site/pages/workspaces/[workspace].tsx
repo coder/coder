@@ -25,11 +25,28 @@ const WorkspacesPage: React.FC = () => {
     return `/api/v2/workspaces/${workspaceParam}`
   })
 
+  // Fetch parent project
+  const { data: project, error: projectError } = useSWR<API.Project, Error>(() => {
+    return `/api/v2/projects/${(workspace as any).project_id}`
+  })
+
+  const { data: organization, error: organizationError } = useSWR<API.Project, Error>(() => {
+    return `/api/v2/organizations/${(project as any).organization_id}`
+  })
+
   if (workspaceError) {
     return <ErrorSummary error={workspaceError} />
   }
 
-  if (!me || !workspace) {
+  if (projectError) {
+    return <ErrorSummary error={projectError} />
+  }
+
+  if (organizationError) {
+    return <ErrorSummary error={organizationError} />
+  }
+
+  if (!me || !workspace || !project || !organization) {
     return <FullScreenLoader />
   }
 
@@ -38,7 +55,7 @@ const WorkspacesPage: React.FC = () => {
       <Navbar user={me} onSignOut={signOut} />
 
       <div className={styles.inner}>
-        <Workspace workspace={workspace} />
+        <Workspace organization={organization} project={project} workspace={workspace} />
       </div>
 
       <Footer />
