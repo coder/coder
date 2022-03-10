@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/fatih/color"
 	"github.com/go-playground/validator/v10"
 	"github.com/manifoldco/promptui"
@@ -16,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
@@ -69,36 +72,34 @@ func login() *cobra.Command {
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", caret)
 
-				_, err := prompt(cmd, &promptui.Prompt{
-					Label:     "Would you like to create the first user?",
+				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+					Prompt:    "Would you like to create the first user?",
+					Default:   "yes",
 					IsConfirm: true,
-					Default:   "y",
 				})
+				if errors.Is(err, cliui.Canceled) {
+					return nil
+				}
 				if err != nil {
-					return xerrors.Errorf("create user prompt: %w", err)
+					return err
 				}
 				currentUser, err := user.Current()
 				if err != nil {
 					return xerrors.Errorf("get current user: %w", err)
 				}
-				username, err := prompt(cmd, &promptui.Prompt{
-					Label:   "What username would you like?",
+				username, err := cliui.Prompt(cmd, cliui.PromptOptions{
+					Prompt:  "What " + cliui.Styles.Field.Render("username") + " would you like?",
 					Default: currentUser.Username,
 				})
+				if errors.Is(err, cliui.Canceled) {
+					return nil
+				}
 				if err != nil {
 					return xerrors.Errorf("pick username prompt: %w", err)
 				}
 
-				organization, err := prompt(cmd, &promptui.Prompt{
-					Label:   "What is the name of your organization?",
-					Default: "acme-corp",
-				})
-				if err != nil {
-					return xerrors.Errorf("pick organization prompt: %w", err)
-				}
-
-				email, err := prompt(cmd, &promptui.Prompt{
-					Label: "What's your email?",
+				email, err := cliui.Prompt(cmd, cliui.PromptOptions{
+					Prompt: "What's your " + cliui.Styles.Field.Render("email") + "?",
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
 						if err != nil {
@@ -111,9 +112,11 @@ func login() *cobra.Command {
 					return xerrors.Errorf("specify email prompt: %w", err)
 				}
 
-				password, err := prompt(cmd, &promptui.Prompt{
-					Label: "Enter a password:",
-					Mask:  '*',
+				password, err := cliui.Prompt(cmd, cliui.PromptOptions{
+					Prompt:        "Enter a " + cliui.Styles.Field.Render("password") + ":",
+					EchoMode:      textinput.EchoPassword,
+					EchoCharacter: '*',
+					Validate:      cliui.ValidateNotEmpty,
 				})
 				if err != nil {
 					return xerrors.Errorf("specify password prompt: %w", err)
@@ -122,8 +125,8 @@ func login() *cobra.Command {
 				_, err = client.CreateFirstUser(cmd.Context(), coderd.CreateFirstUserRequest{
 					Email:        email,
 					Username:     username,
+					Organization: username,
 					Password:     password,
-					Organization: organization,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)

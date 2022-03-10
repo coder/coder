@@ -93,7 +93,7 @@ func (p *PTY) ExpectMatch(str string) string {
 }
 
 func (p *PTY) WriteLine(str string) {
-	newline := "\n"
+	newline := "\r"
 	if runtime.GOOS == "windows" {
 		newline = "\r\n"
 	}

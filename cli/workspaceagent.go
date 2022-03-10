@@ -4,12 +4,14 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/powersj/whatsthis/pkg/cloud"
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/peer"
 )
 
 func workspaceAgent() *cobra.Command {
@@ -30,26 +32,28 @@ func workspaceAgent() *cobra.Command {
 			client := codersdk.New(coderURL)
 			sessionToken, exists := os.LookupEnv("CODER_TOKEN")
 			if !exists {
-				probe, err := cloud.New()
+				// probe, err := cloud.New()
+				// if err != nil {
+				// 	return xerrors.Errorf("probe cloud: %w", err)
+				// }
+				// if !probe.Detected {
+				// 	return xerrors.Errorf("no valid authentication method found; set \"CODER_TOKEN\"")
+				// }
+				// switch {
+				// case probe.GCP():
+				response, err := client.AuthWorkspaceGoogleInstanceIdentity(cmd.Context(), "", nil)
 				if err != nil {
-					return xerrors.Errorf("probe cloud: %w", err)
+					return xerrors.Errorf("authenticate workspace with gcp: %w", err)
 				}
-				if !probe.Detected {
-					return xerrors.Errorf("no valid authentication method found; set \"CODER_TOKEN\"")
-				}
-				switch {
-				case probe.GCP():
-					response, err := client.AuthWorkspaceGoogleInstanceIdentity(cmd.Context(), "", nil)
-					if err != nil {
-						return xerrors.Errorf("authenticate workspace with gcp: %w", err)
-					}
-					sessionToken = response.SessionToken
-				default:
-					return xerrors.Errorf("%q authentication not supported; set \"CODER_TOKEN\" instead", probe.Name)
-				}
+				sessionToken = response.SessionToken
+				// default:
+				// 	return xerrors.Errorf("%q authentication not supported; set \"CODER_TOKEN\" instead", probe.Name)
+				// }
 			}
 			client.SessionToken = sessionToken
-			closer := agent.New(client.ListenWorkspaceAgent, nil)
+			closer := agent.New(client.ListenWorkspaceAgent, &peer.ConnOptions{
+				Logger: slog.Make(sloghuman.Sink(cmd.OutOrStdout())),
+			})
 			<-cmd.Context().Done()
 			return closer.Close()
 		},

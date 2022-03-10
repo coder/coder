@@ -93,3 +93,7 @@ site/out:
 snapshot: 
 	goreleaser release --snapshot --rm-dist
 .PHONY: snapshot
+
+template/%s:
+
+	# Embed Terraform for each platform.

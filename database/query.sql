@@ -250,7 +250,9 @@ SELECT
 FROM
   workspace_agent
 WHERE
-  auth_token = $1;
+  auth_token = $1
+ORDER BY
+  created_at DESC;
 
 -- name: GetWorkspaceAgentByInstanceID :one
 SELECT

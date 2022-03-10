@@ -904,6 +904,8 @@ FROM
   workspace_agent
 WHERE
   auth_token = $1
+ORDER BY
+  created_at DESC
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {

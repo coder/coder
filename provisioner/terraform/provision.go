@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -80,6 +81,9 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 	for _, envEntry := range os.Environ() {
 		parts := strings.SplitN(envEntry, "=", 2)
 		env[parts[0]] = parts[1]
+	}
+	for key, value := range provisionersdk.AgentScriptEnv() {
+		env[key] = value
 	}
 	env["CODER_URL"] = request.Metadata.CoderUrl
 	env["CODER_WORKSPACE_TRANSITION"] = strings.ToLower(request.Metadata.WorkspaceTransition.String())
@@ -288,6 +292,9 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 		"CODER_URL="+request.Metadata.CoderUrl,
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(request.Metadata.WorkspaceTransition.String()),
 	)
+	for key, value := range provisionersdk.AgentScriptEnv() {
+		env = append(env, key+"="+value)
+	}
 	vars := []string{}
 	for _, param := range request.ParameterValues {
 		switch param.DestinationScheme {
@@ -439,14 +446,27 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 					break
 				}
 			}
-			// Associate resources where the agent depends on it.
-			for agentKey, dependsOn := range agentDepends {
-				for _, depend := range dependsOn {
-					if depend != strings.Join([]string{resource.Type, resource.Name}, ".") {
-						continue
+			if agent == nil {
+				// Associate resources where the agent depends on it.
+				for agentKey, dependsOn := range agentDepends {
+					for _, depend := range dependsOn {
+						if depend != strings.Join([]string{resource.Type, resource.Name}, ".") {
+							continue
+						}
+						agent = agents[agentKey]
+						break
 					}
-					agent = agents[agentKey]
-					break
+				}
+			}
+
+			if agent != nil {
+				if agent.GetGoogleInstanceIdentity() != nil {
+					// Make sure the instance has an instance ID!
+					_, exists := resource.AttributeValues["instance_id"]
+					if !exists {
+						// This was a mistake!
+						agent = nil
+					}
 				}
 			}
 

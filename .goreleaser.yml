@@ -20,7 +20,7 @@ builds:
     hooks:
       # The "trimprefix" appends ".exe" on Windows.
       post: |
-        cp {{.Path}} site/out/bin/coder_{{ .Os }}_{{ .Arch }}{{ trimprefix .Name "coder" }}
+        cp {{.Path}} site/out/bin/coder-{{ .Os }}-{{ .Arch }}{{ trimprefix .Name "coder" }}
 
   - id: coder
     dir: cmd/coder

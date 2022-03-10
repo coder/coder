@@ -1,0 +1,86 @@
+{
+	"ID": "gcp-linux",
+	"Name": "Develop on Google Cloud",
+	"Description": "Get started with remote development on Google Cloud.",
+	"schema": [
+		{
+			"id": "00000000-0000-0000-0000-000000000000",
+			"created_at": "0001-01-01T00:00:00Z",
+			"job_id": "00000000-0000-0000-0000-000000000000",
+			"name": "gcp_credentials",
+			"description": "",
+			"default_source_scheme": "none",
+			"default_source_value": "",
+			"allow_override_source": false,
+			"default_destination_scheme": "provisioner_variable",
+			"allow_override_destination": false,
+			"default_refresh": "",
+			"redisplay_value": false,
+			"validation_error": "",
+			"validation_condition": "",
+			"validation_type_system": "none",
+			"validation_value_type": ""
+		},
+		{
+			"id": "00000000-0000-0000-0000-000000000000",
+			"created_at": "0001-01-01T00:00:00Z",
+			"job_id": "00000000-0000-0000-0000-000000000000",
+			"name": "gcp_project",
+			"description": "The Google Cloud project to manage resources in.",
+			"default_source_scheme": "none",
+			"default_source_value": "",
+			"allow_override_source": false,
+			"default_destination_scheme": "provisioner_variable",
+			"allow_override_destination": false,
+			"default_refresh": "",
+			"redisplay_value": true,
+			"validation_error": "",
+			"validation_condition": "",
+			"validation_type_system": "none",
+			"validation_value_type": ""
+		},
+		{
+			"id": "00000000-0000-0000-0000-000000000000",
+			"created_at": "0001-01-01T00:00:00Z",
+			"job_id": "00000000-0000-0000-0000-000000000000",
+			"name": "gcp_region",
+			"description": "",
+			"default_source_scheme": "data",
+			"default_source_value": "\"us-central1\"",
+			"allow_override_source": false,
+			"default_destination_scheme": "provisioner_variable",
+			"allow_override_destination": false,
+			"default_refresh": "",
+			"redisplay_value": true,
+			"validation_error": "",
+			"validation_condition": "",
+			"validation_type_system": "none",
+			"validation_value_type": ""
+		}
+	],
+	"resources": [
+		{
+			"id": "00000000-0000-0000-0000-000000000000",
+			"created_at": "0001-01-01T00:00:00Z",
+			"job_id": "00000000-0000-0000-0000-000000000000",
+			"workspace_transition": "start",
+			"type": "google_compute_instance",
+			"name": "dev",
+			"agent": {
+				"id": "00000000-0000-0000-0000-000000000000",
+				"created_at": "0001-01-01T00:00:00Z",
+				"updated_at": "0001-01-01T00:00:00Z",
+				"resource_id": "00000000-0000-0000-0000-000000000000",
+				"environment_variables": null
+			}
+		},
+		{
+			"id": "00000000-0000-0000-0000-000000000000",
+			"created_at": "0001-01-01T00:00:00Z",
+			"job_id": "00000000-0000-0000-0000-000000000000",
+			"workspace_transition": "start",
+			"type": "random_string",
+			"name": "random"
+		}
+	]
+}

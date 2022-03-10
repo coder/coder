@@ -69,8 +69,22 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse: echo.ParseComplete,
+			ProvisionDryRun: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "somename",
+							Type: "someinstance",
+							Agent: &proto.Agent{
+								Auth: &proto.Agent_GoogleInstanceIdentity{
+									GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{},
+								},
+							},
+						}},
+					},
+				},
+			}},
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{

@@ -1,11 +1,8 @@
 package cli
 
 import (
-	"archive/tar"
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,6 +18,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd"
+	"github.com/coder/coder/provisionersdk"
 )
 
 func projectCreate() *cobra.Command {
@@ -71,13 +69,6 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			project, err := client.CreateProject(cmd.Context(), organization.ID, coderd.CreateProjectRequest{
-				Name:      name,
-				VersionID: job.ID,
-			})
-			if err != nil {
-				return err
-			}
 
 			_, err = prompt(cmd, &promptui.Prompt{
 				Label:     "Create project?",
@@ -88,6 +79,14 @@ func projectCreate() *cobra.Command {
 				if errors.Is(err, promptui.ErrAbort) {
 					return nil
 				}
+				return err
+			}
+
+			project, err := client.CreateProject(cmd.Context(), organization.ID, coderd.CreateProjectRequest{
+				Name:      name,
+				VersionID: job.ID,
+			})
+			if err != nil {
 				return err
 			}
 
@@ -129,7 +128,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	spin.Start()
 	defer spin.Stop()
 
-	tarData, err := tarDirectory(directory)
+	tarData, err := provisionersdk.Tar(directory)
 	if err != nil {
 		return nil, err
 	}
@@ -216,45 +215,4 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		return nil, err
 	}
 	return &version, displayProjectImportInfo(cmd, parameterSchemas, parameterValues, resources)
-}
-
-func tarDirectory(directory string) ([]byte, error) {
-	var buffer bytes.Buffer
-	tarWriter := tar.NewWriter(&buffer)
-	err := filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		header, err := tar.FileInfoHeader(fileInfo, file)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(directory, file)
-		if err != nil {
-			return err
-		}
-		header.Name = rel
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return err
-		}
-		if fileInfo.IsDir() {
-			return nil
-		}
-		data, err := os.Open(file)
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(tarWriter, data); err != nil {
-			return err
-		}
-		return data.Close()
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = tarWriter.Flush()
-	if err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
 }

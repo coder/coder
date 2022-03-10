@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -163,6 +164,16 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
+	}
+
+	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", agent))
+
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}()

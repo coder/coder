@@ -189,6 +189,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ProjectVersionID: projectVersion.ID,
 			BeforeID:         priorHistoryID,
 			Name:             namesgenerator.GetRandomName(1),
+			ProvisionerState: priorHistory.ProvisionerState,
 			Initiator:        apiKey.UserID,
 			Transition:       createBuild.Transition,
 			JobID:            provisionerJob.ID,

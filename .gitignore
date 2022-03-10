@@ -27,3 +27,8 @@ coverage/
 # Build
 dist/
 site/out/
+
+*.tfstate
+*.tfplan
+*.lock.hcl
+.terraform/
