@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/tunnel"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/tunnel"
 )
 
 // The tunnel leaks a few goroutines that aren't impactful to production scenarios.

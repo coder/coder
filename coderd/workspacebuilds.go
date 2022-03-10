@@ -3,31 +3,14 @@ package coderd
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// WorkspaceBuild is an at-point representation of a workspace state.
-// Iterate on before/after to determine a chronological history.
-type WorkspaceBuild struct {
-	ID               uuid.UUID                    `json:"id"`
-	CreatedAt        time.Time                    `json:"created_at"`
-	UpdatedAt        time.Time                    `json:"updated_at"`
-	WorkspaceID      uuid.UUID                    `json:"workspace_id"`
-	ProjectVersionID uuid.UUID                    `json:"project_version_id"`
-	BeforeID         uuid.UUID                    `json:"before_id"`
-	AfterID          uuid.UUID                    `json:"after_id"`
-	Name             string                       `json:"name"`
-	Transition       database.WorkspaceTransition `json:"transition"`
-	Initiator        string                       `json:"initiator"`
-	Job              ProvisionerJob               `json:"job"`
-}
 
 func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -66,9 +49,9 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job ProvisionerJob) WorkspaceBuild {
+func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.ProvisionerJob) codersdk.WorkspaceBuild {
 	//nolint:unconvert
-	return WorkspaceBuild(WorkspaceBuild{
+	return codersdk.WorkspaceBuild{
 		ID:               workspaceBuild.ID,
 		CreatedAt:        workspaceBuild.CreatedAt,
 		UpdatedAt:        workspaceBuild.UpdatedAt,
@@ -80,11 +63,11 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job Provision
 		Transition:       workspaceBuild.Transition,
 		Initiator:        workspaceBuild.Initiator,
 		Job:              job,
-	})
+	}
 }
 
-func convertWorkspaceResource(resource database.WorkspaceResource, agent *WorkspaceAgent) WorkspaceResource {
-	return WorkspaceResource{
+func convertWorkspaceResource(resource database.WorkspaceResource, agent *codersdk.WorkspaceAgent) codersdk.WorkspaceResource {
+	return codersdk.WorkspaceResource{
 		ID:         resource.ID,
 		CreatedAt:  resource.CreatedAt,
 		JobID:      resource.JobID,

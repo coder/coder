@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -13,44 +12,11 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// Organization is the JSON representation of a Coder organization.
-type Organization struct {
-	ID        string    `json:"id" validate:"required"`
-	Name      string    `json:"name" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required"`
-	UpdatedAt time.Time `json:"updated_at" validate:"required"`
-}
-
-// CreateProjectVersionRequest enables callers to create a new Project Version.
-type CreateProjectVersionRequest struct {
-	// ProjectID optionally associates a version with a project.
-	ProjectID *uuid.UUID `json:"project_id"`
-
-	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	StorageSource string                            `json:"storage_source" validate:"required"`
-	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
-	// ParameterValues allows for additional parameters to be provided
-	// during the dry-run provision stage.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
-}
-
-// CreateProjectRequest provides options when creating a project.
-type CreateProjectRequest struct {
-	Name string `json:"name" validate:"username,required"`
-
-	// VersionID is an in-progress or completed job to use as
-	// an initial version of the project.
-	//
-	// This is required on creation to enable a user-flow of validating a
-	// project works. There is no reason the data-model cannot support
-	// empty projects, but it doesn't make sense for users.
-	VersionID uuid.UUID `json:"project_version_id" validate:"required"`
-}
 
 func (*api) organization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
@@ -80,7 +46,7 @@ func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http
 func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
-	var req CreateProjectVersionRequest
+	var req codersdk.CreateProjectVersionRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
@@ -187,7 +153,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 
 // Create a new project in an organization.
 func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Request) {
-	var createProject CreateProjectRequest
+	var createProject codersdk.CreateProjectRequest
 	if !httpapi.Read(rw, r, &createProject) {
 		return
 	}
@@ -232,7 +198,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var project Project
+	var project codersdk.Project
 	err = api.Database.InTx(func(db database.Store) error {
 		dbProject, err := db.InsertProject(r.Context(), database.InsertProjectParams{
 			ID:              uuid.New(),
@@ -338,8 +304,8 @@ func (api *api) projectByOrganizationAndName(rw http.ResponseWriter, r *http.Req
 }
 
 // convertOrganization consumes the database representation and outputs an API friendly representation.
-func convertOrganization(organization database.Organization) Organization {
-	return Organization{
+func convertOrganization(organization database.Organization) codersdk.Organization {
+	return codersdk.Organization{
 		ID:        organization.ID,
 		Name:      organization.Name,
 		CreatedAt: organization.CreatedAt,

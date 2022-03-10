@@ -13,20 +13,11 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// Workspace is a per-user deployment of a project. It tracks
-// project versions, and can be updated.
-type Workspace database.Workspace
-
-// CreateWorkspaceBuildRequest provides options to update the latest workspace build.
-type CreateWorkspaceBuildRequest struct {
-	ProjectVersionID uuid.UUID                    `json:"project_version_id" validate:"required"`
-	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-}
 
 func (*api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
@@ -57,7 +48,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		jobByID[job.ID.String()] = job
 	}
 
-	apiBuilds := make([]WorkspaceBuild, 0)
+	apiBuilds := make([]codersdk.WorkspaceBuild, 0)
 	for _, build := range builds {
 		job, exists := jobByID[build.JobID.String()]
 		if !exists {
@@ -76,7 +67,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
-	var createBuild CreateWorkspaceBuildRequest
+	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(rw, r, &createBuild) {
 		return
 	}
@@ -106,17 +97,17 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	projectVersionJobStatus := convertProvisionerJob(projectVersionJob).Status
 	switch projectVersionJobStatus {
-	case ProvisionerJobPending, ProvisionerJobRunning:
+	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
 			Message: fmt.Sprintf("The provided project version is %s. Wait for it to complete importing!", projectVersionJobStatus),
 		})
 		return
-	case ProvisionerJobFailed:
+	case codersdk.ProvisionerJobFailed:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: fmt.Sprintf("The provided project version %q has failed to import. You cannot create workspaces using it!", projectVersion.Name),
 		})
 		return
-	case ProvisionerJobCancelled:
+	case codersdk.ProvisionerJobCancelled:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "The provided project version was canceled during import. You cannot create workspaces using it!",
 		})
@@ -285,6 +276,6 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
-func convertWorkspace(workspace database.Workspace) Workspace {
-	return Workspace(workspace)
+func convertWorkspace(workspace database.Workspace) codersdk.Workspace {
+	return codersdk.Workspace(workspace)
 }

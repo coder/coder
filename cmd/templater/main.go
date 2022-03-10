@@ -39,10 +39,10 @@ func main() {
 	cmd := &cobra.Command{
 		Use: "templater",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			parameters := make([]coderd.CreateParameterRequest, 0)
+			parameters := make([]codersdk.CreateParameterRequest, 0)
 			for _, parameter := range rawParameters {
 				parts := strings.SplitN(parameter, "=", 2)
-				parameters = append(parameters, coderd.CreateParameterRequest{
+				parameters = append(parameters, codersdk.CreateParameterRequest{
 					Name:              parts[0],
 					SourceValue:       parts[1],
 					SourceScheme:      database.ParameterSourceSchemeData,
@@ -59,7 +59,7 @@ func main() {
 	}
 }
 
-func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParameterRequest) error {
+func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParameterRequest) error {
 	srv := httptest.NewUnstartedServer(nil)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return cmd.Context()
@@ -101,7 +101,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 	}
 	defer daemonClose.Close()
 
-	created, err := client.CreateFirstUser(cmd.Context(), coderd.CreateFirstUserRequest{
+	created, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
 		Email:        "templater@coder.com",
 		Username:     "templater",
 		Organization: "templater",
@@ -110,7 +110,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 	if err != nil {
 		return err
 	}
-	auth, err := client.LoginWithPassword(cmd.Context(), coderd.LoginWithPasswordRequest{
+	auth, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
 		Email:    "templater@coder.com",
 		Password: "insecure",
 	})
@@ -133,7 +133,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 	}
 
 	before := time.Now()
-	version, err := client.CreateProjectVersion(cmd.Context(), created.OrganizationID, coderd.CreateProjectVersionRequest{
+	version, err := client.CreateProjectVersion(cmd.Context(), created.OrganizationID, codersdk.CreateProjectVersionRequest{
 		ProjectID:       nil,
 		StorageMethod:   database.ProvisionerStorageMethodFile,
 		StorageSource:   resp.Hash,
@@ -158,7 +158,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 	if err != nil {
 		return err
 	}
-	if version.Job.Status != coderd.ProvisionerJobSucceeded {
+	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
 		return xerrors.Errorf("Job wasn't successful, it was %q. Check the logs!", version.Job.Status)
 	}
 
@@ -215,7 +215,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 		return schemas[i].Name < schemas[j].Name
 	})
 
-	template := coderd.Template{
+	template := codersdk.Template{
 		ID:                            filepath.Base(dir),
 		Name:                          name.(string),
 		Description:                   description.(string),
@@ -229,7 +229,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 	}
 	os.WriteFile(filepath.Base(dir)+".json", data, 0600)
 
-	project, err := client.CreateProject(cmd.Context(), created.OrganizationID, coderd.CreateProjectRequest{
+	project, err := client.CreateProject(cmd.Context(), created.OrganizationID, codersdk.CreateProjectRequest{
 		Name:      "test",
 		VersionID: version.ID,
 	})
@@ -237,7 +237,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 		return err
 	}
 
-	workspace, err := client.CreateWorkspace(cmd.Context(), created.UserID, coderd.CreateWorkspaceRequest{
+	workspace, err := client.CreateWorkspace(cmd.Context(), created.UserID, codersdk.CreateWorkspaceRequest{
 		ProjectID: project.ID,
 		Name:      "example",
 	})
@@ -245,7 +245,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 		return err
 	}
 
-	build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
+	build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 		ProjectVersionID: version.ID,
 		Transition:       database.WorkspaceTransitionStart,
 	})
@@ -278,7 +278,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 		}
 	}
 
-	build, err = client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
+	build, err = client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 		ProjectVersionID: version.ID,
 		Transition:       database.WorkspaceTransitionDelete,
 	})
@@ -303,7 +303,7 @@ func parse(cmd *cobra.Command, args []string, parameters []coderd.CreateParamete
 	return nil
 }
 
-func awaitAgent(ctx context.Context, client *codersdk.Client, resource coderd.WorkspaceResource) error {
+func awaitAgent(ctx context.Context, client *codersdk.Client, resource codersdk.WorkspaceResource) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {

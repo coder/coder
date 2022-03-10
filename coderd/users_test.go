@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/httpmw"
@@ -19,7 +18,7 @@ func TestFirstUser(t *testing.T) {
 	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.CreateFirstUser(context.Background(), coderd.CreateFirstUserRequest{})
+		_, err := client.CreateFirstUser(context.Background(), codersdk.CreateFirstUserRequest{})
 		require.Error(t, err)
 	})
 
@@ -27,7 +26,7 @@ func TestFirstUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateFirstUser(context.Background(), coderd.CreateFirstUserRequest{
+		_, err := client.CreateFirstUser(context.Background(), codersdk.CreateFirstUserRequest{
 			Email:        "some@email.com",
 			Username:     "exampleuser",
 			Password:     "password",
@@ -50,7 +49,7 @@ func TestPostLogin(t *testing.T) {
 	t.Run("InvalidUser", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		_, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    "my@email.org",
 			Password: "password",
 		})
@@ -62,7 +61,7 @@ func TestPostLogin(t *testing.T) {
 	t.Run("BadPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		req := coderd.CreateFirstUserRequest{
+		req := codersdk.CreateFirstUserRequest{
 			Email:        "testuser@coder.com",
 			Username:     "testuser",
 			Password:     "testpass",
@@ -70,7 +69,7 @@ func TestPostLogin(t *testing.T) {
 		}
 		_, err := client.CreateFirstUser(context.Background(), req)
 		require.NoError(t, err)
-		_, err = client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
 			Password: "badpass",
 		})
@@ -82,7 +81,7 @@ func TestPostLogin(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		req := coderd.CreateFirstUserRequest{
+		req := codersdk.CreateFirstUserRequest{
 			Email:        "testuser@coder.com",
 			Username:     "testuser",
 			Password:     "testpass",
@@ -90,7 +89,7 @@ func TestPostLogin(t *testing.T) {
 		}
 		_, err := client.CreateFirstUser(context.Background(), req)
 		require.NoError(t, err)
-		_, err = client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 			Email:    req.Email,
 			Password: req.Password,
 		})
@@ -130,7 +129,7 @@ func TestPostUsers(t *testing.T) {
 	t.Run("NoAuth", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.CreateUser(context.Background(), coderd.CreateUserRequest{})
+		_, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{})
 		require.Error(t, err)
 	})
 
@@ -140,7 +139,7 @@ func TestPostUsers(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		me, err := client.User(context.Background(), "")
 		require.NoError(t, err)
-		_, err = client.CreateUser(context.Background(), coderd.CreateUserRequest{
+		_, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          me.Email,
 			Username:       me.Username,
 			Password:       "password",
@@ -155,7 +154,7 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateUser(context.Background(), coderd.CreateUserRequest{
+		_, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			OrganizationID: "not-exists",
 			Email:          "another@user.org",
 			Username:       "someone-else",
@@ -171,12 +170,12 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := other.CreateOrganization(context.Background(), "", coderd.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateUser(context.Background(), coderd.CreateUserRequest{
+		_, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "some@domain.com",
 			Username:       "anotheruser",
 			Password:       "testing",
@@ -191,7 +190,7 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateUser(context.Background(), coderd.CreateUserRequest{
+		_, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			OrganizationID: user.OrganizationID,
 			Email:          "another@user.org",
 			Username:       "someone-else",
@@ -236,7 +235,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := other.CreateOrganization(context.Background(), "", coderd.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
@@ -265,7 +264,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		org, err := client.Organization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
-		_, err = client.CreateOrganization(context.Background(), "", coderd.CreateOrganizationRequest{
+		_, err = client.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
 			Name: org.Name,
 		})
 		var apiErr *codersdk.Error
@@ -277,7 +276,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateOrganization(context.Background(), "", coderd.CreateOrganizationRequest{
+		_, err := client.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
 			Name: "new",
 		})
 		require.NoError(t, err)
@@ -315,7 +314,7 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+		_, err := client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
 			ProjectID: uuid.New(),
 			Name:      "workspace",
 		})
@@ -331,14 +330,14 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		first := coderdtest.CreateFirstUser(t, client)
 
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := other.CreateOrganization(context.Background(), "", coderd.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
 		version := coderdtest.CreateProjectVersion(t, other, org.ID, nil)
 		project := coderdtest.CreateProject(t, other, org.ID, version.ID)
 
-		_, err = client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+		_, err = client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
 			ProjectID: project.ID,
 			Name:      "workspace",
 		})
@@ -355,7 +354,7 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		_, err := client.CreateWorkspace(context.Background(), "", coderd.CreateWorkspaceRequest{
+		_, err := client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
 			ProjectID: project.ID,
 			Name:      workspace.Name,
 		})

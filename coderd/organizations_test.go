@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
@@ -40,7 +39,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		projectID := uuid.New()
-		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersionRequest{
+		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, codersdk.CreateProjectVersionRequest{
 			ProjectID:     &projectID,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
@@ -55,7 +54,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersionRequest{
+		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, codersdk.CreateProjectVersionRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -77,11 +76,11 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		_, err = client.CreateProjectVersion(context.Background(), user.OrganizationID, coderd.CreateProjectVersionRequest{
+		_, err = client.CreateProjectVersion(context.Background(), user.OrganizationID, codersdk.CreateProjectVersionRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: file.Hash,
 			Provisioner:   database.ProvisionerTypeEcho,
-			ParameterValues: []coderd.CreateParameterRequest{{
+			ParameterValues: []codersdk.CreateParameterRequest{{
 				Name:              "example",
 				SourceValue:       "value",
 				SourceScheme:      database.ParameterSourceSchemeData,
@@ -108,7 +107,7 @@ func TestPostProjectsByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		_, err := client.CreateProject(context.Background(), user.OrganizationID, coderd.CreateProjectRequest{
+		_, err := client.CreateProject(context.Background(), user.OrganizationID, codersdk.CreateProjectRequest{
 			Name:      project.Name,
 			VersionID: version.ID,
 		})
@@ -121,7 +120,7 @@ func TestPostProjectsByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateProject(context.Background(), user.OrganizationID, coderd.CreateProjectRequest{
+		_, err := client.CreateProject(context.Background(), user.OrganizationID, codersdk.CreateProjectRequest{
 			Name:      "test",
 			VersionID: uuid.New(),
 		})

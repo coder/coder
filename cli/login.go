@@ -19,7 +19,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -122,7 +121,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("specify password prompt: %w", err)
 				}
 
-				_, err = client.CreateFirstUser(cmd.Context(), coderd.CreateFirstUserRequest{
+				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
 					Email:        email,
 					Username:     username,
 					Organization: username,
@@ -131,7 +130,7 @@ func login() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
 				}
-				resp, err := client.LoginWithPassword(cmd.Context(), coderd.LoginWithPasswordRequest{
+				resp, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
 					Email:    email,
 					Password: password,
 				})

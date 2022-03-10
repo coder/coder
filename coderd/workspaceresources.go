@@ -8,13 +8,14 @@ import (
 	"net/http"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"cdr.dev/slog"
+
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
@@ -22,46 +23,6 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 )
-
-type WorkspaceResource struct {
-	ID         uuid.UUID                    `json:"id"`
-	CreatedAt  time.Time                    `json:"created_at"`
-	JobID      uuid.UUID                    `json:"job_id"`
-	Transition database.WorkspaceTransition `json:"workspace_transition"`
-	Type       string                       `json:"type"`
-	Name       string                       `json:"name"`
-	Agent      *WorkspaceAgent              `json:"agent,omitempty"`
-}
-
-type WorkspaceAgent struct {
-	ID                   uuid.UUID         `json:"id"`
-	CreatedAt            time.Time         `json:"created_at"`
-	UpdatedAt            time.Time         `json:"updated_at"`
-	ResourceID           uuid.UUID         `json:"resource_id"`
-	InstanceID           string            `json:"instance_id,omitempty"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script,omitempty"`
-}
-
-type WorkspaceAgentResourceMetadata struct {
-	MemoryTotal uint64  `json:"memory_total"`
-	DiskTotal   uint64  `json:"disk_total"`
-	CPUCores    uint64  `json:"cpu_cores"`
-	CPUModel    string  `json:"cpu_model"`
-	CPUMhz      float64 `json:"cpu_mhz"`
-}
-
-type WorkspaceAgentInstanceMetadata struct {
-	JailOrchestrator   string `json:"jail_orchestrator"`
-	OperatingSystem    string `json:"operating_system"`
-	Platform           string `json:"platform"`
-	PlatformFamily     string `json:"platform_family"`
-	KernelVersion      string `json:"kernel_version"`
-	KernelArchitecture string `json:"kernel_architecture"`
-	Cloud              string `json:"cloud"`
-	Jail               string `json:"jail"`
-	VNC                bool   `json:"vnc"`
-}
 
 func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -79,7 +40,7 @@ func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	var apiAgent *WorkspaceAgent
+	var apiAgent *codersdk.WorkspaceAgent
 	if workspaceResource.AgentID.Valid {
 		agent, err := api.Database.GetWorkspaceAgentByResourceID(r.Context(), workspaceResource.ID)
 		if err != nil {
@@ -227,15 +188,15 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func convertWorkspaceAgent(agent database.WorkspaceAgent) (WorkspaceAgent, error) {
+func convertWorkspaceAgent(agent database.WorkspaceAgent) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if agent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(agent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
-			return WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
 		}
 	}
-	return WorkspaceAgent{
+	return codersdk.WorkspaceAgent{
 		ID:                   agent.ID,
 		CreatedAt:            agent.CreatedAt,
 		UpdatedAt:            agent.UpdatedAt.Time,

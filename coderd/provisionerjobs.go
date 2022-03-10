@@ -15,38 +15,10 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 )
-
-// ProvisionerJobStaus represents the at-time state of a job.
-type ProvisionerJobStatus string
-
-const (
-	ProvisionerJobPending   ProvisionerJobStatus = "pending"
-	ProvisionerJobRunning   ProvisionerJobStatus = "running"
-	ProvisionerJobSucceeded ProvisionerJobStatus = "succeeded"
-	ProvisionerJobCancelled ProvisionerJobStatus = "canceled"
-	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
-)
-
-type ProvisionerJob struct {
-	ID          uuid.UUID            `json:"id"`
-	CreatedAt   time.Time            `json:"created_at"`
-	StartedAt   *time.Time           `json:"started_at,omitempty"`
-	CompletedAt *time.Time           `json:"completed_at,omitempty"`
-	Error       string               `json:"error,omitempty"`
-	Status      ProvisionerJobStatus `json:"status"`
-	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
-}
-
-type ProvisionerJobLog struct {
-	ID        uuid.UUID          `json:"id"`
-	CreatedAt time.Time          `json:"created_at"`
-	Source    database.LogSource `json:"log_source"`
-	Level     database.LogLevel  `json:"log_level"`
-	Output    string             `json:"output"`
-}
 
 // Returns provisioner logs based on query parameters.
 // The intended usage for a client to stream all logs (with JS API):
@@ -220,7 +192,7 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
-	apiResources := make([]WorkspaceResource, 0)
+	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
 		if !resource.AgentID.Valid {
 			apiResources = append(apiResources, convertWorkspaceResource(resource, nil))
@@ -246,8 +218,8 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	render.JSON(rw, r, apiResources)
 }
 
-func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) ProvisionerJobLog {
-	return ProvisionerJobLog{
+func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) codersdk.ProvisionerJobLog {
+	return codersdk.ProvisionerJobLog{
 		ID:        provisionerJobLog.ID,
 		CreatedAt: provisionerJobLog.CreatedAt,
 		Source:    provisionerJobLog.Source,
@@ -256,8 +228,8 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) Prov
 	}
 }
 
-func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJob {
-	job := ProvisionerJob{
+func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJob {
+	job := codersdk.ProvisionerJob{
 		ID:        provisionerJob.ID,
 		CreatedAt: provisionerJob.CreatedAt,
 		Error:     provisionerJob.Error.String,
@@ -275,20 +247,20 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) ProvisionerJo
 
 	switch {
 	case provisionerJob.CancelledAt.Valid:
-		job.Status = ProvisionerJobCancelled
+		job.Status = codersdk.ProvisionerJobCancelled
 	case !provisionerJob.StartedAt.Valid:
-		job.Status = ProvisionerJobPending
+		job.Status = codersdk.ProvisionerJobPending
 	case provisionerJob.CompletedAt.Valid:
 		if job.Error == "" {
-			job.Status = ProvisionerJobSucceeded
+			job.Status = codersdk.ProvisionerJobSucceeded
 		} else {
-			job.Status = ProvisionerJobFailed
+			job.Status = codersdk.ProvisionerJobFailed
 		}
 	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
-		job.Status = ProvisionerJobFailed
+		job.Status = codersdk.ProvisionerJobFailed
 		job.Error = "Worker failed to update job in time."
 	default:
-		job.Status = ProvisionerJobRunning
+		job.Status = codersdk.ProvisionerJobRunning
 	}
 
 	return job

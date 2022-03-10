@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/pty/ptytest"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestMain(m *testing.M) {

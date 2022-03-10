@@ -1,31 +1,80 @@
+//
+
 package template
 
 import (
+	"archive/tar"
+	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
+
+	"github.com/coder/coder/codersdk"
 )
 
-//go:embed */*.json
-//go:embed */*.tf
-var files embed.FS
+var (
+	//go:embed */*.json
+	//go:embed */*.tf
+	files embed.FS
 
-func List() {
+	list     []codersdk.Template = make([]codersdk.Template, 0)
+	archives map[string][]byte   = map[string][]byte{}
+)
+
+// Parses templates from the embedded archive and inserts them into the map.
+func init() {
 	dirs, err := files.ReadDir(".")
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Dirs: %+v\n", dirs)
 	for _, dir := range dirs {
-		subpaths, err := files.ReadDir(dir.Name())
+		// Each one of these is a template!
+		templateData, err := files.ReadFile(filepath.Join(dir.Name(), dir.Name()+".json"))
+		if err != nil {
+			panic(fmt.Sprintf("template %q does not contain compiled json", dir.Name()))
+		}
+		templateSrc, err := files.ReadFile(filepath.Join(dir.Name(), dir.Name()+".tf"))
+		if err != nil {
+			panic(fmt.Sprintf("template %q does not contain terraform source", dir.Name()))
+		}
+
+		var template codersdk.Template
+		err = json.Unmarshal(templateData, &template)
+		if err != nil {
+			panic(fmt.Sprintf("unmarshal template %q: %s", dir.Name(), err))
+		}
+
+		var buffer bytes.Buffer
+		tarWriter := tar.NewWriter(&buffer)
+		err = tarWriter.WriteHeader(&tar.Header{
+			Typeflag: tar.TypeReg,
+			Name:     dir.Name() + ".tf",
+			Size:     int64(len(templateSrc)),
+		})
 		if err != nil {
 			panic(err)
 		}
-		for _, subpath := range subpaths {
-			fmt.Printf("Got dir: %s\n", subpath.Name())
+		_, err = tarWriter.Write(templateSrc)
+		if err != nil {
+			panic(err)
 		}
+		err = tarWriter.Flush()
+		if err != nil {
+			panic(err)
+		}
+		archives[dir.Name()] = buffer.Bytes()
+		list = append(list, template)
 	}
 }
 
-func Setup() {
+// List returns all embedded templates.
+func List() []codersdk.Template {
+	return list
+}
 
+// Archive returns a tar by template ID.
+func Archive(id string) ([]byte, bool) {
+	data, exists := archives[id]
+	return data, exists
 }

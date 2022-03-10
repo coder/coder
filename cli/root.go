@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -108,10 +107,10 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 }
 
 // currentOrganization returns the currently active organization for the authenticated user.
-func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (coderd.Organization, error) {
+func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.Organization, error) {
 	orgs, err := client.OrganizationsByUser(cmd.Context(), "me")
 	if err != nil {
-		return coderd.Organization{}, nil
+		return codersdk.Organization{}, nil
 	}
 	// For now, we won't use the config to set this.
 	// Eventually, we will support changing using "coder switch <org>"

@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd"
@@ -82,7 +81,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			project, err := client.CreateProject(cmd.Context(), organization.ID, coderd.CreateProjectRequest{
+			project, err := client.CreateProject(cmd.Context(), organization.ID, codersdk.CreateProjectRequest{
 				Name:      name,
 				VersionID: job.ID,
 			})
@@ -117,7 +116,7 @@ func projectCreate() *cobra.Command {
 	return cmd
 }
 
-func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization coderd.Organization, provisioner database.ProvisionerType, directory string, parameters ...coderd.CreateParameterRequest) (*coderd.ProjectVersion, error) {
+func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, directory string, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
@@ -138,7 +137,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	}
 
 	before := time.Now()
-	version, err := client.CreateProjectVersion(cmd.Context(), organization.ID, coderd.CreateProjectVersionRequest{
+	version, err := client.CreateProjectVersion(cmd.Context(), organization.ID, codersdk.CreateProjectVersionRequest{
 		StorageMethod:   database.ProvisionerStorageMethodFile,
 		StorageSource:   resp.Hash,
 		Provisioner:     provisioner,
@@ -152,7 +151,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	if err != nil {
 		return nil, err
 	}
-	logBuffer := make([]coderd.ProvisionerJobLog, 0, 64)
+	logBuffer := make([]codersdk.ProvisionerJobLog, 0, 64)
 	for {
 		log, ok := <-logs
 		if !ok {
@@ -176,7 +175,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	spin.Stop()
 
 	if provisionerd.IsMissingParameterError(version.Job.Error) {
-		valuesBySchemaID := map[string]coderd.ProjectVersionParameter{}
+		valuesBySchemaID := map[string]codersdk.ProjectVersionParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
 		}
@@ -191,7 +190,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 			if err != nil {
 				return nil, err
 			}
-			parameters = append(parameters, coderd.CreateParameterRequest{
+			parameters = append(parameters, codersdk.CreateParameterRequest{
 				Name:              parameterSchema.Name,
 				SourceValue:       value,
 				SourceScheme:      database.ParameterSourceSchemeData,
@@ -201,7 +200,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 		return validateProjectVersionSource(cmd, client, organization, provisioner, directory, parameters...)
 	}
 
-	if version.Job.Status != coderd.ProvisionerJobSucceeded {
+	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
 		for _, log := range logBuffer {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
 		}

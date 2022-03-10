@@ -21,7 +21,7 @@ import (
 // New creates a new tunnel pointing at the URL provided.
 // Once created, it returns the external hostname that will resolve to it.
 //
-// The tunnel will exit when the context provided is cancelled.
+// The tunnel will exit when the context provided is canceled.
 //
 // Upstream connection occurs async through Cloudflare, so the error channel
 // will only be executed if the tunnel has failed after numerous attempts.

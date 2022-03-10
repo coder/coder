@@ -9,7 +9,7 @@ import (
 	"github.com/xlab/treeprint"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 )
 
@@ -40,8 +40,8 @@ func projects() *cobra.Command {
 	return cmd
 }
 
-func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.ProjectVersionParameterSchema, parameterValues []coderd.ProjectVersionParameter, resources []coderd.WorkspaceResource) error {
-	schemaByID := map[string]coderd.ProjectVersionParameterSchema{}
+func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []codersdk.ProjectVersionParameterSchema, parameterValues []codersdk.ProjectVersionParameter, resources []codersdk.WorkspaceResource) error {
+	schemaByID := map[string]codersdk.ProjectVersionParameterSchema{}
 	for _, schema := range parameterSchemas {
 		schemaByID[schema.ID.String()] = schema
 	}

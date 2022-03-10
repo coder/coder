@@ -99,6 +99,10 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/listen", api.provisionerDaemonsListen)
 			})
 		})
+		r.Route("/templates", func(r chi.Router) {
+			r.Get("/", api.listTemplates)
+			r.Get("/{id}", api.templateArchive)
+		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)

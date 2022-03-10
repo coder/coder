@@ -5,32 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// ProjectVersion represents a single version of a project.
-type ProjectVersion struct {
-	ID        uuid.UUID      `json:"id"`
-	ProjectID *uuid.UUID     `json:"project_id,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	Name      string         `json:"name"`
-	Job       ProvisionerJob `json:"job"`
-}
-
-// ProjectVersionParameterSchema represents a parameter parsed from project version source.
-type ProjectVersionParameterSchema database.ParameterSchema
-
-// ProjectVersionParameter represents a computed parameter value.
-type ProjectVersionParameter parameter.ComputedValue
 
 func (api *api) projectVersion(rw http.ResponseWriter, r *http.Request) {
 	projectVersion := httpmw.ProjectVersionParam(r)
@@ -138,8 +121,8 @@ func (api *api) projectVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertProjectVersion(version database.ProjectVersion, job ProvisionerJob) ProjectVersion {
-	return ProjectVersion{
+func convertProjectVersion(version database.ProjectVersion, job codersdk.ProvisionerJob) codersdk.ProjectVersion {
+	return codersdk.ProjectVersion{
 		ID:        version.ID,
 		ProjectID: &version.ProjectID.UUID,
 		CreatedAt: version.CreatedAt,

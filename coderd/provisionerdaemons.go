@@ -30,8 +30,6 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
-type ProvisionerDaemon database.ProvisionerDaemon
-
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitGroup.Add(1)

@@ -5,30 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// Project is the JSON representation of a Coder project.
-// This type matches the database object for now, but is
-// abstracted for ease of change later on.
-type Project struct {
-	ID                  uuid.UUID                `json:"id"`
-	CreatedAt           time.Time                `json:"created_at"`
-	UpdatedAt           time.Time                `json:"updated_at"`
-	OrganizationID      string                   `json:"organization_id"`
-	Name                string                   `json:"name"`
-	Provisioner         database.ProvisionerType `json:"provisioner"`
-	ActiveVersionID     uuid.UUID                `json:"active_version_id"`
-	WorkspaceOwnerCount uint32                   `json:"workspace_owner_count"`
-}
 
 // Returns a single project.
 func (api *api) project(rw http.ResponseWriter, r *http.Request) {
@@ -81,7 +67,7 @@ func (api *api) projectVersionsByProject(rw http.ResponseWriter, r *http.Request
 		jobByID[job.ID.String()] = job
 	}
 
-	apiVersion := make([]ProjectVersion, 0)
+	apiVersion := make([]codersdk.ProjectVersion, 0)
 	for _, version := range versions {
 		job, exists := jobByID[version.JobID.String()]
 		if !exists {
@@ -130,8 +116,8 @@ func (api *api) projectVersionByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertProjectVersion(projectVersion, convertProvisionerJob(job)))
 }
 
-func convertProjects(projects []database.Project, workspaceCounts []database.GetWorkspaceOwnerCountsByProjectIDsRow) []Project {
-	apiProjects := make([]Project, 0, len(projects))
+func convertProjects(projects []database.Project, workspaceCounts []database.GetWorkspaceOwnerCountsByProjectIDsRow) []codersdk.Project {
+	apiProjects := make([]codersdk.Project, 0, len(projects))
 	for _, project := range projects {
 		found := false
 		for _, workspaceCount := range workspaceCounts {
@@ -149,8 +135,8 @@ func convertProjects(projects []database.Project, workspaceCounts []database.Get
 	return apiProjects
 }
 
-func convertProject(project database.Project, workspaceOwnerCount uint32) Project {
-	return Project{
+func convertProject(project database.Project, workspaceOwnerCount uint32) codersdk.Project {
+	return codersdk.Project{
 		ID:                  project.ID,
 		CreatedAt:           project.CreatedAt,
 		UpdatedAt:           project.UpdatedAt,

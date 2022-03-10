@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 )
 
@@ -93,14 +93,14 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			workspace, err := client.CreateWorkspace(cmd.Context(), "", coderd.CreateWorkspaceRequest{
+			workspace, err := client.CreateWorkspace(cmd.Context(), "", codersdk.CreateWorkspaceRequest{
 				ProjectID: project.ID,
 				Name:      name,
 			})
 			if err != nil {
 				return err
 			}
-			version, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
+			version, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				ProjectVersionID: projectVersion.ID,
 				Transition:       database.WorkspaceTransitionStart,
 			})

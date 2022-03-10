@@ -14,65 +14,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// User represents a user in Coder.
-type User struct {
-	ID        string    `json:"id" validate:"required"`
-	Email     string    `json:"email" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required"`
-	Username  string    `json:"username" validate:"required"`
-}
-
-type CreateFirstUserRequest struct {
-	Email        string `json:"email" validate:"required,email"`
-	Username     string `json:"username" validate:"required,username"`
-	Password     string `json:"password" validate:"required"`
-	Organization string `json:"organization" validate:"required,username"`
-}
-
-// CreateFirstUserResponse contains IDs for newly created user info.
-type CreateFirstUserResponse struct {
-	UserID         string `json:"user_id"`
-	OrganizationID string `json:"organization_id"`
-}
-
-type CreateUserRequest struct {
-	Email          string `json:"email" validate:"required,email"`
-	Username       string `json:"username" validate:"required,username"`
-	Password       string `json:"password" validate:"required"`
-	OrganizationID string `json:"organization_id" validate:"required"`
-}
-
-// LoginWithPasswordRequest enables callers to authenticate with email and password.
-type LoginWithPasswordRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
-}
-
-// LoginWithPasswordResponse contains a session token for the newly authenticated user.
-type LoginWithPasswordResponse struct {
-	SessionToken string `json:"session_token" validate:"required"`
-}
-
-// GenerateAPIKeyResponse contains an API key for a user.
-type GenerateAPIKeyResponse struct {
-	Key string `json:"key"`
-}
-
-type CreateOrganizationRequest struct {
-	Name string `json:"name" validate:"required,username"`
-}
-
-// CreateWorkspaceRequest provides options for creating a new workspace.
-type CreateWorkspaceRequest struct {
-	ProjectID uuid.UUID `json:"project_id" validate:"required"`
-	Name      string    `json:"name" validate:"username,required"`
-}
 
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
@@ -96,7 +43,7 @@ func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 
 // Creates the initial user for a Coder deployment.
 func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
-	var createUser CreateFirstUserRequest
+	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
@@ -168,7 +115,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, CreateFirstUserResponse{
+	render.JSON(rw, r, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
 		OrganizationID: organization.ID,
 	})
@@ -178,7 +125,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
-	var createUser CreateUserRequest
+	var createUser codersdk.CreateUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
@@ -299,7 +246,7 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publicOrganizations := make([]Organization, 0, len(organizations))
+	publicOrganizations := make([]codersdk.Organization, 0, len(organizations))
 	for _, organization := range organizations {
 		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
 	}
@@ -347,7 +294,7 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	var req CreateOrganizationRequest
+	var req codersdk.CreateOrganizationRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
@@ -401,7 +348,7 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 
 // Authenticates the user with an email and password.
 func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
-	var loginWithPassword LoginWithPasswordRequest
+	var loginWithPassword codersdk.LoginWithPasswordRequest
 	if !httpapi.Read(rw, r, &loginWithPassword) {
 		return
 	}
@@ -471,7 +418,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 	})
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, LoginWithPasswordResponse{
+	render.JSON(rw, r, codersdk.LoginWithPasswordResponse{
 		SessionToken: sessionToken,
 	})
 }
@@ -517,7 +464,7 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	generatedAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, GenerateAPIKeyResponse{Key: generatedAPIKey})
+	render.JSON(rw, r, codersdk.GenerateAPIKeyResponse{Key: generatedAPIKey})
 }
 
 // Clear the user's session cookie
@@ -536,7 +483,7 @@ func (*api) postLogout(rw http.ResponseWriter, r *http.Request) {
 
 // Create a new workspace for the currently authenticated user.
 func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
-	var createWorkspace CreateWorkspaceRequest
+	var createWorkspace codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(rw, r, &createWorkspace) {
 		return
 	}
@@ -637,7 +584,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiWorkspaces := make([]Workspace, 0, len(workspaces))
+	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace))
 	}
@@ -684,8 +631,8 @@ func generateAPIKeyIDSecret() (id string, secret string, err error) {
 	return id, secret, nil
 }
 
-func convertUser(user database.User) User {
-	return User{
+func convertUser(user database.User) codersdk.User {
+	return codersdk.User{
 		ID:        user.ID,
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
