@@ -81,8 +81,8 @@ func filePath(p string) string {
 	return strings.TrimPrefix(path.Clean(p), "/")
 }
 
-func (h *handler) exists(path string) bool {
-	f, err := h.fs.Open(path)
+func (h *handler) exists(filePath string) bool {
+	f, err := h.fs.Open(filePath)
 	if err == nil {
 		_ = f.Close()
 	}
@@ -131,57 +131,57 @@ func ShouldCacheFile(reqFile string) bool {
 	return true
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	// reqFile is the static file requested
-	reqFile := filePath(r.URL.Path)
+	reqFile := filePath(req.URL.Path)
 	state := htmlState{
 		// Token is the CSRF token for the given request
-		CSRF: csrfState{Token: nosurf.Token(r)},
+		CSRF: csrfState{Token: nosurf.Token(req)},
 	}
 
 	// First check if it's a file we have in our templates
-	if h.serveHTML(w, r, reqFile, state) {
+	if h.serveHTML(resp, req, reqFile, state) {
 		return
 	}
 
 	// If the original file path exists we serve it.
 	if h.exists(reqFile) {
 		if ShouldCacheFile(reqFile) {
-			w.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+			resp.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
 		}
-		h.h.ServeHTTP(w, r)
+		h.h.ServeHTTP(resp, req)
 		return
 	}
 
 	// Serve the file assuming it's an html file
 	// This matches paths like `/app/terminal.html`
-	r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
-	r.URL.Path += ".html"
+	req.URL.Path = strings.TrimSuffix(req.URL.Path, "/")
+	req.URL.Path += ".html"
 
-	reqFile = filePath(r.URL.Path)
+	reqFile = filePath(req.URL.Path)
 	// All html files should be served by the htmlFile templates
-	if h.serveHTML(w, r, reqFile, state) {
+	if h.serveHTML(resp, req, reqFile, state) {
 		return
 	}
 
 	// If we don't have the file... we should redirect to `/`
 	// for our single-page-app.
-	r.URL.Path = "/"
-	if h.serveHTML(w, r, "", state) {
+	req.URL.Path = "/"
+	if h.serveHTML(resp, req, "", state) {
 		return
 	}
 
 	// This will send a correct 404
-	h.h.ServeHTTP(w, r)
+	h.h.ServeHTTP(resp, req)
 }
 
-func (h *handler) serveHTML(w http.ResponseWriter, r *http.Request, reqPath string, state htmlState) bool {
+func (h *handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
 	if data, err := h.htmlFiles.renderWithState(reqPath, state); err == nil {
 		if reqPath == "" {
 			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
 			reqPath = "index.html"
 		}
-		http.ServeContent(w, r, reqPath, time.Time{}, bytes.NewReader(data))
+		http.ServeContent(resp, request, reqPath, time.Time{}, bytes.NewReader(data))
 		return true
 	}
 	return false
@@ -193,12 +193,12 @@ type htmlTemplates struct {
 
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
-func (t *htmlTemplates) renderWithState(path string, state htmlState) ([]byte, error) {
+func (t *htmlTemplates) renderWithState(filePath string, state htmlState) ([]byte, error) {
 	var buf bytes.Buffer
-	if path == "" {
-		path = "index.html"
+	if filePath == "" {
+		filePath = "index.html"
 	}
-	err := t.tpls.ExecuteTemplate(&buf, path, state)
+	err := t.tpls.ExecuteTemplate(&buf, filePath, state)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +277,7 @@ func secureHeaders(next http.Handler) http.Handler {
 
 	var csp strings.Builder
 	for src, vals := range cspSrcs {
-		fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
+		_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
 	}
 
 	// Permissions-Policy can be used to disabled various browser features that we do not use.
@@ -323,7 +323,7 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 	root := template.New("")
 
 	rootPath := "."
-	err := fs.WalkDir(files, rootPath, func(path string, directory fs.DirEntry, err error) error {
+	err := fs.WalkDir(files, rootPath, func(filePath string, directory fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -336,7 +336,7 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 			return nil
 		}
 
-		file, err := files.Open(path)
+		file, err := files.Open(filePath)
 		if err != nil {
 			return err
 		}
@@ -346,7 +346,7 @@ func htmlFiles(files fs.FS) (*htmlTemplates, error) {
 			return err
 		}
 
-		tPath := strings.TrimPrefix(path, rootPath+string(filepath.Separator))
+		tPath := strings.TrimPrefix(filePath, rootPath+string(filepath.Separator))
 		_, err = root.New(tPath).Parse(string(data))
 		if err != nil {
 			return err

@@ -13,8 +13,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/coder/coder/site"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/site"
 )
 
 func TestCaching(t *testing.T) {
