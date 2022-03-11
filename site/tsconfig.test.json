@@ -9,5 +9,5 @@
     "strictNullChecks": true,
     "esModuleInterop": true
   },
-  "exclude": ["node_modules", "_jest", "dev.ts"]
+  "exclude": ["node_modules", "_jest"]
 }
