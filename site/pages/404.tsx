@@ -3,7 +3,7 @@ import React from "react"
 
 import Typography from "@material-ui/core/Typography"
 
-const CliAuthenticationPage: React.FC = () => {
+export const NotFoundPage: React.FC = () => {
   const styles = useStyles()
 
   return (
@@ -31,5 +31,3 @@ const useStyles = makeStyles((theme) => ({
     borderRight: theme.palette.divider,
   },
 }))
-
-export default CliAuthenticationPage

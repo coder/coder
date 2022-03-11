@@ -16,7 +16,7 @@ import { firstOrItem } from "../../../../util/array"
 import { EmptyState } from "../../../../components/EmptyState"
 import { unsafeSWRArgument } from "../../../../util"
 
-const ProjectPage: React.FC = () => {
+export const ProjectPage: React.FC = () => {
   const styles = useStyles()
   const { me, signOut } = useUser(true)
   const navigate = useNavigate()
@@ -123,5 +123,3 @@ const useStyles = makeStyles((theme) => ({
     width: "100%",
   },
 }))
-
-export default ProjectPage

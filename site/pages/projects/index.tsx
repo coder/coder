@@ -15,7 +15,7 @@ import { Organization, Project } from "./../../api"
 import useSWR from "swr"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 
-const ProjectsPage: React.FC = () => {
+export const ProjectsPage: React.FC = () => {
   const styles = useStyles()
   const { me, signOut } = useUser(true)
   const { data: orgs, error: orgsError } = useSWR<Organization[], Error>("/api/v2/users/me/organizations")
@@ -93,5 +93,3 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(1),
   },
 }))
-
-export default ProjectsPage

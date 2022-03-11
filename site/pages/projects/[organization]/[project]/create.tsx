@@ -10,7 +10,7 @@ import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
 import { unsafeSWRArgument } from "../../../../util"
 
-const CreateWorkspacePage: React.FC = () => {
+export const CreateWorkspacePage: React.FC = () => {
   const { organization: organizationName, project: projectName } = useParams()
   const navigate = useNavigate()
   const styles = useStyles()
@@ -62,5 +62,3 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.background.paper,
   },
 }))
-
-export default CreateWorkspacePage

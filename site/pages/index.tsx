@@ -4,7 +4,7 @@ import { Navigate } from "react-router-dom"
 import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 import { useUser } from "../contexts/UserContext"
 
-const IndexPage: React.FC = () => {
+export const IndexPage: React.FC = () => {
   const { me } = useUser(/* redirectOnError */ true)
 
   if (me) {
@@ -14,5 +14,3 @@ const IndexPage: React.FC = () => {
 
   return <FullScreenLoader />
 }
-
-export default IndexPage

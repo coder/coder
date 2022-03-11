@@ -12,7 +12,7 @@ import { Workspace } from "../../components/Workspace"
 import { unsafeSWRArgument } from "../../util"
 import * as API from "../../api"
 
-const WorkspacesPage: React.FC = () => {
+export const WorkspacePage: React.FC = () => {
   const styles = useStyles()
   const { workspace: workspaceQueryParam } = useParams()
   const { me, signOut } = useUser(true)
@@ -72,5 +72,3 @@ const useStyles = makeStyles(() => ({
     width: "100%",
   },
 }))
-
-export default WorkspacesPage
