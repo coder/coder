@@ -13,7 +13,6 @@ const plugins = [
   // The HTML webpack plugin tells webpack to use our `index.html` and inject
   // the bundle script, which might have special naming.
   new HtmlWebpackPlugin({
-    title: "Custom template",
     template: path.join(templatePath, "index.html"),
     inject: "body",
   }),
