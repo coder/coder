@@ -61,6 +61,16 @@ const config: Configuration = {
   // Development mode - see:
   // https://webpack.js.org/configuration/mode/#mode-development
   mode: "development",
+
+  output: {
+    ...commonWebpackConfig.output,
+
+    // The chunk name will be used as-is for the bundle output
+    // This is simpler than production, to improve performance
+    // (no need to calculate hashes in development)
+    filename: "[name].js",
+  },
+
   plugins: [
     ...commonPlugins,
 
