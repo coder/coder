@@ -10,10 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/fatih/color"
 	"github.com/go-playground/validator/v10"
-	"github.com/manifoldco/promptui"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -72,8 +70,8 @@ func login() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", caret)
 
 				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Prompt:    "Would you like to create the first user?",
-					Default:   "yes",
+					Text:      "Would you like to create the first user?",
+					Default:   "y",
 					IsConfirm: true,
 				})
 				if errors.Is(err, cliui.Canceled) {
@@ -87,7 +85,7 @@ func login() *cobra.Command {
 					return xerrors.Errorf("get current user: %w", err)
 				}
 				username, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Prompt:  "What " + cliui.Styles.Field.Render("username") + " would you like?",
+					Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
 					Default: currentUser.Username,
 				})
 				if errors.Is(err, cliui.Canceled) {
@@ -98,11 +96,11 @@ func login() *cobra.Command {
 				}
 
 				email, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Prompt: "What's your " + cliui.Styles.Field.Render("email") + "?",
+					Text: "What's your " + cliui.Styles.Field.Render("email") + "?",
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
 						if err != nil {
-							return xerrors.New("That's not a valid email address!")
+							return xerrors.Errorf("That's not a valid email address!", s)
 						}
 						return err
 					},
@@ -112,10 +110,9 @@ func login() *cobra.Command {
 				}
 
 				password, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Prompt:        "Enter a " + cliui.Styles.Field.Render("password") + ":",
-					EchoMode:      textinput.EchoPassword,
-					EchoCharacter: '*',
-					Validate:      cliui.ValidateNotEmpty,
+					Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
+					Mask:     '*',
+					Validate: cliui.ValidateNotEmpty,
 				})
 				if err != nil {
 					return xerrors.Errorf("specify password prompt: %w", err)
@@ -161,9 +158,9 @@ func login() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
 			}
 
-			sessionToken, err := prompt(cmd, &promptui.Prompt{
-				Label: "Paste your token here:",
-				Mask:  '*',
+			sessionToken, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				Text: "Paste your token here:",
+				Mask: '*',
 				Validate: func(token string) error {
 					client.SessionToken = token
 					_, err := client.User(cmd.Context(), "me")

@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd"
@@ -37,10 +38,10 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = prompt(cmd, &promptui.Prompt{
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Default:   "y",
 				IsConfirm: true,
-				Label:     fmt.Sprintf("Set up %s in your organization?", color.New(color.FgHiCyan).Sprintf("%q", directory)),
+				Text:      fmt.Sprintf("Set up %s in your organization?", color.New(color.FgHiCyan).Sprintf("%q", directory)),
 			})
 			if err != nil {
 				if errors.Is(err, promptui.ErrAbort) {
@@ -49,9 +50,9 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			name, err := prompt(cmd, &promptui.Prompt{
+			name, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Default: filepath.Base(directory),
-				Label:   "What's your project's name?",
+				Text:    "What's your project's name?",
 				Validate: func(s string) error {
 					project, _ := client.ProjectByName(cmd.Context(), organization.ID, s)
 					if project.ID.String() != uuid.Nil.String() {
@@ -69,8 +70,8 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			_, err = prompt(cmd, &promptui.Prompt{
-				Label:     "Create project?",
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      "Create project?",
 				IsConfirm: true,
 				Default:   "y",
 			})
@@ -90,13 +91,13 @@ func projectCreate() *cobra.Command {
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", caret, color.HiCyanString(project.Name))
-			_, err = prompt(cmd, &promptui.Prompt{
-				Label:     "Create a new workspace?",
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      "Create a new workspace?",
 				IsConfirm: true,
 				Default:   "y",
 			})
 			if err != nil {
-				if errors.Is(err, promptui.ErrAbort) {
+				if errors.Is(err, cliui.Canceled) {
 					return nil
 				}
 				return err
@@ -184,8 +185,8 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 			if ok {
 				continue
 			}
-			value, err := prompt(cmd, &promptui.Prompt{
-				Label: fmt.Sprintf("Enter value for %s:", color.HiCyanString(parameterSchema.Name)),
+			value, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				Text: fmt.Sprintf("Enter value for %s:", color.HiCyanString(parameterSchema.Name)),
 			})
 			if err != nil {
 				return nil, err

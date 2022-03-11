@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 )
@@ -33,8 +34,8 @@ func workspaceCreate() *cobra.Command {
 			if len(args) >= 2 {
 				name = args[1]
 			} else {
-				name, err = prompt(cmd, &promptui.Prompt{
-					Label: "What's your workspace's name?",
+				name, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text: "What's your workspace's name?",
 					Validate: func(s string) error {
 						if s == "" {
 							return xerrors.Errorf("You must provide a name!")
@@ -81,8 +82,8 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			_, err = prompt(cmd, &promptui.Prompt{
-				Label:     fmt.Sprintf("Create workspace %s?", color.HiCyanString(name)),
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Create workspace %s?", color.HiCyanString(name)),
 				Default:   "y",
 				IsConfirm: true,
 			})

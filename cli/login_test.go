@@ -38,7 +38,6 @@ func TestLogin(t *testing.T) {
 		matches := []string{
 			"first user?", "y",
 			"username", "testuser",
-			"organization", "testorg",
 			"email", "user@coder.com",
 			"password", "password",
 		}

@@ -201,13 +201,6 @@ provider "coder" {
 					Resources: []*proto.Resource{{
 						Name: "A",
 						Type: "null_resource",
-						Agent: &proto.Agent{
-							Auth: &proto.Agent_GoogleInstanceIdentity{
-								GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-									InstanceId: "an-instance",
-								},
-							},
-						},
 					}},
 				},
 			},

@@ -20,7 +20,7 @@ func main() {
 		Use: "prompt",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
-				Prompt:  "What is our " + cliui.Styles.Field.Render("company name") + "?",
+				Text:    "What is our " + cliui.Styles.Field.Render("company name") + "?",
 				Default: "acme-corp",
 				Validate: func(s string) error {
 					if !strings.EqualFold(s, "coder") {
@@ -35,7 +35,17 @@ func main() {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("You got it!\n")
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      "Do you want to accept?",
+				Default:   "y",
+				IsConfirm: true,
+			})
+			if errors.Is(err, cliui.Canceled) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
 			return nil
 		},
 	})
