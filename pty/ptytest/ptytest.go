@@ -3,7 +3,6 @@ package ptytest
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -11,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
@@ -61,6 +61,7 @@ func create(t *testing.T, ptty pty.PTY) *PTY {
 
 		outputWriter: writer,
 		runeReader:   bufio.NewReaderSize(ptty.Output(), utf8.UTFMax),
+		runeWriter:   bufio.NewWriterSize(ptty.Input(), utf8.UTFMax),
 	}
 }
 
@@ -70,6 +71,7 @@ type PTY struct {
 
 	outputWriter io.Writer
 	runeReader   *bufio.Reader
+	runeWriter   *bufio.Writer
 }
 
 func (p *PTY) ExpectMatch(str string) string {
@@ -93,10 +95,16 @@ func (p *PTY) ExpectMatch(str string) string {
 }
 
 func (p *PTY) WriteLine(str string) {
-	newline := "\n"
+	_, err := p.Input().Write([]byte(str))
+	require.NoError(p.t, err)
+
+	// This is jank. Bubbletea requires line returns to be on
+	// a separate read, but this is an inherent race.
+	time.Sleep(5 * time.Millisecond)
+	newline := "\r"
 	if runtime.GOOS == "windows" {
 		newline = "\r\n"
 	}
-	_, err := fmt.Fprintf(p.PTY.Input(), "%s%s", str, newline)
+	_, err = p.Input().Write([]byte(newline))
 	require.NoError(p.t, err)
 }

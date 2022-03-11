@@ -27,7 +27,7 @@ func TestProjectCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
+		cmd.SetIn(pty.Input().Reader)
 		cmd.SetOut(pty.Output())
 		closeChan := make(chan struct{})
 		go func() {
@@ -37,9 +37,9 @@ func TestProjectCreate(t *testing.T) {
 		}()
 
 		matches := []string{
-			"organization?", "y",
+			"organization?", "yes",
 			"name?", "test-project",
-			"project?", "y",
+			"project?", "yes",
 			"created!", "n",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -74,7 +74,7 @@ func TestProjectCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		coderdtest.NewProvisionerDaemon(t, client)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
+		cmd.SetIn(pty.Input().Reader)
 		cmd.SetOut(pty.Output())
 		closeChan := make(chan struct{})
 		go func() {
@@ -84,10 +84,10 @@ func TestProjectCreate(t *testing.T) {
 		}()
 
 		matches := []string{
-			"organization?", "y",
+			"organization?", "yes",
 			"name?", "test-project",
 			"somevar", "value",
-			"project?", "y",
+			"project?", "yes",
 			"created!", "n",
 		}
 		for i := 0; i < len(matches); i += 2 {

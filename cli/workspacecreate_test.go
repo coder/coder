@@ -38,7 +38,7 @@ func TestWorkspaceCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
+		cmd.SetIn(pty.Input().Reader)
 		cmd.SetOut(pty.Output())
 		closeChan := make(chan struct{})
 		go func() {
@@ -49,7 +49,7 @@ func TestWorkspaceCreate(t *testing.T) {
 
 		matches := []string{
 			"name?", "workspace-name",
-			"Create workspace", "y",
+			"Create workspace", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]

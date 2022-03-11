@@ -39,14 +39,14 @@ func TestPrompt(t *testing.T) {
 			ch <- resp
 		}()
 		ptty.ExpectMatch("Example")
-		ptty.WriteLine("y")
-		require.Equal(t, "y", <-ch)
+		ptty.WriteLine("yes")
+		require.Equal(t, "yes", <-ch)
 	})
 }
 
 func prompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
 	cmd := &cobra.Command{}
 	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
+	cmd.SetIn(ptty.Input().Reader)
 	return cliui.Prompt(cmd, opts)
 }

@@ -28,7 +28,7 @@ func TestLogin(t *testing.T) {
 		// https://github.com/mattn/go-isatty/issues/59
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
+		root.SetIn(pty.Input().Reader)
 		root.SetOut(pty.Output())
 		go func() {
 			err := root.Execute()
@@ -36,7 +36,7 @@ func TestLogin(t *testing.T) {
 		}()
 
 		matches := []string{
-			"first user?", "y",
+			"first user?", "yes",
 			"username", "testuser",
 			"email", "user@coder.com",
 			"password", "password",
@@ -57,7 +57,7 @@ func TestLogin(t *testing.T) {
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
+		root.SetIn(pty.Input().Reader)
 		root.SetOut(pty.Output())
 		go func() {
 			err := root.Execute()
@@ -76,7 +76,7 @@ func TestLogin(t *testing.T) {
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
+		root.SetIn(pty.Input().Reader)
 		root.SetOut(pty.Output())
 		go func() {
 			err := root.Execute()

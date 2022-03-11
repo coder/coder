@@ -39,7 +39,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Default:   "y",
+				Default:   "yes",
 				IsConfirm: true,
 				Text:      fmt.Sprintf("Set up %s in your organization?", color.New(color.FgHiCyan).Sprintf("%q", directory)),
 			})
@@ -73,7 +73,7 @@ func projectCreate() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Create project?",
 				IsConfirm: true,
-				Default:   "y",
+				Default:   "yes",
 			})
 			if err != nil {
 				if errors.Is(err, promptui.ErrAbort) {
@@ -94,7 +94,7 @@ func projectCreate() *cobra.Command {
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Create a new workspace?",
 				IsConfirm: true,
-				Default:   "y",
+				Default:   "yes",
 			})
 			if err != nil {
 				if errors.Is(err, cliui.Canceled) {

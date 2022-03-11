@@ -162,7 +162,7 @@ func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
 
 	// Rewrite the confirm template to remove bold, and fit to the Coder style.
 	confirmEnd := fmt.Sprintf("[y/%s] ", color.New(color.Bold).Sprint("N"))
-	if prompt.Default == "y" {
+	if prompt.Default == "yes" {
 		confirmEnd = fmt.Sprintf("[%s/n] ", color.New(color.Bold).Sprint("Y"))
 	}
 	confirm := color.HiBlackString("?") + ` {{ . }} ` + confirmEnd

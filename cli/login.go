@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/fatih/color"
 	"github.com/go-playground/validator/v10"
 	"github.com/pkg/browser"
@@ -71,7 +72,7 @@ func login() *cobra.Command {
 
 				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 					Text:      "Would you like to create the first user?",
-					Default:   "y",
+					Default:   "yes",
 					IsConfirm: true,
 				})
 				if errors.Is(err, cliui.Canceled) {
@@ -110,9 +111,10 @@ func login() *cobra.Command {
 				}
 
 				password, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
-					Mask:     '*',
-					Validate: cliui.ValidateNotEmpty,
+					Text:          "Enter a " + cliui.Styles.Field.Render("password") + ":",
+					EchoMode:      textinput.EchoPassword,
+					EchoCharacter: '*',
+					Validate:      cliui.ValidateNotEmpty,
 				})
 				if err != nil {
 					return xerrors.Errorf("specify password prompt: %w", err)
@@ -159,8 +161,9 @@ func login() *cobra.Command {
 			}
 
 			sessionToken, err := cliui.Prompt(cmd, cliui.PromptOptions{
-				Text: "Paste your token here:",
-				Mask: '*',
+				Text:          "Paste your token here:",
+				EchoMode:      textinput.EchoPassword,
+				EchoCharacter: '*',
 				Validate: func(token string) error {
 					client.SessionToken = token
 					_, err := client.User(cmd.Context(), "me")

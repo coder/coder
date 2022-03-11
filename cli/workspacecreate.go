@@ -84,7 +84,7 @@ func workspaceCreate() *cobra.Command {
 
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Create workspace %s?", color.HiCyanString(name)),
-				Default:   "y",
+				Default:   "yes",
 				IsConfirm: true,
 			})
 			if err != nil {
