@@ -6,22 +6,28 @@ import { UserProvider } from "./contexts/UserContext"
 import { light } from "./theme"
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom"
 
-import CliAuthenticationPage from "./pages/cli-auth"
-import NotFoundPage from "./pages/404"
-import IndexPage from "./pages/index"
-import LoginPage from "./pages/login"
-import ProjectsPage from "./pages/projects"
-import ProjectPage from "./pages/projects/[organization]/[project]"
-import CreateWorkspacePage from "./pages/projects/[organization]/[project]/create"
-import WorkspacePage from "./pages/workspaces/[workspace]"
+import { CliAuthenticationPage } from "./pages/cli-auth"
+import { NotFoundPage } from "./pages/404"
+import { IndexPage } from "./pages/index"
+import { SignInPage } from "./pages/login"
+import { ProjectsPage } from "./pages/projects"
+import { ProjectPage } from "./pages/projects/[organization]/[project]"
+import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
+import { WorkspacePage } from "./pages/workspaces/[workspace]"
 
 export const App: React.FC = () => {
   return (
     <Router>
       <SWRConfig
         value={{
+          // This code came from the SWR documentation:
+          // https://swr.vercel.app/docs/error-handling#status-code-and-error-object
           fetcher: async (url: string) => {
             const res = await fetch(url)
+
+            // By default, `fetch` won't treat 4xx or 5xx response as errors.
+            // However, we want SWR to treat these as errors - so if `res.ok` is false,
+            // we want to throw an error to bubble that up to SWR.
             if (!res.ok) {
               const err = new Error((await res.json()).error?.message || res.statusText)
               throw err
@@ -38,7 +44,7 @@ export const App: React.FC = () => {
               <Route path="/">
                 <Route index element={<IndexPage />} />
 
-                <Route path="login" element={<LoginPage />} />
+                <Route path="login" element={<SignInPage />} />
                 <Route path="cli-auth" element={<CliAuthenticationPage />} />
 
                 <Route path="projects">
