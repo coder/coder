@@ -15,7 +15,6 @@
     "strict": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-    //"noEmit": true,
     "incremental": true,
     "moduleResolution": "node"
   },
