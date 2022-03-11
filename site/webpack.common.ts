@@ -14,7 +14,7 @@ const plugins = [
   // the bundle script, which might have special naming.
   new HtmlWebpackPlugin({
     template: path.join(templatePath, "index.html"),
-    publicPath: "/"
+    publicPath: "/",
   }),
 ]
 
