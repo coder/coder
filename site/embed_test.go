@@ -5,6 +5,7 @@ package site_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,200 +13,161 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/site"
+	"github.com/stretchr/testify/require"
 )
 
-func TestReturnsIndexPageForNestedPaths(t *testing.T) {
+func TestCaching(t *testing.T) {
 	t.Parallel()
 
+	// Create a test server
+	rootFS := fstest.MapFS{
+		"bundle.js":        &fstest.MapFile{},
+		"image.png":        &fstest.MapFile{},
+		"static/image.png": &fstest.MapFile{},
+		"favicon.ico": &fstest.MapFile{
+			Data: []byte("folderFile"),
+		},
+
+		"service-worker.js": &fstest.MapFile{},
+		"index.html": &fstest.MapFile{
+			Data: []byte("folderFile"),
+		},
+		"terminal.html": &fstest.MapFile{
+			Data: []byte("folderFile"),
+		},
+	}
+
+	srv := httptest.NewServer(site.Handler(rootFS))
+	defer srv.Close()
+
+	// Create a context
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	testCases := []struct {
+		path             string
+		isExpectingCache bool
+	}{
+		{"/bundle.js", true},
+		{"/image.png", true},
+		{"/static/image.png", true},
+		{"/favicon.ico", true},
+
+		{"/", false},
+		{"/service-worker.js", false},
+		{"/index.html", false},
+		{"/double/nested/terminal.html", false},
+	}
+
+	for _, testCase := range testCases {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+testCase.path, nil)
+		require.NoError(t, err, "create request")
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err, "get index")
+
+		cache := res.Header.Get("Cache-Control")
+		if testCase.isExpectingCache {
+			require.Equalf(t, "public, max-age=31536000, immutable", cache, "expected %w file to have immutable cache", testCase.path)
+		} else {
+			require.Equalf(t, "", cache, "expected %w file to not have immutable cache header", testCase.path)
+		}
+
+		require.NoError(t, res.Body.Close(), "closing response")
+	}
+}
+
+func TestServingFiles(t *testing.T) {
+	t.Parallel()
+
+	// Create a test server
 	rootFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
-			Data: []byte("index-test-file"),
+			Data: []byte("index-bytes"),
 		},
 		"favicon.ico": &fstest.MapFile{
 			Data: []byte("favicon-bytes"),
 		},
+		"dashboard.js": &fstest.MapFile{
+			Data: []byte("dashboard-js-bytes"),
+		},
+		"dashboard.css": &fstest.MapFile{
+			Data: []byte("dashboard-css-bytes"),
+		},
 	}
 
-	var nestedPathTests = []struct {
+	srv := httptest.NewServer(site.Handler(rootFS))
+	defer srv.Close()
+
+	// Create a context
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	var testCases = []struct {
 		path     string
 		expected string
 	}{
-		// HTML cases
-		{"/index.html", "index-test-file"},
-		{"/", "index-test-file"},
-		{"/nested/index.html", "index-test-file"},
-		{"/nested", "index-test-file"},
-		{"/nested/", "index-test-file"},
-		{"/double/nested/index.html", "index-test-file"},
-		{"/double/nested", "index-test-file"},
-		{"/double/nested/", "index-test-file"},
+		// Index cases
+		{"/", "index-bytes"},
+		{"/index.html", "index-bytes"},
+		{"/nested", "index-bytes"},
+		{"/nested/", "index-bytes"},
+		{"/nested/index.html", "index-bytes"},
 
-		// Other file cases
+		// These are nested paths that should lead back to index. We don't
+		// allow nested JS or CSS files.
+		{"/double/nested", "index-bytes"},
+		{"/double/nested/", "index-bytes"},
+		{"/double/nested/index.html", "index-bytes"},
+		{"/nested/dashboard.js", "index-bytes"},
+		{"/nested/dashboard.css", "index-bytes"},
+		{"/double/nested/dashboard.js", "index-bytes"},
+		{"/double/nested/dashboard.css", "index-bytes"},
+
+		// Favicon cases
+		// The favicon is always root-referenced in index.html:
 		{"/favicon.ico", "favicon-bytes"},
-		// Ensure that nested still picks up the 'top-level' file
-		{"/nested/favicon.ico", "favicon-bytes"},
-		{"/double/nested/favicon.ico", "favicon-bytes"},
+
+		// JS, CSS cases
+		{"/dashboard.js", "dashboard-js-bytes"},
+		{"/dashboard.css", "dashboard-css-bytes"},
 	}
-
-	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc))
-
-	for _, testCase := range nestedPathTests {
-		path := srv.URL + testCase.path
-
-		req, err := http.NewRequestWithContext(context.Background(), "GET", path, nil)
-		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err, "get index")
-		data, _ := io.ReadAll(resp.Body)
-		require.Equal(t, string(data), testCase.expected)
-		err = resp.Body.Close()
-		require.NoError(t, err)
-	}
-}
-
-func TestCacheHeadersAreCorrect(t *testing.T) {
-	t.Parallel()
-
-	rootFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{
-			Data: []byte("index-test-file"),
-		},
-		"favicon.ico": &fstest.MapFile{
-			Data: []byte("favicon-bytes"),
-		},
-		"bundle.js": &fstest.MapFile{
-			Data: []byte("bundle-js-bytes"),
-		},
-		"icon.svg": &fstest.MapFile{
-			Data: []byte("svg-bytes"),
-		},
-	}
-
-	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc))
-
-	dynamicPaths := []string{
-		"/",
-		"/index.html",
-		"/some/random/path",
-		"/some/random/path/",
-		"/some/random/path/index.html",
-	}
-
-	cachedPaths := []string{
-		"/favicon.ico",
-		"/bundle.js",
-		"/icon.svg",
-	}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancelFunc()
-
-	for _, path := range cachedPaths {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/"+path, nil)
-		require.NoError(t, err, "create request")
-
-		resp, err := srv.Client().Do(req)
-		require.NoError(t, err, "get index")
-
-		cache := resp.Header.Get("Cache-Control")
-		require.Equalf(t, cache, "public, max-age=31536000, immutable", "expected path %q to have immutable cache", path)
-		require.NoError(t, resp.Body.Close(), "closing response")
-	}
-
-	for _, path := range dynamicPaths {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/"+path, nil)
-		require.NoError(t, err, "create request")
-
-		resp, err := srv.Client().Do(req)
-		require.NoError(t, err, "get index")
-
-		cache := resp.Header.Get("Cache-Control")
-		require.Emptyf(t, cache, "expected path %q to be un-cacheable", path)
-		require.NoError(t, resp.Body.Close(), "closing response")
-	}
-}
-
-func TestTemplateParametersAreInjected(t *testing.T) {
-	t.Parallel()
-
-	rootFS := fstest.MapFS{
-		"index.html": &fstest.MapFile{
-			Data: []byte("{{ .CSP.Nonce }} | {{ .CSRF.Token }}"),
-		},
-		// Template parameters should  only be injected in HTML,
-		// so this provides a negative case
-		"bundle.js": &fstest.MapFile{
-			Data: []byte("{{ .CSP.Nonce }}"),
-		},
-	}
-
-	templateFunc := func(_ *http.Request) site.HTMLState {
-		return site.HTMLState{
-			CSP:  site.CSPState{Nonce: "test-nonce"},
-			CSRF: site.CSRFState{Token: "test-token"},
-		}
-	}
-
-	srv := httptest.NewServer(site.Handler(rootFS, slog.Logger{}, templateFunc))
-
-	var testCases = []struct {
-		path             string
-		expectedContents string
-	}{
-		// Rendered HTML cases
-		{"/index.html", "test-nonce | test-token"},
-		{"/nested/index.html", "test-nonce | test-token"},
-		{"/nested/", "test-nonce | test-token"},
-
-		// Non-HTML cases (template should not render)
-		{"/bundle.js", "{{ .CSP.Nonce }}"},
-	}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancelFunc()
 
 	for _, testCase := range testCases {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/"+testCase.path, nil)
-		require.NoError(t, err, "create request")
+		path := srv.URL + testCase.path
 
-		resp, err := srv.Client().Do(req)
-		require.NoError(t, err, "get index")
-
+		req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err, "get file")
 		data, _ := io.ReadAll(resp.Body)
-		require.Equal(t, string(data), testCase.expectedContents)
+		require.Equal(t, string(data), testCase.expected, "Verify file: "+testCase.path)
 		err = resp.Body.Close()
 		require.NoError(t, err)
 	}
 }
 
-func TestReturnsErrorIfNoIndex(t *testing.T) {
+func TestShouldCacheFile(t *testing.T) {
 	t.Parallel()
 
-	rootFS := fstest.MapFS{
-		// No index.html - so our router will have no fallback!
-		"favicon.ico": &fstest.MapFile{
-			Data: []byte("favicon-bytes"),
-		},
-		"bundle.js": &fstest.MapFile{
-			Data: []byte("bundle-js-bytes"),
-		},
-		"icon.svg": &fstest.MapFile{
-			Data: []byte("svg-bytes"),
-		},
+	var testCases = []struct {
+		reqFile  string
+		expected bool
+	}{
+		{"123456789.js", true},
+		{"apps/app/code/terminal.css", true},
+		{"image.png", true},
+		{"static/image.png", true},
+		{"static/images/section-a/image.jpeg", true},
+
+		{"service-worker.js", false},
+		{"dashboard.html", false},
+		{"apps/app/code/terminal.html", false},
 	}
 
-	// When no index.html is available, the site handler should panic
-	require.Panics(t, func() {
-		site.Handler(rootFS, slog.Logger{}, defaultTemplateFunc)
-	})
-}
-
-func defaultTemplateFunc(_ *http.Request) site.HTMLState {
-	return site.HTMLState{
-		CSP:  site.CSPState{Nonce: "test-csp-nonce"},
-		CSRF: site.CSRFState{Token: "test-csrf-token"},
+	for _, testCase := range testCases {
+		got := site.ShouldCacheFile(testCase.reqFile)
+		require.Equal(t, testCase.expected, got, fmt.Sprintf("Expected ShouldCacheFile(%s) to be %t", testCase.reqFile, testCase.expected))
 	}
 }

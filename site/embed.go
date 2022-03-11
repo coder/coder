@@ -5,22 +5,20 @@ package site
 
 import (
 	"bytes"
-	"context"
 	"embed"
 	"fmt"
-	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
+	"path"
 	"path/filepath"
 	"strings"
+	"text/template" // html/template escapes some nonces
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/justinas/nosurf"
 	"github.com/unrolled/secure"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
 )
 
 // The `embed` package ignores recursively including directories
@@ -30,208 +28,215 @@ import (
 //go:embed out/bin/*
 var site embed.FS
 
-// HTMLTemplateHandler is a function that defines how `htmlState` is populated
-type HTMLTemplateHandler func(*http.Request) HTMLState
+func DefaultHandler() http.Handler {
+	// the out directory is where webpack builds are created. It is in the same
+	// directory as this file (package site).
+	siteFS, err := fs.Sub(site, "out")
 
-// DefaultHandler returns an HTTP handler for serving the static site,
-// based on the `embed.FS` compiled into the binary.
-func DefaultHandler(logger slog.Logger) http.Handler {
-	filesystem, err := fs.Sub(site, "out")
 	if err != nil {
 		// This can't happen... Go would throw a compilation error.
 		panic(err)
 	}
 
-	templateFunc := func(r *http.Request) HTMLState {
-		return HTMLState{
-			// CSP nonce for the given request (if there is one present)
-			CSP: CSPState{Nonce: secure.CSPNonce(r.Context())},
-			// CSRF token for the given request
-			CSRF: CSRFState{Token: nosurf.Token(r)},
-		}
-	}
-
-	return Handler(filesystem, logger, templateFunc)
+	return Handler(siteFS)
 }
 
 // Handler returns an HTTP handler for serving the static site.
-// This takes a filesystem as a parameter.
-func Handler(filesystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateHandler) http.Handler {
-	router := chi.NewRouter()
+func Handler(fileSystem fs.FS) http.Handler {
+	// html files are handled by a text/template. Non-html files
+	// are served by the default file server.
+	//
+	// REMARK: text/template is needed to inject values on each request like
+	//         CSRF.
+	files, err := htmlFiles(fileSystem)
 
-	staticFileHandler, err := serveFiles(filesystem, logger, templateFunc)
 	if err != nil {
-		panic(err)
+		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
 	}
 
-	router.NotFound(staticFileHandler)
-
-	return secureHeaders(router)
+	return secureHeaders(&handler{
+		fs:        fileSystem,
+		htmlFiles: files,
+		h:         http.FileServer(http.FS(fileSystem)), // All other non-html static files
+	})
 }
 
-func serveFiles(fileSystem fs.FS, logger slog.Logger, templateFunc HTMLTemplateHandler) (http.HandlerFunc, error) {
-	// htmlFileToTemplate is a map of html files -> template
-	// We need to use templates in order to inject parameters from `HtmlState`
-	// (like CSRF token and CSP nonce)
-	htmlFileToTemplate := map[string]*template.Template{}
+type handler struct {
+	fs fs.FS
+	// htmlFiles is the text/template for all *.html files.
+	// This is needed to support Content Security Policy headers.
+	// Due to material UI, we are forced to use a nonce to allow inline
+	// scripts, and that nonce is passed through a template.
+	// We only do this for html files to reduce the amount of in memory caching
+	// of duplicate files as `fs`.
+	htmlFiles *htmlTemplates
+	h         http.Handler
+}
 
-	// nonHTMLFileToTemplate is a map of files -> byte contents
-	// This is used for any non-HTML file
-	nonHTMLFileToTemplate := map[string][]byte{}
+// filePath returns the filepath of the requested file.
+func filePath(p string) string {
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return strings.TrimPrefix(path.Clean(p), "/")
+}
 
-	// fallbackHTMLTemplate is used as the 'default' template if
-	// the path requested doesn't match anything on the file systme.
-	var fallbackHTMLTemplate *template.Template
+func (h *handler) exists(path string) bool {
+	f, err := h.fs.Open(path)
+	if err == nil {
+		_ = f.Close()
+	}
+	return err == nil
+}
 
-	files, err := fs.ReadDir(fileSystem, ".")
+type htmlState struct {
+	CSP  cspState
+	CSRF csrfState
+}
+
+type cspState struct {
+	Nonce string
+}
+
+type csrfState struct {
+	Token string
+}
+
+func ShouldCacheFile(reqFile string) bool {
+	// Images, favicons and uniquely content hashed bundle assets should be
+	// cached. By default, we cache everything in the site/out directory except
+	// for deny-listed items enumerated here. The reason for this approach is
+	// that cache invalidation techniques should be used by default for all
+	// webpack-processed assets. The scenarios where we don't use cache
+	// invalidation techniques are one-offs or things that should have
+	// invalidation in the future.
+	denyListedSuffixes := []string{
+		// ALL *.html files
+		".html",
+
+		// ALL *worker.js files (including service-worker.js)
+		//
+		// REMARK(Grey): I'm unsure if there's a desired setting in Workbox for
+		//               content hashing these, or if doing so is a risk for
+		//               users that have a PWA installed.
+		"worker.js",
+	}
+
+	for _, suffix := range denyListedSuffixes {
+		if strings.HasSuffix(reqFile, suffix) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// reqFile is the static file requested
+	reqFile := filePath(r.URL.Path)
+	state := htmlState{
+		// Token is the CSRF token for the given request
+		CSRF: csrfState{Token: nosurf.Token(r)},
+	}
+
+	// First check if it's a file we have in our templates
+	if h.serveHTML(w, r, reqFile, state) {
+		return
+	}
+
+	// If the original file path exists we serve it.
+	if h.exists(reqFile) {
+		if ShouldCacheFile(reqFile) {
+			w.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		h.h.ServeHTTP(w, r)
+		return
+	}
+
+	// Serve the file assuming it's an html file
+	// This matches paths like `/app/terminal.html`
+	r.URL.Path = strings.TrimSuffix(r.URL.Path, "/")
+	r.URL.Path += ".html"
+
+	reqFile = filePath(r.URL.Path)
+	// All html files should be served by the htmlFile templates
+	if h.serveHTML(w, r, reqFile, state) {
+		return
+	}
+
+	// If we don't have the file... we should redirect to `/`
+	// for our single-page-app.
+	r.URL.Path = "/"
+	if h.serveHTML(w, r, "", state) {
+		return
+	}
+
+	// This will send a correct 404
+	h.h.ServeHTTP(w, r)
+}
+
+func (h *handler) serveHTML(w http.ResponseWriter, r *http.Request, reqPath string, state htmlState) bool {
+	if data, err := h.htmlFiles.renderWithState(reqPath, state); err == nil {
+		if reqPath == "" {
+			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
+			reqPath = "index.html"
+		}
+		http.ServeContent(w, r, reqPath, time.Time{}, bytes.NewReader(data))
+		return true
+	}
+	return false
+}
+
+type htmlTemplates struct {
+	tpls *template.Template
+}
+
+// renderWithState will render the file using the given nonce if the file exists
+// as a template. If it does not, it will return an error.
+func (t *htmlTemplates) renderWithState(path string, state htmlState) ([]byte, error) {
+	var buf bytes.Buffer
+	if path == "" {
+		path = "index.html"
+	}
+	err := t.tpls.ExecuteTemplate(&buf, path, state)
 	if err != nil {
 		return nil, err
 	}
 
-	// Loop through everything in the current directory...
-	for _, file := range files {
-		name := file.Name()
-		normalizedName := strings.ToLower(name)
-
-		// If we're working with a file - just serve it up
-		if !file.IsDir() {
-			fileBytes, err := fs.ReadFile(fileSystem, normalizedName)
-
-			if err != nil {
-				logger.Warn(context.Background(), "Unable to load file", slog.F("fileName", normalizedName))
-				continue
-			}
-
-			isHTML := isHTMLFile(normalizedName)
-			if isHTML {
-				// For HTML files, we need to parse and store the htmlTemplate.
-				// If its index.html, we need to keep a reference to it as well.
-				htmlTemplate, err := template.New("").Parse(string(fileBytes))
-				if err != nil {
-					logger.Warn(context.Background(), "Unable to parse html template", slog.F("fileName", normalizedName))
-					continue
-				}
-
-				htmlFileToTemplate[normalizedName] = htmlTemplate
-				// If this is the index page, use it as the fallback template
-				if strings.HasPrefix(normalizedName, "index.") {
-					fallbackHTMLTemplate = htmlTemplate
-				}
-			} else {
-				// Non HTML files are easy - just cache the bytes
-				nonHTMLFileToTemplate[normalizedName] = fileBytes
-			}
-
-			continue
-		}
-
-		// If we reached here, there was something on the file system (most likely a directory)
-		// that we were unable to handle in the current code - so log a warning.
-		logger.Warn(context.Background(), "Serving from nested directories is not implemented", slog.F("name", name))
-	}
-
-	// If we don't have a default template, then there's not much to do!
-	if fallbackHTMLTemplate == nil {
-		return nil, xerrors.Errorf("No index.html found")
-	}
-
-	serveFunc := func(writer http.ResponseWriter, request *http.Request) {
-		fileName := filepath.Base(request.URL.Path)
-		normalizedFileName := strings.ToLower(fileName)
-
-		if normalizedFileName == "/" {
-			normalizedFileName = "index.html"
-		}
-
-		// First, let's look at our non-HTML files to see if this matches
-		fileBytes, success := nonHTMLFileToTemplate[normalizedFileName]
-		if success {
-			// All our assets - JavaScript, CSS, images - should be cached.
-			// For cases like JavaScript, we rely on a cache-busting strategy whenever
-			// there is a new version (this is handled in our webpack config).
-			writer.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
-			http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(fileBytes))
-			return
-		}
-
-		var buf bytes.Buffer
-		templateData := templateFunc(request)
-
-		// Next, lets try and load from our HTML templates
-		htmlTemplate, success := htmlFileToTemplate[normalizedFileName]
-		if success {
-			logger.Debug(context.Background(), "Applying template parameters", slog.F("fileName", normalizedFileName), slog.F("templateData", templateData))
-			err := htmlTemplate.ExecuteTemplate(&buf, "", templateData)
-
-			if err != nil {
-				logger.Error(request.Context(), "Error executing template", slog.F("templateData", templateData))
-				http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-
-			http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(buf.Bytes()))
-			return
-		}
-
-		// Finally... the path didn't match any file that we had cached.
-		// This is expected, because any nested path is going to hit this case.
-		// For that, we'll serve the fallback
-		logger.Debug(context.Background(), "Applying template parameters", slog.F("fileName", normalizedFileName), slog.F("templateData", templateData))
-		err := fallbackHTMLTemplate.ExecuteTemplate(&buf, "", templateData)
-
-		if err != nil {
-			logger.Error(request.Context(), "Error executing template", slog.F("templateData", templateData))
-			http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		http.ServeContent(writer, request, normalizedFileName, time.Time{}, bytes.NewReader(buf.Bytes()))
-	}
-
-	return serveFunc, nil
+	return buf.Bytes(), nil
 }
 
-func isHTMLFile(fileName string) bool {
-	return strings.HasSuffix(fileName, ".html") || strings.HasSuffix(fileName, ".htm")
-}
-
-type HTMLState struct {
-	CSP  CSPState
-	CSRF CSRFState
-}
-
-type CSPState struct {
-	Nonce string
-}
-
-type CSRFState struct {
-	Token string
-}
-
-// cspDirectives is a map of all csp fetch directives to their values.
+// CSPDirectives is a map of all csp fetch directives to their values.
 // Each directive is a set of values that is joined by a space (' ').
 // All directives are semi-colon separated as a single string for the csp header.
-type cspDirectives map[cspFetchDirective][]string
+type CSPDirectives map[CSPFetchDirective][]string
 
-// cspFetchDirective is the list of all constant fetch directives that
+func (s CSPDirectives) Append(d CSPFetchDirective, values ...string) {
+	if _, ok := s[d]; !ok {
+		s[d] = make([]string, 0)
+	}
+	s[d] = append(s[d], values...)
+}
+
+// CSPFetchDirective is the list of all constant fetch directives that
 // can be used/appended to.
-type cspFetchDirective string
+type CSPFetchDirective string
 
 const (
-	cspDirectiveDefaultSrc  = "default-src"
-	cspDirectiveConnectSrc  = "connect-src"
-	cspDirectiveChildSrc    = "child-src"
-	cspDirectiveScriptSrc   = "script-src"
-	cspDirectiveFontSrc     = "font-src"
-	cspDirectiveStyleSrc    = "style-src"
-	cspDirectiveObjectSrc   = "object-src"
-	cspDirectiveManifestSrc = "manifest-src"
-	cspDirectiveFrameSrc    = "frame-src"
-	cspDirectiveImgSrc      = "img-src"
-	cspDirectiveReportURI   = "report-uri"
-	cspDirectiveFormAction  = "form-action"
-	cspDirectiveMediaSrc    = "media-src"
-	cspFrameAncestors       = "frame-ancestors"
+	CSPDirectiveDefaultSrc  = "default-src"
+	CSPDirectiveConnectSrc  = "connect-src"
+	CSPDirectiveChildSrc    = "child-src"
+	CSPDirectiveScriptSrc   = "script-src"
+	CSPDirectiveFontSrc     = "font-src"
+	CSPDirectiveStyleSrc    = "style-src"
+	CSPDirectiveObjectSrc   = "object-src"
+	CSPDirectiveManifestSrc = "manifest-src"
+	CSPDirectiveFrameSrc    = "frame-src"
+	CSPDirectiveImgSrc      = "img-src"
+	CSPDirectiveReportURI   = "report-uri"
+	CSPDirectiveFormAction  = "form-action"
+	CSPDirectiveMediaSrc    = "media-src"
+	CSPFrameAncestors       = "frame-ancestors"
 )
 
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
@@ -242,26 +247,26 @@ func secureHeaders(next http.Handler) http.Handler {
 	// If we ever want to render something like a PDF, we need to adjust "object-src"
 	//
 	//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
-	cspSrcs := cspDirectives{
+	cspSrcs := CSPDirectives{
 		// All omitted fetch csp srcs default to this.
-		cspDirectiveDefaultSrc: {"'self'"},
-		cspDirectiveConnectSrc: {"'self' ws: wss:"},
-		cspDirectiveChildSrc:   {"'self'"},
-		cspDirectiveScriptSrc:  {"'self'"},
-		cspDirectiveFontSrc:    {"'self'"},
-		cspDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
+		CSPDirectiveDefaultSrc: {"'self'"},
+		CSPDirectiveConnectSrc: {"'self' ws: wss:"},
+		CSPDirectiveChildSrc:   {"'self'"},
+		CSPDirectiveScriptSrc:  {"'self'"},
+		CSPDirectiveFontSrc:    {"'self'"},
+		CSPDirectiveStyleSrc:   {"'self' 'unsafe-inline'"},
 		// object-src is needed to support code-server
-		cspDirectiveObjectSrc: {"'self'"},
+		CSPDirectiveObjectSrc: {"'self'"},
 		// blob: for loading the pwa manifest for code-server
-		cspDirectiveManifestSrc: {"'self' blob:"},
-		cspDirectiveFrameSrc:    {"'self'"},
+		CSPDirectiveManifestSrc: {"'self' blob:"},
+		CSPDirectiveFrameSrc:    {"'self'"},
 		// data: for loading base64 encoded icons for generic applications.
-		cspDirectiveImgSrc:     {"'self' https://cdn.coder.com data:"},
-		cspDirectiveFormAction: {"'self'"},
-		cspDirectiveMediaSrc:   {"'self'"},
+		CSPDirectiveImgSrc:     {"'self' https://cdn.coder.com data:"},
+		CSPDirectiveFormAction: {"'self'"},
+		CSPDirectiveMediaSrc:   {"'self'"},
 		// Report all violations back to the server to log
-		cspDirectiveReportURI: {"/api/private/csp/reports"},
-		cspFrameAncestors:     {"'none'"},
+		CSPDirectiveReportURI: {"/api/private/csp/reports"},
+		CSPFrameAncestors:     {"'none'"},
 
 		// Only scripts can manipulate the dom. This prevents someone from
 		// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
@@ -272,7 +277,7 @@ func secureHeaders(next http.Handler) http.Handler {
 
 	var csp strings.Builder
 	for src, vals := range cspSrcs {
-		_, _ = fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
+		fmt.Fprintf(&csp, "%s %s; ", src, strings.Join(vals, " "))
 	}
 
 	// Permissions-Policy can be used to disabled various browser features that we do not use.
@@ -308,4 +313,53 @@ func secureHeaders(next http.Handler) http.Handler {
 		// Prevent the browser from sending Referer header with requests
 		ReferrerPolicy: "no-referrer",
 	}).Handler(next)
+}
+
+// htmlFiles recursively walks the file system passed finding all *.html files.
+// The template returned has all html files parsed.
+func htmlFiles(files fs.FS) (*htmlTemplates, error) {
+	// root is the collection of html templates. All templates are named by their pathing.
+	// So './404.html' is named '404.html'. './subdir/index.html' is 'subdir/index.html'
+	root := template.New("")
+
+	rootPath := "."
+	err := fs.WalkDir(files, rootPath, func(path string, directory fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if directory.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(directory.Name()) != ".html" {
+			return nil
+		}
+
+		file, err := files.Open(path)
+		if err != nil {
+			return err
+		}
+
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return err
+		}
+
+		tPath := strings.TrimPrefix(path, rootPath+string(filepath.Separator))
+		_, err = root.New(tPath).Parse(string(data))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &htmlTemplates{
+		tpls: root,
+	}, nil
 }
