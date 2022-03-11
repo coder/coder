@@ -13,7 +13,7 @@ import LoginPage from "./pages/login"
 import ProjectsPage from "./pages/projects"
 import ProjectPage from "./pages/projects/[organization]/[project]"
 import CreateWorkspacePage from "./pages/projects/[organization]/[project]/create"
-import WorkspacePage from "./pages/workspaces/[user]/[workspace]"
+import WorkspacePage from "./pages/workspaces/[workspace]"
 
 export const App: React.FC = () => {
   return (
@@ -50,9 +50,7 @@ export const App: React.FC = () => {
                 </Route>
 
                 <Route path="workspaces">
-                  <Route path=":user">
-                    <Route path=":workspace" element={<WorkspacePage />} />
-                  </Route>
+                  <Route path=":workspace" element={<WorkspacePage />} />
                 </Route>
 
                 {/* Using path="*"" means "match anything", so this route
