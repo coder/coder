@@ -1,24 +1,22 @@
 package cli
 
 import (
-	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"strings"
 
 	"github.com/fatih/color"
 	"github.com/kirsle/configdir"
-	"github.com/manifoldco/promptui"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
 )
 
 var (
-	caret = color.HiBlackString(">")
+	caret = cliui.Styles.Prompt.String()
 )
 
 const (
@@ -68,8 +66,9 @@ func Root() *cobra.Command {
 	cmd.AddCommand(projects())
 	cmd.AddCommand(workspaces())
 	cmd.AddCommand(users())
+	cmd.AddCommand(workspaceSSH())
 
-	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coder"), "Path to the global `coder` config directory")
+	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
 	err := cmd.PersistentFlags().MarkHidden(varForceTty)
 	if err != nil {
@@ -144,69 +143,4 @@ func isTTY(cmd *cobra.Command) bool {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
-}
-
-func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
-	prompt.Stdin = io.NopCloser(cmd.InOrStdin())
-	prompt.Stdout = readWriteCloser{
-		Writer: cmd.OutOrStdout(),
-	}
-
-	// The prompt library displays defaults in a jarring way for the user
-	// by attempting to autocomplete it. This sets no default enabling us
-	// to customize the display.
-	defaultValue := prompt.Default
-	if !prompt.IsConfirm {
-		prompt.Default = ""
-	}
-
-	// Rewrite the confirm template to remove bold, and fit to the Coder style.
-	confirmEnd := fmt.Sprintf("[y/%s] ", color.New(color.Bold).Sprint("N"))
-	if prompt.Default == "yes" {
-		confirmEnd = fmt.Sprintf("[%s/n] ", color.New(color.Bold).Sprint("Y"))
-	}
-	confirm := color.HiBlackString("?") + ` {{ . }} ` + confirmEnd
-
-	// Customize to remove bold.
-	valid := color.HiBlackString("?") + " {{ . }} "
-	if defaultValue != "" {
-		valid += fmt.Sprintf("(%s) ", defaultValue)
-	}
-
-	success := valid
-	invalid := valid
-	if prompt.IsConfirm {
-		success = confirm
-		invalid = confirm
-	}
-
-	prompt.Templates = &promptui.PromptTemplates{
-		Confirm: confirm,
-		Success: success,
-		Invalid: invalid,
-		Valid:   valid,
-	}
-	oldValidate := prompt.Validate
-	if oldValidate != nil {
-		// Override the validate function to pass our default!
-		prompt.Validate = func(s string) error {
-			if s == "" {
-				s = defaultValue
-			}
-			return oldValidate(s)
-		}
-	}
-	value, err := prompt.Run()
-	if value == "" && !prompt.IsConfirm {
-		value = defaultValue
-	}
-
-	return value, err
-}
-
-// readWriteCloser fakes reads, writes, and closing!
-type readWriteCloser struct {
-	io.Reader
-	io.Writer
-	io.Closer
 }

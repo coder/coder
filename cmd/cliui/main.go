@@ -6,8 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/coder/coder/cli/cliui"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func main() {
@@ -15,6 +16,22 @@ func main() {
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
 	}
+
+	root.AddCommand(&cobra.Command{
+		Use: "list",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliui.List(cmd, cliui.ListOptions{
+				Items: []cliui.ListItem{{
+					Title:       "Example",
+					Description: "Something...",
+				}, {
+					Title:       "Wow, here's another!",
+					Description: "Another exciting description!",
+				}},
+			})
+			return nil
+		},
+	})
 
 	root.AddCommand(&cobra.Command{
 		Use: "prompt",

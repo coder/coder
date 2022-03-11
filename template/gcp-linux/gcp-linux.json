@@ -1,7 +1,7 @@
 {
 	"ID": "gcp-linux",
-	"Name": "Develop on Google Cloud",
-	"Description": "Get started with remote development on Google Cloud.",
+	"Name": "Develop in Linux on Google Cloud",
+	"Description": "Get started with Linux development on Google Cloud.",
 	"schema": [
 		{
 			"id": "00000000-0000-0000-0000-000000000000",

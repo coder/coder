@@ -11,6 +11,9 @@ import (
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+
+	"github.com/hashicorp/hc-install/product"
+	"github.com/hashicorp/hc-install/releases"
 )
 
 var (
@@ -40,9 +43,19 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
 		binaryPath, err := exec.LookPath("terraform")
 		if err != nil {
-			return xerrors.Errorf("terraform binary not found: %w", err)
+			installer := &releases.ExactVersion{
+				Product: product.Terraform,
+				Version: version.Must(version.NewVersion("1.1.7")),
+			}
+
+			execPath, err := installer.Install(ctx)
+			if err != nil {
+				return xerrors.Errorf("install terraform: %w", err)
+			}
+			options.BinaryPath = execPath
+		} else {
+			options.BinaryPath = binaryPath
 		}
-		options.BinaryPath = binaryPath
 	}
 	shutdownCtx, shutdownCancel := context.WithCancel(ctx)
 	return provisionersdk.Serve(ctx, &terraform{

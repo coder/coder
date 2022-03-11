@@ -13,8 +13,9 @@ import (
 func TestPrompt(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 		ptty := ptytest.New(t)
-		ch := make(chan string, 0)
+		ch := make(chan string)
 		go func() {
 			resp, err := prompt(ptty, cliui.PromptOptions{
 				Text: "Example",
@@ -28,6 +29,7 @@ func TestPrompt(t *testing.T) {
 	})
 
 	t.Run("Confirm", func(t *testing.T) {
+		t.Parallel()
 		ptty := ptytest.New(t)
 		ch := make(chan string, 0)
 		go func() {

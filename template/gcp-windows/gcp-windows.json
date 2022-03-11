@@ -1,7 +1,7 @@
 {
 	"ID": "gcp-windows",
-	"Name": "Develop on Google Cloud",
-	"Description": "Get started with remote development on Google Cloud.",
+	"Name": "Develop in Windows on Google Cloud",
+	"Description": "Get started with Windows development on Google Cloud.",
 	"schema": [
 		{
 			"id": "00000000-0000-0000-0000-000000000000",
