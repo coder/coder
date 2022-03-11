@@ -1,5 +1,6 @@
 archives:
-  - builds:
+  - id: coder
+    builds:
       - coder
     files:
       - README.md

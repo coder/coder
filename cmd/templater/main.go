@@ -15,6 +15,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+	"google.golang.org/api/idtoken"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/coderd"
@@ -26,10 +31,6 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/google/uuid"
-	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
-	"google.golang.org/api/idtoken"
 
 	"github.com/gohugoio/hugo/parser/pageparser"
 )

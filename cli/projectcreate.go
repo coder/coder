@@ -4,21 +4,24 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
-	"github.com/google/uuid"
 	"github.com/manifoldco/promptui"
+	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
+	"github.com/coder/coder/peer"
+	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/provisionerd"
-	"github.com/coder/coder/provisionersdk"
 )
 
 func projectCreate() *cobra.Command {
@@ -38,34 +41,44 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Default:   "yes",
-				IsConfirm: true,
-				Text:      fmt.Sprintf("Set up %s in your organization?", color.New(color.FgHiCyan).Sprintf("%q", directory)),
+
+			templates, err := client.Templates(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			items := make([]cliui.ListItem, 0)
+			for _, template := range templates {
+				items = append(items, cliui.ListItem{
+					ID:          template.ID,
+					Title:       template.Name,
+					Description: template.Description,
+				})
+			}
+			selectedItem, err := cliui.List(cmd, cliui.ListOptions{
+				Title: "Select a Template",
+				Items: items,
 			})
 			if err != nil {
-				if errors.Is(err, promptui.ErrAbort) {
+				if errors.Is(err, cliui.Canceled) {
 					return nil
 				}
 				return err
 			}
+			var selectedTemplate codersdk.Template
+			for _, template := range templates {
+				if template.ID == selectedItem {
+					selectedTemplate = template
+					break
+				}
+			}
 
-			name, err := cliui.Prompt(cmd, cliui.PromptOptions{
-				Default: filepath.Base(directory),
-				Text:    "What's your project's name?",
-				Validate: func(s string) error {
-					project, _ := client.ProjectByName(cmd.Context(), organization.ID, s)
-					if project.ID.String() != uuid.Nil.String() {
-						return xerrors.New("A project already exists with that name!")
-					}
-					return nil
-				},
-			})
+			archive, _, err := client.TemplateArchive(cmd.Context(), selectedTemplate.ID)
 			if err != nil {
 				return err
 			}
 
-			job, err := validateProjectVersionSource(cmd, client, organization, database.ProvisionerType(provisioner), directory)
+			job, err := validateProjectVersionSource(cmd, client, organization, database.ProvisionerType(provisioner), archive)
 			if err != nil {
 				return err
 			}
@@ -83,7 +96,7 @@ func projectCreate() *cobra.Command {
 			}
 
 			project, err := client.CreateProject(cmd.Context(), organization.ID, codersdk.CreateProjectRequest{
-				Name:      name,
+				Name:      selectedTemplate.ID,
 				VersionID: job.ID,
 			})
 			if err != nil {
@@ -103,6 +116,147 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
+			workspace, err := client.CreateWorkspace(cmd.Context(), "", codersdk.CreateWorkspaceRequest{
+				ProjectID: project.ID,
+				Name:      selectedTemplate.ID,
+			})
+			if err != nil {
+				return err
+			}
+			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				ProjectVersionID: job.ID,
+				Transition:       database.WorkspaceTransitionStart,
+			})
+			if err != nil {
+				return err
+			}
+
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = cmd.OutOrStdout()
+			spin.Suffix = " Building workspace..."
+			err = spin.Color("fgHiGreen")
+			if err != nil {
+				return err
+			}
+			spin.Start()
+			defer spin.Stop()
+			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, time.Time{})
+			if err != nil {
+				return err
+			}
+			logBuffer := make([]codersdk.ProvisionerJobLog, 0, 64)
+			for {
+				log, ok := <-logs
+				if !ok {
+					break
+				}
+				logBuffer = append(logBuffer, log)
+			}
+			build, err = client.WorkspaceBuild(cmd.Context(), build.ID)
+			if err != nil {
+				return err
+			}
+			if build.Job.Status != codersdk.ProvisionerJobSucceeded {
+				for _, log := range logBuffer {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
+				}
+				return xerrors.New(build.Job.Error)
+			}
+			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), build.ID)
+			if err != nil {
+				return err
+			}
+			var workspaceAgent *codersdk.WorkspaceAgent
+			for _, resource := range resources {
+				if resource.Agent != nil {
+					workspaceAgent = resource.Agent
+					break
+				}
+			}
+			if workspaceAgent == nil {
+				return xerrors.New("something went wrong.. no agent found")
+			}
+			spin.Suffix = " Waiting for agent to connect..."
+			ticker := time.NewTicker(time.Second)
+			for {
+				select {
+				case <-cmd.Context().Done():
+					return nil
+				case <-ticker.C:
+				}
+				resource, err := client.WorkspaceResource(cmd.Context(), workspaceAgent.ResourceID)
+				if err != nil {
+					return err
+				}
+				if resource.Agent.UpdatedAt.IsZero() {
+					continue
+				}
+				break
+			}
+			spin.Stop()
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s workspace has been created!\n", caret, color.HiCyanString(project.Name))
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      "Would you like to SSH?",
+				IsConfirm: true,
+				Default:   "yes",
+			})
+			if err != nil {
+				if errors.Is(err, cliui.Canceled) {
+					return nil
+				}
+				return err
+			}
+
+			dialed, err := client.DialWorkspaceAgent(cmd.Context(), workspaceAgent.ResourceID)
+			if err != nil {
+				return err
+			}
+			stream, err := dialed.NegotiateConnection(cmd.Context())
+			if err != nil {
+				return err
+			}
+			conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{{
+				URLs: []string{"stun:stun.l.google.com:19302"},
+			}}, &peer.ConnOptions{})
+			if err != nil {
+				return err
+			}
+			sshClient, err := agent.DialSSHClient(conn)
+			if err != nil {
+				return err
+			}
+			session, err := sshClient.NewSession()
+			if err != nil {
+				return err
+			}
+			state, err := term.MakeRaw(int(os.Stdin.Fd()))
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = term.Restore(int(os.Stdin.Fd()), state)
+			}()
+			width, height, err := term.GetSize(int(os.Stdin.Fd()))
+			if err != nil {
+				return err
+			}
+			err = session.RequestPty("xterm-256color", height, width, ssh.TerminalModes{
+				ssh.OCRNL: 1,
+			})
+			if err != nil {
+				return err
+			}
+			session.Stdin = os.Stdin
+			session.Stdout = os.Stdout
+			session.Stderr = os.Stderr
+			err = session.Shell()
+			if err != nil {
+				return err
+			}
+			err = session.Wait()
+			if err != nil {
+				return err
+			}
 			return nil
 		},
 	}
@@ -117,7 +271,7 @@ func projectCreate() *cobra.Command {
 	return cmd
 }
 
-func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, directory string, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, error) {
+func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, archive []byte, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
@@ -128,11 +282,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 	spin.Start()
 	defer spin.Stop()
 
-	tarData, err := provisionersdk.Tar(directory)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, tarData)
+	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, archive)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +348,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
 		}
-		return validateProjectVersionSource(cmd, client, organization, provisioner, directory, parameters...)
+		return validateProjectVersionSource(cmd, client, organization, provisioner, archive, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {

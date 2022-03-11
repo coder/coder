@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/coder/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/database"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.

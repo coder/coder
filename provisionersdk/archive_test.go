@@ -4,8 +4,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/coder/coder/provisionersdk"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/provisionersdk"
 )
 
 func TestTar(t *testing.T) {

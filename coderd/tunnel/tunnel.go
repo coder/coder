@@ -26,6 +26,8 @@ import (
 // Upstream connection occurs async through Cloudflare, so the error channel
 // will only be executed if the tunnel has failed after numerous attempts.
 func New(ctx context.Context, url string) (string, <-chan error, error) {
+	_ = os.Setenv("QUIC_GO_DISABLE_RECEIVE_BUFFER_WARNING", "true")
+
 	httpTimeout := time.Second * 30
 	client := http.Client{
 		Transport: &http.Transport{

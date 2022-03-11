@@ -26,14 +26,24 @@ func ValidateNotEmpty(s string) error {
 // Styles compose visual elements of the UI!
 var Styles = struct {
 	Bold,
+	Code,
 	Field,
+	Keyword,
+	Paragraph,
 	Prompt,
 	FocusedPrompt,
-	Logo lipgloss.Style
+	Logo,
+	Wrap lipgloss.Style
 }{
 	Bold:          lipgloss.NewStyle().Bold(true),
-	Field:         defaultStyles.Code.Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}),
+	Code:          defaultStyles.Code,
+	Field:         defaultStyles.Code.Copy().Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}),
+	Keyword:       defaultStyles.Keyword,
+	Paragraph:     defaultStyles.Paragraph,
 	Prompt:        defaultStyles.Prompt.Foreground(lipgloss.AdaptiveColor{Light: "#9B9B9B", Dark: "#5C5C5C"}),
 	FocusedPrompt: defaultStyles.FocusedPrompt.Foreground(lipgloss.Color("#651fff")),
 	Logo:          defaultStyles.Logo.SetString("Coder"),
+	Wrap:          defaultStyles.Wrap,
 }
+
+// coder login

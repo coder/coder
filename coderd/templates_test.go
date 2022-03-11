@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/coderdtest"
 )
 
 func TestListTemplates(t *testing.T) {

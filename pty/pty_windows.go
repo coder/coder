@@ -4,7 +4,6 @@
 package pty
 
 import (
-	"io"
 	"os"
 	"sync"
 	"unsafe"

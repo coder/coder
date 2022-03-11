@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/fatih/color"
 	"github.com/go-playground/validator/v10"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
@@ -68,7 +67,7 @@ func login() *cobra.Command {
 				if !isTTY(cmd) {
 					return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Your Coder deployment hasn't been set up!\n", caret)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Your Coder deployment hasn't been set up!\n")
 
 				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 					Text:      "Would you like to create the first user?",
@@ -101,7 +100,7 @@ func login() *cobra.Command {
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
 						if err != nil {
-							return xerrors.Errorf("That's not a valid email address!", s)
+							return xerrors.New("That's not a valid email address!")
 						}
 						return err
 					},
@@ -148,7 +147,11 @@ func login() *cobra.Command {
 					return xerrors.Errorf("write server url: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", caret, color.HiCyanString(username))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+					cliui.Styles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.Styles.Keyword.Render(username)))+"\n")
+
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+					cliui.Styles.Paragraph.Render("Get started by creating a project: "+cliui.Styles.Code.Render("coder projects create"))+"\n")
 				return nil
 			}
 
@@ -194,7 +197,7 @@ func login() *cobra.Command {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Welcome to Coder, %s! You're authenticated.\n", caret, color.HiCyanString(resp.Username))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
 			return nil
 		},
 	}

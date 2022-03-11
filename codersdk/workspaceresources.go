@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"github.com/pion/webrtc/v3"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
@@ -147,5 +148,9 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, opts *peer.ConnOption
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return peerbroker.Listen(session, nil, opts)
+	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, error) {
+		return []webrtc.ICEServer{{
+			URLs: []string{"stun:stun.l.google.com:19302"},
+		}}, nil
+	}, opts)
 }

@@ -1,4 +1,5 @@
-//
+//go:build !slim
+// +build !slim
 
 package template
 
@@ -8,7 +9,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"path"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -30,13 +31,13 @@ func init() {
 	}
 	for _, dir := range dirs {
 		// Each one of these is a template!
-		templateData, err := files.ReadFile(filepath.Join(dir.Name(), dir.Name()+".json"))
+		templateData, err := files.ReadFile(path.Join(dir.Name(), dir.Name()+".json"))
 		if err != nil {
-			panic(fmt.Sprintf("template %q does not contain compiled json", dir.Name()))
+			panic(fmt.Sprintf("template %q does not contain compiled json: %s", dir.Name(), err))
 		}
-		templateSrc, err := files.ReadFile(filepath.Join(dir.Name(), dir.Name()+".tf"))
+		templateSrc, err := files.ReadFile(path.Join(dir.Name(), dir.Name()+".tf"))
 		if err != nil {
-			panic(fmt.Sprintf("template %q does not contain terraform source", dir.Name()))
+			panic(fmt.Sprintf("template %q does not contain terraform source: %s", dir.Name(), err))
 		}
 
 		var template codersdk.Template

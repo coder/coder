@@ -13,12 +13,13 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
 )
 
 var (
-	caret = color.HiBlackString(">")
+	caret = cliui.Styles.Prompt.String()
 )
 
 const (
@@ -68,8 +69,9 @@ func Root() *cobra.Command {
 	cmd.AddCommand(projects())
 	cmd.AddCommand(workspaces())
 	cmd.AddCommand(users())
+	cmd.AddCommand(workspaceSSH())
 
-	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coder"), "Path to the global `coder` config directory")
+	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
 	err := cmd.PersistentFlags().MarkHidden(varForceTty)
 	if err != nil {
@@ -202,11 +204,4 @@ func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
 	}
 
 	return value, err
-}
-
-// readWriteCloser fakes reads, writes, and closing!
-type readWriteCloser struct {
-	io.Reader
-	io.Writer
-	io.Closer
 }

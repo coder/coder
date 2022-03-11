@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"os/user"
 	"sync"
@@ -197,7 +198,7 @@ func (*server) handleSSHSession(session ssh.Session) error {
 	}()
 
 	cmd := exec.CommandContext(session.Context(), command, args...)
-	cmd.Env = session.Environ()
+	cmd.Env = append(os.Environ(), session.Environ()...)
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {

@@ -19,7 +19,7 @@ type PromptOptions struct {
 }
 
 func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
-	input := &input{
+	input := &inputModel{
 		opts:  opts,
 		model: textinput.New(),
 	}
@@ -44,18 +44,18 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 	return input.model.Value(), nil
 }
 
-type input struct {
+type inputModel struct {
 	opts     PromptOptions
 	model    textinput.Model
 	err      string
 	canceled bool
 }
 
-func (*input) Init() tea.Cmd {
+func (*inputModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (i *input) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (i *inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -94,7 +94,7 @@ func (i *input) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return i, cmd
 }
 
-func (i *input) View() string {
+func (i *inputModel) View() string {
 	prompt := Styles.FocusedPrompt
 	if i.model.CursorMode() == textinput.CursorHide {
 		prompt = Styles.Prompt

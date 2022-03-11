@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/coder/coder/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/database"
 )
 
 // Workspace is a per-user deployment of a project. It tracks

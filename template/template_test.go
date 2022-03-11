@@ -1,10 +1,14 @@
+//go:build !slim
+// +build !slim
+
 package template_test
 
 import (
 	"testing"
 
-	"github.com/coder/coder/template"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/template"
 )
 
 func TestTemplate(t *testing.T) {
