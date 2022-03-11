@@ -9,7 +9,7 @@ const IndexPage: React.FC = () => {
 
   if (me) {
     // Once the user is logged in, just redirect them to /projects as the landing page
-    return <Navigate to="/projects" replace={true}/>
+    return <Navigate to="/projects" replace />
   }
 
   return <FullScreenLoader />

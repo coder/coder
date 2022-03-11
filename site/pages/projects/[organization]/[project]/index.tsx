@@ -72,7 +72,6 @@ const ProjectPage: React.FC = () => {
       name: "Name",
       renderer: (nameField: string, workspace: Workspace) => {
         return <Link to={`/workspaces/${workspace.id}`}>{nameField}</Link>
-
       },
     },
   ]
