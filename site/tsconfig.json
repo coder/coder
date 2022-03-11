@@ -20,5 +20,5 @@
     "moduleResolution": "node"
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "_jest", "**/*.test.tsx", "dev.ts"]
+  "exclude": ["node_modules", "_jest", "**/*.test.tsx"]
 }
