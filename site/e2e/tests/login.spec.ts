@@ -1,6 +1,7 @@
 import { test } from "@playwright/test"
 import { ProjectsPage, SignInPage } from "../pom"
 import { email, password } from "../constants"
+import { waitForClientSideNavigation } from "./../util"
 
 test("Login takes user to /projects", async ({ baseURL, page }) => {
   await page.goto(baseURL + "/", { waitUntil: "networkidle" })
@@ -10,7 +11,7 @@ test("Login takes user to /projects", async ({ baseURL, page }) => {
   await signInPage.submitBuiltInAuthentication(email, password)
 
   const projectsPage = new ProjectsPage(baseURL, page)
-  await page.waitForNavigation({ url: projectsPage.url, waitUntil: "networkidle" })
+  await waitForClientSideNavigation(page, { to: projectsPage.url })
 
   await page.waitForSelector("text=Projects")
 })
