@@ -22,10 +22,10 @@ const config: Configuration = {
   //
   // REMARK: needs webpack-dev-server import at top of file for typings
   devServer: {
-    // allowedHosts are services that can access the running server. headers
-    // are attached to all responses by the dev server. In v1, we use CODERD_HOST for
-    // allowed host and origin in order to mitigate security risks. We don't have
-    // an equivalent in v2 (at the moment) - but we can allow localhost and cdr.dev,
+    // allowedHosts are services that can access the running server.
+    // Setting allowedHosts sets up the development server to spend specific headers to allow cross-origin requests.
+    // In v1, we use CODERD_HOST for the allowed host and origin in order to mitigate security risks.
+    // We don't have an equivalent in v2 - but we can allow localhost and cdr.dev,
     // so that the site is accessible through dev urls.
     // We don't want to use 'all' or '*' and risk a security hole in our dev environments.
     allowedHosts: ["localhost", ".cdr.dev"],
