@@ -1,7 +1,7 @@
 import React from "react"
 import useSWR from "swr"
 import { makeStyles } from "@material-ui/core/styles"
-import { useRouter } from "next/router"
+import { useParams } from "react-router-dom"
 import { Navbar } from "../../components/Navbar"
 import { Footer } from "../../components/Page"
 import { useUser } from "../../contexts/UserContext"
@@ -12,12 +12,10 @@ import { Workspace } from "../../components/Workspace"
 import { unsafeSWRArgument } from "../../util"
 import * as API from "../../api"
 
-const WorkspacesPage: React.FC = () => {
+export const WorkspacePage: React.FC = () => {
   const styles = useStyles()
-  const router = useRouter()
+  const { workspace: workspaceQueryParam } = useParams()
   const { me, signOut } = useUser(true)
-
-  const { workspace: workspaceQueryParam } = router.query
 
   const { data: workspace, error: workspaceError } = useSWR<API.Workspace, Error>(() => {
     const workspaceParam = firstOrItem(workspaceQueryParam, null)
@@ -74,5 +72,3 @@ const useStyles = makeStyles(() => ({
     width: "100%",
   },
 }))
-
-export default WorkspacesPage

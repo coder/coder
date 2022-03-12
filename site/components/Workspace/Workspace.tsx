@@ -3,7 +3,7 @@ import Paper from "@material-ui/core/Paper"
 import Typography from "@material-ui/core/Typography"
 import { makeStyles } from "@material-ui/core/styles"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import React from "react"
 import * as Constants from "./constants"
 import * as API from "../../api"
@@ -68,7 +68,7 @@ export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ organization, projec
         <div className={styles.vertical}>
           <Typography variant="h4">{workspace.name}</Typography>
           <Typography variant="body2" color="textSecondary">
-            <Link href={projectLink}>{project.name}</Link>
+            <Link to={projectLink}>{project.name}</Link>
           </Typography>
         </div>
       </div>

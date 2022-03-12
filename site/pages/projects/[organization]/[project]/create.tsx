@@ -1,6 +1,6 @@
 import React, { useCallback } from "react"
 import { makeStyles } from "@material-ui/core/styles"
-import { useRouter } from "next/router"
+import { useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 
 import * as API from "../../../../api"
@@ -10,11 +10,11 @@ import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
 import { unsafeSWRArgument } from "../../../../util"
 
-const CreateWorkspacePage: React.FC = () => {
-  const { push, query } = useRouter()
+export const CreateWorkspacePage: React.FC = () => {
+  const { organization: organizationName, project: projectName } = useParams()
+  const navigate = useNavigate()
   const styles = useStyles()
   const { me } = useUser(/* redirectOnError */ true)
-  const { organization: organizationName, project: projectName } = query
 
   const { data: organizationInfo, error: organizationError } = useSWR<API.Organization, Error>(
     () => `/api/v2/users/me/organizations/${organizationName}`,
@@ -25,12 +25,12 @@ const CreateWorkspacePage: React.FC = () => {
   })
 
   const onCancel = useCallback(async () => {
-    await push(`/projects/${organizationName}/${projectName}`)
-  }, [push, organizationName, projectName])
+    navigate(`/projects/${organizationName}/${projectName}`)
+  }, [navigate, organizationName, projectName])
 
   const onSubmit = async (req: API.CreateWorkspaceRequest) => {
     const workspace = await API.Workspace.create(req)
-    await push(`/workspaces/${workspace.id}`)
+    navigate(`/workspaces/${workspace.id}`)
     return workspace
   }
 
@@ -62,5 +62,3 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.background.paper,
   },
 }))
-
-export default CreateWorkspacePage

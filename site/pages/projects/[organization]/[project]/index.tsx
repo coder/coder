@@ -1,8 +1,7 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import Link from "next/link"
-import { useRouter } from "next/router"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 
 import { Organization, Project, Workspace } from "../../../../api"
@@ -17,12 +16,11 @@ import { firstOrItem } from "../../../../util/array"
 import { EmptyState } from "../../../../components/EmptyState"
 import { unsafeSWRArgument } from "../../../../util"
 
-const ProjectPage: React.FC = () => {
+export const ProjectPage: React.FC = () => {
   const styles = useStyles()
   const { me, signOut } = useUser(true)
-
-  const router = useRouter()
-  const { project: projectName, organization: organizationName } = router.query
+  const navigate = useNavigate()
+  const { project: projectName, organization: organizationName } = useParams()
 
   const { data: organizationInfo, error: organizationError } = useSWR<Organization, Error>(
     () => `/api/v2/users/me/organizations/${organizationName}`,
@@ -54,7 +52,7 @@ const ProjectPage: React.FC = () => {
   }
 
   const createWorkspace = () => {
-    void router.push(`/projects/${organizationName}/${projectName}/create`)
+    navigate(`/projects/${organizationName}/${projectName}/create`)
   }
 
   const emptyState = (
@@ -73,7 +71,7 @@ const ProjectPage: React.FC = () => {
       key: "name",
       name: "Name",
       renderer: (nameField: string, workspace: Workspace) => {
-        return <Link href={`/workspaces/${workspace.id}`}>{nameField}</Link>
+        return <Link to={`/workspaces/${workspace.id}`}>{nameField}</Link>
       },
     },
   ]
@@ -125,5 +123,3 @@ const useStyles = makeStyles((theme) => ({
     width: "100%",
   },
 }))
-
-export default ProjectPage

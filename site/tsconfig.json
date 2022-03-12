@@ -4,7 +4,7 @@
     "noImplicitAny": true,
     "module": "commonjs",
     "target": "es5",
-    "jsx": "preserve",
+    "jsx": "react",
     "allowJs": true,
     "downlevelIteration": true,
     "esModuleInterop": true,
@@ -15,10 +15,9 @@
     "strict": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
     "incremental": true,
     "moduleResolution": "node"
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "_jest"]
+  "exclude": ["node_modules", "_jest", "**/*.test.tsx"]
 }

@@ -8,5 +8,6 @@
     "strict": true,
     "strictNullChecks": true,
     "esModuleInterop": true
-  }
+  },
+  "exclude": ["node_modules", "_jest"]
 }
