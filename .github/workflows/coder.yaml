@@ -352,6 +352,8 @@ jobs:
         working-directory: site
 
       - run: yarn playwright:test
+        env:
+          DEBUG: pw:api
         working-directory: site
 
       - name: Upload DataDog Trace
