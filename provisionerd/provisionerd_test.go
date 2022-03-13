@@ -512,7 +512,7 @@ func TestProvisionerd(t *testing.T) {
 						close(updateChan)
 					}
 					return &proto.UpdateJobResponse{
-						Cancelled: true,
+						Canceled: true,
 					}, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {

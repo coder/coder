@@ -29,7 +29,7 @@ const (
 	ProvisionerJobPending   ProvisionerJobStatus = "pending"
 	ProvisionerJobRunning   ProvisionerJobStatus = "running"
 	ProvisionerJobSucceeded ProvisionerJobStatus = "succeeded"
-	ProvisionerJobCanceling ProvisionerJobStatus = "canceled"
+	ProvisionerJobCanceling ProvisionerJobStatus = "canceling"
 	ProvisionerJobCanceled  ProvisionerJobStatus = "canceled"
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
 )

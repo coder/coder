@@ -516,7 +516,7 @@ func (t *terraform) runTerraformApply(ctx, shutdown context.Context, terraform *
 	})
 }
 
-// This couldn't use terraform-exec, because it doesn't support cancellation, and there didn't appear
+// This couldn't use terraform-exec, because it doesn't support cancelation, and there didn't appear
 // to be a straight-forward way to add it.
 func runApplyCommand(ctx, shutdownCtx context.Context, transition proto.WorkspaceTransition, bin, dir string, stdout io.Writer, env, vars []string) error {
 	args := []string{

@@ -85,7 +85,7 @@ message UpdateJobRequest {
 }
 
 message UpdateJobResponse {
-    bool cancelled = 1;
+    bool canceled = 1;
     // If parameter schemas are sent, the job will respond
     // with resolved parameter values.
     repeated provisioner.ParameterValue parameter_values = 2;

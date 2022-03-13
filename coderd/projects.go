@@ -38,6 +38,42 @@ func (api *api) project(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertProject(project, count))
 }
 
+func (api *api) deleteProject(rw http.ResponseWriter, r *http.Request) {
+	project := httpmw.ProjectParam(r)
+
+	workspaces, err := api.Database.GetWorkspacesByProjectID(r.Context(), database.GetWorkspacesByProjectIDParams{
+		ProjectID: project.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces by project id: %s", err),
+		})
+		return
+	}
+	if len(workspaces) > 0 {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("All workspaces must be deleted before a project can be removed."),
+		})
+		return
+	}
+	err = api.Database.UpdateProjectDeletedByID(r.Context(), database.UpdateProjectDeletedByIDParams{
+		ID:      project.ID,
+		Deleted: true,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update project deleted by id: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Project has been deleted!",
+	})
+}
+
 func (api *api) projectVersionsByProject(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 
@@ -114,6 +150,46 @@ func (api *api) projectVersionByName(rw http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertProjectVersion(projectVersion, convertProvisionerJob(job)))
+}
+
+func (api *api) patchActiveProjectVersion(rw http.ResponseWriter, r *http.Request) {
+	var req codersdk.UpdateActiveProjectVersion
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+	project := httpmw.ProjectParam(r)
+	version, err := api.Database.GetProjectVersionByID(r.Context(), req.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "project version not found",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get project version: %s", err),
+		})
+		return
+	}
+	if version.ProjectID.UUID.String() != project.ID.String() {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "The provided project version doesn't belong to the specified project.",
+		})
+		return
+	}
+	err = api.Database.UpdateProjectActiveVersionByID(r.Context(), database.UpdateProjectActiveVersionByIDParams{
+		ID:              project.ID,
+		ActiveVersionID: req.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update active project version: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Updated the active project version!",
+	})
 }
 
 func convertProjects(projects []database.Project, workspaceCounts []database.GetWorkspaceOwnerCountsByProjectIDsRow) []codersdk.Project {

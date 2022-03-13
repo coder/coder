@@ -238,7 +238,9 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 
 func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	projects, err := api.Database.GetProjectsByOrganization(r.Context(), organization.ID)
+	projects, err := api.Database.GetProjectsByOrganization(r.Context(), database.GetProjectsByOrganizationParams{
+		OrganizationID: organization.ID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

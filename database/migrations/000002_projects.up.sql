@@ -17,6 +17,7 @@ CREATE TABLE project (
     updated_at timestamptz NOT NULL,
     -- Projects must be scoped to an organization.
     organization_id text NOT NULL,
+    deleted boolean NOT NULL DEFAULT FALSE,
     name varchar(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
     -- Target's a Project Version to use for Workspaces.
@@ -26,6 +27,9 @@ CREATE TABLE project (
     -- the same organization.
     UNIQUE(organization_id, name)
 );
+
+-- Enforces no active projects have the same name.
+CREATE UNIQUE INDEX ON project (organization_id, name) WHERE deleted = FALSE;
 
 -- Project Versions store historical project data. When a Project Version is imported,
 -- an "import" job is queued to parse parameters. A Project Version

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -297,6 +298,17 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 	if err != nil {
 		return nil, err
 	}
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	defer signal.Stop(c)
+	go func() {
+		defer signal.Stop(c)
+		<-c
+
+		for sig := range c {
+			// sig is a ^C, handle it
+		}
+	}()
 	spin.Suffix = " Waiting for the import to complete..."
 	logs, err := client.ProjectVersionLogsAfter(cmd.Context(), version.ID, before)
 	if err != nil {
@@ -364,5 +376,5 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 	if err != nil {
 		return nil, err
 	}
-	return &version, displayProjectImportInfo(cmd, parameterSchemas, parameterValues, resources)
+	return &version, displayProjectVersionInfo(cmd, parameterSchemas, parameterValues, resources)
 }

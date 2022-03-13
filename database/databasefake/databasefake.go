@@ -162,6 +162,26 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
+func (q *fakeQuerier) GetWorkspacesByProjectID(ctx context.Context, arg database.GetWorkspacesByProjectIDParams) ([]database.Workspace, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspace {
+		if workspace.ProjectID.String() != arg.ProjectID.String() {
+			continue
+		}
+		if workspace.Deleted != arg.Deleted {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	if len(workspaces) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaces, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -185,6 +205,9 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 		if !strings.EqualFold(workspace.Name, arg.Name) {
 			continue
 		}
+		if workspace.Deleted != arg.Deleted {
+			continue
+		}
 		return workspace, nil
 	}
 	return database.Workspace{}, sql.ErrNoRows
@@ -196,6 +219,9 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, pro
 		found := false
 		for _, workspace := range q.workspace {
 			if workspace.ProjectID.String() != projectID.String() {
+				continue
+			}
+			if workspace.Deleted {
 				continue
 			}
 			countByOwnerID, ok := counts[projectID.String()]
@@ -296,13 +322,16 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, ownerID string) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetWorkspacesByUserIDParams) ([]database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspace {
-		if workspace.OwnerID != ownerID {
+		if workspace.OwnerID != req.OwnerID {
+			continue
+		}
+		if workspace.Deleted != req.Deleted {
 			continue
 		}
 		workspaces = append(workspaces, workspace)
@@ -402,6 +431,9 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 		if !strings.EqualFold(project.Name, arg.Name) {
 			continue
 		}
+		if project.Deleted != arg.Deleted {
+			continue
+		}
 		return project, nil
 	}
 	return database.Project{}, sql.ErrNoRows
@@ -489,13 +521,16 @@ func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg dat
 	return database.ParameterValue{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, organizationID string) ([]database.Project, error) {
+func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, arg database.GetProjectsByOrganizationParams) ([]database.Project, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	projects := make([]database.Project, 0)
 	for _, project := range q.project {
-		if project.OrganizationID == organizationID {
+		if project.Deleted != arg.Deleted {
+			continue
+		}
+		if project.OrganizationID == arg.OrganizationID {
 			projects = append(projects, project)
 			break
 		}
@@ -992,6 +1027,36 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateProjectActiveVersionByID(ctx context.Context, arg database.UpdateProjectActiveVersionByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, project := range q.project {
+		if project.ID.String() != arg.ID.String() {
+			continue
+		}
+		project.ActiveVersionID = arg.ActiveVersionID
+		q.project[index] = project
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateProjectDeletedByID(ctx context.Context, arg database.UpdateProjectDeletedByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, project := range q.project {
+		if project.ID.String() != arg.ID.String() {
+			continue
+		}
+		project.Deleted = arg.Deleted
+		q.project[index] = project
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateProjectVersionByID(_ context.Context, arg database.UpdateProjectVersionByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1054,6 +1119,21 @@ func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, job := range q.provisionerJobs {
+		if arg.ID.String() != job.ID.String() {
+			continue
+		}
+		job.CanceledAt = arg.CanceledAt
+		q.provisionerJobs[index] = job
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1064,7 +1144,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		}
 		job.UpdatedAt = arg.UpdatedAt
 		job.CompletedAt = arg.CompletedAt
-		job.CancelledAt = arg.CancelledAt
+		job.CanceledAt = arg.CanceledAt
 		job.Error = arg.Error
 		q.provisionerJobs[index] = job
 		return nil
@@ -1084,6 +1164,21 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		workspaceBuild.AfterID = arg.AfterID
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		q.workspaceBuild[index] = workspaceBuild
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspace {
+		if workspace.ID.String() != arg.ID.String() {
+			continue
+		}
+		workspace.Deleted = arg.Deleted
+		q.workspace[index] = workspace
 		return nil
 	}
 	return sql.ErrNoRows

@@ -29,7 +29,13 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	builds, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
 	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace builds: %s", err),
+		})
 		return
 	}
 	jobIDs := make([]uuid.UUID, 0, len(builds))
@@ -37,6 +43,9 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		jobIDs = append(jobIDs, version.JobID)
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get jobs: %s", err),

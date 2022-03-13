@@ -264,10 +264,10 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	if job.WorkerID.UUID.String() != server.ID.String() {
 		return nil, xerrors.New("you don't own this job")
 	}
-	if job.CancelledAt.Valid {
-		// Allows for graceful cancellation on the backend!
+	if job.CanceledAt.Valid {
+		// Allows for graceful cancelation on the backend!
 		return &proto.UpdateJobResponse{
-			Cancelled: true,
+			Canceled: true,
 		}, nil
 	}
 	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
@@ -526,6 +526,20 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
 			}
+
+			if workspaceBuild.Transition != database.WorkspaceTransitionDelete {
+				// This is for deleting a workspace!
+				return nil
+			}
+
+			err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+				ID:      workspaceBuild.WorkspaceID,
+				Deleted: true,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace deleted: %w", err)
+			}
+
 			return nil
 		})
 		if err != nil {

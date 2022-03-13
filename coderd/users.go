@@ -574,7 +574,9 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	workspaces, err := api.Database.GetWorkspacesByUserID(r.Context(), user.ID)
+	workspaces, err := api.Database.GetWorkspacesByUserID(r.Context(), database.GetWorkspacesByUserIDParams{
+		OwnerID: user.ID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

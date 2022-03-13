@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -23,6 +24,45 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
+}
+
+func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	if job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already completed!",
+		})
+		return
+	}
+	if job.CanceledAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already been marked as canceled!",
+		})
+		return
+	}
+	err = api.Database.UpdateProvisionerJobWithCancelByID(r.Context(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update provisioner job: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Job has been marked as canceled...",
+	})
 }
 
 func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {

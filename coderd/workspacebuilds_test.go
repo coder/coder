@@ -33,6 +33,46 @@ func TestWorkspaceBuild(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestPatchCancelWorkspaceBuild(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{},
+			},
+		}},
+		ProvisionDryRun: echo.ProvisionComplete,
+	})
+	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		ProjectVersionID: project.ActiveVersionID,
+		Transition:       database.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var err error
+		build, err = client.WorkspaceBuild(context.Background(), build.ID)
+		require.NoError(t, err)
+		return build.Job.Status == codersdk.ProvisionerJobRunning
+	}, 5*time.Second, 25*time.Millisecond)
+	err = client.CancelWorkspaceBuild(context.Background(), build.ID)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var err error
+		build, err = client.WorkspaceBuild(context.Background(), build.ID)
+		require.NoError(t, err)
+		// The echo provisioner doesn't respond to a shutdown request,
+		// so the job cancel will time out and fail.
+		return build.Job.Status == codersdk.ProvisionerJobFailed
+	}, 5*time.Second, 25*time.Millisecond)
+}
+
 func TestWorkspaceBuildResources(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {

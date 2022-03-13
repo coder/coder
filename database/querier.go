@@ -25,7 +25,7 @@ type querier interface {
 	GetProjectVersionByID(ctx context.Context, id uuid.UUID) (ProjectVersion, error)
 	GetProjectVersionByProjectIDAndName(ctx context.Context, arg GetProjectVersionByProjectIDAndNameParams) (ProjectVersion, error)
 	GetProjectVersionsByProjectID(ctx context.Context, dollar_1 uuid.UUID) ([]ProjectVersion, error)
-	GetProjectsByOrganization(ctx context.Context, organizationID string) ([]Project, error)
+	GetProjectsByOrganization(ctx context.Context, arg GetProjectsByOrganizationParams) ([]Project, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
@@ -47,7 +47,8 @@ type querier interface {
 	GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByProjectIDsRow, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
-	GetWorkspacesByUserID(ctx context.Context, ownerID string) ([]Workspace, error)
+	GetWorkspacesByProjectID(ctx context.Context, arg GetWorkspacesByProjectIDParams) ([]Workspace, error)
+	GetWorkspacesByUserID(ctx context.Context, arg GetWorkspacesByUserIDParams) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
@@ -65,12 +66,16 @@ type querier interface {
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateProjectActiveVersionByID(ctx context.Context, arg UpdateProjectActiveVersionByIDParams) error
+	UpdateProjectDeletedByID(ctx context.Context, arg UpdateProjectDeletedByIDParams) error
 	UpdateProjectVersionByID(ctx context.Context, arg UpdateProjectVersionByIDParams) error
 	UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error
 	UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error
+	UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error
 	UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error
 	UpdateWorkspaceAgentByID(ctx context.Context, arg UpdateWorkspaceAgentByIDParams) error
 	UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error
+	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 }
 
 var _ querier = (*sqlQuerier)(nil)

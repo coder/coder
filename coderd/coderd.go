@@ -75,9 +75,10 @@ func New(options *Options) (http.Handler, func()) {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.project)
+			r.Delete("/", api.deleteProject)
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", api.projectVersionsByProject)
-				r.Patch("/versions", nil)
+				r.Patch("/", api.patchActiveProjectVersion)
 				r.Get("/{projectversionname}", api.projectVersionByName)
 			})
 		})
@@ -89,6 +90,7 @@ func New(options *Options) (http.Handler, func()) {
 			)
 
 			r.Get("/", api.projectVersion)
+			r.Patch("/cancel", api.patchCancelProjectVersion)
 			r.Get("/schema", api.projectVersionSchema)
 			r.Get("/parameters", api.projectVersionParameters)
 			r.Get("/resources", api.projectVersionResources)
@@ -168,6 +170,7 @@ func New(options *Options) (http.Handler, func()) {
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
 			r.Get("/", api.workspaceBuild)
+			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
 		})

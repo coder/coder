@@ -5,7 +5,7 @@
 ;
 
 -- Acquires the lock for a single job that isn't started, completed,
--- cancelled, and that matches an array of provisioner types.
+-- canceled, and that matches an array of provisioner types.
 --
 -- SKIP LOCKED is used to jump over locked rows. This prevents
 -- multiple provisioners from acquiring the same jobs. See:
@@ -25,7 +25,7 @@ WHERE
       provisioner_job AS nested
     WHERE
       nested.started_at IS NULL
-      AND nested.cancelled_at IS NULL
+      AND nested.canceled_at IS NULL
       AND nested.completed_at IS NULL
       AND nested.provisioner = ANY(@types :: provisioner_type [ ])
     ORDER BY
@@ -171,6 +171,7 @@ FROM
   project
 WHERE
   organization_id = @organization_id
+  AND deleted = @deleted
   AND LOWER(name) = LOWER(@name)
 LIMIT
   1;
@@ -181,7 +182,8 @@ SELECT
 FROM
   project
 WHERE
-  organization_id = $1;
+  organization_id = $1
+  AND deleted = $2;
 
 -- name: GetParameterSchemasByJobID :many
 SELECT
@@ -290,13 +292,23 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspacesByProjectID :many
+SELECT
+  *
+FROM
+  workspace
+WHERE
+  project_id = $1
+  AND deleted = $2;
+
 -- name: GetWorkspacesByUserID :many
 SELECT
   *
 FROM
   workspace
 WHERE
-  owner_id = $1;
+  owner_id = $1
+  AND deleted = $2;
 
 -- name: GetWorkspaceByUserIDAndName :one
 SELECT
@@ -305,6 +317,7 @@ FROM
   workspace
 WHERE
   owner_id = @owner_id
+  AND deleted = @deleted
   AND LOWER(name) = LOWER(@name);
 
 -- name: GetWorkspaceOwnerCountsByProjectIDs :many
@@ -662,6 +675,22 @@ SET
 WHERE
   id = $1;
 
+-- name: UpdateProjectActiveVersionByID :exec
+UPDATE
+  project
+SET
+  active_version_id = $2
+WHERE
+  id = $1;
+
+-- name: UpdateProjectDeletedByID :exec
+UPDATE
+  project
+SET
+  deleted = $2
+WHERE
+  id = $1;
+
 -- name: UpdateProjectVersionByID :exec
 UPDATE
   project_version
@@ -688,14 +717,30 @@ SET
 WHERE
   id = $1;
 
+-- name: UpdateProvisionerJobWithCancelByID :exec
+UPDATE
+  provisioner_job
+SET
+  canceled_at = $2
+WHERE
+  id = $1;
+
 -- name: UpdateProvisionerJobWithCompleteByID :exec
 UPDATE
   provisioner_job
 SET
   updated_at = $2,
   completed_at = $3,
-  cancelled_at = $4,
+  canceled_at = $4,
   error = $5
+WHERE
+  id = $1;
+
+-- name: UpdateWorkspaceDeletedByID :exec
+UPDATE
+  workspace
+SET
+  deleted = $2
 WHERE
   id = $1;
 

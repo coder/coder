@@ -4,9 +4,12 @@ CREATE TABLE workspace (
     updated_at timestamptz NOT NULL,
     owner_id text NOT NULL,
     project_id uuid NOT NULL REFERENCES project (id),
-    name varchar(64) NOT NULL,
-    UNIQUE(owner_id, name)
+    deleted boolean NOT NULL DEFAULT FALSE,
+    name varchar(64) NOT NULL
 );
+
+-- Enforces no active workspaces have the same name.
+CREATE UNIQUE INDEX ON workspace (owner_id, name) WHERE deleted = FALSE;
 
 CREATE TYPE workspace_transition AS ENUM (
     'start',

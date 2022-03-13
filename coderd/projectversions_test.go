@@ -27,6 +27,37 @@ func TestProjectVersion(t *testing.T) {
 	})
 }
 
+func TestPatchCancelProjectVersion(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{},
+			},
+		}},
+	})
+	require.Eventually(t, func() bool {
+		var err error
+		version, err = client.ProjectVersion(context.Background(), version.ID)
+		require.NoError(t, err)
+		return version.Job.Status == codersdk.ProvisionerJobRunning
+	}, 5*time.Second, 25*time.Millisecond)
+	err := client.CancelProjectVersion(context.Background(), version.ID)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var err error
+		version, err = client.ProjectVersion(context.Background(), version.ID)
+		require.NoError(t, err)
+		// The echo provisioner doesn't respond to a shutdown request,
+		// so the job cancel will time out and fail.
+		return version.Job.Status == codersdk.ProvisionerJobFailed
+	}, 5*time.Second, 25*time.Millisecond)
+}
+
 func TestProjectVersionSchema(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {

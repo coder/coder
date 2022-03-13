@@ -158,6 +158,7 @@ CREATE TABLE project (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     organization_id text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
     active_version_id uuid NOT NULL
@@ -188,7 +189,7 @@ CREATE TABLE provisioner_job (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     started_at timestamp with time zone,
-    cancelled_at timestamp with time zone,
+    canceled_at timestamp with time zone,
     completed_at timestamp with time zone,
     error text,
     organization_id text NOT NULL,
@@ -238,6 +239,7 @@ CREATE TABLE workspace (
     updated_at timestamp with time zone NOT NULL,
     owner_id text NOT NULL,
     project_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL
 );
 
@@ -336,11 +338,12 @@ ALTER TABLE ONLY workspace_build
 ALTER TABLE ONLY workspace
     ADD CONSTRAINT workspace_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace
-    ADD CONSTRAINT workspace_owner_id_name_key UNIQUE (owner_id, name);
-
 ALTER TABLE ONLY workspace_resource
     ADD CONSTRAINT workspace_resource_id_key UNIQUE (id);
+
+CREATE UNIQUE INDEX project_organization_id_name_idx ON project USING btree (organization_id, name) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX workspace_owner_id_name_idx ON workspace USING btree (owner_id, name) WHERE (deleted = false);
 
 ALTER TABLE ONLY parameter_schema
     ADD CONSTRAINT parameter_schema_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;

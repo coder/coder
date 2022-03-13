@@ -43,6 +43,19 @@ func (c *Client) ProjectVersion(ctx context.Context, id uuid.UUID) (ProjectVersi
 	return version, json.NewDecoder(res.Body).Decode(&version)
 }
 
+// CancelProjectVersion marks a project version job as canceled.
+func (c *Client) CancelProjectVersion(ctx context.Context, version uuid.UUID) error {
+	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/projectversions/%s/cancel", version), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 // ProjectVersionSchema returns schemas for a project version by ID.
 func (c *Client) ProjectVersionSchema(ctx context.Context, version uuid.UUID) ([]ProjectVersionParameterSchema, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projectversions/%s/schema", version), nil)

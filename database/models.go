@@ -338,6 +338,7 @@ type Project struct {
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
 	OrganizationID  string          `db:"organization_id" json:"organization_id"`
+	Deleted         bool            `db:"deleted" json:"deleted"`
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
@@ -368,7 +369,7 @@ type ProvisionerJob struct {
 	CreatedAt      time.Time                `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time                `db:"updated_at" json:"updated_at"`
 	StartedAt      sql.NullTime             `db:"started_at" json:"started_at"`
-	CancelledAt    sql.NullTime             `db:"cancelled_at" json:"cancelled_at"`
+	CanceledAt     sql.NullTime             `db:"canceled_at" json:"canceled_at"`
 	CompletedAt    sql.NullTime             `db:"completed_at" json:"completed_at"`
 	Error          sql.NullString           `db:"error" json:"error"`
 	OrganizationID string                   `db:"organization_id" json:"organization_id"`
@@ -418,6 +419,7 @@ type Workspace struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 	OwnerID   string    `db:"owner_id" json:"owner_id"`
 	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Deleted   bool      `db:"deleted" json:"deleted"`
 	Name      string    `db:"name" json:"name"`
 }
 

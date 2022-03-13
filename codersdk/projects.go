@@ -26,6 +26,10 @@ type Project struct {
 	WorkspaceOwnerCount uint32                   `json:"workspace_owner_count"`
 }
 
+type UpdateActiveProjectVersion struct {
+	ID uuid.UUID `json:"id" validate:"required"`
+}
+
 // Project returns a single project.
 func (c *Client) Project(ctx context.Context, project uuid.UUID) (Project, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/projects/%s", project), nil)
@@ -38,6 +42,32 @@ func (c *Client) Project(ctx context.Context, project uuid.UUID) (Project, error
 	}
 	var resp Project
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) DeleteProject(ctx context.Context, project uuid.UUID) error {
+	res, err := c.request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/projects/%s", project), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateActiveProjectVersion updates the active project version to the ID provided.
+// The project version must be attached to the project.
+func (c *Client) UpdateActiveProjectVersion(ctx context.Context, project uuid.UUID, req UpdateActiveProjectVersion) error {
+	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/projects/%s/versions", project), req)
+	if err != nil {
+		return nil
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
 }
 
 // ProjectVersionsByProject lists versions associated with a project.

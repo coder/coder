@@ -28,6 +28,45 @@ func (api *api) projectVersion(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertProjectVersion(projectVersion, convertProvisionerJob(job)))
 }
 
+func (api *api) patchCancelProjectVersion(rw http.ResponseWriter, r *http.Request) {
+	projectVersion := httpmw.ProjectVersionParam(r)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	if job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already completed!",
+		})
+		return
+	}
+	if job.CanceledAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already been marked as canceled!",
+		})
+		return
+	}
+	err = api.Database.UpdateProvisionerJobWithCancelByID(r.Context(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update provisioner job: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Job has been marked as canceled...",
+	})
+}
+
 func (api *api) projectVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	projectVersion := httpmw.ProjectVersionParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)

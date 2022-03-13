@@ -26,6 +26,39 @@ func TestWorkspace(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestWorkspaceBuilds(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		_, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		_, err = client.WorkspaceBuilds(context.Background(), workspace.ID)
+		require.NoError(t, err)
+	})
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			ProjectVersionID: project.ActiveVersionID,
+			Transition:       database.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		_, err = client.WorkspaceBuilds(context.Background(), workspace.ID)
+		require.NoError(t, err)
+	})
+}
+
 func TestPostWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 	t.Run("NoProjectVersion", func(t *testing.T) {
@@ -117,6 +150,34 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		firstBuild, err = client.WorkspaceBuild(context.Background(), firstBuild.ID)
 		require.NoError(t, err)
 		require.Equal(t, secondBuild.ID.String(), firstBuild.AfterID.String())
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		firstBuild, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			ProjectVersionID: project.ActiveVersionID,
+			Transition:       database.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, firstBuild.ID)
+		secondBuild, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			ProjectVersionID: project.ActiveVersionID,
+			Transition:       database.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err)
+		require.Equal(t, firstBuild.ID.String(), secondBuild.BeforeID.String())
+		coderdtest.AwaitWorkspaceBuildJob(t, client, secondBuild.ID)
+
+		workspaces, err := client.WorkspacesByUser(context.Background(), user.UserID)
+		require.NoError(t, err)
+		require.Len(t, workspaces, 0)
 	})
 }
 

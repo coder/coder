@@ -249,7 +249,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
 		job.Status = codersdk.ProvisionerJobFailed
 		job.Error = "Worker failed to update job in time."
-	case provisionerJob.CancelledAt.Valid:
+	case provisionerJob.CanceledAt.Valid:
 		if provisionerJob.CompletedAt.Valid {
 			job.Status = codersdk.ProvisionerJobCanceled
 		} else {

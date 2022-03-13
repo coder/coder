@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS provisioner_job (
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     started_at timestamptz,
-    cancelled_at timestamptz,
+    canceled_at timestamptz,
     completed_at timestamptz,
     error text,
     organization_id text NOT NULL,

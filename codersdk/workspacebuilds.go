@@ -43,6 +43,19 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+// CancelWorkspaceBuild marks a workspace build job as canceled.
+func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
+	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 // WorkspaceResourcesByBuild returns resources for a workspace build.
 func (c *Client) WorkspaceResourcesByBuild(ctx context.Context, build uuid.UUID) ([]WorkspaceResource, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/resources", build), nil)

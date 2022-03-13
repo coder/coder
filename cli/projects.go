@@ -40,7 +40,7 @@ func projects() *cobra.Command {
 	return cmd
 }
 
-func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []codersdk.ProjectVersionParameterSchema, parameterValues []codersdk.ProjectVersionParameter, resources []codersdk.WorkspaceResource) error {
+func displayProjectVersionInfo(cmd *cobra.Command, parameterSchemas []codersdk.ProjectVersionParameterSchema, parameterValues []codersdk.ProjectVersionParameter, resources []codersdk.WorkspaceResource) error {
 	schemaByID := map[string]codersdk.ProjectVersionParameterSchema{}
 	for _, schema := range parameterSchemas {
 		schemaByID[schema.ID.String()] = schema

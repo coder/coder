@@ -77,7 +77,7 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = displayProjectImportInfo(cmd, parameterSchemas, parameterValues, resources)
+			err = displayProjectVersionInfo(cmd, parameterSchemas, parameterValues, resources)
 			if err != nil {
 				return err
 			}

@@ -45,10 +45,11 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 type Options struct {
 	Logger slog.Logger
 
-	UpdateInterval time.Duration
-	PollInterval   time.Duration
-	Provisioners   Provisioners
-	WorkDirectory  string
+	ForceCancelInterval time.Duration
+	UpdateInterval      time.Duration
+	PollInterval        time.Duration
+	Provisioners        Provisioners
+	WorkDirectory       string
 }
 
 // New creates and starts a provisioner daemon.
@@ -58,6 +59,9 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	}
 	if opts.UpdateInterval == 0 {
 		opts.UpdateInterval = 5 * time.Second
+	}
+	if opts.ForceCancelInterval == 0 {
+		opts.ForceCancelInterval = time.Minute
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
@@ -232,7 +236,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		case <-ctx.Done():
 			return
 		case <-p.shutdown:
-			p.opts.Logger.Info(ctx, "attempting graceful cancellation")
+			p.opts.Logger.Info(ctx, "attempting graceful cancelation")
 			shutdownCancel()
 			return
 		case <-ticker.C:
@@ -243,11 +247,21 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 				p.failActiveJobf("send periodic update: %s", err)
 				return
 			}
-			if !resp.Cancelled {
+			if !resp.Canceled {
 				return
 			}
-			p.opts.Logger.Info(ctx, "attempting graceful cancellation")
+			p.opts.Logger.Info(ctx, "attempting graceful cancelation")
 			shutdownCancel()
+			// Hard-cancel the job after a minute of pending cancelation.
+			timer := time.NewTimer(p.opts.ForceCancelInterval)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				p.failActiveJobf("cancelation timed out")
+				return
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 	defer func() {
