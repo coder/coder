@@ -264,6 +264,12 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	if job.WorkerID.UUID.String() != server.ID.String() {
 		return nil, xerrors.New("you don't own this job")
 	}
+	if job.CancelledAt.Valid {
+		// Allows for graceful cancellation on the backend!
+		return &proto.UpdateJobResponse{
+			Cancelled: true,
+		}, nil
+	}
 	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
 		UpdatedAt: database.Now(),

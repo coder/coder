@@ -366,20 +366,6 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 }
 
 func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
-	_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
-		JobId: job.GetJobId(),
-		Logs: []*proto.Log{{
-			Source:    proto.LogSource_PROVISIONER_DAEMON,
-			Level:     sdkproto.LogLevel_INFO,
-			CreatedAt: time.Now().UTC().UnixMilli(),
-			Output:    "Parsing variables...",
-		}},
-	})
-	if err != nil {
-		p.failActiveJobf("write log: %s", err)
-		return
-	}
-
 	parameterSchemas, err := p.runProjectImportParse(ctx, provisioner, job)
 	if err != nil {
 		p.failActiveJobf("run parse: %s", err)
@@ -407,19 +393,6 @@ func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdk
 		}
 	}
 
-	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
-		JobId: job.GetJobId(),
-		Logs: []*proto.Log{{
-			Source:    proto.LogSource_PROVISIONER_DAEMON,
-			Level:     sdkproto.LogLevel_INFO,
-			CreatedAt: time.Now().UTC().UnixMilli(),
-			Output:    "Running start...",
-		}},
-	})
-	if err != nil {
-		p.failActiveJobf("write log: %s", err)
-		return
-	}
 	startResources, err := p.runProjectImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,

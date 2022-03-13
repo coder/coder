@@ -246,8 +246,15 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	}
 
 	switch {
+	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
+		job.Status = codersdk.ProvisionerJobFailed
+		job.Error = "Worker failed to update job in time."
 	case provisionerJob.CancelledAt.Valid:
-		job.Status = codersdk.ProvisionerJobCancelled
+		if provisionerJob.CompletedAt.Valid {
+			job.Status = codersdk.ProvisionerJobCanceled
+		} else {
+			job.Status = codersdk.ProvisionerJobCanceling
+		}
 	case !provisionerJob.StartedAt.Valid:
 		job.Status = codersdk.ProvisionerJobPending
 	case provisionerJob.CompletedAt.Valid:
@@ -256,9 +263,6 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 		} else {
 			job.Status = codersdk.ProvisionerJobFailed
 		}
-	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
-		job.Status = codersdk.ProvisionerJobFailed
-		job.Error = "Worker failed to update job in time."
 	default:
 		job.Status = codersdk.ProvisionerJobRunning
 	}

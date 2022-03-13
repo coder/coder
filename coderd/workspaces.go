@@ -107,7 +107,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Message: fmt.Sprintf("The provided project version %q has failed to import. You cannot create workspaces using it!", projectVersion.Name),
 		})
 		return
-	case codersdk.ProvisionerJobCancelled:
+	case codersdk.ProvisionerJobCanceled:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "The provided project version was canceled during import. You cannot create workspaces using it!",
 		})
