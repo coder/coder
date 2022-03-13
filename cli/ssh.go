@@ -7,7 +7,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/peer"
@@ -65,7 +65,7 @@ func workspaceSSH() *cobra.Command {
 					return err
 				}
 				// Set raw
-				terminal.MakeRaw(int(os.Stdin.Fd()))
+				term.MakeRaw(int(os.Stdin.Fd()))
 				err = session.RequestPty("xterm-256color", 128, 128, ssh.TerminalModes{
 					ssh.OCRNL: 1,
 				})

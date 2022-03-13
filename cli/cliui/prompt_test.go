@@ -15,17 +15,17 @@ func TestPrompt(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
-		ch := make(chan string)
+		msgChan := make(chan string)
 		go func() {
 			resp, err := prompt(ptty, cliui.PromptOptions{
 				Text: "Example",
 			})
 			require.NoError(t, err)
-			ch <- resp
+			msgChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("hello")
-		require.Equal(t, "hello", <-ch)
+		require.Equal(t, "hello", <-msgChan)
 	})
 
 	t.Run("Confirm", func(t *testing.T) {

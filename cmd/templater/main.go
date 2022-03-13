@@ -71,6 +71,9 @@ func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParame
 		return err
 	}
 	accessURL, errCh, err := tunnel.New(cmd.Context(), srv.URL)
+	if err != nil {
+		return err
+	}
 	go func() {
 		err := <-errCh
 		if err != nil {

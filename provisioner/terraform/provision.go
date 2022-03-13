@@ -24,21 +24,49 @@ import (
 )
 
 // Provision executes `terraform apply`.
-func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
-	ctx := stream.Context()
-	statefilePath := filepath.Join(request.Directory, "terraform.tfstate")
-	if len(request.State) > 0 {
-		err := os.WriteFile(statefilePath, request.State, 0600)
+func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+	shutdown, shutdownFunc := context.WithCancel(stream.Context())
+	defer shutdownFunc()
+
+	request, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	if request.GetCancel() != nil {
+		return nil
+	}
+	// We expect the first message is start!
+	if request.GetStart() == nil {
+		return nil
+	}
+	go func() {
+		for {
+			request, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			if request.GetCancel() == nil {
+				// This is only to process cancels!
+				continue
+			}
+			shutdownFunc()
+			return
+		}
+	}()
+	start := request.GetStart()
+	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
+	if len(start.State) > 0 {
+		err := os.WriteFile(statefilePath, start.State, 0600)
 		if err != nil {
 			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
 		}
 	}
 
-	terraform, err := tfexec.NewTerraform(request.Directory, t.binaryPath)
+	terraform, err := tfexec.NewTerraform(start.Directory, t.binaryPath)
 	if err != nil {
 		return xerrors.Errorf("create new terraform executor: %w", err)
 	}
-	version, _, err := terraform.Version(ctx, false)
+	version, _, err := terraform.Version(shutdown, false)
 	if err != nil {
 		return xerrors.Errorf("get terraform version: %w", err)
 	}
@@ -63,20 +91,20 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 		}
 	}()
 	terraform.SetStdout(writer)
-	t.logger.Debug(ctx, "running initialization")
-	err = terraform.Init(ctx)
+	t.logger.Debug(shutdown, "running initialization")
+	err = terraform.Init(shutdown)
 	if err != nil {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
-	t.logger.Debug(ctx, "ran initialization")
+	t.logger.Debug(shutdown, "ran initialization")
 
-	if request.DryRun {
-		return t.runTerraformPlan(ctx, terraform, request, stream)
+	if start.DryRun {
+		return t.runTerraformPlan(stream.Context(), shutdown, terraform, start, stream)
 	}
-	return t.runTerraformApply(ctx, terraform, request, stream, statefilePath)
+	return t.runTerraformApply(stream.Context(), shutdown, terraform, start, stream, statefilePath)
 }
 
-func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
+func (t *terraform) runTerraformPlan(ctx, shutdown context.Context, terraform *tfexec.Terraform, request *proto.Provision_Start, stream proto.DRPCProvisioner_ProvisionStream) error {
 	env := map[string]string{}
 	for _, envEntry := range os.Environ() {
 		parts := strings.SplitN(envEntry, "=", 2)
@@ -286,7 +314,7 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 	})
 }
 
-func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream, statefilePath string) error {
+func (t *terraform) runTerraformApply(ctx, shutdown context.Context, terraform *tfexec.Terraform, request *proto.Provision_Start, stream proto.DRPCProvisioner_ProvisionStream, statefilePath string) error {
 	env := os.Environ()
 	env = append(env,
 		"CODER_URL="+request.Metadata.CoderUrl,
@@ -354,7 +382,7 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 	}()
 
 	t.logger.Debug(ctx, "running apply", slog.F("vars", len(vars)), slog.F("env", len(env)))
-	err := runApplyCommand(ctx, t.shutdownCtx, request.Metadata.WorkspaceTransition, terraform.ExecPath(), terraform.WorkingDir(), writer, env, vars)
+	err := runApplyCommand(ctx, shutdown, request.Metadata.WorkspaceTransition, terraform.ExecPath(), terraform.WorkingDir(), writer, env, vars)
 	if err != nil {
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
@@ -548,4 +576,18 @@ func convertTerraformLogLevel(logLevel string) (proto.LogLevel, error) {
 	default:
 		return proto.LogLevel(0), xerrors.Errorf("invalid log level %q", logLevel)
 	}
+}
+
+func combineContexts(ctx1, ctx2 context.Context) context.Context {
+	ctx, cancelFunc := context.WithCancel(ctx1)
+	go func() {
+		defer cancelFunc()
+		select {
+		case <-ctx.Done():
+			return
+		case <-ctx2.Done():
+			return
+		}
+	}()
+	return ctx
 }

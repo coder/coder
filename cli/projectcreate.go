@@ -78,7 +78,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			job, err := validateProjectVersionSource(cmd, client, organization, database.ProvisionerType(provisioner), archive)
+			job, err := createValidProjectVersion(cmd, client, organization, database.ProvisionerType(provisioner), archive)
 			if err != nil {
 				return err
 			}
@@ -271,7 +271,7 @@ func projectCreate() *cobra.Command {
 	return cmd
 }
 
-func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, archive []byte, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, error) {
+func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, archive []byte, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
@@ -348,7 +348,7 @@ func validateProjectVersionSource(cmd *cobra.Command, client *codersdk.Client, o
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
 		}
-		return validateProjectVersionSource(cmd, client, organization, provisioner, archive, parameters...)
+		return createValidProjectVersion(cmd, client, organization, provisioner, archive, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
