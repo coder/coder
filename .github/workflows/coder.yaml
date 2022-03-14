@@ -61,6 +61,8 @@ jobs:
             **/node_modules
             .eslintcache
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
 
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
@@ -108,6 +110,8 @@ jobs:
             **/node_modules
             .eslintcache
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
 
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
@@ -250,6 +254,8 @@ jobs:
             **/node_modules
             .eslintcache
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
 
       # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v2
@@ -312,6 +318,8 @@ jobs:
             **/node_modules
             .eslintcache
           key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
 
       # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v2
@@ -352,6 +360,8 @@ jobs:
         working-directory: site
 
       - run: yarn playwright:test
+        env:
+          DEBUG: pw:api
         working-directory: site
 
       - name: Upload DataDog Trace

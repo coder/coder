@@ -85,7 +85,6 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 site/out: 
 	./scripts/yarn_install.sh
 	cd site && yarn build
-	cd site && yarn export
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
 .PHONY: site/out

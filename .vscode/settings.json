@@ -77,5 +77,6 @@
     "webrtc",
     "xerrors",
     "yamux"
-  ]
+  ],
+  "eslint.workingDirectories": ["./site"]
 }

@@ -1,11 +1,10 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import Link from "next/link"
-import { useRouter } from "next/router"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 
-import { Project, Workspace } from "../../../../api"
+import { Organization, Project, Workspace } from "../../../../api"
 import { Header } from "../../../../components/Header"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { Navbar } from "../../../../components/Navbar"
@@ -15,20 +14,30 @@ import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { firstOrItem } from "../../../../util/array"
 import { EmptyState } from "../../../../components/EmptyState"
+import { unsafeSWRArgument } from "../../../../util"
 
-const ProjectPage: React.FC = () => {
+export const ProjectPage: React.FC = () => {
   const styles = useStyles()
   const { me, signOut } = useUser(true)
+  const navigate = useNavigate()
+  const { project: projectName, organization: organizationName } = useParams()
 
-  const router = useRouter()
-  const { project, organization } = router.query
+  const { data: organizationInfo, error: organizationError } = useSWR<Organization, Error>(
+    () => `/api/v2/users/me/organizations/${organizationName}`,
+  )
 
   const { data: projectInfo, error: projectError } = useSWR<Project, Error>(
-    () => `/api/v2/projects/${organization}/${project}`,
+    () => `/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/projects/${projectName}`,
   )
-  const { data: workspaces, error: workspacesError } = useSWR<Workspace[], Error>(
-    () => `/api/v2/projects/${organization}/${project}/workspaces`,
-  )
+
+  // TODO: The workspaces endpoint was recently changed, so that we can't get
+  // workspaces per-project. This just grabs all workspaces... and then
+  // later filters them to match the current project.
+  const { data: workspaces, error: workspacesError } = useSWR<Workspace[], Error>(() => `/api/v2/users/me/workspaces`)
+
+  if (organizationError) {
+    return <ErrorSummary error={organizationError} />
+  }
 
   if (projectError) {
     return <ErrorSummary error={projectError} />
@@ -43,7 +52,7 @@ const ProjectPage: React.FC = () => {
   }
 
   const createWorkspace = () => {
-    void router.push(`/projects/${organization}/${project}/create`)
+    navigate(`/projects/${organizationName}/${projectName}/create`)
   }
 
   const emptyState = (
@@ -61,16 +70,20 @@ const ProjectPage: React.FC = () => {
     {
       key: "name",
       name: "Name",
-      renderer: (nameField: string) => {
-        return <Link href={`/workspaces/me/${nameField}`}>{nameField}</Link>
+      renderer: (nameField: string, workspace: Workspace) => {
+        return <Link to={`/workspaces/${workspace.id}`}>{nameField}</Link>
       },
     },
   ]
 
+  const perProjectWorkspaces = workspaces.filter((workspace) => {
+    return workspace.project_id === projectInfo.id
+  })
+
   const tableProps = {
     title: "Workspaces",
     columns,
-    data: workspaces,
+    data: perProjectWorkspaces,
     emptyState: emptyState,
   }
 
@@ -78,9 +91,9 @@ const ProjectPage: React.FC = () => {
     <div className={styles.root}>
       <Navbar user={me} onSignOut={signOut} />
       <Header
-        title={firstOrItem(project, "")}
-        description={firstOrItem(organization, "")}
-        subTitle={`${workspaces.length} workspaces`}
+        title={firstOrItem(projectName, "")}
+        description={firstOrItem(organizationName, "")}
+        subTitle={`${perProjectWorkspaces.length} workspaces`}
         action={{
           text: "Create Workspace",
           onClick: createWorkspace,
@@ -110,5 +123,3 @@ const useStyles = makeStyles((theme) => ({
     width: "100%",
   },
 }))
-
-export default ProjectPage

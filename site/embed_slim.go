@@ -5,10 +5,8 @@ package site
 
 import (
 	"net/http"
-
-	"cdr.dev/slog"
 )
 
-func Handler(logger slog.Logger) http.Handler {
+func DefaultHandler() http.Handler {
 	return http.NotFoundHandler()
 }
