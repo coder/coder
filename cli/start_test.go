@@ -9,11 +9,11 @@ import (
 	"github.com/coder/coder/cli/clitest"
 )
 
-func TestDaemon(t *testing.T) {
+func TestStart(t *testing.T) {
 	t.Parallel()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go cancelFunc()
-	root, _ := clitest.New(t, "daemon")
+	root, _ := clitest.New(t, "start")
 	err := root.ExecuteContext(ctx)
 	require.ErrorIs(t, err, context.Canceled)
 }

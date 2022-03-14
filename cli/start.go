@@ -30,13 +30,13 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func daemon() *cobra.Command {
+func start() *cobra.Command {
 	var (
 		address string
 		dev     bool
 	)
 	root := &cobra.Command{
-		Use: "daemon",
+		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			listener, err := net.Listen("tcp", address)
@@ -117,7 +117,7 @@ func daemon() *cobra.Command {
 		defaultAddress = "127.0.0.1:3000"
 	}
 	root.Flags().StringVarP(&address, "address", "a", defaultAddress, "The address to serve the API and dashboard.")
-	root.Flags().BoolVarP(&dev, "dev", "d", false, "Serve Coder in dev mode for tinkering.")
+	root.Flags().BoolVarP(&dev, "dev", "", false, "Serve Coder in dev mode for tinkering.")
 
 	return root
 }

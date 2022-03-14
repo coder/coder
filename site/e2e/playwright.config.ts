@@ -17,7 +17,7 @@ const config: PlaywrightTestConfig = {
   // https://playwright.dev/docs/test-advanced#launching-a-development-web-server-during-the-tests
   webServer: {
     // Run the coder daemon directly.
-    command: `go run ${path.join(__dirname, "../../cmd/coder/main.go")} daemon`,
+    command: `go run ${path.join(__dirname, "../../cmd/coder/main.go")} start`,
     port: 3000,
     timeout: 120 * 10000,
     reuseExistingServer: false,

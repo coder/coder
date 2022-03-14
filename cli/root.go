@@ -63,7 +63,7 @@ func Root() *cobra.Command {
 
 	cmd.AddCommand(
 		configSSH(),
-		daemon(),
+		start(),
 		login(),
 		parameters(),
 		projects(),
