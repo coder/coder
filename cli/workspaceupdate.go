@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func workspaceUpdate() *cobra.Command {
@@ -21,7 +22,7 @@ func workspaceUpdate() *cobra.Command {
 				return err
 			}
 			if !workspace.Outdated {
-				fmt.Printf("Workspace isn't outdated!\n")
+				_, _ = fmt.Printf("Workspace isn't outdated!\n")
 				return nil
 			}
 			project, err := client.Project(cmd.Context(), workspace.ProjectID)
@@ -45,7 +46,7 @@ func workspaceUpdate() *cobra.Command {
 				if !ok {
 					break
 				}
-				fmt.Printf("Output: %s\n", log.Output)
+				_, _ = fmt.Printf("Output: %s\n", log.Output)
 			}
 			return nil
 		},

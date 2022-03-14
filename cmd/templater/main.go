@@ -50,7 +50,7 @@ func main() {
 					DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 				})
 			}
-			return parse(cmd, args, parameters)
+			return parse(cmd, parameters)
 		},
 	}
 	cmd.Flags().StringArrayVarP(&rawParameters, "parameter", "p", []string{}, "Specify parameters to pass in a template.")
@@ -60,7 +60,7 @@ func main() {
 	}
 }
 
-func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParameterRequest) error {
+func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) error {
 	srv := httptest.NewUnstartedServer(nil)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return cmd.Context()
@@ -155,7 +155,7 @@ func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParame
 		if !ok {
 			break
 		}
-		fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
+		_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
 	}
 	version, err = client.ProjectVersion(cmd.Context(), version.ID)
 	if err != nil {
@@ -230,7 +230,10 @@ func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParame
 	if err != nil {
 		return err
 	}
-	os.WriteFile(filepath.Base(dir)+".json", data, 0600)
+	err = os.WriteFile(filepath.Base(dir)+".json", data, 0600)
+	if err != nil {
+		return err
+	}
 
 	project, err := client.CreateProject(cmd.Context(), created.OrganizationID, codersdk.CreateProjectRequest{
 		Name:      "test",
@@ -264,7 +267,7 @@ func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParame
 		if !ok {
 			break
 		}
-		fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
+		_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
 	}
 
 	resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), build.ID)
@@ -297,10 +300,10 @@ func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParame
 		if !ok {
 			break
 		}
-		fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
+		_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
 	}
 
-	daemonClose.Close()
+	_ = daemonClose.Close()
 	srv.Close()
 	closeWait()
 	return nil

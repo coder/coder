@@ -19,8 +19,8 @@ var (
 	//go:embed */*.tf
 	files embed.FS
 
-	list     []codersdk.Template = make([]codersdk.Template, 0)
-	archives map[string][]byte   = map[string][]byte{}
+	list     = make([]codersdk.Template, 0)
+	archives = map[string][]byte{}
 )
 
 // Parses templates from the embedded archive and inserts them into the map.

@@ -3,10 +3,11 @@ package cli
 import (
 	"fmt"
 
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database"
 )
 
 func parameterCreate() *cobra.Command {
@@ -50,14 +51,14 @@ func parameterCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Created!\n")
+			_, _ = fmt.Printf("Created!\n")
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Name for a parameter.")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	cmd.Flags().StringVarP(&value, "value", "v", "", "Value for a parameter.")
-	cmd.MarkFlagRequired("value")
+	_ = cmd.MarkFlagRequired("value")
 	cmd.Flags().StringVarP(&scheme, "scheme", "s", "var", `Scheme for the parameter ("var" or "env").`)
 
 	return cmd

@@ -32,9 +32,11 @@ func projects() *cobra.Command {
 	}
 	cmd.AddCommand(
 		projectCreate(),
+		projectEdit(),
 		projectList(),
 		projectPlan(),
 		projectUpdate(),
+		projectVersions(),
 	)
 
 	return cmd

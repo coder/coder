@@ -62,7 +62,7 @@ func daemon() *cobra.Command {
 					return xerrors.Errorf("parse: %w", err)
 				}
 
-				fmt.Fprintf(cmd.OutOrStdout(), `    ▄█▀    ▀█▄
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), `    ▄█▀    ▀█▄
      ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
 █▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █

@@ -55,7 +55,7 @@ func (api *api) deleteProject(rw http.ResponseWriter, r *http.Request) {
 	}
 	if len(workspaces) > 0 {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("All workspaces must be deleted before a project can be removed."),
+			Message: "All workspaces must be deleted before a project can be removed.",
 		})
 		return
 	}

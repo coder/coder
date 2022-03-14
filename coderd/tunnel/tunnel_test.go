@@ -46,6 +46,7 @@ func TestTunnel(t *testing.T) {
 			return false
 		}
 		require.NoError(t, err)
+		defer res.Body.Close()
 		return res.StatusCode == http.StatusOK
 	}, time.Minute, 3*time.Second)
 }

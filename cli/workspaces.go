@@ -23,7 +23,7 @@ func workspaces() *cobra.Command {
 	return cmd
 }
 
-func validArgsWorkspaceName(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func validArgsWorkspaceName(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	client, err := createClient(cmd)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError

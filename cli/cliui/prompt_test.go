@@ -31,18 +31,18 @@ func TestPrompt(t *testing.T) {
 	t.Run("Confirm", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
-		ch := make(chan string, 0)
+		doneChan := make(chan string)
 		go func() {
 			resp, err := prompt(ptty, cliui.PromptOptions{
 				Text:      "Example",
 				IsConfirm: true,
 			})
 			require.NoError(t, err)
-			ch <- resp
+			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("yes")
-		require.Equal(t, "yes", <-ch)
+		require.Equal(t, "yes", <-doneChan)
 	})
 }
 

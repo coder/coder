@@ -1,16 +1,13 @@
 package cliui
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/charmbracelet/charm/ui/common"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 )
 
 var (
-	Canceled = errors.New("canceled")
+	Canceled = xerrors.New("canceled")
 
 	defaultStyles = common.DefaultStyles()
 )
@@ -20,7 +17,7 @@ type Validate func(string) error
 // ValidateNotEmpty is a helper function to disallow empty inputs!
 func ValidateNotEmpty(s string) error {
 	if s == "" {
-		return errors.New("Must be provided!")
+		return xerrors.New("Must be provided!")
 	}
 	return nil
 }
@@ -46,8 +43,4 @@ var Styles = struct {
 	FocusedPrompt: defaultStyles.FocusedPrompt.Foreground(lipgloss.Color("#651fff")),
 	Logo:          defaultStyles.Logo.SetString("Coder"),
 	Wrap:          defaultStyles.Wrap,
-}
-
-func print(cmd *cobra.Command, str string) {
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), str)
 }

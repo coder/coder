@@ -69,41 +69,42 @@ func (l teaItem) Description() string { return l.description }
 type listModel struct {
 	opts     ListOptions
 	model    list.Model
-	err      string
 	selected *teaItem
 }
 
-func (m *listModel) Init() tea.Cmd {
+func (*listModel) Init() tea.Cmd {
 	return tea.EnterAltScreen
 }
 
-func (m *listModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (l *listModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// topGap, rightGap, bottomGap, leftGap := appStyle.GetPadding()
-		m.model.SetSize(msg.Width, msg.Height)
+		l.model.SetSize(msg.Width, msg.Height)
 
 	case tea.KeyMsg:
 		// Don't match any of the keys below if we're actively filtering.
-		if m.model.FilterState() == list.Filtering {
+		if l.model.FilterState() == list.Filtering {
 			break
 		}
-		switch msg.Type {
-		case tea.KeyEnter:
-			item := m.model.SelectedItem().(teaItem)
-			m.selected = &item
-			return m, tea.Quit
+		if msg.Type == tea.KeyEnter {
+			item, valid := l.model.SelectedItem().(teaItem)
+			if !valid {
+				panic("dev error: invalid item type")
+			}
+			l.selected = &item
+			return l, tea.Quit
 		}
 	}
 
 	// This will also call our delegate's update function.
-	newListModel, cmd := m.model.Update(msg)
-	m.model = newListModel
+	newListModel, cmd := l.model.Update(msg)
+	l.model = newListModel
 	cmds = append(cmds, cmd)
 
-	return m, tea.Batch(cmds...)
+	return l, tea.Batch(cmds...)
 }
 
 func (l *listModel) View() string {

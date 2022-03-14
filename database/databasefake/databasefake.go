@@ -162,7 +162,7 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) GetWorkspacesByProjectID(ctx context.Context, arg database.GetWorkspacesByProjectIDParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesByProjectID(_ context.Context, arg database.GetWorkspacesByProjectIDParams) ([]database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -290,7 +290,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Conte
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -504,7 +504,7 @@ func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID 
 	return database.ProjectVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectVersionByJobID(ctx context.Context, jobID uuid.UUID) (database.ProjectVersion, error) {
+func (q *fakeQuerier) GetProjectVersionByJobID(_ context.Context, jobID uuid.UUID) (database.ProjectVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -573,7 +573,7 @@ func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, arg database.
 	return projects, nil
 }
 
-func (q *fakeQuerier) GetProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Project, error) {
+func (q *fakeQuerier) GetProjectsByIDs(_ context.Context, ids []uuid.UUID) ([]database.Project, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1079,7 +1079,7 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProjectActiveVersionByID(ctx context.Context, arg database.UpdateProjectActiveVersionByIDParams) error {
+func (q *fakeQuerier) UpdateProjectActiveVersionByID(_ context.Context, arg database.UpdateProjectActiveVersionByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1094,7 +1094,7 @@ func (q *fakeQuerier) UpdateProjectActiveVersionByID(ctx context.Context, arg da
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProjectDeletedByID(ctx context.Context, arg database.UpdateProjectDeletedByIDParams) error {
+func (q *fakeQuerier) UpdateProjectDeletedByID(_ context.Context, arg database.UpdateProjectDeletedByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1223,7 +1223,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

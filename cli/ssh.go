@@ -15,9 +15,6 @@ import (
 )
 
 func workspaceSSH() *cobra.Command {
-	var (
-		stdio bool
-	)
 	cmd := &cobra.Command{
 		Use: "ssh <workspace> [resource]",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -35,7 +32,7 @@ func workspaceSSH() *cobra.Command {
 			}
 
 			for _, resource := range resources {
-				fmt.Printf("Got resource: %+v\n", resource)
+				_, _ = fmt.Printf("Got resource: %+v\n", resource)
 				if resource.Agent == nil {
 					continue
 				}
@@ -63,7 +60,7 @@ func workspaceSSH() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				term.MakeRaw(int(os.Stdin.Fd()))
+				_, _ = term.MakeRaw(int(os.Stdin.Fd()))
 				err = session.RequestPty("xterm-256color", 128, 128, ssh.TerminalModes{
 					ssh.OCRNL: 1,
 				})

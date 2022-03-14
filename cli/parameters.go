@@ -3,9 +3,10 @@ package cli
 import (
 	"context"
 
-	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func parameters() *cobra.Command {

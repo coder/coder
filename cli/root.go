@@ -61,13 +61,17 @@ func Root() *cobra.Command {
 		`Additional help topics:`, header.Sprint("Additional help:"),
 	).Replace(cmd.UsageTemplate()))
 
-	cmd.AddCommand(daemon())
-	cmd.AddCommand(login())
-	cmd.AddCommand(parameters())
-	cmd.AddCommand(projects())
-	cmd.AddCommand(workspaces())
-	cmd.AddCommand(users())
-	cmd.AddCommand(workspaceSSH())
+	cmd.AddCommand(
+		configSSH(),
+		daemon(),
+		login(),
+		parameters(),
+		projects(),
+		users(),
+		workspaces(),
+		workspaceSSH(),
+		workspaceTunnel(),
+	)
 
 	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")

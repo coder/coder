@@ -27,7 +27,7 @@ func workspaceShow() *cobra.Command {
 					continue
 				}
 
-				fmt.Printf("Agent: %+v\n", resource.Agent)
+				_, _ = fmt.Printf("Agent: %+v\n", resource.Agent)
 			}
 			return nil
 		},

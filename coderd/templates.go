@@ -11,12 +11,12 @@ import (
 	"github.com/coder/coder/template"
 )
 
-func (api *api) listTemplates(rw http.ResponseWriter, r *http.Request) {
+func (*api) listTemplates(rw http.ResponseWriter, r *http.Request) {
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, template.List())
 }
 
-func (api *api) templateArchive(rw http.ResponseWriter, r *http.Request) {
+func (*api) templateArchive(rw http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	archive, exists := template.Archive(id)
 	if !exists {

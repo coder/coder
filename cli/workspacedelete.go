@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
-	"github.com/spf13/cobra"
 )
 
 func workspaceDelete() *cobra.Command {
@@ -40,7 +41,7 @@ func workspaceDelete() *cobra.Command {
 				if !ok {
 					break
 				}
-				fmt.Printf("Output: %s\n", log.Output)
+				_, _ = fmt.Printf("Output: %s\n", log.Output)
 			}
 			return nil
 		},

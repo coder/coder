@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 )
 
 func projectUpdate() *cobra.Command {
@@ -70,7 +71,7 @@ func projectUpdate() *cobra.Command {
 				if !ok {
 					break
 				}
-				fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
+				_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
 			}
 			projectVersion, err = client.ProjectVersion(cmd.Context(), projectVersion.ID)
 			if err != nil {
@@ -87,7 +88,7 @@ func projectUpdate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Updated version!\n")
+			_, _ = fmt.Printf("Updated version!\n")
 			return nil
 		},
 	}

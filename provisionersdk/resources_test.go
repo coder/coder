@@ -12,6 +12,7 @@ import (
 func TestResourceAddresses(t *testing.T) {
 	t.Parallel()
 	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
 		addresses, err := provisionersdk.ResourceAddresses([]*proto.Resource{{
 			Type: "google_compute_instance",
 			Name: "dev",
@@ -21,6 +22,7 @@ func TestResourceAddresses(t *testing.T) {
 		require.Equal(t, addresses[0], "dev")
 	})
 	t.Run("Multiple", func(t *testing.T) {
+		t.Parallel()
 		addresses, err := provisionersdk.ResourceAddresses([]*proto.Resource{{
 			Type: "google_compute_instance",
 			Name: "linux",
@@ -34,6 +36,7 @@ func TestResourceAddresses(t *testing.T) {
 		require.Equal(t, addresses[1], "windows")
 	})
 	t.Run("ConflictingDifferent", func(t *testing.T) {
+		t.Parallel()
 		addresses, err := provisionersdk.ResourceAddresses([]*proto.Resource{{
 			Type: "google_compute_instance",
 			Name: "dev",
@@ -47,6 +50,7 @@ func TestResourceAddresses(t *testing.T) {
 		require.Equal(t, addresses[1], "kubernetes_pod.dev")
 	})
 	t.Run("ConflictingSame", func(t *testing.T) {
+		t.Parallel()
 		_, err := provisionersdk.ResourceAddresses([]*proto.Resource{{
 			Type: "google_compute_instance",
 			Name: "dev",

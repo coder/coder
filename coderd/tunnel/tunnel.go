@@ -13,9 +13,9 @@ import (
 	"github.com/cloudflare/cloudflared/cmd/cloudflared/tunnel"
 	"github.com/cloudflare/cloudflared/connection"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 // New creates a new tunnel pointing at the URL provided.
@@ -39,20 +39,24 @@ func New(ctx context.Context, url string) (string, <-chan error, error) {
 
 	// Taken from:
 	// https://github.com/cloudflare/cloudflared/blob/22cd8ceb8cf279afc1c412ae7f98308ffcfdd298/cmd/cloudflared/tunnel/quick_tunnel.go#L38
-	resp, err := client.Post("https://api.trycloudflare.com/tunnel", "application/json", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.trycloudflare.com/tunnel", nil)
 	if err != nil {
-		return "", nil, errors.Wrap(err, "failed to request quick Tunnel")
+		return "", nil, xerrors.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", nil, xerrors.Errorf("request quick tunnel: %w", err)
 	}
 	defer resp.Body.Close()
-
 	var data quickTunnelResponse
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", nil, errors.Wrap(err, "failed to unmarshal quick Tunnel")
+	err = json.NewDecoder(resp.Body).Decode(&data)
+	if err != nil {
+		return "", nil, xerrors.Errorf("decode: %w", err)
 	}
-
 	tunnelID, err := uuid.Parse(data.Result.ID)
 	if err != nil {
-		return "", nil, errors.Wrap(err, "failed to parse quick Tunnel ID")
+		return "", nil, xerrors.Errorf("parse tunnel id: %w", err)
 	}
 
 	credentials := connection.Credentials{
@@ -72,8 +76,8 @@ func New(ctx context.Context, url string) (string, <-chan error, error) {
 	set.Int("retries", 5, "")
 	appCtx := cli.NewContext(&cli.App{}, set, nil)
 	appCtx.Context = ctx
-	appCtx.Set("url", url)
-	appCtx.Set("protocol", "quic")
+	_ = appCtx.Set("url", url)
+	_ = appCtx.Set("protocol", "quic")
 	logger := zerolog.New(os.Stdout).Level(zerolog.Disabled)
 	errCh := make(chan error, 1)
 	go func() {
