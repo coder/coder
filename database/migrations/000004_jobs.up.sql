@@ -69,7 +69,10 @@ CREATE TABLE workspace_resource (
 CREATE TABLE workspace_agent (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz,
+    updated_at timestamptz NOT NULL,
+    first_connected_at timestamptz,
+    last_connected_at timestamptz,
+    disconnected_at timestamptz,
     resource_id uuid NOT NULL REFERENCES workspace_resource (id) ON DELETE CASCADE,
     auth_token uuid NOT NULL UNIQUE,
     auth_instance_id varchar(64),

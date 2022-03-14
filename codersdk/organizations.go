@@ -23,7 +23,7 @@ type Organization struct {
 // CreateProjectVersionRequest enables callers to create a new Project Version.
 type CreateProjectVersionRequest struct {
 	// ProjectID optionally associates a version with a project.
-	ProjectID *uuid.UUID `json:"project_id"`
+	ProjectID uuid.UUID `json:"project_id"`
 
 	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
 	StorageSource string                            `json:"storage_source" validate:"required"`
@@ -43,7 +43,8 @@ type CreateProjectRequest struct {
 	// This is required on creation to enable a user-flow of validating a
 	// project works. There is no reason the data-model cannot support
 	// empty projects, but it doesn't make sense for users.
-	VersionID uuid.UUID `json:"project_version_id" validate:"required"`
+	VersionID       uuid.UUID                `json:"project_version_id" validate:"required"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values"`
 }
 
 func (c *Client) Organization(ctx context.Context, id string) (Organization, error) {

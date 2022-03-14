@@ -2,9 +2,11 @@ package cliui
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/charmbracelet/charm/ui/common"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -46,4 +48,6 @@ var Styles = struct {
 	Wrap:          defaultStyles.Wrap,
 }
 
-// coder login
+func print(cmd *cobra.Command, str string) {
+	_, _ = fmt.Fprint(cmd.OutOrStdout(), str)
+}

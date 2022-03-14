@@ -290,6 +290,25 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Conte
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	builds := make([]database.WorkspaceBuild, 0)
+	for _, workspaceBuild := range q.workspaceBuild {
+		for _, id := range ids {
+			if id.String() != workspaceBuild.WorkspaceID.String() {
+				continue
+			}
+			builds = append(builds, workspaceBuild)
+		}
+	}
+	if len(builds) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return builds, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -485,6 +504,19 @@ func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID 
 	return database.ProjectVersion{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetProjectVersionByJobID(ctx context.Context, jobID uuid.UUID) (database.ProjectVersion, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, projectVersion := range q.projectVersion {
+		if projectVersion.JobID.String() != jobID.String() {
+			continue
+		}
+		return projectVersion, nil
+	}
+	return database.ProjectVersion{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -533,6 +565,25 @@ func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, arg database.
 		if project.OrganizationID == arg.OrganizationID {
 			projects = append(projects, project)
 			break
+		}
+	}
+	if len(projects) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return projects, nil
+}
+
+func (q *fakeQuerier) GetProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Project, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	projects := make([]database.Project, 0)
+	for _, project := range q.project {
+		for _, id := range ids {
+			if project.ID.String() != id.String() {
+				continue
+			}
+			projects = append(projects, project)
 		}
 	}
 	if len(projects) == 0 {
@@ -1089,7 +1140,7 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg databas
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentByID(_ context.Context, arg database.UpdateWorkspaceAgentByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1097,7 +1148,9 @@ func (q *fakeQuerier) UpdateWorkspaceAgentByID(_ context.Context, arg database.U
 		if agent.ID.String() != arg.ID.String() {
 			continue
 		}
-		agent.UpdatedAt = arg.UpdatedAt
+		agent.FirstConnectedAt = arg.FirstConnectedAt
+		agent.LastConnectedAt = arg.LastConnectedAt
+		agent.DisconnectedAt = arg.DisconnectedAt
 		q.provisionerJobAgent[index] = agent
 		return nil
 	}

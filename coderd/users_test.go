@@ -350,9 +350,11 @@ func TestPostWorkspacesByUser(t *testing.T) {
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
 			ProjectID: project.ID,
@@ -367,9 +369,11 @@ func TestPostWorkspacesByUser(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
 	})
 }
@@ -386,9 +390,11 @@ func TestWorkspacesByUser(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
 		workspaces, err := client.WorkspacesByUser(context.Background(), "")
 		require.NoError(t, err)
@@ -410,9 +416,11 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 		_, err := client.WorkspaceByName(context.Background(), "", workspace.Name)
 		require.NoError(t, err)

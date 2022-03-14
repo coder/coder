@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -105,14 +104,9 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		_, err = client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
 		require.NoError(t, err)
 	})
 }

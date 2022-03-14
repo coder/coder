@@ -164,6 +164,14 @@ WHERE
 LIMIT
   1;
 
+-- name: GetProjectsByIDs :many
+SELECT
+  *
+FROM
+  project
+WHERE
+  id = ANY(@ids :: uuid [ ]);
+
 -- name: GetProjectByOrganizationAndName :one
 SELECT
   *
@@ -200,6 +208,14 @@ FROM
   project_version
 WHERE
   project_id = $1 :: uuid;
+
+-- name: GetProjectVersionByJobID :one
+SELECT
+  *
+FROM
+  project_version
+WHERE
+  job_id = $1;
 
 -- name: GetProjectVersionByProjectIDAndName :one
 SELECT
@@ -379,6 +395,15 @@ WHERE
   AND after_id IS NULL
 LIMIT
   1;
+
+-- name: GetWorkspaceBuildsByWorkspaceIDsWithoutAfter :many
+SELECT
+  *
+FROM
+  workspace_build
+WHERE
+  workspace_id = ANY(@ids :: uuid [ ])
+  AND after_id IS NULL;
 
 -- name: GetWorkspaceResourceByID :one
 SELECT
@@ -744,11 +769,13 @@ SET
 WHERE
   id = $1;
 
--- name: UpdateWorkspaceAgentByID :exec
+-- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
   workspace_agent
 SET
-  updated_at = $2
+  first_connected_at = $2,
+  last_connected_at = $3,
+  disconnected_at = $4
 WHERE
   id = $1;
 

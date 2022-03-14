@@ -71,11 +71,11 @@ func (c *Client) WorkspaceResourcesByBuild(ctx context.Context, build uuid.UUID)
 }
 
 // WorkspaceBuildLogsBefore returns logs that occurred before a specific time.
-func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, version uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", version), before)
+func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
+	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), before)
 }
 
 // WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific time.
-func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, version uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
-	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", version), after)
+func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
+	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), after)
 }

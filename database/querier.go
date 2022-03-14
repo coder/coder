@@ -23,8 +23,10 @@ type querier interface {
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetProjectByOrganizationAndName(ctx context.Context, arg GetProjectByOrganizationAndNameParams) (Project, error)
 	GetProjectVersionByID(ctx context.Context, id uuid.UUID) (ProjectVersion, error)
+	GetProjectVersionByJobID(ctx context.Context, jobID uuid.UUID) (ProjectVersion, error)
 	GetProjectVersionByProjectIDAndName(ctx context.Context, arg GetProjectVersionByProjectIDAndNameParams) (ProjectVersion, error)
 	GetProjectVersionsByProjectID(ctx context.Context, dollar_1 uuid.UUID) ([]ProjectVersion, error)
+	GetProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]Project, error)
 	GetProjectsByOrganization(ctx context.Context, arg GetProjectsByOrganizationParams) ([]Project, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
@@ -42,6 +44,7 @@ type querier interface {
 	GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndNameParams) (WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
+	GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWorkspaceByUserIDAndNameParams) (Workspace, error)
 	GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByProjectIDsRow, error)
@@ -73,7 +76,7 @@ type querier interface {
 	UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error
 	UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error
 	UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error
-	UpdateWorkspaceAgentByID(ctx context.Context, arg UpdateWorkspaceAgentByIDParams) error
+	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 }

@@ -362,8 +362,18 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			}
 		}
 
+		var projectID uuid.NullUUID
+		if job.Type == database.ProvisionerJobTypeProjectVersionImport {
+			projectVersion, err := server.Database.GetProjectVersionByJobID(ctx, job.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get project version by job id: %w", err)
+			}
+			projectID = projectVersion.ProjectID
+		}
+
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			ProjectImportJobID: job.ID,
+			ProjectID:          projectID,
 			OrganizationID:     job.OrganizationID,
 			UserID:             job.InitiatorID,
 		}, nil)
@@ -599,6 +609,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   resource.AgentID.UUID,
 			CreatedAt:            database.Now(),
+			UpdatedAt:            database.Now(),
 			ResourceID:           resource.ID,
 			AuthToken:            authToken,
 			AuthInstanceID:       instanceID,

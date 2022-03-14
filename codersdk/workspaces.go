@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -13,12 +14,23 @@ import (
 
 // Workspace is a per-user deployment of a project. It tracks
 // project versions, and can be updated.
-type Workspace database.Workspace
+type Workspace struct {
+	ID          uuid.UUID      `json:"id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	OwnerID     string         `json:"owner_id"`
+	ProjectID   uuid.UUID      `json:"project_id"`
+	ProjectName string         `json:"project_name"`
+	LatestBuild WorkspaceBuild `json:"latest_build"`
+	Outdated    bool           `json:"outdated"`
+	Name        string         `json:"name"`
+}
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	ProjectVersionID uuid.UUID                    `json:"project_version_id" validate:"required"`
+	ProjectVersionID uuid.UUID                    `json:"project_version_id"`
 	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+	DryRun           bool                         `json:"dry_run"`
 }
 
 // Workspace returns a single workspace.
@@ -64,19 +76,6 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 
 func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, name string) (WorkspaceBuild, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds/%s", workspace, name), nil)
-	if err != nil {
-		return WorkspaceBuild{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceBuild{}, readBodyAsError(res)
-	}
-	var workspaceBuild WorkspaceBuild
-	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
-}
-
-func (c *Client) WorkspaceBuildLatest(ctx context.Context, workspace uuid.UUID) (WorkspaceBuild, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds/latest", workspace), nil)
 	if err != nil {
 		return WorkspaceBuild{}, err
 	}

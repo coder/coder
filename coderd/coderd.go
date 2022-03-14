@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/api/idtoken"
@@ -17,10 +18,11 @@ import (
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	AccessURL *url.URL
-	Logger    slog.Logger
-	Database  database.Store
-	Pubsub    database.Pubsub
+	AgentConnectionUpdateFrequency time.Duration
+	AccessURL                      *url.URL
+	Logger                         slog.Logger
+	Database                       database.Store
+	Pubsub                         database.Pubsub
 
 	GoogleTokenValidator *idtoken.Validator
 }
@@ -30,6 +32,9 @@ type Options struct {
 // A wait function is returned to handle awaiting closure
 // of hijacked HTTP requests.
 func New(options *Options) (http.Handler, func()) {
+	if options.AgentConnectionUpdateFrequency == 0 {
+		options.AgentConnectionUpdateFrequency = 3 * time.Second
+	}
 	api := &api{
 		Options: options,
 	}
@@ -159,7 +164,6 @@ func New(options *Options) (http.Handler, func()) {
 			r.Route("/builds", func(r chi.Router) {
 				r.Get("/", api.workspaceBuilds)
 				r.Post("/", api.postWorkspaceBuilds)
-				r.Get("/latest", api.workspaceBuildLatest)
 				r.Get("/{workspacebuildname}", api.workspaceBuildByName)
 			})
 		})

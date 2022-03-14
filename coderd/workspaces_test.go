@@ -19,8 +19,10 @@ func TestWorkspace(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-	project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
 	_, err := client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
@@ -28,18 +30,6 @@ func TestWorkspace(t *testing.T) {
 
 func TestWorkspaceBuilds(t *testing.T) {
 	t.Parallel()
-	t.Run("Empty", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		_, err := client.Workspace(context.Background(), workspace.ID)
-		require.NoError(t, err)
-		_, err = client.WorkspaceBuilds(context.Background(), workspace.ID)
-		require.NoError(t, err)
-	})
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -49,12 +39,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		_, err = client.WorkspaceBuilds(context.Background(), workspace.ID)
+		_, err := client.WorkspaceBuilds(context.Background(), workspace.ID)
 		require.NoError(t, err)
 	})
 }
@@ -64,9 +49,11 @@ func TestPostWorkspaceBuild(t *testing.T) {
 	t.Run("NoProjectVersion", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		job := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, job.ID)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			ProjectVersionID: uuid.New(),
@@ -88,12 +75,10 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
+		_, err := client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
+			ProjectID: project.ID,
+			Name:      "workspace",
 		})
-		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -114,11 +99,6 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
-		require.NoError(t, err)
-		_, err = client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -134,22 +114,17 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		firstBuild, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, firstBuild.ID)
-		secondBuild, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		require.Equal(t, firstBuild.ID.String(), secondBuild.BeforeID.String())
+		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
 
-		firstBuild, err = client.WorkspaceBuild(context.Background(), firstBuild.ID)
+		firstBuild, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		require.Equal(t, secondBuild.ID.String(), firstBuild.AfterID.String())
+		require.Equal(t, build.ID.String(), firstBuild.AfterID.String())
 	})
 
 	t.Run("Delete", func(t *testing.T) {
@@ -161,59 +136,17 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		firstBuild, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: database.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, firstBuild.ID)
-		secondBuild, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionDelete,
-		})
-		require.NoError(t, err)
-		require.Equal(t, firstBuild.ID.String(), secondBuild.BeforeID.String())
-		coderdtest.AwaitWorkspaceBuildJob(t, client, secondBuild.ID)
+		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
 		workspaces, err := client.WorkspacesByUser(context.Background(), user.UserID)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
-	})
-}
-
-func TestWorkspaceBuildLatest(t *testing.T) {
-	t.Parallel()
-	t.Run("None", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.WorkspaceBuildLatest(context.Background(), workspace.ID)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-	})
-
-	t.Run("Found", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		_, err = client.WorkspaceBuildLatest(context.Background(), workspace.ID)
-		require.NoError(t, err)
 	})
 }
 
@@ -243,10 +176,7 @@ func TestWorkspaceBuildByName(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
+		build, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
 		_, err = client.WorkspaceBuildByName(context.Background(), workspace.ID, build.Name)
 		require.NoError(t, err)

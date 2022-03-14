@@ -138,7 +138,6 @@ func parse(cmd *cobra.Command, args []string, parameters []codersdk.CreateParame
 
 	before := time.Now()
 	version, err := client.CreateProjectVersion(cmd.Context(), created.OrganizationID, codersdk.CreateProjectVersionRequest{
-		ProjectID:       nil,
 		StorageMethod:   database.ProvisionerStorageMethodFile,
 		StorageSource:   resp.Hash,
 		Provisioner:     database.ProvisionerTypeTerraform,

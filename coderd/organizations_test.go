@@ -40,7 +40,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		projectID := uuid.New()
 		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, codersdk.CreateProjectVersionRequest{
-			ProjectID:     &projectID,
+			ProjectID:     projectID,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
 			Provisioner:   database.ProvisionerTypeEcho,

@@ -23,6 +23,14 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
+type WorkspaceAgentStatus string
+
+const (
+	WorkspaceAgentWaiting      WorkspaceAgentStatus = "waiting"
+	WorkspaceAgentConnected    WorkspaceAgentStatus = "connected"
+	WorkspaceAgentDisconnected WorkspaceAgentStatus = "disconnected"
+)
+
 type WorkspaceResource struct {
 	ID         uuid.UUID                    `json:"id"`
 	CreatedAt  time.Time                    `json:"created_at"`
@@ -34,13 +42,17 @@ type WorkspaceResource struct {
 }
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID         `json:"id"`
-	CreatedAt            time.Time         `json:"created_at"`
-	UpdatedAt            time.Time         `json:"updated_at"`
-	ResourceID           uuid.UUID         `json:"resource_id"`
-	InstanceID           string            `json:"instance_id,omitempty"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script,omitempty"`
+	ID                   uuid.UUID            `json:"id"`
+	CreatedAt            time.Time            `json:"created_at"`
+	UpdatedAt            time.Time            `json:"updated_at"`
+	FirstConnectedAt     *time.Time           `json:"first_connected_at,omitempty"`
+	LastConnectedAt      *time.Time           `json:"last_connected_at,omitempty"`
+	DisconnectedAt       *time.Time           `json:"disconnected_at,omitempty"`
+	Status               WorkspaceAgentStatus `json:"status"`
+	ResourceID           uuid.UUID            `json:"resource_id"`
+	InstanceID           string               `json:"instance_id,omitempty"`
+	EnvironmentVariables map[string]string    `json:"environment_variables"`
+	StartupScript        string               `json:"startup_script,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

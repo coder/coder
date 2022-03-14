@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -40,16 +39,11 @@ func TestProvisionerJobLogs(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		before := time.Now().UTC()
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, before)
+		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
 		log, ok := <-logs
 		require.True(t, ok)
@@ -83,14 +77,9 @@ func TestProvisionerJobLogs(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		before := database.Now()
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
-		logs, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, before)
+		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
 		log := <-logs
 		require.Equal(t, "log-output", log.Output)
@@ -121,13 +110,8 @@ func TestProvisionerJobLogs(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
-		logs, err := client.WorkspaceBuildLogsBefore(context.Background(), build.ID, time.Now())
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		logs, err := client.WorkspaceBuildLogsBefore(context.Background(), workspace.LatestBuild.ID, time.Now())
 		require.NoError(t, err)
 		require.Len(t, logs, 1)
 	})

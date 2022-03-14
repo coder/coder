@@ -246,7 +246,10 @@ CREATE TABLE workspace (
 CREATE TABLE workspace_agent (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone,
+    updated_at timestamp with time zone NOT NULL,
+    first_connected_at timestamp with time zone,
+    last_connected_at timestamp with time zone,
+    disconnected_at timestamp with time zone,
     resource_id uuid NOT NULL,
     auth_token uuid NOT NULL,
     auth_instance_id character varying(64),

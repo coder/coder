@@ -27,11 +27,7 @@ func workspaceSSH() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			build, err := client.WorkspaceBuildLatest(cmd.Context(), workspace.ID)
-			if err != nil {
-				return err
-			}
-			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), build.ID)
+			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
@@ -64,7 +60,6 @@ func workspaceSSH() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				// Set raw
 				term.MakeRaw(int(os.Stdin.Fd()))
 				err = session.RequestPty("xterm-256color", 128, 128, ssh.TerminalModes{
 					ssh.OCRNL: 1,

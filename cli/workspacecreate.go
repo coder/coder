@@ -13,7 +13,6 @@ import (
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 )
 
 func workspaceCreate() *cobra.Command {
@@ -101,15 +100,8 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			version, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				ProjectVersionID: projectVersion.ID,
-				Transition:       database.WorkspaceTransitionStart,
-			})
-			if err != nil {
-				return err
-			}
 
-			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), version.ID, time.Time{})
+			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, time.Time{})
 			if err != nil {
 				return err
 			}

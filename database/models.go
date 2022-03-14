@@ -426,7 +426,10 @@ type Workspace struct {
 type WorkspaceAgent struct {
 	ID                   uuid.UUID             `db:"id" json:"id"`
 	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            sql.NullTime          `db:"updated_at" json:"updated_at"`
+	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
+	FirstConnectedAt     sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt      sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt       sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
 	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
 	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
 	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`

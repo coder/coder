@@ -205,7 +205,7 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 			})
 			return
 		}
-		apiAgent, err := convertWorkspaceAgent(agent)
+		apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("convert provisioner job agent: %s", err),
@@ -246,9 +246,6 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 	}
 
 	switch {
-	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
-		job.Status = codersdk.ProvisionerJobFailed
-		job.Error = "Worker failed to update job in time."
 	case provisionerJob.CanceledAt.Valid:
 		if provisionerJob.CompletedAt.Valid {
 			job.Status = codersdk.ProvisionerJobCanceled
@@ -263,6 +260,9 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 		} else {
 			job.Status = codersdk.ProvisionerJobFailed
 		}
+	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
+		job.Status = codersdk.ProvisionerJobFailed
+		job.Error = "Worker failed to update job in time."
 	default:
 		job.Status = codersdk.ProvisionerJobRunning
 	}

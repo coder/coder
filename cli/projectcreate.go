@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -79,7 +78,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			job, err := createValidProjectVersion(cmd, client, organization, database.ProvisionerType(provisioner), archive)
+			job, parameters, err := createValidProjectVersion(cmd, client, organization, database.ProvisionerType(provisioner), archive)
 			if err != nil {
 				return err
 			}
@@ -97,8 +96,9 @@ func projectCreate() *cobra.Command {
 			}
 
 			project, err := client.CreateProject(cmd.Context(), organization.ID, codersdk.CreateProjectRequest{
-				Name:      selectedTemplate.ID,
-				VersionID: job.ID,
+				Name:            selectedTemplate.ID,
+				VersionID:       job.ID,
+				ParameterValues: parameters,
 			})
 			if err != nil {
 				return err
@@ -124,13 +124,6 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				ProjectVersionID: job.ID,
-				Transition:       database.WorkspaceTransitionStart,
-			})
-			if err != nil {
-				return err
-			}
 
 			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 			spin.Writer = cmd.OutOrStdout()
@@ -141,7 +134,7 @@ func projectCreate() *cobra.Command {
 			}
 			spin.Start()
 			defer spin.Stop()
-			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, time.Time{})
+			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, time.Time{})
 			if err != nil {
 				return err
 			}
@@ -153,7 +146,7 @@ func projectCreate() *cobra.Command {
 				}
 				logBuffer = append(logBuffer, log)
 			}
-			build, err = client.WorkspaceBuild(cmd.Context(), build.ID)
+			build, err := client.WorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
@@ -272,20 +265,54 @@ func projectCreate() *cobra.Command {
 	return cmd
 }
 
-func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, archive []byte, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, error) {
+// Show computed parameters for a project version.
+// Show computed parameters for a workspace build.
+//
+// Project Version
+//
+// Parameters
+//   gcp_credentials = us-central1-a (set by workspace)
+//    Set with "coder params update org --name test --value something"
+//    Description
+//     Something about GCP credentials!
+//
+//    Valid
+//      - us-central1-a, us-central1-b, us-central1-c
+//
+//     x user settable
+//     x sensitive
+//   region = us-central1-a
+//     - user settable
+//     - oneof "us-central1-a" "us-central1-b"
+
+//
+//   region
+//   Description
+//     Something about GCP credentials!
+//
+//
+//
+// Resources
+//   google_compute_instance
+//     Shuts off
+
+// Displaying project version information.
+// Displaying workspace build information.
+
+func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, archive []byte, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, []codersdk.CreateParameterRequest, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()
 	spin.Suffix = " Uploading current directory..."
 	err := spin.Color("fgHiGreen")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	spin.Start()
 	defer spin.Stop()
 
 	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, archive)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	before := time.Now()
@@ -296,23 +323,12 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 		ParameterValues: parameters,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	defer signal.Stop(c)
-	go func() {
-		defer signal.Stop(c)
-		<-c
-
-		for sig := range c {
-			// sig is a ^C, handle it
-		}
-	}()
 	spin.Suffix = " Waiting for the import to complete..."
 	logs, err := client.ProjectVersionLogsAfter(cmd.Context(), version.ID, before)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	logBuffer := make([]codersdk.ProvisionerJobLog, 0, 64)
 	for {
@@ -325,15 +341,15 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 
 	version, err = client.ProjectVersion(cmd.Context(), version.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	parameterSchemas, err := client.ProjectVersionSchema(cmd.Context(), version.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	parameterValues, err := client.ProjectVersionParameters(cmd.Context(), version.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	spin.Stop()
 
@@ -351,7 +367,7 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 				Text: fmt.Sprintf("Enter value for %s:", color.HiCyanString(parameterSchema.Name)),
 			})
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			parameters = append(parameters, codersdk.CreateParameterRequest{
 				Name:              parameterSchema.Name,
@@ -367,14 +383,14 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 		for _, log := range logBuffer {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
 		}
-		return nil, xerrors.New(version.Job.Error)
+		return nil, nil, xerrors.New(version.Job.Error)
 	}
 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Successfully imported project source!\n", color.HiGreenString("✓"))
 
 	resources, err := client.ProjectVersionResources(cmd.Context(), version.ID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &version, displayProjectVersionInfo(cmd, parameterSchemas, parameterValues, resources)
+	return &version, parameters, displayProjectVersionInfo(cmd, parameterSchemas, parameterValues, resources)
 }

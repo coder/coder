@@ -502,6 +502,31 @@ func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (P
 	return i, err
 }
 
+const getProjectVersionByJobID = `-- name: GetProjectVersionByJobID :one
+SELECT
+  id, project_id, organization_id, created_at, updated_at, name, description, job_id
+FROM
+  project_version
+WHERE
+  job_id = $1
+`
+
+func (q *sqlQuerier) GetProjectVersionByJobID(ctx context.Context, jobID uuid.UUID) (ProjectVersion, error) {
+	row := q.db.QueryRowContext(ctx, getProjectVersionByJobID, jobID)
+	var i ProjectVersion
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Description,
+		&i.JobID,
+	)
+	return i, err
+}
+
 const getProjectVersionByProjectIDAndName = `-- name: GetProjectVersionByProjectIDAndName :one
 SELECT
   id, project_id, organization_id, created_at, updated_at, name, description, job_id
@@ -560,6 +585,47 @@ func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, dollar_1
 			&i.Name,
 			&i.Description,
 			&i.JobID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProjectsByIDs = `-- name: GetProjectsByIDs :many
+SELECT
+  id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id
+FROM
+  project
+WHERE
+  id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]Project, error) {
+	rows, err := q.db.QueryContext(ctx, getProjectsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Project
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.Deleted,
+			&i.Name,
+			&i.Provisioner,
+			&i.ActiveVersionID,
 		); err != nil {
 			return nil, err
 		}
@@ -910,7 +976,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+  id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 FROM
   workspace_agent
 WHERE
@@ -926,6 +992,9 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
 		&i.ResourceID,
 		&i.AuthToken,
 		&i.AuthInstanceID,
@@ -939,7 +1008,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+  id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 FROM
   workspace_agent
 WHERE
@@ -955,6 +1024,9 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
 		&i.ResourceID,
 		&i.AuthToken,
 		&i.AuthInstanceID,
@@ -968,7 +1040,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 
 const getWorkspaceAgentByResourceID = `-- name: GetWorkspaceAgentByResourceID :one
 SELECT
-  id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+  id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 FROM
   workspace_agent
 WHERE
@@ -982,6 +1054,9 @@ func (q *sqlQuerier) GetWorkspaceAgentByResourceID(ctx context.Context, resource
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
 		&i.ResourceID,
 		&i.AuthToken,
 		&i.AuthInstanceID,
@@ -1165,6 +1240,52 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx context.Cont
 		&i.JobID,
 	)
 	return i, err
+}
+
+const getWorkspaceBuildsByWorkspaceIDsWithoutAfter = `-- name: GetWorkspaceBuildsByWorkspaceIDsWithoutAfter :many
+SELECT
+  id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
+FROM
+  workspace_build
+WHERE
+  workspace_id = ANY($1 :: uuid [ ])
+  AND after_id IS NULL
+`
+
+func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildsByWorkspaceIDsWithoutAfter, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuild
+	for rows.Next() {
+		var i WorkspaceBuild
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkspaceID,
+			&i.ProjectVersionID,
+			&i.Name,
+			&i.BeforeID,
+			&i.AfterID,
+			&i.Transition,
+			&i.Initiator,
+			&i.ProvisionerState,
+			&i.JobID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
@@ -2171,13 +2292,13 @@ INSERT INTO
     resource_metadata
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 `
 
 type InsertWorkspaceAgentParams struct {
 	ID                   uuid.UUID             `db:"id" json:"id"`
 	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            sql.NullTime          `db:"updated_at" json:"updated_at"`
+	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
 	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
 	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
 	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
@@ -2205,6 +2326,9 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
 		&i.ResourceID,
 		&i.AuthToken,
 		&i.AuthInstanceID,
@@ -2512,22 +2636,31 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 	return err
 }
 
-const updateWorkspaceAgentByID = `-- name: UpdateWorkspaceAgentByID :exec
+const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
   workspace_agent
 SET
-  updated_at = $2
+  first_connected_at = $2,
+  last_connected_at = $3,
+  disconnected_at = $4
 WHERE
   id = $1
 `
 
-type UpdateWorkspaceAgentByIDParams struct {
-	ID        uuid.UUID    `db:"id" json:"id"`
-	UpdatedAt sql.NullTime `db:"updated_at" json:"updated_at"`
+type UpdateWorkspaceAgentConnectionByIDParams struct {
+	ID               uuid.UUID    `db:"id" json:"id"`
+	FirstConnectedAt sql.NullTime `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt  sql.NullTime `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt   sql.NullTime `db:"disconnected_at" json:"disconnected_at"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceAgentByID(ctx context.Context, arg UpdateWorkspaceAgentByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentByID, arg.ID, arg.UpdatedAt)
+func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentConnectionByID,
+		arg.ID,
+		arg.FirstConnectedAt,
+		arg.LastConnectedAt,
+		arg.DisconnectedAt,
+	)
 	return err
 }
 

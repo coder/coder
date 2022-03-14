@@ -63,6 +63,7 @@ func Root() *cobra.Command {
 
 	cmd.AddCommand(daemon())
 	cmd.AddCommand(login())
+	cmd.AddCommand(parameters())
 	cmd.AddCommand(projects())
 	cmd.AddCommand(workspaces())
 	cmd.AddCommand(users())

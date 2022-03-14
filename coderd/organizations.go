@@ -50,8 +50,8 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
-	if req.ProjectID != nil {
-		_, err := api.Database.GetProjectByID(r.Context(), *req.ProjectID)
+	if req.ProjectID != uuid.Nil {
+		_, err := api.Database.GetProjectByID(r.Context(), req.ProjectID)
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 				Message: "project does not exist",
@@ -118,9 +118,9 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 		}
 
 		var projectID uuid.NullUUID
-		if req.ProjectID != nil {
+		if req.ProjectID != uuid.Nil {
 			projectID = uuid.NullUUID{
-				UUID:  *req.ProjectID,
+				UUID:  req.ProjectID,
 				Valid: true,
 			}
 		}
@@ -221,6 +221,22 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			return xerrors.Errorf("insert project version: %s", err)
+		}
+		for _, parameterValue := range createProject.ParameterValues {
+			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              parameterValue.Name,
+				CreatedAt:         database.Now(),
+				UpdatedAt:         database.Now(),
+				Scope:             database.ParameterScopeProject,
+				ScopeID:           project.ID.String(),
+				SourceScheme:      parameterValue.SourceScheme,
+				SourceValue:       parameterValue.SourceValue,
+				DestinationScheme: parameterValue.DestinationScheme,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert parameter value: %w", err)
+			}
 		}
 		project = convertProject(dbProject, 0)
 		return nil
