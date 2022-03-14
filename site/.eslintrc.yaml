@@ -17,11 +17,12 @@ extends:
 parser: "@typescript-eslint/parser"
 parserOptions:
   ecmaVersion: 2018
-  project:
-    - "./tsconfig.test.json"
+  project: "./tsconfig.test.json"
   sourceType: module
   ecmaFeatures:
     jsx: true
+  # REMARK(Grey): We might want to move this to repository root eventually to
+  #               lint multiple projects (supply array to project property).
   tsconfigRootDir: "./"
 plugins:
   - "@typescript-eslint"
