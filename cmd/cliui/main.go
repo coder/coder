@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database"
 )
 
 func main() {
@@ -64,6 +66,32 @@ func main() {
 				return err
 			}
 			return nil
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use: "parameter",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cliui.Parameter(cmd, codersdk.ProjectVersionParameterSchema{
+				Name:                     "region",
+				ValidationCondition:      `contains(["us-east-1", "us-central-1"], var.region)`,
+				ValidationTypeSystem:     database.ParameterTypeSystemHCL,
+				RedisplayValue:           true,
+				DefaultSourceScheme:      database.ParameterSourceSchemeData,
+				DefaultSourceValue:       "us-east-1",
+				AllowOverrideSource:      true,
+				DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
+				Description: `Specify a region for your workspace to live!
+				https://cloud.google.com/compute/docs/regions-zones#available`,
+			}, codersdk.ProjectVersionParameter{
+				ParameterValue: database.ParameterValue{
+					Scope:        database.ParameterScopeProject,
+					ScopeID:      "something",
+					SourceScheme: database.ParameterSourceSchemeData,
+					SourceValue:  "",
+				},
+				DefaultSourceValue: true,
+			})
 		},
 	})
 

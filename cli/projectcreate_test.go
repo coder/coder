@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,11 @@ import (
 
 func TestProjectCreate(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip()
+		return
+	}
+
 	t.Run("NoParameters", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

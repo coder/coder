@@ -15,14 +15,16 @@ import (
 )
 
 func workspaceSSH() *cobra.Command {
-	return &cobra.Command{
-		Use: "ssh",
+	var (
+		stdio bool
+	)
+	cmd := &cobra.Command{
+		Use: "ssh <workspace> [resource]",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
-
 			workspace, err := client.WorkspaceByName(cmd.Context(), "", args[0])
 			if err != nil {
 				return err
@@ -31,6 +33,7 @@ func workspaceSSH() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			for _, resource := range resources {
 				fmt.Printf("Got resource: %+v\n", resource)
 				if resource.Agent == nil {
@@ -83,4 +86,6 @@ func workspaceSSH() *cobra.Command {
 			return nil
 		},
 	}
+
+	return cmd
 }

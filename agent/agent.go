@@ -86,6 +86,76 @@ type server struct {
 	sshServer *ssh.Server
 }
 
+func (s *server) run(ctx context.Context) {
+	var peerListener *peerbroker.Listener
+	var err error
+	// An exponential back-off occurs when the connection is failing to dial.
+	// This is to prevent server spam in case of a coderd outage.
+	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		peerListener, err = s.clientDialer(ctx, s.options)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if s.isClosed() {
+				return
+			}
+			s.options.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			continue
+		}
+		s.options.Logger.Debug(context.Background(), "connected")
+		break
+	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	for {
+		conn, err := peerListener.Accept()
+		if err != nil {
+			if s.isClosed() {
+				return
+			}
+			s.options.Logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
+			s.run(ctx)
+			return
+		}
+		s.closeMutex.Lock()
+		s.connCloseWait.Add(1)
+		s.closeMutex.Unlock()
+		go s.handlePeerConn(ctx, conn)
+	}
+}
+
+func (s *server) handlePeerConn(ctx context.Context, conn *peer.Conn) {
+	go func() {
+		<-conn.Closed()
+		s.connCloseWait.Done()
+	}()
+	for {
+		channel, err := conn.Accept(ctx)
+		if err != nil {
+			if errors.Is(err, peer.ErrClosed) || s.isClosed() {
+				return
+			}
+			s.options.Logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
+			return
+		}
+
+		switch channel.Protocol() {
+		case "ssh":
+			s.sshServer.HandleConn(channel.NetConn())
+		default:
+			s.options.Logger.Warn(ctx, "unhandled protocol from channel",
+				slog.F("protocol", channel.Protocol()),
+				slog.F("label", channel.Label()),
+			)
+		}
+	}
+}
+
 func (s *server) init(ctx context.Context) {
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
@@ -243,76 +313,6 @@ func (*server) handleSSHSession(session ssh.Session) error {
 	}
 	_ = cmd.Wait()
 	return nil
-}
-
-func (s *server) run(ctx context.Context) {
-	var peerListener *peerbroker.Listener
-	var err error
-	// An exponential back-off occurs when the connection is failing to dial.
-	// This is to prevent server spam in case of a coderd outage.
-	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		peerListener, err = s.clientDialer(ctx, s.options)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			if s.isClosed() {
-				return
-			}
-			s.options.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
-			continue
-		}
-		s.options.Logger.Debug(context.Background(), "connected")
-		break
-	}
-	select {
-	case <-ctx.Done():
-		return
-	default:
-	}
-
-	for {
-		conn, err := peerListener.Accept()
-		if err != nil {
-			if s.isClosed() {
-				return
-			}
-			s.options.Logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
-			s.run(ctx)
-			return
-		}
-		s.closeMutex.Lock()
-		s.connCloseWait.Add(1)
-		s.closeMutex.Unlock()
-		go s.handlePeerConn(ctx, conn)
-	}
-}
-
-func (s *server) handlePeerConn(ctx context.Context, conn *peer.Conn) {
-	go func() {
-		<-conn.Closed()
-		s.connCloseWait.Done()
-	}()
-	for {
-		channel, err := conn.Accept(ctx)
-		if err != nil {
-			if errors.Is(err, peer.ErrClosed) || s.isClosed() {
-				return
-			}
-			s.options.Logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
-			return
-		}
-
-		switch channel.Protocol() {
-		case "ssh":
-			s.sshServer.HandleConn(channel.NetConn())
-		default:
-			s.options.Logger.Warn(ctx, "unhandled protocol from channel",
-				slog.F("protocol", channel.Protocol()),
-				slog.F("label", channel.Label()),
-			)
-		}
-	}
 }
 
 // isClosed returns whether the API is closed or not.

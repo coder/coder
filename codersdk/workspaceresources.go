@@ -36,6 +36,7 @@ type WorkspaceResource struct {
 	CreatedAt  time.Time                    `json:"created_at"`
 	JobID      uuid.UUID                    `json:"job_id"`
 	Transition database.WorkspaceTransition `json:"workspace_transition"`
+	Address    string                       `json:"address"`
 	Type       string                       `json:"type"`
 	Name       string                       `json:"name"`
 	Agent      *WorkspaceAgent              `json:"agent,omitempty"`

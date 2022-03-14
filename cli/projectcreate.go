@@ -265,40 +265,6 @@ func projectCreate() *cobra.Command {
 	return cmd
 }
 
-// Show computed parameters for a project version.
-// Show computed parameters for a workspace build.
-//
-// Project Version
-//
-// Parameters
-//   gcp_credentials = us-central1-a (set by workspace)
-//    Set with "coder params update org --name test --value something"
-//    Description
-//     Something about GCP credentials!
-//
-//    Valid
-//      - us-central1-a, us-central1-b, us-central1-c
-//
-//     x user settable
-//     x sensitive
-//   region = us-central1-a
-//     - user settable
-//     - oneof "us-central1-a" "us-central1-b"
-
-//
-//   region
-//   Description
-//     Something about GCP credentials!
-//
-//
-//
-// Resources
-//   google_compute_instance
-//     Shuts off
-
-// Displaying project version information.
-// Displaying workspace build information.
-
 func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, archive []byte, parameters ...codersdk.CreateParameterRequest) (*codersdk.ProjectVersion, []codersdk.CreateParameterRequest, error) {
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = cmd.OutOrStdout()

@@ -279,7 +279,8 @@ CREATE TABLE workspace_resource (
     created_at timestamp with time zone NOT NULL,
     job_id uuid NOT NULL,
     transition workspace_transition NOT NULL,
-    type character varying(256) NOT NULL,
+    address character varying(256) NOT NULL,
+    type character varying(192) NOT NULL,
     name character varying(64) NOT NULL,
     agent_id uuid
 );

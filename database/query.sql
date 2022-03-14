@@ -539,12 +539,13 @@ INSERT INTO
     created_at,
     job_id,
     transition,
+    address,
     type,
     name,
     agent_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: InsertProjectVersion :one
 INSERT INTO

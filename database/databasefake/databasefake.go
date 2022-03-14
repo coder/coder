@@ -995,6 +995,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		CreatedAt:  arg.CreatedAt,
 		JobID:      arg.JobID,
 		Transition: arg.Transition,
+		Address:    arg.Address,
 		Type:       arg.Type,
 		Name:       arg.Name,
 		AgentID:    arg.AgentID,

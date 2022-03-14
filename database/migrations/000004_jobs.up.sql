@@ -61,7 +61,8 @@ CREATE TABLE workspace_resource (
     created_at timestamptz NOT NULL,
     job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
     transition workspace_transition NOT NULL,
-    type varchar(256) NOT NULL,
+    address varchar(256) NOT NULL,
+    type varchar(192) NOT NULL,
     name varchar(64) NOT NULL,
     agent_id uuid
 );

@@ -1389,7 +1389,7 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, id
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-  id, created_at, job_id, transition, type, name, agent_id
+  id, created_at, job_id, transition, address, type, name, agent_id
 FROM
   workspace_resource
 WHERE
@@ -1404,6 +1404,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.CreatedAt,
 		&i.JobID,
 		&i.Transition,
+		&i.Address,
 		&i.Type,
 		&i.Name,
 		&i.AgentID,
@@ -1413,7 +1414,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-  id, created_at, job_id, transition, type, name, agent_id
+  id, created_at, job_id, transition, address, type, name, agent_id
 FROM
   workspace_resource
 WHERE
@@ -1434,6 +1435,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.CreatedAt,
 			&i.JobID,
 			&i.Transition,
+			&i.Address,
 			&i.Type,
 			&i.Name,
 			&i.AgentID,
@@ -2412,12 +2414,13 @@ INSERT INTO
     created_at,
     job_id,
     transition,
+    address,
     type,
     name,
     agent_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, job_id, transition, type, name, agent_id
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, job_id, transition, address, type, name, agent_id
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -2425,6 +2428,7 @@ type InsertWorkspaceResourceParams struct {
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
 	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
 	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Address    string              `db:"address" json:"address"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
 	AgentID    uuid.NullUUID       `db:"agent_id" json:"agent_id"`
@@ -2436,6 +2440,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.CreatedAt,
 		arg.JobID,
 		arg.Transition,
+		arg.Address,
 		arg.Type,
 		arg.Name,
 		arg.AgentID,
@@ -2446,6 +2451,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.CreatedAt,
 		&i.JobID,
 		&i.Transition,
+		&i.Address,
 		&i.Type,
 		&i.Name,
 		&i.AgentID,

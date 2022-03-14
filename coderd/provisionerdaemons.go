@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -468,14 +469,18 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
 		} {
-			for _, resource := range resources {
+			addresses, err := provisionersdk.ResourceAddresses(resources)
+			if err != nil {
+				return nil, xerrors.Errorf("compute resource addresses: %w", err)
+			}
+			for index, resource := range resources {
 				server.Logger.Info(ctx, "inserting project import job resource",
 					slog.F("job_id", job.ID.String()),
 					slog.F("resource_name", resource.Name),
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource)
+				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource, addresses[index])
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
@@ -529,9 +534,13 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			if err != nil {
 				return xerrors.Errorf("update workspace build: %w", err)
 			}
+			addresses, err := provisionersdk.ResourceAddresses(jobType.WorkspaceBuild.Resources)
+			if err != nil {
+				return xerrors.Errorf("compute resource addresses: %w", err)
+			}
 			// This could be a bulk insert to improve performance.
-			for _, protoResource := range jobType.WorkspaceBuild.Resources {
-				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource)
+			for index, protoResource := range jobType.WorkspaceBuild.Resources {
+				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, addresses[index])
 				if err != nil {
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
@@ -563,12 +572,13 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	return &proto.Empty{}, nil
 }
 
-func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource) error {
+func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, address string) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
 		CreatedAt:  database.Now(),
 		JobID:      jobID,
 		Transition: transition,
+		Address:    address,
 		Type:       protoResource.Type,
 		Name:       protoResource.Name,
 		AgentID: uuid.NullUUID{
