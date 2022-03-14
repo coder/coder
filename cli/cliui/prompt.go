@@ -1,6 +1,7 @@
 package cliui
 
 import (
+	"context"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -30,7 +31,13 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 	input.model.EchoMode = opts.EchoMode
 	input.model.Focus()
 
+	ctx, cancelFunc := context.WithCancel(cmd.Context())
+	defer cancelFunc()
 	program := tea.NewProgram(input, tea.WithInput(cmd.InOrStdin()), tea.WithOutput(cmd.OutOrStdout()))
+	go func() {
+		<-ctx.Done()
+		program.Quit()
+	}()
 	err := program.Start()
 	if err != nil {
 		return "", err
