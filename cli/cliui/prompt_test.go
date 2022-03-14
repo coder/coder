@@ -1,6 +1,7 @@
 package cliui_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -47,8 +48,15 @@ func TestPrompt(t *testing.T) {
 }
 
 func prompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
-	cmd := &cobra.Command{}
+	value := ""
+	cmd := &cobra.Command{
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
+			value, err = cliui.Prompt(cmd, opts)
+			return err
+		},
+	}
 	cmd.SetOutput(ptty.Output())
 	cmd.SetIn(ptty.Input().Reader)
-	return cliui.Prompt(cmd, opts)
+	return value, cmd.ExecuteContext(context.Background())
 }
