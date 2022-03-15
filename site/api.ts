@@ -1,7 +1,14 @@
 import { mutate } from "swr"
 
-interface LoginResponse {
+export interface LoginResponse {
   session_token: string
+}
+
+export interface UserResponse {
+  readonly id: string
+  readonly username: string
+  readonly email: string
+  readonly created_at: string
 }
 
 /**
@@ -138,6 +145,17 @@ export const logout = async (): Promise<void> => {
   }
 
   return
+}
+
+export const getUser = async (): Promise<UserResponse> => {
+  const response = await fetch("/api/v2/users/me")
+  const body = await response.json()
+
+  if(!response.ok) {
+    throw new Error(body.message)
+  }
+
+  return body
 }
 
 export const getApiKey = async (): Promise<{ key: string }> => {
