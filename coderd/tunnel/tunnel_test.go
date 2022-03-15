@@ -35,6 +35,7 @@ func TestTunnel(t *testing.T) {
 	defer cancelFunc()
 	url, _, err := tunnel.New(ctx, srv.URL)
 	require.NoError(t, err)
+	t.Log(url)
 
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -48,5 +49,5 @@ func TestTunnel(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		return res.StatusCode == http.StatusOK
-	}, time.Minute, 3*time.Second)
+	}, 5*time.Minute, 3*time.Second)
 }
