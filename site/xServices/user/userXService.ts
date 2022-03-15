@@ -43,17 +43,14 @@ const userMachine =
           invoke: {
             src: "signIn",
             id: "signIn",
-            onDone: [
-              {
-                target: "#userState.gettingUser",
-              },
-            ],
-            onError: [
-              {
-                actions: "assignError",
-                target: "#userState.signedOut",
-              },
-            ],
+            onDone: {
+              target: "#userState.gettingUser",
+            },
+
+            onError: {
+              actions: "assignError",
+              target: "#userState.signedOut",
+            },
           },
           tags: "loading",
         },
@@ -61,18 +58,14 @@ const userMachine =
           invoke: {
             src: "getMe",
             id: "getMe",
-            onDone: [
-              {
-                actions: "assignMe",
-                target: "#userState.signedIn",
-              },
-            ],
-            onError: [
-              {
-                actions: "assignError",
-                target: "#userState.signedOut",
-              },
-            ],
+            onDone: {
+              actions: "assignMe",
+              target: "#userState.signedIn",
+            },
+            onError: {
+              actions: "assignError",
+              target: "#userState.signedOut",
+            },
           },
           tags: "loading",
         },
@@ -87,18 +80,14 @@ const userMachine =
           invoke: {
             src: "signOut",
             id: "signOut",
-            onDone: [
-              {
-                actions: "unassignMe",
-                target: "#userState.signedOut",
-              },
-            ],
-            onError: [
-              {
-                actions: "assignError",
-                target: "#userState.signedIn",
-              },
-            ],
+            onDone: {
+              actions: "unassignMe",
+              target: "#userState.signedOut",
+            },
+            onError: {
+              actions: "assignError",
+              target: "#userState.signedIn",
+            },
           },
           tags: "loading",
         },
@@ -106,10 +95,8 @@ const userMachine =
     },
     {
       services: {
-        signIn: async (context: UserContext, event: UserEvent) => {
-          if (event.type === "SIGN_IN") {
-            return await API.login(event.email, event.password)
-          }
+        signIn: async (_, event: UserEvent) => {
+          return await API.login(event.email, event.password)
         },
         signOut: API.logout,
         getMe: API.getUser,
