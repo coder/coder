@@ -13,7 +13,6 @@ before:
 builds:
   - id: coder-slim
     dir: cmd/coder
-    flags: [-tags=slim]
     ldflags: ["-s -w"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]
@@ -25,6 +24,7 @@ builds:
 
   - id: coder
     dir: cmd/coder
+    flags: [-tags=embed]
     ldflags: ["-s -w"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]

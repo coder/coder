@@ -207,7 +207,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	if job.JobId == "" {
-		p.opts.Logger.Debug(context.Background(), "no jobs available")
+		// p.opts.Logger.Debug(context.Background(), "no jobs available")
 		return
 	}
 	ctx, p.jobCancel = context.WithCancel(ctx)
