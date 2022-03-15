@@ -58,7 +58,7 @@ require (
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
+	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
