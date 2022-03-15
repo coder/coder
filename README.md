@@ -10,7 +10,7 @@ This repository contains source code for Coder V2. Additional documentation:
 ## Directory Structure
 
 - `.github/`: Settings for [Dependabot for updating dependencies](https://docs.github.com/en/code-security/supply-chain-security/customizing-dependency-updates) and [build/deploy pipelines with GitHub Actions](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions).
-  - [`semantic.yaml`](./github/semantic.yaml): Configuration for [semantic pull requests](https://github.com/apps/semantic-pull-requests)\
+  - [`semantic.yaml`](./github/semantic.yaml): Configuration for [semantic pull requests](https://github.com/apps/semantic-pull-requests)
 - `examples`: Example terraform project templates.
 - `site`: Front-end UI code.
 
