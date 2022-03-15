@@ -11,7 +11,7 @@ import { Column, Table } from "../../components/Table"
 import { useUser } from "../../contexts/UserContext"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
-import { Organization, Project } from "../../api"
+import { Organization, Project } from "./../../api"
 import useSWR from "swr"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 

@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
-import { SignInForm } from "../components/SignIn"
+import { SignInForm } from "./../components/SignIn"
 
 export const useStyles = makeStyles((theme) => ({
   root: {

@@ -8,8 +8,8 @@ import * as Yup from "yup"
 
 import { Welcome } from "./Welcome"
 import { FormTextField } from "../Form"
-import * as API from "../../api"
-import { LoadingButton } from "../Button"
+import * as API from "./../../api"
+import { LoadingButton } from "./../Button"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
