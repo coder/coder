@@ -151,7 +151,7 @@ export const getUser = async (): Promise<UserResponse> => {
   const response = await fetch("/api/v2/users/me")
   const body = await response.json()
 
-  if(!response.ok) {
+  if (!response.ok) {
     throw new Error(body.message)
   }
 

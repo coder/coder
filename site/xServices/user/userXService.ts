@@ -10,7 +10,7 @@ export interface UserContext {
 export type UserEvent = { type: "SIGN_OUT" } | { type: "SIGN_IN"; email: string; password: string }
 
 const userMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE4GUAuBDbYAdLAJZQB2kA8stgMSYCSA4gHID6jrioADgPalsJfuR4gAHogAcAJkIBGAJxKArAoDMqpRoAsAdn0bZAGhABPRBulLCs2XLUaNABk0vVAX09nUGHPhEpBQk5FCM5HQQokShAG78ANZBZOQR4gJCImJIklYu8voFctKqGgoAbPraZpYIFdIudm66SroVeqoOFd6+aFh4BMSpoeGRGOj86IS8ADb4AGZTALbDFOm5mSTCouJSCHryunpKLrrHurL6yrWIZRWEFQpuJRr6ci76vSB+A4FrlAgEUIJAgszAdAAogARRgAFQygm22T2iAqSgeCme1zKXSUCmOt3qskxBPUBP0bUaum+vwCQ2CgOBkGRYSiMRB5ASyUILOwAFV+oisrtcvtpO1CNZdAp9LoPIdVBUiaoPIoye53tJZQTaf16SkKJAIgwWBwqPyEZskTscqB9uV9IptdI5Zp1KVqkTnqpCDpPm9WspjNY9f5BobyKMaPRopROdzIzHhcjRfbELJTs15a62mp5R4ibJVLpCDYVApVNdLsoHGG-gyRmEY3QJlMZvNsEt0KtGcnrSK7Xl6hUHi5tRV7LICy50d61QobHKMWS3IvvD4QOR+BA4OI6RGAdRaCnbaj6k0XEpZHoio0tG05fPfQVKq4NPj0RUCvWDQDRhsfA2iiYoZk6KiqK6zhVKqzymBYdxaIQBjLlcug2AS0i-oejLGuQIJgmAp4gemCBVtI6oBtqlZKtIyoIcSFFYro6hnMoLGtNh-y4UC+F8qMxFpsOlK2Bo35ysWWp6AoRKTk0zHkjehiyD+m4HtxqR4YJQ77KoJaUUY1F6Q09F1Mc8gKTmJzHFhan6jhTZQP2QGDuejROrK7Qfm8s5vEWFSlsWj5FLKrpeHZ4aBNp54aH6ahQWJ1RuG4bREsYhCvh0V6GCW0gaBunhAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE4GUAuBDbYAdLAJZQB2kA8stgMSYCSA4gHID6jrioADgPalsJfuR4gAHogDs0gIyF5ADmkBmAJyyALACY5W6QBoQAT0QBWdecIAGOzZ2qlANhtznlgL6fjqDDnwiUgoScihGcjoIUSJQgDd+AGsgsnII8QEhETEkSUQddQUC5xUHG2cK1TlVYzMELX1CCoqlGyUdA2dVCu9fNCw8AmJU0PDIjHR+dEJeABt8ADMpgFthinTczJJhUXEpBAKi9RLpMuaqmtMZHR1Cc3sdczln6UstXpA-AcDCGGxhMIAVX6URihHiSSIfwAsmAMoJttk9tdVIQNOVquV1IV5LVEKpXrZ7HIdEoya8bKpzB8vgEhn8AVBgRg6BMpjN5tgluhVjC4ZsETscqB9tJHGj1BjVFicXI8fUlNZ7G4lAStFpzEp9DT+nSUhRIBEGCwOFRAQAVeFZXa5UXmazOZRilzHUnyyWEbFe9QNX2yHQ6-yDfXkUY0ejRSjg8gJZJrcjhq2Im0ilESqUyuS4q4HDxE+zSLSUmy6czOQPfIbBUNhcOs9CTaZzRYreOJgXW4V5BBi1Ho5yY5zYrNynNye35uxyHGqVQGaTeHwgcj8CBwcS04Px6i0JNC5EISVKQgdbFKdRkmxqVQ6eVPVFFux6KnucwFCt6+OjDZ8QVI22ILo8oNNIhANC0HQ2OoNyyNSS6bj8DKjMy6B7v+qb1M4twDhqYpyEoWhOCU8oaAo7gQYWOhQQRH5btWhpdls+4AYebQnloZ4Xq0163mO7R3MqHHmFU+hKLRPzVmGu4dsmXb7Oqx56CoBKKic2LukU9z2GeA74XBfRBoEaEpt2+HylmnrerOpYqI6AaLkAA */
   createMachine(
     {
       tsTypes: {} as import("./userXService.typegen").Typegen0,
@@ -20,14 +20,14 @@ const userMachine =
         services: {} as {
           getMe: {
             data: API.UserResponse
-          },
+          }
           signIn: {
             data: API.LoginResponse | undefined
-          },
+          }
           signOut: {
             data: void
           }
-        }
+        },
       },
       id: "userState",
       initial: "signedOut",
@@ -40,30 +40,41 @@ const userMachine =
           },
         },
         signingIn: {
-          tags: "loading",
           invoke: {
             src: "signIn",
             id: "signIn",
-            onDone: "#userState.gettingUser",
-            onError: {
-              actions: "assignError",
-              target: "#userState.signedOut",
-            },
+            onDone: [
+              {
+                target: "#userState.gettingUser",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignError",
+                target: "#userState.signedOut",
+              },
+            ],
           },
+          tags: "loading",
         },
         gettingUser: {
-          tags: "loading",
           invoke: {
             src: "getMe",
             id: "getMe",
-            onDone: {
-              target: "signedIn",
-              actions: "assignMe"
-            },
-            onError: {
-              actions: "assignError"
-            }
-          }
+            onDone: [
+              {
+                actions: "assignMe",
+                target: "#userState.signedIn",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignError",
+                target: "#userState.signedOut",
+              },
+            ],
+          },
+          tags: "loading",
         },
         signedIn: {
           on: {
@@ -73,7 +84,6 @@ const userMachine =
           },
         },
         signingOut: {
-          tags: "loading",
           invoke: {
             src: "signOut",
             id: "signOut",
@@ -85,27 +95,28 @@ const userMachine =
             ],
             onError: [
               {
-                actions: ["assignError"],
-                target: "#userState.signedOut",
+                actions: "assignError",
+                target: "#userState.signedIn",
               },
             ],
           },
+          tags: "loading",
         },
       },
     },
     {
       services: {
         signIn: async (context: UserContext, event: UserEvent) => {
-          if (event.type === 'SIGN_IN') {
+          if (event.type === "SIGN_IN") {
             return await API.login(event.email, event.password)
           }
-        }, 
+        },
         signOut: API.logout,
-        getMe: API.getUser
+        getMe: API.getUser,
       },
       actions: {
         assignMe: assign({
-          me: (_, event) => event.data
+          me: (_, event) => event.data,
         }),
         unassignMe: assign({
           me: () => undefined,
@@ -113,7 +124,7 @@ const userMachine =
         assignError: assign({
           error: (_, event) => event.data,
         }),
-      }
+      },
     },
   )
 
