@@ -3,7 +3,7 @@ import { UserResponse } from "../../api"
 import * as API from "../../api"
 
 export interface UserContext {
-  error?: Error
+  error?: Error | unknown // unknown is a concession while I work out typing issues
   me?: UserResponse
 }
 
@@ -107,7 +107,9 @@ const userMachine =
     {
       services: {
         signIn: async (_, event: UserEvent) => {
-          return await API.login(event.email, event.password)
+          if (event.type === 'SIGN_IN') {
+            return await API.login(event.email, event.password)
+          }
         },
         signOut: API.logout,
         getMe: API.getUser,
@@ -116,12 +118,13 @@ const userMachine =
         assignMe: assign({
           me: (_, event) => event.data,
         }),
-        unassignMe: assign({
-          me: () => undefined,
-        }),
+        unassignMe: assign((context: UserContext) => ({
+          ...context,
+          me: undefined,
+        })),
         assignError: assign({
           error: (_, event) => event.data,
-        }),
+        })
       },
     },
   )
