@@ -1,7 +1,7 @@
 {
-	"ID": "gcp-linux",
-	"Name": "Develop in Linux on Google Cloud",
-	"Description": "Get started with Linux development on Google Cloud.",
+	"id": "gcp-linux",
+	"name": "Develop in Linux on Google Cloud",
+	"description": "Get started with Linux development on Google Cloud.",
 	"schema": [
 		{
 			"id": "00000000-0000-0000-0000-000000000000",
@@ -64,12 +64,14 @@
 			"created_at": "0001-01-01T00:00:00Z",
 			"job_id": "00000000-0000-0000-0000-000000000000",
 			"workspace_transition": "start",
+			"address": "dev",
 			"type": "google_compute_instance",
 			"name": "dev",
 			"agent": {
 				"id": "00000000-0000-0000-0000-000000000000",
 				"created_at": "0001-01-01T00:00:00Z",
 				"updated_at": "0001-01-01T00:00:00Z",
+				"status": "waiting",
 				"resource_id": "00000000-0000-0000-0000-000000000000",
 				"environment_variables": null
 			}
@@ -79,6 +81,7 @@
 			"created_at": "0001-01-01T00:00:00Z",
 			"job_id": "00000000-0000-0000-0000-000000000000",
 			"workspace_transition": "start",
+			"address": "random",
 			"type": "random_string",
 			"name": "random"
 		}

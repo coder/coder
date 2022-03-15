@@ -201,6 +201,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 			resource.Agent.ID = uuid.UUID{}
 			resource.Agent.ResourceID = uuid.UUID{}
 			resource.Agent.CreatedAt = time.Time{}
+			resource.Agent.UpdatedAt = time.Time{}
 		}
 		resources[index] = resource
 	}
@@ -250,15 +251,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	if err != nil {
 		return err
 	}
-
-	build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-		ProjectVersionID: version.ID,
-		Transition:       database.WorkspaceTransitionStart,
-	})
-	if err != nil {
-		return err
-	}
-	logs, err = client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, before)
+	logs, err = client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, before)
 	if err != nil {
 		return err
 	}
@@ -270,7 +263,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
 	}
 
-	resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), build.ID)
+	resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 	if err != nil {
 		return err
 	}
@@ -284,7 +277,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		}
 	}
 
-	build, err = client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+	build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 		ProjectVersionID: version.ID,
 		Transition:       database.WorkspaceTransitionDelete,
 	})
@@ -321,7 +314,7 @@ func awaitAgent(ctx context.Context, client *codersdk.Client, resource codersdk.
 			if err != nil {
 				return err
 			}
-			if resource.Agent.UpdatedAt.IsZero() {
+			if resource.Agent.FirstConnectedAt == nil {
 				continue
 			}
 			return nil
