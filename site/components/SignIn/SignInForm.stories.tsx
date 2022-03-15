@@ -1,6 +1,7 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { SignInForm, SignInProps } from "./SignInForm"
+import { BrowserRouter } from "react-router-dom"
+import { SignInForm } from "./SignInForm"
 
 export default {
   title: "SignIn/SignInForm",
@@ -10,7 +11,11 @@ export default {
   },
 }
 
-const Template: Story<SignInProps> = (args) => <SignInForm {...args} />
+const Template: Story = (args) => (
+  <BrowserRouter>
+    <SignInForm {...args} />
+  </BrowserRouter>
+)
 
 export const Example = Template.bind({})
 Example.args = {}

@@ -1,27 +1,34 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import { Link } from "react-router-dom"
+import { Link, Navigate, useLocation } from "react-router-dom"
 import { EmptyState } from "../../components"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { Navbar } from "../../components/Navbar"
 import { Header } from "../../components/Header"
 import { Footer } from "../../components/Page"
 import { Column, Table } from "../../components/Table"
-import { useUser } from "../../contexts/UserContext"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
 import { Organization, Project } from "./../../api"
 import useSWR from "swr"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
+import { userXService } from "../../xServices/user/userXService"
+import { useActor } from "@xstate/react"
 
 export const ProjectsPage: React.FC = () => {
   const styles = useStyles()
-  const { me, signOut } = useUser(true)
+  const location = useLocation()
+  const [userState, userSend] = useActor(userXService)
+  const { me } = userState.context
   const { data: orgs, error: orgsError } = useSWR<Organization[], Error>("/api/v2/users/me/organizations")
   const { data: projects, error } = useSWR<Project[] | null, Error>(
     orgs ? `/api/v2/organizations/${orgs[0].id}/projects` : null,
   )
+
+  if (userState.matches('signedOut')) {
+    return <Navigate to={"/login?redirect=" + encodeURIComponent(location.pathname)} />
+  }
 
   if (error) {
     return <ErrorSummary error={error} />
@@ -74,7 +81,7 @@ export const ProjectsPage: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <Navbar user={me} onSignOut={signOut} />
+      <Navbar user={me} onSignOut={() => userSend("SIGN_OUT")} />
       <Header title="Projects" subTitle={subTitle} />
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
         <Table {...tableProps} />

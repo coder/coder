@@ -10,15 +10,17 @@ import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader
 import { Navbar } from "../../../../components/Navbar"
 import { Footer } from "../../../../components/Page"
 import { Column, Table } from "../../../../components/Table"
-import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { firstOrItem } from "../../../../util/array"
 import { EmptyState } from "../../../../components/EmptyState"
 import { unsafeSWRArgument } from "../../../../util"
+import { useActor } from "@xstate/react"
+import { userXService } from "../../../../xServices/user/userXService"
 
 export const ProjectPage: React.FC = () => {
   const styles = useStyles()
-  const { me, signOut } = useUser(true)
+  const [userState, userSend] = useActor(userXService)
+  const { me } = userState.context
   const navigate = useNavigate()
   const { project: projectName, organization: organizationName } = useParams()
 
@@ -89,7 +91,7 @@ export const ProjectPage: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <Navbar user={me} onSignOut={signOut} />
+      <Navbar user={me} onSignOut={() => userSend('SIGN_OUT')} />
       <Header
         title={firstOrItem(projectName, "")}
         description={firstOrItem(organizationName, "")}

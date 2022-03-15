@@ -3,14 +3,15 @@ import { UserResponse } from "../../api"
 import * as API from "../../api"
 
 export interface UserContext {
-  error?: Error | unknown // unknown is a concession while I work out typing issues
+  getUserError?: Error | unknown // unknown is a concession while I work out typing issues
+  authError?: Error | unknown
   me?: UserResponse
 }
 
 export type UserEvent = { type: "SIGN_OUT" } | { type: "SIGN_IN"; email: string; password: string }
 
 const userMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE4GUAuBDbYAdLAJZQB2kA8stgMSYCSA4gHID6jrioADgPalsJfuR4gAHogDM0gJyEATAHYAbNIAscxdunKArKo0AaEAE9EG+YX0BGABz3FD6atsbbc5QF9vp1Bg4+ESkFCTkUIzkdBCiROEAbvwA1iFk5FHiAkIiYkiSiHIADITSOvbSRRqq2m7StqYWCIr2+ja2tvVV+vqaRVW+-mhYeATE6eGR0Rjo-OiEvAA2+ABmcwC24xSZ+dkkwqLiUgiytoQahna2Bo5FDeaI+optyo5y9nIOrQY+fiABI2ChBg2GEEQAqsMYnFCIkUkQQQBZMBZQT7XJHGRGQjKYrKDQfIqKKyKPSNRC2ImlRRFfS4jqqKrFOSDf7DIJjEFgqCQjB0GZzBbLbBrdCbJEo3Zog55UDHaT2EqaZSueSqHQ1Krk5plQhGeyvO7XIqqJysgEctIUSBRBgsDhUcEAFVROUO+WOBvs5zUKrUtlUdPk2tsKkIlMqqkDcn0rUq9nN7NGVvIkxo9FilFh5CSqS25HTrvR7rliCMGlK1Tkcij9lNF302qeqhx7iKXmcGg8tkTgWT+bTtH56Fm8yWqw2+cLUrdsoKCEDbSj7bUd2UoYJ2sULXDi4Mn3VlQ0vj+5H4EDg4gt-dClAg0740oxHseocIck0gf1jIu9yaXbOPR8XXXETVxBM-mvIFb0mHZH1nTEEDsQgiSMbQLlkZRum1LtvWuEC3BjaRYwMXtAU5MBQUmXl0CLGVEI0ZRCEVJ4sPKAxPGIkMqUpQ0rHxDQTQVMjLXzG05z2eiXwXao9Q3IosLsA1FBDMNFRqUNlEUVQDB0llIKTaCJgiB8QEk59SwQewHBQjwnAMFcCVUHDOhQ+QsPbWkPmskTkzoiz51JZjaRUIl3g4j9GweZoFF4xUtEZZ461UE9vCAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE4GUAuBDbYAdLAJZQB2kA8stgMSYCSA4gHID6jrioADgPalsJfuR4gAHogDM0gJyEATAHYAbNIAscxdunKArKo0AaEAE9EG+YX0BGABz3FD6atsbbc5QF9vp1Bg4+ESkFCTkUIzkdBCiROEAbvwA1iFk5FHiAkIiYkiSiHIADITSOvbSRRqq2m7StqYWCIr2+ja2tvVV+vqaRVW+-mhYeATE6eGR0Rjo-OiEvAA2+ABmcwC24xSZ+dkkwqLiUghlyoRF+opayq4X+sqK+o2Il6qEcq5y+hrfjt+qgxAARGwUIMGwwgiAFVhjE4oREikiOCALJgLKCfa5I4yIyEZTFZQaezFK5lPTPBC2IqKUqKC4EjqqKrFOSA4FBMbgyFQGEYOgzOYLZbYNboTao9G7TEHPKgY7SewlTQ3dRyVQ6GpVSmKMqEIz2ZRKjrKIqqJzs4actIUSBRBgsDhUKEAFQxOUO+WOhvshA0ahualsqnu8kpthUhGplVUIa+rUq9ktgVGNvIkxo9FilAR5CSqS25Ez7qxnvliCMGlK1Tk6vN5p+T3ML0Ub2U7iKXmcGg8tmTILGoXTEUzAvQs3mS1WG0LxelHrlBQQIbasc7aiKtnbV3sOpaUZXBjkwd1A0B5H4EDg4g5qcL1FoJdlOIQdlpH2qhmJzJ+DWbCB7WxSmUIl2wJM0CSTPwgStO8h0mHY+BlbEvReICaSMbQflkU0fkpHtfS3MC3C+aR9ENfR+2tMEwAhSY+XQJ8UPLACziVS5TXKAxPDI8MaSjIojSqPQezNRUqLg9I7UXPZn1Q5dqn1CMNEEi4HAecNIyVGoIweVQDH0tloNvUF4JHR951LRdvQcc4PCcAx12-fDOnOeRTU7C4SXsPtjNg4ImLLJddUIdiVBpOQKJ4psmh0ASQOPRUiI8RRfF8IA */
   createMachine(
     {
   tsTypes: {} as import("./userXService.typegen").Typegen0,
@@ -29,6 +30,11 @@ const userMachine =
       }
     },
   },
+  context: {
+    me: undefined,
+    getUserError: undefined,
+    authError: undefined
+  },
   id: "userState",
   initial: "gettingUser",
   states: {
@@ -46,11 +52,12 @@ const userMachine =
         onDone: [
           {
             target: "#userState.gettingUser",
+            actions: "clearAuthError"
           },
         ],
         onError: [
           {
-            actions: "assignError",
+            actions: "assignAuthError",
             target: "#userState.signedOut",
           },
         ],
@@ -63,13 +70,13 @@ const userMachine =
         id: "getMe",
         onDone: [
           {
-            actions: "assignMe",
+            actions: ["assignMe", "clearGetUserError"],
             target: "#userState.signedIn",
           },
         ],
         onError: [
           {
-            actions: "assignError",
+            actions: "assignGetUserError",
             target: "#userState.signedOut",
           },
         ],
@@ -89,13 +96,13 @@ const userMachine =
         id: "signOut",
         onDone: [
           {
-            actions: "unassignMe",
+            actions: ["unassignMe", "clearAuthError"],
             target: "#userState.signedOut",
           },
         ],
         onError: [
           {
-            actions: "assignError",
+            actions: "assignAuthError",
             target: "#userState.signedIn",
           },
         ],
@@ -122,11 +129,22 @@ const userMachine =
           ...context,
           me: undefined,
         })),
-        assignError: assign({
-          error: (_, event) => event.data,
-        })
+        assignGetUserError: assign({
+          getUserError: (_, event) => event.data,
+        }),
+        clearGetUserError: assign((context: UserContext) => ({
+          ...context,
+          getUserError: undefined
+        })),
+        assignAuthError: assign({
+          authError: (_, event) => event.data,
+        }),
+        clearAuthError: assign((context: UserContext) => ({
+          ...context,
+          authError: undefined
+        }))
       },
     },
   )
 
-export const userService = interpret(userMachine).start()
+export const userXService = interpret(userMachine, { devTools: true }).start()

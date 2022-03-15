@@ -1,11 +1,13 @@
+import { useActor } from "@xstate/react"
 import React from "react"
 
 import { Navigate } from "react-router-dom"
 import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
-import { useUser } from "../contexts/UserContext"
+import { userXService } from "../xServices/user/userXService"
 
 export const IndexPage: React.FC = () => {
-  const { me } = useUser(/* redirectOnError */ true)
+  const [userState] = useActor(userXService)
+  const { me } = userState.context
 
   if (me) {
     // Once the user is logged in, just redirect them to /projects as the landing page

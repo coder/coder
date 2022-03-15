@@ -4,10 +4,13 @@ import { getApiKey } from "../api"
 import { CliAuthToken } from "../components/SignIn"
 
 import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
-import { useUser } from "../contexts/UserContext"
+import { useActor } from "@xstate/react"
+import { userXService } from "../xServices/user/userXService"
 
 export const CliAuthenticationPage: React.FC = () => {
-  const { me } = useUser(true)
+  const [userState] = useActor(userXService)
+  const { me } = userState.context
+
   const styles = useStyles()
 
   const [apiKey, setApiKey] = useState<string | null>(null)

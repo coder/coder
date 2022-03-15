@@ -4,17 +4,19 @@ import { useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 
 import * as API from "../../../../api"
-import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
 import { unsafeSWRArgument } from "../../../../util"
+import { useActor } from "@xstate/react"
+import { userXService } from "../../../../xServices/user/userXService"
 
 export const CreateWorkspacePage: React.FC = () => {
   const { organization: organizationName, project: projectName } = useParams()
   const navigate = useNavigate()
   const styles = useStyles()
-  const { me } = useUser(/* redirectOnError */ true)
+  const [userState] = useActor(userXService)
+  const { me } = userState.context
 
   const { data: organizationInfo, error: organizationError } = useSWR<API.Organization, Error>(
     () => `/api/v2/users/me/organizations/${organizationName}`,
