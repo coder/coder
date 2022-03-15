@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
@@ -61,7 +60,6 @@ func create(t *testing.T, ptty pty.PTY) *PTY {
 
 		outputWriter: writer,
 		runeReader:   bufio.NewReaderSize(ptty.Output(), utf8.UTFMax),
-		runeWriter:   bufio.NewWriterSize(ptty.Input(), utf8.UTFMax),
 	}
 }
 
@@ -95,16 +93,10 @@ func (p *PTY) ExpectMatch(str string) string {
 }
 
 func (p *PTY) WriteLine(str string) {
-	_, err := p.Input().Write([]byte(str))
-	require.NoError(p.t, err)
-
-	// This is jank. Bubbletea requires line returns to be on
-	// a separate read, but this is an inherent race.
-	time.Sleep(50 * time.Millisecond)
-	newline := "\r"
+	newline := []byte{pty.VEOF, '\r'}
 	if runtime.GOOS == "windows" {
-		newline = "\r\n"
+		newline = append(newline, '\n')
 	}
-	_, err = p.Input().Write([]byte(newline))
+	_, err := p.Input().Write(append([]byte(str), []byte(newline)...))
 	require.NoError(p.t, err)
 }
