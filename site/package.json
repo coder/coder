@@ -19,10 +19,19 @@
     "test": "jest --selectProjects test",
     "test:coverage": "jest --selectProjects test --collectCoverage"
   },
-  "devDependencies": {
+  "dependencies": {
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
+    "formik": "2.2.9",
+    "history": "5.3.0",
+    "react": "17.0.2",
+    "react-dom": "17.0.2",
+    "react-router-dom": "6.2.2",
+    "swr": "1.2.2",
+    "yup": "0.32.11"
+  },
+  "devDependencies": {
     "@playwright/test": "1.19.2",
     "@pmmmwh/react-refresh-webpack-plugin": "0.5.4",
     "@react-theming/storybook-addon": "1.1.5",
@@ -51,19 +60,13 @@
     "eslint-plugin-no-storage": "1.0.2",
     "eslint-plugin-react": "7.29.4",
     "eslint-plugin-react-hooks": "4.3.0",
-    "formik": "2.2.9",
-    "history": "5.3.0",
     "html-webpack-plugin": "5.5.0",
     "jest": "27.5.1",
     "jest-junit": "13.0.0",
     "jest-runner-eslint": "1.0.0",
     "prettier": "2.5.1",
-    "react": "17.0.2",
-    "react-dom": "17.0.2",
     "react-hot-loader": "4.13.0",
-    "react-router-dom": "6.2.2",
     "sql-formatter": "4.0.2",
-    "swr": "1.2.2",
     "ts-jest": "27.1.3",
     "ts-loader": "9.2.8",
     "ts-node": "10.7.0",
@@ -71,8 +74,7 @@
     "webpack": "5.70.0",
     "webpack-bundle-analyzer": "4.5.0",
     "webpack-cli": "4.9.2",
-    "webpack-dev-server": "4.7.4",
-    "yup": "0.32.11"
+    "webpack-dev-server": "4.7.4"
   },
   "browserslist": [
     "chrome 66",
