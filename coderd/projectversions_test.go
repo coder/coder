@@ -44,6 +44,7 @@ func TestPatchCancelProjectVersion(t *testing.T) {
 		var err error
 		version, err = client.ProjectVersion(context.Background(), version.ID)
 		require.NoError(t, err)
+		t.Logf("Status: %s", version.Job.Status)
 		return version.Job.Status == codersdk.ProvisionerJobRunning
 	}, 5*time.Second, 25*time.Millisecond)
 	err := client.CancelProjectVersion(context.Background(), version.ID)

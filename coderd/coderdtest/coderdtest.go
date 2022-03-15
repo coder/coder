@@ -84,10 +84,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	var closeWait func()
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
-		AccessURL: serverURL,
-		Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		Database:  db,
-		Pubsub:    pubsub,
+		AgentConnectionUpdateFrequency: 25 * time.Millisecond,
+		AccessURL:                      serverURL,
+		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Database:                       db,
+		Pubsub:                         pubsub,
 
 		GoogleTokenValidator: options.GoogleTokenValidator,
 	})
