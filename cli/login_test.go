@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,11 @@ import (
 
 func TestLogin(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip()
+		return
+	}
+
 	t.Run("InitialUserNoTTY", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
