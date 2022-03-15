@@ -17,7 +17,8 @@
     "storybook": "start-storybook -p 6006 -s ./static",
     "storybook:build": "build-storybook",
     "test": "jest --selectProjects test",
-    "test:coverage": "jest --selectProjects test --collectCoverage"
+    "test:coverage": "jest --selectProjects test --collectCoverage",
+    "typegen": "xstate typegen '**/*.ts'"
   },
   "devDependencies": {
     "@material-ui/core": "4.9.4",
@@ -79,5 +80,10 @@
     "firefox 63",
     "edge 79",
     "safari 13.1"
-  ]
+  ],
+  "dependencies": {
+    "@xstate/cli": "^0.1.4",
+    "@xstate/react": "^2.0.1",
+    "xstate": "^4.30.6"
+  }
 }
