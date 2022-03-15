@@ -100,7 +100,7 @@ func (p *PTY) WriteLine(str string) {
 
 	// This is jank. Bubbletea requires line returns to be on
 	// a separate read, but this is an inherent race.
-	time.Sleep(5 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	newline := "\r"
 	if runtime.GOOS == "windows" {
 		newline = "\r\n"

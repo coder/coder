@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"testing"
 
@@ -100,7 +99,6 @@ func TestLogin(t *testing.T) {
 			err := root.ExecuteContext(ctx)
 			// An error is expected in this case, since the login wasn't successful:
 			require.Error(t, err)
-			fmt.Printf("Is this here?\n")
 		}()
 
 		pty.ExpectMatch("Paste your token here:")
