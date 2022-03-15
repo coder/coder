@@ -6,7 +6,7 @@ import { CliAuthToken } from "../components/SignIn"
 import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 import { useUser } from "../contexts/UserContext"
 
-const CliAuthenticationPage: React.FC = () => {
+export const CliAuthenticationPage: React.FC = () => {
   const { me } = useUser(true)
   const styles = useStyles()
 
@@ -40,5 +40,3 @@ const useStyles = makeStyles(() => ({
     alignItems: "center",
   },
 }))
-
-export default CliAuthenticationPage

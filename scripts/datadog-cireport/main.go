@@ -59,16 +59,24 @@ func main() {
 	}
 	commitParts := strings.Split(string(commitData), ",")
 
+	// On pull requests, this will be set!
 	branch := os.Getenv("GITHUB_HEAD_REF")
 	if branch == "" {
-		branch = os.Getenv("GITHUB_BASE_REF")
+		githubRef := os.Getenv("GITHUB_REF")
+		for _, prefix := range []string{"refs/heads/", "refs/tags/"} {
+			if !strings.HasPrefix(githubRef, prefix) {
+				continue
+			}
+			branch = strings.TrimPrefix(githubRef, prefix)
+		}
 	}
 
 	tags := map[string]string{
 		"service":              "coder",
 		"_dd.cireport_version": "2",
 
-		"test.traits": fmt.Sprintf(`{"database":["%s"]}`, os.Getenv("DD_DATABASE")),
+		"test.traits": fmt.Sprintf(`{"database":["%s"], "category":["%s"]}`,
+			os.Getenv("DD_DATABASE"), os.Getenv("DD_CATEGORY")),
 
 		// Additional tags found in DataDog docs. See:
 		// https://docs.datadoghq.com/continuous_integration/setup_tests/junit_upload/#collecting-environment-configuration-metadata

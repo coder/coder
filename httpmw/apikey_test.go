@@ -27,6 +27,7 @@ func randomAPIKeyParts() (id string, secret string) {
 
 func TestAPIKey(t *testing.T) {
 	t.Parallel()
+
 	successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Only called if the API key passes through the handler.
 		httpapi.Write(rw, http.StatusOK, httpapi.Response{

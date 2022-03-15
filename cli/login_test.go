@@ -1,13 +1,11 @@
 package cli_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/pty/ptytest"
 )
@@ -56,18 +54,7 @@ func TestLogin(t *testing.T) {
 	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
-			Username:     "test-user",
-			Email:        "test-user@coder.com",
-			Organization: "acme-corp",
-			Password:     "password",
-		})
-		require.NoError(t, err)
-		token, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
-			Email:    "test-user@coder.com",
-			Password: "password",
-		})
-		require.NoError(t, err)
+		coderdtest.CreateFirstUser(t, client)
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
 		pty := ptytest.New(t)
@@ -79,20 +66,14 @@ func TestLogin(t *testing.T) {
 		}()
 
 		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(token.SessionToken)
+		pty.WriteLine(client.SessionToken)
 		pty.ExpectMatch("Welcome to Coder")
 	})
 
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.CreateInitialUser(context.Background(), coderd.CreateInitialUserRequest{
-			Username:     "test-user",
-			Email:        "test-user@coder.com",
-			Organization: "acme-corp",
-			Password:     "password",
-		})
-		require.NoError(t, err)
+		coderdtest.CreateFirstUser(t, client)
 
 		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
 		pty := ptytest.New(t)

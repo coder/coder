@@ -17,7 +17,7 @@ function create_initial_user() {
   curl -X POST \
     -d '{"email": "'"$EMAIL"'", "username": "'"$USERNAME"'", "organization": "'"$ORGANIZATION"'", "password": "'"$PASSWORD"'"}' \
     -H 'Content-Type:application/json' \
-    "http://localhost:$PORT/api/v2/user"
+    "http://localhost:$PORT/api/v2/users/first"
 }
 
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
@@ -26,5 +26,5 @@ function create_initial_user() {
 (
   trap 'kill 0' SIGINT
   create_initial_user &
-  /coder/coderd --address=":$PORT"
+  /coder daemon --address=":$PORT"
 )

@@ -29,7 +29,7 @@ func TestProxy(t *testing.T) {
 	defer listenerClient.Close()
 	defer listenerServer.Close()
 
-	listener, err := peerbroker.Listen(listenerServer, &peer.ConnOptions{
+	listener, err := peerbroker.Listen(listenerServer, nil, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)

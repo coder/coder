@@ -8,13 +8,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"time"
 
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -31,27 +32,8 @@ import (
 
 type ProvisionerDaemon database.ProvisionerDaemon
 
-// Lists all registered provisioner daemons.
-func (api *api) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
-	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner daemons: %s", err),
-		})
-		return
-	}
-	if daemons == nil {
-		daemons = []database.ProvisionerDaemon{}
-	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, daemons)
-}
-
 // Serves the provisioner daemon protobuf API over a WebSocket.
-func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request) {
+func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitGroup.Add(1)
 	defer api.websocketWaitGroup.Done()
 
@@ -89,6 +71,7 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 	}
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
+		AccessURL:    api.AccessURL,
 		ID:           daemon.ID,
 		Database:     api.Database,
 		Pubsub:       api.Pubsub,
@@ -110,12 +93,13 @@ func (api *api) provisionerDaemonsServe(rw http.ResponseWriter, r *http.Request)
 
 // The input for a "workspace_provision" job.
 type workspaceProvisionJob struct {
-	WorkspaceHistoryID uuid.UUID `json:"workspace_history_id"`
-	DryRun             bool      `json:"dry_run"`
+	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
+	DryRun           bool      `json:"dry_run"`
 }
 
 // Implementation of the provisioner daemon protobuf server.
 type provisionerdServer struct {
+	AccessURL    *url.URL
 	ID           uuid.UUID
 	Logger       slog.Logger
 	Provisioners []database.ProvisionerType
@@ -178,32 +162,32 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		UserName:    user.Username,
 	}
 	switch job.Type {
-	case database.ProvisionerJobTypeWorkspaceProvision:
+	case database.ProvisionerJobTypeWorkspaceBuild:
 		var input workspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
-		workspaceHistory, err := server.Database.GetWorkspaceHistoryByID(ctx, input.WorkspaceHistoryID)
+		workspaceBuild, err := server.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get workspace history: %s", err))
+			return nil, failJob(fmt.Sprintf("get workspace build: %s", err))
 		}
-		workspace, err := server.Database.GetWorkspaceByID(ctx, workspaceHistory.WorkspaceID)
+		workspace, err := server.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace: %s", err))
 		}
-		projectVersion, err := server.Database.GetProjectVersionByID(ctx, workspaceHistory.ProjectVersionID)
+		projectVersion, err := server.Database.GetProjectVersionByID(ctx, workspaceBuild.ProjectVersionID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project version: %s", err))
 		}
-		project, err := server.Database.GetProjectByID(ctx, projectVersion.ProjectID)
+		project, err := server.Database.GetProjectByID(ctx, projectVersion.ProjectID.UUID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project: %s", err))
 		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			ProjectImportJobID: projectVersion.ImportJobID,
+			ProjectImportJobID: projectVersion.JobID,
 			OrganizationID:     job.OrganizationID,
 			ProjectID: uuid.NullUUID{
 				UUID:  project.ID,
@@ -227,23 +211,30 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 			}
 			protoParameters = append(protoParameters, converted)
 		}
-		protoParameters = append(protoParameters, &sdkproto.ParameterValue{
-			DestinationScheme: sdkproto.ParameterDestination_PROVISIONER_VARIABLE,
-			Name:              parameter.CoderWorkspaceTransition,
-			Value:             string(workspaceHistory.Transition),
-		})
+		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
+		if err != nil {
+			return nil, failJob(fmt.Sprint("convert workspace transition: %w", err))
+		}
 
-		protoJob.Type = &proto.AcquiredJob_WorkspaceProvision_{
-			WorkspaceProvision: &proto.AcquiredJob_WorkspaceProvision{
-				WorkspaceHistoryId: workspaceHistory.ID.String(),
-				WorkspaceName:      workspace.Name,
-				State:              workspaceHistory.ProvisionerState,
-				ParameterValues:    protoParameters,
+		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
+			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+				WorkspaceBuildId: workspaceBuild.ID.String(),
+				WorkspaceName:    workspace.Name,
+				State:            workspaceBuild.ProvisionerState,
+				ParameterValues:  protoParameters,
+				Metadata: &sdkproto.Provision_Metadata{
+					CoderUrl:            server.AccessURL.String(),
+					WorkspaceTransition: transition,
+				},
 			},
 		}
 	case database.ProvisionerJobTypeProjectVersionImport:
 		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
-			ProjectImport: &proto.AcquiredJob_ProjectImport{},
+			ProjectImport: &proto.AcquiredJob_ProjectImport{
+				Metadata: &sdkproto.Provision_Metadata{
+					CoderUrl: server.AccessURL.String(),
+				},
+			},
 		}
 	}
 	switch job.StorageMethod {
@@ -393,8 +384,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	return &proto.UpdateJobResponse{}, nil
 }
 
-func (server *provisionerdServer) CancelJob(ctx context.Context, cancelJob *proto.CancelledJob) (*proto.Empty, error) {
-	jobID, err := uuid.Parse(cancelJob.JobId)
+func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
+	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
@@ -411,18 +402,34 @@ func (server *provisionerdServer) CancelJob(ctx context.Context, cancelJob *prot
 			Time:  database.Now(),
 			Valid: true,
 		},
-		CancelledAt: sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		},
 		UpdatedAt: database.Now(),
 		Error: sql.NullString{
-			String: cancelJob.Error,
-			Valid:  cancelJob.Error != "",
+			String: failJob.Error,
+			Valid:  failJob.Error != "",
 		},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update provisioner job: %w", err)
+	}
+	switch jobType := failJob.Type.(type) {
+	case *proto.FailedJob_WorkspaceBuild_:
+		if jobType.WorkspaceBuild.State == nil {
+			break
+		}
+		var input workspaceProvisionJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
+		}
+		err = server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			ID:               jobID,
+			UpdatedAt:        database.Now(),
+			ProvisionerState: jobType.WorkspaceBuild.State,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update workspace build state: %w", err)
+		}
+	case *proto.FailedJob_ProjectImport_:
 	}
 	return &proto.Empty{}, nil
 }
@@ -453,14 +460,8 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 					slog.F("resource_name", resource.Name),
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
-				_, err = server.Database.InsertProjectImportJobResource(ctx, database.InsertProjectImportJobResourceParams{
-					ID:         uuid.New(),
-					CreatedAt:  database.Now(),
-					JobID:      jobID,
-					Transition: transition,
-					Type:       resource.Type,
-					Name:       resource.Name,
-				})
+
+				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource)
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
@@ -482,16 +483,16 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		if err != nil {
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
-	case *proto.CompletedJob_WorkspaceProvision_:
+	case *proto.CompletedJob_WorkspaceBuild_:
 		var input workspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal job data: %w", err)
 		}
 
-		workspaceHistory, err := server.Database.GetWorkspaceHistoryByID(ctx, input.WorkspaceHistoryID)
+		workspaceBuild, err := server.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 		if err != nil {
-			return nil, xerrors.Errorf("get workspace history: %w", err)
+			return nil, xerrors.Errorf("get workspace build: %w", err)
 		}
 
 		err = server.Database.InTx(func(db database.Store) error {
@@ -506,32 +507,19 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
-			err = db.UpdateWorkspaceHistoryByID(ctx, database.UpdateWorkspaceHistoryByIDParams{
-				ID:               workspaceHistory.ID,
+			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				ID:               workspaceBuild.ID,
 				UpdatedAt:        database.Now(),
-				ProvisionerState: jobType.WorkspaceProvision.State,
+				ProvisionerState: jobType.WorkspaceBuild.State,
 			})
 			if err != nil {
-				return xerrors.Errorf("update workspace history: %w", err)
+				return xerrors.Errorf("update workspace build: %w", err)
 			}
 			// This could be a bulk insert to improve performance.
-			for _, protoResource := range jobType.WorkspaceProvision.Resources {
-				_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
-					ID:                 uuid.New(),
-					CreatedAt:          database.Now(),
-					WorkspaceHistoryID: input.WorkspaceHistoryID,
-					InstanceID: sql.NullString{
-						Valid:  protoResource.InstanceId != "",
-						String: protoResource.InstanceId,
-					},
-					Type: protoResource.Type,
-					Name: protoResource.Name,
-					// TODO: Generate this at the variable validation phase.
-					// Set the value in `default_source`, and disallow overwrite.
-					WorkspaceAgentToken: uuid.NewString(),
-				})
+			for _, protoResource := range jobType.WorkspaceBuild.Resources {
+				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource)
 				if err != nil {
-					return xerrors.Errorf("insert workspace resource %q: %w", protoResource.Name, err)
+					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
 			}
 			return nil
@@ -545,6 +533,68 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	}
 
 	return &proto.Empty{}, nil
+}
+
+func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource) error {
+	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
+		ID:         uuid.New(),
+		CreatedAt:  database.Now(),
+		JobID:      jobID,
+		Transition: transition,
+		Type:       protoResource.Type,
+		Name:       protoResource.Name,
+		AgentID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: protoResource.Agent != nil,
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
+	}
+	if resource.AgentID.Valid {
+		var instanceID sql.NullString
+		if protoResource.Agent.GetGoogleInstanceIdentity() != nil {
+			instanceID = sql.NullString{
+				String: protoResource.Agent.GetGoogleInstanceIdentity().InstanceId,
+				Valid:  true,
+			}
+		}
+		var env pqtype.NullRawMessage
+		if protoResource.Agent.Env != nil {
+			data, err := json.Marshal(protoResource.Agent.Env)
+			if err != nil {
+				return xerrors.Errorf("marshal env: %w", err)
+			}
+			env = pqtype.NullRawMessage{
+				RawMessage: data,
+				Valid:      true,
+			}
+		}
+		authToken := uuid.New()
+		if protoResource.Agent.GetToken() != "" {
+			authToken, err = uuid.Parse(protoResource.Agent.GetToken())
+			if err != nil {
+				return xerrors.Errorf("invalid auth token format; must be uuid: %w", err)
+			}
+		}
+
+		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+			ID:                   resource.AgentID.UUID,
+			CreatedAt:            database.Now(),
+			ResourceID:           resource.ID,
+			AuthToken:            authToken,
+			AuthInstanceID:       instanceID,
+			EnvironmentVariables: env,
+			StartupScript: sql.NullString{
+				String: protoResource.Agent.StartupScript,
+				Valid:  protoResource.Agent.StartupScript != "",
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert agent: %w", err)
+		}
+	}
+	return nil
 }
 
 func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {
@@ -622,4 +672,17 @@ func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.Par
 		Name:              param.Name,
 		Value:             param.SourceValue,
 	}, nil
+}
+
+func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkproto.WorkspaceTransition, error) {
+	switch transition {
+	case database.WorkspaceTransitionStart:
+		return sdkproto.WorkspaceTransition_START, nil
+	case database.WorkspaceTransitionStop:
+		return sdkproto.WorkspaceTransition_STOP, nil
+	case database.WorkspaceTransitionDelete:
+		return sdkproto.WorkspaceTransition_DESTROY, nil
+	default:
+		return 0, xerrors.Errorf("unrecognized transition: %q", transition)
+	}
 }

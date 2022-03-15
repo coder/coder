@@ -1,13 +1,12 @@
 import React from "react"
-import singletonRouter from "next/router"
-import mockRouter from "next-router-mock"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, screen, waitFor } from "@testing-library/react"
+import { history, render } from "../../test_helpers"
 
 import { SignInForm } from "./SignInForm"
 
 describe("SignInForm", () => {
   beforeEach(() => {
-    mockRouter.setCurrentUrl("/login")
+    history.replace("/")
   })
 
   it("renders content", async () => {
@@ -56,14 +55,14 @@ describe("SignInForm", () => {
 
     // Then
     // Should redirect because login was successful
-    await waitFor(() => expect(singletonRouter).toMatchObject({ asPath: "/" }))
+    await waitFor(() => expect(history.location.pathname).toEqual("/"))
   })
 
   it("respects ?redirect query parameter when complete", async () => {
     // Given
     const loginHandler = (_email: string, _password: string) => Promise.resolve()
     // Set a path to redirect to after login is successful
-    mockRouter.setCurrentUrl("/login?redirect=%2Fsome%2Fother%2Fpath")
+    history.replace("/login?redirect=%2Fsome%2Fother%2Fpath")
 
     // When
     // Render the component
@@ -78,6 +77,6 @@ describe("SignInForm", () => {
 
     // Then
     // Should redirect to /some/other/path because ?redirect was specified and login was successful
-    await waitFor(() => expect(singletonRouter).toMatchObject({ asPath: "/some/other/path" }))
+    await waitFor(() => expect(history.location.pathname).toEqual("/some/other/path"))
   })
 })

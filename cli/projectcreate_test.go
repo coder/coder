@@ -18,7 +18,7 @@ func TestProjectCreate(t *testing.T) {
 	t.Run("NoParameters", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateInitialUser(t, client)
+		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
@@ -54,7 +54,7 @@ func TestProjectCreate(t *testing.T) {
 	t.Run("Parameter", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateInitialUser(t, client)
+		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateProjectVersionSource(t, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
@@ -86,7 +86,7 @@ func TestProjectCreate(t *testing.T) {
 		matches := []string{
 			"organization?", "y",
 			"name?", "test-project",
-			"somevar:", "value",
+			"somevar", "value",
 			"project?", "y",
 			"created!", "n",
 		}

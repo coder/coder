@@ -1,0 +1,48 @@
+archives:
+  - builds:
+      - coder
+    files:
+      - README.md
+
+before:
+  hooks:
+    - go mod tidy
+    - rm -f site/out/bin/coder*
+
+builds:
+  - id: coder-slim
+    dir: cmd/coder
+    flags: [-tags=slim]
+    ldflags: ["-s -w"]
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    hooks:
+      # The "trimprefix" appends ".exe" on Windows.
+      post: |
+        cp {{.Path}} site/out/bin/coder_{{ .Os }}_{{ .Arch }}{{ trimprefix .Name "coder" }}
+
+  - id: coder
+    dir: cmd/coder
+    ldflags: ["-s -w"]
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+
+nfpms:
+  - vendor: Coder
+    homepage: https://coder.com
+    maintainer: Coder <support@coder.com>
+    description: |
+      Provision development environments with infrastructure with code
+    formats:
+      - apk
+      - deb
+      - rpm
+    suggests:
+      - postgresql
+    builds:
+      - coder
+
+release:
+  ids: [coder]

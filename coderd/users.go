@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -27,21 +28,24 @@ type User struct {
 	Username  string    `json:"username" validate:"required"`
 }
 
-// CreateInitialUserRequest provides options to create the initial
-// user for a Coder deployment. The organization provided will be
-// created as well.
-type CreateInitialUserRequest struct {
+type CreateFirstUserRequest struct {
 	Email        string `json:"email" validate:"required,email"`
 	Username     string `json:"username" validate:"required,username"`
 	Password     string `json:"password" validate:"required"`
 	Organization string `json:"organization" validate:"required,username"`
 }
 
-// CreateUserRequest provides options for creating a new user.
+// CreateFirstUserResponse contains IDs for newly created user info.
+type CreateFirstUserResponse struct {
+	UserID         string `json:"user_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
 type CreateUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
+	Email          string `json:"email" validate:"required,email"`
+	Username       string `json:"username" validate:"required,username"`
+	Password       string `json:"password" validate:"required"`
+	OrganizationID string `json:"organization_id" validate:"required"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -60,8 +64,18 @@ type GenerateAPIKeyResponse struct {
 	Key string `json:"key"`
 }
 
+type CreateOrganizationRequest struct {
+	Name string `json:"name" validate:"required,username"`
+}
+
+// CreateWorkspaceRequest provides options for creating a new workspace.
+type CreateWorkspaceRequest struct {
+	ProjectID uuid.UUID `json:"project_id" validate:"required"`
+	Name      string    `json:"name" validate:"username,required"`
+}
+
 // Returns whether the initial user has been created or not.
-func (api *api) user(rw http.ResponseWriter, r *http.Request) {
+func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -81,8 +95,8 @@ func (api *api) user(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates the initial user for a Coder deployment.
-func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
-	var createUser CreateInitialUserRequest
+func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
+	var createUser CreateFirstUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
@@ -111,6 +125,7 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 
 	// Create the user, organization, and membership to the user.
 	var user database.User
+	var organization database.Organization
 	err = api.Database.InTx(func(s database.Store) error {
 		user, err = api.Database.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             uuid.NewString(),
@@ -124,7 +139,7 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
-		organization, err := api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.NewString(),
 			Name:      createUser.Organization,
 			CreatedAt: database.Now(),
@@ -153,11 +168,16 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertUser(user))
+	render.JSON(rw, r, CreateFirstUserResponse{
+		UserID:         user.ID,
+		OrganizationID: organization.ID,
+	})
 }
 
 // Creates a new user.
 func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+
 	var createUser CreateUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
 		return
@@ -179,6 +199,37 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	organization, err := api.Database.GetOrganizationByID(r.Context(), createUser.OrganizationID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "organization does not exist with the provided id",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization: %s", err),
+		})
+		return
+	}
+	// Check if the caller has permissions to the organization requested.
+	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
+		OrganizationID: organization.ID,
+		UserID:         apiKey.UserID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "you are not authorized to add members to that organization",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization member: %s", err),
+		})
+		return
+	}
+
 	hashedPassword, err := userpassword.Hash(createUser.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -187,18 +238,35 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := api.Database.InsertUser(r.Context(), database.InsertUserParams{
-		ID:             uuid.NewString(),
-		Email:          createUser.Email,
-		HashedPassword: []byte(hashedPassword),
-		Username:       createUser.Username,
-		LoginType:      database.LoginTypeBuiltIn,
-		CreatedAt:      database.Now(),
-		UpdatedAt:      database.Now(),
+	var user database.User
+	err = api.Database.InTx(func(db database.Store) error {
+		user, err = db.InsertUser(r.Context(), database.InsertUserParams{
+			ID:             uuid.NewString(),
+			Email:          createUser.Email,
+			HashedPassword: []byte(hashedPassword),
+			Username:       createUser.Username,
+			LoginType:      database.LoginTypeBuiltIn,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+		})
+		if err != nil {
+			return xerrors.Errorf("create user: %w", err)
+		}
+		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+			OrganizationID: organization.ID,
+			UserID:         user.ID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			Roles:          []string{},
+		})
+		if err != nil {
+			return xerrors.Errorf("create organization member: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("create user: %s", err.Error()),
+			Message: err.Error(),
 		})
 		return
 	}
@@ -238,6 +306,97 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, publicOrganizations)
+}
+
+func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	organizationName := chi.URLParam(r, "organizationname")
+	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("no organization found by name %q", organizationName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization by name: %s", err),
+		})
+		return
+	}
+	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
+		OrganizationID: organization.ID,
+		UserID:         user.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "you are not a member of that organization",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization member: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertOrganization(organization))
+}
+
+func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	var req CreateOrganizationRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+	_, err := api.Database.GetOrganizationByName(r.Context(), req.Name)
+	if err == nil {
+		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+			Message: "organization already exists with that name",
+		})
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization: %s", err.Error()),
+		})
+		return
+	}
+
+	var organization database.Organization
+	err = api.Database.InTx(func(db database.Store) error {
+		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+			ID:        uuid.NewString(),
+			Name:      req.Name,
+			CreatedAt: database.Now(),
+			UpdatedAt: database.Now(),
+		})
+		if err != nil {
+			return xerrors.Errorf("create organization: %w", err)
+		}
+		_, err = api.Database.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+			OrganizationID: organization.ID,
+			UserID:         user.ID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			Roles:          []string{"organization-admin"},
+		})
+		if err != nil {
+			return xerrors.Errorf("create organization member: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(rw, r, convertOrganization(organization))
 }
 
 // Authenticates the user with an email and password.
@@ -318,7 +477,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new session key, used for logging in via the CLI
-func (api *api) postKeyForUser(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	apiKey := httpmw.APIKey(r)
 
@@ -373,6 +532,141 @@ func (*api) postLogout(rw http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(rw, cookie)
 	render.Status(r, http.StatusOK)
+}
+
+// Create a new workspace for the currently authenticated user.
+func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
+	var createWorkspace CreateWorkspaceRequest
+	if !httpapi.Read(rw, r, &createWorkspace) {
+		return
+	}
+	apiKey := httpmw.APIKey(r)
+	project, err := api.Database.GetProjectByID(r.Context(), createWorkspace.ProjectID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("project %q doesn't exist", createWorkspace.ProjectID.String()),
+			Errors: []httpapi.Error{{
+				Field: "project_id",
+				Code:  "not_found",
+			}},
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get project: %s", err),
+		})
+		return
+	}
+	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
+		OrganizationID: project.OrganizationID,
+		UserID:         apiKey.UserID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "you aren't allowed to access projects in that organization",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization member: %s", err),
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByUserIDAndName(r.Context(), database.GetWorkspaceByUserIDAndNameParams{
+		OwnerID: apiKey.UserID,
+		Name:    createWorkspace.Name,
+	})
+	if err == nil {
+		// If the workspace already exists, don't allow creation.
+		project, err := api.Database.GetProjectByID(r.Context(), workspace.ProjectID)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("find project for conflicting workspace name %q: %s", createWorkspace.Name, err),
+			})
+			return
+		}
+		// The project is fetched for clarity to the user on where the conflicting name may be.
+		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q already exists in the %q project", createWorkspace.Name, project.Name),
+			Errors: []httpapi.Error{{
+				Field: "name",
+				Code:  "exists",
+			}},
+		})
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace by name: %s", err.Error()),
+		})
+		return
+	}
+
+	// Workspaces are created without any versions.
+	workspace, err = api.Database.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
+		ID:        uuid.New(),
+		CreatedAt: database.Now(),
+		UpdatedAt: database.Now(),
+		OwnerID:   apiKey.UserID,
+		ProjectID: project.ID,
+		Name:      createWorkspace.Name,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert workspace: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(rw, r, convertWorkspace(workspace))
+}
+
+func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	workspaces, err := api.Database.GetWorkspacesByUserID(r.Context(), user.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces: %s", err),
+		})
+		return
+	}
+	apiWorkspaces := make([]Workspace, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		apiWorkspaces = append(apiWorkspaces, convertWorkspace(workspace))
+	}
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, apiWorkspaces)
+}
+
+func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	workspaceName := chi.URLParam(r, "workspacename")
+	workspace, err := api.Database.GetWorkspaceByUserIDAndName(r.Context(), database.GetWorkspaceByUserIDAndNameParams{
+		OwnerID: user.ID,
+		Name:    workspaceName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("no workspace found by name %q", workspaceName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace by name: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertWorkspace(workspace))
 }
 
 // Generates a new ID and secret for an API key.

@@ -14,15 +14,12 @@ replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/te
 // Required until https://github.com/chzyer/readline/pull/198 is merged.
 replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220211054233-0d62993714c8
 
-// Required until https://github.com/census-instrumentation/opencensus-go/pull/1272 is merged.
-replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220220184033-4441763886a2
-
-// Required until https://github.com/pion/ice/pull/425 is merged.
-replace github.com/pion/ice/v2 => github.com/kylecarbs/ice/v2 v2.1.8-0.20220221162453-b262a62902c3
+// opencensus-go leaks a goroutine by default.
+replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
 require (
 	cdr.dev/slog v1.4.1
-	cloud.google.com/go/compute v1.4.0
+	cloud.google.com/go/compute v1.5.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/coder/retry v1.3.0
 	github.com/creack/pty v1.1.17
@@ -30,13 +27,14 @@ require (
 	github.com/gliderlabs/ssh v0.3.3
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/render v1.0.1
-	github.com/go-playground/validator/v10 v10.10.0
+	github.com/go-playground/validator/v10 v10.10.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-version v1.4.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
+	github.com/hashicorp/terraform-json v0.13.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/justinas/nosurf v1.1.1
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
@@ -51,19 +49,20 @@ require (
 	github.com/pion/transport v0.13.0
 	github.com/pion/webrtc/v3 v3.1.24
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
+	github.com/powersj/whatsthis v1.3.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
-	github.com/spf13/cobra v1.3.0
+	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.7.0
+	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
 	github.com/xlab/treeprint v1.1.0
-	go.opencensus.io v0.23.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
-	golang.org/x/sys v0.0.0-20220209214540-3681064d5158
+	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
+	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-	google.golang.org/api v0.70.0
+	google.golang.org/api v0.72.0
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.29
@@ -99,7 +98,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.11.1 // indirect
-	github.com/hashicorp/terraform-json v0.13.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/juju/ansiterm v0.0.0-20210929141451-8b71cc96ebdc // indirect
@@ -113,7 +111,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.1.0 // indirect
 	github.com/pion/dtls/v2 v2.1.3 // indirect
-	github.com/pion/ice/v2 v2.2.1 // indirect
+	github.com/pion/ice/v2 v2.2.2 // indirect
 	github.com/pion/interceptor v0.1.7 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
@@ -134,12 +132,13 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
+	go.opencensus.io v0.23.0 // indirect
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220222154240-daf995802d7b // indirect
-	google.golang.org/grpc v1.44.0 // indirect
+	google.golang.org/genproto v0.0.0-20220310185008-1973136f34c6 // indirect
+	google.golang.org/grpc v1.45.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )

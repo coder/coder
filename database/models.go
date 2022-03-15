@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tabbed/pqtype"
 )
 
 type LogLevel string
@@ -156,7 +157,7 @@ type ProvisionerJobType string
 
 const (
 	ProvisionerJobTypeProjectVersionImport ProvisionerJobType = "project_version_import"
-	ProvisionerJobTypeWorkspaceProvision   ProvisionerJobType = "workspace_provision"
+	ProvisionerJobTypeWorkspaceBuild       ProvisionerJobType = "workspace_build"
 )
 
 func (e *ProvisionerJobType) Scan(src interface{}) error {
@@ -322,11 +323,11 @@ type ParameterSchema struct {
 
 type ParameterValue struct {
 	ID                uuid.UUID                  `db:"id" json:"id"`
-	Name              string                     `db:"name" json:"name"`
 	CreatedAt         time.Time                  `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time                  `db:"updated_at" json:"updated_at"`
 	Scope             ParameterScope             `db:"scope" json:"scope"`
 	ScopeID           string                     `db:"scope_id" json:"scope_id"`
+	Name              string                     `db:"name" json:"name"`
 	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
 	SourceValue       string                     `db:"source_value" json:"source_value"`
 	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
@@ -342,31 +343,24 @@ type Project struct {
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
-type ProjectImportJobResource struct {
-	ID         uuid.UUID           `db:"id" json:"id"`
-	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
-	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
-	Transition WorkspaceTransition `db:"transition" json:"transition"`
-	Type       string              `db:"type" json:"type"`
-	Name       string              `db:"name" json:"name"`
-}
-
 type ProjectVersion struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	ProjectID   uuid.UUID `db:"project_id" json:"project_id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	ImportJobID uuid.UUID `db:"import_job_id" json:"import_job_id"`
+	ID             uuid.UUID     `db:"id" json:"id"`
+	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
+	OrganizationID string        `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 }
 
 type ProvisionerDaemon struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
-	CreatedAt    time.Time         `db:"created_at" json:"created_at"`
-	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
-	Name         string            `db:"name" json:"name"`
-	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
+	ID             uuid.UUID         `db:"id" json:"id"`
+	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
+	UpdatedAt      sql.NullTime      `db:"updated_at" json:"updated_at"`
+	OrganizationID sql.NullString    `db:"organization_id" json:"organization_id"`
+	Name           string            `db:"name" json:"name"`
+	Provisioners   []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
 
 type ProvisionerJob struct {
@@ -428,15 +422,19 @@ type Workspace struct {
 }
 
 type WorkspaceAgent struct {
-	ID                  uuid.UUID       `db:"id" json:"id"`
-	WorkspaceResourceID uuid.UUID       `db:"workspace_resource_id" json:"workspace_resource_id"`
-	CreatedAt           time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
-	InstanceMetadata    json.RawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata    json.RawMessage `db:"resource_metadata" json:"resource_metadata"`
+	ID                   uuid.UUID             `db:"id" json:"id"`
+	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt            sql.NullTime          `db:"updated_at" json:"updated_at"`
+	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 }
 
-type WorkspaceHistory struct {
+type WorkspaceBuild struct {
 	ID               uuid.UUID           `db:"id" json:"id"`
 	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time           `db:"updated_at" json:"updated_at"`
@@ -448,16 +446,15 @@ type WorkspaceHistory struct {
 	Transition       WorkspaceTransition `db:"transition" json:"transition"`
 	Initiator        string              `db:"initiator" json:"initiator"`
 	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
-	ProvisionJobID   uuid.UUID           `db:"provision_job_id" json:"provision_job_id"`
+	JobID            uuid.UUID           `db:"job_id" json:"job_id"`
 }
 
 type WorkspaceResource struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	WorkspaceHistoryID  uuid.UUID      `db:"workspace_history_id" json:"workspace_history_id"`
-	InstanceID          sql.NullString `db:"instance_id" json:"instance_id"`
-	Type                string         `db:"type" json:"type"`
-	Name                string         `db:"name" json:"name"`
-	WorkspaceAgentToken string         `db:"workspace_agent_token" json:"workspace_agent_token"`
-	WorkspaceAgentID    uuid.NullUUID  `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ID         uuid.UUID           `db:"id" json:"id"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Type       string              `db:"type" json:"type"`
+	Name       string              `db:"name" json:"name"`
+	AgentID    uuid.NullUUID       `db:"agent_id" json:"agent_id"`
 }

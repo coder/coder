@@ -20,17 +20,18 @@ func TestMain(m *testing.M) {
 func TestNew(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateInitialUser(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
 	closer := coderdtest.NewProvisionerDaemon(t, client)
-	job := coderdtest.CreateProjectImportJob(t, client, user.Organization, nil)
-	coderdtest.AwaitProjectImportJob(t, client, user.Organization, job.ID)
-	project := coderdtest.CreateProject(t, client, user.Organization, job.ID)
+	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-	history, err := client.CreateWorkspaceHistory(context.Background(), "me", workspace.Name, coderd.CreateWorkspaceHistoryRequest{
+	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
 		ProjectVersionID: project.ActiveVersionID,
 		Transition:       database.WorkspaceTransitionStart,
 	})
 	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceProvisionJob(t, client, user.Organization, history.ProvisionJobID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	coderdtest.AwaitWorkspaceAgents(t, client, build.ID)
 	closer.Close()
 }

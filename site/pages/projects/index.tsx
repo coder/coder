@@ -1,7 +1,7 @@
 import React from "react"
 import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import { EmptyState } from "../../components"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { Navbar } from "../../components/Navbar"
@@ -15,11 +15,13 @@ import { Organization, Project } from "./../../api"
 import useSWR from "swr"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 
-const ProjectsPage: React.FC = () => {
+export const ProjectsPage: React.FC = () => {
   const styles = useStyles()
   const { me, signOut } = useUser(true)
-  const { data: projects, error } = useSWR<Project[] | null, Error>("/api/v2/projects")
   const { data: orgs, error: orgsError } = useSWR<Organization[], Error>("/api/v2/users/me/organizations")
+  const { data: projects, error } = useSWR<Project[] | null, Error>(
+    orgs ? `/api/v2/organizations/${orgs[0].id}/projects` : null,
+  )
 
   if (error) {
     return <ErrorSummary error={error} />
@@ -47,7 +49,7 @@ const ProjectsPage: React.FC = () => {
       key: "name",
       name: "Name",
       renderer: (nameField: string, data: Project) => {
-        return <Link href={`/projects/${orgDictionary[data.organization_id]}/${nameField}`}>{nameField}</Link>
+        return <Link to={`/projects/${orgDictionary[data.organization_id]}/${nameField}`}>{nameField}</Link>
       },
     },
   ]
@@ -55,7 +57,7 @@ const ProjectsPage: React.FC = () => {
   const description = (
     <div>
       <div className={styles.descriptionLabel}>Run the following command to get started:</div>
-      <CodeExample code="coder project create" />
+      <CodeExample code="coder projects create" />
     </div>
   )
 
@@ -91,5 +93,3 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(1),
   },
 }))
-
-export default ProjectsPage

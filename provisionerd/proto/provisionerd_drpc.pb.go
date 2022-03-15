@@ -40,7 +40,7 @@ type DRPCProvisionerDaemonClient interface {
 
 	AcquireJob(ctx context.Context, in *Empty) (*AcquiredJob, error)
 	UpdateJob(ctx context.Context, in *UpdateJobRequest) (*UpdateJobResponse, error)
-	CancelJob(ctx context.Context, in *CancelledJob) (*Empty, error)
+	FailJob(ctx context.Context, in *FailedJob) (*Empty, error)
 	CompleteJob(ctx context.Context, in *CompletedJob) (*Empty, error)
 }
 
@@ -72,9 +72,9 @@ func (c *drpcProvisionerDaemonClient) UpdateJob(ctx context.Context, in *UpdateJ
 	return out, nil
 }
 
-func (c *drpcProvisionerDaemonClient) CancelJob(ctx context.Context, in *CancelledJob) (*Empty, error) {
+func (c *drpcProvisionerDaemonClient) FailJob(ctx context.Context, in *FailedJob) (*Empty, error) {
 	out := new(Empty)
-	err := c.cc.Invoke(ctx, "/provisionerd.ProvisionerDaemon/CancelJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{}, in, out)
+	err := c.cc.Invoke(ctx, "/provisionerd.ProvisionerDaemon/FailJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (c *drpcProvisionerDaemonClient) CompleteJob(ctx context.Context, in *Compl
 type DRPCProvisionerDaemonServer interface {
 	AcquireJob(context.Context, *Empty) (*AcquiredJob, error)
 	UpdateJob(context.Context, *UpdateJobRequest) (*UpdateJobResponse, error)
-	CancelJob(context.Context, *CancelledJob) (*Empty, error)
+	FailJob(context.Context, *FailedJob) (*Empty, error)
 	CompleteJob(context.Context, *CompletedJob) (*Empty, error)
 }
 
@@ -107,7 +107,7 @@ func (s *DRPCProvisionerDaemonUnimplementedServer) UpdateJob(context.Context, *U
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCProvisionerDaemonUnimplementedServer) CancelJob(context.Context, *CancelledJob) (*Empty, error) {
+func (s *DRPCProvisionerDaemonUnimplementedServer) FailJob(context.Context, *FailedJob) (*Empty, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -140,14 +140,14 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 					)
 			}, DRPCProvisionerDaemonServer.UpdateJob, true
 	case 2:
-		return "/provisionerd.ProvisionerDaemon/CancelJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
+		return "/provisionerd.ProvisionerDaemon/FailJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCProvisionerDaemonServer).
-					CancelJob(
+					FailJob(
 						ctx,
-						in1.(*CancelledJob),
+						in1.(*FailedJob),
 					)
-			}, DRPCProvisionerDaemonServer.CancelJob, true
+			}, DRPCProvisionerDaemonServer.FailJob, true
 	case 3:
 		return "/provisionerd.ProvisionerDaemon/CompleteJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
@@ -198,16 +198,16 @@ func (x *drpcProvisionerDaemon_UpdateJobStream) SendAndClose(m *UpdateJobRespons
 	return x.CloseSend()
 }
 
-type DRPCProvisionerDaemon_CancelJobStream interface {
+type DRPCProvisionerDaemon_FailJobStream interface {
 	drpc.Stream
 	SendAndClose(*Empty) error
 }
 
-type drpcProvisionerDaemon_CancelJobStream struct {
+type drpcProvisionerDaemon_FailJobStream struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisionerDaemon_CancelJobStream) SendAndClose(m *Empty) error {
+func (x *drpcProvisionerDaemon_FailJobStream) SendAndClose(m *Empty) error {
 	if err := x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
 		return err
 	}

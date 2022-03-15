@@ -84,7 +84,7 @@ export interface Workspace {
 
 export namespace Workspace {
   export const create = async (request: CreateWorkspaceRequest): Promise<Workspace> => {
-    const response = await fetch(`/api/v2/workspaces/me`, {
+    const response = await fetch(`/api/v2/users/me/workspaces`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -108,7 +108,7 @@ export namespace Workspace {
 }
 
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
-  const response = await fetch("/api/v2/login", {
+  const response = await fetch("/api/v2/users/login", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -128,7 +128,7 @@ export const login = async (email: string, password: string): Promise<LoginRespo
 }
 
 export const logout = async (): Promise<void> => {
-  const response = await fetch("/api/v2/logout", {
+  const response = await fetch("/api/v2/users/logout", {
     method: "POST",
   })
 
