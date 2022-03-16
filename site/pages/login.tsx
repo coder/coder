@@ -3,7 +3,7 @@ import { useActor } from "@xstate/react"
 import React from "react"
 import { userXService } from "../xServices/user/userXService"
 import { SignInForm } from "./../components/SignIn"
-import { useLocation } from "react-router-dom"
+import { Navigate, useLocation } from "react-router-dom"
 import { Location } from "history"
 
 export const useStyles = makeStyles((theme) => ({
@@ -32,7 +32,6 @@ export const SignInPage: React.FC = () => {
   const styles = useStyles()
   const location = useLocation()
   const [userState, userSend] = useActor(userXService)
-  const isSignedIn = userState.matches("signedIn")
   const isLoading = userState.hasTag("loading")
   const redirectTo = getRedirectFromLocation(location)
   const authErrorMessage = userState.context.authError ? (userState.context.authError as Error).message : undefined
@@ -41,17 +40,15 @@ export const SignInPage: React.FC = () => {
     userSend({ type: "SIGN_IN", email, password })
   }
 
-  return (
-    <div className={styles.root}>
-      <div className={styles.container}>
-        <SignInForm
-          isSignedIn={isSignedIn}
-          isLoading={isLoading}
-          redirectTo={redirectTo}
-          authErrorMessage={authErrorMessage}
-          onSubmit={onSubmit}
-        />
+  if (userState.matches("signedIn")) {
+    return <Navigate to={redirectTo} replace />
+  } else {
+    return (
+      <div className={styles.root}>
+        <div className={styles.container}>
+          <SignInForm isLoading={isLoading} authErrorMessage={authErrorMessage} onSubmit={onSubmit} />
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 }

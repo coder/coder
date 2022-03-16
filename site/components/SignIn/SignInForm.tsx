@@ -1,6 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
-import { Navigate } from "react-router-dom"
 import React from "react"
 import * as Yup from "yup"
 
@@ -39,20 +38,12 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export interface SignInFormProps {
-  isSignedIn: boolean
   isLoading: boolean
   authErrorMessage?: string
-  redirectTo: string
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
 }
 
-export const SignInForm: React.FC<SignInFormProps> = ({
-  isSignedIn,
-  isLoading,
-  authErrorMessage,
-  redirectTo,
-  onSubmit,
-}) => {
+export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMessage, onSubmit }) => {
   const styles = useStyles()
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
@@ -63,10 +54,6 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     validationSchema,
     onSubmit,
   })
-
-  if (isSignedIn) {
-    return <Navigate to={redirectTo} />
-  }
 
   return (
     <>

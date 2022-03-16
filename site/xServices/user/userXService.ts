@@ -25,9 +25,6 @@ const userMachine =
           signIn: {
             data: API.LoginResponse | undefined
           }
-          signOut: {
-            data: void
-          }
         },
       },
       context: {

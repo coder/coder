@@ -13,6 +13,7 @@ import { ProjectsPage } from "./pages/projects"
 import { ProjectPage } from "./pages/projects/[organization]/[project]"
 import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
+import { AuthAndNav, RequireAuth } from "./components/RequireAuth/RequireAuth"
 
 export const App: React.FC = () => {
   return (
@@ -35,35 +36,70 @@ export const App: React.FC = () => {
           },
         }}
       >
-          <ThemeProvider theme={light}>
-            <CssBaseline />
+        <ThemeProvider theme={light}>
+          <CssBaseline />
 
-            <Routes>
-              <Route path="/">
-                <Route index element={<IndexPage />} />
+          <Routes>
+            <Route path="/">
+              <Route
+                index
+                element={
+                  <RequireAuth>
+                    <IndexPage />
+                  </RequireAuth>
+                }
+              />
 
-                <Route path="login" element={<SignInPage />} />
-                <Route path="cli-auth" element={<CliAuthenticationPage />} />
+              <Route path="login" element={<SignInPage />} />
+              <Route path="cli-auth" element={<CliAuthenticationPage />} />
 
-                <Route path="projects">
-                  <Route index element={<ProjectsPage />} />
-                  <Route path=":organization/:project">
-                    <Route index element={<ProjectPage />} />
-                    <Route path="create" element={<CreateWorkspacePage />} />
-                  </Route>
+              <Route path="projects">
+                <Route
+                  index
+                  element={
+                    <AuthAndNav>
+                      <ProjectsPage />
+                    </AuthAndNav>
+                  }
+                />
+                <Route path=":organization/:project">
+                  <Route
+                    index
+                    element={
+                      <AuthAndNav>
+                        <ProjectPage />
+                      </AuthAndNav>
+                    }
+                  />
+                  <Route
+                    path="create"
+                    element={
+                      <RequireAuth>
+                        <CreateWorkspacePage />
+                      </RequireAuth>
+                    }
+                  />
                 </Route>
+              </Route>
 
-                <Route path="workspaces">
-                  <Route path=":workspace" element={<WorkspacePage />} />
-                </Route>
+              <Route path="workspaces">
+                <Route
+                  path=":workspace"
+                  element={
+                    <AuthAndNav>
+                      <WorkspacePage />
+                    </AuthAndNav>
+                  }
+                />
+              </Route>
 
-                {/* Using path="*"" means "match anything", so this route
+              {/* Using path="*"" means "match anything", so this route
                 acts like a catch-all for URLs that we don't have explicit
                 routes for. */}
-                <Route path="*" element={<NotFoundPage />} />
-              </Route>
-            </Routes>
-          </ThemeProvider>
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+        </ThemeProvider>
       </SWRConfig>
     </Router>
   )

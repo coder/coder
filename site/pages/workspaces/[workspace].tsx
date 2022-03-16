@@ -2,7 +2,6 @@ import React from "react"
 import useSWR from "swr"
 import { makeStyles } from "@material-ui/core/styles"
 import { useParams } from "react-router-dom"
-import { Navbar } from "../../components/Navbar"
 import { Footer } from "../../components/Page"
 import { firstOrItem } from "../../util/array"
 import { ErrorSummary } from "../../components/ErrorSummary"
@@ -10,14 +9,10 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Workspace } from "../../components/Workspace"
 import { unsafeSWRArgument } from "../../util"
 import * as API from "../../api"
-import { useActor } from "@xstate/react"
-import { userXService } from "../../xServices/user/userXService"
 
 export const WorkspacePage: React.FC = () => {
   const styles = useStyles()
   const { workspace: workspaceQueryParam } = useParams()
-  const [userState, userSend] = useActor(userXService)
-  const { me } = userState.context
 
   const { data: workspace, error: workspaceError } = useSWR<API.Workspace, Error>(() => {
     const workspaceParam = firstOrItem(workspaceQueryParam, null)
@@ -46,14 +41,12 @@ export const WorkspacePage: React.FC = () => {
     return <ErrorSummary error={organizationError} />
   }
 
-  if (!me || !workspace || !project || !organization) {
+  if (!workspace || !project || !organization) {
     return <FullScreenLoader />
   }
 
   return (
     <div className={styles.root}>
-      <Navbar user={me} onSignOut={() => userSend("SIGN_OUT")} />
-
       <div className={styles.inner}>
         <Workspace organization={organization} project={project} workspace={workspace} />
       </div>

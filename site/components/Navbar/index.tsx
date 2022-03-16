@@ -6,13 +6,23 @@ import { Link } from "react-router-dom"
 import { Logo } from "../Icons"
 import { UserDropdown } from "./UserDropdown"
 import { UserResponse } from "../../api"
+import { useActor } from "@xstate/react"
+import { userXService } from "../../xServices/user/userXService"
 
 export interface NavbarProps {
   user?: UserResponse
   onSignOut: () => void
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ user, onSignOut }) => {
+export const Navbar: React.FC = () => {
+  const [userState, userSend] = useActor(userXService)
+  const { me } = userState.context
+  const onSignOut = () => userSend("SIGN_OUT")
+
+  return <NavbarView user={me} onSignOut={onSignOut} />
+}
+
+export const NavbarView: React.FC<NavbarProps> = ({ user, onSignOut }) => {
   const styles = useStyles()
   return (
     <div className={styles.root}>
