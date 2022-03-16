@@ -14,7 +14,7 @@ import { ProjectPage } from "./pages/projects/[organization]/[project]"
 import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 import { HealthzPage } from "./pages/healthz"
-import { AuthAndNav, RequireAuth } from "../components/RequireAuth/RequireAuth"
+import { AuthAndNav, RequireAuth } from "./components/RequireAuth/RequireAuth"
 
 export const App: React.FC = () => {
   return (

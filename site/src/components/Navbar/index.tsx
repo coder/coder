@@ -7,7 +7,7 @@ import { Logo } from "../Icons"
 import { UserDropdown } from "./UserDropdown"
 import { UserResponse } from "../../api"
 import { useActor } from "@xstate/react"
-import { userXService } from "../../xServices/user/userXService"
+import { userXService } from "../../../xServices/user/userXService"
 
 export interface NavbarProps {
   user?: UserResponse
