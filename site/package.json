@@ -64,7 +64,7 @@
     "jest": "27.5.1",
     "jest-junit": "13.0.0",
     "jest-runner-eslint": "1.0.0",
-    "prettier": "2.5.1",
+    "prettier": "2.6.0",
     "react-hot-loader": "4.13.0",
     "sql-formatter": "4.0.2",
     "ts-jest": "27.1.3",
