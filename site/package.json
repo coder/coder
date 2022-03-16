@@ -30,7 +30,10 @@
     "react-dom": "17.0.2",
     "react-router-dom": "6.2.2",
     "swr": "1.2.2",
-    "yup": "0.32.11"
+    "yup": "0.32.11",
+    "@xstate/cli": "^0.1.4",
+    "@xstate/react": "^2.0.1",
+    "xstate": "^4.30.6"
   },
   "devDependencies": {
     "@playwright/test": "1.20.0",
@@ -82,10 +85,5 @@
     "firefox 63",
     "edge 79",
     "safari 13.1"
-  ],
-  "dependencies": {
-    "@xstate/cli": "^0.1.4",
-    "@xstate/react": "^2.0.1",
-    "xstate": "^4.30.6"
-  }
+  ]
 }
