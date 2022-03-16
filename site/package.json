@@ -17,12 +17,14 @@
     "storybook": "start-storybook -p 6006 -s ./static",
     "storybook:build": "build-storybook",
     "test": "jest --selectProjects test",
-    "test:coverage": "jest --selectProjects test --collectCoverage"
+    "test:coverage": "jest --selectProjects test --collectCoverage",
+    "test:watch": "jest --selectProjects test --watch"
   },
   "dependencies": {
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
+    "axios": "0.26.1",
     "formik": "2.2.9",
     "history": "5.3.0",
     "react": "17.0.2",
