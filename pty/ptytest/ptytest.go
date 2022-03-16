@@ -94,7 +94,6 @@ type PTY struct {
 
 	outputWriter io.Writer
 	runeReader   *bufio.Reader
-	runeWriter   *bufio.Writer
 }
 
 func (p *PTY) ExpectMatch(str string) string {

@@ -6,9 +6,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/charm/ui/common"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/coder/coder/pty"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/pty"
 )
 
 var (
@@ -51,14 +52,18 @@ var Styles = struct {
 }
 
 func startProgram(cmd *cobra.Command, model tea.Model) error {
-	readWriter := cmd.InOrStdin().(pty.ReadWriter)
-	cancelReader, err := readWriter.CancelReader()
-	if err != nil {
-		return err
+	reader := cmd.InOrStdin()
+	readWriter, valid := cmd.InOrStdin().(pty.ReadWriter)
+	if valid {
+		var err error
+		reader, err = readWriter.CancelReader()
+		if err != nil {
+			return err
+		}
 	}
 	ctx, cancelFunc := context.WithCancel(cmd.Context())
 	defer cancelFunc()
-	program := tea.NewProgram(model, tea.WithInput(cancelReader), tea.WithOutput(cmd.OutOrStdout()))
+	program := tea.NewProgram(model, tea.WithInput(reader), tea.WithOutput(cmd.OutOrStdout()))
 	go func() {
 		<-ctx.Done()
 		program.Quit()

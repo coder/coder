@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/pty/ptytest"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestList(t *testing.T) {

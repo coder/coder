@@ -7,12 +7,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coder/coder/pty"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/coder/coder/pty"
 )
 
-func initializePTY(t *testing.T, pty pty.PTY) {
+func initializePTY(t *testing.T, ptty pty.PTY) {
 	// On non-Windows operating systems, the pseudo-terminal
 	// converts a carriage-return into a newline.
 	//
