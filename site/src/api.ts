@@ -1,7 +1,8 @@
+import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
 
-interface LoginResponse {
-  session_token: string
+const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
+  "Content-Type": "application/json",
 }
 
 /**
@@ -107,48 +108,32 @@ export namespace Workspace {
   }
 }
 
+export interface LoginResponse {
+  session_token: string
+}
+
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
-  const response = await fetch("/api/v2/users/login", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email,
-      password,
-    }),
+  const payload = JSON.stringify({
+    email,
+    password,
   })
 
-  const body = await response.json()
-  if (!response.ok) {
-    throw new Error(body.message)
-  }
+  const response = await axios.post<LoginResponse>("/api/v2/users/login", payload, {
+    headers: { ...CONTENT_TYPE_JSON },
+  })
 
-  return body
+  return response.data
 }
 
 export const logout = async (): Promise<void> => {
-  const response = await fetch("/api/v2/users/logout", {
-    method: "POST",
-  })
-
-  if (!response.ok) {
-    const body = await response.json()
-    throw new Error(body.message)
-  }
-
-  return
+  await axios.post("/api/v2/users/logout")
 }
 
-export const getApiKey = async (): Promise<{ key: string }> => {
-  const response = await fetch("/api/v2/users/me/keys", {
-    method: "POST",
-  })
+export interface APIKeyResponse {
+  key: string
+}
 
-  if (!response.ok) {
-    const body = await response.json()
-    throw new Error(body.message)
-  }
-
-  return await response.json()
+export const getApiKey = async (): Promise<APIKeyResponse> => {
+  const response = await axios.post<APIKeyResponse>("/api/v2/users/me/keys")
+  return response.data
 }
