@@ -1,6 +1,6 @@
 import Avatar from "@material-ui/core/Avatar"
 import React from "react"
-import { UserResponse } from "../../api"
+import { UserResponse } from "../../api/types"
 
 export interface UserAvatarProps {
   user: UserResponse

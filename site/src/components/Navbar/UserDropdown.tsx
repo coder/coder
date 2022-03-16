@@ -12,7 +12,7 @@ import { BorderedMenu } from "./BorderedMenu"
 import { UserProfileCard } from "../User/UserProfileCard"
 
 import { UserAvatar } from "../User"
-import { UserResponse } from "../../api"
+import { UserResponse } from "../../api/types"
 
 export interface UserDropdownProps {
   user: UserResponse
