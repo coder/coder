@@ -7,12 +7,13 @@ import { userXService } from "../xServices/user/userXService"
 
 export const IndexPage: React.FC = () => {
   const [userState] = useActor(userXService)
-  const { me } = userState.context
 
-  if (me) {
-    // Once the user is logged in, just redirect them to /projects as the landing page
+  if (userState.matches('signedIn')) {
     return <Navigate to="/projects" replace />
+  } else if (userState.matches('signedOut')) {
+    return <Navigate to="/login" />
+  } else {
+    return <FullScreenLoader />
   }
 
-  return <FullScreenLoader />
 }
