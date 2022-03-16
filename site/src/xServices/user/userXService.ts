@@ -1,11 +1,10 @@
 import { createMachine, interpret, assign } from "xstate"
-import { UserResponse } from "../../api"
-import * as API from "../../api"
+import * as API from '../../api'
 
 export interface UserContext {
   getUserError?: Error | unknown // unknown is a concession while I work out typing issues
   authError?: Error | unknown
-  me?: UserResponse
+  me?: API.UserResponse
 }
 
 export type UserEvent = { type: "SIGN_OUT" } | { type: "SIGN_IN"; email: string; password: string }

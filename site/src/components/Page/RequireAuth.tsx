@@ -1,7 +1,7 @@
 import { useActor } from "@xstate/react"
 import React from "react"
 import { Navigate, useLocation } from "react-router"
-import { userXService } from "../../../xServices/user/userXService"
+import { userXService } from "../../xServices/user/userXService"
 import { FullScreenLoader } from "../Loader/FullScreenLoader"
 
 export interface RequireAuthProps {

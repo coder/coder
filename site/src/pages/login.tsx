@@ -4,7 +4,7 @@ import React from "react"
 import { SignInForm } from "./../components/SignIn"
 import { Navigate, useLocation } from "react-router-dom"
 import { Location } from "history"
-import { userXService } from "../../xServices/user/userXService"
+import { userXService } from "../xServices/user/userXService"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
