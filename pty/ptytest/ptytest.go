@@ -13,7 +13,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/coder/coder/pty"
 )
@@ -49,20 +48,7 @@ func New(t *testing.T) *PTY {
 	// If we find another way to flush PTY data to the TTY, we
 	// can avoid using VEOF entirely.
 	if runtime.GOOS != "windows" {
-		// On non-Windows operating systems, the pseudo-terminal
-		// converts a carriage-return into a newline.
-		//
-		// We send unescaped input, so any terminal translations
-		// result in inconsistent behavior.
-		ptyFile, valid := ptty.Input().Reader.(*os.File)
-		require.True(t, valid, "The pty input must be a file!")
-		ptyFileFd := int(ptyFile.Fd())
-
-		state, err := unix.IoctlGetTermios(ptyFileFd, unix.TCGETS)
-		require.NoError(t, err)
-		state.Iflag &^= unix.ICRNL
-		err = unix.IoctlSetTermios(ptyFileFd, unix.TCSETS, state)
-		require.NoError(t, err)
+		initializePTY(t, ptty)
 	}
 
 	return create(t, ptty)
