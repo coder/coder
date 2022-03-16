@@ -14,6 +14,7 @@ import { ProjectsPage } from "./pages/projects"
 import { ProjectPage } from "./pages/projects/[organization]/[project]"
 import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
+import { HealthzPage } from "./pages/healthz"
 
 export const App: React.FC = () => {
   return (
@@ -45,6 +46,7 @@ export const App: React.FC = () => {
                 <Route index element={<IndexPage />} />
 
                 <Route path="login" element={<SignInPage />} />
+                <Route path="healthz" element={<HealthzPage />} />
                 <Route path="cli-auth" element={<CliAuthenticationPage />} />
 
                 <Route path="projects">
