@@ -26,7 +26,7 @@ export const ProjectsPage: React.FC = () => {
     orgs ? `/api/v2/organizations/${orgs[0].id}/projects` : null,
   )
 
-  if (userState.matches('signedOut')) {
+  if (userState.matches("signedOut")) {
     return <Navigate to={"/login?redirect=" + encodeURIComponent(location.pathname)} />
   }
 

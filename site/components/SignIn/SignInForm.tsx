@@ -1,15 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
-import { Location } from "history"
-import { useLocation, Navigate } from "react-router-dom"
+import { Navigate } from "react-router-dom"
 import React from "react"
 import * as Yup from "yup"
 
 import { Welcome } from "./Welcome"
 import { FormTextField } from "../Form"
+import FormHelperText from '@material-ui/core/FormHelperText';
 import { LoadingButton } from "./../Button"
-import { userXService } from "../../xServices/user/userXService"
-import { useActor } from "@xstate/react"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -40,11 +38,22 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const SignInForm: React.FC = () => {
-  const location = useLocation()
+export interface SignInFormProps {
+  isSignedIn: boolean
+  isLoading: boolean
+  authErrorMessage?: string
+  redirectTo: string
+  onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
+}
+
+export const SignInForm: React.FC<SignInFormProps> = ({
+  isSignedIn,
+  isLoading,
+  authErrorMessage,
+  redirectTo,
+  onSubmit,
+}) => {
   const styles = useStyles()
-  const [userState, userSend] = useActor(userXService)
-  const { authError } = userState.context
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
     initialValues: {
@@ -52,13 +61,11 @@ export const SignInForm: React.FC = () => {
       password: "",
     },
     validationSchema,
-    onSubmit: async ({ email, password }) => {
-      userSend({ type: 'SIGN_IN', email, password })
-    },
+    onSubmit,
   })
 
-  if (userState.matches('signedIn')) {
-    return <Navigate to={getRedirectFromLocation(location)} />
+  if (isSignedIn) {
+    return <Navigate to={redirectTo} />
   }
 
   return (
@@ -92,13 +99,13 @@ export const SignInForm: React.FC = () => {
             isPassword
             placeholder="Password"
             variant="outlined"
-            helperText={authError ? (authError as Error).message : ''}
           />
+          {authErrorMessage && <FormHelperText error>{authErrorMessage}</FormHelperText>}
         </div>
         <div className={styles.submitBtn}>
           <LoadingButton
             color="primary"
-            loading={userState.hasTag('loading')}
+            loading={isLoading}
             fullWidth
             id="signin-form-submit"
             type="submit"
@@ -110,12 +117,4 @@ export const SignInForm: React.FC = () => {
       </form>
     </>
   )
-}
-
-const getRedirectFromLocation = (location: Location) => {
-  const defaultRedirect = "/"
-
-  const searchParams = new URLSearchParams(location.search)
-  const redirect = searchParams.get("redirect")
-  return redirect ? redirect : defaultRedirect
 }

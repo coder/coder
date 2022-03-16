@@ -91,7 +91,7 @@ export const ProjectPage: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <Navbar user={me} onSignOut={() => userSend('SIGN_OUT')} />
+      <Navbar user={me} onSignOut={() => userSend("SIGN_OUT")} />
       <Header
         title={firstOrItem(projectName, "")}
         description={firstOrItem(organizationName, "")}
