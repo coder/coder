@@ -13,9 +13,6 @@ import { ProjectsPage } from "./pages/projects"
 import { ProjectPage } from "./pages/projects/[organization]/[project]"
 import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
-import { Interpreter } from "xstate/lib/interpreter"
-
-Interpreter.defaultOptions.devTools = process.env.NODE_ENV === "development"
 
 export const App: React.FC = () => {
   return (
