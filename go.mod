@@ -17,9 +17,6 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
-// Required until https://github.com/charmbracelet/bubbletea/pull/258 is merged.
-replace github.com/charmbracelet/bubbletea => github.com/kylecarbs/bubbletea v0.20.1-0.20220315224508-b2708bc3e995
-
 // These are to allow embedding the cloudflared quick-tunnel CLI.
 // Required until https://github.com/cloudflare/cloudflared/pull/597 is merged.
 replace github.com/cloudflare/cloudflared => github.com/kylecarbs/cloudflared v0.0.0-20220311054120-ea109c6bf7be
@@ -31,9 +28,8 @@ replace github.com/rivo/tview => github.com/kylecarbs/tview v0.0.0-2022030920223
 require (
 	cdr.dev/slog v1.4.1
 	cloud.google.com/go/compute v1.5.0
+	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.18.1
-	github.com/charmbracelet/bubbles v0.10.3
-	github.com/charmbracelet/bubbletea v0.20.0
 	github.com/charmbracelet/charm v0.10.3
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/cloudflare/cloudflared v0.0.0-20220308214351-5352b3cf0489
@@ -100,11 +96,12 @@ require (
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
-	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/charmbracelet/bubbles v0.10.3 // indirect
+	github.com/charmbracelet/bubbletea v0.20.0 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/clbanning/mxj/v2 v2.5.5 // indirect
@@ -206,7 +203,6 @@ require (
 	github.com/rivo/tview v0.0.0-20200712113419-c65badfc3d92 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/sahilm/fuzzy v0.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/afero v1.8.1 // indirect
 	github.com/spf13/cast v1.4.1 // indirect

@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/go-playground/validator/v10"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
@@ -110,10 +109,9 @@ func login() *cobra.Command {
 				}
 
 				password, err := cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:          "Enter a " + cliui.Styles.Field.Render("password") + ":",
-					EchoMode:      textinput.EchoPassword,
-					EchoCharacter: '*',
-					Validate:      cliui.ValidateNotEmpty,
+					Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
+					Secret:   true,
+					Validate: cliui.ValidateNotEmpty,
 				})
 				if err != nil {
 					return xerrors.Errorf("specify password prompt: %w", err)
@@ -164,9 +162,8 @@ func login() *cobra.Command {
 			}
 
 			sessionToken, err := cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:          "Paste your token here:",
-				EchoMode:      textinput.EchoPassword,
-				EchoCharacter: '*',
+				Text:   "Paste your token here:",
+				Secret: true,
 				Validate: func(token string) error {
 					client.SessionToken = token
 					_, err := client.User(cmd.Context(), "me")

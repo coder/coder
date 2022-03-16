@@ -19,22 +19,6 @@ func main() {
 	}
 
 	root.AddCommand(&cobra.Command{
-		Use: "list",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := cliui.List(cmd, cliui.ListOptions{
-				Items: []cliui.ListItem{{
-					Title:       "Example",
-					Description: "Something...",
-				}, {
-					Title:       "Wow, here's another!",
-					Description: "Another exciting description!",
-				}},
-			})
-			return err
-		},
-	})
-
-	root.AddCommand(&cobra.Command{
 		Use: "prompt",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
@@ -64,7 +48,11 @@ func main() {
 			if err != nil {
 				return err
 			}
-			return nil
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:   "Enter password",
+				Secret: true,
+			})
+			return err
 		},
 	})
 

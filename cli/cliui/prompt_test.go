@@ -2,7 +2,6 @@ package cliui_test
 
 import (
 	"context"
-	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -14,10 +13,6 @@ import (
 
 func TestPrompt(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip()
-		return
-	}
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)

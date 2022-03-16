@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"context"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,10 +13,6 @@ import (
 
 func TestLogin(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip()
-		return
-	}
 
 	t.Run("InitialUserNoTTY", func(t *testing.T) {
 		t.Parallel()

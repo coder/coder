@@ -46,32 +46,7 @@ func projectCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			items := make([]cliui.ListItem, 0)
-			for _, template := range templates {
-				items = append(items, cliui.ListItem{
-					ID:          template.ID,
-					Title:       template.Name,
-					Description: template.Description,
-				})
-			}
-			selectedItem, err := cliui.List(cmd, cliui.ListOptions{
-				Title: "Select a Template",
-				Items: items,
-			})
-			if err != nil {
-				if errors.Is(err, cliui.Canceled) {
-					return nil
-				}
-				return err
-			}
-			var selectedTemplate codersdk.Template
-			for _, template := range templates {
-				if template.ID == selectedItem {
-					selectedTemplate = template
-					break
-				}
-			}
+			selectedTemplate := templates[0]
 
 			archive, _, err := client.TemplateArchive(cmd.Context(), selectedTemplate.ID)
 			if err != nil {
