@@ -13,7 +13,8 @@ import { ProjectsPage } from "./pages/projects"
 import { ProjectPage } from "./pages/projects/[organization]/[project]"
 import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
-import { AuthAndNav, RequireAuth } from "./components/RequireAuth/RequireAuth"
+import { HealthzPage } from "./pages/healthz"
+import { AuthAndNav, RequireAuth } from "../components/RequireAuth/RequireAuth"
 
 export const App: React.FC = () => {
   return (
@@ -50,8 +51,9 @@ export const App: React.FC = () => {
                 }
               />
 
-              <Route path="login" element={<SignInPage />} />
-              <Route path="cli-auth" element={<CliAuthenticationPage />} />
+                <Route path="login" element={<SignInPage />} />
+                <Route path="healthz" element={<HealthzPage />} />
+                <Route path="cli-auth" element={<CliAuthenticationPage />} />
 
               <Route path="projects">
                 <Route

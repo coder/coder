@@ -35,11 +35,33 @@ This repository contains source code for Coder V2. Additional documentation:
 
 The `coder` CLI binary will now be available at `$GOPATH/bin/coder`
 
+### Running
+
+After building, the binaries will be available at:
+- `dist/coder_{os}_{arch}/coder`
+
+For the purpose of these steps, an OS of `linux` and an arch of `amd64` is assumed.
+
+To manually run the server and go through first-time set up, run the following commands in separate terminals:
+- `dist/coder_linux_amd64/coder daemon` <-- starts the Coder server on port 3000
+- `dist/coder_linux_amd64/coder login http://localhost:3000` <-- runs through first-time setup, creating a user and org
+
+You'll now be able to login and access the server.
+
+To create a project, run:
+- `dist/coder_linux_amd64/coder projects create -d /path/to/project`
+
 ### Development
 
 - `./develop.sh`
 
-The `develop.sh` script runs the server locally on port `3000`, and runs a hot-reload server for front-end code on `8080`.
+The `develop.sh` script does three things:
+
+- runs `coder daemon` locally on port `3000`
+- runs `webpack-dev-server` on port `8080`
+- sets up an initial user and organization
+
+This is the recommend flow for working on the front-end, as hot-reload is set up as part of the webpack config.
 
 ## Front-End Plan
 
