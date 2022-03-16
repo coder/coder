@@ -3,9 +3,8 @@ import React from "react"
 import { Navigate, useLocation } from "react-router"
 import { userXService } from "../../../xServices/user/userXService"
 import { FullScreenLoader } from "../Loader/FullScreenLoader"
-import { Navbar } from "../Navbar"
 
-interface RequireAuthProps {
+export interface RequireAuthProps {
   children: JSX.Element
 }
 
@@ -22,11 +21,3 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
   }
 }
 
-export const AuthAndNav: React.FC<RequireAuthProps> = ({ children }) => (
-  <RequireAuth>
-    <>
-      <Navbar />
-      {children}
-    </>
-  </RequireAuth>
-)
