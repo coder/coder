@@ -6,7 +6,7 @@ import * as Yup from "yup"
 
 import { Welcome } from "./Welcome"
 import { FormTextField } from "../Form"
-import FormHelperText from '@material-ui/core/FormHelperText';
+import FormHelperText from "@material-ui/core/FormHelperText"
 import { LoadingButton } from "./../Button"
 
 /**

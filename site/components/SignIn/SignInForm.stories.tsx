@@ -15,9 +15,7 @@ export default {
   },
 }
 
-const Template: Story<SignInFormProps> = (args: SignInFormProps) => (
-    <SignInForm {...args} />
-)
+const Template: Story<SignInFormProps> = (args: SignInFormProps) => <SignInForm {...args} />
 
 export const SignedOut = Template.bind({})
 SignedOut.args = {
