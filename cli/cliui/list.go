@@ -38,8 +38,8 @@ func List(cmd *cobra.Command, opts ListOptions) (string, error) {
 		opts:  opts,
 		model: model,
 	}
-	program := tea.NewProgram(listModel, tea.WithInput(cmd.InOrStdin()), tea.WithOutput(cmd.OutOrStdout()))
-	err := program.Start()
+
+	err := startProgram(cmd, listModel)
 	if err != nil {
 		return "", err
 	}

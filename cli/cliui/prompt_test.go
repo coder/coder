@@ -62,6 +62,6 @@ func prompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
 		},
 	}
 	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input().Reader)
+	cmd.SetIn(ptty.Input())
 	return value, cmd.ExecuteContext(context.Background())
 }

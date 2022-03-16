@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/creack/pty"
+	"github.com/muesli/cancelreader"
 )
 
 func newPty() (PTY, error) {
@@ -64,4 +65,8 @@ func (p *otherPty) Close() error {
 		return err
 	}
 	return nil
+}
+
+func (rw ReadWriter) CancelReader() (cancelreader.CancelReader, error) {
+	return cancelreader.NewReader(rw.Reader)
 }

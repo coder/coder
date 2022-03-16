@@ -25,6 +25,6 @@ func TestPtytest(t *testing.T) {
 		require.Equal(t, "echo", string(data[:read]))
 		read, err = pty.Input().Read(data)
 		require.NoError(t, err)
-		require.Equal(t, "\n", string(data[:read]))
+		require.Equal(t, "\r", string(data[:read]))
 	})
 }

@@ -34,9 +34,9 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
+		root, _ := clitest.New(t, "login", client.URL.String())
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input().Reader)
+		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
@@ -66,9 +66,9 @@ func TestLogin(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input().Reader)
+		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
@@ -90,9 +90,9 @@ func TestLogin(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input().Reader)
+		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)

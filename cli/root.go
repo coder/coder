@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/pty"
 )
 
 var (
@@ -141,9 +142,11 @@ func isTTY(cmd *cobra.Command) bool {
 	if forceTty && err == nil {
 		return true
 	}
-
-	reader := cmd.InOrStdin()
-	file, ok := reader.(*os.File)
+	_, ok := cmd.InOrStdin().(pty.ReadWriter)
+	if ok {
+		return true
+	}
+	file, ok := cmd.InOrStdin().(*os.File)
 	if !ok {
 		return false
 	}

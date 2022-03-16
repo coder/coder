@@ -17,6 +17,9 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
+// Required until https://github.com/charmbracelet/bubbletea/pull/258 is merged.
+replace github.com/charmbracelet/bubbletea => github.com/kylecarbs/bubbletea v0.20.1-0.20220315224508-b2708bc3e995
+
 // These are to allow embedding the cloudflared quick-tunnel CLI.
 // Required until https://github.com/cloudflare/cloudflared/pull/597 is merged.
 replace github.com/cloudflare/cloudflared => github.com/kylecarbs/cloudflared v0.0.0-20220311054120-ea109c6bf7be
@@ -59,6 +62,7 @@ require (
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/moby v20.10.13+incompatible
+	github.com/muesli/cancelreader v0.1.0
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2

@@ -1,8 +1,13 @@
 package cliui
 
 import (
+	"context"
+
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/charm/ui/common"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/coder/coder/pty"
+	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
 
@@ -43,4 +48,20 @@ var Styles = struct {
 	FocusedPrompt: defaultStyles.FocusedPrompt.Foreground(lipgloss.Color("#651fff")),
 	Logo:          defaultStyles.Logo.SetString("Coder"),
 	Wrap:          defaultStyles.Wrap,
+}
+
+func startProgram(cmd *cobra.Command, model tea.Model) error {
+	readWriter := cmd.InOrStdin().(pty.ReadWriter)
+	cancelReader, err := readWriter.CancelReader()
+	if err != nil {
+		return err
+	}
+	ctx, cancelFunc := context.WithCancel(cmd.Context())
+	defer cancelFunc()
+	program := tea.NewProgram(model, tea.WithInput(cancelReader), tea.WithOutput(cmd.OutOrStdout()))
+	go func() {
+		<-ctx.Done()
+		program.Quit()
+	}()
+	return program.Start()
 }

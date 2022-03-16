@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/muesli/cancelreader"
 	"golang.org/x/xerrors"
 )
 
@@ -106,4 +107,8 @@ func (p *ptyWindows) Close() error {
 	}
 
 	return nil
+}
+
+func (rw ReadWriter) CancelReader() (cancelreader.CancelReader, error) {
+	return nil, xerrors.New("not implemented")
 }

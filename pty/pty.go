@@ -4,18 +4,6 @@ import (
 	"io"
 )
 
-const (
-	// See: https://man7.org/linux/man-pages/man3/tcflow.3.html
-	//  (004, EOT, Ctrl-D) End-of-file character (EOF).  More
-	// precisely: this character causes the pending tty buffer to
-	// be sent to the waiting user program without waiting for
-	// end-of-line.  If it is the first character of the line,
-	// the read(2) in the user program returns 0, which signifies
-	// end-of-file.  Recognized when ICANON is set, and then not
-	// passed as input.
-	VEOF byte = 4
-)
-
 // PTY is a minimal interface for interacting with a TTY.
 type PTY interface {
 	io.Closer
