@@ -30,6 +30,6 @@ describe("EmptyState", () => {
 
     // Then
     await screen.findByText("Hello, world")
-    await screen.findByText("Click me")
+    await screen.findByRole("button")
   })
 })
