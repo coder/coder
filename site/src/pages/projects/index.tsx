@@ -9,7 +9,7 @@ import { Footer } from "../../components/Page"
 import { Column, Table } from "../../components/Table"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
-import { Organization, Project } from "./../../api"
+import { Organization, Project } from "../../api/types"
 import useSWR from "swr"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
 

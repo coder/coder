@@ -4,7 +4,7 @@ import Paper from "@material-ui/core/Paper"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 
-import { Organization, Project, Workspace } from "../../../../api"
+import { Organization, Project, Workspace } from "../../../../api/types"
 import { Header } from "../../../../components/Header"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { Footer } from "../../../../components/Page"

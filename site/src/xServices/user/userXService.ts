@@ -1,10 +1,11 @@
 import { createMachine, interpret, assign } from "xstate"
+import * as Types from '../../api/types'
 import * as API from '../../api'
 
 export interface UserContext {
   getUserError?: Error | unknown // unknown is a concession while I work out typing issues
   authError?: Error | unknown
-  me?: API.UserResponse
+  me?: Types.UserResponse
 }
 
 export type UserEvent = { type: "SIGN_OUT" } | { type: "SIGN_IN"; email: string; password: string }
@@ -19,10 +20,10 @@ const userMachine =
         events: {} as UserEvent,
         services: {} as {
           getMe: {
-            data: API.UserResponse
+            data: Types.UserResponse
           }
           signIn: {
-            data: API.LoginResponse | undefined
+            data: Types.LoginResponse | undefined
           }
         },
       },

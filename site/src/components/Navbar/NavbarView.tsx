@@ -4,7 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { Link } from "react-router-dom"
 import { Logo } from "../Icons"
 import { UserDropdown } from "./UserDropdown"
-import { UserResponse } from "../../api"
+import { UserResponse } from "../../api/types"
 
 export interface NavbarViewProps {
   user?: UserResponse
