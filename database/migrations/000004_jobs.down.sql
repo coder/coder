@@ -1,0 +1,15 @@
+DROP TABLE provisioner_daemons;
+DROP TYPE provisioner_job_type;
+DROP TYPE provisioner_storage_method;
+DROP TABLE provisioner_jobs;
+DROP TYPE log_level;
+DROP TYPE log_source;
+DROP TABLE provisioner_job_logs;
+DROP TABLE workspace_resources;
+DROP TABLE workspace_agents;
+DROP TYPE parameter_scope;
+DROP TYPE parameter_type_system;
+DROP TYPE parameter_destination_scheme;
+DROP TABLE parameter_schemas;
+DROP TABLE parameter_values;
+DROP TABLE workspace_builds;
