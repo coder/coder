@@ -22,7 +22,7 @@ export const commonWebpackConfig: Configuration = {
   // entry defines each "page" or "chunk". Currently, for v2, we only have one bundle -
   // a bundle that is shared across all of the UI. However, we may need to eventually split
   // like in v1, where there is a separate entry piont for dashboard & terminal.
-  entry: path.join(__dirname, "Main.tsx"),
+  entry: path.join(__dirname, "src/Main.tsx"),
 
   // modules specify how different modules are loaded
   // See: https://webpack.js.org/concepts/modules/

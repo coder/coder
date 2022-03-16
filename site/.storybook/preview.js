@@ -1,6 +1,6 @@
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { withThemes } from "@react-theming/storybook-addon"
-import { light, dark } from "../theme"
+import { light, dark } from "../src/theme"
 import { addDecorator } from "node_modules/@storybook/react"
 import { createMemoryHistory } from "history"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
