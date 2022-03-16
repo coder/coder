@@ -9,28 +9,25 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
-	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/provisionerd"
+	"github.com/coder/coder/provisionersdk"
 )
 
 func projectCreate() *cobra.Command {
 	var (
+		yes         bool
 		directory   string
 		provisioner string
 	)
 	cmd := &cobra.Command{
 		Use:   "create <name>",
+		Args:  cobra.ExactArgs(1),
 		Short: "Create a project from the current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -42,13 +39,13 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			templates, err := client.Templates(cmd.Context())
-			if err != nil {
-				return err
+			projectName := args[0]
+			_, err = client.ProjectByName(cmd.Context(), organization.ID, projectName)
+			if err == nil {
+				return xerrors.Errorf("A project already exists named %q!", projectName)
 			}
-			selectedTemplate := templates[0]
 
-			archive, _, err := client.TemplateArchive(cmd.Context(), selectedTemplate.ID)
+			archive, err := provisionersdk.Tar(directory)
 			if err != nil {
 				return err
 			}
@@ -58,20 +55,22 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      "Create project?",
-				IsConfirm: true,
-				Default:   "yes",
-			})
-			if err != nil {
-				if errors.Is(err, promptui.ErrAbort) {
-					return nil
+			if !yes {
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:      "Create project?",
+					IsConfirm: true,
+					Default:   "yes",
+				})
+				if err != nil {
+					if errors.Is(err, promptui.ErrAbort) {
+						return nil
+					}
+					return err
 				}
-				return err
 			}
 
-			project, err := client.CreateProject(cmd.Context(), organization.ID, codersdk.CreateProjectRequest{
-				Name:            selectedTemplate.ID,
+			_, err = client.CreateProject(cmd.Context(), organization.ID, codersdk.CreateProjectRequest{
+				Name:            projectName,
 				VersionID:       job.ID,
 				ParameterValues: parameters,
 			})
@@ -79,153 +78,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s project has been created!\n", caret, color.HiCyanString(project.Name))
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      "Create a new workspace?",
-				IsConfirm: true,
-				Default:   "yes",
-			})
-			if err != nil {
-				if errors.Is(err, cliui.Canceled) {
-					return nil
-				}
-				return err
-			}
-
-			workspace, err := client.CreateWorkspace(cmd.Context(), "", codersdk.CreateWorkspaceRequest{
-				ProjectID: project.ID,
-				Name:      selectedTemplate.ID,
-			})
-			if err != nil {
-				return err
-			}
-
-			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-			spin.Writer = cmd.OutOrStdout()
-			spin.Suffix = " Building workspace..."
-			err = spin.Color("fgHiGreen")
-			if err != nil {
-				return err
-			}
-			spin.Start()
-			defer spin.Stop()
-			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, time.Time{})
-			if err != nil {
-				return err
-			}
-			logBuffer := make([]codersdk.ProvisionerJobLog, 0, 64)
-			for {
-				log, ok := <-logs
-				if !ok {
-					break
-				}
-				logBuffer = append(logBuffer, log)
-			}
-			build, err := client.WorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-			if build.Job.Status != codersdk.ProvisionerJobSucceeded {
-				for _, log := range logBuffer {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
-				}
-				return xerrors.New(build.Job.Error)
-			}
-			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), build.ID)
-			if err != nil {
-				return err
-			}
-			var workspaceAgent *codersdk.WorkspaceAgent
-			for _, resource := range resources {
-				if resource.Agent != nil {
-					workspaceAgent = resource.Agent
-					break
-				}
-			}
-			if workspaceAgent == nil {
-				return xerrors.New("something went wrong.. no agent found")
-			}
-			spin.Suffix = " Waiting for agent to connect..."
-			ticker := time.NewTicker(time.Second)
-			for {
-				select {
-				case <-cmd.Context().Done():
-					return nil
-				case <-ticker.C:
-				}
-				resource, err := client.WorkspaceResource(cmd.Context(), workspaceAgent.ResourceID)
-				if err != nil {
-					return err
-				}
-				if resource.Agent.UpdatedAt.IsZero() {
-					continue
-				}
-				break
-			}
-			spin.Stop()
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s The %s workspace has been created!\n", caret, color.HiCyanString(project.Name))
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      "Would you like to SSH?",
-				IsConfirm: true,
-				Default:   "yes",
-			})
-			if err != nil {
-				if errors.Is(err, cliui.Canceled) {
-					return nil
-				}
-				return err
-			}
-
-			dialed, err := client.DialWorkspaceAgent(cmd.Context(), workspaceAgent.ResourceID)
-			if err != nil {
-				return err
-			}
-			stream, err := dialed.NegotiateConnection(cmd.Context())
-			if err != nil {
-				return err
-			}
-			conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			}}, &peer.ConnOptions{})
-			if err != nil {
-				return err
-			}
-			sshClient, err := agent.DialSSHClient(conn)
-			if err != nil {
-				return err
-			}
-			session, err := sshClient.NewSession()
-			if err != nil {
-				return err
-			}
-			state, err := term.MakeRaw(int(os.Stdin.Fd()))
-			if err != nil {
-				return err
-			}
-			defer func() {
-				_ = term.Restore(int(os.Stdin.Fd()), state)
-			}()
-			width, height, err := term.GetSize(int(os.Stdin.Fd()))
-			if err != nil {
-				return err
-			}
-			err = session.RequestPty("xterm-256color", height, width, ssh.TerminalModes{
-				ssh.OCRNL: 1,
-			})
-			if err != nil {
-				return err
-			}
-			session.Stdin = os.Stdin
-			session.Stdout = os.Stdout
-			session.Stderr = os.Stderr
-			err = session.Shell()
-			if err != nil {
-				return err
-			}
-			err = session.Wait()
-			if err != nil {
-				return err
-			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), fmt.Sprintf("The %s project has been created!", projectName))
 			return nil
 		},
 	}
@@ -237,6 +90,7 @@ func projectCreate() *cobra.Command {
 	if err != nil {
 		panic(err)
 	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Bypass prompts")
 	return cmd
 }
 

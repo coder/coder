@@ -1,81 +1,157 @@
-//go:build embed
-// +build embed
-
 package template
 
 import (
 	"archive/tar"
 	"bytes"
 	"embed"
-	"encoding/json"
-	"fmt"
 	"path"
+	"sync"
+
+	"github.com/gohugoio/hugo/parser/pageparser"
+	"golang.org/x/sync/singleflight"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
 
 var (
-	//go:embed */*.json
+	//go:embed */*.md
 	//go:embed */*.tf
 	files embed.FS
 
-	list     = make([]codersdk.Template, 0)
-	archives = map[string][]byte{}
+	templates      = make([]codersdk.Template, 0)
+	parseTemplates sync.Once
+	archives       = singleflight.Group{}
 )
 
 // Parses templates from the embedded archive and inserts them into the map.
 func init() {
-	dirs, err := files.ReadDir(".")
-	if err != nil {
-		panic(err)
-	}
-	for _, dir := range dirs {
-		// Each one of these is a template!
-		templateData, err := files.ReadFile(path.Join(dir.Name(), dir.Name()+".json"))
+
+}
+
+// List returns all embedded templates.
+func List() ([]codersdk.Template, error) {
+	var returnError error
+	parseTemplates.Do(func() {
+		dirs, err := files.ReadDir(".")
 		if err != nil {
-			panic(fmt.Sprintf("template %q does not contain compiled json: %s", dir.Name(), err))
+			returnError = xerrors.Errorf("read dir: %w", err)
+			return
 		}
-		templateSrc, err := files.ReadFile(path.Join(dir.Name(), dir.Name()+".tf"))
+		for _, dir := range dirs {
+			templateID := dir.Name()
+			// Each one of these is a template!
+			readme, err := files.ReadFile(path.Join(dir.Name(), "README.md"))
+			if err != nil {
+				returnError = xerrors.Errorf("template %q does not contain README.md", templateID)
+				return
+			}
+			frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
+			if err != nil {
+				returnError = xerrors.Errorf("parse template %q front matter: %w", templateID, err)
+				return
+			}
+			nameRaw, exists := frontMatter.FrontMatter["name"]
+			if !exists {
+				returnError = xerrors.Errorf("template %q front matter does not contain name", templateID)
+				return
+			}
+			name, valid := nameRaw.(string)
+			if !valid {
+				returnError = xerrors.Errorf("template %q name isn't a string", templateID)
+				return
+			}
+			descriptionRaw, exists := frontMatter.FrontMatter["description"]
+			if !exists {
+				returnError = xerrors.Errorf("template %q front matter does not contain name", templateID)
+				return
+			}
+			description, valid := descriptionRaw.(string)
+			if !valid {
+				returnError = xerrors.Errorf("template %q description isn't a string", templateID)
+				return
+			}
+			templates = append(templates, codersdk.Template{
+				ID:          templateID,
+				Name:        name,
+				Description: description,
+				Markdown:    string(frontMatter.Content),
+			})
+		}
+	})
+	return templates, returnError
+}
+
+// Archive returns a tar by template ID.
+func Archive(templateID string) ([]byte, error) {
+	rawData, err, _ := archives.Do(templateID, func() (interface{}, error) {
+		templates, err := List()
 		if err != nil {
-			panic(fmt.Sprintf("template %q does not contain terraform source: %s", dir.Name(), err))
+			return nil, err
+		}
+		var selected codersdk.Template
+		for _, template := range templates {
+			if template.ID != templateID {
+				continue
+			}
+			selected = template
+			break
+		}
+		if selected.ID == "" {
+			return nil, xerrors.Errorf("template with id %q not found", templateID)
 		}
 
-		var template codersdk.Template
-		err = json.Unmarshal(templateData, &template)
+		entries, err := files.ReadDir(templateID)
 		if err != nil {
-			panic(fmt.Sprintf("unmarshal template %q: %s", dir.Name(), err))
+			return nil, xerrors.Errorf("read dir: %w", err)
 		}
 
 		var buffer bytes.Buffer
 		tarWriter := tar.NewWriter(&buffer)
-		err = tarWriter.WriteHeader(&tar.Header{
-			Typeflag: tar.TypeReg,
-			Name:     dir.Name() + ".tf",
-			Size:     int64(len(templateSrc)),
-		})
-		if err != nil {
-			panic(err)
-		}
-		_, err = tarWriter.Write(templateSrc)
-		if err != nil {
-			panic(err)
+
+		for _, entry := range entries {
+			file, err := files.Open(path.Join(templateID, entry.Name()))
+			if err != nil {
+				return nil, xerrors.Errorf("open file: %w", err)
+			}
+			info, err := file.Stat()
+			if err != nil {
+				return nil, xerrors.Errorf("stat file: %w", err)
+			}
+			if info.IsDir() {
+				continue
+			}
+			data := make([]byte, info.Size())
+			_, err = file.Read(data)
+			if err != nil {
+				return nil, xerrors.Errorf("read data: %w", err)
+			}
+			header, err := tar.FileInfoHeader(info, entry.Name())
+			if err != nil {
+				return nil, xerrors.Errorf("get file header: %w", err)
+			}
+			header.Mode = 0644
+			err = tarWriter.WriteHeader(header)
+			if err != nil {
+				return nil, xerrors.Errorf("write file: %w", err)
+			}
+			_, err = tarWriter.Write(data)
+			if err != nil {
+				return nil, xerrors.Errorf("write: %w", err)
+			}
 		}
 		err = tarWriter.Flush()
 		if err != nil {
-			panic(err)
+			return nil, xerrors.Errorf("flush archive: %w", err)
 		}
-		archives[dir.Name()] = buffer.Bytes()
-		list = append(list, template)
+		return buffer.Bytes(), nil
+	})
+	if err != nil {
+		return nil, err
 	}
-}
-
-// List returns all embedded templates.
-func List() []codersdk.Template {
-	return list
-}
-
-// Archive returns a tar by template ID.
-func Archive(id string) ([]byte, bool) {
-	data, exists := archives[id]
-	return data, exists
+	data, valid := rawData.([]byte)
+	if !valid {
+		panic("dev error: data must be a byte slice")
+	}
+	return data, nil
 }

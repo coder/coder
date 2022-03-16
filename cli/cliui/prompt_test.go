@@ -18,7 +18,7 @@ func TestPrompt(t *testing.T) {
 		ptty := ptytest.New(t)
 		msgChan := make(chan string)
 		go func() {
-			resp, err := prompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
 			})
 			require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestPrompt(t *testing.T) {
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
 		go func() {
-			resp, err := prompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "Example",
 				IsConfirm: true,
 			})
@@ -47,7 +47,7 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func prompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
 	value := ""
 	cmd := &cobra.Command{
 		RunE: func(cmd *cobra.Command, args []string) error {

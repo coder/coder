@@ -56,6 +56,18 @@ func main() {
 		},
 	})
 
+	root.AddCommand(&cobra.Command{
+		Use: "select",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, err := cliui.Select(cmd, cliui.SelectOptions{
+				Text:    "Pick an option!",
+				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
+				Size:    3,
+			})
+			return err
+		},
+	})
+
 	err := root.Execute()
 	if err != nil {
 		_, _ = fmt.Println(err.Error())

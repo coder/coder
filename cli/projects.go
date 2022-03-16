@@ -33,6 +33,7 @@ func projects() *cobra.Command {
 	cmd.AddCommand(
 		projectCreate(),
 		projectEdit(),
+		projectInit(),
 		projectList(),
 		projectPlan(),
 		projectUpdate(),

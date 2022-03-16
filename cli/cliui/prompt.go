@@ -61,7 +61,7 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 	case err := <-errCh:
 		return "", err
 	case line := <-lineCh:
-		if opts.IsConfirm && line != "yes" {
+		if opts.IsConfirm && line != "yes" && line != "y" {
 			return line, Canceled
 		}
 		if opts.Validate != nil {

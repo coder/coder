@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/briandowns/spinner"
+
 	"github.com/fatih/color"
-	"github.com/google/uuid"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -16,8 +17,12 @@ import (
 )
 
 func workspaceCreate() *cobra.Command {
+	var (
+		projectName string
+	)
 	cmd := &cobra.Command{
-		Use:   "create <project> [name]",
+		Use:   "create <name>",
+		Args:  cobra.ExactArgs(1),
 		Short: "Create a workspace from a project",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -29,37 +34,19 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			var name string
-			if len(args) >= 2 {
-				name = args[1]
-			} else {
-				name, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text: "What's your workspace's name?",
-					Validate: func(s string) error {
-						if s == "" {
-							return xerrors.Errorf("You must provide a name!")
-						}
-						workspace, _ := client.WorkspaceByName(cmd.Context(), "", s)
-						if workspace.ID.String() != uuid.Nil.String() {
-							return xerrors.New("A workspace already exists with that name!")
-						}
-						return nil
-					},
-				})
-				if err != nil {
-					if errors.Is(err, promptui.ErrAbort) {
-						return nil
-					}
-					return err
-				}
+			project, err := client.ProjectByName(cmd.Context(), organization.ID, projectName)
+			if err != nil {
+				return err
+			}
+
+			workspaceName := args[0]
+			_, err = client.WorkspaceByName(cmd.Context(), "", workspaceName)
+			if err == nil {
+				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Previewing project create...\n", caret)
 
-			project, err := client.ProjectByName(cmd.Context(), organization.ID, args[0])
-			if err != nil {
-				return err
-			}
 			projectVersion, err := client.ProjectVersion(cmd.Context(), project.ActiveVersionID)
 			if err != nil {
 				return err
@@ -82,7 +69,7 @@ func workspaceCreate() *cobra.Command {
 			}
 
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Create workspace %s?", color.HiCyanString(name)),
+				Text:      fmt.Sprintf("Create workspace %s?", color.HiCyanString(workspaceName)),
 				Default:   "yes",
 				IsConfirm: true,
 			})
@@ -95,30 +82,49 @@ func workspaceCreate() *cobra.Command {
 
 			workspace, err := client.CreateWorkspace(cmd.Context(), "", codersdk.CreateWorkspaceRequest{
 				ProjectID: project.ID,
-				Name:      name,
+				Name:      workspaceName,
 			})
 			if err != nil {
 				return err
 			}
 
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = cmd.OutOrStdout()
+			spin.Suffix = " Building workspace..."
+			err = spin.Color("fgHiGreen")
+			if err != nil {
+				return err
+			}
+			spin.Start()
+			defer spin.Stop()
 			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, time.Time{})
 			if err != nil {
 				return err
 			}
+			logBuffer := make([]codersdk.ProvisionerJobLog, 0, 64)
 			for {
 				log, ok := <-logs
 				if !ok {
 					break
 				}
-				_, _ = fmt.Printf("Terraform: %s\n", log.Output)
+				logBuffer = append(logBuffer, log)
+			}
+			build, err := client.WorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
+			if err != nil {
+				return err
+			}
+			if build.Job.Status != codersdk.ProvisionerJobSucceeded {
+				for _, log := range logBuffer {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
+				}
+				return xerrors.New(build.Job.Error)
 			}
 
-			// This command is WIP, and output will change!
-
-			_, _ = fmt.Printf("Created workspace! %s\n", name)
+			_, _ = fmt.Printf("Created workspace! %s\n", workspaceName)
 			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&projectName, "project", "p", "", "Specify a project name.")
 
 	return cmd
 }

@@ -92,6 +92,11 @@ func (p *PTY) ExpectMatch(str string) string {
 	return buffer.String()
 }
 
+func (p *PTY) Write(r rune) {
+	_, err := p.Input().Write([]byte{byte(r)})
+	require.NoError(p.t, err)
+}
+
 func (p *PTY) WriteLine(str string) {
 	newline := []byte{'\r'}
 	if runtime.GOOS == "windows" {

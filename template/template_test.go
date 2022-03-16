@@ -1,6 +1,3 @@
-//go:build embed
-// +build embed
-
 package template_test
 
 import (
@@ -13,9 +10,10 @@ import (
 
 func TestTemplate(t *testing.T) {
 	t.Parallel()
-	list := template.List()
+	list, err := template.List()
+	require.NoError(t, err)
 	require.Greater(t, len(list), 0)
 
-	_, exists := template.Archive(list[0].ID)
-	require.True(t, exists)
+	_, err = template.Archive(list[0].ID)
+	require.NoError(t, err)
 }

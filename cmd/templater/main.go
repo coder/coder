@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,12 +9,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -31,8 +27,6 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
-
-	"github.com/gohugoio/hugo/parser/pageparser"
 )
 
 func main() {
@@ -165,73 +159,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		return xerrors.Errorf("Job wasn't successful, it was %q. Check the logs!", version.Job.Status)
 	}
 
-	schemas, err := client.ProjectVersionSchema(cmd.Context(), version.ID)
-	if err != nil {
-		return err
-	}
 	resources, err := client.ProjectVersionResources(cmd.Context(), version.ID)
-	if err != nil {
-		return err
-	}
-
-	readme, err := os.OpenFile(filepath.Base(dir)+".md", os.O_RDONLY, 0600)
-	if err != nil {
-		return err
-	}
-	defer readme.Close()
-	frontMatter, err := pageparser.ParseFrontMatterAndContent(readme)
-	if err != nil {
-		return err
-	}
-	name, exists := frontMatter.FrontMatter["name"]
-	if !exists {
-		return xerrors.New("front matter must contain name")
-	}
-	description, exists := frontMatter.FrontMatter["description"]
-	if !exists {
-		return xerrors.Errorf("front matter must contain description")
-	}
-
-	for index, resource := range resources {
-		resource.ID = uuid.UUID{}
-		resource.JobID = uuid.UUID{}
-		resource.CreatedAt = time.Time{}
-
-		if resource.Agent != nil {
-			resource.Agent.ID = uuid.UUID{}
-			resource.Agent.ResourceID = uuid.UUID{}
-			resource.Agent.CreatedAt = time.Time{}
-			resource.Agent.UpdatedAt = time.Time{}
-		}
-		resources[index] = resource
-	}
-
-	for index, schema := range schemas {
-		schema.ID = uuid.UUID{}
-		schema.JobID = uuid.UUID{}
-		schema.CreatedAt = time.Time{}
-		schemas[index] = schema
-	}
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Name < resources[j].Name
-	})
-	sort.Slice(schemas, func(i, j int) bool {
-		return schemas[i].Name < schemas[j].Name
-	})
-
-	template := codersdk.Template{
-		ID:                            filepath.Base(dir),
-		Name:                          name.(string),
-		Description:                   description.(string),
-		ProjectVersionParameterSchema: schemas,
-		Resources:                     resources,
-	}
-
-	data, err := json.MarshalIndent(template, "", "\t")
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(filepath.Base(dir)+".json", data, 0600)
 	if err != nil {
 		return err
 	}
