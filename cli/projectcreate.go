@@ -30,7 +30,7 @@ func projectCreate() *cobra.Command {
 		provisioner string
 	)
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   "create <name>",
 		Short: "Create a project from the current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)

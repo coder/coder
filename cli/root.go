@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/pty"
 )
 
 var (
@@ -140,10 +139,6 @@ func isTTY(cmd *cobra.Command) bool {
 	// where we may not be able to reliably detect this automatically (ie, tests)
 	forceTty, err := cmd.Flags().GetBool(varForceTty)
 	if forceTty && err == nil {
-		return true
-	}
-	_, ok := cmd.InOrStdin().(pty.ReadWriter)
-	if ok {
 		return true
 	}
 	file, ok := cmd.InOrStdin().(*os.File)

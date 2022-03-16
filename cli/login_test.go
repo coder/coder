@@ -13,7 +13,6 @@ import (
 
 func TestLogin(t *testing.T) {
 	t.Parallel()
-
 	t.Run("InitialUserNoTTY", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -29,7 +28,7 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String())
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
@@ -61,7 +60,7 @@ func TestLogin(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())

@@ -67,15 +67,15 @@ type ptyWindows struct {
 	closed     bool
 }
 
-func (p *ptyWindows) Output() ReadWriter {
-	return ReadWriter{
+func (p *ptyWindows) Output() io.ReadWriter {
+	return readWriter{
 		Reader: p.outputRead,
 		Writer: p.outputWrite,
 	}
 }
 
-func (p *ptyWindows) Input() ReadWriter {
-	return ReadWriter{
+func (p *ptyWindows) Input() io.ReadWriter {
+	return readWriter{
 		Reader: p.inputRead,
 		Writer: p.inputWrite,
 	}
@@ -107,8 +107,4 @@ func (p *ptyWindows) Close() error {
 	}
 
 	return nil
-}
-
-func (rw ReadWriter) CancelReader() (cancelreader.CancelReader, error) {
-	return nil, xerrors.New("not implemented")
 }

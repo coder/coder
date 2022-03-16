@@ -4,11 +4,11 @@
 package pty
 
 import (
+	"io"
 	"os"
 	"sync"
 
 	"github.com/creack/pty"
-	"github.com/muesli/cancelreader"
 )
 
 func newPty() (PTY, error) {
@@ -28,15 +28,15 @@ type otherPty struct {
 	pty, tty *os.File
 }
 
-func (p *otherPty) Input() ReadWriter {
-	return ReadWriter{
+func (p *otherPty) Input() io.ReadWriter {
+	return readWriter{
 		Reader: p.tty,
 		Writer: p.pty,
 	}
 }
 
-func (p *otherPty) Output() ReadWriter {
-	return ReadWriter{
+func (p *otherPty) Output() io.ReadWriter {
+	return readWriter{
 		Reader: p.pty,
 		Writer: p.tty,
 	}
@@ -65,8 +65,4 @@ func (p *otherPty) Close() error {
 		return err
 	}
 	return nil
-}
-
-func (rw ReadWriter) CancelReader() (cancelreader.CancelReader, error) {
-	return cancelreader.NewReader(rw.Reader)
 }
