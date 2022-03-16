@@ -1,7 +1,6 @@
-import { User } from "../contexts/UserContext"
-import { Provisioner, Organization, Project, Workspace } from "../api"
+import { Provisioner, Organization, Project, Workspace, UserResponse } from "../api"
 
-export const MockUser: User = {
+export const MockUser: UserResponse = {
   id: "test-user-id",
   username: "TestUser",
   email: "test@coder.com",

@@ -3,12 +3,12 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import { Link } from "react-router-dom"
 
-import { User } from "../../contexts/UserContext"
 import { Logo } from "../Icons"
 import { UserDropdown } from "./UserDropdown"
+import { UserResponse } from "../../api"
 
 export interface NavbarProps {
-  user?: User
+  user?: UserResponse
   onSignOut: () => void
 }
 

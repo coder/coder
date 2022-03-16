@@ -2,7 +2,6 @@ import React from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { SWRConfig } from "swr"
-import { UserProvider } from "./contexts/UserContext"
 import { light } from "./theme"
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom"
 
@@ -39,7 +38,6 @@ export const App: React.FC = () => {
           },
         }}
       >
-        <UserProvider>
           <ThemeProvider theme={light}>
             <CssBaseline />
 
@@ -69,7 +67,6 @@ export const App: React.FC = () => {
               </Route>
             </Routes>
           </ThemeProvider>
-        </UserProvider>
       </SWRConfig>
     </Router>
   )
