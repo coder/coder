@@ -32,8 +32,9 @@ import (
 
 func start() *cobra.Command {
 	var (
-		address string
-		dev     bool
+		address   string
+		dev       bool
+		useTunnel bool
 	)
 	root := &cobra.Command{
 		Use: "start",
@@ -44,22 +45,31 @@ func start() *cobra.Command {
 				return xerrors.Errorf("listen %q: %w", address, err)
 			}
 			defer listener.Close()
+			tcpAddr, valid := listener.Addr().(*net.TCPAddr)
+			if !valid {
+				return xerrors.New("must be listening on tcp")
+			}
+			if tcpAddr.IP.IsUnspecified() {
+				tcpAddr.IP = net.IPv4(127, 0, 0, 1)
+			}
 
 			localURL := &url.URL{
 				Scheme: "http",
-				Host:   address,
+				Host:   tcpAddr.String(),
 			}
 			accessURL := localURL
 			var tunnelErr <-chan error
 			if dev {
-				var accessURLRaw string
-				accessURLRaw, tunnelErr, err = tunnel.New(cmd.Context(), localURL.String())
-				if err != nil {
-					return xerrors.Errorf("create tunnel: %w", err)
-				}
-				accessURL, err = url.Parse(accessURLRaw)
-				if err != nil {
-					return xerrors.Errorf("parse: %w", err)
+				if useTunnel {
+					var accessURLRaw string
+					accessURLRaw, tunnelErr, err = tunnel.New(cmd.Context(), localURL.String())
+					if err != nil {
+						return xerrors.Errorf("create tunnel: %w", err)
+					}
+					accessURL, err = url.Parse(accessURLRaw)
+					if err != nil {
+						return xerrors.Errorf("parse: %w", err)
+					}
 				}
 
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), `    ▄█▀    ▀█▄
@@ -72,7 +82,7 @@ func start() *cobra.Command {
 					cliui.Styles.Field.Render("dev")+` mode. All data is in-memory! Learn how to setup and manage a production Coder deployment here: `+cliui.Styles.Prompt.Render("https://coder.com/docs/TODO")))+
 					`
 `+
-					cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+localURL.String())+" in a new terminal to get started.\n"))+`
+					cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder projects init")+" in a new terminal to get started.\n"))+`
 `)
 			}
 
@@ -80,7 +90,6 @@ func start() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logger.Info(cmd.Context(), "opened tunnel", slog.F("url", accessURL.String()))
 			handler, closeCoderd := coderd.New(&coderd.Options{
 				AccessURL:            accessURL,
 				Logger:               logger,
@@ -89,6 +98,7 @@ func start() *cobra.Command {
 				GoogleTokenValidator: validator,
 			})
 			client := codersdk.New(localURL)
+
 			daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger)
 			if err != nil {
 				return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -100,6 +110,34 @@ func start() *cobra.Command {
 				defer close(errCh)
 				errCh <- http.Serve(listener, handler)
 			}()
+
+			if dev {
+				config := createConfig(cmd)
+				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
+					Email:        "dev@coder.com",
+					Username:     "developer",
+					Password:     "password",
+					Organization: "coder",
+				})
+				if err != nil {
+					return xerrors.Errorf("create first user: %w\n", err)
+				}
+				token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
+					Email:    "dev@coder.com",
+					Password: "password",
+				})
+				if err != nil {
+					return xerrors.Errorf("login with first user: %w", err)
+				}
+				err = config.URL().Write(localURL.String())
+				if err != nil {
+					return xerrors.Errorf("write local url: %w", err)
+				}
+				err = config.Session().Write(token.SessionToken)
+				if err != nil {
+					return xerrors.Errorf("write session token: %w", err)
+				}
+			}
 
 			closeCoderd()
 			select {
@@ -118,6 +156,7 @@ func start() *cobra.Command {
 	}
 	root.Flags().StringVarP(&address, "address", "a", defaultAddress, "The address to serve the API and dashboard.")
 	root.Flags().BoolVarP(&dev, "dev", "", false, "Serve Coder in dev mode for tinkering.")
+	root.Flags().BoolVarP(&useTunnel, "tunnel", "", true, `Serve "dev" mode through a Cloudflare Tunnel for easy setup.`)
 
 	return root
 }

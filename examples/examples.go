@@ -1,4 +1,4 @@
-package template
+package examples
 
 import (
 	"archive/tar"
@@ -10,8 +10,6 @@ import (
 	"github.com/gohugoio/hugo/parser/pageparser"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/codersdk"
 )
 
 var (
@@ -19,89 +17,91 @@ var (
 	//go:embed */*.tf
 	files embed.FS
 
-	templates      = make([]codersdk.Template, 0)
-	parseTemplates sync.Once
-	archives       = singleflight.Group{}
+	examples      = make([]Example, 0)
+	parseExamples sync.Once
+	archives      = singleflight.Group{}
 )
 
-// Parses templates from the embedded archive and inserts them into the map.
-func init() {
-
+type Example struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Markdown    string `json:"markdown"`
 }
 
-// List returns all embedded templates.
-func List() ([]codersdk.Template, error) {
+// List returns all embedded examples.
+func List() ([]Example, error) {
 	var returnError error
-	parseTemplates.Do(func() {
+	parseExamples.Do(func() {
 		dirs, err := files.ReadDir(".")
 		if err != nil {
 			returnError = xerrors.Errorf("read dir: %w", err)
 			return
 		}
 		for _, dir := range dirs {
-			templateID := dir.Name()
-			// Each one of these is a template!
+			exampleID := dir.Name()
+			// Each one of these is a example!
 			readme, err := files.ReadFile(path.Join(dir.Name(), "README.md"))
 			if err != nil {
-				returnError = xerrors.Errorf("template %q does not contain README.md", templateID)
+				returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
 				return
 			}
 			frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
 			if err != nil {
-				returnError = xerrors.Errorf("parse template %q front matter: %w", templateID, err)
+				returnError = xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
 				return
 			}
 			nameRaw, exists := frontMatter.FrontMatter["name"]
 			if !exists {
-				returnError = xerrors.Errorf("template %q front matter does not contain name", templateID)
+				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
 				return
 			}
 			name, valid := nameRaw.(string)
 			if !valid {
-				returnError = xerrors.Errorf("template %q name isn't a string", templateID)
+				returnError = xerrors.Errorf("example %q name isn't a string", exampleID)
 				return
 			}
 			descriptionRaw, exists := frontMatter.FrontMatter["description"]
 			if !exists {
-				returnError = xerrors.Errorf("template %q front matter does not contain name", templateID)
+				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
 				return
 			}
 			description, valid := descriptionRaw.(string)
 			if !valid {
-				returnError = xerrors.Errorf("template %q description isn't a string", templateID)
+				returnError = xerrors.Errorf("example %q description isn't a string", exampleID)
 				return
 			}
-			templates = append(templates, codersdk.Template{
-				ID:          templateID,
+			examples = append(examples, Example{
+				ID:          exampleID,
 				Name:        name,
 				Description: description,
 				Markdown:    string(frontMatter.Content),
 			})
 		}
 	})
-	return templates, returnError
+	return examples, returnError
 }
 
-// Archive returns a tar by template ID.
-func Archive(templateID string) ([]byte, error) {
-	rawData, err, _ := archives.Do(templateID, func() (interface{}, error) {
-		templates, err := List()
+// Archive returns a tar by example ID.
+func Archive(exampleID string) ([]byte, error) {
+	rawData, err, _ := archives.Do(exampleID, func() (interface{}, error) {
+		examples, err := List()
 		if err != nil {
 			return nil, err
 		}
-		var selected codersdk.Template
-		for _, template := range templates {
-			if template.ID != templateID {
+		var selected Example
+		for _, example := range examples {
+			if example.ID != exampleID {
 				continue
 			}
-			selected = template
+			selected = example
 			break
 		}
 		if selected.ID == "" {
-			return nil, xerrors.Errorf("template with id %q not found", templateID)
+			return nil, xerrors.Errorf("example with id %q not found", exampleID)
 		}
 
-		entries, err := files.ReadDir(templateID)
+		entries, err := files.ReadDir(exampleID)
 		if err != nil {
 			return nil, xerrors.Errorf("read dir: %w", err)
 		}
@@ -110,7 +110,7 @@ func Archive(templateID string) ([]byte, error) {
 		tarWriter := tar.NewWriter(&buffer)
 
 		for _, entry := range entries {
-			file, err := files.Open(path.Join(templateID, entry.Name()))
+			file, err := files.Open(path.Join(exampleID, entry.Name()))
 			if err != nil {
 				return nil, xerrors.Errorf("open file: %w", err)
 			}

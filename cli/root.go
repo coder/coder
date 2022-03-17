@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -33,32 +33,26 @@ func Root() *cobra.Command {
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
 █▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █
      ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
-  ` + color.New(color.Underline).Sprint("Self-hosted developer workspaces on your infra") + `
+  ` + lipgloss.NewStyle().Underline(true).Render("Self-hosted developer workspaces on your infra") + `
 
 `,
-		Example: `
-  - Create a project for developers to create workspaces
+		Example: cliui.Styles.Paragraph.Render(`Start Coder in "dev" mode. This dev-mode requires no further setup, and your local `+cliui.Styles.Code.Render("coder")+` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.`) + `
 
-    ` + color.New(color.FgHiMagenta).Sprint("$ coder projects create <directory>") + `		
+    ` + cliui.Styles.Code.Render("$ coder start --dev") + `
+	` + cliui.Styles.Paragraph.Render("Get started by creating a project from an example.") + `
 
-  - Create a workspace for a specific project
-
-    ` + color.New(color.FgHiMagenta).Sprint("$ coder workspaces create <project>") + `
-	
-  - Maintain consistency by updating a workspace
-
-    ` + color.New(color.FgHiMagenta).Sprint("$ coder workspaces update <workspace>"),
+    ` + cliui.Styles.Code.Render("$ coder projects init"),
 	}
 	// Customizes the color of headings to make subcommands
 	// more visually appealing.
-	header := color.New(color.FgHiBlack)
+	header := cliui.Styles.Placeholder
 	cmd.SetUsageTemplate(strings.NewReplacer(
-		`Usage:`, header.Sprint("Usage:"),
-		`Examples:`, header.Sprint("Examples:"),
-		`Available Commands:`, header.Sprint("Commands:"),
-		`Global Flags:`, header.Sprint("Global Flags:"),
-		`Flags:`, header.Sprint("Flags:"),
-		`Additional help topics:`, header.Sprint("Additional help:"),
+		`Usage:`, header.Render("Usage:"),
+		`Examples:`, header.Render("Examples:"),
+		`Available Commands:`, header.Render("Commands:"),
+		`Global Flags:`, header.Render("Global Flags:"),
+		`Flags:`, header.Render("Flags:"),
+		`Additional help topics:`, header.Render("Additional help:"),
 	).Replace(cmd.UsageTemplate()))
 
 	cmd.AddCommand(

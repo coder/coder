@@ -6,43 +6,39 @@ import (
 	"path/filepath"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/template"
 	"github.com/spf13/cobra"
 )
 
 func projectInit() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init [directory]",
-		Short: "Get started with an example project.",
+		Short: "Get started with a templated project.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			templates, err := template.List()
+			exampleList, err := examples.List()
 			if err != nil {
 				return err
 			}
-			templateNames := []string{}
-			templateByName := map[string]codersdk.Template{}
-			for _, template := range templates {
-				templateNames = append(templateNames, template.Name)
-				templateByName[template.Name] = template
+			exampleNames := []string{}
+			exampleByName := map[string]examples.Example{}
+			for _, example := range exampleList {
+				exampleNames = append(exampleNames, example.Name)
+				exampleByName[example.Name] = example
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Templates contain Infrastructure as Code that works with Coder to provision development workspaces. Get started by selecting one:\n"))
-
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Templates contain Infrastructure as Code that works with Coder to provision development workspaces. Get started by selecting one:\n"))
 			option, err := cliui.Select(cmd, cliui.SelectOptions{
-				Options: templateNames,
+				Options: exampleNames,
 			})
 			if err != nil {
 				return err
 			}
-			selectedTemplate := templateByName[option]
-
-			archive, err := template.Archive(selectedTemplate.ID)
+			selectedTemplate := exampleByName[option]
+			archive, err := examples.Archive(selectedTemplate.ID)
 			if err != nil {
 				return err
 			}
-
 			workingDir, err := os.Getwd()
 			if err != nil {
 				return err
@@ -53,7 +49,6 @@ func projectInit() *cobra.Command {
 			} else {
 				directory = filepath.Join(workingDir, selectedTemplate.ID)
 			}
-
 			relPath, err := filepath.Rel(workingDir, directory)
 			if err != nil {
 				relPath = directory
@@ -61,20 +56,16 @@ func projectInit() *cobra.Command {
 				relPath = "./" + relPath
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%sExtracting %s to %s...\n", cliui.Styles.Prompt, cliui.Styles.Field.Render(selectedTemplate.ID), cliui.Styles.Keyword.Render(relPath))
-
 			err = os.MkdirAll(directory, 0700)
 			if err != nil {
 				return err
 			}
-
 			err = provisionersdk.Untar(directory, archive)
 			if err != nil {
 				return err
 			}
-
-			fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Inside that directory, get started by running:")
-			fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("coder projects create"))+"\n")
-
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Inside that directory, get started by running:")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("coder projects create"))+"\n")
 			return nil
 		},
 	}
