@@ -50,6 +50,8 @@ func daemon() *cobra.Command {
 			}
 			defer listener.Close()
 
+			logger.Info(cmd.Context(), "daemon started", slog.F("url", accessURL.String()))
+
 			client := codersdk.New(accessURL)
 			daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger)
 			if err != nil {
