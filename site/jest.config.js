@@ -1,4 +1,5 @@
 module.exports = {
+  setupFilesAfterEnv: ['src/setupTests.js'],
   projects: [
     {
       globals: {
