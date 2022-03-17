@@ -184,6 +184,7 @@ linters-settings:
       - r
       - i
       - db
+      - t
     # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
     # Entries must be in the form of "<variable name> <type>" or "<variable name> *<type>" for
     # variables, or "const <name>" for constants.
@@ -191,6 +192,7 @@ linters-settings:
       - rw http.ResponseWriter
       - r *http.Request
       - t testing.T
+      - t testing.TB
 
 issues:
   # Rules listed here: https://github.com/securego/gosec#available-rules
