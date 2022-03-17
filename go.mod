@@ -52,7 +52,7 @@ require (
 	github.com/powersj/whatsthis v1.3.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
 	github.com/spf13/cobra v1.4.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
 	github.com/xlab/treeprint v1.1.0
