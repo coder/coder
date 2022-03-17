@@ -47,7 +47,7 @@ require (
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
-	github.com/pion/webrtc/v3 v3.1.24
+	github.com/pion/webrtc/v3 v3.1.25
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/powersj/whatsthis v1.3.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
@@ -58,7 +58,7 @@ require (
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
+	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
@@ -112,11 +112,11 @@ require (
 	github.com/opencontainers/runc v1.1.0 // indirect
 	github.com/pion/dtls/v2 v2.1.3 // indirect
 	github.com/pion/ice/v2 v2.2.2 // indirect
-	github.com/pion/interceptor v0.1.7 // indirect
+	github.com/pion/interceptor v0.1.10 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.9 // indirect
-	github.com/pion/rtp v1.7.4 // indirect
+	github.com/pion/rtp v1.7.7 // indirect
 	github.com/pion/sctp v1.8.2 // indirect
 	github.com/pion/sdp/v3 v3.0.4 // indirect
 	github.com/pion/srtp/v2 v2.0.5 // indirect

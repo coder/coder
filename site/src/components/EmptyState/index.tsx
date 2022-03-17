@@ -6,7 +6,7 @@ import Typography from "@material-ui/core/Typography"
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
-  message: React.ReactNode
+  message: string
   /** Longer optional description to display below the message */
   description?: React.ReactNode
   button?: ButtonProps
@@ -23,8 +23,6 @@ export interface EmptyStateProps {
 export const EmptyState: React.FC<EmptyStateProps> = (props) => {
   const { message, description, button, ...boxProps } = props
   const styles = useStyles()
-
-  const descClassName = `${styles.description}`
   const buttonClassName = `${styles.button} ${button && button.className ? button.className : ""}`
 
   return (
@@ -32,11 +30,7 @@ export const EmptyState: React.FC<EmptyStateProps> = (props) => {
       <Typography variant="h5" color="textSecondary" className={styles.header}>
         {message}
       </Typography>
-      {description && (
-        <Typography variant="body2" color="textSecondary" className={descClassName}>
-          {description}
-        </Typography>
-      )}
+      {description && <div className={styles.description}>{description}</div>}
       {button && <Button variant="contained" color="primary" {...button} className={buttonClassName} />}
     </Box>
   )
@@ -59,6 +53,8 @@ const useStyles = makeStyles(
     description: {
       marginTop: theme.spacing(2),
       marginBottom: theme.spacing(1),
+      color: theme.palette.text.secondary,
+      fontSize: theme.typography.body2.fontSize,
     },
     button: {
       marginTop: theme.spacing(2),

@@ -11,6 +11,7 @@ module.exports = {
       preset: "ts-jest",
 
       roots: ["<rootDir>"],
+      setupFilesAfterEnv: ["./jest.setup.ts"],
       transform: {
         "^.+\\.tsx?$": "ts-jest",
       },
