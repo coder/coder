@@ -66,15 +66,9 @@ require (
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.29
-)
-
-require (
 	cloud.google.com/go/trace v1.0.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	go.opentelemetry.io/otel/sdk v1.3.0 // indirect
-)
-
-require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.3.0
 	github.com/Microsoft/go-winio v0.5.2 // indirect
