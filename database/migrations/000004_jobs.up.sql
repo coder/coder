@@ -49,7 +49,7 @@ CREATE TYPE log_source AS ENUM (
 
 CREATE TABLE IF NOT EXISTS provisioner_job_logs (
     id uuid NOT NULL UNIQUE,
-    job_id uuid NOT NULL REFERENCES provisioner_job (id) ON DELETE CASCADE,
+    job_id uuid NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL,
     source log_source NOT NULL,
     level log_level NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS provisioner_job_logs (
 CREATE TABLE workspace_resources (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
-    job_id uuid NOT NULL REFERENCES provisioner_job(id) ON DELETE CASCADE,
+    job_id uuid NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
     transition workspace_transition NOT NULL,
     type varchar(256) NOT NULL,
     name varchar(64) NOT NULL,
@@ -70,7 +70,7 @@ CREATE TABLE workspace_agents (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     updated_at timestamptz,
-    resource_id uuid NOT NULL REFERENCES workspace_resource (id) ON DELETE CASCADE,
+    resource_id uuid NOT NULL REFERENCES workspace_resources (id) ON DELETE CASCADE,
     auth_token uuid NOT NULL UNIQUE,
     auth_instance_id varchar(64),
     environment_variables jsonb,
