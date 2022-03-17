@@ -8,6 +8,14 @@ import { rest } from "msw"
 describe("SignInPage", () => {
   beforeEach(() => {
     history.replace("/login")
+    // appear logged out
+    server.use(
+      rest.get('/api/v2/users/me', (req, res, ctx) => {
+        return res(
+          ctx.status(401), 
+          ctx.json({message: 'no user here'}))
+      })
+    )
   })
 
   it("renders the sign-in form", async () => {
@@ -22,13 +30,13 @@ describe("SignInPage", () => {
     // Given
     const { container } = render(<SignInPage />)
     // Make login fail
-    server.use(
-      rest.post('/api/v2/users/login', async (req, res, ctx) => {
-        return res(
-          ctx.status(500), 
-          ctx.json({message: 'nope'}))
-      }),
-    )
+    // server.use(
+    //   rest.post('/api/v2/users/login', async (req, res, ctx) => {
+    //     return res(
+    //       ctx.status(500), 
+    //       ctx.json({message: 'nope'}))
+    //   }),
+    // )
 
     // When
     // Set username / password
