@@ -192,6 +192,7 @@ linters-settings:
       - rw http.ResponseWriter
       - r *http.Request
       - t testing.T
+      - t testing.TB
 
 issues:
   # Rules listed here: https://github.com/securego/gosec#available-rules
