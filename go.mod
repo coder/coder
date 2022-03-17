@@ -42,7 +42,7 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mitchellh/mapstructure v1.4.3
-	github.com/moby/moby v20.10.12+incompatible
+	github.com/moby/moby v20.10.13+incompatible
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
