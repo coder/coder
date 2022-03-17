@@ -98,7 +98,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
             type="submit"
             variant="contained"
           >
-            Sign In
+            { isLoading ? '' : "Sign In" }
           </LoadingButton>
         </div>
       </form>
