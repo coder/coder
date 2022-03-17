@@ -87,7 +87,7 @@ CREATE TABLE api_keys (
     devurl_token boolean DEFAULT false NOT NULL
 );
 
-CREATE TABLE file (
+CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
     created_by text NOT NULL,
@@ -122,7 +122,7 @@ CREATE TABLE organizations (
     workspace_auto_off boolean DEFAULT false NOT NULL
 );
 
-CREATE TABLE parameter_schema (
+CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     job_id uuid NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE parameter_schema (
     validation_value_type character varying(64) NOT NULL
 );
 
-CREATE TABLE parameter_value (
+CREATE TABLE parameter_values (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -153,17 +153,7 @@ CREATE TABLE parameter_value (
     destination_scheme parameter_destination_scheme NOT NULL
 );
 
-CREATE TABLE project (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    organization_id text NOT NULL,
-    name character varying(64) NOT NULL,
-    provisioner provisioner_type NOT NULL,
-    active_version_id uuid NOT NULL
-);
-
-CREATE TABLE project_version (
+CREATE TABLE project_versions (
     id uuid NOT NULL,
     project_id uuid,
     organization_id text NOT NULL,
@@ -174,7 +164,17 @@ CREATE TABLE project_version (
     job_id uuid NOT NULL
 );
 
-CREATE TABLE provisioner_daemon (
+CREATE TABLE projects (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    organization_id text NOT NULL,
+    name character varying(64) NOT NULL,
+    provisioner provisioner_type NOT NULL,
+    active_version_id uuid NOT NULL
+);
+
+CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
@@ -183,7 +183,16 @@ CREATE TABLE provisioner_daemon (
     provisioners provisioner_type[] NOT NULL
 );
 
-CREATE TABLE provisioner_job (
+CREATE TABLE provisioner_job_logs (
+    id uuid NOT NULL,
+    job_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    source log_source NOT NULL,
+    level log_level NOT NULL,
+    output character varying(1024) NOT NULL
+);
+
+CREATE TABLE provisioner_jobs (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -199,15 +208,6 @@ CREATE TABLE provisioner_job (
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid
-);
-
-CREATE TABLE provisioner_job_log (
-    id uuid NOT NULL,
-    job_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    source log_source NOT NULL,
-    level log_level NOT NULL,
-    output character varying(1024) NOT NULL
 );
 
 CREATE TABLE users (
@@ -232,16 +232,7 @@ CREATE TABLE users (
     shell text DEFAULT ''::text NOT NULL
 );
 
-CREATE TABLE workspace (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id text NOT NULL,
-    project_id uuid NOT NULL,
-    name character varying(64) NOT NULL
-);
-
-CREATE TABLE workspace_agent (
+CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
@@ -254,7 +245,7 @@ CREATE TABLE workspace_agent (
     resource_metadata jsonb
 );
 
-CREATE TABLE workspace_build (
+CREATE TABLE workspace_builds (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -269,7 +260,7 @@ CREATE TABLE workspace_build (
     job_id uuid NOT NULL
 );
 
-CREATE TABLE workspace_resource (
+CREATE TABLE workspace_resources (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     job_id uuid NOT NULL,
@@ -279,93 +270,102 @@ CREATE TABLE workspace_resource (
     agent_id uuid
 );
 
-ALTER TABLE ONLY file
-    ADD CONSTRAINT file_hash_key UNIQUE (hash);
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id text NOT NULL,
+    project_id uuid NOT NULL,
+    name character varying(64) NOT NULL
+);
 
-ALTER TABLE ONLY parameter_schema
-    ADD CONSTRAINT parameter_schema_id_key UNIQUE (id);
+ALTER TABLE ONLY files
+    ADD CONSTRAINT files_hash_key UNIQUE (hash);
 
-ALTER TABLE ONLY parameter_schema
-    ADD CONSTRAINT parameter_schema_job_id_name_key UNIQUE (job_id, name);
+ALTER TABLE ONLY parameter_schemas
+    ADD CONSTRAINT parameter_schemas_id_key UNIQUE (id);
 
-ALTER TABLE ONLY parameter_value
-    ADD CONSTRAINT parameter_value_id_key UNIQUE (id);
+ALTER TABLE ONLY parameter_schemas
+    ADD CONSTRAINT parameter_schemas_job_id_name_key UNIQUE (job_id, name);
 
-ALTER TABLE ONLY parameter_value
-    ADD CONSTRAINT parameter_value_scope_id_name_key UNIQUE (scope_id, name);
+ALTER TABLE ONLY parameter_values
+    ADD CONSTRAINT parameter_values_id_key UNIQUE (id);
 
-ALTER TABLE ONLY project
-    ADD CONSTRAINT project_id_key UNIQUE (id);
+ALTER TABLE ONLY parameter_values
+    ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
 
-ALTER TABLE ONLY project
-    ADD CONSTRAINT project_organization_id_name_key UNIQUE (organization_id, name);
+ALTER TABLE ONLY project_versions
+    ADD CONSTRAINT project_versions_id_key UNIQUE (id);
 
-ALTER TABLE ONLY project_version
-    ADD CONSTRAINT project_version_id_key UNIQUE (id);
+ALTER TABLE ONLY project_versions
+    ADD CONSTRAINT project_versions_project_id_name_key UNIQUE (project_id, name);
 
-ALTER TABLE ONLY project_version
-    ADD CONSTRAINT project_version_project_id_name_key UNIQUE (project_id, name);
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_id_key UNIQUE (id);
 
-ALTER TABLE ONLY provisioner_daemon
-    ADD CONSTRAINT provisioner_daemon_id_key UNIQUE (id);
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_organization_id_name_key UNIQUE (organization_id, name);
 
-ALTER TABLE ONLY provisioner_daemon
-    ADD CONSTRAINT provisioner_daemon_name_key UNIQUE (name);
+ALTER TABLE ONLY provisioner_daemons
+    ADD CONSTRAINT provisioner_daemons_id_key UNIQUE (id);
 
-ALTER TABLE ONLY provisioner_job
-    ADD CONSTRAINT provisioner_job_id_key UNIQUE (id);
+ALTER TABLE ONLY provisioner_daemons
+    ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
 
-ALTER TABLE ONLY provisioner_job_log
-    ADD CONSTRAINT provisioner_job_log_id_key UNIQUE (id);
+ALTER TABLE ONLY provisioner_job_logs
+    ADD CONSTRAINT provisioner_job_logs_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace_agent
-    ADD CONSTRAINT workspace_agent_auth_token_key UNIQUE (auth_token);
+ALTER TABLE ONLY provisioner_jobs
+    ADD CONSTRAINT provisioner_jobs_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace_agent
-    ADD CONSTRAINT workspace_agent_id_key UNIQUE (id);
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_auth_token_key UNIQUE (auth_token);
 
-ALTER TABLE ONLY workspace_build
-    ADD CONSTRAINT workspace_build_id_key UNIQUE (id);
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace_build
-    ADD CONSTRAINT workspace_build_job_id_key UNIQUE (job_id);
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace_build
-    ADD CONSTRAINT workspace_build_workspace_id_name_key UNIQUE (workspace_id, name);
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
 
-ALTER TABLE ONLY workspace
-    ADD CONSTRAINT workspace_id_key UNIQUE (id);
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
 
-ALTER TABLE ONLY workspace
-    ADD CONSTRAINT workspace_owner_id_name_key UNIQUE (owner_id, name);
+ALTER TABLE ONLY workspace_resources
+    ADD CONSTRAINT workspace_resources_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspace_resource
-    ADD CONSTRAINT workspace_resource_id_key UNIQUE (id);
+ALTER TABLE ONLY workspaces
+    ADD CONSTRAINT workspaces_id_key UNIQUE (id);
 
-ALTER TABLE ONLY parameter_schema
-    ADD CONSTRAINT parameter_schema_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspaces
+    ADD CONSTRAINT workspaces_owner_id_name_key UNIQUE (owner_id, name);
 
-ALTER TABLE ONLY project_version
-    ADD CONSTRAINT project_version_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
+ALTER TABLE ONLY parameter_schemas
+    ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY provisioner_job_log
-    ADD CONSTRAINT provisioner_job_log_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
+ALTER TABLE ONLY project_versions
+    ADD CONSTRAINT project_versions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id);
 
-ALTER TABLE ONLY workspace_agent
-    ADD CONSTRAINT workspace_agent_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resource(id) ON DELETE CASCADE;
+ALTER TABLE ONLY provisioner_job_logs
+    ADD CONSTRAINT provisioner_job_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_build
-    ADD CONSTRAINT workspace_build_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_build
-    ADD CONSTRAINT workspace_build_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_version(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_build
-    ADD CONSTRAINT workspace_build_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspace(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_versions(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace
-    ADD CONSTRAINT workspace_project_id_fkey FOREIGN KEY (project_id) REFERENCES project(id);
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_resource
-    ADD CONSTRAINT workspace_resource_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_job(id) ON DELETE CASCADE;
+ALTER TABLE ONLY workspace_resources
+    ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspaces
+    ADD CONSTRAINT workspaces_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id);
 

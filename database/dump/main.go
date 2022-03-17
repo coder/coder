@@ -24,7 +24,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = database.Migrate(db)
+	err = database.MigrateUp(db)
 	if err != nil {
 		panic(err)
 	}
