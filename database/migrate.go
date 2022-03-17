@@ -33,7 +33,7 @@ func migrateSetup(db *sql.DB) (*migrate.Migrate, error) {
 	return m, nil
 }
 
-// Migrate runs SQL migrations to ensure the database schema is up-to-date.
+// MigrateUp runs SQL migrations to ensure the database schema is up-to-date.
 func MigrateUp(db *sql.DB) error {
 	m, err := migrateSetup(db)
 	if err != nil {
@@ -53,7 +53,7 @@ func MigrateUp(db *sql.DB) error {
 	return nil
 }
 
-// Migrate runs SQL migrations to ensure the database schema is up-to-date.
+// MigrateDown runs all down SQL migrations.
 func MigrateDown(db *sql.DB) error {
 	m, err := migrateSetup(db)
 	if err != nil {

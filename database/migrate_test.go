@@ -28,24 +28,18 @@ func TestMigrate(t *testing.T) {
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
 
-		var (
-			db  = testSQLDB(t)
-			err error
-		)
+		db := testSQLDB(t)
 
-		err = database.MigrateUp(db)
+		err := database.MigrateUp(db)
 		require.NoError(t, err)
 	})
 
 	t.Run("Twice", func(t *testing.T) {
 		t.Parallel()
 
-		var (
-			db  = testSQLDB(t)
-			err error
-		)
+		db := testSQLDB(t)
 
-		err = database.MigrateUp(db)
+		err := database.MigrateUp(db)
 		require.NoError(t, err)
 
 		err = database.MigrateUp(db)
@@ -55,12 +49,9 @@ func TestMigrate(t *testing.T) {
 	t.Run("UpDownUp", func(t *testing.T) {
 		t.Parallel()
 
-		var (
-			db  = testSQLDB(t)
-			err error
-		)
+		db := testSQLDB(t)
 
-		err = database.MigrateUp(db)
+		err := database.MigrateUp(db)
 		require.NoError(t, err)
 
 		err = database.MigrateDown(db)
