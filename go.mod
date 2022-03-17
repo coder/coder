@@ -62,7 +62,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-	google.golang.org/api v0.72.0
+	google.golang.org/api v0.73.0
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.29
