@@ -58,7 +58,6 @@ require (
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/moby v20.10.13+incompatible
-	github.com/muesli/cancelreader v0.1.0
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
@@ -72,7 +71,6 @@ require (
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd

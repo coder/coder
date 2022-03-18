@@ -4,13 +4,13 @@
 package pty
 
 import (
+	"io"
 	"os"
 	"sync"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 
-	"github.com/muesli/cancelreader"
 	"golang.org/x/xerrors"
 )
 
