@@ -1,3 +1,19 @@
+import { server } from "./src/test_helpers/server"
+
+// Establish API mocking before all tests through MSW.
+beforeAll(() =>
+  server.listen({
+    onUnhandledRequest: "warn",
+  }),
+)
+
+// Reset any request handlers that we may add during the tests,
+// so they don't affect other tests.
+afterEach(() => server.resetHandlers())
+
+// Clean up after the tests are finished.
+afterAll(() => server.close())
+
 // Helper utility to fail jest tests if a console.error is logged
 // Pulled from this blog post:
 // https://www.benmvp.com/blog/catch-warnings-jest-tests/

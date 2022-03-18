@@ -2,7 +2,6 @@ import React from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { SWRConfig } from "swr"
-import { UserProvider } from "./contexts/UserContext"
 import { light } from "./theme"
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom"
 
@@ -15,6 +14,8 @@ import { ProjectPage } from "./pages/projects/[organization]/[project]"
 import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 import { HealthzPage } from "./pages/healthz"
+import { AuthAndNav, RequireAuth } from "./components/Page"
+import { XServiceProvider } from "./xServices/StateContext"
 
 export const App: React.FC = () => {
   return (
@@ -37,28 +38,63 @@ export const App: React.FC = () => {
           },
         }}
       >
-        <UserProvider>
+        <XServiceProvider>
           <ThemeProvider theme={light}>
             <CssBaseline />
 
             <Routes>
               <Route path="/">
-                <Route index element={<IndexPage />} />
+                <Route
+                  index
+                  element={
+                    <RequireAuth>
+                      <IndexPage />
+                    </RequireAuth>
+                  }
+                />
 
                 <Route path="login" element={<SignInPage />} />
                 <Route path="healthz" element={<HealthzPage />} />
                 <Route path="cli-auth" element={<CliAuthenticationPage />} />
 
                 <Route path="projects">
-                  <Route index element={<ProjectsPage />} />
+                  <Route
+                    index
+                    element={
+                      <AuthAndNav>
+                        <ProjectsPage />
+                      </AuthAndNav>
+                    }
+                  />
                   <Route path=":organization/:project">
-                    <Route index element={<ProjectPage />} />
-                    <Route path="create" element={<CreateWorkspacePage />} />
+                    <Route
+                      index
+                      element={
+                        <AuthAndNav>
+                          <ProjectPage />
+                        </AuthAndNav>
+                      }
+                    />
+                    <Route
+                      path="create"
+                      element={
+                        <RequireAuth>
+                          <CreateWorkspacePage />
+                        </RequireAuth>
+                      }
+                    />
                   </Route>
                 </Route>
 
                 <Route path="workspaces">
-                  <Route path=":workspace" element={<WorkspacePage />} />
+                  <Route
+                    path=":workspace"
+                    element={
+                      <AuthAndNav>
+                        <WorkspacePage />
+                      </AuthAndNav>
+                    }
+                  />
                 </Route>
 
                 {/* Using path="*"" means "match anything", so this route
@@ -68,7 +104,7 @@ export const App: React.FC = () => {
               </Route>
             </Routes>
           </ThemeProvider>
-        </UserProvider>
+        </XServiceProvider>
       </SWRConfig>
     </Router>
   )

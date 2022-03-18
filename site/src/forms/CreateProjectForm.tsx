@@ -13,7 +13,7 @@ import {
   FormCloseButton,
 } from "../components/Form"
 import { LoadingButton } from "../components/Button"
-import { Organization, Project, Provisioner, CreateProjectRequest } from "./../api"
+import { Organization, Project, Provisioner, CreateProjectRequest } from "../api/types"
 
 export interface CreateProjectFormProps {
   provisioners: Provisioner[]

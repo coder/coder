@@ -11,11 +11,11 @@ import { LogoutIcon } from "../Icons"
 import { BorderedMenu } from "./BorderedMenu"
 import { UserProfileCard } from "../User/UserProfileCard"
 
-import { User } from "../../contexts/UserContext"
 import { UserAvatar } from "../User"
+import { UserResponse } from "../../api/types"
 
 export interface UserDropdownProps {
-  user: User
+  user: UserResponse
   onSignOut: () => void
 }
 

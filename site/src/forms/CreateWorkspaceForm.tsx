@@ -6,7 +6,7 @@ import * as Yup from "yup"
 
 import { FormCloseButton, FormTextField, FormTitle, FormSection } from "../components/Form"
 import { LoadingButton } from "../components/Button"
-import { Project, Workspace, CreateWorkspaceRequest } from "../api"
+import { Project, Workspace, CreateWorkspaceRequest } from "../api/types"
 
 export interface CreateWorkspaceForm {
   project: Project

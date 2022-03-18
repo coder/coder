@@ -1,26 +1,12 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
+import * as Types from "./types"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
 }
 
-/**
- * `Organization` must be kept in sync with the go struct in organizations.go
- */
-export interface Organization {
-  id: string
-  name: string
-  created_at: string
-  updated_at: string
-}
-
-export interface Provisioner {
-  id: string
-  name: string
-}
-
-export const provisioners: Provisioner[] = [
+export const provisioners: Types.Provisioner[] = [
   {
     id: "terraform",
     name: "Terraform",
@@ -31,25 +17,8 @@ export const provisioners: Provisioner[] = [
   },
 ]
 
-// This must be kept in sync with the `Project` struct in the back-end
-export interface Project {
-  id: string
-  created_at: string
-  updated_at: string
-  organization_id: string
-  name: string
-  provisioner: string
-  active_version_id: string
-}
-
-export interface CreateProjectRequest {
-  name: string
-  organizationId: string
-  provisioner: string
-}
-
 export namespace Project {
-  export const create = async (request: CreateProjectRequest): Promise<Project> => {
+  export const create = async (request: Types.CreateProjectRequest): Promise<Types.Project> => {
     const response = await fetch(`/api/v2/projects/${request.organizationId}/`, {
       method: "POST",
       headers: {
@@ -68,23 +37,8 @@ export namespace Project {
   }
 }
 
-export interface CreateWorkspaceRequest {
-  name: string
-  project_id: string
-}
-
-// Must be kept in sync with backend Workspace struct
-export interface Workspace {
-  id: string
-  created_at: string
-  updated_at: string
-  owner_id: string
-  project_id: string
-  name: string
-}
-
 export namespace Workspace {
-  export const create = async (request: CreateWorkspaceRequest): Promise<Workspace> => {
+  export const create = async (request: Types.CreateWorkspaceRequest): Promise<Types.Workspace> => {
     const response = await fetch(`/api/v2/users/me/workspaces`, {
       method: "POST",
       headers: {
@@ -108,17 +62,13 @@ export namespace Workspace {
   }
 }
 
-export interface LoginResponse {
-  session_token: string
-}
-
-export const login = async (email: string, password: string): Promise<LoginResponse> => {
+export const login = async (email: string, password: string): Promise<Types.LoginResponse> => {
   const payload = JSON.stringify({
     email,
     password,
   })
 
-  const response = await axios.post<LoginResponse>("/api/v2/users/login", payload, {
+  const response = await axios.post<Types.LoginResponse>("/api/v2/users/login", payload, {
     headers: { ...CONTENT_TYPE_JSON },
   })
 
@@ -129,11 +79,12 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
 
-export interface APIKeyResponse {
-  key: string
+export const getUser = async (): Promise<Types.UserResponse> => {
+  const response = await axios.get<Types.UserResponse>("/api/v2/users/me")
+  return response.data
 }
 
-export const getApiKey = async (): Promise<APIKeyResponse> => {
-  const response = await axios.post<APIKeyResponse>("/api/v2/users/me/keys")
+export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
+  const response = await axios.post<Types.APIKeyResponse>("/api/v2/users/me/keys")
   return response.data
 }

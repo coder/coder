@@ -4,13 +4,11 @@ import Paper from "@material-ui/core/Paper"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 
-import { Organization, Project, Workspace } from "../../../../api"
+import { Organization, Project, Workspace } from "../../../../api/types"
 import { Header } from "../../../../components/Header"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
-import { Navbar } from "../../../../components/Navbar"
 import { Footer } from "../../../../components/Page"
 import { Column, Table } from "../../../../components/Table"
-import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { firstOrItem } from "../../../../util/array"
 import { EmptyState } from "../../../../components/EmptyState"
@@ -18,7 +16,6 @@ import { unsafeSWRArgument } from "../../../../util"
 
 export const ProjectPage: React.FC = () => {
   const styles = useStyles()
-  const { me, signOut } = useUser(true)
   const navigate = useNavigate()
   const { project: projectName, organization: organizationName } = useParams()
 
@@ -47,7 +44,7 @@ export const ProjectPage: React.FC = () => {
     return <ErrorSummary error={workspacesError} />
   }
 
-  if (!me || !projectInfo || !workspaces) {
+  if (!projectInfo || !workspaces) {
     return <FullScreenLoader />
   }
 
@@ -89,7 +86,6 @@ export const ProjectPage: React.FC = () => {
 
   return (
     <div className={styles.root}>
-      <Navbar user={me} onSignOut={signOut} />
       <Header
         title={firstOrItem(projectName, "")}
         description={firstOrItem(organizationName, "")}

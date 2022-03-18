@@ -48,7 +48,6 @@ To manually run the server and go through first-time set up, run the following c
 
 You'll now be able to login and access the server.
 
-To create a project, run:
 - `dist/coder_linux_amd64/coder projects create -d /path/to/project`
 
 ### Development
@@ -62,6 +61,10 @@ The `develop.sh` script does three things:
 - sets up an initial user and organization
 
 This is the recommend flow for working on the front-end, as hot-reload is set up as part of the webpack config.
+
+Note that `./develop.sh` creates a user and allows you to log into the UI, but does not log you into the CLI, which is required for creating a project. Use the `login` command above before the `projects create` command.
+
+While we're working on automating XState typegen, you may need to run `yarn typegen` from `site`.
 
 ## Front-End Plan
 

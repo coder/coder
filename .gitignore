@@ -23,6 +23,7 @@ site/storybook-static/
 site/test-results/
 site/yarn-error.log
 coverage/
+site/**/*.typegen.ts
 
 # Build
 dist/
