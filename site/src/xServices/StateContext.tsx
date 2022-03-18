@@ -20,7 +20,7 @@ export const XServiceContext = createContext(
 );
 
 export const XServiceProvider: React.FC = ({ children }) => {
-  const userXService = useInterpret(userMachine);
+  const userXService = useInterpret(userMachine, { devTools: true });
 
   return (
     <XServiceContext.Provider value={{ userXService }}>
