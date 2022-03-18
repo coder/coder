@@ -1,10 +1,10 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
-import React from "react"
+import React, { useContext } from "react"
 import { SignInForm } from "./../components/SignIn"
 import { Navigate, useLocation } from "react-router-dom"
 import { Location } from "history"
-import { userXService } from "../xServices/user/userXService"
+import { XServiceContext } from "../xServices/StateContext"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -31,7 +31,8 @@ const getRedirectFromLocation = (location: Location) => {
 export const SignInPage: React.FC = () => {
   const styles = useStyles()
   const location = useLocation()
-  const [userState, userSend] = useActor(userXService)
+  const xServices = useContext(XServiceContext)
+  const [userState, userSend] = useActor(xServices.userXService);
   const isLoading = userState.hasTag("loading")
   const redirectTo = getRedirectFromLocation(location)
   const authErrorMessage = userState.context.authError ? (userState.context.authError as Error).message : undefined

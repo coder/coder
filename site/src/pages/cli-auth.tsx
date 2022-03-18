@@ -1,14 +1,15 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React, { useEffect, useState } from "react"
+import React, { useContext, useEffect, useState } from "react"
 import { getApiKey } from "../api"
 import { CliAuthToken } from "../components/SignIn"
 
 import { FullScreenLoader } from "../components/Loader/FullScreenLoader"
 import { useActor } from "@xstate/react"
-import { userXService } from "../xServices/user/userXService"
+import { XServiceContext } from "../xServices/StateContext"
 
 export const CliAuthenticationPage: React.FC = () => {
-  const [userState] = useActor(userXService)
+  const xServices = useContext(XServiceContext)
+  const [userState] = useActor(xServices.userXService);
   const { me } = userState.context
 
   const styles = useStyles()

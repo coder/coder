@@ -15,6 +15,7 @@ import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/c
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 import { HealthzPage } from "./pages/healthz"
 import { AuthAndNav, RequireAuth } from "./components/Page"
+import { XServiceProvider } from "./xServices/StateContext"
 
 export const App: React.FC = () => {
   return (
@@ -37,6 +38,7 @@ export const App: React.FC = () => {
           },
         }}
       >
+        <XServiceProvider>
         <ThemeProvider theme={light}>
           <CssBaseline />
 
@@ -102,6 +104,7 @@ export const App: React.FC = () => {
             </Route>
           </Routes>
         </ThemeProvider>
+        </XServiceProvider>
       </SWRConfig>
     </Router>
   )

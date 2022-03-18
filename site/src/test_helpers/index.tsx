@@ -5,13 +5,16 @@ import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { dark } from "../theme"
 import { createMemoryHistory } from "history"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
+import { XServiceProvider } from "../xServices/StateContext"
 
 export const history = createMemoryHistory()
 
 export const WrapperComponent: React.FC = ({ children }) => {
   return (
     <HistoryRouter history={history}>
+      <XServiceProvider>
       <ThemeProvider theme={dark}>{children}</ThemeProvider>
+      </XServiceProvider>
     </HistoryRouter>
   )
 }

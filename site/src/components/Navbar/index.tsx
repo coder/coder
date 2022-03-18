@@ -1,10 +1,11 @@
-import React from "react"
+import React, { useContext } from "react"
 import { useActor } from "@xstate/react"
-import { userXService } from "../../xServices/user/userXService"
 import { NavbarView } from "./NavbarView"
+import { XServiceContext } from "../../xServices/StateContext"
 
 export const Navbar: React.FC = () => {
-  const [userState, userSend] = useActor(userXService)
+  const xServices = useContext(XServiceContext)
+  const [userState, userSend] = useActor(xServices.userXService);
   const { me } = userState.context
   const onSignOut = () => userSend("SIGN_OUT")
 
