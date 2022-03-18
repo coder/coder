@@ -35,4 +35,5 @@ ignore:
   - provisionerd/proto
   - provisionersdk/proto
   - scripts/datadog-cireport
+  - site/.storybook
   - rules.go
