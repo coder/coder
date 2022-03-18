@@ -1,7 +1,3 @@
-export interface LoginResponse {
-  session_token: string
-}
-
 export interface UserResponse {
   readonly id: string
   readonly username: string
@@ -58,4 +54,11 @@ export interface Workspace {
 
 export interface APIKeyResponse {
   key: string
+}
+
+export interface UserAgent {
+  readonly ip_address: string
+  readonly os: string
+  readonly browser: string
+  readonly device: string
 }
