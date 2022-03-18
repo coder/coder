@@ -1,3 +1,9 @@
+// REMARK: Jest is supposed to never exceed 50% maxWorkers by default. However,
+//         there seems to be an issue with this in our Ubuntu-based workspaces.
+//         If we don't limit it, then 100% CPU and high MEM usage is hit
+//         unexpectedly, leading to OOM kills.
+//
+// SEE thread: https://github.com/coder/coder/pull/483#discussion_r829636583
 const maxWorkers = process.env.CI ? 16 : 2
 
 module.exports = {
