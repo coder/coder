@@ -152,6 +152,17 @@ func TestProjectsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, projects, 1)
 	})
+	t.Run("ListMultiple", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		projects, err := client.ProjectsByOrganization(context.Background(), user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, projects, 2)
+	})
 }
 
 func TestProjectByOrganizationAndName(t *testing.T) {

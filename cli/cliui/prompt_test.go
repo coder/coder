@@ -45,6 +45,24 @@ func TestPrompt(t *testing.T) {
 		ptty.WriteLine("yes")
 		require.Equal(t, "yes", <-doneChan)
 	})
+
+	t.Run("Multiline", func(t *testing.T) {
+		t.Parallel()
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ptty, cliui.PromptOptions{
+				Text: "Example",
+			})
+			require.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Example")
+		ptty.WriteLine("'this is a")
+		ptty.WriteLine("test'")
+		require.Equal(t, `this is a
+test`, <-doneChan)
+	})
 }
 
 func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {

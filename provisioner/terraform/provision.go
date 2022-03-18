@@ -95,6 +95,8 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
 	t.logger.Debug(shutdown, "ran initialization")
+	_ = reader.Close()
+	terraform.SetStdout(io.Discard)
 
 	env := os.Environ()
 	env = append(env,

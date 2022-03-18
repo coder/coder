@@ -5,6 +5,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -24,8 +25,10 @@ func workspaceList() *cobra.Command {
 				return err
 			}
 			if len(workspaces) == 0 {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s No workspaces found! Create one:\n\n", caret)
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), color.HiMagentaString("  $ coder workspaces create <project>\n"))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout())
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder workspaces create <name>"))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			}
 

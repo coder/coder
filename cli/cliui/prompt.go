@@ -45,6 +45,14 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		} else {
 			reader := bufio.NewReader(cmd.InOrStdin())
 			line, err = reader.ReadString('\n')
+			// Multiline with single quotes!
+			if err == nil && strings.HasPrefix(line, "'") {
+				rest, err := reader.ReadString('\'')
+				if err == nil {
+					line += rest
+					line = strings.Trim(line, "'")
+				}
+			}
 		}
 		if err != nil {
 			errCh <- err

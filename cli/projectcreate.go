@@ -51,27 +51,25 @@ func projectCreate() *cobra.Command {
 				return xerrors.Errorf("A project already exists named %q!", projectName)
 			}
 
-			start := time.Now()
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = cmd.OutOrStdout()
+			spin.Suffix = cliui.Styles.Keyword.Render(" Uploading current directory...")
+			spin.Start()
+			defer spin.Stop()
 			archive, err := provisionersdk.Tar(directory)
 			if err != nil {
 				return err
 			}
-			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-			spin.Writer = cmd.OutOrStdout()
-			spin.Suffix = " Uploading current directory..."
-			err = spin.Color("fgHiGreen")
-			if err != nil {
-				return err
-			}
-			spin.Start()
-			defer spin.Stop()
+
 			resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, archive)
 			if err != nil {
 				return err
 			}
-			spin.FinalMSG = fmt.Sprintf("Uploaded %d byte archive! [%dms]", len(archive), time.Now().Sub(start).Milliseconds()) + "\n"
 			spin.Stop()
 
+			spin = spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = cmd.OutOrStdout()
+			spin.Suffix = cliui.Styles.Keyword.Render("Something")
 			job, parameters, err := createValidProjectVersion(cmd, client, organization, database.ProvisionerType(provisioner), resp.Hash)
 			if err != nil {
 				return err
@@ -127,54 +125,23 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 	if err != nil {
 		return nil, nil, err
 	}
-	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-	spin.Writer = cmd.OutOrStdout()
-	spin.Suffix = " Waiting for the import to complete..."
-	spin.FinalMSG = "Parsed project..."
-	spin.Start()
 
-	doneChan := make(chan struct{})
-	go func() {
-		defer spin.Stop()
-		ticker := time.NewTicker(time.Second)
-		for {
-			select {
-			case <-doneChan:
-				return
-			case <-ticker.C:
-			}
+	_, err = cliui.Job(cmd, cliui.JobOptions{
+		Title: "Building project...",
+		Fetch: func() (codersdk.ProvisionerJob, error) {
 			version, err := client.ProjectVersion(cmd.Context(), version.ID)
-			if err != nil {
-				continue
-			}
-			switch version.Job.Status {
-			case codersdk.ProvisionerJobPending:
-				spin.Suffix = "Pending..."
-			case codersdk.ProvisionerJobCanceled:
-				spin.Suffix = "Canceled..."
-			case codersdk.ProvisionerJobCanceling:
-				spin.Suffix = "Canceling..."
-			case codersdk.ProvisionerJobFailed:
-				spin.FinalMSG = version.Job.Error
-			case codersdk.ProvisionerJobRunning:
-				spin.Suffix = "Running..."
-			}
-		}
-	}()
-
-	logs, err := client.ProjectVersionLogsAfter(cmd.Context(), version.ID, before)
+			return version.Job, err
+		},
+		Cancel: func() error {
+			return client.CancelProjectVersion(cmd.Context(), version.ID)
+		},
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+			return client.ProjectVersionLogsAfter(cmd.Context(), version.ID, before)
+		},
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-	logBuffer := make([]codersdk.ProvisionerJobLog, 0, 64)
-	for {
-		log, ok := <-logs
-		if !ok {
-			break
-		}
-		logBuffer = append(logBuffer, log)
-	}
-
 	version, err = client.ProjectVersion(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
@@ -187,7 +154,6 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 	if err != nil {
 		return nil, nil, err
 	}
-	spin.Stop()
 
 	if provisionerd.IsMissingParameterError(version.Job.Error) {
 		valuesBySchemaID := map[string]codersdk.ProjectVersionParameter{}
@@ -197,14 +163,21 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 		sort.Slice(parameterSchemas, func(i, j int) bool {
 			return parameterSchemas[i].Name < parameterSchemas[j].Name
 		})
+		missingSchemas := make([]codersdk.ProjectVersionParameterSchema, 0)
 		for _, parameterSchema := range parameterSchemas {
 			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
 			if ok {
 				continue
 			}
-			value, err := cliui.Prompt(cmd, cliui.PromptOptions{
-				Text: fmt.Sprintf("Enter value for %s:", color.HiCyanString(parameterSchema.Name)),
-			})
+			missingSchemas = append(missingSchemas, parameterSchema)
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This project has required variables! They are scoped to the project, and not viewable after being set.")+"\r\n")
+		for _, parameterSchema := range parameterSchemas {
+			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
+			if ok {
+				continue
+			}
+			value, err := cliui.ParameterSchema(cmd, parameterSchema)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -214,14 +187,12 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 				SourceScheme:      database.ParameterSourceSchemeData,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 		}
 		return createValidProjectVersion(cmd, client, organization, provisioner, hash, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
-		for _, log := range logBuffer {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
-		}
 		return nil, nil, xerrors.New(version.Job.Error)
 	}
 

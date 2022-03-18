@@ -27,7 +27,8 @@ const (
 
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "coder",
+		Use:          "coder",
+		SilenceUsage: true,
 		Long: `    ▄█▀    ▀█▄
      ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀

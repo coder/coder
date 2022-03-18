@@ -12,8 +12,9 @@ import (
 )
 
 type SelectOptions struct {
-	Options []string
-	Size    int
+	Options    []string
+	Size       int
+	HideSearch bool
 }
 
 // Select displays a list of user options.
@@ -29,19 +30,24 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 
 			return strings.Contains(name, input)
 		},
-		Stdin:  io.NopCloser(cmd.InOrStdin()),
-		Stdout: &writeCloser{cmd.OutOrStdout()},
+		HideHelp: opts.HideSearch,
+		Stdin:    io.NopCloser(cmd.InOrStdin()),
+		Stdout:   &writeCloser{cmd.OutOrStdout()},
 		Templates: &promptui.SelectTemplates{
 			FuncMap: template.FuncMap{
 				"faint": func(value interface{}) string {
 					return Styles.Placeholder.Render(value.(string))
 				},
+				"subtle": func(value interface{}) string {
+					return defaultStyles.Subtle.Render(value.(string))
+				},
 				"selected": func(value interface{}) string {
-					return defaultStyles.SelectedMenuItem.Render("▶ " + value.(string))
+					return defaultStyles.Keyword.Render("> " + value.(string))
+					// return defaultStyles.SelectedMenuItem.Render("> " + value.(string))
 				},
 			},
 			Active:   "{{ . | selected }}",
-			Inactive: "  {{.}}",
+			Inactive: "  {{ . }}",
 			Label:    "{{.}}",
 			Selected: "{{ \"\" }}",
 			Help:     fmt.Sprintf(`{{ "Use" | faint }} {{ .SearchKey | faint }} {{ "to toggle search" | faint }}`),

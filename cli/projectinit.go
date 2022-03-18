@@ -27,7 +27,7 @@ func projectInit() *cobra.Command {
 				exampleByName[example.Name] = example
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Templates contain Infrastructure as Code that works with Coder to provision development workspaces. Get started by selecting one:\n"))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Projects contain Infrastructure as Code that works with Coder to provision development workspaces. Get started by selecting an example:\n"))
 			option, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: exampleNames,
 			})

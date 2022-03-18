@@ -62,6 +62,9 @@ type CreateOrganizationRequest struct {
 type CreateWorkspaceRequest struct {
 	ProjectID uuid.UUID `json:"project_id" validate:"required"`
 	Name      string    `json:"name" validate:"username,required"`
+	// ParameterValues allows for additional parameters to be provided
+	// during the initial provision.
+	ParameterValues []CreateParameterRequest `json:"parameter_values"`
 }
 
 // HasFirstUser returns whether the first user has been created.

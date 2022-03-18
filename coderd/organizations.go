@@ -229,7 +229,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 				CreatedAt:         database.Now(),
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeProject,
-				ScopeID:           project.ID.String(),
+				ScopeID:           dbProject.ID.String(),
 				SourceScheme:      parameterValue.SourceScheme,
 				SourceValue:       parameterValue.SourceValue,
 				DestinationScheme: parameterValue.DestinationScheme,

@@ -565,10 +565,10 @@ func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, arg database.
 		if project.Deleted != arg.Deleted {
 			continue
 		}
-		if project.OrganizationID == arg.OrganizationID {
-			projects = append(projects, project)
-			break
+		if project.OrganizationID != arg.OrganizationID {
+			continue
 		}
+		projects = append(projects, project)
 	}
 	if len(projects) == 0 {
 		return nil, sql.ErrNoRows

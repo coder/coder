@@ -31,6 +31,10 @@ func Tar(directory string) ([]byte, error) {
 			// Don't archive hidden files!
 			return err
 		}
+		if strings.Contains(rel, ".tfstate") {
+			// Don't store tfstate!
+			return err
+		}
 		header.Name = rel
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err

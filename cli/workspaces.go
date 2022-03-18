@@ -8,7 +8,8 @@ import (
 
 func workspaces() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "workspaces",
+		Use:     "workspaces",
+		Aliases: []string{"ws"},
 	}
 	cmd.AddCommand(workspaceAgent())
 	cmd.AddCommand(workspaceCreate())

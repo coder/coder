@@ -603,6 +603,22 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
 		}
+		for _, parameterValue := range createWorkspace.ParameterValues {
+			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              parameterValue.Name,
+				CreatedAt:         database.Now(),
+				UpdatedAt:         database.Now(),
+				Scope:             database.ParameterScopeWorkspace,
+				ScopeID:           workspace.ID.String(),
+				SourceScheme:      parameterValue.SourceScheme,
+				SourceValue:       parameterValue.SourceValue,
+				DestinationScheme: parameterValue.DestinationScheme,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert parameter value: %w", err)
+			}
+		}
 
 		input, err := json.Marshal(workspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,

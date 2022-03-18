@@ -1,11 +1,11 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 )
@@ -31,18 +31,20 @@ func workspaceStart() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, before)
-			if err != nil {
-				return err
-			}
-			for {
-				log, ok := <-logs
-				if !ok {
-					break
-				}
-				_, _ = fmt.Printf("Output: %s\n", log.Output)
-			}
-			return nil
+			_, err = cliui.Job(cmd, cliui.JobOptions{
+				Title: "Starting workspace...",
+				Fetch: func() (codersdk.ProvisionerJob, error) {
+					build, err := client.WorkspaceBuild(cmd.Context(), build.ID)
+					return build.Job, err
+				},
+				Cancel: func() error {
+					return client.CancelWorkspaceBuild(cmd.Context(), build.ID)
+				},
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+					return client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, before)
+				},
+			})
+			return err
 		},
 	}
 }

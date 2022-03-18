@@ -3,10 +3,10 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/briandowns/spinner"
-
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database"
 )
 
 func workspaceCreate() *cobra.Command {
@@ -34,18 +35,50 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			project, err := client.ProjectByName(cmd.Context(), organization.ID, projectName)
-			if err != nil {
-				return err
+			var project codersdk.Project
+			if projectName == "" {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a project:"))
+
+				projectNames := []string{}
+				projectByName := map[string]codersdk.Project{}
+				projects, err := client.ProjectsByOrganization(cmd.Context(), organization.ID)
+				if err != nil {
+					return err
+				}
+				for _, project := range projects {
+					projectNames = append(projectNames, project.Name)
+					projectByName[project.Name] = project
+				}
+				sort.Slice(projectNames, func(i, j int) bool {
+					return projectByName[projectNames[i]].WorkspaceOwnerCount > projectByName[projectNames[j]].WorkspaceOwnerCount
+				})
+				// Move the cursor up a single line for nicer display!
+				option, err := cliui.Select(cmd, cliui.SelectOptions{
+					Options:    projectNames,
+					HideSearch: true,
+				})
+				if err != nil {
+					return err
+				}
+				project = projectByName[option]
+			} else {
+				project, err = client.ProjectByName(cmd.Context(), organization.ID, projectName)
+				if err != nil {
+					return xerrors.Errorf("get project by name: %w", err)
+				}
+				if err != nil {
+					return err
+				}
 			}
+
+			fmt.Fprintln(cmd.OutOrStdout())
+			fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Creating with the "+cliui.Styles.Field.Render(project.Name)+" project...")
 
 			workspaceName := args[0]
 			_, err = client.WorkspaceByName(cmd.Context(), "", workspaceName)
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Previewing project create...\n", caret)
 
 			projectVersion, err := client.ProjectVersion(cmd.Context(), project.ActiveVersionID)
 			if err != nil {
@@ -55,6 +88,35 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			printed := false
+			parameters := make([]codersdk.CreateParameterRequest, 0)
+			for _, parameterSchema := range parameterSchemas {
+				if !parameterSchema.AllowOverrideSource {
+					continue
+				}
+				if !printed {
+					fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This project has customizable parameters! These can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+					printed = true
+				}
+
+				value, err := cliui.ParameterSchema(cmd, parameterSchema)
+				if err != nil {
+					return err
+				}
+				parameters = append(parameters, codersdk.CreateParameterRequest{
+					Name:              parameterSchema.Name,
+					SourceValue:       value,
+					SourceScheme:      database.ParameterSourceSchemeData,
+					DestinationScheme: parameterSchema.DefaultDestinationScheme,
+				})
+			}
+			if printed {
+				fmt.Fprintln(cmd.OutOrStdout())
+				fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.FocusedPrompt.String()+"Previewing resources...")
+				fmt.Fprintln(cmd.OutOrStdout())
+			}
+
 			parameterValues, err := client.ProjectVersionParameters(cmd.Context(), projectVersion.ID)
 			if err != nil {
 				return err
@@ -80,48 +142,69 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
+			before := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), "", codersdk.CreateWorkspaceRequest{
-				ProjectID: project.ID,
-				Name:      workspaceName,
+				ProjectID:       project.ID,
+				Name:            workspaceName,
+				ParameterValues: parameters,
 			})
 			if err != nil {
 				return err
 			}
-
-			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-			spin.Writer = cmd.OutOrStdout()
-			spin.Suffix = " Building workspace..."
-			err = spin.Color("fgHiGreen")
+			_, err = cliui.Job(cmd, cliui.JobOptions{
+				Title: "Building workspace...",
+				Fetch: func() (codersdk.ProvisionerJob, error) {
+					build, err := client.WorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
+					return build.Job, err
+				},
+				Cancel: func() error {
+					return client.CancelWorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
+				},
+				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+					return client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, before)
+				},
+			})
 			if err != nil {
 				return err
 			}
-			spin.Start()
-			defer spin.Stop()
-			logs, err := client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, time.Time{})
+			resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
-			logBuffer := make([]codersdk.ProvisionerJobLog, 0, 64)
-			for {
-				log, ok := <-logs
-				if !ok {
+			for _, resource := range resources {
+				if resource.Agent == nil {
+					continue
+				}
+				spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond, spinner.WithColor("fgGreen"))
+				spin.Writer = cmd.OutOrStdout()
+				spin.Suffix = " Waiting for agent to connect..."
+				spin.Start()
+				defer spin.Stop()
+				ticker := time.NewTicker(1 * time.Second)
+				for {
+					select {
+					case <-cmd.Context().Done():
+						return nil
+					case <-ticker.C:
+					}
+					resource, err := client.WorkspaceResource(cmd.Context(), resource.ID)
+					if err != nil {
+						return err
+					}
+					if resource.Agent.FirstConnectedAt == nil {
+						continue
+					}
+					spin.Stop()
+					fmt.Fprintln(cmd.OutOrStdout())
+					fmt.Fprintln(cmd.OutOrStdout(), fmt.Sprintf("The %s workspace has been created!", cliui.Styles.Keyword.Render(workspace.Name)))
+					fmt.Fprintln(cmd.OutOrStdout())
+					fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder ssh "+workspace.Name))
+					fmt.Fprintln(cmd.OutOrStdout())
 					break
 				}
-				logBuffer = append(logBuffer, log)
-			}
-			build, err := client.WorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-			if build.Job.Status != codersdk.ProvisionerJobSucceeded {
-				for _, log := range logBuffer {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", color.HiGreenString("[tf]"), log.Output)
-				}
-				return xerrors.New(build.Job.Error)
 			}
 
-			_, _ = fmt.Printf("Created workspace! %s\n", workspaceName)
-			return nil
+			return err
 		},
 	}
 	cmd.Flags().StringVarP(&projectName, "project", "p", "", "Specify a project name.")
