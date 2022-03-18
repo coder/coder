@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+set -euo pipefail
+
 cd "$(dirname "$0")"
 
 if [ -z "$1" ]; then
@@ -6,6 +9,6 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-migrate create -ext sql -dir . -seq $1
+migrate create -ext sql -dir . -seq "$1"
 
 echo "Run \"make gen\" to generate models."

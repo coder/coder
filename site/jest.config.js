@@ -11,6 +11,7 @@ module.exports = {
       preset: "ts-jest",
 
       roots: ["<rootDir>"],
+      setupFilesAfterEnv: ["./jest.setup.ts"],
       transform: {
         "^.+\\.tsx?$": "ts-jest",
       },
@@ -18,7 +19,6 @@ module.exports = {
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
       testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes", "/e2e/"],
       moduleDirectories: ["node_modules", "<rootDir>"],
-      setupFilesAfterEnv: ["./src/setupTests.ts"],
     },
     {
       displayName: "lint",

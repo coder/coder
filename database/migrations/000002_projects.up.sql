@@ -1,5 +1,5 @@
 -- Store arbitrary data like project source code or avatars.
-CREATE TABLE file (
+CREATE TABLE files (
     hash varchar(64) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     created_by text NOT NULL,
@@ -11,7 +11,7 @@ CREATE TYPE provisioner_type AS ENUM ('echo', 'terraform');
 
 -- Project defines infrastructure that your software project
 -- requires for development.
-CREATE TABLE project (
+CREATE TABLE projects (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
@@ -30,10 +30,10 @@ CREATE TABLE project (
 -- Project Versions store historical project data. When a Project Version is imported,
 -- an "import" job is queued to parse parameters. A Project Version
 -- can only be used if the import job succeeds.
-CREATE TABLE project_version (
+CREATE TABLE project_versions (
     id uuid NOT NULL UNIQUE,
     -- This should be indexed.
-    project_id uuid REFERENCES project (id),
+    project_id uuid REFERENCES projects (id),
     organization_id text NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
