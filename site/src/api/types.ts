@@ -1,3 +1,7 @@
+export interface LoginResponse {
+  session_token: string
+}
+
 export interface UserResponse {
   readonly id: string
   readonly username: string
