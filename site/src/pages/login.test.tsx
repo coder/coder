@@ -2,7 +2,7 @@ import React from "react"
 import { act, fireEvent, screen, waitFor } from "@testing-library/react"
 import { history, render } from "../test_helpers"
 import { SignInPage } from "./login"
-import { server } from "../mocks/server"
+import { server } from "../test_helpers/server"
 import { rest } from "msw"
 
 describe("SignInPage", () => {

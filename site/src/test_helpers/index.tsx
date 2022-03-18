@@ -23,4 +23,4 @@ export const render = (component: React.ReactElement): RenderResult => {
   return wrappedRender(<WrapperComponent>{component}</WrapperComponent>)
 }
 
-export * from "../mocks/entities"
+export * from "./entities"
