@@ -88,7 +88,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
             variant="outlined"
           />
           {authErrorMessage && (
-            <FormHelperText data-testid={"sign-in-error"} error>
+            <FormHelperText data-testid="sign-in-error" error>
               {authErrorMessage}
             </FormHelperText>
           )}
