@@ -56,10 +56,6 @@ export interface Workspace {
   name: string
 }
 
-export interface LoginResponse {
-  session_token: string
-}
-
 export interface APIKeyResponse {
   key: string
 }

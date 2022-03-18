@@ -18,13 +18,13 @@
     "storybook:build": "build-storybook",
     "test": "jest --selectProjects test",
     "test:coverage": "jest --selectProjects test --collectCoverage",
+    "test:watch": "jest --selectProjects test --watch",
     "typegen": "xstate typegen 'src/**/*.ts'"
   },
   "dependencies": {
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
-    "@xstate/cli": "^0.1.4",
     "@xstate/react": "^2.0.1",
     "axios": "0.26.1",
     "formik": "2.2.9",
@@ -53,6 +53,7 @@
     "@types/superagent": "4.1.15",
     "@typescript-eslint/eslint-plugin": "5.15.0",
     "@typescript-eslint/parser": "5.15.0",
+    "@xstate/cli": "^0.1.4",
     "copy-webpack-plugin": "10.2.4",
     "eslint": "8.11.0",
     "eslint-config-prettier": "8.5.0",
