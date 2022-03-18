@@ -4,6 +4,7 @@
   "repository": "https://github.com/coder/coder",
   "private": true,
   "scripts": {
+    "postinstall": "yarn typegen",
     "build": "NODE_ENV=production webpack build --config=webpack.prod.ts",
     "build:analyze": "NODE_ENV=production webpack --profile --progress --json --config=webpack.prod.ts > out/stats.json && webpack-bundle-analyzer out/stats.json out",
     "dev": "webpack-dev-server --config=webpack.dev.ts",
