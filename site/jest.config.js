@@ -31,9 +31,10 @@ module.exports = {
     },
   ],
   collectCoverageFrom: [
-    "<rootDir>/**/*.js",
+    // included files
     "<rootDir>/**/*.ts",
     "<rootDir>/**/*.tsx",
+    // excluded files
     "!<rootDir>/**/*.stories.tsx",
     "!<rootDir>/_jest/**/*.*",
     "!<rootDir>/api.ts",
