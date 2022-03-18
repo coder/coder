@@ -3,7 +3,7 @@ module.exports = {
     {
       globals: {
         "ts-jest": {
-          tsconfig: "tsconfig.test.json",
+          tsconfig: "./tsconfig.test.json",
         },
       },
       coverageReporters: ["text", "lcov"],
