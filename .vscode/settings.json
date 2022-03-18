@@ -1,31 +1,4 @@
 {
-  "files.exclude": {
-    "**/node_modules": true
-  },
-  "go.lintTool": "golangci-lint",
-  "go.lintFlags": ["--fast"],
-  "go.lintOnSave": "package",
-  "go.coverOnSave": true,
-  // The codersdk is used by coderd another other packages extensively.
-  // To reduce redundancy in tests, it's covered by other packages.
-  "go.testFlags": ["-coverpkg=./.,github.com/coder/coder/codersdk"],
-  "go.coverageDecorator": {
-    "type": "gutter",
-    "coveredHighlightColor": "rgba(64,128,128,0.5)",
-    "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
-    "coveredBorderColor": "rgba(64,128,128,0.5)",
-    "uncoveredBorderColor": "rgba(128,64,64,0.25)",
-    "coveredGutterStyle": "blockgreen",
-    "uncoveredGutterStyle": "blockred"
-  },
-  "emeraldwalk.runonsave": {
-    "commands": [
-      {
-        "match": "database/query.sql",
-        "cmd": "make gen"
-      }
-    ]
-  },
   "cSpell.words": [
     "coderd",
     "coderdtest",
@@ -76,5 +49,35 @@
     "xerrors",
     "yamux"
   ],
-  "eslint.workingDirectories": ["./site"]
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": "database/query.sql",
+        "cmd": "make gen"
+      }
+    ]
+  },
+  "eslint.workingDirectories": ["./site"],
+  "files.exclude": {
+    "**/node_modules": true
+  },
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": ["--fast"],
+  "go.lintOnSave": "package",
+  "go.coverOnSave": true,
+  // The codersdk is used by coderd another other packages extensively.
+  // To reduce redundancy in tests, it's covered by other packages.
+  "go.testFlags": ["-coverpkg=./.,github.com/coder/coder/codersdk"],
+  "go.coverageDecorator": {
+    "type": "gutter",
+    "coveredHighlightColor": "rgba(64,128,128,0.5)",
+    "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
+    "coveredBorderColor": "rgba(64,128,128,0.5)",
+    "uncoveredBorderColor": "rgba(128,64,64,0.25)",
+    "coveredGutterStyle": "blockgreen",
+    "uncoveredGutterStyle": "blockred"
+  },
+  // We often use a version of TypeScript that's ahead of the version shipped
+  // with VS Code.
+  "typescript.tsdk": "./site/node_modules/typescript/lib"
 }
