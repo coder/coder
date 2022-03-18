@@ -10,7 +10,7 @@ export interface RequireAuthProps {
 
 export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
   const xServices = useContext(XServiceContext)
-  const [userState] = useActor(xServices.userXService);
+  const [userState] = useActor(xServices.userXService)
   const location = useLocation()
 
   if (userState.matches("signedOut") || !userState.context.me) {
@@ -21,4 +21,3 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
     return children
   }
 }
-

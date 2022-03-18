@@ -13,7 +13,7 @@ export const WrapperComponent: React.FC = ({ children }) => {
   return (
     <HistoryRouter history={history}>
       <XServiceProvider>
-      <ThemeProvider theme={dark}>{children}</ThemeProvider>
+        <ThemeProvider theme={dark}>{children}</ThemeProvider>
       </XServiceProvider>
     </HistoryRouter>
   )

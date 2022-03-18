@@ -1,6 +1,6 @@
 import { createMachine, assign } from "xstate"
-import * as Types from '../../api/types'
-import * as API from '../../api'
+import * as Types from "../../api/types"
+import * as API from "../../api"
 
 export interface UserContext {
   getUserError?: Error | unknown // unknown is a concession while I work out typing issues

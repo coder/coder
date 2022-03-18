@@ -1,5 +1,5 @@
-import { rest } from 'msw'
-import * as M from './entities'
+import { rest } from "msw"
+import * as M from "./entities"
 
 export const handlers = [
   rest.post("/api/v2/users/me/workspaces", async (req, res, ctx) => {
@@ -16,5 +16,5 @@ export const handlers = [
   }),
   rest.get("/api/v2/users/me/keys", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAPIKey))
-  })
+  }),
 ]

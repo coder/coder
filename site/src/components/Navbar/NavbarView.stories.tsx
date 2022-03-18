@@ -1,4 +1,3 @@
-
 import { Story } from "@storybook/react"
 import React from "react"
 import { NavbarView, NavbarViewProps } from "./NavbarView"
@@ -15,7 +14,7 @@ const Template: Story<NavbarViewProps> = (args: NavbarViewProps) => <NavbarView 
 
 export const Primary = Template.bind({})
 Primary.args = {
-  user: { id: '1', username: 'CathyCoder', email: 'cathy@coder.com', created_at: 'dawn'},
+  user: { id: "1", username: "CathyCoder", email: "cathy@coder.com", created_at: "dawn" },
   onSignOut: () => {
     return Promise.resolve()
   },

@@ -32,7 +32,7 @@ export const SignInPage: React.FC = () => {
   const styles = useStyles()
   const location = useLocation()
   const xServices = useContext(XServiceContext)
-  const [userState, userSend] = useActor(xServices.userXService);
+  const [userState, userSend] = useActor(xServices.userXService)
   const isLoading = userState.hasTag("loading")
   const redirectTo = getRedirectFromLocation(location)
   const authErrorMessage = userState.context.authError ? (userState.context.authError as Error).message : undefined

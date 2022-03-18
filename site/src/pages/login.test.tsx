@@ -10,11 +10,9 @@ describe("SignInPage", () => {
     history.replace("/login")
     // appear logged out
     server.use(
-      rest.get('/api/v2/users/me', (req, res, ctx) => {
-        return res(
-          ctx.status(401), 
-          ctx.json({message: 'no user here'}))
-      })
+      rest.get("/api/v2/users/me", (req, res, ctx) => {
+        return res(ctx.status(401), ctx.json({ message: "no user here" }))
+      }),
     )
   })
 
@@ -31,10 +29,8 @@ describe("SignInPage", () => {
     const { container } = render(<SignInPage />)
     // Make login fail
     server.use(
-      rest.post('/api/v2/users/login', async (req, res, ctx) => {
-        return res(
-          ctx.status(500), 
-          ctx.json({message: 'nope'}))
+      rest.post("/api/v2/users/login", async (req, res, ctx) => {
+        return res(ctx.status(500), ctx.json({ message: "nope" }))
       }),
     )
 
