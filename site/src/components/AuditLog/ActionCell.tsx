@@ -24,6 +24,14 @@ export namespace ActionCellProps {
   }
 }
 
+/**
+ * ActionCell is a single cell in an audit log table row that contains
+ * information about an action that was taken on a resource.
+ *
+ * @remarks
+ *
+ * Some common actions are CRUD, Open, signing in etc.
+ */
 export const ActionCell: React.FC<ActionCellProps> = (props) => {
   const { action } = ActionCellProps.validate(props)
 
