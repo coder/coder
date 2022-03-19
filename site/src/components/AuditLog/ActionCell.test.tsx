@@ -7,18 +7,19 @@ namespace Helpers {
 }
 
 describe("ActionCellProps", () => {
-  it.each<[ActionCellProps, boolean]>([
-    [{ action: "Create" }, false],
-    [{ action: "" }, true],
-  ])(`validate(%p) throws: %p`, (props, throws) => {
+  it.each<[ActionCellProps, ActionCellProps, boolean]>([
+    [{ action: "Create" }, { action: "Create" }, false],
+    [{ action: " Create " }, { action: "Create" }, false],
+    [{ action: "" }, { action: "" }, true],
+  ])(`validate(%p) throws: %p`, (props, expected, throws) => {
     const validate = () => {
-      ActionCellProps.validate(props)
+      return ActionCellProps.validate(props)
     }
 
     if (throws) {
       expect(validate).toThrowError()
     } else {
-      expect(validate).not.toThrowError()
+      expect(validate()).toStrictEqual(expected)
     }
   })
 })

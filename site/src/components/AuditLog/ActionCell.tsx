@@ -11,15 +11,21 @@ export namespace ActionCellProps {
    *
    * @throws Error if invalid
    */
-  export const validate = (props: ActionCellProps): void => {
-    if (!props.action.trim()) {
+  export const validate = (props: ActionCellProps): ActionCellProps => {
+    const sanitizedAction = props.action.trim()
+
+    if (!sanitizedAction) {
       throw new Error(`invalid action: '${props.action}'`)
+    }
+
+    return {
+      action: sanitizedAction,
     }
   }
 }
 
-export const ActionCell: React.FC<ActionCellProps> = ({ action }) => {
-  ActionCellProps.validate({ action })
+export const ActionCell: React.FC<ActionCellProps> = (props) => {
+  const { action } = ActionCellProps.validate(props)
 
   return (
     <Box display="flex" alignItems="center">
