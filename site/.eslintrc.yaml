@@ -17,7 +17,7 @@ extends:
 parser: "@typescript-eslint/parser"
 parserOptions:
   ecmaVersion: 2018
-  project: "./tsconfig.test.json"
+  project: "./tsconfig.json"
   sourceType: module
   ecmaFeatures:
     jsx: true

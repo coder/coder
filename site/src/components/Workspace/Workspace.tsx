@@ -6,13 +6,13 @@ import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import { Link } from "react-router-dom"
 import React from "react"
 import * as Constants from "./constants"
-import * as API from "../../api"
+import * as Types from "../../api/types"
 import { WorkspaceSection } from "./WorkspaceSection"
 
 export interface WorkspaceProps {
-  organization: API.Organization
-  workspace: API.Workspace
-  project: API.Project
+  organization: Types.Organization
+  workspace: Types.Workspace
+  project: Types.Project
 }
 
 /**

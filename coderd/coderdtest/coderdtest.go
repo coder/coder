@@ -61,7 +61,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
-		err = database.Migrate(sqlDB)
+		err = database.MigrateUp(sqlDB)
 		require.NoError(t, err)
 		db = database.New(sqlDB)
 

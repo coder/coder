@@ -27,27 +27,51 @@ func TestMigrate(t *testing.T) {
 
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
-		connection, closeFn, err := postgres.Open()
-		require.NoError(t, err)
-		defer closeFn()
-		db, err := sql.Open("postgres", connection)
-		require.NoError(t, err)
-		defer db.Close()
-		err = database.Migrate(db)
+
+		db := testSQLDB(t)
+
+		err := database.MigrateUp(db)
 		require.NoError(t, err)
 	})
 
 	t.Run("Twice", func(t *testing.T) {
 		t.Parallel()
-		connection, closeFn, err := postgres.Open()
+
+		db := testSQLDB(t)
+
+		err := database.MigrateUp(db)
 		require.NoError(t, err)
-		defer closeFn()
-		db, err := sql.Open("postgres", connection)
-		require.NoError(t, err)
-		defer db.Close()
-		err = database.Migrate(db)
-		require.NoError(t, err)
-		err = database.Migrate(db)
+
+		err = database.MigrateUp(db)
 		require.NoError(t, err)
 	})
+
+	t.Run("UpDownUp", func(t *testing.T) {
+		t.Parallel()
+
+		db := testSQLDB(t)
+
+		err := database.MigrateUp(db)
+		require.NoError(t, err)
+
+		err = database.MigrateDown(db)
+		require.NoError(t, err)
+
+		err = database.MigrateUp(db)
+		require.NoError(t, err)
+	})
+}
+
+func testSQLDB(t testing.TB) *sql.DB {
+	t.Helper()
+
+	connection, closeFn, err := postgres.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFn)
+
+	db, err := sql.Open("postgres", connection)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	return db
 }

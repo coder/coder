@@ -42,7 +42,7 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mitchellh/mapstructure v1.4.3
-	github.com/moby/moby v20.10.12+incompatible
+	github.com/moby/moby v20.10.13+incompatible
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
@@ -52,7 +52,7 @@ require (
 	github.com/powersj/whatsthis v1.3.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.17
 	github.com/spf13/cobra v1.4.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
 	github.com/xlab/treeprint v1.1.0
@@ -62,7 +62,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-	google.golang.org/api v0.72.0
+	google.golang.org/api v0.73.0
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.29
