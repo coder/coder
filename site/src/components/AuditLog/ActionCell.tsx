@@ -1,9 +1,16 @@
 import Box from "@material-ui/core/Box"
 import Typography from "@material-ui/core/Typography"
+import makeStyles from "@material-ui/core/styles/makeStyles"
 import React from "react"
+
+export const LANGUAGE = {
+  statusCodeFail: "failure",
+  statusCodeSuccess: "success",
+}
 
 export interface ActionCellProps {
   action: string
+  statusCode: number
 }
 export namespace ActionCellProps {
   /**
@@ -20,9 +27,20 @@ export namespace ActionCellProps {
 
     return {
       action: sanitizedAction,
+      statusCode: props.statusCode,
     }
   }
+
+  export const isSuccessStatus = (statusCode: ActionCellProps["statusCode"]): boolean => {
+    return statusCode >= 100 && statusCode < 400
+  }
 }
+
+const useStyles = makeStyles((theme) => ({
+  statusText: (isSuccess: boolean) => ({
+    color: isSuccess ? theme.palette.primary.main : theme.palette.error.main,
+  }),
+}))
 
 /**
  * ActionCell is a single cell in an audit log table row that contains
@@ -33,12 +51,17 @@ export namespace ActionCellProps {
  * Some common actions are CRUD, Open, signing in etc.
  */
 export const ActionCell: React.FC<ActionCellProps> = (props) => {
-  const { action } = ActionCellProps.validate(props)
+  const { action, statusCode } = ActionCellProps.validate(props)
+  const isSuccess = ActionCellProps.isSuccessStatus(statusCode)
+  const styles = useStyles(isSuccess)
 
   return (
-    <Box display="flex" alignItems="center">
-      <Typography color="textSecondary" variant="caption">
+    <Box alignItems="center" display="flex" flexDirection="column">
+      <Typography color="textSecondary" variant="h6">
         {action}
+      </Typography>
+      <Typography className={styles.statusText} variant="caption">
+        {isSuccess ? LANGUAGE.statusCodeSuccess : LANGUAGE.statusCodeFail}
       </Typography>
     </Box>
   )

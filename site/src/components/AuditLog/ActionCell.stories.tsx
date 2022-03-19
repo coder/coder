@@ -9,7 +9,14 @@ export default {
 
 const Template: Story<ActionCellProps> = (args) => <ActionCell {...args} />
 
-export const Example = Template.bind({})
-Example.args = {
+export const Success = Template.bind({})
+Success.args = {
   action: "create",
+  statusCode: 200,
+}
+
+export const Failure = Template.bind({})
+Failure.args = {
+  action: "create",
+  statusCode: 500,
 }
