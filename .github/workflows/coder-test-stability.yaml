@@ -8,9 +8,7 @@ on:
 
   pull_request:
     branches:
-      # TODO: Remove before merge
-      # - main
-      - "*"
+      - main
     paths:
       - .github/workflows/coder-test-stability.yaml
   workflow_dispatch:
