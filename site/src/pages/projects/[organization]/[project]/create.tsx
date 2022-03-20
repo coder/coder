@@ -3,8 +3,8 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 
+import * as Types from "../../../../api/types"
 import * as API from "../../../../api"
-import { useUser } from "../../../../contexts/UserContext"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
@@ -14,13 +14,12 @@ export const CreateWorkspacePage: React.FC = () => {
   const { organization: organizationName, project: projectName } = useParams()
   const navigate = useNavigate()
   const styles = useStyles()
-  const { me } = useUser(/* redirectOnError */ true)
 
-  const { data: organizationInfo, error: organizationError } = useSWR<API.Organization, Error>(
+  const { data: organizationInfo, error: organizationError } = useSWR<Types.Organization, Error>(
     () => `/api/v2/users/me/organizations/${organizationName}`,
   )
 
-  const { data: project, error: projectError } = useSWR<API.Project, Error>(() => {
+  const { data: project, error: projectError } = useSWR<Types.Project, Error>(() => {
     return `/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/projects/${projectName}`
   })
 
@@ -28,7 +27,7 @@ export const CreateWorkspacePage: React.FC = () => {
     navigate(`/projects/${organizationName}/${projectName}`)
   }, [navigate, organizationName, projectName])
 
-  const onSubmit = async (req: API.CreateWorkspaceRequest) => {
+  const onSubmit = async (req: Types.CreateWorkspaceRequest) => {
     const workspace = await API.Workspace.create(req)
     navigate(`/workspaces/${workspace.id}`)
     return workspace
@@ -42,7 +41,7 @@ export const CreateWorkspacePage: React.FC = () => {
     return <ErrorSummary error={projectError} />
   }
 
-  if (!me || !project) {
+  if (!project) {
     return <FullScreenLoader />
   }
 

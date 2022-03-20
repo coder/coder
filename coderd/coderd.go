@@ -29,8 +29,8 @@ type Options struct {
 
 // New constructs the Coder API into an HTTP handler.
 //
-// A wait function is returned to handle awaiting closure
-// of hijacked HTTP requests.
+// A wait function is returned to handle awaiting closure of hijacked HTTP
+// requests.
 func New(options *Options) (http.Handler, func()) {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second

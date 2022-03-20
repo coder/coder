@@ -12,7 +12,7 @@
 -- https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 -- name: AcquireProvisionerJob :one
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   started_at = @started_at,
   updated_at = @started_at,
@@ -22,7 +22,7 @@ WHERE
     SELECT
       id
     FROM
-      provisioner_job AS nested
+      provisioner_jobs AS nested
     WHERE
       nested.started_at IS NULL
       AND nested.canceled_at IS NULL
@@ -38,7 +38,7 @@ WHERE
 
 -- name: DeleteParameterValueByID :exec
 DELETE FROM
-  parameter_value
+  parameter_values
 WHERE
   id = $1;
 
@@ -56,7 +56,7 @@ LIMIT
 SELECT
   *
 FROM
-  file
+  files
 WHERE
   hash = $1
 LIMIT
@@ -137,7 +137,7 @@ LIMIT
 SELECT
   *
 FROM
-  parameter_value
+  parameter_values
 WHERE
   scope = $1
   AND scope_id = $2;
@@ -146,7 +146,7 @@ WHERE
 SELECT
   *
 FROM
-  parameter_value
+  parameter_values
 WHERE
   scope = $1
   AND scope_id = $2
@@ -158,7 +158,7 @@ LIMIT
 SELECT
   *
 FROM
-  project
+  projects
 WHERE
   id = $1
 LIMIT
@@ -168,7 +168,7 @@ LIMIT
 SELECT
   *
 FROM
-  project
+  projects
 WHERE
   id = ANY(@ids :: uuid [ ]);
 
@@ -176,7 +176,7 @@ WHERE
 SELECT
   *
 FROM
-  project
+  projects
 WHERE
   organization_id = @organization_id
   AND deleted = @deleted
@@ -188,7 +188,7 @@ LIMIT
 SELECT
   *
 FROM
-  project
+  projects
 WHERE
   organization_id = $1
   AND deleted = $2;
@@ -197,7 +197,7 @@ WHERE
 SELECT
   *
 FROM
-  parameter_schema
+  parameter_schemas
 WHERE
   job_id = $1;
 
@@ -205,7 +205,7 @@ WHERE
 SELECT
   *
 FROM
-  project_version
+  project_versions
 WHERE
   project_id = $1 :: uuid;
 
@@ -213,7 +213,7 @@ WHERE
 SELECT
   *
 FROM
-  project_version
+  project_versions
 WHERE
   job_id = $1;
 
@@ -221,7 +221,7 @@ WHERE
 SELECT
   *
 FROM
-  project_version
+  project_versions
 WHERE
   project_id = $1
   AND name = $2;
@@ -230,7 +230,7 @@ WHERE
 SELECT
   *
 FROM
-  project_version
+  project_versions
 WHERE
   id = $1;
 
@@ -238,7 +238,7 @@ WHERE
 SELECT
   *
 FROM
-  provisioner_job_log
+  provisioner_job_logs
 WHERE
   job_id = @job_id
   AND (
@@ -252,7 +252,7 @@ ORDER BY
 SELECT
   *
 FROM
-  provisioner_daemon
+  provisioner_daemons
 WHERE
   id = $1;
 
@@ -260,13 +260,13 @@ WHERE
 SELECT
   *
 FROM
-  provisioner_daemon;
+  provisioner_daemons;
 
 -- name: GetWorkspaceAgentByAuthToken :one
 SELECT
   *
 FROM
-  workspace_agent
+  workspace_agents
 WHERE
   auth_token = $1
 ORDER BY
@@ -276,7 +276,7 @@ ORDER BY
 SELECT
   *
 FROM
-  workspace_agent
+  workspace_agents
 WHERE
   auth_instance_id = @auth_instance_id :: text
 ORDER BY
@@ -286,7 +286,7 @@ ORDER BY
 SELECT
   *
 FROM
-  provisioner_job
+  provisioner_jobs
 WHERE
   id = $1;
 
@@ -294,7 +294,7 @@ WHERE
 SELECT
   *
 FROM
-  provisioner_job
+  provisioner_jobs
 WHERE
   id = ANY(@ids :: uuid [ ]);
 
@@ -302,7 +302,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace
+  workspaces
 WHERE
   id = $1
 LIMIT
@@ -312,7 +312,7 @@ LIMIT
 SELECT
   *
 FROM
-  workspace
+  workspaces
 WHERE
   project_id = $1
   AND deleted = $2;
@@ -321,7 +321,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace
+  workspaces
 WHERE
   owner_id = $1
   AND deleted = $2;
@@ -330,7 +330,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace
+  workspaces
 WHERE
   owner_id = @owner_id
   AND deleted = @deleted
@@ -341,7 +341,7 @@ SELECT
   project_id,
   COUNT(DISTINCT owner_id)
 FROM
-  workspace
+  workspaces
 WHERE
   project_id = ANY(@ids :: uuid [ ])
 GROUP BY
@@ -352,7 +352,7 @@ GROUP BY
 SELECT
   *
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   id = $1
 LIMIT
@@ -362,7 +362,7 @@ LIMIT
 SELECT
   *
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   job_id = $1
 LIMIT
@@ -372,7 +372,7 @@ LIMIT
 SELECT
   *
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = $1
   AND name = $2;
@@ -381,7 +381,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = $1;
 
@@ -389,7 +389,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = $1
   AND after_id IS NULL
@@ -400,7 +400,7 @@ LIMIT
 SELECT
   *
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = ANY(@ids :: uuid [ ])
   AND after_id IS NULL;
@@ -409,7 +409,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace_resource
+  workspace_resources
 WHERE
   id = $1;
 
@@ -417,7 +417,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace_resource
+  workspace_resources
 WHERE
   job_id = $1;
 
@@ -425,7 +425,7 @@ WHERE
 SELECT
   *
 FROM
-  workspace_agent
+  workspace_agents
 WHERE
   resource_id = $1;
 
@@ -469,13 +469,13 @@ VALUES
 
 -- name: InsertFile :one
 INSERT INTO
-  file (hash, created_at, created_by, mimetype, data)
+  files (hash, created_at, created_by, mimetype, data)
 VALUES
   ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertProvisionerJobLogs :many
 INSERT INTO
-  provisioner_job_log
+  provisioner_job_logs
 SELECT
   unnest(@id :: uuid [ ]) AS id,
   @job_id :: uuid AS job_id,
@@ -504,7 +504,7 @@ VALUES
 
 -- name: InsertParameterValue :one
 INSERT INTO
-  parameter_value (
+  parameter_values (
     id,
     name,
     created_at,
@@ -520,7 +520,7 @@ VALUES
 
 -- name: InsertProject :one
 INSERT INTO
-  project (
+  projects (
     id,
     created_at,
     updated_at,
@@ -534,7 +534,7 @@ VALUES
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO
-  workspace_resource (
+  workspace_resources (
     id,
     created_at,
     job_id,
@@ -549,7 +549,7 @@ VALUES
 
 -- name: InsertProjectVersion :one
 INSERT INTO
-  project_version (
+  project_versions (
     id,
     project_id,
     organization_id,
@@ -564,7 +564,7 @@ VALUES
 
 -- name: InsertParameterSchema :one
 INSERT INTO
-  parameter_schema (
+  parameter_schemas (
     id,
     created_at,
     job_id,
@@ -604,13 +604,13 @@ VALUES
 
 -- name: InsertProvisionerDaemon :one
 INSERT INTO
-  provisioner_daemon (id, created_at, organization_id, name, provisioners)
+  provisioner_daemons (id, created_at, organization_id, name, provisioners)
 VALUES
   ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: InsertProvisionerJob :one
 INSERT INTO
-  provisioner_job (
+  provisioner_jobs (
     id,
     created_at,
     updated_at,
@@ -643,7 +643,7 @@ VALUES
 
 -- name: InsertWorkspace :one
 INSERT INTO
-  workspace (
+  workspaces (
     id,
     created_at,
     updated_at,
@@ -656,7 +656,7 @@ VALUES
 
 -- name: InsertWorkspaceAgent :one
 INSERT INTO
-  workspace_agent (
+  workspace_agents (
     id,
     created_at,
     updated_at,
@@ -673,7 +673,7 @@ VALUES
 
 -- name: InsertWorkspaceBuild :one
 INSERT INTO
-  workspace_build (
+  workspace_builds (
     id,
     created_at,
     updated_at,
@@ -703,7 +703,7 @@ WHERE
 
 -- name: UpdateProjectActiveVersionByID :exec
 UPDATE
-  project
+  projects
 SET
   active_version_id = $2
 WHERE
@@ -711,7 +711,7 @@ WHERE
 
 -- name: UpdateProjectDeletedByID :exec
 UPDATE
-  project
+  projects
 SET
   deleted = $2
 WHERE
@@ -719,7 +719,7 @@ WHERE
 
 -- name: UpdateProjectVersionByID :exec
 UPDATE
-  project_version
+  project_versions
 SET
   project_id = $2,
   updated_at = $3
@@ -728,7 +728,7 @@ WHERE
 
 -- name: UpdateProvisionerDaemonByID :exec
 UPDATE
-  provisioner_daemon
+  provisioner_daemons
 SET
   updated_at = $2,
   provisioners = $3
@@ -737,7 +737,7 @@ WHERE
 
 -- name: UpdateProvisionerJobByID :exec
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   updated_at = $2
 WHERE
@@ -745,7 +745,7 @@ WHERE
 
 -- name: UpdateProvisionerJobWithCancelByID :exec
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   canceled_at = $2
 WHERE
@@ -753,7 +753,7 @@ WHERE
 
 -- name: UpdateProvisionerJobWithCompleteByID :exec
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   updated_at = $2,
   completed_at = $3,
@@ -764,7 +764,7 @@ WHERE
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
-  workspace
+  workspaces
 SET
   deleted = $2
 WHERE
@@ -772,7 +772,7 @@ WHERE
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
-  workspace_agent
+  workspace_agents
 SET
   first_connected_at = $2,
   last_connected_at = $3,
@@ -782,7 +782,7 @@ WHERE
 
 -- name: UpdateWorkspaceBuildByID :exec
 UPDATE
-  workspace_build
+  workspace_builds
 SET
   updated_at = $2,
   after_id = $3,

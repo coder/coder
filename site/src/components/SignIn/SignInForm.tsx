@@ -1,14 +1,11 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
-import { Location } from "history"
-import { useNavigate, useLocation } from "react-router-dom"
 import React from "react"
-import { useSWRConfig } from "swr"
 import * as Yup from "yup"
 
 import { Welcome } from "./Welcome"
 import { FormTextField } from "../Form"
-import * as API from "./../../api"
+import FormHelperText from "@material-ui/core/FormHelperText"
 import { LoadingButton } from "./../Button"
 
 /**
@@ -40,17 +37,14 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export interface SignInProps {
-  loginHandler?: (email: string, password: string) => Promise<void>
+export interface SignInFormProps {
+  isLoading: boolean
+  authErrorMessage?: string
+  onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
 }
 
-export const SignInForm: React.FC<SignInProps> = ({
-  loginHandler = (email: string, password: string) => API.login(email, password),
-}) => {
-  const navigate = useNavigate()
-  const location = useLocation()
+export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMessage, onSubmit }) => {
   const styles = useStyles()
-  const { mutate } = useSWRConfig()
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
     initialValues: {
@@ -58,18 +52,7 @@ export const SignInForm: React.FC<SignInProps> = ({
       password: "",
     },
     validationSchema,
-    onSubmit: async ({ email, password }, helpers) => {
-      try {
-        await loginHandler(email, password)
-        // Tell SWR to invalidate the cache for the user endpoint
-        await mutate("/api/v2/users/me")
-
-        const redirect = getRedirectFromLocation(location)
-        await navigate(redirect)
-      } catch (err) {
-        helpers.setFieldError("password", "The username or password is incorrect.")
-      }
-    },
+    onSubmit,
   })
 
   return (
@@ -104,28 +87,25 @@ export const SignInForm: React.FC<SignInProps> = ({
             placeholder="Password"
             variant="outlined"
           />
+          {authErrorMessage && (
+            <FormHelperText data-testid="sign-in-error" error>
+              {authErrorMessage}
+            </FormHelperText>
+          )}
         </div>
         <div className={styles.submitBtn}>
           <LoadingButton
             color="primary"
-            loading={form.isSubmitting}
+            loading={isLoading}
             fullWidth
             id="signin-form-submit"
             type="submit"
             variant="contained"
           >
-            Sign In
+            {isLoading ? "" : "Sign In"}
           </LoadingButton>
         </div>
       </form>
     </>
   )
-}
-
-const getRedirectFromLocation = (location: Location) => {
-  const defaultRedirect = "/"
-
-  const searchParams = new URLSearchParams(location.search)
-  const redirect = searchParams.get("redirect")
-  return redirect ? redirect : defaultRedirect
 }

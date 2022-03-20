@@ -4,7 +4,7 @@ import { Workspace, WorkspaceProps } from "./Workspace"
 import { MockOrganization, MockProject, MockWorkspace } from "../../test_helpers"
 
 export default {
-  title: "Workspace",
+  title: "Workspaces/Workspace",
   component: Workspace,
   argTypes: {},
 }

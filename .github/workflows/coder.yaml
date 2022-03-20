@@ -79,7 +79,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
-          version: "3.6.1"
+          version: "3.19.4"
       - uses: actions/setup-go@v2
         with:
           go-version: "^1.17"

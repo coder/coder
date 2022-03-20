@@ -16,7 +16,7 @@ import (
 
 const acquireProvisionerJob = `-- name: AcquireProvisionerJob :one
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   started_at = $1,
   updated_at = $1,
@@ -26,7 +26,7 @@ WHERE
     SELECT
       id
     FROM
-      provisioner_job AS nested
+      provisioner_jobs AS nested
     WHERE
       nested.started_at IS NULL
       AND nested.canceled_at IS NULL
@@ -78,7 +78,7 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 
 const deleteParameterValueByID = `-- name: DeleteParameterValueByID :exec
 DELETE FROM
-  parameter_value
+  parameter_values
 WHERE
   id = $1
 `
@@ -126,7 +126,7 @@ const getFileByHash = `-- name: GetFileByHash :one
 SELECT
   hash, created_at, created_by, mimetype, data
 FROM
-  file
+  files
 WHERE
   hash = $1
 LIMIT
@@ -286,7 +286,7 @@ const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
 SELECT
   id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type
 FROM
-  parameter_schema
+  parameter_schemas
 WHERE
   job_id = $1
 `
@@ -335,7 +335,7 @@ const getParameterValueByScopeAndName = `-- name: GetParameterValueByScopeAndNam
 SELECT
   id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
 FROM
-  parameter_value
+  parameter_values
 WHERE
   scope = $1
   AND scope_id = $2
@@ -371,7 +371,7 @@ const getParameterValuesByScope = `-- name: GetParameterValuesByScope :many
 SELECT
   id, created_at, updated_at, scope, scope_id, name, source_scheme, source_value, destination_scheme
 FROM
-  parameter_value
+  parameter_values
 WHERE
   scope = $1
   AND scope_id = $2
@@ -419,7 +419,7 @@ const getProjectByID = `-- name: GetProjectByID :one
 SELECT
   id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id
 FROM
-  project
+  projects
 WHERE
   id = $1
 LIMIT
@@ -446,7 +446,7 @@ const getProjectByOrganizationAndName = `-- name: GetProjectByOrganizationAndNam
 SELECT
   id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id
 FROM
-  project
+  projects
 WHERE
   organization_id = $1
   AND deleted = $2
@@ -481,7 +481,7 @@ const getProjectVersionByID = `-- name: GetProjectVersionByID :one
 SELECT
   id, project_id, organization_id, created_at, updated_at, name, description, job_id
 FROM
-  project_version
+  project_versions
 WHERE
   id = $1
 `
@@ -506,7 +506,7 @@ const getProjectVersionByJobID = `-- name: GetProjectVersionByJobID :one
 SELECT
   id, project_id, organization_id, created_at, updated_at, name, description, job_id
 FROM
-  project_version
+  project_versions
 WHERE
   job_id = $1
 `
@@ -531,7 +531,7 @@ const getProjectVersionByProjectIDAndName = `-- name: GetProjectVersionByProject
 SELECT
   id, project_id, organization_id, created_at, updated_at, name, description, job_id
 FROM
-  project_version
+  project_versions
 WHERE
   project_id = $1
   AND name = $2
@@ -562,7 +562,7 @@ const getProjectVersionsByProjectID = `-- name: GetProjectVersionsByProjectID :m
 SELECT
   id, project_id, organization_id, created_at, updated_at, name, description, job_id
 FROM
-  project_version
+  project_versions
 WHERE
   project_id = $1 :: uuid
 `
@@ -603,7 +603,7 @@ const getProjectsByIDs = `-- name: GetProjectsByIDs :many
 SELECT
   id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id
 FROM
-  project
+  projects
 WHERE
   id = ANY($1 :: uuid [ ])
 `
@@ -644,7 +644,7 @@ const getProjectsByOrganization = `-- name: GetProjectsByOrganization :many
 SELECT
   id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id
 FROM
-  project
+  projects
 WHERE
   organization_id = $1
   AND deleted = $2
@@ -691,7 +691,7 @@ const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
 SELECT
   id, created_at, updated_at, organization_id, name, provisioners
 FROM
-  provisioner_daemon
+  provisioner_daemons
 WHERE
   id = $1
 `
@@ -714,7 +714,7 @@ const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
   id, created_at, updated_at, organization_id, name, provisioners
 FROM
-  provisioner_daemon
+  provisioner_daemons
 `
 
 func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
@@ -751,7 +751,7 @@ const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
   id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 FROM
-  provisioner_job
+  provisioner_jobs
 WHERE
   id = $1
 `
@@ -783,7 +783,7 @@ const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
   id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, storage_source, type, input, worker_id
 FROM
-  provisioner_job
+  provisioner_jobs
 WHERE
   id = ANY($1 :: uuid [ ])
 `
@@ -831,7 +831,7 @@ const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :m
 SELECT
   id, job_id, created_at, source, level, output
 FROM
-  provisioner_job_log
+  provisioner_job_logs
 WHERE
   job_id = $1
   AND (
@@ -978,7 +978,7 @@ const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
   id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 FROM
-  workspace_agent
+  workspace_agents
 WHERE
   auth_token = $1
 ORDER BY
@@ -1010,7 +1010,7 @@ const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :o
 SELECT
   id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 FROM
-  workspace_agent
+  workspace_agents
 WHERE
   auth_instance_id = $1 :: text
 ORDER BY
@@ -1042,7 +1042,7 @@ const getWorkspaceAgentByResourceID = `-- name: GetWorkspaceAgentByResourceID :o
 SELECT
   id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
 FROM
-  workspace_agent
+  workspace_agents
 WHERE
   resource_id = $1
 `
@@ -1072,7 +1072,7 @@ const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
   id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   id = $1
 LIMIT
@@ -1103,7 +1103,7 @@ const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
   id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   job_id = $1
 LIMIT
@@ -1134,7 +1134,7 @@ const getWorkspaceBuildByWorkspaceID = `-- name: GetWorkspaceBuildByWorkspaceID 
 SELECT
   id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = $1
 `
@@ -1179,7 +1179,7 @@ const getWorkspaceBuildByWorkspaceIDAndName = `-- name: GetWorkspaceBuildByWorks
 SELECT
   id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = $1
   AND name = $2
@@ -1214,7 +1214,7 @@ const getWorkspaceBuildByWorkspaceIDWithoutAfter = `-- name: GetWorkspaceBuildBy
 SELECT
   id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = $1
   AND after_id IS NULL
@@ -1246,7 +1246,7 @@ const getWorkspaceBuildsByWorkspaceIDsWithoutAfter = `-- name: GetWorkspaceBuild
 SELECT
   id, created_at, updated_at, workspace_id, project_version_id, name, before_id, after_id, transition, initiator, provisioner_state, job_id
 FROM
-  workspace_build
+  workspace_builds
 WHERE
   workspace_id = ANY($1 :: uuid [ ])
   AND after_id IS NULL
@@ -1292,7 +1292,7 @@ const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
   id, created_at, updated_at, owner_id, project_id, deleted, name
 FROM
-  workspace
+  workspaces
 WHERE
   id = $1
 LIMIT
@@ -1318,7 +1318,7 @@ const getWorkspaceByUserIDAndName = `-- name: GetWorkspaceByUserIDAndName :one
 SELECT
   id, created_at, updated_at, owner_id, project_id, deleted, name
 FROM
-  workspace
+  workspaces
 WHERE
   owner_id = $1
   AND deleted = $2
@@ -1351,7 +1351,7 @@ SELECT
   project_id,
   COUNT(DISTINCT owner_id)
 FROM
-  workspace
+  workspaces
 WHERE
   project_id = ANY($1 :: uuid [ ])
 GROUP BY
@@ -1391,7 +1391,7 @@ const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
   id, created_at, job_id, transition, address, type, name, agent_id
 FROM
-  workspace_resource
+  workspace_resources
 WHERE
   id = $1
 `
@@ -1416,7 +1416,7 @@ const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :man
 SELECT
   id, created_at, job_id, transition, address, type, name, agent_id
 FROM
-  workspace_resource
+  workspace_resources
 WHERE
   job_id = $1
 `
@@ -1457,7 +1457,7 @@ const getWorkspacesByProjectID = `-- name: GetWorkspacesByProjectID :many
 SELECT
   id, created_at, updated_at, owner_id, project_id, deleted, name
 FROM
-  workspace
+  workspaces
 WHERE
   project_id = $1
   AND deleted = $2
@@ -1503,7 +1503,7 @@ const getWorkspacesByUserID = `-- name: GetWorkspacesByUserID :many
 SELECT
   id, created_at, updated_at, owner_id, project_id, deleted, name
 FROM
-  workspace
+  workspaces
 WHERE
   owner_id = $1
   AND deleted = $2
@@ -1643,7 +1643,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 
 const insertFile = `-- name: InsertFile :one
 INSERT INTO
-  file (hash, created_at, created_by, mimetype, data)
+  files (hash, created_at, created_by, mimetype, data)
 VALUES
   ($1, $2, $3, $4, $5) RETURNING hash, created_at, created_by, mimetype, data
 `
@@ -1756,7 +1756,7 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 
 const insertParameterSchema = `-- name: InsertParameterSchema :one
 INSERT INTO
-  parameter_schema (
+  parameter_schemas (
     id,
     created_at,
     job_id,
@@ -1857,7 +1857,7 @@ func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParame
 
 const insertParameterValue = `-- name: InsertParameterValue :one
 INSERT INTO
-  parameter_value (
+  parameter_values (
     id,
     name,
     created_at,
@@ -1913,7 +1913,7 @@ func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParamet
 
 const insertProject = `-- name: InsertProject :one
 INSERT INTO
-  project (
+  projects (
     id,
     created_at,
     updated_at,
@@ -1962,7 +1962,7 @@ func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams)
 
 const insertProjectVersion = `-- name: InsertProjectVersion :one
 INSERT INTO
-  project_version (
+  project_versions (
     id,
     project_id,
     organization_id,
@@ -2014,7 +2014,7 @@ func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProject
 
 const insertProvisionerDaemon = `-- name: InsertProvisionerDaemon :one
 INSERT INTO
-  provisioner_daemon (id, created_at, organization_id, name, provisioners)
+  provisioner_daemons (id, created_at, organization_id, name, provisioners)
 VALUES
   ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at, organization_id, name, provisioners
 `
@@ -2049,7 +2049,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 
 const insertProvisionerJob = `-- name: InsertProvisionerJob :one
 INSERT INTO
-  provisioner_job (
+  provisioner_jobs (
     id,
     created_at,
     updated_at,
@@ -2114,7 +2114,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 
 const insertProvisionerJobLogs = `-- name: InsertProvisionerJobLogs :many
 INSERT INTO
-  provisioner_job_log
+  provisioner_job_logs
 SELECT
   unnest($1 :: uuid [ ]) AS id,
   $2 :: uuid AS job_id,
@@ -2236,7 +2236,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 
 const insertWorkspace = `-- name: InsertWorkspace :one
 INSERT INTO
-  workspace (
+  workspaces (
     id,
     created_at,
     updated_at,
@@ -2281,7 +2281,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 
 const insertWorkspaceAgent = `-- name: InsertWorkspaceAgent :one
 INSERT INTO
-  workspace_agent (
+  workspace_agents (
     id,
     created_at,
     updated_at,
@@ -2344,7 +2344,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 
 const insertWorkspaceBuild = `-- name: InsertWorkspaceBuild :one
 INSERT INTO
-  workspace_build (
+  workspace_builds (
     id,
     created_at,
     updated_at,
@@ -2409,7 +2409,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
-  workspace_resource (
+  workspace_resources (
     id,
     created_at,
     job_id,
@@ -2495,7 +2495,7 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const updateProjectActiveVersionByID = `-- name: UpdateProjectActiveVersionByID :exec
 UPDATE
-  project
+  projects
 SET
   active_version_id = $2
 WHERE
@@ -2514,7 +2514,7 @@ func (q *sqlQuerier) UpdateProjectActiveVersionByID(ctx context.Context, arg Upd
 
 const updateProjectDeletedByID = `-- name: UpdateProjectDeletedByID :exec
 UPDATE
-  project
+  projects
 SET
   deleted = $2
 WHERE
@@ -2533,7 +2533,7 @@ func (q *sqlQuerier) UpdateProjectDeletedByID(ctx context.Context, arg UpdatePro
 
 const updateProjectVersionByID = `-- name: UpdateProjectVersionByID :exec
 UPDATE
-  project_version
+  project_versions
 SET
   project_id = $2,
   updated_at = $3
@@ -2554,7 +2554,7 @@ func (q *sqlQuerier) UpdateProjectVersionByID(ctx context.Context, arg UpdatePro
 
 const updateProvisionerDaemonByID = `-- name: UpdateProvisionerDaemonByID :exec
 UPDATE
-  provisioner_daemon
+  provisioner_daemons
 SET
   updated_at = $2,
   provisioners = $3
@@ -2575,7 +2575,7 @@ func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg Update
 
 const updateProvisionerJobByID = `-- name: UpdateProvisionerJobByID :exec
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   updated_at = $2
 WHERE
@@ -2594,7 +2594,7 @@ func (q *sqlQuerier) UpdateProvisionerJobByID(ctx context.Context, arg UpdatePro
 
 const updateProvisionerJobWithCancelByID = `-- name: UpdateProvisionerJobWithCancelByID :exec
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   canceled_at = $2
 WHERE
@@ -2613,7 +2613,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg
 
 const updateProvisionerJobWithCompleteByID = `-- name: UpdateProvisionerJobWithCompleteByID :exec
 UPDATE
-  provisioner_job
+  provisioner_jobs
 SET
   updated_at = $2,
   completed_at = $3,
@@ -2644,7 +2644,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
-  workspace_agent
+  workspace_agents
 SET
   first_connected_at = $2,
   last_connected_at = $3,
@@ -2672,7 +2672,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 
 const updateWorkspaceBuildByID = `-- name: UpdateWorkspaceBuildByID :exec
 UPDATE
-  workspace_build
+  workspace_builds
 SET
   updated_at = $2,
   after_id = $3,
@@ -2700,7 +2700,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 
 const updateWorkspaceDeletedByID = `-- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
-  workspace
+  workspaces
 SET
   deleted = $2
 WHERE
