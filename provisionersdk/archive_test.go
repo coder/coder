@@ -32,6 +32,6 @@ func TestUntar(t *testing.T) {
 	dir = t.TempDir()
 	err = provisionersdk.Untar(dir, archive)
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dir, file.Name()))
+	_, err = os.Stat(filepath.Join(dir, filepath.Base(file.Name())))
 	require.NoError(t, err)
 }
