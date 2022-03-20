@@ -1262,6 +1262,16 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
+"@fontsource/fira-code@4.5.5":
+  version "4.5.5"
+  resolved "https://registry.yarnpkg.com/@fontsource/fira-code/-/fira-code-4.5.5.tgz#6e3ccb1095e3411d2c62b8f8cefb546b973c6eb9"
+  integrity sha512-bwsPmA5HW11SR0oIkgqSJYI3A8KP8aQLRCCH/EnR9gLHRuTFi1iG7GQ3wDTKy/AhECQJAKjXZ+mkVKlMxUaYCQ==
+
+"@fontsource/inter@4.5.4":
+  version "4.5.4"
+  resolved "https://registry.yarnpkg.com/@fontsource/inter/-/inter-4.5.4.tgz#d6906fdaaf81242d975a1f9b6dedab7bfba77997"
+  integrity sha512-D0icTFpt9bWvB/OEXMztYf0bhUQZoDIYpsco5C7GVfxgKDRl8Jdn3N2aHHQqwjgRUUvRuyMv8HrRM8Hrt4U52w==
+
 "@gar/promisify@^1.0.1":
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@gar/promisify/-/promisify-1.1.2.tgz#30aa825f11d438671d585bd44e7fd564535fc210"
