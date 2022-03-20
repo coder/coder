@@ -30,7 +30,7 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 		completed = false
 		job       codersdk.ProvisionerJob
 	)
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), fmt.Sprintf("%s%s %s", Styles.FocusedPrompt, opts.Title, Styles.Placeholder.Render("(ctrl+c to cancel)")))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s%s %s\n", Styles.FocusedPrompt, opts.Title, Styles.Placeholder.Render("(ctrl+c to cancel)"))
 
 	spin.Writer = cmd.OutOrStdout()
 	defer spin.Stop()
@@ -46,7 +46,7 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 
 		if !started && job.StartedAt != nil {
 			spin.Stop()
-			fmt.Fprintf(cmd.OutOrStdout(), Styles.Prompt.String()+"Started "+Styles.Placeholder.Render("[%dms]")+"\n", job.StartedAt.Sub(job.CreatedAt).Milliseconds())
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Styles.Prompt.String()+"Started "+Styles.Placeholder.Render("[%dms]")+"\n", job.StartedAt.Sub(job.CreatedAt).Milliseconds())
 			spin.Start()
 			started = true
 		}
@@ -65,7 +65,7 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 			if job.StartedAt != nil {
 				started = *job.StartedAt
 			}
-			fmt.Fprintf(cmd.OutOrStderr(), Styles.Prompt.String()+msg+" "+Styles.Placeholder.Render("[%dms]")+"\n", job.CompletedAt.Sub(started).Milliseconds())
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), Styles.Prompt.String()+msg+" "+Styles.Placeholder.Render("[%dms]")+"\n", job.CompletedAt.Sub(started).Milliseconds())
 			spin.Start()
 			completed = true
 		}
@@ -95,11 +95,11 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 			}
 		}
 		spin.Stop()
-		fmt.Fprintf(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+"Gracefully canceling... wait for exit or data loss may occur!\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+"Gracefully canceling... wait for exit or data loss may occur!\n")
 		spin.Start()
 		err := opts.Cancel()
 		if err != nil {
-			fmt.Fprintf(cmd.OutOrStdout(), "Failed to cancel %s...\n", err)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Failed to cancel %s...\n", err)
 		}
 		refresh()
 	}()
@@ -143,7 +143,7 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 			case database.LogLevelInfo:
 				style = defaultStyles.Note
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), fmt.Sprintf("%s %s %s", Styles.Placeholder.Render("|"), style.Render(string(log.Level)), log.Output))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s %s\n", Styles.Placeholder.Render("|"), style.Render(string(log.Level)), log.Output)
 			spin.Start()
 		}
 	}

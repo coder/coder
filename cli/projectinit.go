@@ -5,10 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/cobra"
+
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisionersdk"
-	"github.com/spf13/cobra"
 )
 
 func projectInit() *cobra.Command {

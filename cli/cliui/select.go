@@ -2,7 +2,6 @@ package cliui
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"text/template"
@@ -50,7 +49,7 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 			Inactive: "  {{ . }}",
 			Label:    "{{.}}",
 			Selected: "{{ \"\" }}",
-			Help:     fmt.Sprintf(`{{ "Use" | faint }} {{ .SearchKey | faint }} {{ "to toggle search" | faint }}`),
+			Help:     `{{ "Use" | faint }} {{ .SearchKey | faint }} {{ "to toggle search" | faint }}`,
 		},
 		HideSelected: true,
 	}
@@ -69,6 +68,6 @@ type writeCloser struct {
 	io.Writer
 }
 
-func (w *writeCloser) Close() error {
+func (*writeCloser) Close() error {
 	return nil
 }

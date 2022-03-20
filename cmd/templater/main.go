@@ -159,7 +159,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		return xerrors.Errorf("Job wasn't successful, it was %q. Check the logs!", version.Job.Status)
 	}
 
-	resources, err := client.ProjectVersionResources(cmd.Context(), version.ID)
+	_, err = client.ProjectVersionResources(cmd.Context(), version.ID)
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
 	}
 
-	resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
+	resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 	if err != nil {
 		return err
 	}

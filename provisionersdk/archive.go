@@ -72,6 +72,7 @@ func Untar(directory string, archive []byte) error {
 		if err != nil {
 			return err
 		}
+		// #nosec
 		target := filepath.Join(directory, header.Name)
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -81,14 +82,16 @@ func Untar(directory string, archive []byte) error {
 				}
 			}
 		case tar.TypeReg:
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(f, reader); err != nil {
+			// Max file size of 10MB.
+			_, err = io.CopyN(file, reader, (1<<20)*10)
+			if err != nil {
 				return err
 			}
-			_ = f.Close()
+			_ = file.Close()
 		}
 	}
 }

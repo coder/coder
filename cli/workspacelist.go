@@ -5,9 +5,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/coder/coder/cli/cliui"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func workspaceList() *cobra.Command {

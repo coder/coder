@@ -42,11 +42,7 @@ func projects() *cobra.Command {
 	return cmd
 }
 
-func displayProjectVersionInfo(cmd *cobra.Command, parameterSchemas []codersdk.ProjectVersionParameterSchema, parameterValues []codersdk.ProjectVersionParameter, resources []codersdk.WorkspaceResource) error {
-	schemaByID := map[string]codersdk.ProjectVersionParameterSchema{}
-	for _, schema := range parameterSchemas {
-		schemaByID[schema.ID.String()] = schema
-	}
+func displayProjectVersionInfo(cmd *cobra.Command, resources []codersdk.WorkspaceResource) error {
 	sort.Slice(resources, func(i, j int) bool {
 		return fmt.Sprintf("%s.%s", resources[i].Type, resources[i].Name) < fmt.Sprintf("%s.%s", resources[j].Type, resources[j].Name)
 	})
@@ -81,7 +77,7 @@ func displayProjectVersionInfo(cmd *cobra.Command, parameterSchemas []codersdk.P
 		if resource.Agent != nil {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Fuschia.Render("▲ allows ssh"))
 		}
-		fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintln(cmd.OutOrStdout())
 	}
 	return nil
 }

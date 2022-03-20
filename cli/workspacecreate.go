@@ -71,8 +71,8 @@ func workspaceCreate() *cobra.Command {
 				}
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout())
-			fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Creating with the "+cliui.Styles.Field.Render(project.Name)+" project...")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Creating with the "+cliui.Styles.Field.Render(project.Name)+" project...")
 
 			workspaceName := args[0]
 			_, err = client.WorkspaceByName(cmd.Context(), "", workspaceName)
@@ -96,7 +96,7 @@ func workspaceCreate() *cobra.Command {
 					continue
 				}
 				if !printed {
-					fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This project has customizable parameters! These can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This project has customizable parameters! These can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 					printed = true
 				}
 
@@ -112,20 +112,15 @@ func workspaceCreate() *cobra.Command {
 				})
 			}
 			if printed {
-				fmt.Fprintln(cmd.OutOrStdout())
-				fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.FocusedPrompt.String()+"Previewing resources...")
-				fmt.Fprintln(cmd.OutOrStdout())
-			}
-
-			parameterValues, err := client.ProjectVersionParameters(cmd.Context(), projectVersion.ID)
-			if err != nil {
-				return err
+				_, _ = fmt.Fprintln(cmd.OutOrStdout())
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.FocusedPrompt.String()+"Previewing resources...")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout())
 			}
 			resources, err := client.ProjectVersionResources(cmd.Context(), projectVersion.ID)
 			if err != nil {
 				return err
 			}
-			err = displayProjectVersionInfo(cmd, parameterSchemas, parameterValues, resources)
+			err = displayProjectVersionInfo(cmd, resources)
 			if err != nil {
 				return err
 			}
@@ -171,15 +166,15 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond, spinner.WithColor("fgGreen"))
+			spin.Writer = cmd.OutOrStdout()
+			spin.Suffix = " Waiting for agent to connect..."
+			spin.Start()
+			defer spin.Stop()
 			for _, resource := range resources {
 				if resource.Agent == nil {
 					continue
 				}
-				spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond, spinner.WithColor("fgGreen"))
-				spin.Writer = cmd.OutOrStdout()
-				spin.Suffix = " Waiting for agent to connect..."
-				spin.Start()
-				defer spin.Stop()
 				ticker := time.NewTicker(1 * time.Second)
 				for {
 					select {
@@ -195,11 +190,9 @@ func workspaceCreate() *cobra.Command {
 						continue
 					}
 					spin.Stop()
-					fmt.Fprintln(cmd.OutOrStdout())
-					fmt.Fprintln(cmd.OutOrStdout(), fmt.Sprintf("The %s workspace has been created!", cliui.Styles.Keyword.Render(workspace.Name)))
-					fmt.Fprintln(cmd.OutOrStdout())
-					fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder ssh "+workspace.Name))
-					fmt.Fprintln(cmd.OutOrStdout())
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created!\n\n", cliui.Styles.Keyword.Render(workspace.Name))
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder ssh "+workspace.Name))
+					_, _ = fmt.Fprintln(cmd.OutOrStdout())
 					break
 				}
 			}

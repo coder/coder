@@ -98,7 +98,7 @@ func projectCreate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), fmt.Sprintf("The %s project has been created!", projectName))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "The %s project has been created!\n", projectName)
 			return nil
 		},
 	}
@@ -172,11 +172,7 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 			missingSchemas = append(missingSchemas, parameterSchema)
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This project has required variables! They are scoped to the project, and not viewable after being set.")+"\r\n")
-		for _, parameterSchema := range parameterSchemas {
-			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
-			if ok {
-				continue
-			}
+		for _, parameterSchema := range missingSchemas {
 			value, err := cliui.ParameterSchema(cmd, parameterSchema)
 			if err != nil {
 				return nil, nil, err
@@ -202,5 +198,5 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 	if err != nil {
 		return nil, nil, err
 	}
-	return &version, parameters, displayProjectVersionInfo(cmd, parameterSchemas, parameterValues, resources)
+	return &version, parameters, displayProjectVersionInfo(cmd, resources)
 }

@@ -84,7 +84,7 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		return "", cmd.Context().Err()
 	case <-interrupt:
 		// Print a newline so that any further output starts properly on a new line.
-		fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintln(cmd.OutOrStdout())
 		return "", Canceled
 	}
 }

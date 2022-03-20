@@ -15,6 +15,7 @@ import (
 func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Production", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		go cancelFunc()
 		root, _ := clitest.New(t, "start", "--address", ":0")
@@ -22,6 +23,7 @@ func TestStart(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 	})
 	t.Run("Development", func(t *testing.T) {
+		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		root, cfg := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0")

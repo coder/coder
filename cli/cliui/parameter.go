@@ -27,14 +27,14 @@ func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.ProjectVersion
 	var value string
 	if len(options) > 0 {
 		// Move the cursor up a single line for nicer display!
-		fmt.Fprint(cmd.OutOrStdout(), "\033[1A")
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\033[1A")
 		value, err = Select(cmd, SelectOptions{
 			Options:    options,
 			HideSearch: true,
 		})
 		if err == nil {
-			fmt.Fprintln(cmd.OutOrStdout())
-			fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(value))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(value))
 		}
 	} else {
 		value, err = Prompt(cmd, PromptOptions{
