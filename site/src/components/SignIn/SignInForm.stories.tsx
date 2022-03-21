@@ -1,16 +1,30 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { SignInForm, SignInProps } from "./SignInForm"
+import { SignInForm, SignInFormProps } from "./SignInForm"
 
 export default {
   title: "SignIn/SignInForm",
   component: SignInForm,
   argTypes: {
-    loginHandler: { action: "Login" },
+    isLoading: "boolean",
+    authErrorMessage: "string",
+    onSubmit: { action: "Submit" },
   },
 }
 
-const Template: Story<SignInProps> = (args) => <SignInForm {...args} />
+const Template: Story<SignInFormProps> = (args: SignInFormProps) => <SignInForm {...args} />
 
-export const Example = Template.bind({})
-Example.args = {}
+export const SignedOut = Template.bind({})
+SignedOut.args = {
+  isLoading: false,
+  authErrorMessage: undefined,
+  onSubmit: () => {
+    return Promise.resolve()
+  },
+}
+
+export const Loading = Template.bind({})
+Loading.args = { ...SignedOut.args, isLoading: true }
+
+export const WithError = Template.bind({})
+WithError.args = { ...SignedOut.args, authErrorMessage: "Email or password was invalid" }

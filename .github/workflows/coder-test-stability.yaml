@@ -1,0 +1,98 @@
+# This workflow (aka The Gauntlet) is a high-iteration run of our tests,
+# used to evaluate stability and shake out intermittent failures.
+name: coder-test-stability
+on:
+  schedule:
+    # Run everyday around midnight Central.
+    - cron: "0 6 * * *"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/coder-test-stability.yaml
+  workflow_dispatch:
+    inputs:
+      iterationCount:
+        description: 'Iteration Count'     
+        required: false
+        default: '10'
+
+# Cancel in-progress runs for pull requests when developers push
+# additional changes, and serialize builds in branches.
+# https://docs.github.com/en/actions/using-jobs/using-concurrency#example-using-concurrency-to-cancel-any-in-progress-job-or-run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  coder-test-stability:
+    name: "test/go/stability/${{ matrix.os }}/${{ matrix.instance }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
+        instance:
+          - 1
+          - 2
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      - uses: actions/cache@v2
+        with:
+          # Go mod cache, Linux build cache, Mac build cache, Windows build cache
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ matrix.os }}-go-
+
+      - run: go install gotest.tools/gotestsum@latest
+
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.2
+          terraform_wrapper: false
+
+      - name: Test with Mock Database
+        shell: bash
+        env:
+          GOCOUNT: ${{ github.event.inputs.iterationCount || 10 }}
+          GOMAXPROCS: ${{ runner.os == 'Windows' && 1 || 2 }}
+        run: gotestsum --junitfile="gotests.xml" --packages="./..." --
+          -covermode=atomic -coverprofile="gotests.coverage"
+          -timeout=15m -count=$GOCOUNT -race -short -failfast
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_DATABASE: fake
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go gotests.xml
+
+      - name: Test with PostgreSQL Database
+        if: runner.os == 'Linux'
+        env:
+          GOCOUNT: ${{ github.event.inputs.iterationCount || 10 }}
+        run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=30m
+          -count=$GOCOUNT -race -parallel=2 -failfast
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_DATABASE: postgresql
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go gotests.xml

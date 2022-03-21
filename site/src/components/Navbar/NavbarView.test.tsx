@@ -1,16 +1,17 @@
 import React from "react"
 import { screen } from "@testing-library/react"
 
-import { render, MockUser } from "../../test_helpers"
-import { Navbar } from "./index"
+import { render } from "../../test_helpers"
+import { MockUser } from "../../test_helpers/entities"
+import { NavbarView } from "./NavbarView"
 
-describe("Navbar", () => {
+describe("NavbarView", () => {
   const noop = () => {
     return
   }
   it("renders content", async () => {
     // When
-    render(<Navbar onSignOut={noop} />)
+    render(<NavbarView user={MockUser} onSignOut={noop} />)
 
     // Then
     await screen.findAllByText("Coder", { exact: false })
@@ -24,7 +25,7 @@ describe("Navbar", () => {
     }
 
     // When
-    render(<Navbar user={mockUser} onSignOut={noop} />)
+    render(<NavbarView user={mockUser} onSignOut={noop} />)
 
     // Then
     // There should be a 'B' avatar!

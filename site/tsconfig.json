@@ -16,5 +16,5 @@
     "target": "es5"
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "_jest", "**/*.test.tsx"]
+  "exclude": ["node_modules", "_jest"]
 }

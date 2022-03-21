@@ -8,3 +8,4 @@ coverage
 .next
 storybook-static
 test-results
+**/*.typegen.ts

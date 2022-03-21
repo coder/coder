@@ -84,6 +84,7 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 
 site/out: 
 	./scripts/yarn_install.sh
+	cd site && yarn typegen
 	cd site && yarn build
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
