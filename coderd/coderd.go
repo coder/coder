@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 	"github.com/coder/coder/site"
-	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi"
+	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
 )
 
 // Options are requires parameters for Coder to start.
