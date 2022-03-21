@@ -50,7 +50,7 @@ require (
 	github.com/pion/webrtc/v3 v3.1.26
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/powersj/whatsthis v1.3.0
-	github.com/quasilyte/go-ruleguard/dsl v0.3.17
+	github.com/quasilyte/go-ruleguard/dsl v0.3.18
 	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.7.1
 	github.com/tabbed/pqtype v0.1.1
