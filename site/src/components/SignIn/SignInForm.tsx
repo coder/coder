@@ -61,6 +61,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
       <form onSubmit={form.handleSubmit}>
         <div>
           <FormTextField
+            label="Email"
             autoComplete="email"
             autoFocus
             className={styles.loginTextField}
@@ -71,10 +72,10 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
             inputProps={{
               id: "signin-form-inpt-email",
             }}
-            placeholder="Email"
             variant="outlined"
           />
           <FormTextField
+            label="Password"
             autoComplete="current-password"
             className={styles.loginTextField}
             form={form}
@@ -84,7 +85,6 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
               id: "signin-form-inpt-password",
             }}
             isPassword
-            placeholder="Password"
             variant="outlined"
           />
           {authErrorMessage && (
