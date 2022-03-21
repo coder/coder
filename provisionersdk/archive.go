@@ -88,6 +88,9 @@ func Untar(directory string, archive []byte) error {
 			}
 			// Max file size of 10MB.
 			_, err = io.CopyN(file, reader, (1<<20)*10)
+			if xerrors.Is(err, io.EOF) {
+				err = nil
+			}
 			if err != nil {
 				return err
 			}
