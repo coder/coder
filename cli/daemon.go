@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 func daemon() *cobra.Command {
@@ -32,6 +33,8 @@ func daemon() *cobra.Command {
 	root := &cobra.Command{
 		Use: "daemon",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			tracer.Start()
+			defer tracer.Stop()
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			accessURL := &url.URL{
 				Scheme: "http",
