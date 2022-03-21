@@ -5,6 +5,24 @@ export const handlers = [
   rest.post("/api/v2/users/me/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
   }),
+  rest.get("/api/v2/projects/:organizationId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockProject))
+  }),
+  rest.get("/api/v2/users/me/organizations/:organizationId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockProject))
+  }),
+  rest.get("/api/v2/workspaces/:workspaceId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockWorkspace))
+  }),
+  rest.get("/api/v2/projects/:projectId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockProject))
+  }),
+  rest.get("/api/v2/organizations/:organizationId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockOrganization))
+  }),
+  rest.get("/api/v2/organizations/:organizationId/projects/:projectId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockOrganization))
+  }),
   rest.post("/api/v2/users/login", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockSessionToken))
   }),
