@@ -3,7 +3,7 @@ import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { SWRConfig } from "swr"
 import { light } from "./theme"
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom"
+import { Route, Routes } from "react-router-dom"
 
 import { CliAuthenticationPage } from "./pages/cli-auth"
 import { NotFoundPage } from "./pages/404"
@@ -19,7 +19,6 @@ import { XServiceProvider } from "./xServices/StateContext"
 
 export const App: React.FC = () => {
   return (
-    <Router>
       <SWRConfig
         value={{
           // This code came from the SWR documentation:
@@ -106,6 +105,5 @@ export const App: React.FC = () => {
           </ThemeProvider>
         </XServiceProvider>
       </SWRConfig>
-    </Router>
   )
 }
