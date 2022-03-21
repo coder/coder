@@ -1,6 +1,6 @@
 import { embedRedirect, retrieveRedirect } from "./redirect"
 
-describe('redirect helper functions', () => {
+describe("redirect helper functions", () => {
   it("embeds the page to return to in the URL", () => {
     const result = embedRedirect("/workspaces", "/page")
     expect(result).toEqual("/page?redirect=%2Fworkspaces")

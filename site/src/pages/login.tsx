@@ -20,8 +20,6 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-
-
 export const SignInPage: React.FC = () => {
   const styles = useStyles()
   const location = useLocation()

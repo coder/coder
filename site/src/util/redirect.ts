@@ -5,16 +5,15 @@
  * @param returnTo page to redirect to later (for instance, after logging in)
  * @returns URL containing a redirect query parameter
  */
-export const embedRedirect = (returnTo: string, navigateTo: string = "/login") => (
+export const embedRedirect = (returnTo: string, navigateTo = "/login"): string =>
   `${navigateTo}?redirect=${encodeURIComponent(returnTo)}`
-)
 
 /**
  * Retrieves a url from the query string of the current URL
  * @param search the query string in the current URL
  * @returns the URL to redirect to
  */
-export const retrieveRedirect = (search: string) => {
+export const retrieveRedirect = (search: string): string => {
   const defaultRedirect = "/"
   const searchParams = new URLSearchParams(search)
   const redirect = searchParams.get("redirect")
