@@ -5,14 +5,14 @@ export const MockSessionToken = { session_token: "my-session-token" }
 export const MockAPIKey = { key: "my-api-key" }
 
 export const MockUser: UserResponse = {
-  id: "test-user-id",
+  id: "test-user",
   username: "TestUser",
   email: "test@coder.com",
   created_at: "",
 }
 
 export const MockProject: Project = {
-  id: "project-id",
+  id: "test-project",
   created_at: "",
   updated_at: "",
   organization_id: "test-org",
@@ -38,6 +38,6 @@ export const MockWorkspace: Workspace = {
   name: "Test-Workspace",
   created_at: "",
   updated_at: "",
-  project_id: "project-id",
-  owner_id: "test-user-id",
+  project_id: "test-project",
+  owner_id: "test-user",
 }
