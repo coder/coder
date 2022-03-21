@@ -308,7 +308,7 @@ jobs:
           # https://github.com/coder/coder/issues/384
           # - windows-2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Cache Node
         id: cache-node
