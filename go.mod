@@ -65,7 +65,7 @@ require (
 	google.golang.org/api v0.73.0
 	google.golang.org/protobuf v1.27.1
 	nhooyr.io/websocket v1.8.7
-	storj.io/drpc v0.0.29
+	storj.io/drpc v0.0.30
 )
 
 require (
