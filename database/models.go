@@ -292,14 +292,17 @@ type Organization struct {
 	CpuProvisioningRate    float32   `db:"cpu_provisioning_rate" json:"cpu_provisioning_rate"`
 	MemoryProvisioningRate float32   `db:"memory_provisioning_rate" json:"memory_provisioning_rate"`
 	WorkspaceAutoOff       bool      `db:"workspace_auto_off" json:"workspace_auto_off"`
+	IDUuid                 uuid.UUID `db:"id_uuid" json:"id_uuid"`
 }
 
 type OrganizationMember struct {
-	OrganizationID string    `db:"organization_id" json:"organization_id"`
-	UserID         string    `db:"user_id" json:"user_id"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	Roles          []string  `db:"roles" json:"roles"`
+	OrganizationID     string    `db:"organization_id" json:"organization_id"`
+	UserID             string    `db:"user_id" json:"user_id"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+	Roles              []string  `db:"roles" json:"roles"`
+	UserIDUuid         uuid.UUID `db:"user_id_uuid" json:"user_id_uuid"`
+	OrganizationIDUuid uuid.UUID `db:"organization_id_uuid" json:"organization_id_uuid"`
 }
 
 type ParameterSchema struct {
@@ -411,6 +414,7 @@ type User struct {
 	GpgKeyRegeneratedAt time.Time  `db:"gpg_key_regenerated_at" json:"gpg_key_regenerated_at"`
 	Decomissioned       bool       `db:"_decomissioned" json:"_decomissioned"`
 	Shell               string     `db:"shell" json:"shell"`
+	IDUuid              uuid.UUID  `db:"id_uuid" json:"id_uuid"`
 }
 
 type Workspace struct {

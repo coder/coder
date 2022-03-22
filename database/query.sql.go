@@ -148,7 +148,7 @@ func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, erro
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off, id_uuid
 FROM
   organizations
 WHERE
@@ -169,13 +169,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id string) (Organi
 		&i.CpuProvisioningRate,
 		&i.MemoryProvisioningRate,
 		&i.WorkspaceAutoOff,
+		&i.IDUuid,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off, id_uuid
 FROM
   organizations
 WHERE
@@ -198,13 +199,14 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 		&i.CpuProvisioningRate,
 		&i.MemoryProvisioningRate,
 		&i.WorkspaceAutoOff,
+		&i.IDUuid,
 	)
 	return i, err
 }
 
 const getOrganizationMemberByUserID = `-- name: GetOrganizationMemberByUserID :one
 SELECT
-  organization_id, user_id, created_at, updated_at, roles
+  organization_id, user_id, created_at, updated_at, roles, user_id_uuid, organization_id_uuid
 FROM
   organization_members
 WHERE
@@ -228,13 +230,15 @@ func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetO
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		pq.Array(&i.Roles),
+		&i.UserIDUuid,
+		&i.OrganizationIDUuid,
 	)
 	return i, err
 }
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off, id_uuid
 FROM
   organizations
 WHERE
@@ -268,6 +272,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID string
 			&i.CpuProvisioningRate,
 			&i.MemoryProvisioningRate,
 			&i.WorkspaceAutoOff,
+			&i.IDUuid,
 		); err != nil {
 			return nil, err
 		}
@@ -880,7 +885,7 @@ func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetP
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell, id_uuid
 FROM
   users
 WHERE
@@ -918,13 +923,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.GpgKeyRegeneratedAt,
 		&i.Decomissioned,
 		&i.Shell,
+		&i.IDUuid,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell, id_uuid
 FROM
   users
 WHERE
@@ -956,6 +962,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.GpgKeyRegeneratedAt,
 		&i.Decomissioned,
 		&i.Shell,
+		&i.IDUuid,
 	)
 	return i, err
 }
@@ -1679,7 +1686,7 @@ const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
   organizations (id, name, description, created_at, updated_at)
 VALUES
-  ($1, $2, $3, $4, $5) RETURNING id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  ($1, $2, $3, $4, $5) RETURNING id, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off, id_uuid
 `
 
 type InsertOrganizationParams struct {
@@ -1710,6 +1717,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.CpuProvisioningRate,
 		&i.MemoryProvisioningRate,
 		&i.WorkspaceAutoOff,
+		&i.IDUuid,
 	)
 	return i, err
 }
@@ -1724,7 +1732,7 @@ INSERT INTO
     roles
   )
 VALUES
-  ($1, $2, $3, $4, $5) RETURNING organization_id, user_id, created_at, updated_at, roles
+  ($1, $2, $3, $4, $5) RETURNING organization_id, user_id, created_at, updated_at, roles, user_id_uuid, organization_id_uuid
 `
 
 type InsertOrganizationMemberParams struct {
@@ -1750,6 +1758,8 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		pq.Array(&i.Roles),
+		&i.UserIDUuid,
+		&i.OrganizationIDUuid,
 	)
 	return i, err
 }
@@ -2184,7 +2194,7 @@ INSERT INTO
     username
   )
 VALUES
-  ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell
+  ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell, id_uuid
 `
 
 type InsertUserParams struct {
@@ -2230,6 +2240,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.GpgKeyRegeneratedAt,
 		&i.Decomissioned,
 		&i.Shell,
+		&i.IDUuid,
 	)
 	return i, err
 }

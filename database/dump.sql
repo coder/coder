@@ -106,7 +106,9 @@ CREATE TABLE organization_members (
     user_id text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    roles text[] DEFAULT '{organization-member}'::text[] NOT NULL
+    roles text[] DEFAULT '{organization-member}'::text[] NOT NULL,
+    user_id_uuid uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL,
+    organization_id_uuid uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
 CREATE TABLE organizations (
@@ -119,7 +121,8 @@ CREATE TABLE organizations (
     auto_off_threshold bigint DEFAULT '28800000000000'::bigint NOT NULL,
     cpu_provisioning_rate real DEFAULT 4.0 NOT NULL,
     memory_provisioning_rate real DEFAULT 1.0 NOT NULL,
-    workspace_auto_off boolean DEFAULT false NOT NULL
+    workspace_auto_off boolean DEFAULT false NOT NULL,
+    id_uuid uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -230,7 +233,8 @@ CREATE TABLE users (
     relatime timestamp with time zone DEFAULT now() NOT NULL,
     gpg_key_regenerated_at timestamp with time zone DEFAULT now() NOT NULL,
     _decomissioned boolean DEFAULT false NOT NULL,
-    shell text DEFAULT ''::text NOT NULL
+    shell text DEFAULT ''::text NOT NULL,
+    id_uuid uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -348,6 +352,12 @@ ALTER TABLE ONLY workspaces
 CREATE UNIQUE INDEX projects_organization_id_name_idx ON projects USING btree (organization_id, name) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX workspaces_owner_id_name_idx ON workspaces USING btree (owner_id, name) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX idx_organization_members_id_uuid ON organization_members USING btree (user_id_uuid, organization_id_uuid);
+
+CREATE UNIQUE INDEX idx_organizations_id_uuid ON organizations USING btree (id_uuid);
+
+CREATE UNIQUE INDEX idx_users_id_uuid ON users USING btree (id_uuid);
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
