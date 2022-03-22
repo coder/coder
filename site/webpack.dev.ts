@@ -10,6 +10,8 @@ import { commonWebpackConfig } from "./webpack.common"
 
 const commonPlugins = commonWebpackConfig.plugins || []
 
+const commonRules = commonWebpackConfig.module?.rules || []
+
 const config: Configuration = {
   ...commonWebpackConfig,
 
@@ -67,6 +69,20 @@ const config: Configuration = {
   // Development mode - see:
   // https://webpack.js.org/configuration/mode/#mode-development
   mode: "development",
+
+  module: {
+    rules: [
+      ...commonRules,
+
+      {
+        test: /\.css$/i,
+        // Use simple style-loader for CSS modules. This places styles directly
+        // in <style> tags which is great for development, but poor for loading
+        // in production
+        use: ["style-loader", "css-loader"],
+      },
+    ],
+  },
 
   output: {
     ...commonWebpackConfig.output,
