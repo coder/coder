@@ -61,6 +61,8 @@
   "files.exclude": {
     "**/node_modules": true
   },
+  // Ensure files always have a newline.
+  "files.insertFinalNewline": true,
   "go.lintTool": "golangci-lint",
   "go.lintFlags": ["--fast"],
   "go.lintOnSave": "package",
@@ -79,5 +81,5 @@
   },
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib"
+  "typescript.tsdk": "./site/node_modules/typescript/lib",
 }
