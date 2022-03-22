@@ -51,9 +51,13 @@ gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 
 install: bin
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
-	cp -r ./dist/coder_$(GOOS)_$(GOARCH) $(INSTALL_DIR)
+	cp -r ./dist/coder_$(GOOS)_$(GOARCH)/* $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
+
+package: 
+	goreleaser release --snapshot --rm-dist
+.PHONY: package
 
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	protoc \
@@ -89,7 +93,3 @@ site/out:
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
 .PHONY: site/out
-
-snapshot: 
-	goreleaser release --snapshot --rm-dist
-.PHONY: snapshot

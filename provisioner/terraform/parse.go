@@ -45,6 +45,7 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 		Name:                variable.Name,
 		Description:         variable.Description,
 		RedisplayValue:      !variable.Sensitive,
+		AllowOverrideSource: !variable.Sensitive,
 		ValidationValueType: variable.Type,
 		DefaultDestination: &proto.ParameterDestination{
 			Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
@@ -52,13 +53,18 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 	}
 
 	if variable.Default != nil {
-		defaultData, err := json.Marshal(variable.Default)
-		if err != nil {
-			return nil, xerrors.Errorf("parse variable %q default: %w", variable.Name, err)
+		defaultData, valid := variable.Default.(string)
+		if !valid {
+			defaultDataRaw, err := json.Marshal(variable.Default)
+			if err != nil {
+				return nil, xerrors.Errorf("parse variable %q default: %w", variable.Name, err)
+			}
+			defaultData = string(defaultDataRaw)
 		}
+
 		schema.DefaultSource = &proto.ParameterSource{
 			Scheme: proto.ParameterSource_DATA,
-			Value:  string(defaultData),
+			Value:  defaultData,
 		}
 	}
 

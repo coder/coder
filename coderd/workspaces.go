@@ -13,32 +13,51 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
 
-// Workspace is a per-user deployment of a project. It tracks
-// project versions, and can be updated.
-type Workspace database.Workspace
-
-// CreateWorkspaceBuildRequest provides options to update the latest workspace build.
-type CreateWorkspaceBuildRequest struct {
-	ProjectVersionID uuid.UUID                    `json:"project_version_id" validate:"required"`
-	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-}
-
-func (*api) workspace(rw http.ResponseWriter, r *http.Request) {
+func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspace(workspace))
+
+	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build: %s", err),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build job: %s", err),
+		})
+		return
+	}
+	project, err := api.Database.GetProjectByID(r.Context(), workspace.ProjectID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get project: %s", err),
+		})
+		return
+	}
+	render.JSON(rw, r, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), project))
 }
 
 func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	builds, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
 	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace builds: %s", err),
+		})
 		return
 	}
 	jobIDs := make([]uuid.UUID, 0, len(builds))
@@ -46,6 +65,9 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		jobIDs = append(jobIDs, version.JobID)
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get jobs: %s", err),
@@ -57,7 +79,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		jobByID[job.ID.String()] = job
 	}
 
-	apiBuilds := make([]WorkspaceBuild, 0)
+	apiBuilds := make([]codersdk.WorkspaceBuild, 0)
 	for _, build := range builds {
 		job, exists := jobByID[build.JobID.String()]
 		if !exists {
@@ -76,9 +98,19 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	workspace := httpmw.WorkspaceParam(r)
-	var createBuild CreateWorkspaceBuildRequest
+	var createBuild codersdk.CreateWorkspaceBuildRequest
 	if !httpapi.Read(rw, r, &createBuild) {
 		return
+	}
+	if createBuild.ProjectVersionID == uuid.Nil {
+		latestBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get latest workspace build: %s", err),
+			})
+			return
+		}
+		createBuild.ProjectVersionID = latestBuild.ProjectVersionID
 	}
 	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), createBuild.ProjectVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -106,19 +138,19 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	projectVersionJobStatus := convertProvisionerJob(projectVersionJob).Status
 	switch projectVersionJobStatus {
-	case ProvisionerJobPending, ProvisionerJobRunning:
+	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
 			Message: fmt.Sprintf("The provided project version is %s. Wait for it to complete importing!", projectVersionJobStatus),
 		})
 		return
-	case ProvisionerJobFailed:
+	case codersdk.ProvisionerJobFailed:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("The provided project version %q has failed to import. You cannot create workspaces using it!", projectVersion.Name),
+			Message: fmt.Sprintf("The provided project version %q has failed to import: %q. You cannot build workspaces with it!", projectVersion.Name, projectVersionJob.Error.String),
 		})
 		return
-	case ProvisionerJobCancelled:
+	case codersdk.ProvisionerJobCanceled:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "The provided project version was canceled during import. You cannot create workspaces using it!",
+			Message: "The provided project version was canceled during import. You cannot builds workspaces with it!",
 		})
 		return
 	}
@@ -189,6 +221,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ProjectVersionID: projectVersion.ID,
 			BeforeID:         priorHistoryID,
 			Name:             namesgenerator.GetRandomName(1),
+			ProvisionerState: priorHistory.ProvisionerState,
 			Initiator:        apiKey.UserID,
 			Transition:       createBuild.Transition,
 			JobID:            provisionerJob.ID,
@@ -226,33 +259,6 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(provisionerJob)))
 }
 
-func (api *api) workspaceBuildLatest(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
-	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "no workspace build found",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build by name: %s", err),
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
-		})
-		return
-	}
-
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
-}
-
 func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	workspaceBuildName := chi.URLParam(r, "workspacebuildname")
@@ -284,6 +290,16 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
-func convertWorkspace(workspace database.Workspace) Workspace {
-	return Workspace(workspace)
+func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, project database.Project) codersdk.Workspace {
+	return codersdk.Workspace{
+		ID:          workspace.ID,
+		CreatedAt:   workspace.CreatedAt,
+		UpdatedAt:   workspace.UpdatedAt,
+		OwnerID:     workspace.OwnerID,
+		ProjectID:   workspace.ProjectID,
+		LatestBuild: workspaceBuild,
+		ProjectName: project.Name,
+		Outdated:    workspaceBuild.ProjectVersionID.String() != project.ActiveVersionID.String(),
+		Name:        workspace.Name,
+	}
 }

@@ -169,6 +169,7 @@ CREATE TABLE projects (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     organization_id text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
     active_version_id uuid NOT NULL
@@ -197,7 +198,7 @@ CREATE TABLE provisioner_jobs (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     started_at timestamp with time zone,
-    cancelled_at timestamp with time zone,
+    canceled_at timestamp with time zone,
     completed_at timestamp with time zone,
     error text,
     organization_id text NOT NULL,
@@ -235,7 +236,10 @@ CREATE TABLE users (
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone,
+    updated_at timestamp with time zone NOT NULL,
+    first_connected_at timestamp with time zone,
+    last_connected_at timestamp with time zone,
+    disconnected_at timestamp with time zone,
     resource_id uuid NOT NULL,
     auth_token uuid NOT NULL,
     auth_instance_id character varying(64),
@@ -265,7 +269,8 @@ CREATE TABLE workspace_resources (
     created_at timestamp with time zone NOT NULL,
     job_id uuid NOT NULL,
     transition workspace_transition NOT NULL,
-    type character varying(256) NOT NULL,
+    address character varying(256) NOT NULL,
+    type character varying(192) NOT NULL,
     name character varying(64) NOT NULL,
     agent_id uuid
 );
@@ -276,6 +281,7 @@ CREATE TABLE workspaces (
     updated_at timestamp with time zone NOT NULL,
     owner_id text NOT NULL,
     project_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL
 );
 
@@ -339,8 +345,9 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_id_key UNIQUE (id);
 
-ALTER TABLE ONLY workspaces
-    ADD CONSTRAINT workspaces_owner_id_name_key UNIQUE (owner_id, name);
+CREATE UNIQUE INDEX projects_organization_id_name_idx ON projects USING btree (organization_id, name) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX workspaces_owner_id_name_idx ON workspaces USING btree (owner_id, name) WHERE (deleted = false);
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

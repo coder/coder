@@ -338,6 +338,7 @@ type Project struct {
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
 	OrganizationID  string          `db:"organization_id" json:"organization_id"`
+	Deleted         bool            `db:"deleted" json:"deleted"`
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
@@ -368,7 +369,7 @@ type ProvisionerJob struct {
 	CreatedAt      time.Time                `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time                `db:"updated_at" json:"updated_at"`
 	StartedAt      sql.NullTime             `db:"started_at" json:"started_at"`
-	CancelledAt    sql.NullTime             `db:"cancelled_at" json:"cancelled_at"`
+	CanceledAt     sql.NullTime             `db:"canceled_at" json:"canceled_at"`
 	CompletedAt    sql.NullTime             `db:"completed_at" json:"completed_at"`
 	Error          sql.NullString           `db:"error" json:"error"`
 	OrganizationID string                   `db:"organization_id" json:"organization_id"`
@@ -418,13 +419,17 @@ type Workspace struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 	OwnerID   string    `db:"owner_id" json:"owner_id"`
 	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Deleted   bool      `db:"deleted" json:"deleted"`
 	Name      string    `db:"name" json:"name"`
 }
 
 type WorkspaceAgent struct {
 	ID                   uuid.UUID             `db:"id" json:"id"`
 	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            sql.NullTime          `db:"updated_at" json:"updated_at"`
+	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
+	FirstConnectedAt     sql.NullTime          `db:"first_connected_at" json:"first_connected_at"`
+	LastConnectedAt      sql.NullTime          `db:"last_connected_at" json:"last_connected_at"`
+	DisconnectedAt       sql.NullTime          `db:"disconnected_at" json:"disconnected_at"`
 	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
 	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
 	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
@@ -454,6 +459,7 @@ type WorkspaceResource struct {
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
 	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
 	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Address    string              `db:"address" json:"address"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
 	AgentID    uuid.NullUUID       `db:"agent_id" json:"agent_id"`

@@ -84,10 +84,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	var closeWait func()
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
-		AccessURL: serverURL,
-		Logger:    slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		Database:  db,
-		Pubsub:    pubsub,
+		AgentConnectionUpdateFrequency: 25 * time.Millisecond,
+		AccessURL:                      serverURL,
+		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Database:                       db,
+		Pubsub:                         pubsub,
 
 		GoogleTokenValidator: options.GoogleTokenValidator,
 	})
@@ -118,9 +119,10 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 	}()
 
 	closer := provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
-		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:   50 * time.Millisecond,
-		UpdateInterval: 50 * time.Millisecond,
+		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		PollInterval:        50 * time.Millisecond,
+		UpdateInterval:      250 * time.Millisecond,
+		ForceCancelInterval: 250 * time.Millisecond,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient)),
 		},
@@ -134,8 +136,8 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
-func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateFirstUserResponse {
-	req := coderd.CreateFirstUserRequest{
+func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirstUserResponse {
+	req := codersdk.CreateFirstUserRequest{
 		Email:        "testuser@coder.com",
 		Username:     "testuser",
 		Password:     "testpass",
@@ -144,7 +146,7 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateFirstUs
 	resp, err := client.CreateFirstUser(context.Background(), req)
 	require.NoError(t, err)
 
-	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -155,7 +157,7 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) coderd.CreateFirstUs
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organization string) *codersdk.Client {
-	req := coderd.CreateUserRequest{
+	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
@@ -164,7 +166,7 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organization strin
 	_, err := client.CreateUser(context.Background(), req)
 	require.NoError(t, err)
 
-	login, err := client.LoginWithPassword(context.Background(), coderd.LoginWithPasswordRequest{
+	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -178,12 +180,12 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organization strin
 // CreateProjectVersion creates a project import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) coderd.ProjectVersion {
+func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) codersdk.ProjectVersion {
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
-	projectVersion, err := client.CreateProjectVersion(context.Background(), organization, coderd.CreateProjectVersionRequest{
+	projectVersion, err := client.CreateProjectVersion(context.Background(), organization, codersdk.CreateProjectVersionRequest{
 		StorageSource: file.Hash,
 		StorageMethod: database.ProvisionerStorageMethodFile,
 		Provisioner:   database.ProvisionerTypeEcho,
@@ -194,8 +196,8 @@ func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization st
 
 // CreateProject creates a project with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateProject(t *testing.T, client *codersdk.Client, organization string, version uuid.UUID) coderd.Project {
-	project, err := client.CreateProject(context.Background(), organization, coderd.CreateProjectRequest{
+func CreateProject(t *testing.T, client *codersdk.Client, organization string, version uuid.UUID) codersdk.Project {
+	project, err := client.CreateProject(context.Background(), organization, codersdk.CreateProjectRequest{
 		Name:      randomUsername(),
 		VersionID: version,
 	})
@@ -204,8 +206,8 @@ func CreateProject(t *testing.T, client *codersdk.Client, organization string, v
 }
 
 // AwaitProjectImportJob awaits for an import job to reach completed status.
-func AwaitProjectVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) coderd.ProjectVersion {
-	var projectVersion coderd.ProjectVersion
+func AwaitProjectVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.ProjectVersion {
+	var projectVersion codersdk.ProjectVersion
 	require.Eventually(t, func() bool {
 		var err error
 		projectVersion, err = client.ProjectVersion(context.Background(), version)
@@ -216,8 +218,8 @@ func AwaitProjectVersionJob(t *testing.T, client *codersdk.Client, version uuid.
 }
 
 // AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
-func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) coderd.WorkspaceBuild {
-	var workspaceBuild coderd.WorkspaceBuild
+func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
@@ -228,8 +230,8 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 }
 
 // AwaitWorkspaceAgents waits for all resources with agents to be connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []coderd.WorkspaceResource {
-	var resources []coderd.WorkspaceResource
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID) []codersdk.WorkspaceResource {
+	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
 		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
@@ -238,7 +240,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			if resource.Agent == nil {
 				continue
 			}
-			if resource.Agent.UpdatedAt.IsZero() {
+			if resource.Agent.FirstConnectedAt == nil {
 				return false
 			}
 		}
@@ -249,8 +251,8 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 // CreateWorkspace creates a workspace for the user and project provided.
 // A random name is generated for it.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, user string, projectID uuid.UUID) coderd.Workspace {
-	workspace, err := client.CreateWorkspace(context.Background(), user, coderd.CreateWorkspaceRequest{
+func CreateWorkspace(t *testing.T, client *codersdk.Client, user string, projectID uuid.UUID) codersdk.Workspace {
+	workspace, err := client.CreateWorkspace(context.Background(), user, codersdk.CreateWorkspaceRequest{
 		ProjectID: projectID,
 		Name:      randomUsername(),
 	})

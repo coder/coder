@@ -11,10 +11,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/provisioner/echo"
@@ -48,13 +46,8 @@ func TestWorkspaceResource(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), build.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
 		_, err = client.WorkspaceResource(context.Background(), resources[0].ID)
 		require.NoError(t, err)
@@ -90,12 +83,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
-		ProjectVersionID: project.ActiveVersionID,
-		Transition:       database.WorkspaceTransitionStart,
-	})
-	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 
 	agentClient := codersdk.New(client.URL)
@@ -106,7 +94,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, build.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	workspaceClient, err := client.DialWorkspaceAgent(context.Background(), resources[0].ID)
 	require.NoError(t, err)
 	t.Cleanup(func() {

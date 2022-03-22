@@ -9,27 +9,18 @@ import (
 
 	"github.com/go-chi/render"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 
 	"github.com/mitchellh/mapstructure"
 )
 
-type GoogleInstanceIdentityToken struct {
-	JSONWebToken string `json:"json_web_token" validate:"required"`
-}
-
-// WorkspaceAgentAuthenticateResponse is returned when an instance ID
-// has been exchanged for a session token.
-type WorkspaceAgentAuthenticateResponse struct {
-	SessionToken string `json:"session_token"`
-}
-
 // Google Compute Engine supports instance identity verification:
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
 // Using this, we can exchange a signed instance payload for an agent token.
 func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
-	var req GoogleInstanceIdentityToken
+	var req codersdk.GoogleInstanceIdentityToken
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
@@ -121,7 +112,7 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, WorkspaceAgentAuthenticateResponse{
+	render.JSON(rw, r, codersdk.WorkspaceAgentAuthenticateResponse{
 		SessionToken: agent.AuthToken.String(),
 	})
 }

@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,19 +27,20 @@ func TestLogin(t *testing.T) {
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty")
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
 		go func() {
+			defer close(doneChan)
 			err := root.Execute()
 			require.NoError(t, err)
 		}()
 
 		matches := []string{
-			"first user?", "y",
+			"first user?", "yes",
 			"username", "testuser",
-			"organization", "testorg",
 			"email", "user@coder.com",
 			"password", "password",
 		}
@@ -49,6 +51,7 @@ func TestLogin(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
 	})
 
 	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
@@ -56,11 +59,13 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
 		go func() {
+			defer close(doneChan)
 			err := root.Execute()
 			require.NoError(t, err)
 		}()
@@ -68,6 +73,7 @@ func TestLogin(t *testing.T) {
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken)
 		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
 	})
 
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
@@ -75,12 +81,16 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 
-		root, _ := clitest.New(t, "login", client.URL.String(), "--force-tty", "--no-open")
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
 		go func() {
-			err := root.Execute()
+			defer close(doneChan)
+			err := root.ExecuteContext(ctx)
 			// An error is expected in this case, since the login wasn't successful:
 			require.Error(t, err)
 		}()
@@ -88,5 +98,7 @@ func TestLogin(t *testing.T) {
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine("an-invalid-token")
 		pty.ExpectMatch("That's not a valid token!")
+		cancelFunc()
+		<-doneChan
 	})
 }

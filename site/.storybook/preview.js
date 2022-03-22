@@ -4,6 +4,7 @@ import { light, dark } from "../src/theme"
 import { addDecorator } from "node_modules/@storybook/react"
 import { createMemoryHistory } from "history"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
+import "../src/theme/global-fonts"
 
 addDecorator(withThemes(ThemeProvider, [light, dark]))
 

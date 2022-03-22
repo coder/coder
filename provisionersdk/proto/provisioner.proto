@@ -118,12 +118,19 @@ message Provision {
         string coder_url = 1;
         WorkspaceTransition workspace_transition = 2;
     }
-    message Request {
+    message Start {
         string directory = 1;
         repeated ParameterValue parameter_values = 2;
         Metadata metadata = 3;
         bytes state = 4;
         bool dry_run = 5;
+    }
+    message Cancel {}
+    message Request {
+        oneof type {
+            Start start = 1;
+            Cancel cancel = 2;
+        }
     }
     message Complete {
         bytes state = 1; 
@@ -139,7 +146,6 @@ message Provision {
 }
 
 service Provisioner {
-    rpc Shutdown(Empty) returns (Empty);
     rpc Parse(Parse.Request) returns (stream Parse.Response);
-    rpc Provision(Provision.Request) returns (stream Provision.Response);
+    rpc Provision(stream Provision.Request) returns (stream Provision.Response);
 }

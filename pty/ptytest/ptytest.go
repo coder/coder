@@ -3,7 +3,6 @@ package ptytest
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -27,6 +26,7 @@ var (
 func New(t *testing.T) *PTY {
 	ptty, err := pty.New()
 	require.NoError(t, err)
+
 	return create(t, ptty)
 }
 
@@ -92,11 +92,16 @@ func (p *PTY) ExpectMatch(str string) string {
 	return buffer.String()
 }
 
+func (p *PTY) Write(r rune) {
+	_, err := p.Input().Write([]byte{byte(r)})
+	require.NoError(p.t, err)
+}
+
 func (p *PTY) WriteLine(str string) {
-	newline := "\n"
+	newline := []byte{'\r'}
 	if runtime.GOOS == "windows" {
-		newline = "\r\n"
+		newline = append(newline, '\n')
 	}
-	_, err := fmt.Fprintf(p.PTY.Input(), "%s%s", str, newline)
+	_, err := p.Input().Write(append([]byte(str), newline...))
 	require.NoError(p.t, err)
 }

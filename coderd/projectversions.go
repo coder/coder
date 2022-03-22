@@ -5,32 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// ProjectVersion represents a single version of a project.
-type ProjectVersion struct {
-	ID        uuid.UUID      `json:"id"`
-	ProjectID *uuid.UUID     `json:"project_id,omitempty"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	Name      string         `json:"name"`
-	Job       ProvisionerJob `json:"job"`
-}
-
-// ProjectVersionParameterSchema represents a parameter parsed from project version source.
-type ProjectVersionParameterSchema database.ParameterSchema
-
-// ProjectVersionParameter represents a computed parameter value.
-type ProjectVersionParameter parameter.ComputedValue
 
 func (api *api) projectVersion(rw http.ResponseWriter, r *http.Request) {
 	projectVersion := httpmw.ProjectVersionParam(r)
@@ -43,6 +26,45 @@ func (api *api) projectVersion(rw http.ResponseWriter, r *http.Request) {
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertProjectVersion(projectVersion, convertProvisionerJob(job)))
+}
+
+func (api *api) patchCancelProjectVersion(rw http.ResponseWriter, r *http.Request) {
+	projectVersion := httpmw.ProjectVersionParam(r)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	if job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already completed!",
+		})
+		return
+	}
+	if job.CanceledAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already been marked as canceled!",
+		})
+		return
+	}
+	err = api.Database.UpdateProvisionerJobWithCancelByID(r.Context(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update provisioner job: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Job has been marked as canceled...",
+	})
 }
 
 func (api *api) projectVersionSchema(rw http.ResponseWriter, r *http.Request) {
@@ -138,8 +160,8 @@ func (api *api) projectVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertProjectVersion(version database.ProjectVersion, job ProvisionerJob) ProjectVersion {
-	return ProjectVersion{
+func convertProjectVersion(version database.ProjectVersion, job codersdk.ProvisionerJob) codersdk.ProjectVersion {
+	return codersdk.ProjectVersion{
 		ID:        version.ID,
 		ProjectID: &version.ProjectID.UUID,
 		CreatedAt: version.CreatedAt,
