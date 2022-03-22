@@ -210,7 +210,7 @@ jobs:
 
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
-        run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
+        run: DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -coverpkg=./...,github.com/coder/coder/codersdk
           -count=1 -parallel=2 -race -failfast

@@ -21,7 +21,7 @@ var openPortMutex sync.Mutex
 
 // Open creates a new PostgreSQL server using a Docker container.
 func Open() (string, func(), error) {
-	if os.Getenv("CI") != "" {
+	if os.Getenv("DB") == "ci" {
 		// In CI, creating a Docker container for each test is slow.
 		// This expects a PostgreSQL instance with the hardcoded credentials
 		// available.
