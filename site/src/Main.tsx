@@ -1,6 +1,5 @@
 import React from "react"
 import ReactDOM from "react-dom"
-import { BrowserRouter as Router } from "react-router-dom"
 
 import { App } from "./app"
 
@@ -9,12 +8,7 @@ import { App } from "./app"
 // like: https://github.com/coder/m/blob/50898bd4803df7639bd181e484c74ac5d84da474/product/coder/site/pages/_app.tsx#L32
 const main = () => {
   const element = document.getElementById("root")
-  ReactDOM.render(
-    <Router>
-      <App />
-    </Router>,
-    element,
-  )
+  ReactDOM.render(<App />, element)
 }
 
 main()
