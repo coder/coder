@@ -199,8 +199,14 @@ jobs:
             -e POSTGRES_DB=postgres \
             -e PGDATA=/tmp \
             -p 5432:5432 \
-            -d postgres:11 
-          pg_isready -h 127.0.0.1
+            -d postgres:11 \
+            -c shared_buffers=1GB \
+            -c max_connections=1000
+          while ! pg_isready -h 127.0.0.1
+          do
+              echo "$(date) - waiting for database to start"
+              sleep 0.5
+          done
 
       - name: Test with PostgreSQL Database
         if: runner.os == 'Linux'
