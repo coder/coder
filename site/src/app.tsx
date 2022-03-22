@@ -16,6 +16,7 @@ import { WorkspacePage } from "./pages/workspaces/[workspace]"
 import { HealthzPage } from "./pages/healthz"
 import { AuthAndNav, RequireAuth } from "./components/Page"
 import { XServiceProvider } from "./xServices/StateContext"
+import "./theme/global-fonts"
 
 export const App: React.FC = () => {
   return (
