@@ -73,7 +73,12 @@ func (*echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_Pa
 }
 
 // Provision reads requests from the provided directory to stream responses.
-func (*echo) Provision(request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
+func (*echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+	msg, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	request := msg.GetStart()
 	for index := 0; ; index++ {
 		extension := ".protobuf"
 		if request.DryRun {

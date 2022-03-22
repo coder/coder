@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"cdr.dev/slog"
+
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
@@ -21,46 +23,6 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
 )
-
-type WorkspaceResource struct {
-	ID         uuid.UUID                    `json:"id"`
-	CreatedAt  time.Time                    `json:"created_at"`
-	JobID      uuid.UUID                    `json:"job_id"`
-	Transition database.WorkspaceTransition `json:"workspace_transition"`
-	Type       string                       `json:"type"`
-	Name       string                       `json:"name"`
-	Agent      *WorkspaceAgent              `json:"agent,omitempty"`
-}
-
-type WorkspaceAgent struct {
-	ID                   uuid.UUID         `json:"id"`
-	CreatedAt            time.Time         `json:"created_at"`
-	UpdatedAt            time.Time         `json:"updated_at"`
-	ResourceID           uuid.UUID         `json:"resource_id"`
-	InstanceID           string            `json:"instance_id,omitempty"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script,omitempty"`
-}
-
-type WorkspaceAgentResourceMetadata struct {
-	MemoryTotal uint64  `json:"memory_total"`
-	DiskTotal   uint64  `json:"disk_total"`
-	CPUCores    uint64  `json:"cpu_cores"`
-	CPUModel    string  `json:"cpu_model"`
-	CPUMhz      float64 `json:"cpu_mhz"`
-}
-
-type WorkspaceAgentInstanceMetadata struct {
-	JailOrchestrator   string `json:"jail_orchestrator"`
-	OperatingSystem    string `json:"operating_system"`
-	Platform           string `json:"platform"`
-	PlatformFamily     string `json:"platform_family"`
-	KernelVersion      string `json:"kernel_version"`
-	KernelArchitecture string `json:"kernel_architecture"`
-	Cloud              string `json:"cloud"`
-	Jail               string `json:"jail"`
-	VNC                bool   `json:"vnc"`
-}
 
 func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -78,7 +40,7 @@ func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	var apiAgent *WorkspaceAgent
+	var apiAgent *codersdk.WorkspaceAgent
 	if workspaceResource.AgentID.Valid {
 		agent, err := api.Database.GetWorkspaceAgentByResourceID(r.Context(), workspaceResource.ID)
 		if err != nil {
@@ -87,7 +49,7 @@ func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		convertedAgent, err := convertWorkspaceAgent(agent)
+		convertedAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("convert provisioner job agent: %s", err),
@@ -163,6 +125,16 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
+	}
+
+	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", agent))
+
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}()
@@ -183,31 +155,57 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closer.Close()
-	err = api.Database.UpdateWorkspaceAgentByID(r.Context(), database.UpdateWorkspaceAgentByIDParams{
-		ID: agent.ID,
-		UpdatedAt: sql.NullTime{
+	firstConnectedAt := agent.FirstConnectedAt
+	if !firstConnectedAt.Valid {
+		firstConnectedAt = sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
-		},
-	})
+		}
+	}
+	lastConnectedAt := sql.NullTime{
+		Time:  database.Now(),
+		Valid: true,
+	}
+	disconnectedAt := agent.DisconnectedAt
+	updateConnectionTimes := func() error {
+		err = api.Database.UpdateWorkspaceAgentConnectionByID(r.Context(), database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:               agent.ID,
+			FirstConnectedAt: firstConnectedAt,
+			LastConnectedAt:  lastConnectedAt,
+			DisconnectedAt:   disconnectedAt,
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	defer func() {
+		disconnectedAt = sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		}
+		_ = updateConnectionTimes()
+	}()
+
+	err = updateConnectionTimes()
 	if err != nil {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
-	ticker := time.NewTicker(5 * time.Second)
+
+	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-session.CloseChan():
 			return
 		case <-ticker.C:
-			err = api.Database.UpdateWorkspaceAgentByID(r.Context(), database.UpdateWorkspaceAgentByIDParams{
-				ID: agent.ID,
-				UpdatedAt: sql.NullTime{
-					Time:  database.Now(),
-					Valid: true,
-				},
-			})
+			lastConnectedAt = sql.NullTime{
+				Time:  database.Now(),
+				Valid: true,
+			}
+			err = updateConnectionTimes()
 			if err != nil {
 				_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 				return
@@ -216,21 +214,49 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func convertWorkspaceAgent(agent database.WorkspaceAgent) (WorkspaceAgent, error) {
+func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
-	if agent.EnvironmentVariables.Valid {
-		err := json.Unmarshal(agent.EnvironmentVariables.RawMessage, &envs)
+	if dbAgent.EnvironmentVariables.Valid {
+		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
-			return WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
+			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
 		}
 	}
-	return WorkspaceAgent{
-		ID:                   agent.ID,
-		CreatedAt:            agent.CreatedAt,
-		UpdatedAt:            agent.UpdatedAt.Time,
-		ResourceID:           agent.ResourceID,
-		InstanceID:           agent.AuthInstanceID.String,
-		StartupScript:        agent.StartupScript.String,
+	agent := codersdk.WorkspaceAgent{
+		ID:                   dbAgent.ID,
+		CreatedAt:            dbAgent.CreatedAt,
+		UpdatedAt:            dbAgent.UpdatedAt,
+		ResourceID:           dbAgent.ResourceID,
+		InstanceID:           dbAgent.AuthInstanceID.String,
+		StartupScript:        dbAgent.StartupScript.String,
 		EnvironmentVariables: envs,
-	}, nil
+	}
+	if dbAgent.FirstConnectedAt.Valid {
+		agent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time
+	}
+	if dbAgent.LastConnectedAt.Valid {
+		agent.LastConnectedAt = &dbAgent.LastConnectedAt.Time
+	}
+	if dbAgent.DisconnectedAt.Valid {
+		agent.DisconnectedAt = &dbAgent.DisconnectedAt.Time
+	}
+	switch {
+	case !dbAgent.FirstConnectedAt.Valid:
+		// If the agent never connected, it's waiting for the compute
+		// to start up.
+		agent.Status = codersdk.WorkspaceAgentWaiting
+	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
+		// If we've disconnected after our last connection, we know the
+		// agent is no longer connected.
+		agent.Status = codersdk.WorkspaceAgentDisconnected
+	case agentUpdateFrequency*2 >= database.Now().Sub(dbAgent.LastConnectedAt.Time):
+		// The connection updated it's timestamp within the update frequency.
+		// We multiply by two to allow for some lag.
+		agent.Status = codersdk.WorkspaceAgentConnected
+	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentUpdateFrequency*2:
+		// The connection died without updating the last connected.
+		agent.Status = codersdk.WorkspaceAgentDisconnected
+	}
+
+	return agent, nil
 }

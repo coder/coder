@@ -55,6 +55,10 @@ install: bin
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
+package: 
+	goreleaser release --snapshot --rm-dist
+.PHONY: package
+
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	protoc \
 		--go_out=. \
@@ -89,7 +93,3 @@ site/out:
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
 .PHONY: site/out
-
-snapshot: 
-	goreleaser release --snapshot --rm-dist
-.PHONY: snapshot

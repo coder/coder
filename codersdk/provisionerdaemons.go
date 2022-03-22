@@ -10,14 +10,47 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
-	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 )
+
+type ProvisionerDaemon database.ProvisionerDaemon
+
+// ProvisionerJobStaus represents the at-time state of a job.
+type ProvisionerJobStatus string
+
+const (
+	ProvisionerJobPending   ProvisionerJobStatus = "pending"
+	ProvisionerJobRunning   ProvisionerJobStatus = "running"
+	ProvisionerJobSucceeded ProvisionerJobStatus = "succeeded"
+	ProvisionerJobCanceling ProvisionerJobStatus = "canceling"
+	ProvisionerJobCanceled  ProvisionerJobStatus = "canceled"
+	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
+)
+
+type ProvisionerJob struct {
+	ID          uuid.UUID            `json:"id"`
+	CreatedAt   time.Time            `json:"created_at"`
+	StartedAt   *time.Time           `json:"started_at,omitempty"`
+	CompletedAt *time.Time           `json:"completed_at,omitempty"`
+	Error       string               `json:"error,omitempty"`
+	Status      ProvisionerJobStatus `json:"status"`
+	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
+}
+
+type ProvisionerJobLog struct {
+	ID        uuid.UUID          `json:"id"`
+	CreatedAt time.Time          `json:"created_at"`
+	Source    database.LogSource `json:"log_source"`
+	Level     database.LogLevel  `json:"log_level"`
+	Output    string             `json:"output"`
+}
 
 // ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.
 func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
@@ -48,7 +81,7 @@ func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisi
 // provisionerJobLogsBefore provides log output that occurred before a time.
 // This is abstracted from a specific job type to provide consistency between
 // APIs. Logs is the only shared route between jobs.
-func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, before time.Time) ([]coderd.ProvisionerJobLog, error) {
+func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, before time.Time) ([]ProvisionerJobLog, error) {
 	values := url.Values{}
 	if !before.IsZero() {
 		values["before"] = []string{strconv.FormatInt(before.UTC().UnixMilli(), 10)}
@@ -62,12 +95,12 @@ func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, befo
 		return nil, readBodyAsError(res)
 	}
 
-	var logs []coderd.ProvisionerJobLog
+	var logs []ProvisionerJobLog
 	return logs, json.NewDecoder(res.Body).Decode(&logs)
 }
 
 // provisionerJobLogsAfter streams logs that occurred after a specific time.
-func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
+func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after time.Time) (<-chan ProvisionerJobLog, error) {
 	afterQuery := ""
 	if !after.IsZero() {
 		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
@@ -81,11 +114,11 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		return nil, readBodyAsError(res)
 	}
 
-	logs := make(chan coderd.ProvisionerJobLog)
+	logs := make(chan ProvisionerJobLog)
 	decoder := json.NewDecoder(res.Body)
 	go func() {
 		defer close(logs)
-		var log coderd.ProvisionerJobLog
+		var log ProvisionerJobLog
 		for {
 			err = decoder.Decode(&log)
 			if err != nil {

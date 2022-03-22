@@ -9,26 +9,55 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/database"
 )
+
+// WorkspaceBuild is an at-point representation of a workspace state.
+// Iterate on before/after to determine a chronological history.
+type WorkspaceBuild struct {
+	ID               uuid.UUID                    `json:"id"`
+	CreatedAt        time.Time                    `json:"created_at"`
+	UpdatedAt        time.Time                    `json:"updated_at"`
+	WorkspaceID      uuid.UUID                    `json:"workspace_id"`
+	ProjectVersionID uuid.UUID                    `json:"project_version_id"`
+	BeforeID         uuid.UUID                    `json:"before_id"`
+	AfterID          uuid.UUID                    `json:"after_id"`
+	Name             string                       `json:"name"`
+	Transition       database.WorkspaceTransition `json:"transition"`
+	Initiator        string                       `json:"initiator"`
+	Job              ProvisionerJob               `json:"job"`
+}
 
 // WorkspaceBuild returns a single workspace build for a workspace.
 // If history is "", the latest version is returned.
-func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (coderd.WorkspaceBuild, error) {
+func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s", id), nil)
 	if err != nil {
-		return coderd.WorkspaceBuild{}, err
+		return WorkspaceBuild{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return coderd.WorkspaceBuild{}, readBodyAsError(res)
+		return WorkspaceBuild{}, readBodyAsError(res)
 	}
-	var workspaceBuild coderd.WorkspaceBuild
+	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+// CancelWorkspaceBuild marks a workspace build job as canceled.
+func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
+	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 // WorkspaceResourcesByBuild returns resources for a workspace build.
-func (c *Client) WorkspaceResourcesByBuild(ctx context.Context, build uuid.UUID) ([]coderd.WorkspaceResource, error) {
+func (c *Client) WorkspaceResourcesByBuild(ctx context.Context, build uuid.UUID) ([]WorkspaceResource, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/resources", build), nil)
 	if err != nil {
 		return nil, err
@@ -37,16 +66,16 @@ func (c *Client) WorkspaceResourcesByBuild(ctx context.Context, build uuid.UUID)
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var resources []coderd.WorkspaceResource
+	var resources []WorkspaceResource
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
 // WorkspaceBuildLogsBefore returns logs that occurred before a specific time.
-func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, version uuid.UUID, before time.Time) ([]coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", version), before)
+func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
+	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), before)
 }
 
 // WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific time.
-func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, version uuid.UUID, after time.Time) (<-chan coderd.ProvisionerJobLog, error) {
-	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", version), after)
+func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, error) {
+	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), after)
 }

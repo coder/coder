@@ -19,11 +19,9 @@ import (
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -69,8 +67,22 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse: echo.ParseComplete,
+			ProvisionDryRun: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "somename",
+							Type: "someinstance",
+							Agent: &proto.Agent{
+								Auth: &proto.Agent_GoogleInstanceIdentity{
+									GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{},
+								},
+							},
+						}},
+					},
+				},
+			}},
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
@@ -92,14 +104,9 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		_, err = client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
+		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", createMetadataClient(signedKey))
 		require.NoError(t, err)
 	})
 }

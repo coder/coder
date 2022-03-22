@@ -10,10 +10,9 @@ var (
 		"windows": {
 			"amd64": `
 $ProgressPreference = "SilentlyContinue"
-$ErrorActionPreference = "Stop"
-Invoke-WebRequest -Uri ${ACCESS_URL}/bin/coder-windows-amd64 -OutFile $env:TEMP\coder.exe
+Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-amd64.exe -OutFile $env:TEMP\coder.exe
 $env:CODER_URL = "${ACCESS_URL}"
-Start-Process -FilePath $env:TEMP\coder.exe workspaces agent
+Start-Process -FilePath $env:TEMP\coder.exe -ArgumentList "workspaces","agent" -PassThru
 `,
 		},
 		"linux": {
@@ -21,10 +20,10 @@ Start-Process -FilePath $env:TEMP\coder.exe workspaces agent
 #!/usr/bin/env sh
 set -eu pipefail
 BINARY_LOCATION=$(mktemp -d)/coder
-curl -fsSL ${ACCESS_URL}/bin/coder-linux-amd64 -o $BINARY_LOCATION
+curl -fsSL ${ACCESS_URL}bin/coder-linux-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_URL="${ACCESS_URL}"
-exec $BINARY_LOCATION agent
+exec $BINARY_LOCATION workspaces agent
 `,
 		},
 		"darwin": {
@@ -32,10 +31,10 @@ exec $BINARY_LOCATION agent
 #!/usr/bin/env sh
 set -eu pipefail
 BINARY_LOCATION=$(mktemp -d)/coder
-curl -fsSL ${ACCESS_URL}/bin/coder-darwin-amd64 -o $BINARY_LOCATION
+curl -fsSL ${ACCESS_URL}bin/coder-darwin-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_URL="${ACCESS_URL}"
-exec $BINARY_LOCATION agent
+exec $BINARY_LOCATION workspaces agent
 `,
 		},
 	}

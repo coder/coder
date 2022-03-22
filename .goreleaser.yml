@@ -1,5 +1,6 @@
 archives:
-  - builds:
+  - id: coder
+    builds:
       - coder
     files:
       - README.md
@@ -12,7 +13,6 @@ before:
 builds:
   - id: coder-slim
     dir: cmd/coder
-    flags: [-tags=slim]
     ldflags: ["-s -w"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]
@@ -20,10 +20,11 @@ builds:
     hooks:
       # The "trimprefix" appends ".exe" on Windows.
       post: |
-        cp {{.Path}} site/out/bin/coder_{{ .Os }}_{{ .Arch }}{{ trimprefix .Name "coder" }}
+        cp {{.Path}} site/out/bin/coder-{{ .Os }}-{{ .Arch }}{{ trimprefix .Name "coder" }}
 
   - id: coder
     dir: cmd/coder
+    flags: [-tags=embed]
     ldflags: ["-s -w"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]

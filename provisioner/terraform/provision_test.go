@@ -69,11 +69,15 @@ provider "coder" {
 			}`,
 		},
 		Request: &proto.Provision_Request{
-			ParameterValues: []*proto.ParameterValue{{
-				DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-				Name:              "A",
-				Value:             "example",
-			}},
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					ParameterValues: []*proto.ParameterValue{{
+						DestinationScheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						Name:              "A",
+						Value:             "example",
+					}},
+				},
+			},
 		},
 		Response: &proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
@@ -114,7 +118,11 @@ provider "coder" {
 			"main.tf": `resource "null_resource" "A" {}`,
 		},
 		Request: &proto.Provision_Request{
-			DryRun: true,
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					DryRun: true,
+				},
+			},
 		},
 		Response: &proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
@@ -156,8 +164,12 @@ provider "coder" {
 			}`,
 		},
 		Request: &proto.Provision_Request{
-			Metadata: &proto.Provision_Metadata{
-				CoderUrl: "https://example.com",
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					Metadata: &proto.Provision_Metadata{
+						CoderUrl: "https://example.com",
+					},
+				},
 			},
 		},
 		Response: &proto.Provision_Response{
@@ -191,8 +203,12 @@ provider "coder" {
 			resource "null_resource" "A" {}`,
 		},
 		Request: &proto.Provision_Request{
-			Metadata: &proto.Provision_Metadata{
-				CoderUrl: "https://example.com",
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					Metadata: &proto.Provision_Metadata{
+						CoderUrl: "https://example.com",
+					},
+				},
 			},
 		},
 		Response: &proto.Provision_Response{
@@ -201,13 +217,6 @@ provider "coder" {
 					Resources: []*proto.Resource{{
 						Name: "A",
 						Type: "null_resource",
-						Agent: &proto.Agent{
-							Auth: &proto.Agent_GoogleInstanceIdentity{
-								GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-									InstanceId: "an-instance",
-								},
-							},
-						},
 					}},
 				},
 			},
@@ -224,9 +233,13 @@ provider "coder" {
 			}`,
 		},
 		Request: &proto.Provision_Request{
-			DryRun: true,
-			Metadata: &proto.Provision_Metadata{
-				CoderUrl: "https://example.com",
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					DryRun: true,
+					Metadata: &proto.Provision_Metadata{
+						CoderUrl: "https://example.com",
+					},
+				},
 			},
 		},
 		Response: &proto.Provision_Response{
@@ -258,9 +271,13 @@ provider "coder" {
 			}`,
 		},
 		Request: &proto.Provision_Request{
-			DryRun: true,
-			Metadata: &proto.Provision_Metadata{
-				CoderUrl: "https://example.com",
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					DryRun: true,
+					Metadata: &proto.Provision_Metadata{
+						CoderUrl: "https://example.com",
+					},
+				},
 			},
 		},
 		Response: &proto.Provision_Response{
@@ -292,18 +309,24 @@ provider "coder" {
 			}
 
 			request := &proto.Provision_Request{
-				Directory: directory,
+				Type: &proto.Provision_Request_Start{
+					Start: &proto.Provision_Start{
+						Directory: directory,
+					},
+				},
 			}
 			if testCase.Request != nil {
-				request.ParameterValues = testCase.Request.ParameterValues
-				request.State = testCase.Request.State
-				request.DryRun = testCase.Request.DryRun
-				request.Metadata = testCase.Request.Metadata
+				request.GetStart().ParameterValues = testCase.Request.GetStart().ParameterValues
+				request.GetStart().State = testCase.Request.GetStart().State
+				request.GetStart().DryRun = testCase.Request.GetStart().DryRun
+				request.GetStart().Metadata = testCase.Request.GetStart().Metadata
 			}
-			if request.Metadata == nil {
-				request.Metadata = &proto.Provision_Metadata{}
+			if request.GetStart().Metadata == nil {
+				request.GetStart().Metadata = &proto.Provision_Metadata{}
 			}
-			response, err := api.Provision(ctx, request)
+			response, err := api.Provision(ctx)
+			require.NoError(t, err)
+			err = response.Send(request)
 			require.NoError(t, err)
 			for {
 				msg, err := response.Recv()
@@ -322,7 +345,7 @@ provider "coder" {
 				}
 
 				require.NoError(t, err)
-				if !request.DryRun {
+				if !request.GetStart().DryRun {
 					require.Greater(t, len(msg.GetComplete().State), 0)
 				}
 

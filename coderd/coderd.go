@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/api/idtoken"
@@ -17,10 +18,11 @@ import (
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	AccessURL *url.URL
-	Logger    slog.Logger
-	Database  database.Store
-	Pubsub    database.Pubsub
+	AgentConnectionUpdateFrequency time.Duration
+	AccessURL                      *url.URL
+	Logger                         slog.Logger
+	Database                       database.Store
+	Pubsub                         database.Pubsub
 
 	GoogleTokenValidator *idtoken.Validator
 }
@@ -30,6 +32,9 @@ type Options struct {
 // A wait function is returned to handle awaiting closure of hijacked HTTP
 // requests.
 func New(options *Options) (http.Handler, func()) {
+	if options.AgentConnectionUpdateFrequency == 0 {
+		options.AgentConnectionUpdateFrequency = 3 * time.Second
+	}
 	api := &api{
 		Options: options,
 	}
@@ -75,9 +80,10 @@ func New(options *Options) (http.Handler, func()) {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.project)
+			r.Delete("/", api.deleteProject)
 			r.Route("/versions", func(r chi.Router) {
 				r.Get("/", api.projectVersionsByProject)
-				r.Patch("/versions", nil)
+				r.Patch("/", api.patchActiveProjectVersion)
 				r.Get("/{projectversionname}", api.projectVersionByName)
 			})
 		})
@@ -89,6 +95,7 @@ func New(options *Options) (http.Handler, func()) {
 			)
 
 			r.Get("/", api.projectVersion)
+			r.Patch("/cancel", api.patchCancelProjectVersion)
 			r.Get("/schema", api.projectVersionSchema)
 			r.Get("/parameters", api.projectVersionParameters)
 			r.Get("/resources", api.projectVersionResources)
@@ -153,7 +160,6 @@ func New(options *Options) (http.Handler, func()) {
 			r.Route("/builds", func(r chi.Router) {
 				r.Get("/", api.workspaceBuilds)
 				r.Post("/", api.postWorkspaceBuilds)
-				r.Get("/latest", api.workspaceBuildLatest)
 				r.Get("/{workspacebuildname}", api.workspaceBuildByName)
 			})
 		})
@@ -164,6 +170,7 @@ func New(options *Options) (http.Handler, func()) {
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
 			r.Get("/", api.workspaceBuild)
+			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
 		})

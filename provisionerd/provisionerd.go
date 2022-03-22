@@ -45,10 +45,11 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 type Options struct {
 	Logger slog.Logger
 
-	UpdateInterval time.Duration
-	PollInterval   time.Duration
-	Provisioners   Provisioners
-	WorkDirectory  string
+	ForceCancelInterval time.Duration
+	UpdateInterval      time.Duration
+	PollInterval        time.Duration
+	Provisioners        Provisioners
+	WorkDirectory       string
 }
 
 // New creates and starts a provisioner daemon.
@@ -58,6 +59,9 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	}
 	if opts.UpdateInterval == 0 {
 		opts.UpdateInterval = 5 * time.Second
+	}
+	if opts.ForceCancelInterval == 0 {
+		opts.ForceCancelInterval = time.Minute
 	}
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
@@ -203,7 +207,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	if job.JobId == "" {
-		p.opts.Logger.Debug(context.Background(), "no jobs available")
+		// p.opts.Logger.Debug(context.Background(), "no jobs available")
 		return
 	}
 	ctx, p.jobCancel = context.WithCancel(ctx)
@@ -221,6 +225,8 @@ func (p *Server) acquireJob(ctx context.Context) {
 }
 
 func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
+	shutdown, shutdownCancel := context.WithCancel(ctx)
+	defer shutdownCancel()
 	go func() {
 		ticker := time.NewTicker(p.opts.UpdateInterval)
 		defer ticker.Stop()
@@ -229,12 +235,31 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			return
 		case <-ctx.Done():
 			return
+		case <-p.shutdown:
+			p.opts.Logger.Info(ctx, "attempting graceful cancelation")
+			shutdownCancel()
+			return
 		case <-ticker.C:
-			_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+			resp, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 			})
 			if err != nil {
 				p.failActiveJobf("send periodic update: %s", err)
+				return
+			}
+			if !resp.Canceled {
+				return
+			}
+			p.opts.Logger.Info(ctx, "attempting graceful cancelation")
+			shutdownCancel()
+			// Hard-cancel the job after a minute of pending cancelation.
+			timer := time.NewTimer(p.opts.ForceCancelInterval)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+				p.failActiveJobf("cancelation timed out")
+				return
+			case <-ctx.Done():
 				return
 			}
 		}
@@ -333,7 +358,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	case *proto.AcquiredJob_ProjectImport_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is project import")
 
-		p.runProjectImport(ctx, provisioner, job)
+		p.runProjectImport(ctx, shutdown, provisioner, job)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
@@ -341,7 +366,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
 		)
 
-		p.runWorkspaceBuild(ctx, provisioner, job)
+		p.runWorkspaceBuild(ctx, shutdown, provisioner, job)
 	default:
 		p.failActiveJobf("unknown job type %q; ensure your provisioner daemon is up-to-date", reflect.TypeOf(job.Type).String())
 		return
@@ -354,7 +379,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	}
 }
 
-func (p *Server) runProjectImport(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
 	parameterSchemas, err := p.runProjectImportParse(ctx, provisioner, job)
 	if err != nil {
 		p.failActiveJobf("run parse: %s", err)
@@ -382,7 +407,7 @@ func (p *Server) runProjectImport(ctx context.Context, provisioner sdkproto.DRPC
 		}
 	}
 
-	startResources, err := p.runProjectImportProvision(ctx, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	startResources, err := p.runProjectImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
@@ -390,7 +415,20 @@ func (p *Server) runProjectImport(ctx context.Context, provisioner sdkproto.DRPC
 		p.failActiveJobf("project import provision for start: %s", err)
 		return
 	}
-	stopResources, err := p.runProjectImportProvision(ctx, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		JobId: job.GetJobId(),
+		Logs: []*proto.Log{{
+			Source:    proto.LogSource_PROVISIONER_DAEMON,
+			Level:     sdkproto.LogLevel_INFO,
+			CreatedAt: time.Now().UTC().UnixMilli(),
+			Output:    "Running stop...",
+		}},
+	})
+	if err != nil {
+		p.failActiveJobf("write log: %s", err)
+		return
+	}
+	stopResources, err := p.runProjectImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
@@ -462,17 +500,37 @@ func (p *Server) runProjectImportParse(ctx context.Context, provisioner sdkproto
 // Performs a dry-run provision when importing a project.
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
-func (p *Server) runProjectImportProvision(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
-	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
-		Directory:       p.opts.WorkDirectory,
-		ParameterValues: values,
-		DryRun:          true,
-		Metadata:        metadata,
-	})
+func (p *Server) runProjectImportProvision(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
+	stream, err := provisioner.Provision(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("provision: %w", err)
 	}
 	defer stream.Close()
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-shutdown.Done():
+			_ = stream.Send(&sdkproto.Provision_Request{
+				Type: &sdkproto.Provision_Request_Cancel{
+					Cancel: &sdkproto.Provision_Cancel{},
+				},
+			})
+		}
+	}()
+	err = stream.Send(&sdkproto.Provision_Request{
+		Type: &sdkproto.Provision_Request_Start{
+			Start: &sdkproto.Provision_Start{
+				Directory:       p.opts.WorkDirectory,
+				ParameterValues: values,
+				DryRun:          true,
+				Metadata:        metadata,
+			},
+		},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("start provision: %w", err)
+	}
 
 	for {
 		msg, err := stream.Recv()
@@ -513,18 +571,39 @@ func (p *Server) runProjectImportProvision(ctx context.Context, provisioner sdkp
 	}
 }
 
-func (p *Server) runWorkspaceBuild(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
-	stream, err := provisioner.Provision(ctx, &sdkproto.Provision_Request{
-		Directory:       p.opts.WorkDirectory,
-		ParameterValues: job.GetWorkspaceBuild().ParameterValues,
-		Metadata:        job.GetWorkspaceBuild().Metadata,
-		State:           job.GetWorkspaceBuild().State,
-	})
+func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	stream, err := provisioner.Provision(ctx)
 	if err != nil {
 		p.failActiveJobf("provision: %s", err)
 		return
 	}
 	defer stream.Close()
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-shutdown.Done():
+			_ = stream.Send(&sdkproto.Provision_Request{
+				Type: &sdkproto.Provision_Request_Cancel{
+					Cancel: &sdkproto.Provision_Cancel{},
+				},
+			})
+		}
+	}()
+	err = stream.Send(&sdkproto.Provision_Request{
+		Type: &sdkproto.Provision_Request_Start{
+			Start: &sdkproto.Provision_Start{
+				Directory:       p.opts.WorkDirectory,
+				ParameterValues: job.GetWorkspaceBuild().ParameterValues,
+				Metadata:        job.GetWorkspaceBuild().Metadata,
+				State:           job.GetWorkspaceBuild().State,
+			},
+		},
+	})
+	if err != nil {
+		p.failActiveJobf("start provision: %s", err)
+		return
+	}
 
 	for {
 		msg, err := stream.Recv()
@@ -666,12 +745,6 @@ func (p *Server) Shutdown(ctx context.Context) error {
 	}
 	p.opts.Logger.Info(ctx, "attempting graceful shutdown")
 	close(p.shutdown)
-	for id, provisioner := range p.opts.Provisioners {
-		_, err := provisioner.Shutdown(ctx, &sdkproto.Empty{})
-		if err != nil {
-			return xerrors.Errorf("shutdown %q: %w", id, err)
-		}
-	}
 	select {
 	case <-ctx.Done():
 		p.opts.Logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
