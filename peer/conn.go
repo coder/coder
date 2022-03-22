@@ -354,6 +354,9 @@ func (c *Conn) AddRemoteCandidate(i webrtc.ICECandidateInit) {
 	go func() {
 		c.negotiateMutex.Lock()
 		defer c.negotiateMutex.Unlock()
+		if c.isClosed() {
+			return
+		}
 		c.opts.Logger.Debug(context.Background(), "accepting candidate", slog.F("candidate", i.Candidate))
 		err := c.rtc.AddICECandidate(i)
 		if err != nil {
