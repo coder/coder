@@ -36,8 +36,8 @@ func New(options *Options) (http.Handler, func()) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(chitrace.Middleware())
 	r.Route("/api/v2", func(r chi.Router) {
+		r.Use(chitrace.Middleware())
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
 				Message: "👋",
