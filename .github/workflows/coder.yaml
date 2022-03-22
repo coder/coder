@@ -173,7 +173,7 @@ jobs:
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
           -coverpkg=./...,github.com/coder/coder/codersdk
-          -timeout=3m -count=$GOCOUNT -race -short -failfast
+          -timeout=3m -count=$GOCOUNT -short -failfast
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
@@ -189,7 +189,7 @@ jobs:
         run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
           -coverpkg=./...,github.com/coder/coder/codersdk
-          -count=1 -parallel=2 -failfast
+          -count=1 -parallel=2 -race -failfast
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
