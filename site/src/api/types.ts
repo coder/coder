@@ -61,8 +61,8 @@ export interface APIKeyResponse {
 }
 
 export interface UserAgent {
-  readonly ip_address: string
-  readonly os: string
   readonly browser: string
   readonly device: string
+  readonly ip_address: string
+  readonly os: string
 }
