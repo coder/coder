@@ -15,7 +15,7 @@ export const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {
   return (
     <div className={styles.root}>
       <div className={styles.avatarContainer}>
-        <UserAvatar className={styles.avatar} user={user} />
+        <UserAvatar className={styles.avatar} username={user.username} />
       </div>
       <Typography className={styles.userName}>{user.username}</Typography>
       <Typography className={styles.userEmail}>{user.email}</Typography>
