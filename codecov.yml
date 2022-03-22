@@ -29,6 +29,7 @@ ignore:
   - database/databasefake
   # These are generated or don't require tests.
   - cmd
+  - coderd/tunnel
   - database/dump
   - database/postgres
   - peerbroker/proto

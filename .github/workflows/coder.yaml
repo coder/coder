@@ -270,6 +270,14 @@ jobs:
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
+      - uses: codecov/codecov-action@v2
+        if: github.actor != 'dependabot[bot]'
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./gotests.coverage
+          flags: unittest-go-${{ matrix.os }}
+          fail_ci_if_error: true
+
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
