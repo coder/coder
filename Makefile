@@ -51,7 +51,7 @@ gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 
 install: bin
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
-	cp -r ./dist/coder_$(GOOS)_$(GOARCH) $(INSTALL_DIR)
+	cp -r ./dist/coder_$(GOOS)_$(GOARCH)/* $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
