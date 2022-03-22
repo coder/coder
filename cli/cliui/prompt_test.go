@@ -2,6 +2,7 @@ package cliui_test
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -60,8 +61,11 @@ func TestPrompt(t *testing.T) {
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("'this is a")
 		ptty.WriteLine("test'")
-		require.Equal(t, `this is a
-test`, <-doneChan)
+		newline := "\n"
+		if runtime.GOOS == "windows" {
+			newline = "\r\n"
+		}
+		require.Equal(t, "this is a"+newline+"test", <-doneChan)
 	})
 }
 
