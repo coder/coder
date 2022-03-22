@@ -230,16 +230,18 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	go func() {
 		ticker := time.NewTicker(p.opts.UpdateInterval)
 		defer ticker.Stop()
-		select {
-		case <-p.closed:
-			return
-		case <-ctx.Done():
-			return
-		case <-p.shutdown:
-			p.opts.Logger.Info(ctx, "attempting graceful cancelation")
-			shutdownCancel()
-			return
-		case <-ticker.C:
+		for {
+			select {
+			case <-p.closed:
+				return
+			case <-ctx.Done():
+				return
+			case <-p.shutdown:
+				p.opts.Logger.Info(ctx, "attempting graceful cancelation")
+				shutdownCancel()
+				return
+			case <-ticker.C:
+			}
 			resp, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 			})
@@ -248,18 +250,18 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 				return
 			}
 			if !resp.Canceled {
-				return
+				continue
 			}
 			p.opts.Logger.Info(ctx, "attempting graceful cancelation")
 			shutdownCancel()
 			// Hard-cancel the job after a minute of pending cancelation.
 			timer := time.NewTimer(p.opts.ForceCancelInterval)
-			defer timer.Stop()
 			select {
 			case <-timer.C:
 				p.failActiveJobf("cancelation timed out")
 				return
 			case <-ctx.Done():
+				timer.Stop()
 				return
 			}
 		}

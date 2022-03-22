@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/cryptorand"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
@@ -20,6 +21,28 @@ var openPortMutex sync.Mutex
 
 // Open creates a new PostgreSQL server using a Docker container.
 func Open() (string, func(), error) {
+	if os.Getenv("DB") == "ci" {
+		// In CI, creating a Docker container for each test is slow.
+		// This expects a PostgreSQL instance with the hardcoded credentials
+		// available.
+		dbURL := "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
+		db, err := sql.Open("postgres", dbURL)
+		if err != nil {
+			return "", nil, xerrors.Errorf("connect to ci postgres: %w", err)
+		}
+		defer db.Close()
+		dbName, err := cryptorand.StringCharset(cryptorand.Lower, 10)
+		if err != nil {
+			return "", nil, xerrors.Errorf("generate db name: %w", err)
+		}
+		dbName = "ci" + dbName
+		_, err = db.Exec("CREATE DATABASE " + dbName)
+		if err != nil {
+			return "", nil, xerrors.Errorf("create db: %w", err)
+		}
+		return "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable", func() {}, nil
+	}
+
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return "", nil, xerrors.Errorf("create pool: %w", err)

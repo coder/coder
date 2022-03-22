@@ -135,19 +135,31 @@ jobs:
         with:
           go-version: "^1.17"
 
-      - uses: actions/cache@v3
-        with:
-          # Go mod cache, Linux build cache, Mac build cache, Windows build cache
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            ~/Library/Caches/go-build
-            %LocalAppData%\go-build
-          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ matrix.os }}-go-
+      - name: Echo Go Cache Paths
+        id: go-cache-paths
+        run: |
+          echo "::set-output name=go-build::$(go env GOCACHE)"
+          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
 
-      - run: go install gotest.tools/gotestsum@latest
+      - name: Go Build Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+
+      - name: Go Mod Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+
+      - name: Install goreleaser
+        uses: jaxxstorm/action-install-gh-release@v1.4.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          repo: gotestyourself/gotestsum
+          tag: v1.7.0
 
       - uses: hashicorp/setup-terraform@v1
         with:
@@ -162,7 +174,7 @@ jobs:
         run: gotestsum --junitfile="gotests.xml" --packages="./..." --
           -covermode=atomic -coverprofile="gotests.coverage"
           -coverpkg=./...,github.com/coder/coder/codersdk
-          -timeout=3m -count=$GOCOUNT -race -short -failfast
+          -timeout=3m -count=$GOCOUNT -short -failfast
 
       - name: Upload DataDog Trace
         if: (success() || failure()) && github.actor != 'dependabot[bot]'
@@ -173,21 +185,6 @@ jobs:
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
-      - name: Test with PostgreSQL Database
-        if: runner.os == 'Linux'
-        run: DB=true gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -coverpkg=./...,github.com/coder/coder/codersdk
-          -count=1 -parallel=2 -failfast
-
-      - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
-        env:
-          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-          DD_DATABASE: postgresql
-          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: go run scripts/datadog-cireport/main.go gotests.xml
-
       - uses: codecov/codecov-action@v2
         if: github.actor != 'dependabot[bot]'
         with:
@@ -195,6 +192,83 @@ jobs:
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
           fail_ci_if_error: true
+
+  test-go-postgres:
+    name: "test/go/postgres"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "^1.17"
+
+      - name: Echo Go Cache Paths
+        id: go-cache-paths
+        run: |
+          echo "::set-output name=go-build::$(go env GOCACHE)"
+          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+
+      - name: Go Build Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+
+      - name: Go Mod Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+
+      - name: Install goreleaser
+        uses: jaxxstorm/action-install-gh-release@v1.4.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          repo: gotestyourself/gotestsum
+          tag: v1.7.0
+
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.1.2
+          terraform_wrapper: false
+
+      - name: Start PostgreSQL Database
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          PGDATA: /tmp
+        run: |
+          docker run \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_DB=postgres \
+            -e PGDATA=/tmp \
+            -p 5432:5432 \
+            -d postgres:11 \
+            -c shared_buffers=1GB \
+            -c max_connections=1000
+          while ! pg_isready -h 127.0.0.1
+          do
+              echo "$(date) - waiting for database to start"
+              sleep 0.5
+          done
+
+      - name: Test with PostgreSQL Database
+        run: DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." --
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
+          -coverpkg=./...,github.com/coder/coder/codersdk
+          -count=1 -parallel=2 -race -failfast
+
+      - name: Upload DataDog Trace
+        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        env:
+          DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+          DD_DATABASE: postgresql
+          GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: go run scripts/datadog-cireport/main.go gotests.xml
 
   deploy:
     name: "deploy"
@@ -339,17 +413,23 @@ jobs:
         with:
           install-only: true
 
-      - uses: actions/cache@v3
+      - name: Echo Go Cache Paths
+        id: go-cache-paths
+        run: |
+          echo "::set-output name=go-build::$(go env GOCACHE)"
+          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+
+      - name: Go Build Cache
+        uses: actions/cache@v3
         with:
-          # Go mod cache, Linux build cache, Mac build cache, Windows build cache
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-            ~/Library/Caches/go-build
-            %LocalAppData%\go-build
-          key: ${{ matrix.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ matrix.os }}-go-
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+
+      - name: Go Mod Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - run: make build
 

@@ -31,14 +31,14 @@ func TestStart(t *testing.T) {
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 		}()
-		var accessURL string
+		var token string
 		require.Eventually(t, func() bool {
 			var err error
-			accessURL, err = cfg.URL().Read()
+			token, err = cfg.Session().Read()
 			return err == nil
 		}, 15*time.Second, 25*time.Millisecond)
 		// Verify that authentication was properly set in dev-mode.
-		token, err := cfg.Session().Read()
+		accessURL, err := cfg.URL().Read()
 		require.NoError(t, err)
 		parsed, err := url.Parse(accessURL)
 		require.NoError(t, err)
