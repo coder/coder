@@ -11,21 +11,6 @@ export const MockUser: UserResponse = {
   created_at: "",
 }
 
-export const MockProject: Project = {
-  id: "test-project",
-  created_at: "",
-  updated_at: "",
-  organization_id: "test-org",
-  name: "Test Project",
-  provisioner: "test-provisioner",
-  active_version_id: "",
-}
-
-export const MockProvisioner: Provisioner = {
-  id: "test-provisioner",
-  name: "Test Provisioner",
-}
-
 export const MockOrganization: Organization = {
   id: "test-org",
   name: "Test Organization",
@@ -33,11 +18,26 @@ export const MockOrganization: Organization = {
   updated_at: "",
 }
 
+export const MockProvisioner: Provisioner = {
+  id: "test-provisioner",
+  name: "Test Provisioner",
+}
+
+export const MockProject: Project = {
+  id: "test-project",
+  created_at: "",
+  updated_at: "",
+  organization_id: MockOrganization.id,
+  name: "Test Project",
+  provisioner: MockProvisioner.id,
+  active_version_id: "",
+}
+
 export const MockWorkspace: Workspace = {
   id: "test-workspace",
   name: "Test-Workspace",
   created_at: "",
   updated_at: "",
-  project_id: "test-project",
-  owner_id: "test-user",
+  project_id: MockProject.id,
+  owner_id: MockUser.id
 }
