@@ -17,6 +17,8 @@ replace github.com/chzyer/readline => github.com/kylecarbs/readline v0.0.0-20220
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
+replace github.com/golang/glog => github.com/coder/glog v1.0.1-0.20220322161911-7365fe7f2cd1
+
 require (
 	cdr.dev/slog v1.4.1
 	cloud.google.com/go/compute v1.5.0

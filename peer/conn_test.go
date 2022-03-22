@@ -55,8 +55,6 @@ func TestMain(m *testing.M) {
 		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).startOnConnectionStateChangeRoutine.func2"),
 		goleak.IgnoreTopFunction("github.com/pion/ice/v2.(*Agent).taskLoop"),
 		goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
-		// datadog package uses glog which leaks exactly 1 goroutine
-		goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"),
 	)
 }
 
