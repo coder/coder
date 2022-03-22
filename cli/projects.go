@@ -2,14 +2,13 @@ package cli
 
 import (
 	"fmt"
-	"strings"
+	"sort"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/xlab/treeprint"
-	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 )
 
@@ -32,53 +31,53 @@ func projects() *cobra.Command {
 	}
 	cmd.AddCommand(
 		projectCreate(),
+		projectEdit(),
+		projectInit(),
 		projectList(),
 		projectPlan(),
 		projectUpdate(),
+		projectVersions(),
 	)
 
 	return cmd
 }
 
-func displayProjectImportInfo(cmd *cobra.Command, parameterSchemas []coderd.ProjectVersionParameterSchema, parameterValues []coderd.ProjectVersionParameter, resources []coderd.WorkspaceResource) error {
-	schemaByID := map[string]coderd.ProjectVersionParameterSchema{}
-	for _, schema := range parameterSchemas {
-		schemaByID[schema.ID.String()] = schema
-	}
+func displayProjectVersionInfo(cmd *cobra.Command, resources []codersdk.WorkspaceResource) error {
+	sort.Slice(resources, func(i, j int) bool {
+		return fmt.Sprintf("%s.%s", resources[i].Type, resources[i].Name) < fmt.Sprintf("%s.%s", resources[j].Type, resources[j].Name)
+	})
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n  %s\n\n", color.HiBlackString("Parameters"))
-	for _, value := range parameterValues {
-		schema, ok := schemaByID[value.SchemaID.String()]
-		if !ok {
-			return xerrors.Errorf("schema not found: %s", value.Name)
-		}
-		displayValue := value.SourceValue
-		if !schema.RedisplayValue {
-			displayValue = "<redacted>"
-		}
-		output := fmt.Sprintf("%s %s %s", color.HiCyanString(value.Name), color.HiBlackString("="), displayValue)
-		if value.DefaultSourceValue {
-			output += " (default value)"
-		} else if value.Scope != database.ParameterScopeImportJob {
-			output += fmt.Sprintf(" (inherited from %s)", value.Scope)
-		}
-
-		root := treeprint.NewWithRoot(output)
-		if schema.Description != "" {
-			root.AddBranch(fmt.Sprintf("%s\n%s", color.HiBlackString("Description"), schema.Description))
-		}
-		if schema.AllowOverrideSource {
-			root.AddBranch(fmt.Sprintf("%s Users can customize this value!", color.HiYellowString("+")))
-		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "    "+strings.Join(strings.Split(root.String(), "\n"), "\n    "))
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s\n\n", color.HiBlackString("Resources"))
+	addressOnStop := map[string]codersdk.WorkspaceResource{}
 	for _, resource := range resources {
-		transition := color.HiGreenString("start")
-		if resource.Transition == database.WorkspaceTransitionStop {
-			transition = color.HiRedString("stop")
+		if resource.Transition != database.WorkspaceTransitionStop {
+			continue
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    %s %s on %s\n\n", color.HiCyanString(resource.Type), color.HiCyanString(resource.Name), transition)
+		addressOnStop[resource.Address] = resource
+	}
+
+	displayed := map[string]struct{}{}
+	for _, resource := range resources {
+		if resource.Type == "random_string" {
+			// Hide resources that aren't substantial to a user!
+			continue
+		}
+		_, alreadyShown := displayed[resource.Address]
+		if alreadyShown {
+			continue
+		}
+		displayed[resource.Address] = struct{}{}
+
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render("resource."+resource.Type+"."+resource.Name))
+		_, existsOnStop := addressOnStop[resource.Address]
+		if existsOnStop {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Warn.Render("~ persistent"))
+		} else {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Keyword.Render("+ start")+cliui.Styles.Placeholder.Render(" (deletes on stop)"))
+		}
+		if resource.Agent != nil {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Fuschia.Render("▲ allows ssh"))
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout())
 	}
 	return nil
 }

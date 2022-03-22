@@ -7,6 +7,7 @@ import { BrowserRouter as Router } from "react-router-dom"
 
 import { XServiceProvider } from "./xServices/StateContext"
 import { AppRouter } from "./AppRouter"
+import "./theme/global-fonts"
 
 export const App: React.FC = () => {
   return (

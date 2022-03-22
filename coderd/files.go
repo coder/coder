@@ -12,15 +12,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// UploadResponse contains the hash to reference the uploaded file.
-type UploadResponse struct {
-	Hash string `json:"hash"`
-}
 
 func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
@@ -49,7 +45,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		// The file already exists!
 		render.Status(r, http.StatusOK)
-		render.JSON(rw, r, UploadResponse{
+		render.JSON(rw, r, codersdk.UploadResponse{
 			Hash: file.Hash,
 		})
 		return
@@ -68,7 +64,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, UploadResponse{
+	render.JSON(rw, r, codersdk.UploadResponse{
 		Hash: file.Hash,
 	})
 }

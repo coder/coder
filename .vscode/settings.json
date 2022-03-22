@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
+    "cliui",
     "coderd",
     "coderdtest",
     "codersdk",
@@ -12,8 +13,10 @@
     "goleak",
     "gossh",
     "hashicorp",
+    "hclsyntax",
     "httpmw",
     "idtoken",
+    "Iflag",
     "incpatch",
     "isatty",
     "Jobf",
@@ -40,11 +43,14 @@
     "retrier",
     "sdkproto",
     "stretchr",
+    "TCGETS",
     "tcpip",
+    "TCSETS",
     "tfexec",
     "tfstate",
     "trimprefix",
     "unconvert",
+    "Untar",
     "webrtc",
     "xerrors",
     "yamux"
@@ -61,13 +67,15 @@
   "files.exclude": {
     "**/node_modules": true
   },
+  // Ensure files always have a newline.
+  "files.insertFinalNewline": true,
   "go.lintTool": "golangci-lint",
   "go.lintFlags": ["--fast"],
   "go.lintOnSave": "package",
   "go.coverOnSave": true,
   // The codersdk is used by coderd another other packages extensively.
   // To reduce redundancy in tests, it's covered by other packages.
-  "go.testFlags": ["-coverpkg=./.,github.com/coder/coder/codersdk"],
+  "go.testFlags": ["-short", "-coverpkg=./.,github.com/coder/coder/codersdk"],
   "go.coverageDecorator": {
     "type": "gutter",
     "coveredHighlightColor": "rgba(64,128,128,0.5)",
@@ -79,5 +87,5 @@
   },
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib"
+  "typescript.tsdk": "./site/node_modules/typescript/lib",
 }

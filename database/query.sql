@@ -5,7 +5,7 @@
 ;
 
 -- Acquires the lock for a single job that isn't started, completed,
--- cancelled, and that matches an array of provisioner types.
+-- canceled, and that matches an array of provisioner types.
 --
 -- SKIP LOCKED is used to jump over locked rows. This prevents
 -- multiple provisioners from acquiring the same jobs. See:
@@ -25,7 +25,7 @@ WHERE
       provisioner_jobs AS nested
     WHERE
       nested.started_at IS NULL
-      AND nested.cancelled_at IS NULL
+      AND nested.canceled_at IS NULL
       AND nested.completed_at IS NULL
       AND nested.provisioner = ANY(@types :: provisioner_type [ ])
     ORDER BY
@@ -164,6 +164,14 @@ WHERE
 LIMIT
   1;
 
+-- name: GetProjectsByIDs :many
+SELECT
+  *
+FROM
+  projects
+WHERE
+  id = ANY(@ids :: uuid [ ]);
+
 -- name: GetProjectByOrganizationAndName :one
 SELECT
   *
@@ -171,6 +179,7 @@ FROM
   projects
 WHERE
   organization_id = @organization_id
+  AND deleted = @deleted
   AND LOWER(name) = LOWER(@name)
 LIMIT
   1;
@@ -181,7 +190,8 @@ SELECT
 FROM
   projects
 WHERE
-  organization_id = $1;
+  organization_id = $1
+  AND deleted = $2;
 
 -- name: GetParameterSchemasByJobID :many
 SELECT
@@ -198,6 +208,14 @@ FROM
   project_versions
 WHERE
   project_id = $1 :: uuid;
+
+-- name: GetProjectVersionByJobID :one
+SELECT
+  *
+FROM
+  project_versions
+WHERE
+  job_id = $1;
 
 -- name: GetProjectVersionByProjectIDAndName :one
 SELECT
@@ -250,7 +268,9 @@ SELECT
 FROM
   workspace_agents
 WHERE
-  auth_token = $1;
+  auth_token = $1
+ORDER BY
+  created_at DESC;
 
 -- name: GetWorkspaceAgentByInstanceID :one
 SELECT
@@ -288,13 +308,23 @@ WHERE
 LIMIT
   1;
 
+-- name: GetWorkspacesByProjectID :many
+SELECT
+  *
+FROM
+  workspaces
+WHERE
+  project_id = $1
+  AND deleted = $2;
+
 -- name: GetWorkspacesByUserID :many
 SELECT
   *
 FROM
   workspaces
 WHERE
-  owner_id = $1;
+  owner_id = $1
+  AND deleted = $2;
 
 -- name: GetWorkspaceByUserIDAndName :one
 SELECT
@@ -303,6 +333,7 @@ FROM
   workspaces
 WHERE
   owner_id = @owner_id
+  AND deleted = @deleted
   AND LOWER(name) = LOWER(@name);
 
 -- name: GetWorkspaceOwnerCountsByProjectIDs :many
@@ -364,6 +395,15 @@ WHERE
   AND after_id IS NULL
 LIMIT
   1;
+
+-- name: GetWorkspaceBuildsByWorkspaceIDsWithoutAfter :many
+SELECT
+  *
+FROM
+  workspace_builds
+WHERE
+  workspace_id = ANY(@ids :: uuid [ ])
+  AND after_id IS NULL;
 
 -- name: GetWorkspaceResourceByID :one
 SELECT
@@ -499,12 +539,13 @@ INSERT INTO
     created_at,
     job_id,
     transition,
+    address,
     type,
     name,
     agent_id
   )
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+  ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: InsertProjectVersion :one
 INSERT INTO
@@ -660,6 +701,22 @@ SET
 WHERE
   id = $1;
 
+-- name: UpdateProjectActiveVersionByID :exec
+UPDATE
+  projects
+SET
+  active_version_id = $2
+WHERE
+  id = $1;
+
+-- name: UpdateProjectDeletedByID :exec
+UPDATE
+  projects
+SET
+  deleted = $2
+WHERE
+  id = $1;
+
 -- name: UpdateProjectVersionByID :exec
 UPDATE
   project_versions
@@ -686,22 +743,40 @@ SET
 WHERE
   id = $1;
 
+-- name: UpdateProvisionerJobWithCancelByID :exec
+UPDATE
+  provisioner_jobs
+SET
+  canceled_at = $2
+WHERE
+  id = $1;
+
 -- name: UpdateProvisionerJobWithCompleteByID :exec
 UPDATE
   provisioner_jobs
 SET
   updated_at = $2,
   completed_at = $3,
-  cancelled_at = $4,
+  canceled_at = $4,
   error = $5
 WHERE
   id = $1;
 
--- name: UpdateWorkspaceAgentByID :exec
+-- name: UpdateWorkspaceDeletedByID :exec
+UPDATE
+  workspaces
+SET
+  deleted = $2
+WHERE
+  id = $1;
+
+-- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
   workspace_agents
 SET
-  updated_at = $2
+  first_connected_at = $2,
+  last_connected_at = $3,
+  disconnected_at = $4
 WHERE
   id = $1;
 

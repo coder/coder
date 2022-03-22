@@ -17,27 +17,54 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 // Provision executes `terraform apply`.
-func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
-	ctx := stream.Context()
-	statefilePath := filepath.Join(request.Directory, "terraform.tfstate")
-	if len(request.State) > 0 {
-		err := os.WriteFile(statefilePath, request.State, 0600)
+func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
+	shutdown, shutdownFunc := context.WithCancel(stream.Context())
+	defer shutdownFunc()
+
+	request, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	if request.GetCancel() != nil {
+		return nil
+	}
+	// We expect the first message is start!
+	if request.GetStart() == nil {
+		return nil
+	}
+	go func() {
+		for {
+			request, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			if request.GetCancel() == nil {
+				// This is only to process cancels!
+				continue
+			}
+			shutdownFunc()
+			return
+		}
+	}()
+	start := request.GetStart()
+	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
+	if len(start.State) > 0 {
+		err := os.WriteFile(statefilePath, start.State, 0600)
 		if err != nil {
 			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
 		}
 	}
 
-	terraform, err := tfexec.NewTerraform(request.Directory, t.binaryPath)
+	terraform, err := tfexec.NewTerraform(start.Directory, t.binaryPath)
 	if err != nil {
 		return xerrors.Errorf("create new terraform executor: %w", err)
 	}
-	version, _, err := terraform.Version(ctx, false)
+	version, _, err := terraform.Version(shutdown, false)
 	if err != nil {
 		return xerrors.Errorf("get terraform version: %w", err)
 	}
@@ -62,48 +89,39 @@ func (t *terraform) Provision(request *proto.Provision_Request, stream proto.DRP
 		}
 	}()
 	terraform.SetStdout(writer)
-	t.logger.Debug(ctx, "running initialization")
-	err = terraform.Init(ctx)
+	t.logger.Debug(shutdown, "running initialization")
+	err = terraform.Init(shutdown)
 	if err != nil {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
-	t.logger.Debug(ctx, "ran initialization")
+	t.logger.Debug(shutdown, "ran initialization")
+	_ = reader.Close()
+	terraform.SetStdout(io.Discard)
 
-	if request.DryRun {
-		return t.runTerraformPlan(ctx, terraform, request, stream)
+	env := os.Environ()
+	env = append(env,
+		"CODER_URL="+start.Metadata.CoderUrl,
+		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
+	)
+	for key, value := range provisionersdk.AgentScriptEnv() {
+		env = append(env, key+"="+value)
 	}
-	return t.runTerraformApply(ctx, terraform, request, stream, statefilePath)
-}
-
-func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream) error {
-	env := map[string]string{}
-	for _, envEntry := range os.Environ() {
-		parts := strings.SplitN(envEntry, "=", 2)
-		env[parts[0]] = parts[1]
-	}
-	env["CODER_URL"] = request.Metadata.CoderUrl
-	env["CODER_WORKSPACE_TRANSITION"] = strings.ToLower(request.Metadata.WorkspaceTransition.String())
-	planfilePath := filepath.Join(request.Directory, "terraform.tfplan")
-	options := []tfexec.PlanOption{tfexec.JSON(true), tfexec.Out(planfilePath)}
-	for _, param := range request.ParameterValues {
+	vars := []string{}
+	for _, param := range start.ParameterValues {
 		switch param.DestinationScheme {
 		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			env[param.Name] = param.Value
+			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
 		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			options = append(options, tfexec.Var(fmt.Sprintf("%s=%s", param.Name, param.Value)))
+			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
 		default:
 			return xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
 	}
-	err := terraform.SetEnv(env)
-	if err != nil {
-		return xerrors.Errorf("apply environment variables: %w", err)
-	}
 
-	reader, writer := io.Pipe()
+	closeChan := make(chan struct{})
+	reader, writer = io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
-	closeChan := make(chan struct{})
 	go func() {
 		defer close(closeChan)
 		decoder := json.NewDecoder(reader)
@@ -148,20 +166,87 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 		}
 	}()
 
-	terraform.SetStdout(writer)
-	t.logger.Debug(ctx, "running plan")
-	_, err = terraform.Plan(ctx, options...)
-	if err != nil {
-		return xerrors.Errorf("plan terraform: %w", err)
+	planfilePath := filepath.Join(start.Directory, "terraform.tfplan")
+	var args []string
+	if start.DryRun {
+		args = []string{
+			"plan",
+			"-no-color",
+			"-input=false",
+			"-json",
+			"-refresh=true",
+			"-out=" + planfilePath,
+		}
+	} else {
+		args = []string{
+			"apply",
+			"-no-color",
+			"-auto-approve",
+			"-input=false",
+			"-json",
+			"-refresh=true",
+		}
 	}
-	t.logger.Debug(ctx, "ran plan")
-
-	plan, err := terraform.ShowPlanFile(ctx, planfilePath)
+	if start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY {
+		args = append(args, "-destroy")
+	}
+	for _, variable := range vars {
+		args = append(args, "-var", variable)
+	}
+	// #nosec
+	cmd := exec.CommandContext(stream.Context(), t.binaryPath, args...)
+	go func() {
+		select {
+		case <-stream.Context().Done():
+			return
+		case <-shutdown.Done():
+			_ = cmd.Process.Signal(os.Kill)
+		}
+	}()
+	cmd.Stdout = writer
+	cmd.Env = env
+	cmd.Dir = terraform.WorkingDir()
+	err = cmd.Run()
 	if err != nil {
-		return xerrors.Errorf("show terraform plan file: %w", err)
+		if start.DryRun {
+			return xerrors.Errorf("plan terraform: %w", err)
+		}
+		errorMessage := err.Error()
+		// Terraform can fail and apply and still need to store it's state.
+		// In this case, we return Complete with an explicit error message.
+		statefileContent, err := os.ReadFile(statefilePath)
+		if err != nil {
+			return xerrors.Errorf("read file %q: %w", statefilePath, err)
+		}
+		return stream.Send(&proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					State: statefileContent,
+					Error: errorMessage,
+				},
+			},
+		})
 	}
 	_ = reader.Close()
 	<-closeChan
+
+	var resp *proto.Provision_Response
+	if start.DryRun {
+		resp, err = parseTerraformPlan(stream.Context(), terraform, planfilePath)
+	} else {
+		resp, err = parseTerraformApply(stream.Context(), terraform, statefilePath)
+	}
+	if err != nil {
+		return err
+	}
+	return stream.Send(resp)
+}
+
+func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfilePath string) (*proto.Provision_Response, error) {
+	plan, err := terraform.ShowPlanFile(ctx, planfilePath)
+	if err != nil {
+		return nil, xerrors.Errorf("show terraform plan file: %w", err)
+	}
 
 	// Maps resource dependencies to expression references.
 	// This is *required* for a plan, because "DependsOn"
@@ -200,14 +285,14 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 		if envRaw, has := resource.Expressions["env"]; has {
 			env, ok := envRaw.ConstantValue.(map[string]string)
 			if !ok {
-				return xerrors.Errorf("unexpected type %q for env map", reflect.TypeOf(envRaw.ConstantValue).String())
+				return nil, xerrors.Errorf("unexpected type %q for env map", reflect.TypeOf(envRaw.ConstantValue).String())
 			}
 			agent.Env = env
 		}
 		if startupScriptRaw, has := resource.Expressions["startup_script"]; has {
 			startupScript, ok := startupScriptRaw.ConstantValue.(string)
 			if !ok {
-				return xerrors.Errorf("unexpected type %q for startup script", reflect.TypeOf(startupScriptRaw.ConstantValue).String())
+				return nil, xerrors.Errorf("unexpected type %q for startup script", reflect.TypeOf(startupScriptRaw.ConstantValue).String())
 			}
 			agent.StartupScript = startupScript
 		}
@@ -218,7 +303,7 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 				if has {
 					authTypeValue, valid := authType.ConstantValue.(string)
 					if !valid {
-						return xerrors.Errorf("unexpected type %q for auth type", reflect.TypeOf(authType.ConstantValue))
+						return nil, xerrors.Errorf("unexpected type %q for auth type", reflect.TypeOf(authType.ConstantValue))
 					}
 					switch authTypeValue {
 					case "google-instance-identity":
@@ -229,7 +314,7 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 							},
 						}
 					default:
-						return xerrors.Errorf("unknown auth type: %q", authTypeValue)
+						return nil, xerrors.Errorf("unknown auth type: %q", authTypeValue)
 					}
 				}
 			}
@@ -273,107 +358,23 @@ func (t *terraform) runTerraformPlan(ctx context.Context, terraform *tfexec.Terr
 		})
 	}
 
-	return stream.Send(&proto.Provision_Response{
+	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
 				Resources: resources,
 			},
 		},
-	})
+	}, nil
 }
 
-func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Terraform, request *proto.Provision_Request, stream proto.DRPCProvisioner_ProvisionStream, statefilePath string) error {
-	env := os.Environ()
-	env = append(env,
-		"CODER_URL="+request.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(request.Metadata.WorkspaceTransition.String()),
-	)
-	vars := []string{}
-	for _, param := range request.ParameterValues {
-		switch param.DestinationScheme {
-		case proto.ParameterDestination_ENVIRONMENT_VARIABLE:
-			env = append(env, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		case proto.ParameterDestination_PROVISIONER_VARIABLE:
-			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
-		default:
-			return xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
-		}
-	}
-
-	reader, writer := io.Pipe()
-	defer reader.Close()
-	defer writer.Close()
-	go func() {
-		decoder := json.NewDecoder(reader)
-		for {
-			var log terraformProvisionLog
-			err := decoder.Decode(&log)
-			if err != nil {
-				return
-			}
-
-			logLevel, err := convertTerraformLogLevel(log.Level)
-			if err != nil {
-				// Not a big deal, but we should handle this at some point!
-				continue
-			}
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  logLevel,
-						Output: log.Message,
-					},
-				},
-			})
-
-			if log.Diagnostic == nil {
-				continue
-			}
-
-			// If the diagnostic is provided, let's provide a bit more info!
-			logLevel, err = convertTerraformLogLevel(log.Diagnostic.Severity)
-			if err != nil {
-				continue
-			}
-			_ = stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  logLevel,
-						Output: log.Diagnostic.Detail,
-					},
-				},
-			})
-		}
-	}()
-
-	t.logger.Debug(ctx, "running apply", slog.F("vars", len(vars)), slog.F("env", len(env)))
-	err := runApplyCommand(ctx, t.shutdownCtx, request.Metadata.WorkspaceTransition, terraform.ExecPath(), terraform.WorkingDir(), writer, env, vars)
-	if err != nil {
-		errorMessage := err.Error()
-		// Terraform can fail and apply and still need to store it's state.
-		// In this case, we return Complete with an explicit error message.
-		statefileContent, err := os.ReadFile(statefilePath)
-		if err != nil {
-			return xerrors.Errorf("read file %q: %w", statefilePath, err)
-		}
-		return stream.Send(&proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					State: statefileContent,
-					Error: errorMessage,
-				},
-			},
-		})
-	}
-	t.logger.Debug(ctx, "ran apply")
-
+func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, statefilePath string) (*proto.Provision_Response, error) {
 	statefileContent, err := os.ReadFile(statefilePath)
 	if err != nil {
-		return xerrors.Errorf("read file %q: %w", statefilePath, err)
+		return nil, xerrors.Errorf("read file %q: %w", statefilePath, err)
 	}
 	state, err := terraform.ShowStateFile(ctx, statefilePath)
 	if err != nil {
-		return xerrors.Errorf("show state file %q: %w", statefilePath, err)
+		return nil, xerrors.Errorf("show state file %q: %w", statefilePath, err)
 	}
 	resources := make([]*proto.Resource, 0)
 	if state.Values != nil {
@@ -398,7 +399,7 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 			var attrs agentAttributes
 			err = mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return xerrors.Errorf("decode agent attributes: %w", err)
+				return nil, xerrors.Errorf("decode agent attributes: %w", err)
 			}
 			agent := &proto.Agent{
 				Id:            attrs.ID,
@@ -418,7 +419,7 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 						},
 					}
 				default:
-					return xerrors.Errorf("unknown auth type: %q", auth.Type)
+					return nil, xerrors.Errorf("unknown auth type: %q", auth.Type)
 				}
 			}
 			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
@@ -439,14 +440,27 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 					break
 				}
 			}
-			// Associate resources where the agent depends on it.
-			for agentKey, dependsOn := range agentDepends {
-				for _, depend := range dependsOn {
-					if depend != strings.Join([]string{resource.Type, resource.Name}, ".") {
-						continue
+			if agent == nil {
+				// Associate resources where the agent depends on it.
+				for agentKey, dependsOn := range agentDepends {
+					for _, depend := range dependsOn {
+						if depend != strings.Join([]string{resource.Type, resource.Name}, ".") {
+							continue
+						}
+						agent = agents[agentKey]
+						break
 					}
-					agent = agents[agentKey]
-					break
+				}
+			}
+
+			if agent != nil {
+				if agent.GetGoogleInstanceIdentity() != nil {
+					// Make sure the instance has an instance ID!
+					_, exists := resource.AttributeValues["instance_id"]
+					if !exists {
+						// This was a mistake!
+						agent = nil
+					}
 				}
 			}
 
@@ -458,46 +472,14 @@ func (t *terraform) runTerraformApply(ctx context.Context, terraform *tfexec.Ter
 		}
 	}
 
-	return stream.Send(&proto.Provision_Response{
+	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
 				State:     statefileContent,
 				Resources: resources,
 			},
 		},
-	})
-}
-
-// This couldn't use terraform-exec, because it doesn't support cancellation, and there didn't appear
-// to be a straight-forward way to add it.
-func runApplyCommand(ctx, shutdownCtx context.Context, transition proto.WorkspaceTransition, bin, dir string, stdout io.Writer, env, vars []string) error {
-	args := []string{
-		"apply",
-		"-no-color",
-		"-auto-approve",
-		"-input=false",
-		"-json",
-		"-refresh=true",
-	}
-	if transition == proto.WorkspaceTransition_DESTROY {
-		args = append(args, "-destroy")
-	}
-	for _, variable := range vars {
-		args = append(args, "-var", variable)
-	}
-	cmd := exec.CommandContext(ctx, bin, args...)
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-shutdownCtx.Done():
-			_ = cmd.Process.Signal(os.Kill)
-		}
-	}()
-	cmd.Stdout = stdout
-	cmd.Env = env
-	cmd.Dir = dir
-	return cmd.Run()
+	}, nil
 }
 
 type terraformProvisionLog struct {

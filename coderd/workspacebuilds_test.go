@@ -8,10 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -25,13 +23,44 @@ func TestWorkspaceBuild(t *testing.T) {
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
-	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
-		ProjectVersionID: project.ActiveVersionID,
-		Transition:       database.WorkspaceTransitionStart,
+	_, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
+	require.NoError(t, err)
+}
+
+func TestPatchCancelWorkspaceBuild(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{},
+			},
+		}},
+		ProvisionDryRun: echo.ProvisionComplete,
 	})
+	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+	var build codersdk.WorkspaceBuild
+	require.Eventually(t, func() bool {
+		var err error
+		build, err = client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		return build.Job.Status == codersdk.ProvisionerJobRunning
+	}, 5*time.Second, 25*time.Millisecond)
+	err := client.CancelWorkspaceBuild(context.Background(), build.ID)
 	require.NoError(t, err)
-	_, err = client.WorkspaceBuild(context.Background(), build.ID)
-	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var err error
+		build, err = client.WorkspaceBuild(context.Background(), build.ID)
+		require.NoError(t, err)
+		// The echo provisioner doesn't respond to a shutdown request,
+		// so the job cancel will time out and fail.
+		return build.Job.Status == codersdk.ProvisionerJobFailed
+	}, 5*time.Second, 25*time.Millisecond)
 }
 
 func TestWorkspaceBuildResources(t *testing.T) {
@@ -46,12 +75,7 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		closeDaemon.Close()
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		_, err = client.WorkspaceResourcesByBuild(context.Background(), build.ID)
+		_, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
@@ -84,13 +108,8 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
-			ProjectVersionID: project.ActiveVersionID,
-			Transition:       database.WorkspaceTransitionStart,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), build.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
 		require.NotNil(t, resources)
 		require.Len(t, resources, 2)
@@ -136,14 +155,9 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, coderd.CreateWorkspaceBuildRequest{
-		ProjectVersionID: project.ActiveVersionID,
-		Transition:       database.WorkspaceTransitionStart,
-	})
-	require.NoError(t, err)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
-	logs, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, before)
+	logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 	require.NoError(t, err)
 	log := <-logs
 	require.Equal(t, "example", log.Output)

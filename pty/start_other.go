@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -28,6 +29,12 @@ func startPty(cmd *exec.Cmd) (PTY, *os.Process, error) {
 	err = cmd.Start()
 	if err != nil {
 		_ = ptty.Close()
+		if runtime.GOOS == "darwin" && strings.Contains(err.Error(), "bad file descriptor") {
+			// MacOS has an obscure issue where the PTY occasionally closes
+			// before it's used. It's unknown why this is, but creating a new
+			// TTY resolves it.
+			return startPty(cmd)
+		}
 		return nil, nil, xerrors.Errorf("start: %w", err)
 	}
 	go func() {

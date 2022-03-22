@@ -1,33 +1,17 @@
 package coderd
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
-	"github.com/google/uuid"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/httpmw"
 )
-
-// WorkspaceBuild is an at-point representation of a workspace state.
-// Iterate on before/after to determine a chronological history.
-type WorkspaceBuild struct {
-	ID               uuid.UUID                    `json:"id"`
-	CreatedAt        time.Time                    `json:"created_at"`
-	UpdatedAt        time.Time                    `json:"updated_at"`
-	WorkspaceID      uuid.UUID                    `json:"workspace_id"`
-	ProjectVersionID uuid.UUID                    `json:"project_version_id"`
-	BeforeID         uuid.UUID                    `json:"before_id"`
-	AfterID          uuid.UUID                    `json:"after_id"`
-	Name             string                       `json:"name"`
-	Transition       database.WorkspaceTransition `json:"transition"`
-	Initiator        string                       `json:"initiator"`
-	Job              ProvisionerJob               `json:"job"`
-}
 
 func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -40,6 +24,45 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
+}
+
+func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	if job.CompletedAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already completed!",
+		})
+		return
+	}
+	if job.CanceledAt.Valid {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Job has already been marked as canceled!",
+		})
+		return
+	}
+	err = api.Database.UpdateProvisionerJobWithCancelByID(r.Context(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update provisioner job: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Job has been marked as canceled...",
+	})
 }
 
 func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
@@ -66,9 +89,9 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job ProvisionerJob) WorkspaceBuild {
+func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.ProvisionerJob) codersdk.WorkspaceBuild {
 	//nolint:unconvert
-	return WorkspaceBuild(WorkspaceBuild{
+	return codersdk.WorkspaceBuild{
 		ID:               workspaceBuild.ID,
 		CreatedAt:        workspaceBuild.CreatedAt,
 		UpdatedAt:        workspaceBuild.UpdatedAt,
@@ -80,15 +103,16 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job Provision
 		Transition:       workspaceBuild.Transition,
 		Initiator:        workspaceBuild.Initiator,
 		Job:              job,
-	})
+	}
 }
 
-func convertWorkspaceResource(resource database.WorkspaceResource, agent *WorkspaceAgent) WorkspaceResource {
-	return WorkspaceResource{
+func convertWorkspaceResource(resource database.WorkspaceResource, agent *codersdk.WorkspaceAgent) codersdk.WorkspaceResource {
+	return codersdk.WorkspaceResource{
 		ID:         resource.ID,
 		CreatedAt:  resource.CreatedAt,
 		JobID:      resource.JobID,
 		Transition: resource.Transition,
+		Address:    resource.Address,
 		Type:       resource.Type,
 		Name:       resource.Name,
 		Agent:      agent,

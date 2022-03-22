@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS provisioner_jobs (
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     started_at timestamptz,
-    cancelled_at timestamptz,
+    canceled_at timestamptz,
     completed_at timestamptz,
     error text,
     organization_id text NOT NULL,
@@ -61,7 +61,8 @@ CREATE TABLE workspace_resources (
     created_at timestamptz NOT NULL,
     job_id uuid NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
     transition workspace_transition NOT NULL,
-    type varchar(256) NOT NULL,
+    address varchar(256) NOT NULL,
+    type varchar(192) NOT NULL,
     name varchar(64) NOT NULL,
     agent_id uuid
 );
@@ -69,7 +70,10 @@ CREATE TABLE workspace_resources (
 CREATE TABLE workspace_agents (
     id uuid NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz,
+    updated_at timestamptz NOT NULL,
+    first_connected_at timestamptz,
+    last_connected_at timestamptz,
+    disconnected_at timestamptz,
     resource_id uuid NOT NULL REFERENCES workspace_resources (id) ON DELETE CASCADE,
     auth_token uuid NOT NULL UNIQUE,
     auth_instance_id varchar(64),

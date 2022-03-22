@@ -27,10 +27,9 @@ import (
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
-
-type ProvisionerDaemon database.ProvisionerDaemon
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
@@ -266,6 +265,12 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	if job.WorkerID.UUID.String() != server.ID.String() {
 		return nil, xerrors.New("you don't own this job")
 	}
+	if job.CanceledAt.Valid {
+		// Allows for graceful cancelation on the backend!
+		return &proto.UpdateJobResponse{
+			Canceled: true,
+		}, nil
+	}
 	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
 		UpdatedAt: database.Now(),
@@ -358,8 +363,18 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			}
 		}
 
+		var projectID uuid.NullUUID
+		if job.Type == database.ProvisionerJobTypeProjectVersionImport {
+			projectVersion, err := server.Database.GetProjectVersionByJobID(ctx, job.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get project version by job id: %w", err)
+			}
+			projectID = projectVersion.ProjectID
+		}
+
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			ProjectImportJobID: job.ID,
+			ProjectID:          projectID,
 			OrganizationID:     job.OrganizationID,
 			UserID:             job.InitiatorID,
 		}, nil)
@@ -454,14 +469,18 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
 		} {
-			for _, resource := range resources {
+			addresses, err := provisionersdk.ResourceAddresses(resources)
+			if err != nil {
+				return nil, xerrors.Errorf("compute resource addresses: %w", err)
+			}
+			for index, resource := range resources {
 				server.Logger.Info(ctx, "inserting project import job resource",
 					slog.F("job_id", job.ID.String()),
 					slog.F("resource_name", resource.Name),
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource)
+				err = insertWorkspaceResource(ctx, server.Database, jobID, transition, resource, addresses[index])
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
@@ -515,13 +534,31 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			if err != nil {
 				return xerrors.Errorf("update workspace build: %w", err)
 			}
+			addresses, err := provisionersdk.ResourceAddresses(jobType.WorkspaceBuild.Resources)
+			if err != nil {
+				return xerrors.Errorf("compute resource addresses: %w", err)
+			}
 			// This could be a bulk insert to improve performance.
-			for _, protoResource := range jobType.WorkspaceBuild.Resources {
-				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource)
+			for index, protoResource := range jobType.WorkspaceBuild.Resources {
+				err = insertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, addresses[index])
 				if err != nil {
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
 			}
+
+			if workspaceBuild.Transition != database.WorkspaceTransitionDelete {
+				// This is for deleting a workspace!
+				return nil
+			}
+
+			err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+				ID:      workspaceBuild.WorkspaceID,
+				Deleted: true,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace deleted: %w", err)
+			}
+
 			return nil
 		})
 		if err != nil {
@@ -535,12 +572,13 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	return &proto.Empty{}, nil
 }
 
-func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource) error {
+func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, address string) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
 		CreatedAt:  database.Now(),
 		JobID:      jobID,
 		Transition: transition,
+		Address:    address,
 		Type:       protoResource.Type,
 		Name:       protoResource.Name,
 		AgentID: uuid.NullUUID{
@@ -581,6 +619,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   resource.AgentID.UUID,
 			CreatedAt:            database.Now(),
+			UpdatedAt:            database.Now(),
 			ResourceID:           resource.ID,
 			AuthToken:            authToken,
 			AuthInstanceID:       instanceID,

@@ -44,12 +44,12 @@ func TestAgentScript(t *testing.T) {
 			t.Skip("Agent not supported...")
 			return
 		}
-		script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String())
+		script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String()+"/")
 		output, err := exec.Command("sh", "-c", script).CombinedOutput()
 		t.Log(string(output))
 		require.NoError(t, err)
 		// Because we use the "echo" binary, we should expect the arguments provided
 		// as the response to executing our script.
-		require.Equal(t, "agent", strings.TrimSpace(string(output)))
+		require.Equal(t, "workspaces agent", strings.TrimSpace(string(output)))
 	})
 }

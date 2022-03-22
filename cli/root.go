@@ -1,25 +1,22 @@
 package cli
 
 import (
-	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
-	"github.com/manifoldco/promptui"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
 )
 
 var (
-	caret = color.HiBlackString(">")
+	caret = cliui.Styles.Prompt.String()
 )
 
 const (
@@ -30,47 +27,48 @@ const (
 
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "coder",
+		Use:          "coder",
+		SilenceUsage: true,
 		Long: `    ▄█▀    ▀█▄
      ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
 █▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █
      ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
-  ` + color.New(color.Underline).Sprint("Self-hosted developer workspaces on your infra") + `
+  ` + lipgloss.NewStyle().Underline(true).Render("Self-hosted developer workspaces on your infra") + `
 
 `,
-		Example: `
-  - Create a project for developers to create workspaces
+		Example: cliui.Styles.Paragraph.Render(`Start Coder in "dev" mode. This dev-mode requires no further setup, and your local `+cliui.Styles.Code.Render("coder")+` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.`) + `
 
-    ` + color.New(color.FgHiMagenta).Sprint("$ coder projects create <directory>") + `		
+    ` + cliui.Styles.Code.Render("$ coder start --dev") + `
+	` + cliui.Styles.Paragraph.Render("Get started by creating a project from an example.") + `
 
-  - Create a workspace for a specific project
-
-    ` + color.New(color.FgHiMagenta).Sprint("$ coder workspaces create <project>") + `
-	
-  - Maintain consistency by updating a workspace
-
-    ` + color.New(color.FgHiMagenta).Sprint("$ coder workspaces update <workspace>"),
+    ` + cliui.Styles.Code.Render("$ coder projects init"),
 	}
 	// Customizes the color of headings to make subcommands
 	// more visually appealing.
-	header := color.New(color.FgHiBlack)
+	header := cliui.Styles.Placeholder
 	cmd.SetUsageTemplate(strings.NewReplacer(
-		`Usage:`, header.Sprint("Usage:"),
-		`Examples:`, header.Sprint("Examples:"),
-		`Available Commands:`, header.Sprint("Commands:"),
-		`Global Flags:`, header.Sprint("Global Flags:"),
-		`Flags:`, header.Sprint("Flags:"),
-		`Additional help topics:`, header.Sprint("Additional help:"),
+		`Usage:`, header.Render("Usage:"),
+		`Examples:`, header.Render("Examples:"),
+		`Available Commands:`, header.Render("Commands:"),
+		`Global Flags:`, header.Render("Global Flags:"),
+		`Flags:`, header.Render("Flags:"),
+		`Additional help topics:`, header.Render("Additional help:"),
 	).Replace(cmd.UsageTemplate()))
 
-	cmd.AddCommand(daemon())
-	cmd.AddCommand(login())
-	cmd.AddCommand(projects())
-	cmd.AddCommand(workspaces())
-	cmd.AddCommand(users())
+	cmd.AddCommand(
+		configSSH(),
+		start(),
+		login(),
+		parameters(),
+		projects(),
+		users(),
+		workspaces(),
+		workspaceSSH(),
+		workspaceTunnel(),
+	)
 
-	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coder"), "Path to the global `coder` config directory")
+	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
 	err := cmd.PersistentFlags().MarkHidden(varForceTty)
 	if err != nil {
@@ -108,10 +106,10 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 }
 
 // currentOrganization returns the currently active organization for the authenticated user.
-func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (coderd.Organization, error) {
+func currentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.Organization, error) {
 	orgs, err := client.OrganizationsByUser(cmd.Context(), "me")
 	if err != nil {
-		return coderd.Organization{}, nil
+		return codersdk.Organization{}, nil
 	}
 	// For now, we won't use the config to set this.
 	// Eventually, we will support changing using "coder switch <org>"
@@ -138,76 +136,9 @@ func isTTY(cmd *cobra.Command) bool {
 	if forceTty && err == nil {
 		return true
 	}
-
-	reader := cmd.InOrStdin()
-	file, ok := reader.(*os.File)
+	file, ok := cmd.InOrStdin().(*os.File)
 	if !ok {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
-}
-
-func prompt(cmd *cobra.Command, prompt *promptui.Prompt) (string, error) {
-	prompt.Stdin = io.NopCloser(cmd.InOrStdin())
-	prompt.Stdout = readWriteCloser{
-		Writer: cmd.OutOrStdout(),
-	}
-
-	// The prompt library displays defaults in a jarring way for the user
-	// by attempting to autocomplete it. This sets no default enabling us
-	// to customize the display.
-	defaultValue := prompt.Default
-	if !prompt.IsConfirm {
-		prompt.Default = ""
-	}
-
-	// Rewrite the confirm template to remove bold, and fit to the Coder style.
-	confirmEnd := fmt.Sprintf("[y/%s] ", color.New(color.Bold).Sprint("N"))
-	if prompt.Default == "y" {
-		confirmEnd = fmt.Sprintf("[%s/n] ", color.New(color.Bold).Sprint("Y"))
-	}
-	confirm := color.HiBlackString("?") + ` {{ . }} ` + confirmEnd
-
-	// Customize to remove bold.
-	valid := color.HiBlackString("?") + " {{ . }} "
-	if defaultValue != "" {
-		valid += fmt.Sprintf("(%s) ", defaultValue)
-	}
-
-	success := valid
-	invalid := valid
-	if prompt.IsConfirm {
-		success = confirm
-		invalid = confirm
-	}
-
-	prompt.Templates = &promptui.PromptTemplates{
-		Confirm: confirm,
-		Success: success,
-		Invalid: invalid,
-		Valid:   valid,
-	}
-	oldValidate := prompt.Validate
-	if oldValidate != nil {
-		// Override the validate function to pass our default!
-		prompt.Validate = func(s string) error {
-			if s == "" {
-				s = defaultValue
-			}
-			return oldValidate(s)
-		}
-	}
-	value, err := prompt.Run()
-	if value == "" && !prompt.IsConfirm {
-		value = defaultValue
-	}
-
-	return value, err
-}
-
-// readWriteCloser fakes reads, writes, and closing!
-type readWriteCloser struct {
-	io.Reader
-	io.Writer
-	io.Closer
 }

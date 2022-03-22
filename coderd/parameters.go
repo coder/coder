@@ -5,47 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
 )
 
-type ParameterScope string
-
-const (
-	ParameterOrganization ParameterScope = "organization"
-	ParameterProject      ParameterScope = "project"
-	ParameterUser         ParameterScope = "user"
-	ParameterWorkspace    ParameterScope = "workspace"
-)
-
-// Parameter represents a set value for the scope.
-type Parameter struct {
-	ID                uuid.UUID                           `db:"id" json:"id"`
-	CreatedAt         time.Time                           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                           `db:"updated_at" json:"updated_at"`
-	Scope             ParameterScope                      `db:"scope" json:"scope"`
-	ScopeID           string                              `db:"scope_id" json:"scope_id"`
-	Name              string                              `db:"name" json:"name"`
-	SourceScheme      database.ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
-	DestinationScheme database.ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
-}
-
-// CreateParameterRequest is used to create a new parameter value for a scope.
-type CreateParameterRequest struct {
-	Name              string                              `json:"name" validate:"required"`
-	SourceValue       string                              `json:"source_value" validate:"required"`
-	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
-	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
-}
-
 func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
-	var createRequest CreateParameterRequest
+	var createRequest codersdk.CreateParameterRequest
 	if !httpapi.Read(rw, r, &createRequest) {
 		return
 	}
@@ -110,7 +81,7 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiParameterValues := make([]Parameter, 0, len(parameterValues))
+	apiParameterValues := make([]codersdk.Parameter, 0, len(parameterValues))
 	for _, parameterValue := range parameterValues {
 		apiParameterValues = append(apiParameterValues, convertParameterValue(parameterValue))
 	}
@@ -154,12 +125,12 @@ func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func convertParameterValue(parameterValue database.ParameterValue) Parameter {
-	return Parameter{
+func convertParameterValue(parameterValue database.ParameterValue) codersdk.Parameter {
+	return codersdk.Parameter{
 		ID:                parameterValue.ID,
 		CreatedAt:         parameterValue.CreatedAt,
 		UpdatedAt:         parameterValue.UpdatedAt,
-		Scope:             ParameterScope(parameterValue.Scope),
+		Scope:             codersdk.ParameterScope(parameterValue.Scope),
 		ScopeID:           parameterValue.ScopeID,
 		Name:              parameterValue.Name,
 		SourceScheme:      parameterValue.SourceScheme,
@@ -170,13 +141,13 @@ func convertParameterValue(parameterValue database.ParameterValue) Parameter {
 func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.ParameterScope, string, bool) {
 	var scope database.ParameterScope
 	switch chi.URLParam(r, "scope") {
-	case string(ParameterOrganization):
+	case string(codersdk.ParameterOrganization):
 		scope = database.ParameterScopeOrganization
-	case string(ParameterProject):
+	case string(codersdk.ParameterProject):
 		scope = database.ParameterScopeProject
-	case string(ParameterUser):
+	case string(codersdk.ParameterUser):
 		scope = database.ParameterScopeUser
-	case string(ParameterWorkspace):
+	case string(codersdk.ParameterWorkspace):
 		scope = database.ParameterScopeWorkspace
 	default:
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
