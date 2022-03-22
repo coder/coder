@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 func start() *cobra.Command {
@@ -57,8 +58,10 @@ func start() *cobra.Command {
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			printLogo(cmd)
+			tracer.Start()
+			defer tracer.Stop()
 
+			printLogo(cmd)
 			listener, err := net.Listen("tcp", address)
 			if err != nil {
 				return xerrors.Errorf("listen %q: %w", address, err)
