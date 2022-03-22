@@ -17,26 +17,6 @@ export const provisioners: Types.Provisioner[] = [
   },
 ]
 
-export namespace Project {
-  export const create = async (request: Types.CreateProjectRequest): Promise<Types.Project> => {
-    const response = await fetch(`/api/v2/projects/${request.organizationId}/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-    })
-
-    const body = await response.json()
-    await mutate("/api/v2/projects")
-    if (!response.ok) {
-      throw new Error(body.message)
-    }
-
-    return body
-  }
-}
-
 export namespace Workspace {
   export const create = async (request: Types.CreateWorkspaceRequest): Promise<Types.Workspace> => {
     const response = await fetch(`/api/v2/users/me/workspaces`, {

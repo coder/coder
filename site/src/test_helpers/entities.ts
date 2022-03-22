@@ -39,5 +39,5 @@ export const MockWorkspace: Workspace = {
   created_at: "",
   updated_at: "",
   project_id: MockProject.id,
-  owner_id: MockUser.id
+  owner_id: MockUser.id,
 }
