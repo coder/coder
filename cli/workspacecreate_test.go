@@ -3,10 +3,11 @@ package cli_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/pty/ptytest"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWorkspaceCreate(t *testing.T) {
