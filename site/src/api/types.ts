@@ -59,3 +59,10 @@ export interface Workspace {
 export interface APIKeyResponse {
   key: string
 }
+
+export interface UserAgent {
+  readonly browser: string
+  readonly device: string
+  readonly ip_address: string
+  readonly os: string
+}

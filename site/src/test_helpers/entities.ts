@@ -1,4 +1,4 @@
-import { Provisioner, Organization, Project, Workspace, UserResponse } from "../api/types"
+import { Provisioner, Organization, Project, Workspace, UserResponse, UserAgent } from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
@@ -40,4 +40,11 @@ export const MockWorkspace: Workspace = {
   updated_at: "",
   project_id: MockProject.id,
   owner_id: MockUser.id,
+}
+
+export const MockUserAgent: UserAgent = {
+  browser: "Chrome 99.0.4844",
+  device: "Other",
+  ip_address: "11.22.33.44",
+  os: "Windows 10",
 }
