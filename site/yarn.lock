@@ -3671,14 +3671,14 @@
   resolved "https://registry.yarnpkg.com/@xmldom/xmldom/-/xmldom-0.7.5.tgz#09fa51e356d07d0be200642b0e4f91d8e6dd408d"
   integrity sha512-V3BIhmY36fXZ1OtVcI9W+FxQqxVLsPKcNjWigIaa81dLC9IolJl5Mt4Cvhmr0flUnjSpTdrbMTSbXqYqV5dT6A==
 
-"@xstate/cli@0.1.4":
-  version "0.1.4"
-  resolved "https://registry.yarnpkg.com/@xstate/cli/-/cli-0.1.4.tgz#5d909b980a5e62744f90b2790be3aa2717cfb4f8"
-  integrity sha512-+MkeFGi+gouY8o+/GWG7/62c4WZAtsMlABi5NFBN2owIbwohJQbflc9jBMzN+U3Ho0QGC2gHBwsretsSsNkuuA==
+"@xstate/cli@0.1.5":
+  version "0.1.5"
+  resolved "https://registry.yarnpkg.com/@xstate/cli/-/cli-0.1.5.tgz#3822ba67deb683aad16d9ae0c70f4267a2bf7dde"
+  integrity sha512-JrXLT5WaB9kLoUf5KkOo8T16NJ9MFSuGrDiVQdg7hFAZiHeuxUg6qN7EcKSRAbbr9E33HVlrfX7KaUCOeVyTpA==
   dependencies:
     "@babel/core" "^7.12.10"
     "@xstate/machine-extractor" "0.6.2"
-    "@xstate/tools-shared" "1.1.2"
+    "@xstate/tools-shared" "1.1.3"
     chokidar "^3.5.3"
     commander "^8.0.0"
     xstate "^4.29.0"
@@ -3696,10 +3696,10 @@
     use-isomorphic-layout-effect "^1.0.0"
     use-subscription "^1.3.0"
 
-"@xstate/tools-shared@1.1.2":
-  version "1.1.2"
-  resolved "https://registry.yarnpkg.com/@xstate/tools-shared/-/tools-shared-1.1.2.tgz#84660e1ff9ba48612af2d471a21905705fa62e16"
-  integrity sha512-/A0/3vI2N9Rr3uWKGpUkIv1GhVvQFsXB+vbf8RuSCcj5lnztnC2XEKCqzkric+T3BBViGVXuY7eh8UZw8OVPDw==
+"@xstate/tools-shared@1.1.3":
+  version "1.1.3"
+  resolved "https://registry.yarnpkg.com/@xstate/tools-shared/-/tools-shared-1.1.3.tgz#89ab5b275e9863da563ab00f391450ec5994d001"
+  integrity sha512-KsL0Qw4DAkDrkVtFe/BKBNGNKK7+48nsnOakZosrliFVyDszbr1YLwjlyzGFN/YDMUfG1jCGQdVyf3kmt6IKQw==
   dependencies:
     "@xstate/machine-extractor" "0.6.2"
 
