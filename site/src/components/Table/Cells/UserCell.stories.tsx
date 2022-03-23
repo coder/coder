@@ -6,20 +6,28 @@ import { UserCell, UserCellProps } from "./UserCell"
 export default {
   title: "Table/Cells/UserCell",
   component: UserCell,
-  argTypes: {
-    onPrimaryTextSelect: {
-      action: "onPrimaryTextSelect",
-    },
-  },
 } as ComponentMeta<typeof UserCell>
 
 const Template: Story<UserCellProps> = (args) => <UserCell {...args} />
 
-export const Example = Template.bind({})
-Example.args = {
+export const AuditLogExample = Template.bind({})
+AuditLogExample.args = {
   Avatar: {
     username: MockUser.username,
   },
   caption: MockUserAgent.ip_address,
   primaryText: MockUser.email,
+  onPrimaryTextSelect: () => {
+    return
+  },
+}
+
+export const AuditLogEmptyUserExample = Template.bind({})
+AuditLogEmptyUserExample.args = {
+  Avatar: {
+    username: MockUser.username,
+  },
+  caption: MockUserAgent.ip_address,
+  primaryText: "Deleted User",
+  onPrimaryTextSelect: undefined,
 }

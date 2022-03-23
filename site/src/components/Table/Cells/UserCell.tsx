@@ -24,6 +24,7 @@ export interface UserCellProps {
 const useStyles = makeStyles((theme) => ({
   primaryText: {
     color: theme.palette.text.primary,
+    fontFamily: theme.typography.fontFamily,
     fontSize: "16px",
     lineHeight: "15px",
     marginBottom: "5px",
@@ -49,9 +50,7 @@ export const UserCell: React.FC<UserCellProps> = ({ Avatar, caption, primaryText
             {primaryText}
           </Link>
         ) : (
-          <Typography className={styles.primaryText} color="textSecondary">
-            {primaryText}
-          </Typography>
+          <Typography className={styles.primaryText}>{primaryText}</Typography>
         )}
 
         {caption && (
