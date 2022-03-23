@@ -3,8 +3,8 @@ import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { SignInForm } from "./../components/SignIn"
 import { Navigate, useLocation } from "react-router-dom"
-import { Location } from "history"
 import { XServiceContext } from "../xServices/StateContext"
+import { retrieveRedirect } from "../util/redirect"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -20,21 +20,13 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const getRedirectFromLocation = (location: Location) => {
-  const defaultRedirect = "/"
-
-  const searchParams = new URLSearchParams(location.search)
-  const redirect = searchParams.get("redirect")
-  return redirect ? redirect : defaultRedirect
-}
-
 export const SignInPage: React.FC = () => {
   const styles = useStyles()
   const location = useLocation()
   const xServices = useContext(XServiceContext)
   const [userState, userSend] = useActor(xServices.userXService)
   const isLoading = userState.hasTag("loading")
-  const redirectTo = getRedirectFromLocation(location)
+  const redirectTo = retrieveRedirect(location.search)
   const authErrorMessage = userState.context.authError ? (userState.context.authError as Error).message : undefined
 
   const onSubmit = async ({ email, password }: { email: string; password: string }) => {
