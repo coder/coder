@@ -281,7 +281,7 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
-    # if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write
