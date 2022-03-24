@@ -68,11 +68,8 @@ func start() *cobra.Command {
 			}
 			defer listener.Close()
 
-			tlsConfig := &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			}
 			if tlsEnable {
-				listener, err = configureTLS(tlsConfig, listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile)
+				listener, err = configureTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
@@ -156,10 +153,12 @@ func start() *cobra.Command {
 			handler, closeCoderd := coderd.New(options)
 			client := codersdk.New(localURL)
 			if tlsEnable {
-				// Use the TLS config here. This client is used for creating the
-				// default user, among other things.
+				// Secure transport isn't needed for locally communicating!
 				client.HTTPClient.Transport = &http.Transport{
-					TLSClientConfig: tlsConfig,
+					TLSClientConfig: &tls.Config{
+						//nolint:gosec
+						InsecureSkipVerify: true,
+					},
 				}
 			}
 
@@ -211,15 +210,13 @@ func start() *cobra.Command {
 				// such as via the systemd service.
 				_ = config.URL().Write(client.URL.String())
 
-				hasFirstUser, err := client.HasFirstUser(cmd.Context())
-				if err != nil {
-					return xerrors.Errorf("check for first user: %w", err)
-				}
-
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Started in `+
 					cliui.Styles.Field.Render("production")+` mode. All data is stored in the PostgreSQL provided! Press `+cliui.Styles.Field.Render("ctrl+c")+` to gracefully shutdown.`))+"\n")
 
-				if !hasFirstUser {
+				hasFirstUser, err := client.HasFirstUser(cmd.Context())
+				if !hasFirstUser && err == nil {
+					// This could fail for a variety of TLS-related reasons.
+					// This is a helpful starter message, and not critical for user interaction.
 					_, _ = fmt.Fprint(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+client.URL.String())+" in a new terminal to get started.\n")))
 				}
 			}
@@ -422,7 +419,10 @@ func printLogo(cmd *cobra.Command) {
 `)
 }
 
-func configureTLS(tlsConfig *tls.Config, listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile string) (net.Listener, error) {
+func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile string) (net.Listener, error) {
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
 	switch tlsMinVersion {
 	case "tls10":
 		tlsConfig.MinVersion = tls.VersionTLS10
