@@ -1,5 +1,5 @@
-import { FormikContextType } from 'formik/dist/types'
-import { getFormHelpers, onChangeTrimmed } from './index'
+import { FormikContextType } from "formik/dist/types"
+import { getFormHelpers, onChangeTrimmed } from "./index"
 
 interface TestType {
   untouchedGoodField: string
@@ -10,12 +10,12 @@ interface TestType {
 
 const mockHandleChange = jest.fn()
 
-const form = { 
+const form = {
   errors: {
     untouchedGoodField: undefined,
     untouchedBadField: "oops!",
     touchedGoodField: undefined,
-    touchedBadField: 'oops!',
+    touchedBadField: "oops!",
   },
   touched: {
     untouchedGoodField: false,
@@ -30,9 +30,9 @@ const form = {
       name,
       onBlur: jest.fn(),
       onChange: jest.fn(),
-      value: ''
+      value: "",
     }
-  }
+  },
 } as unknown as FormikContextType<TestType>
 
 describe("form util functions", () => {
@@ -66,7 +66,7 @@ describe("form util functions", () => {
 
   describe("onChangeTrimmed", () => {
     it("calls handleChange with trimmed value", () => {
-      const event = { target: { value: " hello "}} as React.ChangeEvent<HTMLInputElement>
+      const event = { target: { value: " hello " } } as React.ChangeEvent<HTMLInputElement>
       onChangeTrimmed<TestType>(form)(event)
       expect(mockHandleChange).toHaveBeenCalledWith({ target: { value: "hello" } })
     })
