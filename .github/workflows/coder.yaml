@@ -336,7 +336,7 @@ jobs:
           gcloud config set project coder-dogfood
           gcloud config set compute/zone us-central1-a
           gcloud compute scp ./dist/coder_*_linux_amd64.deb coder:/tmp/coder.deb
-          gcloud compute ssh coder -- sudo dpkg -i /tmp/coder.deb
+          gcloud compute ssh coder -- sudo dpkg -i --force-confdef /tmp/coder.deb
           gcloud compute ssh coder -- sudo systemctl daemon-reload
 
       - name: Start
