@@ -177,7 +177,7 @@ func start() *cobra.Command {
 				}
 			}()
 
-			errCh := make(chan error)
+			errCh := make(chan error, 1)
 			shutdownConnsCtx, shutdownConns := context.WithCancel(cmd.Context())
 			defer shutdownConns()
 			go func() {
