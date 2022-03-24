@@ -59,7 +59,7 @@ func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisi
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: c.httpClient,
+		HTTPClient: c.HTTPClient,
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
 	})

@@ -21,16 +21,15 @@ import (
 func New(serverURL *url.URL) *Client {
 	return &Client{
 		URL:        serverURL,
-		httpClient: &http.Client{},
+		HTTPClient: &http.Client{},
 	}
 }
 
 // Client is an HTTP caller for methods to the Coder API.
 type Client struct {
-	URL          *url.URL
+	HTTPClient   *http.Client
 	SessionToken string
-
-	httpClient *http.Client
+	URL          *url.URL
 }
 
 // request performs an HTTP request with the body provided.
@@ -71,7 +70,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		opt(req)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, xerrors.Errorf("do: %w", err)
 	}
