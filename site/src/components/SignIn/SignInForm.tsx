@@ -19,9 +19,12 @@ interface BuiltInAuthFormValues {
 }
 
 export const LANGUAGE = {
+  emailLabel: "Email",
+  passwordLabel: "Password",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
-  authErrorMessage: "Incorrect email or password."
+  authErrorMessage: "Incorrect email or password.",
+  signIn: "Sign In",
 }
 
 const validationSchema = Yup.object({
@@ -65,38 +68,38 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
-      <TextField
-        {...form.getFieldProps("email")}
-        autoFocus
-        autoComplete="email"
-        className={styles.loginTextField}
-        error={form.touched.email && Boolean(form.errors.email)}
-        fullWidth
-        helperText={form.touched.email && form.errors.email}
-        id="email"
-        label="Email"
-        variant="outlined"
-      />
-      <TextField
-        {...form.getFieldProps("password")}
-        autoComplete="current-password"
-        className={styles.loginTextField}
-        fullWidth
-        id="password"
-        label="Password"
-        type="password"
-        variant="outlined"
-      />
-      {authErrorMessage && (
-        <FormHelperText data-testid="sign-in-error" error>
-          {LANGUAGE.authErrorMessage}
-        </FormHelperText>
-      )}
-      <div className={styles.submitBtn}>
-        <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
-          {isLoading ? "" : "Sign In"}
-        </LoadingButton>
-      </div>
+        <TextField
+          {...form.getFieldProps("email")}
+          autoFocus
+          autoComplete="email"
+          className={styles.loginTextField}
+          error={form.touched.email && Boolean(form.errors.email)}
+          fullWidth
+          helperText={form.touched.email && form.errors.email}
+          id="email"
+          label={LANGUAGE.emailLabel}
+          variant="outlined"
+        />
+        <TextField
+          {...form.getFieldProps("password")}
+          autoComplete="current-password"
+          className={styles.loginTextField}
+          fullWidth
+          id="password"
+          label={LANGUAGE.passwordLabel}
+          type="password"
+          variant="outlined"
+        />
+        {authErrorMessage && (
+          <FormHelperText data-testid="sign-in-error" error>
+            {LANGUAGE.authErrorMessage}
+          </FormHelperText>
+        )}
+        <div className={styles.submitBtn}>
+          <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
+            {isLoading ? "" : LANGUAGE.signIn}
+          </LoadingButton>
+        </div>
       </form>
     </>
   )
