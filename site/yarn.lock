@@ -1262,10 +1262,10 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
-"@fontsource/fira-code@4.5.5":
-  version "4.5.5"
-  resolved "https://registry.yarnpkg.com/@fontsource/fira-code/-/fira-code-4.5.5.tgz#6e3ccb1095e3411d2c62b8f8cefb546b973c6eb9"
-  integrity sha512-bwsPmA5HW11SR0oIkgqSJYI3A8KP8aQLRCCH/EnR9gLHRuTFi1iG7GQ3wDTKy/AhECQJAKjXZ+mkVKlMxUaYCQ==
+"@fontsource/fira-code@4.5.7":
+  version "4.5.7"
+  resolved "https://registry.yarnpkg.com/@fontsource/fira-code/-/fira-code-4.5.7.tgz#c0a53f6ce9f95e2a8685fb33e3c4f258a5566e98"
+  integrity sha512-X5wR6FiwU93QOQJKbKsQiauuXYiSy7jJq1e2dnfWfDmi0LVjHs41oqbP968P/duz4XJf/UB/xnTJRhRtidPwug==
 
 "@fontsource/inter@4.5.5":
   version "4.5.5"
