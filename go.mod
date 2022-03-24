@@ -19,7 +19,7 @@ replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.2022030
 
 // These are to allow embedding the cloudflared quick-tunnel CLI.
 // Required until https://github.com/cloudflare/cloudflared/pull/597 is merged.
-replace github.com/cloudflare/cloudflared => github.com/kylecarbs/cloudflared v0.0.0-20220311054120-ea109c6bf7be
+replace github.com/cloudflare/cloudflared => github.com/kylecarbs/cloudflared v0.0.0-20220323202451-083379ce31c3
 
 replace github.com/urfave/cli/v2 => github.com/ipostelnik/cli/v2 v2.3.1-0.20210324024421-b6ea8234fe3d
 
@@ -34,6 +34,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/cloudflare/cloudflared v0.0.0-20220308214351-5352b3cf0489
 	github.com/coder/retry v1.3.0
+	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.17
 	github.com/fatih/color v1.13.0
 	github.com/gliderlabs/ssh v0.3.3
@@ -67,6 +68,7 @@ require (
 	github.com/quasilyte/go-ruleguard/dsl v0.3.19
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/cobra v1.4.0
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.1
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
@@ -110,7 +112,6 @@ require (
 	github.com/containerd/continuity v0.2.2 // indirect
 	github.com/coredns/caddy v1.1.1 // indirect
 	github.com/coredns/coredns v1.9.0 // indirect
-	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dhui/dktest v0.3.9 // indirect
@@ -206,7 +207,6 @@ require (
 	github.com/spf13/afero v1.8.1 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect

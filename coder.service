@@ -1,0 +1,29 @@
+[Unit]
+Description="Coder - Self-hosted developer workspaces on your infra"
+Documentation=https://coder.com/docs/
+Requires=network-online.target
+After=network-online.target
+ConditionFileNotEmpty=/etc/coder.d/coder.env
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=notify
+EnvironmentFile=/etc/coder.d/coder.env
+User=coder
+Group=coder
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+SecureBits=keep-caps
+AmbientCapabilities=CAP_IPC_LOCK
+CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
+NoNewPrivileges=yes
+ExecStart=/usr/bin/coder start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
