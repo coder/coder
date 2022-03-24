@@ -2,7 +2,6 @@ package cliui_test
 
 import (
 	"context"
-	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -47,7 +46,7 @@ func TestPrompt(t *testing.T) {
 		require.Equal(t, "yes", <-doneChan)
 	})
 
-	t.Run("Multiline", func(t *testing.T) {
+	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
@@ -59,13 +58,44 @@ func TestPrompt(t *testing.T) {
 			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
-		ptty.WriteLine("'this is a")
-		ptty.WriteLine("test'")
-		newline := "\n"
-		if runtime.GOOS == "windows" {
-			newline = "\r\n"
-		}
-		require.Equal(t, "this is a"+newline+"test", <-doneChan)
+		ptty.WriteLine("{}")
+		require.Equal(t, "{}", <-doneChan)
+	})
+
+	t.Run("BadJSON", func(t *testing.T) {
+		t.Parallel()
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ptty, cliui.PromptOptions{
+				Text: "Example",
+			})
+			require.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Example")
+		ptty.WriteLine("{a")
+		require.Equal(t, "{a", <-doneChan)
+	})
+
+	t.Run("MultilineJSON", func(t *testing.T) {
+		t.Parallel()
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ptty, cliui.PromptOptions{
+				Text: "Example",
+			})
+			require.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Example")
+		ptty.WriteLine(`{
+"test": "wow"
+}`)
+		require.Equal(t, `{
+"test": "wow"
+}`, <-doneChan)
 	})
 }
 

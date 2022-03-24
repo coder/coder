@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/cryptorand"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cryptorand"
 )
 
 // Required to prevent port collision during container creation.
