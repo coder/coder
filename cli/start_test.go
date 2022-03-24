@@ -154,6 +154,10 @@ func TestStart(t *testing.T) {
 	// This cannot be ran in parallel because it uses a signal.
 	//nolint:paralleltest
 	t.Run("Shutdown", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Sending interrupt signal isn't supported on Windows!
+			t.SkipNow()
+		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		root, cfg := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "0")

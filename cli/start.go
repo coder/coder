@@ -313,42 +313,42 @@ func start() *cobra.Command {
 	if defaultAddress == "" {
 		defaultAddress = "127.0.0.1:3000"
 	}
-	root.Flags().StringVarP(&accessURL, "access-url", "", os.Getenv("CODER_ACCESS_URL"), "Specifies the external URL to access Coder.")
-	root.Flags().StringVarP(&address, "address", "a", defaultAddress, "The address to serve the API and dashboard.")
+	root.Flags().StringVarP(&accessURL, "access-url", "", os.Getenv("CODER_ACCESS_URL"), "Specifies the external URL to access Coder (uses $CODER_ACCESS_URL).")
+	root.Flags().StringVarP(&address, "address", "a", defaultAddress, "The address to serve the API and dashboard (uses $CODER_ADDRESS).")
 	defaultDev, _ := strconv.ParseBool(os.Getenv("CODER_DEV_MODE"))
-	root.Flags().BoolVarP(&dev, "dev", "", defaultDev, "Serve Coder in dev mode for tinkering.")
+	root.Flags().BoolVarP(&dev, "dev", "", defaultDev, "Serve Coder in dev mode for tinkering (uses $CODER_DEV_MODE).")
 	root.Flags().StringVarP(&postgresURL, "postgres-url", "", "",
 		"URL of a PostgreSQL database to connect to (defaults to $CODER_PG_CONNECTION_URL).")
 	root.Flags().Uint8VarP(&provisionerDaemonCount, "provisioner-daemons", "", 1, "The amount of provisioner daemons to create on start.")
 	defaultTLSEnable, _ := strconv.ParseBool(os.Getenv("CODER_TLS_ENABLE"))
-	root.Flags().BoolVarP(&tlsEnable, "tls-enable", "", defaultTLSEnable, "Specifies if TLS will be enabled.")
+	root.Flags().BoolVarP(&tlsEnable, "tls-enable", "", defaultTLSEnable, "Specifies if TLS will be enabled (uses $CODER_TLS_ENABLE).")
 	root.Flags().StringVarP(&tlsCertFile, "tls-cert-file", "", os.Getenv("CODER_TLS_CERT_FILE"),
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
-			"and the CA certificate together. The primary certificate should appear first in the combined file.")
+			"and the CA certificate together. The primary certificate should appear first in the combined file (uses $CODER_TLS_CERT_FILE).")
 	root.Flags().StringVarP(&tlsClientCAFile, "tls-client-ca-file", "", os.Getenv("CODER_TLS_CLIENT_CA_FILE"),
-		"PEM-encoded Certificate Authority file used for checking the authenticity of client.")
+		"PEM-encoded Certificate Authority file used for checking the authenticity of client (uses $CODER_TLS_CLIENT_CA_FILE).")
 	defaultTLSClientAuth := os.Getenv("CODER_TLS_CLIENT_AUTH")
 	if defaultTLSClientAuth == "" {
 		defaultTLSClientAuth = "request"
 	}
 	root.Flags().StringVarP(&tlsClientAuth, "tls-client-auth", "", defaultTLSClientAuth,
 		`Specifies the policy the server will follow for TLS Client Authentication. `+
-			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".`)
+			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify" (uses $CODER_TLS_CLIENT_AUTH).`)
 	root.Flags().StringVarP(&tlsKeyFile, "tls-key-file", "", os.Getenv("CODER_TLS_KEY_FILE"),
-		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file.")
+		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file (uses $CODER_TLS_KEY_FILE).")
 	defaultTLSMinVersion := os.Getenv("CODER_TLS_MIN_VERSION")
 	if defaultTLSMinVersion == "" {
 		defaultTLSMinVersion = "tls12"
 	}
 	root.Flags().StringVarP(&tlsMinVersion, "tls-min-version", "", defaultTLSMinVersion,
-		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13".`)
+		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13" (uses $CODER_TLS_MIN_VERSION).`)
 	defaultTunnelRaw := os.Getenv("CODER_DEV_TUNNEL")
 	if defaultTunnelRaw == "" {
 		defaultTunnelRaw = "true"
 	}
 	defaultTunnel, _ := strconv.ParseBool(defaultTunnelRaw)
-	root.Flags().BoolVarP(&useTunnel, "tunnel", "", defaultTunnel, "Serve dev mode through a Cloudflare Tunnel for easy setup.")
+	root.Flags().BoolVarP(&useTunnel, "tunnel", "", defaultTunnel, "Serve dev mode through a Cloudflare Tunnel for easy setup (uses $CODER_DEV_TUNNEL).")
 	_ = root.Flags().MarkHidden("tunnel")
 
 	return root
