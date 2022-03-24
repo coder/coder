@@ -16,6 +16,7 @@ import (
 
 type JobOptions struct {
 	Title  string
+	Output bool
 	Fetch  func() (codersdk.ProvisionerJob, error)
 	Cancel func() error
 	Logs   func() (<-chan codersdk.ProvisionerJobLog, error)
@@ -40,7 +41,7 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 		var err error
 		job, err = opts.Fetch()
 		if err != nil {
-			// If a single fetch fails, it could be a one-off.
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), defaultStyles.Error.Render(err.Error()))
 			return
 		}
 
@@ -94,12 +95,15 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 				return
 			}
 		}
+		signal.Stop(stopChan)
 		spin.Stop()
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+"Gracefully canceling... wait for exit or data loss may occur!\n")
 		spin.Start()
 		err := opts.Cancel()
 		if err != nil {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Failed to cancel %s...\n", err)
+			spin.Stop()
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), defaultStyles.Error.Render(err.Error()))
+			return
 		}
 		refresh()
 	}()
@@ -123,11 +127,14 @@ func Job(cmd *cobra.Command, opts JobOptions) (codersdk.ProvisionerJob, error) {
 		case log, ok := <-logs:
 			if !ok {
 				refresh()
-				continue
+				return job, nil
 			}
 			if !firstLog {
 				refresh()
 				firstLog = true
+			}
+			if !opts.Output {
+				continue
 			}
 			spin.Stop()
 			var style lipgloss.Style

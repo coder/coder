@@ -3,7 +3,7 @@ GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
 bin:
-	goreleaser build --single-target --snapshot --rm-dist
+	goreleaser build --snapshot --rm-dist
 .PHONY: bin
 
 build: site/out bin
@@ -19,11 +19,6 @@ database/generate: fmt/sql database/dump.sql database/query.sql
 	cd database && gofmt -w -r 'Querier -> querier' *.go
 	cd database && gofmt -w -r 'Queries -> sqlQuerier' *.go
 .PHONY: database/generate
-
-docker/image/coder: build
-	cp ./images/coder/run.sh ./dist/coder_$(GOOS)_$(GOARCH)
-	docker build --network=host -t us-docker.pkg.dev/coder-blacktriangle-dev/ci/coder:latest -f images/coder/Dockerfile ./dist/coder_$(GOOS)_$(GOARCH)
-.PHONY: docker/build
 
 fmt/prettier:
 	@echo "--- prettier"
@@ -55,10 +50,6 @@ install: bin
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
-package: 
-	goreleaser release --snapshot --rm-dist
-.PHONY: package
-
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	protoc \
 		--go_out=. \
@@ -85,6 +76,10 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
+
+release: 
+	goreleaser release --snapshot --rm-dist
+.PHONY: release
 
 site/out: 
 	./scripts/yarn_install.sh

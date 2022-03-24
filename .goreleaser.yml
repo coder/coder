@@ -16,7 +16,7 @@ builds:
     ldflags: ["-s -w"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]
-    goarch: [amd64, arm64]
+    goarch: [amd64]
     hooks:
       # The "trimprefix" appends ".exe" on Windows.
       post: |
@@ -44,6 +44,13 @@ nfpms:
       - postgresql
     builds:
       - coder
+    bindir: /usr/bin
+    contents:
+      - src: coder.env
+        dst: /etc/coder.d/coder.env
+        type: "config|noreplace"
+      - src: coder.service
+        dst: /usr/lib/systemd/system/coder.service
 
 release:
   ids: [coder]

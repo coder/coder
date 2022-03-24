@@ -16,6 +16,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/retry"
 )
 
 // New creates a new tunnel pointing at the URL provided.
@@ -73,7 +75,7 @@ func New(ctx context.Context, url string) (string, <-chan error, error) {
 	set := flag.NewFlagSet("", 0)
 	set.String("protocol", "", "")
 	set.String("url", "", "")
-	set.Int("retries", 5, "")
+	// set.Int("retries", 5, "")
 	appCtx := cli.NewContext(&cli.App{}, set, nil)
 	appCtx.Context = ctx
 	_ = appCtx.Set("url", url)
@@ -81,8 +83,13 @@ func New(ctx context.Context, url string) (string, <-chan error, error) {
 	logger := zerolog.New(os.Stdout).Level(zerolog.Disabled)
 	errCh := make(chan error, 1)
 	go func() {
-		err := tunnel.StartServer(appCtx, &cliutil.BuildInfo{}, namedTunnel, &logger, false)
-		errCh <- err
+		for retry.New(250*time.Millisecond, 5*time.Second).Wait(ctx) {
+			err := tunnel.StartServer(appCtx, &cliutil.BuildInfo{}, namedTunnel, &logger, false)
+			if err != nil && strings.Contains(err.Error(), "Failed to get tunnel") {
+				continue
+			}
+			errCh <- err
+		}
 	}()
 	if !strings.HasPrefix(data.Result.Hostname, "https://") {
 		data.Result.Hostname = "https://" + data.Result.Hostname

@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"net/url"
+	"runtime"
 	"testing"
 	"time"
 
@@ -10,17 +11,48 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database/postgres"
 )
 
 func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Production", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS != "linux" || testing.Short() {
+			// Skip on non-Linux because it spawns a PostgreSQL instance.
+			t.SkipNow()
+		}
+		connectionURL, closeFunc, err := postgres.Open()
+		require.NoError(t, err)
+		defer closeFunc()
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		go cancelFunc()
-		root, _ := clitest.New(t, "start", "--address", ":0")
-		err := root.ExecuteContext(ctx)
-		require.ErrorIs(t, err, context.Canceled)
+		done := make(chan struct{})
+		root, cfg := clitest.New(t, "start", "--address", ":0", "--postgres-url", connectionURL)
+		go func() {
+			defer close(done)
+			err = root.ExecuteContext(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+		}()
+		var client *codersdk.Client
+		require.Eventually(t, func() bool {
+			rawURL, err := cfg.URL().Read()
+			if err != nil {
+				return false
+			}
+			accessURL, err := url.Parse(rawURL)
+			require.NoError(t, err)
+			client = codersdk.New(accessURL)
+			return true
+		}, 15*time.Second, 25*time.Millisecond)
+		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+			Email:        "some@one.com",
+			Username:     "example",
+			Password:     "password",
+			Organization: "example",
+		})
+		require.NoError(t, err)
+		cancelFunc()
+		<-done
 	})
 	t.Run("Development", func(t *testing.T) {
 		t.Parallel()
