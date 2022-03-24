@@ -2,7 +2,9 @@ package cliui
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -45,12 +47,22 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		} else {
 			reader := bufio.NewReader(cmd.InOrStdin())
 			line, err = reader.ReadString('\n')
-			// Multiline with single quotes!
-			if err == nil && strings.HasPrefix(line, "'") {
-				rest, err := reader.ReadString('\'')
+
+			// Check if the first line beings with JSON object or array chars.
+			// This enables multiline JSON to be pasted into an input, and have
+			// it parse properly.
+			if err == nil && (strings.HasPrefix(line, "{") || strings.HasPrefix(line, "[")) {
+				pipeReader, pipeWriter := io.Pipe()
+				defer pipeWriter.Close()
+				defer pipeReader.Close()
+				go func() {
+					_, _ = pipeWriter.Write([]byte(line))
+					_, _ = reader.WriteTo(pipeWriter)
+				}()
+				var rawMessage json.RawMessage
+				err := json.NewDecoder(pipeReader).Decode(&rawMessage)
 				if err == nil {
-					line += rest
-					line = strings.Trim(line, "'")
+					line = string(rawMessage)
 				}
 			}
 		}
