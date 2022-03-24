@@ -30,7 +30,7 @@ func (c *Client) AuthWorkspaceGoogleInstanceIdentity(ctx context.Context, servic
 		serviceAccount = "default"
 	}
 	if gcpClient == nil {
-		gcpClient = metadata.NewClient(c.httpClient)
+		gcpClient = metadata.NewClient(c.HTTPClient)
 	}
 	// "format=full" is required, otherwise the responding payload will be missing "instance_id".
 	jwt, err := gcpClient.Get(fmt.Sprintf("instance/service-accounts/%s/identity?audience=coder&format=full", serviceAccount))
