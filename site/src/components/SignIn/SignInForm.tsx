@@ -4,9 +4,9 @@ import React from "react"
 import * as Yup from "yup"
 
 import { Welcome } from "./Welcome"
-import { FormTextField } from "../Form"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import { LoadingButton } from "./../Button"
+import TextField from "@material-ui/core/TextField"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -18,8 +18,14 @@ interface BuiltInAuthFormValues {
   password: string
 }
 
+export const LANGUAGE = {
+  emailInvalid: "Please enter a valid email address.",
+  emailRequired: "Please enter an email address.",
+  authErrorMessage: "Incorrect email or password."
+}
+
 const validationSchema = Yup.object({
-  email: Yup.string().required("Email is required."),
+  email: Yup.string().trim().email(LANGUAGE.emailInvalid).required(LANGUAGE.emailRequired),
   password: Yup.string(),
 })
 
@@ -59,52 +65,38 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
-        <div>
-          <FormTextField
-            label="Email"
-            autoComplete="email"
-            autoFocus
-            className={styles.loginTextField}
-            eventTransform={(email: string) => email.trim()}
-            form={form}
-            formFieldName="email"
-            fullWidth
-            inputProps={{
-              id: "signin-form-inpt-email",
-            }}
-            variant="outlined"
-          />
-          <FormTextField
-            label="Password"
-            autoComplete="current-password"
-            className={styles.loginTextField}
-            form={form}
-            formFieldName="password"
-            fullWidth
-            inputProps={{
-              id: "signin-form-inpt-password",
-            }}
-            isPassword
-            variant="outlined"
-          />
-          {authErrorMessage && (
-            <FormHelperText data-testid="sign-in-error" error>
-              {authErrorMessage}
-            </FormHelperText>
-          )}
-        </div>
-        <div className={styles.submitBtn}>
-          <LoadingButton
-            color="primary"
-            loading={isLoading}
-            fullWidth
-            id="signin-form-submit"
-            type="submit"
-            variant="contained"
-          >
-            {isLoading ? "" : "Sign In"}
-          </LoadingButton>
-        </div>
+      <TextField
+        {...form.getFieldProps("email")}
+        autoFocus
+        autoComplete="email"
+        className={styles.loginTextField}
+        error={form.touched.email && Boolean(form.errors.email)}
+        fullWidth
+        helperText={form.touched.email && form.errors.email}
+        id="email"
+        label="Email"
+        variant="outlined"
+      />
+      <TextField
+        {...form.getFieldProps("password")}
+        autoComplete="current-password"
+        className={styles.loginTextField}
+        fullWidth
+        id="password"
+        label="Password"
+        type="password"
+        variant="outlined"
+      />
+      {authErrorMessage && (
+        <FormHelperText data-testid="sign-in-error" error>
+          {LANGUAGE.authErrorMessage}
+        </FormHelperText>
+      )}
+      <div className={styles.submitBtn}>
+        <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
+          {isLoading ? "" : "Sign In"}
+        </LoadingButton>
+      </div>
       </form>
     </>
   )
