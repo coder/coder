@@ -1,5 +1,4 @@
-import { FullConfig, request } from "@playwright/test"
-import { email, username, password, organization } from "./constants"
+import { FullConfig } from "@playwright/test"
 
 const globalSetup = async (config: FullConfig): Promise<void> => {
   // Nothing yet!
