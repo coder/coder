@@ -7,7 +7,7 @@ import { Welcome } from "./Welcome"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import { LoadingButton } from "./../Button"
 import TextField from "@material-ui/core/TextField"
-import { getFormHelpers } from "../Form"
+import { getFormHelpers, onChangeTrimmed } from "../Form"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -71,6 +71,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
       <form onSubmit={form.handleSubmit}>
         <TextField
           {...getFormHelpers<BuiltInAuthFormValues>(form, "email")}
+          onChange={onChangeTrimmed(form)}
           autoFocus
           autoComplete="email"
           className={styles.loginTextField}
