@@ -1,6 +1,6 @@
 import { FullConfig } from "@playwright/test"
 
-const globalSetup = async (config: FullConfig): Promise<void> => {
+const globalSetup = async (): Promise<void> => {
   // Nothing yet!
 }
 
