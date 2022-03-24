@@ -15,7 +15,6 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -247,7 +246,7 @@ func start() *cobra.Command {
 						},
 					})
 					if err != nil {
-						return err
+						return xerrors.Errorf("delete workspace %s: %w", workspace.Name, err)
 					}
 				}
 			}
@@ -287,12 +286,6 @@ func start() *cobra.Command {
 	root.Flags().BoolVarP(&useTunnel, "tunnel", "", true, "Serve dev mode through a Cloudflare Tunnel for easy setup.")
 	_ = root.Flags().MarkHidden("tunnel")
 
-	if os.Getenv("DUMP") != "" {
-		root.Flags().VisitAll(func(flag *pflag.Flag) {
-			fmt.Printf("%s %s\n", flag.Name, flag.Usage)
-		})
-	}
-
 	return root
 }
 
@@ -304,7 +297,7 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 		Organization: "acme-corp",
 	})
 	if err != nil {
-		return xerrors.Errorf("create first user: %w\n", err)
+		return xerrors.Errorf("create first user: %w", err)
 	}
 	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
 		Email:    "admin@coder.com",
