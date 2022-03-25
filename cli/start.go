@@ -58,8 +58,10 @@ func start() *cobra.Command {
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			tracer.Start()
-			defer tracer.Stop()
+			if os.Getenv("CODER_TRACE_DATADOG") == "true" {
+				tracer.Start()
+				defer tracer.Stop()
+			}
 
 			printLogo(cmd)
 			listener, err := net.Listen("tcp", address)
