@@ -16,13 +16,13 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
-func TestProjectParam(t *testing.T) {
+func TestProjectVersionParam(t *testing.T) {
 	t.Parallel()
 
-	setupAuthentication := func(db database.Store) (*http.Request, database.Organization) {
+	setupAuthentication := func(db database.Store) (*http.Request, database.Project) {
 		var (
 			id, secret = randomAPIKeyParts()
 			hashed     = sha256.Sum256([]byte(secret))
@@ -72,17 +72,25 @@ func TestProjectParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
+		project, err := db.InsertProject(context.Background(), database.InsertProjectParams{
+			ID:             uuid.New(),
+			OrganizationID: organization.ID,
+			Name:           "moo",
+		})
+		require.NoError(t, err)
 
 		ctx := chi.NewRouteContext()
+		ctx.URLParams.Add("organization", organization.Name)
+		ctx.URLParams.Add("project", project.Name)
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
-		return r, organization
+		return r, project
 	}
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractProjectParam(db))
+		rtr.Use(httpmw.ExtractProjectVersionParam(db))
 		rtr.Get("/", nil)
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
@@ -97,11 +105,11 @@ func TestProjectParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractProjectParam(db))
+		rtr.Use(httpmw.ExtractProjectVersionParam(db))
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("project", uuid.NewString())
+		chi.RouteContext(r.Context()).URLParams.Add("projectversion", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -110,45 +118,28 @@ func TestProjectParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("BadUUID", func(t *testing.T) {
-		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractProjectParam(db))
-		rtr.Get("/", nil)
-
-		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("project", "not-a-uuid")
-		rw := httptest.NewRecorder()
-		rtr.ServeHTTP(rw, r)
-
-		res := rw.Result()
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-	})
-
-	t.Run("Project", func(t *testing.T) {
+	t.Run("ProjectVersion", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractProjectParam(db),
+			httpmw.ExtractProjectVersionParam(db),
 			httpmw.ExtractOrganizationParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.ProjectParam(r)
+			_ = httpmw.ProjectVersionParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
 
-		r, org := setupAuthentication(db)
-		project, err := db.InsertProject(context.Background(), database.InsertProjectParams{
+		r, project := setupAuthentication(db)
+		projectVersion, err := db.InsertProjectVersion(context.Background(), database.InsertProjectVersionParams{
 			ID:             uuid.New(),
-			OrganizationID: org.ID,
+			OrganizationID: project.OrganizationID,
 			Name:           "moo",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("project", project.ID.String())
+		chi.RouteContext(r.Context()).URLParams.Add("projectversion", projectVersion.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 func TestWorkspaceAgent(t *testing.T) {

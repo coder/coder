@@ -10,7 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 func TestFirstUser(t *testing.T) {

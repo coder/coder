@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {

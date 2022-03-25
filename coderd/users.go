@@ -20,7 +20,7 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpapi"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 // Returns whether the initial user has been created or not.

@@ -13,8 +13,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/httpapi"
-	"github.com/coder/coder/httpmw"
 )
 
 // New creates a Coder client for the provided URL.

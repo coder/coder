@@ -16,18 +16,18 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
-func TestWorkspaceParam(t *testing.T) {
+func TestOrganizationParam(t *testing.T) {
 	t.Parallel()
 
-	setup := func(db database.Store) (*http.Request, database.User) {
+	setupAuthentication := func(db database.Store) (*http.Request, database.User) {
 		var (
 			id, secret = randomAPIKeyParts()
+			r          = httptest.NewRequest("GET", "/", nil)
 			hashed     = sha256.Sum256([]byte(secret))
 		)
-		r := httptest.NewRequest("GET", "/", nil)
 		r.AddCookie(&http.Cookie{
 			Name:  httpmw.AuthCookie,
 			Value: fmt.Sprintf("%s-%s", id, secret),
@@ -55,23 +55,24 @@ func TestWorkspaceParam(t *testing.T) {
 			ExpiresAt:    database.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
-
-		ctx := chi.NewRouteContext()
-		ctx.URLParams.Add("user", "me")
-		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
 		return r, user
 	}
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractWorkspaceParam(db))
+		var (
+			db   = databasefake.New()
+			rw   = httptest.NewRecorder()
+			r, _ = setupAuthentication(db)
+			rtr  = chi.NewRouter()
+		)
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
 		rtr.Get("/", nil)
-		r, _ := setup(db)
-		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -79,68 +80,84 @@ func TestWorkspaceParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractWorkspaceParam(db))
+		var (
+			db   = databasefake.New()
+			rw   = httptest.NewRecorder()
+			r, _ = setupAuthentication(db)
+			rtr  = chi.NewRouter()
+		)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", "nothin")
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
 		rtr.Get("/", nil)
-		r, _ := setup(db)
-		chi.RouteContext(r.Context()).URLParams.Add("workspace", uuid.NewString())
-		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("NonPersonal", func(t *testing.T) {
+	t.Run("NotInOrganization", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractWorkspaceParam(db),
+		var (
+			db   = databasefake.New()
+			rw   = httptest.NewRecorder()
+			r, _ = setupAuthentication(db)
+			rtr  = chi.NewRouter()
 		)
-		rtr.Get("/", nil)
-		r, _ := setup(db)
-		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
-			ID:      uuid.New(),
-			OwnerID: "not-me",
-			Name:    "hello",
+		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+			ID:        uuid.NewString(),
+			Name:      "test",
+			CreatedAt: database.Now(),
+			UpdatedAt: database.Now(),
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
-		rw := httptest.NewRecorder()
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID)
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
+		rtr.Get("/", nil)
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
-	t.Run("Found", func(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractWorkspaceParam(db),
+		var (
+			db      = databasefake.New()
+			rw      = httptest.NewRecorder()
+			r, user = setupAuthentication(db)
+			rtr     = chi.NewRouter()
 		)
-		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.WorkspaceParam(r)
-			rw.WriteHeader(http.StatusOK)
-		})
-		r, user := setup(db)
-		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
-			ID:      uuid.New(),
-			OwnerID: user.ID,
-			Name:    "hello",
+		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+			ID:        uuid.NewString(),
+			Name:      "test",
+			CreatedAt: database.Now(),
+			UpdatedAt: database.Now(),
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
-		rw := httptest.NewRecorder()
+		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+			OrganizationID: organization.ID,
+			UserID:         user.ID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+		})
+		require.NoError(t, err)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID)
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
+		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+			_ = httpmw.OrganizationParam(r)
+			_ = httpmw.OrganizationMemberParam(r)
+			rw.WriteHeader(http.StatusOK)
+		})
 		rtr.ServeHTTP(rw, r)
-
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)

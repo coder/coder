@@ -16,13 +16,13 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
-func TestWorkspaceBuildParam(t *testing.T) {
+func TestProjectParam(t *testing.T) {
 	t.Parallel()
 
-	setupAuthentication := func(db database.Store) (*http.Request, database.Workspace) {
+	setupAuthentication := func(db database.Store) (*http.Request, database.Organization) {
 		var (
 			id, secret = randomAPIKeyParts()
 			hashed     = sha256.Sum256([]byte(secret))
@@ -55,26 +55,34 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			ExpiresAt:    database.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
-		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
-			ID:        uuid.New(),
-			ProjectID: uuid.New(),
-			OwnerID:   user.ID,
-			Name:      "potato",
+		orgID, err := cryptorand.String(16)
+		require.NoError(t, err)
+		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
+			ID:          orgID,
+			Name:        "banana",
+			Description: "wowie",
+			CreatedAt:   database.Now(),
+			UpdatedAt:   database.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
 
 		ctx := chi.NewRouteContext()
-		ctx.URLParams.Add("user", userID)
-		ctx.URLParams.Add("workspace", workspace.Name)
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
-		return r, workspace
+		return r, organization
 	}
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractWorkspaceBuildParam(db))
+		rtr.Use(httpmw.ExtractProjectParam(db))
 		rtr.Get("/", nil)
 		r, _ := setupAuthentication(db)
 		rw := httptest.NewRecorder()
@@ -89,11 +97,11 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractWorkspaceBuildParam(db))
+		rtr.Use(httpmw.ExtractProjectParam(db))
 		rtr.Get("/", nil)
 
 		r, _ := setupAuthentication(db)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", uuid.NewString())
+		chi.RouteContext(r.Context()).URLParams.Add("project", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -102,28 +110,45 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("WorkspaceBuild", func(t *testing.T) {
+	t.Run("BadUUID", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.ExtractProjectParam(db))
+		rtr.Get("/", nil)
+
+		r, _ := setupAuthentication(db)
+		chi.RouteContext(r.Context()).URLParams.Add("project", "not-a-uuid")
+		rw := httptest.NewRecorder()
+		rtr.ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("Project", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractWorkspaceBuildParam(db),
-			httpmw.ExtractWorkspaceParam(db),
+			httpmw.ExtractProjectParam(db),
+			httpmw.ExtractOrganizationParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.WorkspaceBuildParam(r)
+			_ = httpmw.ProjectParam(r)
 			rw.WriteHeader(http.StatusOK)
 		})
 
-		r, workspace := setupAuthentication(db)
-		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
-			ID:          uuid.New(),
-			WorkspaceID: workspace.ID,
-			Name:        "moo",
+		r, org := setupAuthentication(db)
+		project, err := db.InsertProject(context.Background(), database.InsertProjectParams{
+			ID:             uuid.New(),
+			OrganizationID: org.ID,
+			Name:           "moo",
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", workspaceBuild.ID.String())
+		chi.RouteContext(r.Context()).URLParams.Add("project", project.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
