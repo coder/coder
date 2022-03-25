@@ -1,5 +1,5 @@
 # Generated files
-database/dump.sql linguist-generated=true
+coderd/database/dump.sql linguist-generated=true
 peerbroker/proto/*.go linguist-generated=true
 provisionerd/proto/*.go linguist-generated=true
 provisionersdk/proto/*.go linguist-generated=true
