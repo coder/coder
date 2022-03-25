@@ -25,7 +25,7 @@ replace github.com/urfave/cli/v2 => github.com/ipostelnik/cli/v2 v2.3.1-0.202103
 
 replace github.com/rivo/tview => github.com/kylecarbs/tview v0.0.0-20220309202238-8464256e10a1
 
-// glog has a single goroutine leak on start
+// glog has a single goroutine leak on start that we removed in a fork: https://github.com/coder/glog/pull/1.
 replace github.com/golang/glog => github.com/coder/glog v1.0.1-0.20220322161911-7365fe7f2cd1
 
 require (
