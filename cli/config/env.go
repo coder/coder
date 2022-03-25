@@ -6,7 +6,8 @@ import (
 	"strconv"
 )
 
-var (
+// Specify Key constants for EnvConfig here.
+const (
 	EnvCoderAccessURL          Key = "CODER_ACCESS_URL"
 	EnvCoderAddress            Key = "CODER_ADDRESS"
 	EnvCoderDevMode            Key = "CODER_DEV_MODE"
@@ -21,6 +22,19 @@ var (
 	EnvCoderDevTunnel          Key = "CODER_DEV_TUNNEL"
 )
 
+// EnvConfigSchema is the global schema for environment variables.
+// This schema is used when config.ReadEnvConfig() is called.
+// Add new items to the array and fill in Key, DefaultValue, and Usage fields.
+//
+// Example:
+// var (
+//	  root *cobra.Command
+//    accessURL string
+//    ec = config.ReadEnvironmentConfig()
+// )
+//
+// root.Flags().StringVarP(&accessURL, "access-url", "", ec.GetString(config.EnvCoderAccessURL), ec.Usage(config.EnvCoderAccessURL))
+//
 var EnvConfigSchema = EnvConfigSchemaFields{
 	{
 		Key:          EnvCoderAccessURL,
@@ -87,16 +101,21 @@ var EnvConfigSchema = EnvConfigSchemaFields{
 	},
 }
 
+// ReadEnvConfig reads the application environment variables and stores them in memory.
 func ReadEnvConfig() EnvConfig {
 	return EnvConfigSchema.readEnvironment()
 }
 
+// Key is the environment variable key.
 type Key string
 
+// EnvConfig allows reading of environment configuration.
 type EnvConfig map[Key]EnvConfigSchemaField
 
+// EnvConfigSchemaFields is the configuration schema for an EnvConfig.
 type EnvConfigSchemaFields []EnvConfigSchemaField
 
+// EnvConfigSchemaField represents an environment variable.
 type EnvConfigSchemaField struct {
 	Key          Key
 	DefaultValue string
@@ -120,20 +139,24 @@ func (e EnvConfigSchemaFields) readEnvironment() EnvConfig {
 	return c
 }
 
+// GetString looks up the Key and returns the value as a string.
 func (e EnvConfig) GetString(key Key) string {
 	return e[key].value
 }
 
+// GetBool looks up the Key and returns the value as a bool.
 func (e EnvConfig) GetBool(key Key) bool {
 	b, _ := strconv.ParseBool(e[key].value)
 	return b
 }
 
+// GetInt looks up the Key and returns the value as a int.
 func (e EnvConfig) GetInt(key Key) int {
 	b, _ := strconv.ParseInt(e[key].value, 10, 0)
 	return int(b)
 }
 
+// Usage looks up the Key and returns the formatted usage message.
 func (e EnvConfig) Usage(key Key) string {
 	return fmt.Sprintf("%s (uses $%s).", e[key].Usage, key)
 }
