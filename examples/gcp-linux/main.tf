@@ -75,6 +75,7 @@ resource "google_compute_instance" "dev" {
     }
   }
   boot_disk {
+    auto_delete = false
     source = google_compute_disk.root.name
   }
   service_account {
