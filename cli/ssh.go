@@ -1,17 +1,15 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
+	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/database"
 )
 
 func workspaceSSH() *cobra.Command {
@@ -26,58 +24,76 @@ func workspaceSSH() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
+				return xerrors.New("workspace is deleting...")
+			}
 			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
-
+			resourceByAddress := make(map[string]codersdk.WorkspaceResource)
 			for _, resource := range resources {
-				_, _ = fmt.Printf("Got resource: %+v\n", resource)
 				if resource.Agent == nil {
 					continue
 				}
+				resourceByAddress[resource.Address] = resource
+			}
+			var resourceAddress string
+			if len(args) >= 2 {
+				resourceAddress = args[1]
+			} else {
+				// No resource name was provided!
+				if len(resourceByAddress) > 1 {
+					// List available resources to connect into?
+					return xerrors.Errorf("multiple agents")
+				}
+				for _, resource := range resourceByAddress {
+					resourceAddress = resource.Address
+					break
+				}
+			}
+			resource, exists := resourceByAddress[resourceAddress]
+			if !exists {
+				resourceKeys := make([]string, 0)
+				for resourceKey := range resourceByAddress {
+					resourceKeys = append(resourceKeys, resourceKey)
+				}
+				return xerrors.Errorf("no sshable agent with address %q: %+v", resourceAddress, resourceKeys)
+			}
+			if resource.Agent.LastConnectedAt == nil {
+				return xerrors.Errorf("agent hasn't connected yet")
+			}
 
-				dialed, err := client.DialWorkspaceAgent(cmd.Context(), resource.ID)
-				if err != nil {
-					return err
-				}
-				stream, err := dialed.NegotiateConnection(cmd.Context())
-				if err != nil {
-					return err
-				}
-				conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{{
-					URLs: []string{"stun:stun.l.google.com:19302"},
-				}}, &peer.ConnOptions{})
-				if err != nil {
-					return err
-				}
-				client, err := agent.DialSSHClient(conn)
-				if err != nil {
-					return err
-				}
+			conn, err := client.DialWorkspaceAgent(cmd.Context(), resource.ID, nil, nil)
+			if err != nil {
+				return err
+			}
+			sshClient, err := conn.SSHClient()
+			if err != nil {
+				return err
+			}
 
-				session, err := client.NewSession()
-				if err != nil {
-					return err
-				}
-				_, _ = term.MakeRaw(int(os.Stdin.Fd()))
-				err = session.RequestPty("xterm-256color", 128, 128, ssh.TerminalModes{
-					ssh.OCRNL: 1,
-				})
-				if err != nil {
-					return err
-				}
-				session.Stdin = os.Stdin
-				session.Stdout = os.Stdout
-				session.Stderr = os.Stderr
-				err = session.Shell()
-				if err != nil {
-					return err
-				}
-				err = session.Wait()
-				if err != nil {
-					return err
-				}
+			sshSession, err := sshClient.NewSession()
+			if err != nil {
+				return err
+			}
+			_, _ = term.MakeRaw(int(os.Stdin.Fd()))
+			err = sshSession.RequestPty("xterm-256color", 128, 128, ssh.TerminalModes{
+				ssh.OCRNL: 1,
+			})
+			if err != nil {
+				return err
+			}
+			sshSession.Stdin = os.Stdin
+			sshSession.Stdout = os.Stdout
+			sshSession.Stderr = os.Stderr
+			err = sshSession.Shell()
+			if err != nil {
+				return err
+			}
+			err = sshSession.Wait()
+			if err != nil {
+				return err
 			}
 
 			return nil

@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -95,14 +94,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		_ = agentCloser.Close()
 	})
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	workspaceClient, err := client.DialWorkspaceAgent(context.Background(), resources[0].ID)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = workspaceClient.DRPCConn().Close()
-	})
-	stream, err := workspaceClient.NegotiateConnection(context.Background())
-	require.NoError(t, err)
-	conn, err := peerbroker.Dial(stream, nil, &peer.ConnOptions{
+	conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].ID, nil, &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)

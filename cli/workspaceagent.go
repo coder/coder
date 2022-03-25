@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -19,25 +20,24 @@ import (
 )
 
 func workspaceAgent() *cobra.Command {
-	return &cobra.Command{
+	var (
+		rawURL string
+		auth   string
+	)
+	cmd := &cobra.Command{
 		Use: "agent",
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			coderURLRaw, exists := os.LookupEnv("CODER_URL")
-			if !exists {
+			if rawURL == "" {
 				return xerrors.New("CODER_URL must be set")
 			}
-			coderURL, err := url.Parse(coderURLRaw)
+			coderURL, err := url.Parse(rawURL)
 			if err != nil {
-				return xerrors.Errorf("parse %q: %w", coderURLRaw, err)
+				return xerrors.Errorf("parse %q: %w", rawURL, err)
 			}
-			logger := slog.Make(sloghuman.Sink(cmd.OutOrStdout()))
+			logger := slog.Make(sloghuman.Sink(cmd.OutOrStdout())).Leveled(slog.LevelDebug)
 			client := codersdk.New(coderURL)
-			auth, exists := os.LookupEnv("CODER_AUTH")
-			if !exists {
-				auth = "token"
-			}
 			switch auth {
 			case "token":
 				sessionToken, exists := os.LookupEnv("CODER_TOKEN")
@@ -46,16 +46,26 @@ func workspaceAgent() *cobra.Command {
 				}
 				client.SessionToken = sessionToken
 			case "google-instance-identity":
+				// This is *only* done for testing to mock client authentication.
+				// This will never be set in a production scenario.
+				var gcpClient *metadata.Client
+				gcpClientRaw := cmd.Context().Value("gcp-client")
+				if gcpClientRaw != nil {
+					gcpClient, _ = gcpClientRaw.(*metadata.Client)
+				}
+
 				ctx, cancelFunc := context.WithTimeout(cmd.Context(), 30*time.Second)
 				defer cancelFunc()
 				for retry.New(100*time.Millisecond, 5*time.Second).Wait(ctx) {
 					var response codersdk.WorkspaceAgentAuthenticateResponse
-					response, err = client.AuthWorkspaceGoogleInstanceIdentity(cmd.Context(), "", nil)
+
+					response, err = client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", gcpClient)
 					if err != nil {
 						logger.Warn(ctx, "authenticate workspace with Google Instance Identity", slog.Error(err))
 						continue
 					}
 					client.SessionToken = response.SessionToken
+					logger.Info(ctx, "authenticated with Google Instance Identity")
 					break
 				}
 				if err != nil {
@@ -73,4 +83,12 @@ func workspaceAgent() *cobra.Command {
 			return closer.Close()
 		},
 	}
+	defaultAuth := os.Getenv("CODER_AUTH")
+	if defaultAuth == "" {
+		defaultAuth = "token"
+	}
+	cmd.Flags().StringVarP(&auth, "auth", "", defaultAuth, "Specify the authentication type to use for the agent.")
+	cmd.Flags().StringVarP(&rawURL, "url", "", os.Getenv("CODER_URL"), "Specify the URL to access Coder.")
+
+	return cmd
 }
