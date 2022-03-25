@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -13,13 +15,13 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
+	"github.com/coder/retry"
 )
 
 func workspaceAgent() *cobra.Command {
 	return &cobra.Command{
 		Use: "agent",
-		// This command isn't useful for users, and seems
-		// more likely to confuse.
+		// This command isn't useful to manually execute.
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			coderURLRaw, exists := os.LookupEnv("CODER_URL")
@@ -30,30 +32,42 @@ func workspaceAgent() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse %q: %w", coderURLRaw, err)
 			}
+			logger := slog.Make(sloghuman.Sink(cmd.OutOrStdout()))
 			client := codersdk.New(coderURL)
-			sessionToken, exists := os.LookupEnv("CODER_TOKEN")
+			auth, exists := os.LookupEnv("CODER_AUTH")
 			if !exists {
-				// probe, err := cloud.New()
-				// if err != nil {
-				// 	return xerrors.Errorf("probe cloud: %w", err)
-				// }
-				// if !probe.Detected {
-				// 	return xerrors.Errorf("no valid authentication method found; set \"CODER_TOKEN\"")
-				// }
-				// switch {
-				// case probe.GCP():
-				response, err := client.AuthWorkspaceGoogleInstanceIdentity(cmd.Context(), "", nil)
-				if err != nil {
-					return xerrors.Errorf("authenticate workspace with gcp: %w", err)
-				}
-				sessionToken = response.SessionToken
-				// default:
-				// 	return xerrors.Errorf("%q authentication not supported; set \"CODER_TOKEN\" instead", probe.Name)
-				// }
+				auth = "token"
 			}
-			client.SessionToken = sessionToken
+			switch auth {
+			case "token":
+				sessionToken, exists := os.LookupEnv("CODER_TOKEN")
+				if !exists {
+					return xerrors.Errorf("CODER_TOKEN must be set for token auth")
+				}
+				client.SessionToken = sessionToken
+			case "google-instance-identity":
+				ctx, cancelFunc := context.WithTimeout(cmd.Context(), 30*time.Second)
+				defer cancelFunc()
+				for retry.New(100*time.Millisecond, 5*time.Second).Wait(ctx) {
+					var response codersdk.WorkspaceAgentAuthenticateResponse
+					response, err = client.AuthWorkspaceGoogleInstanceIdentity(cmd.Context(), "", nil)
+					if err != nil {
+						logger.Warn(ctx, "authenticate workspace with Google Instance Identity", slog.Error(err))
+						continue
+					}
+					client.SessionToken = response.SessionToken
+					break
+				}
+				if err != nil {
+					return xerrors.Errorf("agent failed to authenticate in time: %w", err)
+				}
+			case "aws-instance-identity":
+				return xerrors.Errorf("not implemented")
+			case "azure-instance-identity":
+				return xerrors.Errorf("not implemented")
+			}
 			closer := agent.New(client.ListenWorkspaceAgent, &peer.ConnOptions{
-				Logger: slog.Make(sloghuman.Sink(cmd.OutOrStdout())),
+				Logger: logger,
 			})
 			<-cmd.Context().Done()
 			return closer.Close()

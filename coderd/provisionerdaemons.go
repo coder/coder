@@ -183,6 +183,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get project: %s", err))
 		}
+		owner, err := server.Database.GetUserByID(ctx, workspace.OwnerID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get owner: %s", err))
+		}
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
@@ -224,6 +228,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:            server.AccessURL.String(),
 					WorkspaceTransition: transition,
+					WorkspaceName:       workspace.Name,
+					WorkspaceOwner:      owner.Username,
 				},
 			},
 		}
@@ -591,9 +597,9 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	if resource.AgentID.Valid {
 		var instanceID sql.NullString
-		if protoResource.Agent.GetGoogleInstanceIdentity() != nil {
+		if protoResource.Agent.GetInstanceId() != "" {
 			instanceID = sql.NullString{
-				String: protoResource.Agent.GetGoogleInstanceIdentity().InstanceId,
+				String: protoResource.Agent.GetInstanceId(),
 				Valid:  true,
 			}
 		}
