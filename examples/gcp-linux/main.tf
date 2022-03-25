@@ -2,6 +2,7 @@ terraform {
   required_providers {
     coder = {
       source = "coder/coder"
+      version = "0.2.1"
     }
   }
 }
@@ -41,6 +42,7 @@ data "coder_workspace" "me" {
 }
 
 data "coder_agent_script" "dev" {
+  auth = "google-instance-identity"
   arch = "amd64"
   os   = "linux"
 }
@@ -87,8 +89,5 @@ resource "google_compute_instance" "dev" {
 
 resource "coder_agent" "dev" {
   count = length(google_compute_instance.dev)
-  auth {
-    type        = "google-instance-identity"
-    instance_id = google_compute_instance.dev[0].instance_id
-  }
+  instance_id = google_compute_instance.dev[0].instance_id
 }

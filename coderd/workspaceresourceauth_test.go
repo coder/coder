@@ -75,8 +75,8 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agent: &proto.Agent{
-								Auth: &proto.Agent_GoogleInstanceIdentity{
-									GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{},
+								Auth: &proto.Agent_InstanceId{
+									InstanceId: "",
 								},
 							},
 						}},
@@ -90,10 +90,8 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agent: &proto.Agent{
-								Auth: &proto.Agent_GoogleInstanceIdentity{
-									GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-										InstanceId: instanceID,
-									},
+								Auth: &proto.Agent_InstanceId{
+									InstanceId: instanceID,
 								},
 							},
 						}},

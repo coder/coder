@@ -78,8 +78,7 @@ message Agent {
     string startup_script = 3;
     oneof auth {
         string token = 4;
-        // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
-        GoogleInstanceIdentityAuth google_instance_identity = 5;
+        string instance_id = 5;
     }
 }
 
@@ -117,6 +116,8 @@ message Provision {
     message Metadata {
         string coder_url = 1;
         WorkspaceTransition workspace_transition = 2;
+        string workspace_name = 3;
+        string workspace_owner = 4;
     }
     message Start {
         string directory = 1;

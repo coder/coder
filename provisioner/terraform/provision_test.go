@@ -27,7 +27,7 @@ terraform {
 	required_providers {
 		coder = {
 			source = "coder/coder"
-			version = "0.1.0"
+			version = "0.2.1"
 		}
 	}
 }
@@ -195,10 +195,7 @@ provider "coder" {
 				depends_on = [
 					null_resource.A
 				]
-				auth {
-					type = "google-instance-identity"
-					instance_id = "an-instance"
-				}
+				instance_id = "an-instance"
 			}
 			resource "null_resource" "A" {}`,
 		},
@@ -261,10 +258,7 @@ provider "coder" {
 			"main.tf": provider + `
 			resource "coder_agent" "A" {
 				count = length(null_resource.A)
-				auth {
-					type = "google-instance-identity"
-					instance_id = "an-instance"
-				}
+				instance_id = "an-instance"
 			}
 			resource "null_resource" "A" {
 				count = 1
@@ -287,10 +281,8 @@ provider "coder" {
 						Name: "A",
 						Type: "null_resource",
 						Agent: &proto.Agent{
-							Auth: &proto.Agent_GoogleInstanceIdentity{
-								GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-									InstanceId: "an-instance",
-								},
+							Auth: &proto.Agent_InstanceId{
+								InstanceId: "an-instance",
 							},
 						},
 					}},

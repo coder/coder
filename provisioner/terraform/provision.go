@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
@@ -102,6 +101,8 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 	env = append(env,
 		"CODER_URL="+start.Metadata.CoderUrl,
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
+		"CODER_WORKSPACE_NAME="+start.Metadata.WorkspaceName,
+		"CODER_WORKSPACE_OWNER="+start.Metadata.WorkspaceOwner,
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
@@ -285,38 +286,24 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 		if envRaw, has := resource.Expressions["env"]; has {
 			env, ok := envRaw.ConstantValue.(map[string]string)
 			if !ok {
-				return nil, xerrors.Errorf("unexpected type %q for env map", reflect.TypeOf(envRaw.ConstantValue).String())
+				return nil, xerrors.Errorf("unexpected type %T for env map", envRaw.ConstantValue)
 			}
 			agent.Env = env
 		}
 		if startupScriptRaw, has := resource.Expressions["startup_script"]; has {
 			startupScript, ok := startupScriptRaw.ConstantValue.(string)
 			if !ok {
-				return nil, xerrors.Errorf("unexpected type %q for startup script", reflect.TypeOf(startupScriptRaw.ConstantValue).String())
+				return nil, xerrors.Errorf("unexpected type %T for startup script", startupScriptRaw.ConstantValue)
 			}
 			agent.StartupScript = startupScript
 		}
-		if auth, has := resource.Expressions["auth"]; has {
-			if len(auth.ExpressionData.NestedBlocks) > 0 {
-				block := auth.ExpressionData.NestedBlocks[0]
-				authType, has := block["type"]
-				if has {
-					authTypeValue, valid := authType.ConstantValue.(string)
-					if !valid {
-						return nil, xerrors.Errorf("unexpected type %q for auth type", reflect.TypeOf(authType.ConstantValue))
-					}
-					switch authTypeValue {
-					case "google-instance-identity":
-						instanceID, _ := block["instance_id"].ConstantValue.(string)
-						agent.Auth = &proto.Agent_GoogleInstanceIdentity{
-							GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-								InstanceId: instanceID,
-							},
-						}
-					default:
-						return nil, xerrors.Errorf("unknown auth type: %q", authTypeValue)
-					}
-				}
+		if instanceIDRaw, has := resource.Expressions["instance_id"]; has {
+			instanceID, ok := instanceIDRaw.ConstantValue.(string)
+			if !ok {
+				return nil, xerrors.Errorf("unexpected type %T for instance_id", instanceIDRaw.ConstantValue)
+			}
+			agent.Auth = &proto.Agent_InstanceId{
+				InstanceId: instanceID,
 			}
 		}
 
@@ -379,12 +366,9 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 	resources := make([]*proto.Resource, 0)
 	if state.Values != nil {
 		type agentAttributes struct {
-			ID    string `mapstructure:"id"`
-			Token string `mapstructure:"token"`
-			Auth  []struct {
-				Type       string `mapstructure:"type"`
-				InstanceID string `mapstructure:"instance_id"`
-			} `mapstructure:"auth"`
+			ID            string            `mapstructure:"id"`
+			Token         string            `mapstructure:"token"`
+			InstanceID    string            `mapstructure:"instance_id"`
 			Env           map[string]string `mapstructure:"env"`
 			StartupScript string            `mapstructure:"startup_script"`
 		}
@@ -409,17 +393,9 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 					Token: attrs.Token,
 				},
 			}
-			if len(attrs.Auth) > 0 {
-				auth := attrs.Auth[0]
-				switch auth.Type {
-				case "google-instance-identity":
-					agent.Auth = &proto.Agent_GoogleInstanceIdentity{
-						GoogleInstanceIdentity: &proto.GoogleInstanceIdentityAuth{
-							InstanceId: auth.InstanceID,
-						},
-					}
-				default:
-					return nil, xerrors.Errorf("unknown auth type: %q", auth.Type)
+			if attrs.InstanceID != "" {
+				agent.Auth = &proto.Agent_InstanceId{
+					InstanceId: attrs.InstanceID,
 				}
 			}
 			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
@@ -453,14 +429,12 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 				}
 			}
 
-			if agent != nil {
-				if agent.GetGoogleInstanceIdentity() != nil {
-					// Make sure the instance has an instance ID!
-					_, exists := resource.AttributeValues["instance_id"]
-					if !exists {
-						// This was a mistake!
-						agent = nil
-					}
+			if agent != nil && agent.GetInstanceId() != "" {
+				// Make sure the instance has an instance ID!
+				_, exists := resource.AttributeValues["instance_id"]
+				if !exists {
+					// This was a mistake!
+					agent = nil
 				}
 			}
 
