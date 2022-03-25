@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 )
 
 // ComputeScope targets identifiers to pull parameters from.

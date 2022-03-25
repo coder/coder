@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/database"
 )
 
 // ProjectVersion represents a single version of a project.

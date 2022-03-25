@@ -22,8 +22,8 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database/postgres"
 )
 
 func TestStart(t *testing.T) {

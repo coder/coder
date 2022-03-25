@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
 )
 
 func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {

@@ -7,10 +7,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/database/databasefake"
 )
 
 func TestCompute(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 )
 
 func main() {

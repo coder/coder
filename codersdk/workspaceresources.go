@@ -16,8 +16,8 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpmw"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"

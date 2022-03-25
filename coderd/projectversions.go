@@ -8,11 +8,11 @@ import (
 
 	"github.com/go-chi/render"
 
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
-	"github.com/coder/coder/httpmw"
 )
 
 func (api *api) projectVersion(rw http.ResponseWriter, r *http.Request) {

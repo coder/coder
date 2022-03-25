@@ -15,9 +15,9 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
 )
 
 // Returns provisioner logs based on query parameters.

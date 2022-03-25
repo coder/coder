@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 )
 
 type JobOptions struct {

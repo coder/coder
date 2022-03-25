@@ -24,14 +24,14 @@ coverage:
 
 ignore:
   # This is generated code.
-  - database/models.go
-  - database/query.sql.go
-  - database/databasefake
+  - coderd/database/models.go
+  - coderd/database/query.sql.go
+  - coderd/database/databasefake
   # These are generated or don't require tests.
   - cmd
   - coderd/tunnel
-  - database/dump
-  - database/postgres
+  - coderd/database/dump
+  - coderd/database/postgres
   - peerbroker/proto
   - provisionerd/proto
   - provisionersdk/proto

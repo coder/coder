@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
 )
 
 func parameterCreate() *cobra.Command {
