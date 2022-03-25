@@ -4,8 +4,8 @@
 //
 // To modify the database schema:
 // 1. Add a new migration using "create_migration.sh" in database/migrations/
-// 2. Run "make database/generate" in the root to generate models.
-// 3. Add/Edit queries in "query.sql" and run "make database/generate" to create Go code.
+// 2. Run "make coderd/database/generate" in the root to generate models.
+// 3. Add/Edit queries in "query.sql" and run "make coderd/database/generate" to create Go code.
 package database
 
 import (

@@ -14,11 +14,11 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 	go run coderd/database/dump/main.go
 
 # Generates Go code for querying the database.
-database/generate: fmt/sql coderd/database/dump.sql coderd/database/query.sql
+coderd/database/generate: fmt/sql coderd/database/dump.sql coderd/database/query.sql
 	cd coderd/database && sqlc generate && rm db_tmp.go
 	cd coderd/database && gofmt -w -r 'Querier -> querier' *.go
 	cd coderd/database && gofmt -w -r 'Queries -> sqlQuerier' *.go
-.PHONY: database/generate
+.PHONY: coderd/database/generate
 
 fmt/prettier:
 	@echo "--- prettier"
@@ -41,7 +41,7 @@ fmt/sql: ./coderd/database/query.sql
 fmt: fmt/prettier fmt/sql
 .PHONY: fmt
 
-gen: database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
+gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
 .PHONY: gen
 
 install: bin
