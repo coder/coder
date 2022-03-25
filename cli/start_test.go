@@ -205,9 +205,7 @@ func TestStart(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		os.Setenv("CODER_TRACE_DATADOG", "true")
-		defer func() {
-			os.Unsetenv("CODER_TRACE_DATADOG")
-		}()
+		defer os.Unsetenv("CODER_TRACE_DATADOG")
 		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0")
 		done := make(chan struct{})
 		go func() {
