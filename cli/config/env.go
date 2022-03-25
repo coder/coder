@@ -1,0 +1,139 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
+var (
+	EnvCoderAccessURL          Key = "CODER_ACCESS_URL"
+	EnvCoderAddress            Key = "CODER_ADDRESS"
+	EnvCoderDevMode            Key = "CODER_DEV_MODE"
+	EnvCoderPGConnectionURL    Key = "CODER_PG_CONNECTION_URL"
+	EnvCoderProvisionerDaemons Key = "CODER_PROVISIONER_DAEMONS"
+	EnvCoderTLSEnable          Key = "CODER_TLS_ENABLE"
+	EnvCoderTLSCertFile        Key = "CODER_TLS_CERT_FILE"
+	EnvCoderTLSClientCAFile    Key = "CODER_TLS_CLIENT_CA_FILE"
+	EnvCoderTLSClientAuth      Key = "CODER_TLS_CLIENT_AUTH"
+	EnvCoderTLSKeyFile         Key = "CODER_TLS_KEY_FILE"
+	EnvCoderTLSMinVersion      Key = "CODER_TLS_MIN_VERSION"
+	EnvCoderDevTunnel          Key = "CODER_DEV_TUNNEL"
+)
+
+var EnvConfigSchema = EnvConfigSchemaFields{
+	{
+		Key:          EnvCoderAccessURL,
+		DefaultValue: "",
+		Usage:        "Specifies the external URL to access Coder",
+	},
+	{
+		Key:          EnvCoderAddress,
+		DefaultValue: "127.0.0.1:3000",
+		Usage:        "The address to serve the API and dashboard",
+	},
+	{
+		Key:          EnvCoderDevMode,
+		DefaultValue: "",
+		Usage:        "Serve Coder in dev mode for tinkering",
+	},
+	{
+		Key:          EnvCoderPGConnectionURL,
+		DefaultValue: "",
+		Usage:        "URL of a PostgreSQL database to connect to",
+	},
+	{
+		Key:          EnvCoderProvisionerDaemons,
+		DefaultValue: "1",
+		Usage:        "The amount of provisioner daemons to create on start",
+	},
+	{
+		Key:          EnvCoderTLSEnable,
+		DefaultValue: "",
+		Usage:        "Specifies if TLS will be enabled",
+	},
+	{
+		Key:          EnvCoderTLSCertFile,
+		DefaultValue: "",
+		Usage: "Specifies the path to the certificate for TLS. It requires a PEM-encoded file. " +
+			"To configure the listener to use a CA certificate, concatenate the primary certificate " +
+			"and the CA certificate together. The primary certificate should appear first in the combined file",
+	},
+	{
+		Key:          EnvCoderTLSClientCAFile,
+		DefaultValue: "",
+		Usage:        "PEM-encoded Certificate Authority file used for checking the authenticity of client",
+	},
+	{
+		Key:          EnvCoderTLSClientAuth,
+		DefaultValue: "request",
+		Usage: `Specifies the policy the server will follow for TLS Client Authentication. ` +
+			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`,
+	},
+	{
+		Key:          EnvCoderTLSKeyFile,
+		DefaultValue: "",
+		Usage:        "Specifies the path to the private key for the certificate. It requires a PEM-encoded file",
+	},
+	{
+		Key:          EnvCoderTLSMinVersion,
+		DefaultValue: "tls12",
+		Usage:        `Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`,
+	},
+	{
+		Key:          EnvCoderDevTunnel,
+		DefaultValue: "true",
+		Usage:        "Serve dev mode through a Cloudflare Tunnel for easy setup ",
+	},
+}
+
+func ReadEnvConfig() EnvConfig {
+	return EnvConfigSchema.readEnvironment()
+}
+
+type Key string
+
+type EnvConfig map[Key]EnvConfigSchemaField
+
+type EnvConfigSchemaFields []EnvConfigSchemaField
+
+type EnvConfigSchemaField struct {
+	Key          Key
+	DefaultValue string
+	Usage        string
+
+	value string
+}
+
+func (e EnvConfigSchemaFields) readEnvironment() EnvConfig {
+	var c = make(map[Key]EnvConfigSchemaField)
+	for _, f := range e {
+		s, ok := os.LookupEnv(string(f.Key))
+		if !ok {
+			s = f.DefaultValue
+		}
+
+		f.value = s
+		c[f.Key] = f
+	}
+
+	return c
+}
+
+func (e EnvConfig) GetString(key Key) string {
+	return e[key].value
+}
+
+func (e EnvConfig) GetBool(key Key) bool {
+	b, _ := strconv.ParseBool(e[key].value)
+	return b
+}
+
+func (e EnvConfig) GetInt(key Key) int {
+	b, _ := strconv.ParseInt(e[key].value, 10, 0)
+	return int(b)
+}
+
+func (e EnvConfig) Usage(key Key) string {
+	return fmt.Sprintf("%s (uses $%s).", e[key].Usage, key)
+}
