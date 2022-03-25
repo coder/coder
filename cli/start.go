@@ -36,7 +36,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/tracer"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 func start() *cobra.Command {
