@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/httpmw"
 	"github.com/coder/coder/peer"
@@ -90,7 +91,7 @@ func (c *Client) WorkspaceResource(ctx context.Context, id uuid.UUID) (Workspace
 }
 
 // DialWorkspaceAgent creates a connection to the specified resource.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, resource uuid.UUID) (proto.DRPCPeerBrokerClient, error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, resource uuid.UUID, iceServers []webrtc.ICEServer, opts *peer.ConnOptions) (*agent.Conn, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceresources/%s/dial", resource.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -123,7 +124,25 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, resource uuid.UUID) (pr
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), nil
+	client := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session))
+	stream, err := client.NegotiateConnection(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("negotiate connection: %w", err)
+	}
+	peerConn, err := peerbroker.Dial(stream, iceServers, opts)
+	if err != nil {
+		return nil, xerrors.Errorf("dial peer: %w", err)
+	}
+	go func() {
+		// The stream is kept alive to renegotiate the RTC connection
+		// if need-be. The calling context can be canceled to end
+		// the negotiation stream, but not the peer connection.
+		<-peerConn.Closed()
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}()
+	return &agent.Conn{
+		Conn: peerConn,
+	}, nil
 }
 
 // ListenWorkspaceAgent connects as a workspace agent.

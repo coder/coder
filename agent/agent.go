@@ -26,36 +26,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func DialSSH(conn *peer.Conn) (net.Conn, error) {
-	channel, err := conn.Dial(context.Background(), "ssh", &peer.ChannelOptions{
-		Protocol: "ssh",
-	})
-	if err != nil {
-		return nil, err
-	}
-	return channel.NetConn(), nil
-}
-
-func DialSSHClient(conn *peer.Conn) (*gossh.Client, error) {
-	netConn, err := DialSSH(conn)
-	if err != nil {
-		return nil, err
-	}
-	sshConn, channels, requests, err := gossh.NewClientConn(netConn, "localhost:22", &gossh.ClientConfig{
-		Config: gossh.Config{
-			Ciphers: []string{"arcfour"},
-		},
-		// SSH host validation isn't helpful, because obtaining a peer
-		// connection already signifies user-intent to dial a workspace.
-		// #nosec
-		HostKeyCallback: gossh.InsecureIgnoreHostKey(),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return gossh.NewClient(sshConn, channels, requests), nil
-}
-
 type Options struct {
 	Logger slog.Logger
 }
@@ -64,7 +34,7 @@ type Dialer func(ctx context.Context, options *peer.ConnOptions) (*peerbroker.Li
 
 func New(dialer Dialer, options *peer.ConnOptions) io.Closer {
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	server := &server{
+	server := &agent{
 		clientDialer: dialer,
 		options:      options,
 		closeCancel:  cancelFunc,
@@ -74,7 +44,7 @@ func New(dialer Dialer, options *peer.ConnOptions) io.Closer {
 	return server
 }
 
-type server struct {
+type agent struct {
 	clientDialer Dialer
 	options      *peer.ConnOptions
 
@@ -86,7 +56,7 @@ type server struct {
 	sshServer *ssh.Server
 }
 
-func (s *server) run(ctx context.Context) {
+func (s *agent) run(ctx context.Context) {
 	var peerListener *peerbroker.Listener
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
@@ -103,7 +73,7 @@ func (s *server) run(ctx context.Context) {
 			s.options.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
-		s.options.Logger.Debug(context.Background(), "connected")
+		s.options.Logger.Info(context.Background(), "connected")
 		break
 	}
 	select {
@@ -129,7 +99,7 @@ func (s *server) run(ctx context.Context) {
 	}
 }
 
-func (s *server) handlePeerConn(ctx context.Context, conn *peer.Conn) {
+func (s *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	go func() {
 		<-conn.Closed()
 		s.connCloseWait.Done()
@@ -156,7 +126,7 @@ func (s *server) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	}
 }
 
-func (s *server) init(ctx context.Context) {
+func (s *agent) init(ctx context.Context) {
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -221,7 +191,7 @@ func (s *server) init(ctx context.Context) {
 	go s.run(ctx)
 }
 
-func (*server) handleSSHSession(session ssh.Session) error {
+func (*agent) handleSSHSession(session ssh.Session) error {
 	var (
 		command string
 		args    = []string{}
@@ -316,7 +286,7 @@ func (*server) handleSSHSession(session ssh.Session) error {
 }
 
 // isClosed returns whether the API is closed or not.
-func (s *server) isClosed() bool {
+func (s *agent) isClosed() bool {
 	select {
 	case <-s.closed:
 		return true
@@ -325,7 +295,7 @@ func (s *server) isClosed() bool {
 	}
 }
 
-func (s *server) Close() error {
+func (s *agent) Close() error {
 	s.closeMutex.Lock()
 	defer s.closeMutex.Unlock()
 	if s.isClosed() {

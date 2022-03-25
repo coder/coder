@@ -1,10 +1,18 @@
 package coderdtest
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"io"
+	"io/ioutil"
+	"math/big"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -12,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
+	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
@@ -22,6 +32,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/database"
 	"github.com/coder/coder/database/databasefake"
 	"github.com/coder/coder/database/postgres"
@@ -260,6 +271,76 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, user string, project
 	return workspace
 }
 
+// NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking
+// instance authentication for Google Cloud.
+// nolint:revive
+func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
+	keyID, err := cryptorand.String(12)
+	require.NoError(t, err)
+	claims := jwt.MapClaims{
+		"google": map[string]interface{}{
+			"compute_engine": map[string]string{
+				"instance_id": instanceID,
+			},
+		},
+	}
+	if !expired {
+		claims["exp"] = time.Now().AddDate(1, 0, 0).Unix()
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = keyID
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	signedKey, err := token.SignedString(privateKey)
+	require.NoError(t, err)
+
+	// Taken from: https://github.com/googleapis/google-api-go-client/blob/4bb729045d611fa77bdbeb971f6a1204ba23161d/idtoken/validate.go#L57-L75
+	type jwk struct {
+		Kid string `json:"kid"`
+		N   string `json:"n"`
+		E   string `json:"e"`
+	}
+	type certResponse struct {
+		Keys []jwk `json:"keys"`
+	}
+
+	validator, err := idtoken.NewValidator(context.Background(), option.WithHTTPClient(&http.Client{
+		Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+			data, err := json.Marshal(certResponse{
+				Keys: []jwk{{
+					Kid: keyID,
+					N:   base64.RawURLEncoding.EncodeToString(privateKey.N.Bytes()),
+					E:   base64.RawURLEncoding.EncodeToString(new(big.Int).SetInt64(int64(privateKey.E)).Bytes()),
+				}},
+			})
+			require.NoError(t, err)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       ioutil.NopCloser(bytes.NewReader(data)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}))
+	require.NoError(t, err)
+
+	return validator, metadata.NewClient(&http.Client{
+		Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte(signedKey))),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	})
+}
+
 func randomUsername() string {
 	return strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
+}
+
+// Used to easily create an HTTP transport!
+type roundTripper func(req *http.Request) (*http.Response, error)
+
+func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r(req)
 }
