@@ -1,6 +1,7 @@
 INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
+DATABASE_DIR=coderd/database
 
 bin:
 	goreleaser build --snapshot --rm-dist
@@ -10,14 +11,14 @@ build: site/out bin
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
-database/dump.sql: $(wildcard database/migrations/*.sql)
-	go run database/dump/main.go
+$(DATABASE_DIR)/dump.sql: $(wildcard database/migrations/*.sql)
+	go run $(DATABASE_DIR)/dump/main.go
 
 # Generates Go code for querying the database.
-database/generate: fmt/sql database/dump.sql database/query.sql
-	cd database && sqlc generate && rm db_tmp.go
-	cd database && gofmt -w -r 'Querier -> querier' *.go
-	cd database && gofmt -w -r 'Queries -> sqlQuerier' *.go
+database/generate: fmt/sql $(DATABASE_DIR)/dump.sql $(DATABASE_DIR)/query.sql
+	cd $(DATABASE_DIR) && sqlc generate && rm db_tmp.go
+	cd $(DATABASE_DIR) && gofmt -w -r 'Querier -> querier' *.go
+	cd $(DATABASE_DIR) && gofmt -w -r 'Queries -> sqlQuerier' *.go
 .PHONY: database/generate
 
 fmt/prettier:
@@ -30,13 +31,13 @@ else
 endif
 .PHONY: fmt/prettier
 
-fmt/sql: ./database/query.sql
+fmt/sql: ./$(DATABASE_DIR)/query.sql
 	npx sql-formatter \
 		--language postgresql \
 		--lines-between-queries 2 \
-		./database/query.sql \
-		--output ./database/query.sql
-	sed -i 's/@ /@/g' ./database/query.sql
+		./$(DATABASE_DIR)/query.sql \
+		--output ./$(DATABASE_DIR)/query.sql
+	sed -i 's/@ /@/g' ./$(DATABASE_DIR)/query.sql
 
 fmt: fmt/prettier fmt/sql
 .PHONY: fmt
