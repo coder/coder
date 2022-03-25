@@ -77,11 +77,11 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 		./provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
-release: 
+release: site/out
 	goreleaser release --snapshot --rm-dist
 .PHONY: release
 
-site/out: 
+site/out:
 	./scripts/yarn_install.sh
 	cd site && yarn typegen
 	cd site && yarn build
