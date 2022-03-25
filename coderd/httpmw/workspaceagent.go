@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 type workspaceAgentContextKey struct{}

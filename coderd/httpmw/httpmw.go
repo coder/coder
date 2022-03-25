@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 // parseUUID consumes a url parameter and parses it as a UUID.

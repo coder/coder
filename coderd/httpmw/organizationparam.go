@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 type organizationParamContextKey struct{}

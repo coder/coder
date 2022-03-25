@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/coderd/httpapi"
 
 	"github.com/mitchellh/mapstructure"
 )

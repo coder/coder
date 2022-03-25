@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
 )
 
 type projectParamContextKey struct{}

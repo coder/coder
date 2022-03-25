@@ -14,7 +14,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 // AuthCookie represents the name of the cookie the API key is stored in.

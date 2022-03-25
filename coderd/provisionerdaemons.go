@@ -25,7 +25,7 @@ import (
 
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"

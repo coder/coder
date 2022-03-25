@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/database"
-	"github.com/coder/coder/httpapi"
+	"github.com/coder/coder/coderd/httpapi"
 )
 
 type workspaceParamContextKey struct{}
