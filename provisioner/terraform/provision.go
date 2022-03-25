@@ -285,25 +285,21 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 		}
 		if envRaw, has := resource.Expressions["env"]; has {
 			env, ok := envRaw.ConstantValue.(map[string]string)
-			if !ok {
-				return nil, xerrors.Errorf("unexpected type %T for env map", envRaw.ConstantValue)
+			if ok {
+				agent.Env = env
 			}
-			agent.Env = env
 		}
 		if startupScriptRaw, has := resource.Expressions["startup_script"]; has {
 			startupScript, ok := startupScriptRaw.ConstantValue.(string)
-			if !ok {
-				return nil, xerrors.Errorf("unexpected type %T for startup script", startupScriptRaw.ConstantValue)
+			if ok {
+				agent.StartupScript = startupScript
 			}
-			agent.StartupScript = startupScript
 		}
-		if instanceIDRaw, has := resource.Expressions["instance_id"]; has {
-			instanceID, ok := instanceIDRaw.ConstantValue.(string)
-			if !ok {
-				return nil, xerrors.Errorf("unexpected type %T for instance_id", instanceIDRaw.ConstantValue)
-			}
+		if _, has := resource.Expressions["instance_id"]; has {
+			// This is a dynamic value. If it's expressed, we know
+			// it's at least an instance ID, which is better than nothing.
 			agent.Auth = &proto.Agent_InstanceId{
-				InstanceId: instanceID,
+				InstanceId: "",
 			}
 		}
 
@@ -426,15 +422,6 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 						agent = agents[agentKey]
 						break
 					}
-				}
-			}
-
-			if agent != nil && agent.GetInstanceId() != "" {
-				// Make sure the instance has an instance ID!
-				_, exists := resource.AttributeValues["instance_id"]
-				if !exists {
-					// This was a mistake!
-					agent = nil
 				}
 			}
 

@@ -166,9 +166,7 @@ provider "coder" {
 		Request: &proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					Metadata: &proto.Provision_Metadata{
-						CoderUrl: "https://example.com",
-					},
+					Metadata: &proto.Provision_Metadata{},
 				},
 			},
 		},
@@ -195,16 +193,14 @@ provider "coder" {
 				depends_on = [
 					null_resource.A
 				]
-				instance_id = "an-instance"
+				instance_id = "example"
 			}
 			resource "null_resource" "A" {}`,
 		},
 		Request: &proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					Metadata: &proto.Provision_Metadata{
-						CoderUrl: "https://example.com",
-					},
+					Metadata: &proto.Provision_Metadata{},
 				},
 			},
 		},
@@ -214,6 +210,11 @@ provider "coder" {
 					Resources: []*proto.Resource{{
 						Name: "A",
 						Type: "null_resource",
+						Agent: &proto.Agent{
+							Auth: &proto.Agent_InstanceId{
+								InstanceId: "example",
+							},
+						},
 					}},
 				},
 			},
@@ -232,10 +233,8 @@ provider "coder" {
 		Request: &proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					DryRun: true,
-					Metadata: &proto.Provision_Metadata{
-						CoderUrl: "https://example.com",
-					},
+					DryRun:   true,
+					Metadata: &proto.Provision_Metadata{},
 				},
 			},
 		},
@@ -267,10 +266,8 @@ provider "coder" {
 		Request: &proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					DryRun: true,
-					Metadata: &proto.Provision_Metadata{
-						CoderUrl: "https://example.com",
-					},
+					DryRun:   true,
+					Metadata: &proto.Provision_Metadata{},
 				},
 			},
 		},
@@ -282,7 +279,42 @@ provider "coder" {
 						Type: "null_resource",
 						Agent: &proto.Agent{
 							Auth: &proto.Agent_InstanceId{
-								InstanceId: "an-instance",
+								InstanceId: "",
+							},
+						},
+					}},
+				},
+			},
+		},
+	}, {
+		Name: "dryrun-agent-associated-with-resource-instance-id",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {
+				count = length(null_resource.A)
+				instance_id = length(null_resource.A)
+			}
+			resource "null_resource" "A" {
+				count = 1
+			}`,
+		},
+		Request: &proto.Provision_Request{
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					DryRun:   true,
+					Metadata: &proto.Provision_Metadata{},
+				},
+			},
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agent: &proto.Agent{
+							Auth: &proto.Agent_InstanceId{
+								InstanceId: "",
 							},
 						},
 					}},
