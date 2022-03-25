@@ -24,7 +24,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"

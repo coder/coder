@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.

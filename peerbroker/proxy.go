@@ -17,7 +17,7 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/peerbroker/proto"
 )
 

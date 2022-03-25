@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/database/postgres"
+	"github.com/coder/coder/coderd/database/postgres"
 
 	_ "github.com/lib/pq"
 )

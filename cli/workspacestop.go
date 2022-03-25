@@ -7,7 +7,7 @@ import (
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 )
 
 func workspaceStop() *cobra.Command {

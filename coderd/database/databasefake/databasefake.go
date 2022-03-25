@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 )
 
 // New returns an in-memory fake of the database.

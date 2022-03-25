@@ -7,7 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 )
 
 func parameterCreate() *cobra.Command {

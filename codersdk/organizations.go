@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 )
 
 // Organization is the JSON representation of a Coder organization.

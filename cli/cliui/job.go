@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 )
 
 type JobOptions struct {

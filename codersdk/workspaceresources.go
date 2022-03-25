@@ -15,7 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
-	"github.com/coder/coder/database"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"

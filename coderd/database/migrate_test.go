@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/database"
-	"github.com/coder/coder/database/postgres"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/postgres"
 )
 
 func TestMain(m *testing.M) {
