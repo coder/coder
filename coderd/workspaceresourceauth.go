@@ -9,12 +9,31 @@ import (
 
 	"github.com/go-chi/render"
 
+	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/mitchellh/mapstructure"
 )
+
+// AWS supports instance identity verification:
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
+// Using this, we can exchange a signed instance payload for an agent token.
+func (api *api) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+	var req codersdk.AWSInstanceIdentityToken
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+	identity, err := awsidentity.Validate(req.Signature, req.Document, api.AWSCertificates)
+	if err != nil {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: fmt.Sprintf("validate: %s", err),
+		})
+		return
+	}
+	api.handleAuthInstanceID(rw, r, identity.InstanceID)
+}
 
 // Google Compute Engine supports instance identity verification:
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
@@ -47,10 +66,14 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 		})
 		return
 	}
-	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), claims.Google.ComputeEngine.InstanceID)
+	api.handleAuthInstanceID(rw, r, claims.Google.ComputeEngine.InstanceID)
+}
+
+func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
+	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), instanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("instance with id %q not found", claims.Google.ComputeEngine.InstanceID),
+			Message: fmt.Sprintf("instance with id %q not found", instanceID),
 		})
 		return
 	}
@@ -107,7 +130,7 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	}
 	if latestHistory.ID.String() != resourceHistory.ID.String() {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("resource found for id %q, but isn't registered on the latest history", claims.Google.ComputeEngine.InstanceID),
+			Message: fmt.Sprintf("resource found for id %q, but isn't registered on the latest history", instanceID),
 		})
 		return
 	}

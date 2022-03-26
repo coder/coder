@@ -10,6 +10,7 @@ import (
 	"google.golang.org/api/idtoken"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -24,6 +25,7 @@ type Options struct {
 	Database                       database.Store
 	Pubsub                         database.Pubsub
 
+	AWSCertificates      awsidentity.Certificates
 	GoogleTokenValidator *idtoken.Validator
 }
 
@@ -135,6 +137,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspaceresources", func(r chi.Router) {
 			r.Route("/auth", func(r chi.Router) {
+				r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 				r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			})
 			r.Route("/agent", func(r chi.Router) {
