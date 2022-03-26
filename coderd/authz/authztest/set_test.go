@@ -61,9 +61,12 @@ func TestRole(t *testing.T) {
 
 	var total uint64
 	for _, c := range testCases {
-		fmt.Println(c.Name)
-		fmt.Printf("\tSize=%d\n", c.Permutations.Size)
 		total += uint64(c.Permutations.Size)
+	}
+
+	for _, c := range testCases {
+		fmt.Printf("%s: Size=%10d, %10f%% of total\n",
+			c.Name, c.Permutations.Size, 100*(float64(c.Permutations.Size)/float64(total)))
 	}
 	fmt.Printf("Total cases=%d\n", total)
 
