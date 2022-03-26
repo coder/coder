@@ -77,7 +77,7 @@
     "jest-runner-eslint": "1.0.0",
     "mini-css-extract-plugin": "2.6.0",
     "msw": "0.39.2",
-    "prettier": "2.6.0",
+    "prettier": "2.6.1",
     "react-hot-loader": "4.13.0",
     "sql-formatter": "4.0.2",
     "style-loader": "3.3.1",
