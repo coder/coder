@@ -829,7 +829,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 
 const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :many
 SELECT
-  id, job_id, created_at, source, level, output
+  id, job_id, created_at, source, level, stage, output
 FROM
   provisioner_job_logs
 WHERE
@@ -863,6 +863,7 @@ func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetP
 			&i.CreatedAt,
 			&i.Source,
 			&i.Level,
+			&i.Stage,
 			&i.Output,
 		); err != nil {
 			return nil, err
@@ -2121,7 +2122,8 @@ SELECT
   unnest($3 :: timestamptz [ ]) AS created_at,
   unnest($4 :: log_source [ ]) as source,
   unnest($5 :: log_level [ ]) as level,
-  unnest($6 :: varchar(1024) [ ]) as output RETURNING id, job_id, created_at, source, level, output
+  unnest($6 :: varchar(128) [ ]) as stage,
+  unnest($7 :: varchar(1024) [ ]) as output RETURNING id, job_id, created_at, source, level, stage, output
 `
 
 type InsertProvisionerJobLogsParams struct {
@@ -2130,6 +2132,7 @@ type InsertProvisionerJobLogsParams struct {
 	CreatedAt []time.Time `db:"created_at" json:"created_at"`
 	Source    []LogSource `db:"source" json:"source"`
 	Level     []LogLevel  `db:"level" json:"level"`
+	Stage     []string    `db:"stage" json:"stage"`
 	Output    []string    `db:"output" json:"output"`
 }
 
@@ -2140,6 +2143,7 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Source),
 		pq.Array(arg.Level),
+		pq.Array(arg.Stage),
 		pq.Array(arg.Output),
 	)
 	if err != nil {
@@ -2155,6 +2159,7 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 			&i.CreatedAt,
 			&i.Source,
 			&i.Level,
+			&i.Stage,
 			&i.Output,
 		); err != nil {
 			return nil, err
@@ -2617,8 +2622,7 @@ UPDATE
 SET
   updated_at = $2,
   completed_at = $3,
-  canceled_at = $4,
-  error = $5
+  error = $4
 WHERE
   id = $1
 `
@@ -2627,7 +2631,6 @@ type UpdateProvisionerJobWithCompleteByIDParams struct {
 	ID          uuid.UUID      `db:"id" json:"id"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
-	CanceledAt  sql.NullTime   `db:"canceled_at" json:"canceled_at"`
 	Error       sql.NullString `db:"error" json:"error"`
 }
 
@@ -2636,7 +2639,6 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.ID,
 		arg.UpdatedAt,
 		arg.CompletedAt,
-		arg.CanceledAt,
 		arg.Error,
 	)
 	return err

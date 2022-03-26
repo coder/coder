@@ -482,6 +482,7 @@ SELECT
   unnest(@created_at :: timestamptz [ ]) AS created_at,
   unnest(@source :: log_source [ ]) as source,
   unnest(@level :: log_level [ ]) as level,
+  unnest(@stage :: varchar(128) [ ]) as stage,
   unnest(@output :: varchar(1024) [ ]) as output RETURNING *;
 
 -- name: InsertOrganization :one
@@ -757,8 +758,7 @@ UPDATE
 SET
   updated_at = $2,
   completed_at = $3,
-  canceled_at = $4,
-  error = $5
+  error = $4
 WHERE
   id = $1;
 

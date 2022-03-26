@@ -26,8 +26,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// This cannot be ran in parallel because it uses a signal.
+// nolint:tparallel
 func TestStart(t *testing.T) {
-	t.Parallel()
 	t.Run("Production", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS != "linux" || testing.Short() {

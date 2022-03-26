@@ -898,6 +898,7 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 			CreatedAt: arg.CreatedAt[index],
 			Source:    arg.Source[index],
 			Level:     arg.Level[index],
+			Stage:     arg.Stage[index],
 			Output:    output,
 		})
 	}
@@ -1201,7 +1202,6 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		}
 		job.UpdatedAt = arg.UpdatedAt
 		job.CompletedAt = arg.CompletedAt
-		job.CanceledAt = arg.CanceledAt
 		job.Error = arg.Error
 		q.provisionerJobs[index] = job
 		return nil

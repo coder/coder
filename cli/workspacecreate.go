@@ -146,8 +146,7 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = cliui.Job(cmd, cliui.JobOptions{
-				Title: "Building workspace...",
+			err = cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					build, err := client.WorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
 					return build.Job, err
