@@ -23,7 +23,9 @@ func ValidateNotEmpty(s string) error {
 // Styles compose visual elements of the UI!
 var Styles = struct {
 	Bold,
+	Checkmark,
 	Code,
+	Crossmark,
 	Field,
 	Keyword,
 	Paragraph,
@@ -36,7 +38,9 @@ var Styles = struct {
 	Wrap lipgloss.Style
 }{
 	Bold:          lipgloss.NewStyle().Bold(true),
+	Checkmark:     defaultStyles.Checkmark,
 	Code:          defaultStyles.Code,
+	Crossmark:     defaultStyles.Error.Copy().SetString("✘"),
 	Field:         defaultStyles.Code.Copy().Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}),
 	Keyword:       defaultStyles.Keyword,
 	Paragraph:     defaultStyles.Paragraph,

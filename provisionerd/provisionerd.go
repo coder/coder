@@ -298,6 +298,20 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		return
 	}
 
+	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		JobId: job.GetJobId(),
+		Logs: []*proto.Log{{
+			Source:    proto.LogSource_PROVISIONER_DAEMON,
+			Level:     sdkproto.LogLevel_INFO,
+			Stage:     "Setting up",
+			CreatedAt: time.Now().UTC().UnixMilli(),
+		}},
+	})
+	if err != nil {
+		p.failActiveJobf("write log: %s", err)
+		return
+	}
+
 	p.opts.Logger.Info(ctx, "unpacking project source archive", slog.F("size_bytes", len(job.ProjectSourceArchive)))
 	reader := tar.NewReader(bytes.NewBuffer(job.ProjectSourceArchive))
 	for {
@@ -377,11 +391,39 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	// Ensure the job is still running to output.
 	// It's possible the job has failed.
 	if p.isRunningJob() {
+		_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+			JobId: job.GetJobId(),
+			Logs: []*proto.Log{{
+				Source:    proto.LogSource_PROVISIONER_DAEMON,
+				Level:     sdkproto.LogLevel_INFO,
+				Stage:     "Cleaning Up",
+				CreatedAt: time.Now().UTC().UnixMilli(),
+			}},
+		})
+		if err != nil {
+			p.failActiveJobf("write log: %s", err)
+			return
+		}
+
 		p.opts.Logger.Info(context.Background(), "completed job", slog.F("id", job.JobId))
 	}
 }
 
 func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		JobId: job.GetJobId(),
+		Logs: []*proto.Log{{
+			Source:    proto.LogSource_PROVISIONER_DAEMON,
+			Level:     sdkproto.LogLevel_INFO,
+			Stage:     "Parse parameters",
+			CreatedAt: time.Now().UTC().UnixMilli(),
+		}},
+	})
+	if err != nil {
+		p.failActiveJobf("write log: %s", err)
+		return
+	}
+
 	parameterSchemas, err := p.runProjectImportParse(ctx, provisioner, job)
 	if err != nil {
 		p.failActiveJobf("run parse: %s", err)
@@ -409,6 +451,19 @@ func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdk
 		}
 	}
 
+	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		JobId: job.GetJobId(),
+		Logs: []*proto.Log{{
+			Source:    proto.LogSource_PROVISIONER_DAEMON,
+			Level:     sdkproto.LogLevel_INFO,
+			Stage:     "Detecting resources when started",
+			CreatedAt: time.Now().UTC().UnixMilli(),
+		}},
+	})
+	if err != nil {
+		p.failActiveJobf("write log: %s", err)
+		return
+	}
 	startResources, err := p.runProjectImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
@@ -422,8 +477,8 @@ func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdk
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
 			Level:     sdkproto.LogLevel_INFO,
+			Stage:     "Detecting resources when stopped",
 			CreatedAt: time.Now().UTC().UnixMilli(),
-			Output:    "Running stop...",
 		}},
 	})
 	if err != nil {
@@ -574,6 +629,30 @@ func (p *Server) runProjectImportProvision(ctx, shutdown context.Context, provis
 }
 
 func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+	var stage string
+	switch job.GetWorkspaceBuild().Metadata.WorkspaceTransition {
+	case sdkproto.WorkspaceTransition_START:
+		stage = "Starting workspace"
+	case sdkproto.WorkspaceTransition_STOP:
+		stage = "Stopping workspace"
+	case sdkproto.WorkspaceTransition_DESTROY:
+		stage = "Destroying workspace"
+	}
+
+	_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		JobId: job.GetJobId(),
+		Logs: []*proto.Log{{
+			Source:    proto.LogSource_PROVISIONER_DAEMON,
+			Level:     sdkproto.LogLevel_INFO,
+			Stage:     stage,
+			CreatedAt: time.Now().UTC().UnixMilli(),
+		}},
+	})
+	if err != nil {
+		p.failActiveJobf("write log: %s", err)
+		return
+	}
+
 	stream, err := provisioner.Provision(ctx)
 	if err != nil {
 		p.failActiveJobf("provision: %s", err)
@@ -675,8 +754,7 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 			// Return so we stop looping!
 			return
 		default:
-			p.failActiveJobf("invalid message type %q received from provisioner",
-				reflect.TypeOf(msg.Type).String())
+			p.failActiveJobf("invalid message type %T received from provisioner", msg.Type)
 			return
 		}
 	}
