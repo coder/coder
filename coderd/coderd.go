@@ -176,7 +176,11 @@ func New(options *Options) (http.Handler, func()) {
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)
-	return r, api.websocketWaitGroup.Wait
+	return r, func() {
+		api.websocketWaitMutex.Lock()
+		api.websocketWaitGroup.Wait()
+		api.websocketWaitMutex.Unlock()
+	}
 }
 
 // API contains all route handlers. Only HTTP handlers should
@@ -184,5 +188,6 @@ func New(options *Options) (http.Handler, func()) {
 type api struct {
 	*Options
 
+	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
 }
