@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -42,6 +43,7 @@ func start() *cobra.Command {
 	var (
 		accessURL              string
 		address                string
+		cacheDir               string
 		dev                    bool
 		postgresURL            string
 		provisionerDaemonCount uint8
@@ -164,7 +166,7 @@ func start() *cobra.Command {
 
 			provisionerDaemons := make([]*provisionerd.Server, 0)
 			for i := uint8(0); i < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger)
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -312,6 +314,12 @@ func start() *cobra.Command {
 	}
 	root.Flags().StringVarP(&accessURL, "access-url", "", os.Getenv("CODER_ACCESS_URL"), "Specifies the external URL to access Coder (uses $CODER_ACCESS_URL).")
 	root.Flags().StringVarP(&address, "address", "a", defaultAddress, "The address to serve the API and dashboard (uses $CODER_ADDRESS).")
+	// systemd uses the CACHE_DIRECTORY environment variable!
+	defaultCacheDir := os.Getenv("CACHE_DIRECTORY")
+	if defaultCacheDir == "" {
+		defaultCacheDir = filepath.Join(os.TempDir(), ".coder-cache")
+	}
+	root.Flags().StringVarP(&cacheDir, "cache-dir", "", defaultCacheDir, "Specify a directory to cache binaries for provision operations.")
 	defaultDev, _ := strconv.ParseBool(os.Getenv("CODER_DEV_MODE"))
 	root.Flags().BoolVarP(&dev, "dev", "", defaultDev, "Serve Coder in dev mode for tinkering (uses $CODER_DEV_MODE).")
 	root.Flags().StringVarP(&postgresURL, "postgres-url", "", "",
@@ -381,14 +389,15 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	return nil
 }
 
-func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger) (*provisionerd.Server, error) {
+func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string) (*provisionerd.Server, error) {
 	terraformClient, terraformServer := provisionersdk.TransportPipe()
 	go func() {
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			Logger: logger,
+			CachePath: cacheDir,
+			Logger:    logger,
 		})
 		if err != nil {
 			panic(err)
