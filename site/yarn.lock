@@ -1267,10 +1267,10 @@
   resolved "https://registry.yarnpkg.com/@fontsource/fira-code/-/fira-code-4.5.7.tgz#c0a53f6ce9f95e2a8685fb33e3c4f258a5566e98"
   integrity sha512-X5wR6FiwU93QOQJKbKsQiauuXYiSy7jJq1e2dnfWfDmi0LVjHs41oqbP968P/duz4XJf/UB/xnTJRhRtidPwug==
 
-"@fontsource/inter@4.5.5":
-  version "4.5.5"
-  resolved "https://registry.yarnpkg.com/@fontsource/inter/-/inter-4.5.5.tgz#d4e52e8a0c84b93abae46efd4c43bd7a7f23907f"
-  integrity sha512-mWnePEroLfaJQWmynipzOVcH6JwT8Jta3+yLsC5Pm/snHBXnOiAOnjBqYjKnvXwJ4eUPt2AaAhyrtwCgWQRGOg==
+"@fontsource/inter@4.5.7":
+  version "4.5.7"
+  resolved "https://registry.yarnpkg.com/@fontsource/inter/-/inter-4.5.7.tgz#f0657c52105ed51e04ac636a25d6016896c5ee9d"
+  integrity sha512-25k3thupaOEBexuU+jAkGqieKPbuhSuA+sinDwp1iBNhqQPiJ9QHDvsXgoCgCbZ4sGlE8aCwZmSlDJrPdJHNkw==
 
 "@gar/promisify@^1.0.1":
   version "1.1.2"
