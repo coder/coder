@@ -8,12 +8,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
+
+func WorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, build uuid.UUID, before time.Time) error {
+	return ProvisionerJob(cmd, ProvisionerJobOptions{
+		Fetch: func() (codersdk.ProvisionerJob, error) {
+			build, err := client.WorkspaceBuild(cmd.Context(), build)
+			return build.Job, err
+		},
+		Cancel: func() error {
+			return client.CancelWorkspaceBuild(cmd.Context(), build)
+		},
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+			return client.WorkspaceBuildLogsAfter(cmd.Context(), build, before)
+		},
+	})
+}
 
 type ProvisionerJobOptions struct {
 	Fetch  func() (codersdk.ProvisionerJob, error)

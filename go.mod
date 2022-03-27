@@ -28,6 +28,7 @@ replace github.com/rivo/tview => github.com/kylecarbs/tview v0.0.0-2022030920223
 require (
 	cdr.dev/slog v1.4.1
 	cloud.google.com/go/compute v1.5.0
+	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.18.1
 	github.com/charmbracelet/charm v0.10.3
@@ -50,7 +51,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.11.1
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
-	github.com/hashicorp/terraform-json v0.13.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/justinas/nosurf v1.1.1
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
@@ -78,7 +78,6 @@ require (
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	google.golang.org/api v0.73.0
 	google.golang.org/protobuf v1.28.0
@@ -147,6 +146,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/hashicorp/terraform-json v0.13.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -215,6 +215,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/mod v0.5.1 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.9 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

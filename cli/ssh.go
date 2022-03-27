@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"context"
+
+	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
@@ -20,6 +24,12 @@ func ssh() *cobra.Command {
 			workspace, err := client.WorkspaceByName(cmd.Context(), "", args[0])
 			if err != nil {
 				return err
+			}
+			if workspace.LatestBuild.Job.CompletedAt == nil {
+				err = cliui.WorkspaceBuild(cmd, client, workspace.LatestBuild.ID, workspace.CreatedAt)
+				if err != nil {
+					return err
+				}
 			}
 			if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
 				return xerrors.New("workspace is deleting...")
@@ -57,11 +67,19 @@ func ssh() *cobra.Command {
 				}
 				return xerrors.Errorf("no sshable agent with address %q: %+v", resourceAddress, resourceKeys)
 			}
-			if resource.Agent.LastConnectedAt == nil {
-				return xerrors.Errorf("agent hasn't connected yet")
+			err = cliui.Agent(cmd, cliui.AgentOptions{
+				WorkspaceName: workspace.Name,
+				Fetch: func(ctx context.Context) (codersdk.WorkspaceResource, error) {
+					return client.WorkspaceResource(ctx, resource.ID)
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(cmd.Context(), resource.ID, nil, nil)
+			conn, err := client.DialWorkspaceAgent(cmd.Context(), resource.ID, []webrtc.ICEServer{{
+				URLs: []string{"stun:stun.l.google.com:19302"},
+			}}, nil)
 			if err != nil {
 				return err
 			}

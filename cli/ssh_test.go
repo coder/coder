@@ -24,7 +24,7 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
 		agentToken := uuid.NewString()
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
@@ -49,15 +49,19 @@ func TestSSH(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		daemonCloser.Close()
-		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = agentToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &peer.ConnOptions{
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		})
-		defer agentCloser.Close()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+		go func() {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			agentClient := codersdk.New(client.URL)
+			agentClient.SessionToken = agentToken
+			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &peer.ConnOptions{
+				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			})
+			t.Cleanup(func() {
+				_ = agentCloser.Close()
+			})
+		}()
 
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
