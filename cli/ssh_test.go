@@ -20,7 +20,7 @@ import (
 
 func TestSSH(t *testing.T) {
 	t.Parallel()
-	t.Run("Echo", func(t *testing.T) {
+	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
