@@ -8,11 +8,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/peer"
+	"github.com/coder/coder/peerbroker/proto"
 )
 
 // Conn wraps a peer connection with helper functions to
 // communicate with the agent.
 type Conn struct {
+	// Negotiator is responsible for exchanging messages.
+	Negotiator proto.DRPCPeerBrokerClient
+
 	*peer.Conn
 }
 
@@ -47,4 +51,9 @@ func (c *Conn) SSHClient() (*ssh.Client, error) {
 		return nil, xerrors.Errorf("ssh conn: %w", err)
 	}
 	return ssh.NewClient(sshConn, channels, requests), nil
+}
+
+func (c *Conn) Close() error {
+	_ = c.Negotiator.DRPCConn().Close()
+	return c.Conn.Close()
 }

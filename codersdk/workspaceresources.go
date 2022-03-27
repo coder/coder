@@ -133,15 +133,9 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, resource uuid.UUID, ice
 	if err != nil {
 		return nil, xerrors.Errorf("dial peer: %w", err)
 	}
-	go func() {
-		// The stream is kept alive to renegotiate the RTC connection
-		// if need-be. The calling context can be canceled to end
-		// the negotiation stream, but not the peer connection.
-		<-peerConn.Closed()
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}()
 	return &agent.Conn{
-		Conn: peerConn,
+		Negotiator: client,
+		Conn:       peerConn,
 	}, nil
 }
 

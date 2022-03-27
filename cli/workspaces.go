@@ -18,7 +18,7 @@ func workspaces() *cobra.Command {
 	cmd.AddCommand(workspaceShow())
 	cmd.AddCommand(workspaceStop())
 	cmd.AddCommand(workspaceStart())
-	cmd.AddCommand(workspaceSSH())
+	cmd.AddCommand(ssh())
 	cmd.AddCommand(workspaceUpdate())
 
 	return cmd

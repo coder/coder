@@ -39,7 +39,10 @@ func TestAgent(t *testing.T) {
 		t.Cleanup(func() {
 			_ = conn.Close()
 		})
-		client := agent.Conn{conn}
+		client := agent.Conn{
+			Negotiator: api,
+			Conn:       conn,
+		}
 		sshClient, err := client.SSHClient()
 		require.NoError(t, err)
 		session, err := sshClient.NewSession()
@@ -65,7 +68,10 @@ func TestAgent(t *testing.T) {
 		t.Cleanup(func() {
 			_ = conn.Close()
 		})
-		client := &agent.Conn{conn}
+		client := &agent.Conn{
+			Negotiator: api,
+			Conn:       conn,
+		}
 		sshClient, err := client.SSHClient()
 		require.NoError(t, err)
 		session, err := sshClient.NewSession()

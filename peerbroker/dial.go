@@ -1,6 +1,9 @@
 package peerbroker
 
 import (
+	"context"
+	"errors"
+	"io"
 	"reflect"
 
 	"github.com/pion/webrtc/v3"
@@ -54,6 +57,11 @@ func Dial(stream proto.DRPCPeerBroker_NegotiateConnectionClient, iceServers []we
 		for {
 			serverToClientMessage, err := stream.Recv()
 			if err != nil {
+				// p2p connections should never die if this stream does due
+				// to proper closure or context cancellation!
+				if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+					return
+				}
 				_ = peerConn.CloseWithError(xerrors.Errorf("recv: %w", err))
 				return
 			}
