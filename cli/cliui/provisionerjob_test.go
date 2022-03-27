@@ -123,7 +123,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 		CreatedAt: database.Now(),
 	}
 	jobLock := sync.Mutex{}
-	logs := make(chan codersdk.ProvisionerJobLog)
+	logs := make(chan codersdk.ProvisionerJobLog, 1)
 	cmd := &cobra.Command{
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
