@@ -132,7 +132,6 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			if err != nil {
 				return
 			}
-
 			logLevel, err := convertTerraformLogLevel(log.Level)
 			if err != nil {
 				// Not a big deal, but we should handle this at some point!
@@ -201,7 +200,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		case <-stream.Context().Done():
 			return
 		case <-shutdown.Done():
-			_ = cmd.Process.Signal(os.Kill)
+			_ = cmd.Process.Signal(os.Interrupt)
 		}
 	}()
 	cmd.Stdout = writer
