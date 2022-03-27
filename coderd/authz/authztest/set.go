@@ -11,6 +11,8 @@ type Role struct {
 	PermissionSets []iterator
 	// This is kinda werird, but the first scan should not move anything.
 	first bool
+
+	buffer []*Permission
 }
 
 func (r *Role) Each(ea func(set Set)) {
@@ -33,6 +35,7 @@ func NewRole(sets ...iterable) *Role {
 		ReturnSize:     retSize,
 		Size:           size,
 		PermissionSets: setInterfaces,
+		buffer:         make([]*Permission, retSize),
 	}
 }
 
@@ -56,6 +59,10 @@ func (s *Role) Next() bool {
 }
 
 func (s *Role) Permissions() Set {
+	var i int
+	for _, set := range s.PermissionSets {
+		i += copy(s.buffer[i:], set.Permissions())
+	}
 	all := make(Set, 0, s.Size)
 	for _, set := range s.PermissionSets {
 		all = append(all, set.Permissions()...)
