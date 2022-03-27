@@ -119,9 +119,9 @@ func (lg LevelGroup) All() Set {
 	net := lg.Abstain()
 	all := make(Set, len(pos)+len(neg)+len(net))
 	var i int
-	i += copy(all, pos)
-	i += copy(all, neg)
-	i += copy(all, net)
+	i += copy(all[i:], pos)
+	i += copy(all[i:], neg)
+	i += copy(all[i:], net)
 	return all
 }
 
