@@ -438,7 +438,7 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-					if len(update.Logs) > 0 {
+					if len(update.Logs) > 0 && update.Logs[0].Source == proto.LogSource_PROVISIONER {
 						// Close on a log so we know when the job is in progress!
 						close(updateChan)
 					}
@@ -507,7 +507,7 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-					if len(update.Logs) > 0 {
+					if len(update.Logs) > 0 && update.Logs[0].Source == proto.LogSource_PROVISIONER {
 						// Close on a log so we know when the job is in progress!
 						close(updateChan)
 					}

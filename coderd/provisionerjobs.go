@@ -224,6 +224,7 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 		CreatedAt: provisionerJobLog.CreatedAt,
 		Source:    provisionerJobLog.Source,
 		Level:     provisionerJobLog.Level,
+		Stage:     provisionerJobLog.Stage,
 		Output:    provisionerJobLog.Output,
 	}
 }

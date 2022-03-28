@@ -33,7 +33,9 @@ import (
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
@@ -301,6 +303,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			insertParams.ID = append(insertParams.ID, uuid.New())
 			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
 			insertParams.Level = append(insertParams.Level, logLevel)
+			insertParams.Stage = append(insertParams.Stage, log.Stage)
 			insertParams.Source = append(insertParams.Source, logSource)
 			insertParams.Output = append(insertParams.Output, log.Output)
 		}

@@ -210,6 +210,15 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 	err = cmd.Run()
 	if err != nil {
 		if start.DryRun {
+			if shutdown.Err() != nil {
+				return stream.Send(&proto.Provision_Response{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Error: err.Error(),
+						},
+					},
+				})
+			}
 			return xerrors.Errorf("plan terraform: %w", err)
 		}
 		errorMessage := err.Error()

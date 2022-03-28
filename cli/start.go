@@ -109,7 +109,7 @@ func start() *cobra.Command {
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Tunnel started. Your deployment is accessible at:`))+"\n  "+cliui.Styles.Field.Render(accessURL))
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Tunnel started. Your deployment is accessible at:`))+"\n  "+cliui.Styles.Field.Render(accessURL)+"\n")
 				}
 			}
 			validator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
@@ -262,8 +262,7 @@ func start() *cobra.Command {
 						return xerrors.Errorf("delete workspace: %w", err)
 					}
 
-					_, err = cliui.Job(cmd, cliui.JobOptions{
-						Title: fmt.Sprintf("Deleting workspace %s...", cliui.Styles.Keyword.Render(workspace.Name)),
+					err = cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
 						Fetch: func() (codersdk.ProvisionerJob, error) {
 							build, err := client.WorkspaceBuild(cmd.Context(), build.ID)
 							return build.Job, err

@@ -49,6 +49,7 @@ type ProvisionerJobLog struct {
 	CreatedAt time.Time          `json:"created_at"`
 	Source    database.LogSource `json:"log_source"`
 	Level     database.LogLevel  `json:"log_level"`
+	Stage     string             `json:"stage"`
 	Output    string             `json:"output"`
 }
 

@@ -9,6 +9,7 @@ node_modules
 vendor
 .eslintcache
 yarn-error.log
+.idea
 
 # Front-end ignore
 .next/
