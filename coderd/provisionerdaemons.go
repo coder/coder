@@ -303,6 +303,7 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			insertParams.ID = append(insertParams.ID, uuid.New())
 			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
 			insertParams.Level = append(insertParams.Level, logLevel)
+			insertParams.Stage = append(insertParams.Stage, log.Stage)
 			insertParams.Source = append(insertParams.Source, logSource)
 			insertParams.Output = append(insertParams.Output, log.Output)
 		}

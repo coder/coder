@@ -34,6 +34,7 @@ type ServeOptions struct {
 	// BinaryPath specifies the "terraform" binary to use.
 	// If omitted, the $PATH will attempt to find it.
 	BinaryPath string
+	CachePath  string
 	Logger     slog.Logger
 }
 
@@ -43,8 +44,9 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		binaryPath, err := exec.LookPath("terraform")
 		if err != nil {
 			installer := &releases.ExactVersion{
-				Product: product.Terraform,
-				Version: version.Must(version.NewVersion("1.1.7")),
+				InstallDir: options.CachePath,
+				Product:    product.Terraform,
+				Version:    version.Must(version.NewVersion("1.1.7")),
 			}
 
 			execPath, err := installer.Install(ctx)
@@ -58,11 +60,13 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 	}
 	return provisionersdk.Serve(ctx, &terraform{
 		binaryPath: options.BinaryPath,
+		cachePath:  options.CachePath,
 		logger:     options.Logger,
 	}, options.ServeOptions)
 }
 
 type terraform struct {
 	binaryPath string
+	cachePath  string
 	logger     slog.Logger
 }

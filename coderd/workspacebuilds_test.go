@@ -57,9 +57,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		var err error
 		build, err = client.WorkspaceBuild(context.Background(), build.ID)
 		require.NoError(t, err)
-		// The echo provisioner doesn't respond to a shutdown request,
-		// so the job cancel will time out and fail.
-		return build.Job.Status == codersdk.ProvisionerJobFailed
+		return build.Job.Status == codersdk.ProvisionerJobCanceled
 	}, 5*time.Second, 25*time.Millisecond)
 }
 
@@ -159,6 +157,14 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	t.Cleanup(cancelFunc)
 	logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 	require.NoError(t, err)
-	log := <-logs
-	require.Equal(t, "example", log.Output)
+	for {
+		log, ok := <-logs
+		if !ok {
+			break
+		}
+		if log.Output == "example" {
+			return
+		}
+	}
+	require.Fail(t, "example message never happened")
 }

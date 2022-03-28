@@ -24,5 +24,6 @@ func TestNew(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 	_, _ = coderdtest.NewGoogleInstanceIdentity(t, "example", false)
+	_, _ = coderdtest.NewAWSInstanceIdentity(t, "an-instance")
 	closer.Close()
 }

@@ -2,8 +2,8 @@ package cli
 
 import (
 	"context"
+	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
 	"github.com/coder/retry"
@@ -23,6 +24,7 @@ func workspaceAgent() *cobra.Command {
 	var (
 		rawURL string
 		auth   string
+		token  string
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -38,13 +40,17 @@ func workspaceAgent() *cobra.Command {
 			}
 			logger := slog.Make(sloghuman.Sink(cmd.OutOrStdout())).Leveled(slog.LevelDebug)
 			client := codersdk.New(coderURL)
+
+			// exchangeToken returns a session token.
+			// This is abstracted to allow for the same looping condition
+			// regardless of instance identity auth type.
+			var exchangeToken func(context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error)
 			switch auth {
 			case "token":
-				sessionToken, exists := os.LookupEnv("CODER_TOKEN")
-				if !exists {
+				if token == "" {
 					return xerrors.Errorf("CODER_TOKEN must be set for token auth")
 				}
-				client.SessionToken = sessionToken
+				client.SessionToken = token
 			case "google-instance-identity":
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
@@ -53,29 +59,51 @@ func workspaceAgent() *cobra.Command {
 				if gcpClientRaw != nil {
 					gcpClient, _ = gcpClientRaw.(*metadata.Client)
 				}
+				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
+					return client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", gcpClient)
+				}
+			case "aws-instance-identity":
+				// This is *only* done for testing to mock client authentication.
+				// This will never be set in a production scenario.
+				var awsClient *http.Client
+				awsClientRaw := cmd.Context().Value("aws-client")
+				if awsClientRaw != nil {
+					awsClient, _ = awsClientRaw.(*http.Client)
+					if awsClient != nil {
+						client.HTTPClient = awsClient
+					}
+				}
+				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
+					return client.AuthWorkspaceAWSInstanceIdentity(ctx)
+				}
+			case "azure-instance-identity":
+				return xerrors.Errorf("not implemented")
+			}
 
-				ctx, cancelFunc := context.WithTimeout(cmd.Context(), 30*time.Second)
+			if exchangeToken != nil {
+				// Agent's can start before resources are returned from the provisioner
+				// daemon. If there are many resources being provisioned, this time
+				// could be significant. This is arbitrarily set at an hour to prevent
+				// tons of idle agents from pinging coderd.
+				ctx, cancelFunc := context.WithTimeout(cmd.Context(), time.Hour)
 				defer cancelFunc()
 				for retry.New(100*time.Millisecond, 5*time.Second).Wait(ctx) {
 					var response codersdk.WorkspaceAgentAuthenticateResponse
 
-					response, err = client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", gcpClient)
+					response, err = exchangeToken(ctx)
 					if err != nil {
-						logger.Warn(ctx, "authenticate workspace with Google Instance Identity", slog.Error(err))
+						logger.Warn(ctx, "authenticate workspace", slog.F("method", auth), slog.Error(err))
 						continue
 					}
 					client.SessionToken = response.SessionToken
-					logger.Info(ctx, "authenticated with Google Instance Identity")
+					logger.Info(ctx, "authenticated", slog.F("method", auth))
 					break
 				}
 				if err != nil {
 					return xerrors.Errorf("agent failed to authenticate in time: %w", err)
 				}
-			case "aws-instance-identity":
-				return xerrors.Errorf("not implemented")
-			case "azure-instance-identity":
-				return xerrors.Errorf("not implemented")
 			}
+
 			closer := agent.New(client.ListenWorkspaceAgent, &peer.ConnOptions{
 				Logger: logger,
 			})
@@ -83,12 +111,10 @@ func workspaceAgent() *cobra.Command {
 			return closer.Close()
 		},
 	}
-	defaultAuth := os.Getenv("CODER_AUTH")
-	if defaultAuth == "" {
-		defaultAuth = "token"
-	}
-	cmd.Flags().StringVarP(&auth, "auth", "", defaultAuth, "Specify the authentication type to use for the agent.")
-	cmd.Flags().StringVarP(&rawURL, "url", "", os.Getenv("CODER_URL"), "Specify the URL to access Coder.")
+
+	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AUTH", "token", "Specify the authentication type to use for the agent")
+	cliflag.StringVarP(cmd.Flags(), &rawURL, "url", "", "CODER_URL", "", "Specify the URL to access Coder")
+	cliflag.StringVarP(cmd.Flags(), &auth, "token", "", "CODER_TOKEN", "", "Specifies the authentication token to access Coder")
 
 	return cmd
 }

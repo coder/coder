@@ -192,6 +192,7 @@ func TestConn(t *testing.T) {
 			_ = server.Serve(srv)
 		}()
 
+		//nolint:forcetypeassert
 		defaultTransport := http.DefaultTransport.(*http.Transport).Clone()
 		var cch *peer.Channel
 		defaultTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {

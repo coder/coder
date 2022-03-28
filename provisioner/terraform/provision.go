@@ -87,6 +87,14 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			})
 		}
 	}()
+	if t.cachePath != "" {
+		err = terraform.SetEnv(map[string]string{
+			"TF_PLUGIN_CACHE_DIR": t.cachePath,
+		})
+		if err != nil {
+			return xerrors.Errorf("set terraform plugin cache dir: %w", err)
+		}
+	}
 	terraform.SetStdout(writer)
 	t.logger.Debug(shutdown, "running initialization")
 	err = terraform.Init(shutdown)
@@ -210,6 +218,15 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 	err = cmd.Run()
 	if err != nil {
 		if start.DryRun {
+			if shutdown.Err() != nil {
+				return stream.Send(&proto.Provision_Response{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Error: err.Error(),
+						},
+					},
+				})
+			}
 			return xerrors.Errorf("plan terraform: %w", err)
 		}
 		errorMessage := err.Error()

@@ -3,11 +3,15 @@ package coderdtest
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -31,6 +35,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
@@ -43,7 +48,8 @@ import (
 )
 
 type Options struct {
-	GoogleTokenValidator *idtoken.Validator
+	AWSInstanceIdentity    awsidentity.Certificates
+	GoogleInstanceIdentity *idtoken.Validator
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -52,11 +58,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	if options == nil {
 		options = &Options{}
 	}
-	if options.GoogleTokenValidator == nil {
+	if options.GoogleInstanceIdentity == nil {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
 		var err error
-		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
+		options.GoogleInstanceIdentity, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
 	}
 
@@ -101,7 +107,8 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		Database:                       db,
 		Pubsub:                         pubsub,
 
-		GoogleTokenValidator: options.GoogleTokenValidator,
+		AWSCertificates:      options.AWSInstanceIdentity,
+		GoogleTokenValidator: options.GoogleInstanceIdentity,
 	})
 	t.Cleanup(func() {
 		srv.Close()
@@ -332,6 +339,66 @@ func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*
 			}, nil
 		}),
 	})
+}
+
+// NewAWSInstanceIdentity returns a metadata client and ID token validator for faking
+// instance authentication for AWS.
+func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certificates, *http.Client) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	document := []byte(`{"instanceId":"` + instanceID + `"}`)
+	hashedDocument := sha256.Sum256(document)
+
+	signatureRaw, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashedDocument[:])
+	require.NoError(t, err)
+	signature := make([]byte, base64.StdEncoding.EncodedLen(len(signatureRaw)))
+	base64.StdEncoding.Encode(signature, signatureRaw)
+
+	certificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		SerialNumber: big.NewInt(2022),
+	}, &x509.Certificate{}, &privateKey.PublicKey, privateKey)
+	require.NoError(t, err)
+
+	certificatePEM := bytes.Buffer{}
+	err = pem.Encode(&certificatePEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certificate,
+	})
+	require.NoError(t, err)
+
+	return awsidentity.Certificates{
+			awsidentity.Other: certificatePEM.String(),
+		}, &http.Client{
+			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+				// Only handle metadata server requests.
+				if r.URL.Host != "169.254.169.254" {
+					return http.DefaultTransport.RoundTrip(r)
+				}
+				switch r.URL.Path {
+				case "/latest/api/token":
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(bytes.NewReader([]byte("faketoken"))),
+						Header:     make(http.Header),
+					}, nil
+				case "/latest/dynamic/instance-identity/signature":
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(bytes.NewReader(signature)),
+						Header:     make(http.Header),
+					}, nil
+				case "/latest/dynamic/instance-identity/document":
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(bytes.NewReader(document)),
+						Header:     make(http.Header),
+					}, nil
+				default:
+					panic("unhandled route: " + r.URL.Path)
+				}
+			}),
+		}
 }
 
 func randomUsername() string {
