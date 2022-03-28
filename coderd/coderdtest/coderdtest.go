@@ -371,6 +371,10 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 			awsidentity.Other: certificatePEM.String(),
 		}, &http.Client{
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+				// Only handle metadata server requests.
+				if r.URL.Host != "169.254.169.254" {
+					return http.DefaultTransport.RoundTrip(r)
+				}
 				switch r.URL.Path {
 				case "/latest/api/token":
 					return &http.Response{

@@ -69,9 +69,12 @@ func workspaceAgent() *cobra.Command {
 				awsClientRaw := cmd.Context().Value("aws-client")
 				if awsClientRaw != nil {
 					awsClient, _ = awsClientRaw.(*http.Client)
+					if awsClient != nil {
+						client.HTTPClient = awsClient
+					}
 				}
 				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
-					return client.AuthWorkspaceAWSInstanceIdentity(ctx, awsClient)
+					return client.AuthWorkspaceAWSInstanceIdentity(ctx)
 				}
 			case "azure-instance-identity":
 				return xerrors.Errorf("not implemented")
