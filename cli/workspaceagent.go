@@ -13,7 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/cli/cliflags"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
 	"github.com/coder/retry"
@@ -84,9 +84,9 @@ func workspaceAgent() *cobra.Command {
 		},
 	}
 
-	cliflags.String(cmd.Flags(), &auth, "auth", "", "CODER_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflags.String(cmd.Flags(), &rawURL, "url", "", "CODER_URL", "", "Specify the URL to access Coder")
-	cliflags.String(cmd.Flags(), &auth, "token", "", "CODER_TOKEN", "", "Specifies the authentication token to access Coder")
+	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AUTH", "token", "Specify the authentication type to use for the agent")
+	cliflag.StringVarP(cmd.Flags(), &rawURL, "url", "", "CODER_URL", "", "Specify the URL to access Coder")
+	cliflag.StringVarP(cmd.Flags(), &auth, "token", "", "CODER_TOKEN", "", "Specifies the authentication token to access Coder")
 
 	return cmd
 }

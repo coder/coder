@@ -24,7 +24,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/cli/cliflags"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
@@ -40,11 +40,12 @@ import (
 
 func start() *cobra.Command {
 	var (
-		accessURL              string
-		address                string
-		dev                    bool
-		postgresURL            string
-		provisionerDaemonCount int
+		accessURL   string
+		address     string
+		dev         bool
+		postgresURL string
+		// provisionerDaemonCount is a uint8 to ensure a number > 0.
+		provisionerDaemonCount uint8
 		tlsCertFile            string
 		tlsClientCAFile        string
 		tlsClientAuth          string
@@ -159,7 +160,7 @@ func start() *cobra.Command {
 			}
 
 			provisionerDaemons := make([]*provisionerd.Server, 0)
-			for i := 0; i < provisionerDaemonCount; i++ {
+			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
 				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -302,26 +303,26 @@ func start() *cobra.Command {
 		},
 	}
 
-	cliflags.String(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
-	cliflags.String(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
-	cliflags.Bool(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
-	cliflags.String(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
-	cliflags.Int(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
-	cliflags.Bool(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
-	cliflags.String(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
+	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
+	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
+	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
+	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
+	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
+	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
+	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
 			"and the CA certificate together. The primary certificate should appear first in the combined file")
-	cliflags.String(root.Flags(), &tlsClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
+	cliflag.StringVarP(root.Flags(), &tlsClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
 		"PEM-encoded Certificate Authority file used for checking the authenticity of client")
-	cliflags.String(root.Flags(), &tlsClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
+	cliflag.StringVarP(root.Flags(), &tlsClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
 		`Specifies the policy the server will follow for TLS Client Authentication. `+
 			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`)
-	cliflags.String(root.Flags(), &tlsKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
+	cliflag.StringVarP(root.Flags(), &tlsKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
 		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
-	cliflags.String(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
+	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflags.Bool(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", false, "Serve dev mode through a Cloudflare Tunnel for easy setup")
+	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", false, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
 
 	return root
