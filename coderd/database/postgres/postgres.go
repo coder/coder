@@ -138,5 +138,7 @@ func getFreePort() (port int, err error) {
 	}
 
 	defer listener.Close()
+	// This is always a *net.TCPAddr.
+	// nolint:forcetypeassert
 	return listener.Addr().(*net.TCPAddr).Port, nil
 }

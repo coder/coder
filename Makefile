@@ -88,3 +88,8 @@ site/out:
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
 .PHONY: site/out
+
+lint:
+	@echo "--- golangci-lint"
+	golangci-lint run
+.PHONY: lint
