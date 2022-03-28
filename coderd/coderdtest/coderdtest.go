@@ -348,12 +348,9 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 	require.NoError(t, err)
 
 	document := []byte(`{"instanceId":"` + instanceID + `"}`)
-	documentHash := sha256.New()
-	_, err = documentHash.Write(document)
-	require.NoError(t, err)
-	hashedDocument := documentHash.Sum(nil)
+	hashedDocument := sha256.Sum256(document)
 
-	signatureRaw, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashedDocument)
+	signatureRaw, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashedDocument[:])
 	require.NoError(t, err)
 	signature := make([]byte, base64.StdEncoding.EncodedLen(len(signatureRaw)))
 	base64.StdEncoding.Encode(signature, signatureRaw)
@@ -374,6 +371,10 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 			awsidentity.Other: certificatePEM.String(),
 		}, &http.Client{
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+				// Only handle metadata server requests.
+				if r.URL.Host != "169.254.169.254" {
+					return http.DefaultTransport.RoundTrip(r)
+				}
 				switch r.URL.Path {
 				case "/latest/api/token":
 					return &http.Response{

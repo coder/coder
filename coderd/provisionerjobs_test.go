@@ -45,12 +45,12 @@ func TestProvisionerJobLogs(t *testing.T) {
 		t.Cleanup(cancelFunc)
 		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
-		log, ok := <-logs
-		require.True(t, ok)
-		require.Equal(t, "log-output", log.Output)
-		// Make sure the channel automatically closes!
-		_, ok = <-logs
-		require.False(t, ok)
+		for {
+			_, ok := <-logs
+			if !ok {
+				return
+			}
+		}
 	})
 
 	t.Run("StreamWhileRunning", func(t *testing.T) {
@@ -81,10 +81,12 @@ func TestProvisionerJobLogs(t *testing.T) {
 		t.Cleanup(cancelFunc)
 		logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)
 		require.NoError(t, err)
-		log := <-logs
-		require.Equal(t, "log-output", log.Output)
-		_, ok := <-logs
-		require.False(t, ok)
+		for {
+			_, ok := <-logs
+			if !ok {
+				return
+			}
+		}
 	})
 
 	t.Run("List", func(t *testing.T) {
@@ -113,6 +115,6 @@ func TestProvisionerJobLogs(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		logs, err := client.WorkspaceBuildLogsBefore(context.Background(), workspace.LatestBuild.ID, time.Now())
 		require.NoError(t, err)
-		require.Len(t, logs, 1)
+		require.Greater(t, len(logs), 1)
 	})
 }

@@ -61,16 +61,13 @@ func (c *Client) AuthWorkspaceGoogleInstanceIdentity(ctx context.Context, servic
 // fetch a signed payload, and exchange it for a session token for a workspace agent.
 //
 // The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context, metadataClient *http.Client) (WorkspaceAgentAuthenticateResponse, error) {
-	if metadataClient == nil {
-		metadataClient = c.HTTPClient
-	}
+func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context) (WorkspaceAgentAuthenticateResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://169.254.169.254/latest/api/token", nil)
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, nil
 	}
 	req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "21600")
-	res, err := metadataClient.Do(req)
+	res, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, err
 	}
@@ -85,7 +82,7 @@ func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context, metadataC
 		return WorkspaceAgentAuthenticateResponse{}, nil
 	}
 	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = metadataClient.Do(req)
+	res, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, err
 	}
@@ -100,7 +97,7 @@ func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context, metadataC
 		return WorkspaceAgentAuthenticateResponse{}, nil
 	}
 	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = metadataClient.Do(req)
+	res, err = c.HTTPClient.Do(req)
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, err
 	}

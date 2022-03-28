@@ -47,7 +47,8 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		_, err := client.AuthWorkspaceAWSInstanceIdentity(context.Background(), metadataClient)
+		client.HTTPClient = metadataClient
+		_, err := client.AuthWorkspaceAWSInstanceIdentity(context.Background())
 		require.NoError(t, err)
 	})
 }

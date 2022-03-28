@@ -1,6 +1,6 @@
 module github.com/coder/coder
 
-go 1.17
+go 1.18
 
 // Required until https://github.com/manifoldco/promptui/pull/169 is merged.
 replace github.com/manifoldco/promptui => github.com/kylecarbs/promptui v0.8.1-0.20201231190244-d8f2159af2b2
@@ -35,7 +35,7 @@ require (
 	github.com/cloudflare/cloudflared v0.0.0-20220308214351-5352b3cf0489
 	github.com/coder/retry v1.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
-	github.com/creack/pty v1.1.17
+	github.com/creack/pty v1.1.18
 	github.com/fatih/color v1.13.0
 	github.com/gliderlabs/ssh v0.3.3
 	github.com/go-chi/chi/v5 v5.0.7

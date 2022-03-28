@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -126,8 +125,7 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 		return nil, nil, err
 	}
 
-	_, err = cliui.Job(cmd, cliui.JobOptions{
-		Title: "Building project...",
+	err = cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			version, err := client.ProjectVersion(cmd.Context(), version.ID)
 			return version.Job, err
@@ -140,7 +138,9 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		if !provisionerd.IsMissingParameterError(err.Error()) {
+			return nil, nil, err
+		}
 	}
 	version, err = client.ProjectVersion(cmd.Context(), version.ID)
 	if err != nil {
@@ -192,7 +192,7 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 		return nil, nil, xerrors.New(version.Job.Error)
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Successfully imported project source!\n", color.HiGreenString("✓"))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Checkmark.String()+" Successfully imported project source!\n")
 
 	resources, err := client.ProjectVersionResources(cmd.Context(), version.ID)
 	if err != nil {

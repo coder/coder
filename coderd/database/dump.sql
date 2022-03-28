@@ -190,6 +190,7 @@ CREATE TABLE provisioner_job_logs (
     created_at timestamp with time zone NOT NULL,
     source log_source NOT NULL,
     level log_level NOT NULL,
+    stage character varying(128) NOT NULL,
     output character varying(1024) NOT NULL
 );
 

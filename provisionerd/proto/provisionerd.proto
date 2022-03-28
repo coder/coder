@@ -74,7 +74,8 @@ message Log {
     LogSource source = 1;
     provisioner.LogLevel level = 2;
     int64 created_at = 3;
-    string output = 4;
+    string stage = 4;
+    string output = 5;
 }
 
 // This message should be sent periodically as a heartbeat.
