@@ -114,7 +114,7 @@ func workspaceAgent() *cobra.Command {
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AUTH", "token", "Specify the authentication type to use for the agent")
 	cliflag.StringVarP(cmd.Flags(), &rawURL, "url", "", "CODER_URL", "", "Specify the URL to access Coder")
-	cliflag.StringVarP(cmd.Flags(), &auth, "token", "", "CODER_TOKEN", "", "Specifies the authentication token to access Coder")
+	cliflag.StringVarP(cmd.Flags(), &token, "token", "", "CODER_TOKEN", "", "Specifies the authentication token to access Coder")
 
 	return cmd
 }

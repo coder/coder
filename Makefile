@@ -50,6 +50,10 @@ install: bin
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
+lint:
+	golangci-lint run
+.PHONY: lint
+
 peerbroker/proto: peerbroker/proto/peerbroker.proto
 	protoc \
 		--go_out=. \
@@ -89,6 +93,6 @@ site/out:
 	git checkout HEAD site/out
 .PHONY: site/out
 
-lint:
-	golangci-lint run
-.PHONY: lint
+test:
+	gotestsum -- -v -short ./...
+
