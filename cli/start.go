@@ -53,12 +53,12 @@ func start() *cobra.Command {
 		tlsKeyFile             string
 		tlsMinVersion          string
 		useTunnel              bool
-		traceDD                bool
+		traceDatadog           bool
 	)
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if traceDD {
+			if traceDatadog {
 				tracer.Start()
 				defer tracer.Stop()
 			}
@@ -329,7 +329,7 @@ func start() *cobra.Command {
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", false, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
-	cliflag.BoolVarP(root.Flags(), &traceDD, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
 
 	return root
 }
