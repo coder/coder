@@ -72,6 +72,9 @@ func (p *pgPubsub) Subscribe(event string, listener Listener) (cancel func(), er
 }
 
 func (p *pgPubsub) Publish(event string, message []byte) error {
+	// This is safe because we are calling pq.QuoteLiteral. pg_notify doesn't
+	// support the first parameter being a prepared statement.
+	//nolint:gosec
 	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
 		return xerrors.Errorf("exec: %w", err)

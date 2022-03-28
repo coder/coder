@@ -154,7 +154,7 @@ linters-settings:
       - name: import-shadowing
       - name: increment-decrement
       - name: indent-error-flow
-      - name: modifies-parameter
+      # - name: modifies-parameter
       - name: modifies-value-receiver
       - name: package-comments
       - name: range
@@ -185,6 +185,8 @@ linters-settings:
       - i
       - db
       - t
+      - id
+      - wg
     # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
     # Entries must be in the form of "<variable name> <type>" or "<variable name> *<type>" for
     # variables, or "const <name>" for constants.
@@ -193,6 +195,8 @@ linters-settings:
       - r *http.Request
       - t testing.T
       - t testing.TB
+      - ok bool
+      - wg sync.WaitGroup
 
 issues:
   # Rules listed here: https://github.com/securego/gosec#available-rules

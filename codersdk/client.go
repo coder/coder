@@ -94,6 +94,7 @@ func readBodyAsError(res *http.Response) error {
 		}
 	}
 
+	//nolint:varnamelen
 	var m httpapi.Response
 	err := json.NewDecoder(res.Body).Decode(&m)
 	if err != nil {
