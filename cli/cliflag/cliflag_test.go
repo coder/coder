@@ -16,11 +16,11 @@ import (
 //nolint:paralleltest
 func TestCliflag(t *testing.T) {
 	t.Run("StringDefault", func(t *testing.T) {
-		var p string
+		var ptr string
 		flagset, name, shorthand, env, usage := randomFlag()
 		def, _ := cryptorand.String(10)
 
-		cliflag.StringVarP(flagset, &p, name, shorthand, env, def, usage)
+		cliflag.StringVarP(flagset, &ptr, name, shorthand, env, def, usage)
 		got, err := flagset.GetString(name)
 		require.NoError(t, err)
 		require.Equal(t, def, got)
@@ -29,24 +29,24 @@ func TestCliflag(t *testing.T) {
 	})
 
 	t.Run("StringEnvVar", func(t *testing.T) {
-		var p string
+		var ptr string
 		flagset, name, shorthand, env, usage := randomFlag()
 		envValue, _ := cryptorand.String(10)
 		t.Setenv(env, envValue)
 		def, _ := cryptorand.String(10)
 
-		cliflag.StringVarP(flagset, &p, name, shorthand, env, def, usage)
+		cliflag.StringVarP(flagset, &ptr, name, shorthand, env, def, usage)
 		got, err := flagset.GetString(name)
 		require.NoError(t, err)
 		require.Equal(t, envValue, got)
 	})
 
 	t.Run("EmptyEnvVar", func(t *testing.T) {
-		var p string
+		var ptr string
 		flagset, name, shorthand, _, usage := randomFlag()
 		def, _ := cryptorand.String(10)
 
-		cliflag.StringVarP(flagset, &p, name, shorthand, "", def, usage)
+		cliflag.StringVarP(flagset, &ptr, name, shorthand, "", def, usage)
 		got, err := flagset.GetString(name)
 		require.NoError(t, err)
 		require.Equal(t, def, got)
@@ -55,11 +55,11 @@ func TestCliflag(t *testing.T) {
 	})
 
 	t.Run("IntDefault", func(t *testing.T) {
-		var p uint8
+		var ptr uint8
 		flagset, name, shorthand, env, usage := randomFlag()
 		def, _ := cryptorand.Int63n(10)
 
-		cliflag.Uint8VarP(flagset, &p, name, shorthand, env, uint8(def), usage)
+		cliflag.Uint8VarP(flagset, &ptr, name, shorthand, env, uint8(def), usage)
 		got, err := flagset.GetUint8(name)
 		require.NoError(t, err)
 		require.Equal(t, uint8(def), got)
@@ -68,37 +68,37 @@ func TestCliflag(t *testing.T) {
 	})
 
 	t.Run("IntEnvVar", func(t *testing.T) {
-		var p uint8
+		var ptr uint8
 		flagset, name, shorthand, env, usage := randomFlag()
 		envValue, _ := cryptorand.Int63n(10)
 		t.Setenv(env, strconv.FormatUint(uint64(envValue), 10))
 		def, _ := cryptorand.Int()
 
-		cliflag.Uint8VarP(flagset, &p, name, shorthand, env, uint8(def), usage)
+		cliflag.Uint8VarP(flagset, &ptr, name, shorthand, env, uint8(def), usage)
 		got, err := flagset.GetUint8(name)
 		require.NoError(t, err)
 		require.Equal(t, uint8(envValue), got)
 	})
 
 	t.Run("IntFailParse", func(t *testing.T) {
-		var p uint8
+		var ptr uint8
 		flagset, name, shorthand, env, usage := randomFlag()
 		envValue, _ := cryptorand.String(10)
 		t.Setenv(env, envValue)
 		def, _ := cryptorand.Int63n(10)
 
-		cliflag.Uint8VarP(flagset, &p, name, shorthand, env, uint8(def), usage)
+		cliflag.Uint8VarP(flagset, &ptr, name, shorthand, env, uint8(def), usage)
 		got, err := flagset.GetUint8(name)
 		require.NoError(t, err)
 		require.Equal(t, uint8(def), got)
 	})
 
 	t.Run("BoolDefault", func(t *testing.T) {
-		var p bool
+		var ptr bool
 		flagset, name, shorthand, env, usage := randomFlag()
 		def, _ := cryptorand.Bool()
 
-		cliflag.BoolVarP(flagset, &p, name, shorthand, env, def, usage)
+		cliflag.BoolVarP(flagset, &ptr, name, shorthand, env, def, usage)
 		got, err := flagset.GetBool(name)
 		require.NoError(t, err)
 		require.Equal(t, def, got)
@@ -107,26 +107,26 @@ func TestCliflag(t *testing.T) {
 	})
 
 	t.Run("BoolEnvVar", func(t *testing.T) {
-		var p bool
+		var ptr bool
 		flagset, name, shorthand, env, usage := randomFlag()
 		envValue, _ := cryptorand.Bool()
 		t.Setenv(env, strconv.FormatBool(envValue))
 		def, _ := cryptorand.Bool()
 
-		cliflag.BoolVarP(flagset, &p, name, shorthand, env, def, usage)
+		cliflag.BoolVarP(flagset, &ptr, name, shorthand, env, def, usage)
 		got, err := flagset.GetBool(name)
 		require.NoError(t, err)
 		require.Equal(t, envValue, got)
 	})
 
 	t.Run("BoolFailParse", func(t *testing.T) {
-		var p bool
+		var ptr bool
 		flagset, name, shorthand, env, usage := randomFlag()
 		envValue, _ := cryptorand.String(10)
 		t.Setenv(env, envValue)
 		def, _ := cryptorand.Bool()
 
-		cliflag.BoolVarP(flagset, &p, name, shorthand, env, def, usage)
+		cliflag.BoolVarP(flagset, &ptr, name, shorthand, env, def, usage)
 		got, err := flagset.GetBool(name)
 		require.NoError(t, err)
 		require.Equal(t, def, got)
