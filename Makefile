@@ -90,6 +90,7 @@ site/out:
 .PHONY: site/out
 
 lint/go:
+	@echo "--- golangci-lint"
 	golangci-lint run
 .PHONY: lint/go
 
