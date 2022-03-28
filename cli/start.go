@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -42,6 +43,7 @@ func start() *cobra.Command {
 	var (
 		accessURL   string
 		address     string
+		cacheDir    string
 		dev         bool
 		postgresURL string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
@@ -161,7 +163,7 @@ func start() *cobra.Command {
 
 			provisionerDaemons := make([]*provisionerd.Server, 0)
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger)
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -305,6 +307,8 @@ func start() *cobra.Command {
 
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
+	// systemd uses the CACHE_DIRECTORY environment variable!
+	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), ".coder-cache"), "Specifies a directory to cache binaries for provision operations.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
@@ -358,14 +362,15 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	return nil
 }
 
-func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger) (*provisionerd.Server, error) {
+func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string) (*provisionerd.Server, error) {
 	terraformClient, terraformServer := provisionersdk.TransportPipe()
 	go func() {
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			Logger: logger,
+			CachePath: cacheDir,
+			Logger:    logger,
 		})
 		if err != nil {
 			panic(err)
