@@ -103,6 +103,7 @@ func main() {
 					go func() {
 						defer close(logs)
 						ticker := time.NewTicker(100 * time.Millisecond)
+						defer ticker.Stop()
 						count := 0
 						for {
 							select {

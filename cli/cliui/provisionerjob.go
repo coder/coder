@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -15,12 +16,26 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+func WorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, build uuid.UUID, before time.Time) error {
+	return ProvisionerJob(cmd, ProvisionerJobOptions{
+		Fetch: func() (codersdk.ProvisionerJob, error) {
+			build, err := client.WorkspaceBuild(cmd.Context(), build)
+			return build.Job, err
+		},
+		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
+			return client.WorkspaceBuildLogsAfter(cmd.Context(), build, before)
+		},
+	})
+}
+
 type ProvisionerJobOptions struct {
 	Fetch  func() (codersdk.ProvisionerJob, error)
 	Cancel func() error
 	Logs   func() (<-chan codersdk.ProvisionerJobLog, error)
 
 	FetchInterval time.Duration
+	// Verbose determines whether debug and trace logs will be shown.
+	Verbose bool
 }
 
 // ProvisionerJob renders a provisioner job with interactive cancellation.
@@ -35,7 +50,7 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 		didLogBetweenStage    = false
 		ctx, cancelFunc       = context.WithCancel(cmd.Context())
 
-		errChan  = make(chan error)
+		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
 		jobMutex sync.Mutex
 	)
@@ -44,7 +59,6 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 	printStage := func() {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), Styles.Prompt.Render("⧗")+"%s\n", Styles.Field.Render(currentStage))
 	}
-	printStage()
 
 	updateStage := func(stage string, startedAt time.Time) {
 		if currentStage != "" {
@@ -88,29 +102,32 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 	}
 	updateJob()
 
-	// Handles ctrl+c to cancel a job.
-	stopChan := make(chan os.Signal, 1)
-	defer signal.Stop(stopChan)
-	go func() {
+	if opts.Cancel != nil {
+		// Handles ctrl+c to cancel a job.
+		stopChan := make(chan os.Signal, 1)
 		signal.Notify(stopChan, os.Interrupt)
-		select {
-		case <-ctx.Done():
-			return
-		case _, ok := <-stopChan:
-			if !ok {
+		go func() {
+			defer signal.Stop(stopChan)
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-stopChan:
+				if !ok {
+					return
+				}
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling...")+"\n\n")
+			err := opts.Cancel()
+			if err != nil {
+				errChan <- xerrors.Errorf("cancel: %w", err)
 				return
 			}
-		}
-		// Stop listening for signals so another one kills it!
-		signal.Stop(stopChan)
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling... wait for exit or data loss may occur!")+"\n\n")
-		err := opts.Cancel()
-		if err != nil {
-			errChan <- xerrors.Errorf("cancel: %w", err)
-			return
-		}
-		updateJob()
-	}()
+			updateJob()
+		}()
+	}
+
+	// The initial stage needs to print after the signal handler has been registered.
+	printStage()
 
 	logs, err := opts.Logs()
 	if err != nil {
@@ -128,8 +145,6 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 			updateJob()
 		case log, ok := <-logs:
 			if !ok {
-				// The logs stream will end when the job does,
-				// so it's safe to
 				updateJob()
 				jobMutex.Lock()
 				if job.CompletedAt != nil {
@@ -144,26 +159,33 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 					return nil
 				case codersdk.ProvisionerJobFailed:
 				}
+				err = xerrors.New(job.Error)
 				jobMutex.Unlock()
-				return xerrors.New(job.Error)
+				return err
 			}
 			output := ""
 			switch log.Level {
-			case database.LogLevelTrace, database.LogLevelDebug, database.LogLevelError:
+			case database.LogLevelTrace, database.LogLevelDebug:
+				if !opts.Verbose {
+					continue
+				}
+				output = Styles.Placeholder.Render(log.Output)
+			case database.LogLevelError:
 				output = defaultStyles.Error.Render(log.Output)
 			case database.LogLevelWarn:
 				output = Styles.Warn.Render(log.Output)
 			case database.LogLevelInfo:
 				output = log.Output
 			}
+			jobMutex.Lock()
 			if log.Stage != currentStage && log.Stage != "" {
-				jobMutex.Lock()
 				updateStage(log.Stage, log.CreatedAt)
 				jobMutex.Unlock()
 				continue
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", Styles.Placeholder.Render(" "), output)
 			didLogBetweenStage = true
+			jobMutex.Unlock()
 		}
 	}
 }
