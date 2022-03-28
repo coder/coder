@@ -36,8 +36,8 @@ func TestProvisionerJob(t *testing.T) {
 			test.Job.Status = codersdk.ProvisionerJobSucceeded
 			now = database.Now()
 			test.Job.CompletedAt = &now
-			test.JobMutex.Unlock()
 			close(test.Logs)
+			test.JobMutex.Unlock()
 		}()
 		test.PTY.ExpectMatch("Queued")
 		test.Next <- struct{}{}
@@ -67,8 +67,8 @@ func TestProvisionerJob(t *testing.T) {
 			test.Job.Status = codersdk.ProvisionerJobSucceeded
 			now = database.Now()
 			test.Job.CompletedAt = &now
-			test.JobMutex.Unlock()
 			close(test.Logs)
+			test.JobMutex.Unlock()
 		}()
 		test.PTY.ExpectMatch("Queued")
 		test.Next <- struct{}{}
@@ -79,7 +79,7 @@ func TestProvisionerJob(t *testing.T) {
 	})
 
 	// This cannot be ran in parallel because it uses a signal.
-	//nolint:paralleltest
+	// nolint:paralleltest
 	t.Run("Cancel", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			// Sending interrupt signal isn't supported on Windows!
@@ -98,8 +98,8 @@ func TestProvisionerJob(t *testing.T) {
 			test.Job.Status = codersdk.ProvisionerJobCanceled
 			now := database.Now()
 			test.Job.CompletedAt = &now
-			test.JobMutex.Unlock()
 			close(test.Logs)
+			test.JobMutex.Unlock()
 		}()
 		test.PTY.ExpectMatch("Queued")
 		test.Next <- struct{}{}

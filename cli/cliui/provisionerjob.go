@@ -57,7 +57,6 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 	printStage := func() {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), Styles.Prompt.Render("⧗")+"%s\n", Styles.Field.Render(currentStage))
 	}
-	printStage()
 
 	updateStage := func(stage string, startedAt time.Time) {
 		if currentStage != "" {
@@ -104,9 +103,9 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 	if opts.Cancel != nil {
 		// Handles ctrl+c to cancel a job.
 		stopChan := make(chan os.Signal, 1)
-		defer signal.Stop(stopChan)
+		signal.Notify(stopChan, os.Interrupt)
 		go func() {
-			signal.Notify(stopChan, os.Interrupt)
+			defer signal.Stop(stopChan)
 			select {
 			case <-ctx.Done():
 				return
@@ -115,8 +114,6 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 					return
 				}
 			}
-			// Stop listening for signals so another one kills it!
-			signal.Stop(stopChan)
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling...")+"\n\n")
 			err := opts.Cancel()
 			if err != nil {
@@ -126,6 +123,9 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 			updateJob()
 		}()
 	}
+
+	// The initial stage needs to print after the signal handler has been registered.
+	printStage()
 
 	logs, err := opts.Logs()
 	if err != nil {
@@ -159,8 +159,9 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 					return nil
 				case codersdk.ProvisionerJobFailed:
 				}
+				err = xerrors.New(job.Error)
 				jobMutex.Unlock()
-				return xerrors.New(job.Error)
+				return err
 			}
 			output := ""
 			switch log.Level {
@@ -173,14 +174,15 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 			case database.LogLevelInfo:
 				output = log.Output
 			}
+			jobMutex.Lock()
 			if log.Stage != currentStage && log.Stage != "" {
-				jobMutex.Lock()
 				updateStage(log.Stage, log.CreatedAt)
 				jobMutex.Unlock()
 				continue
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", Styles.Placeholder.Render(" "), output)
 			didLogBetweenStage = true
+			jobMutex.Unlock()
 		}
 	}
 }
