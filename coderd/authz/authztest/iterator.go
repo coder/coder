@@ -16,8 +16,9 @@ type iterator interface {
 
 // SetIterator is very primitive, just used to hold a place in a set.
 type SetIterator struct {
-	i   int
-	set Set
+	i      int
+	set    Set
+	buffer Set
 }
 
 func union(sets ...Set) *SetIterator {
@@ -26,8 +27,9 @@ func union(sets ...Set) *SetIterator {
 		all = append(all, set...)
 	}
 	return &SetIterator{
-		i:   0,
-		set: all,
+		i:      0,
+		set:    all,
+		buffer: make(Set, 1),
 	}
 }
 
@@ -37,7 +39,8 @@ func (si *SetIterator) Next() bool {
 }
 
 func (si *SetIterator) Permissions() Set {
-	return Set{si.set[si.i]}
+	si.buffer[0] = si.set[si.i]
+	return si.buffer
 }
 
 func (si *SetIterator) Permission() *Permission {
@@ -61,18 +64,21 @@ func (si *SetIterator) Iterator() iterator {
 }
 
 type productIterator struct {
-	i, j int
-	a    Set
-	b    Set
+	i, j   int
+	a      Set
+	b      Set
+	buffer Set
 }
 
 func product(a, b Set) *productIterator {
-	return &productIterator{
+	i := &productIterator{
 		i: 0,
 		j: 0,
 		a: a,
 		b: b,
 	}
+	i.buffer = make(Set, i.ReturnSize())
+	return i
 }
 
 func (s *productIterator) Next() bool {
@@ -88,7 +94,9 @@ func (s *productIterator) Next() bool {
 }
 
 func (s productIterator) Permissions() Set {
-	return Set{s.a[s.i], s.b[s.j]}
+	s.buffer[0] = s.a[s.i]
+	s.buffer[1] = s.b[s.j]
+	return s.buffer
 }
 
 func (s *productIterator) Reset() {
