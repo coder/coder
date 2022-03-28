@@ -69,12 +69,7 @@ func Validate(signature, document string, certificates Certificates) (Identity, 
 	if err != nil {
 		return Identity{}, xerrors.Errorf("decode signature: %w", err)
 	}
-	documentHash := sha256.New()
-	_, err = documentHash.Write([]byte(document))
-	if err != nil {
-		return Identity{}, xerrors.Errorf("write document hash: %w", err)
-	}
-	hashedDocument := documentHash.Sum(nil)
+	hashedDocument := sha256.Sum256([]byte(document))
 
 	for region, certificate := range certificates {
 		regionBlock, rest := pem.Decode([]byte(certificate))
@@ -89,7 +84,7 @@ func Validate(signature, document string, certificates Certificates) (Identity, 
 		if !valid {
 			return Identity{}, xerrors.Errorf("certificate for %q was not an rsa key", region)
 		}
-		err = rsa.VerifyPKCS1v15(regionPublicKey, crypto.SHA256, hashedDocument, rawSignature)
+		err = rsa.VerifyPKCS1v15(regionPublicKey, crypto.SHA256, hashedDocument[:], rawSignature)
 		if err != nil {
 			continue
 		}
