@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"net/url"
-	"os"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -14,6 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/peer"
 	"github.com/coder/retry"
@@ -23,6 +23,7 @@ func workspaceAgent() *cobra.Command {
 	var (
 		rawURL string
 		auth   string
+		token  string
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -40,11 +41,10 @@ func workspaceAgent() *cobra.Command {
 			client := codersdk.New(coderURL)
 			switch auth {
 			case "token":
-				sessionToken, exists := os.LookupEnv("CODER_TOKEN")
-				if !exists {
+				if token == "" {
 					return xerrors.Errorf("CODER_TOKEN must be set for token auth")
 				}
-				client.SessionToken = sessionToken
+				client.SessionToken = token
 			case "google-instance-identity":
 				// This is *only* done for testing to mock client authentication.
 				// This will never be set in a production scenario.
@@ -83,12 +83,10 @@ func workspaceAgent() *cobra.Command {
 			return closer.Close()
 		},
 	}
-	defaultAuth := os.Getenv("CODER_AUTH")
-	if defaultAuth == "" {
-		defaultAuth = "token"
-	}
-	cmd.Flags().StringVarP(&auth, "auth", "", defaultAuth, "Specify the authentication type to use for the agent.")
-	cmd.Flags().StringVarP(&rawURL, "url", "", os.Getenv("CODER_URL"), "Specify the URL to access Coder.")
+
+	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AUTH", "token", "Specify the authentication type to use for the agent")
+	cliflag.StringVarP(cmd.Flags(), &rawURL, "url", "", "CODER_URL", "", "Specify the URL to access Coder")
+	cliflag.StringVarP(cmd.Flags(), &auth, "token", "", "CODER_TOKEN", "", "Specifies the authentication token to access Coder")
 
 	return cmd
 }
