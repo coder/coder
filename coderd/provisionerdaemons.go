@@ -33,7 +33,9 @@ import (
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{

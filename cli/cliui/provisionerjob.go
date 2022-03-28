@@ -34,6 +34,8 @@ type ProvisionerJobOptions struct {
 	Logs   func() (<-chan codersdk.ProvisionerJobLog, error)
 
 	FetchInterval time.Duration
+	// Verbose determines whether debug and trace logs will be shown.
+	Verbose bool
 }
 
 // ProvisionerJob renders a provisioner job with interactive cancellation.
@@ -48,7 +50,7 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 		didLogBetweenStage    = false
 		ctx, cancelFunc       = context.WithCancel(cmd.Context())
 
-		errChan  = make(chan error)
+		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
 		jobMutex sync.Mutex
 	)
@@ -143,8 +145,6 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 			updateJob()
 		case log, ok := <-logs:
 			if !ok {
-				// The logs stream will end when the job does,
-				// so it's safe to
 				updateJob()
 				jobMutex.Lock()
 				if job.CompletedAt != nil {
@@ -165,9 +165,12 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 			}
 			output := ""
 			switch log.Level {
-			case database.LogLevelDebug:
-				continue
-			case database.LogLevelTrace, database.LogLevelError:
+			case database.LogLevelTrace, database.LogLevelDebug:
+				if !opts.Verbose {
+					continue
+				}
+				output = Styles.Placeholder.Render(log.Output)
+			case database.LogLevelError:
 				output = defaultStyles.Error.Render(log.Output)
 			case database.LogLevelWarn:
 				output = Styles.Warn.Render(log.Output)

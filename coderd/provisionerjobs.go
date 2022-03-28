@@ -138,7 +138,9 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	// See: https://canjs.com/doc/can-ndjson-stream.html
 	rw.Header().Set("Content-Type", "application/stream+json")
 	rw.WriteHeader(http.StatusOK)
-	rw.(http.Flusher).Flush()
+	if flusher, ok := rw.(http.Flusher); ok {
+		flusher.Flush()
+	}
 
 	// The Go stdlib JSON encoder appends a newline character after message write.
 	encoder := json.NewEncoder(rw)
@@ -161,7 +163,9 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			if err != nil {
 				return
 			}
-			rw.(http.Flusher).Flush()
+			if flusher, ok := rw.(http.Flusher); ok {
+				flusher.Flush()
+			}
 		case <-ticker.C:
 			job, err := api.Database.GetProvisionerJobByID(r.Context(), job.ID)
 			if err != nil {

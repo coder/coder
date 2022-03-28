@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
+	"path/filepath"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -25,6 +25,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
@@ -40,10 +41,12 @@ import (
 
 func start() *cobra.Command {
 	var (
-		accessURL              string
-		address                string
-		dev                    bool
-		postgresURL            string
+		accessURL   string
+		address     string
+		cacheDir    string
+		dev         bool
+		postgresURL string
+		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount uint8
 		tlsCertFile            string
 		tlsClientCAFile        string
@@ -57,10 +60,6 @@ func start() *cobra.Command {
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			printLogo(cmd)
-			if postgresURL == "" {
-				// Default to the environment variable!
-				postgresURL = os.Getenv("CODER_PG_CONNECTION_URL")
-			}
 
 			listener, err := net.Listen("tcp", address)
 			if err != nil {
@@ -163,8 +162,8 @@ func start() *cobra.Command {
 			}
 
 			provisionerDaemons := make([]*provisionerd.Server, 0)
-			for i := uint8(0); i < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger)
+			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -305,46 +304,29 @@ func start() *cobra.Command {
 			return nil
 		},
 	}
-	defaultAddress := os.Getenv("CODER_ADDRESS")
-	if defaultAddress == "" {
-		defaultAddress = "127.0.0.1:3000"
-	}
-	root.Flags().StringVarP(&accessURL, "access-url", "", os.Getenv("CODER_ACCESS_URL"), "Specifies the external URL to access Coder (uses $CODER_ACCESS_URL).")
-	root.Flags().StringVarP(&address, "address", "a", defaultAddress, "The address to serve the API and dashboard (uses $CODER_ADDRESS).")
-	defaultDev, _ := strconv.ParseBool(os.Getenv("CODER_DEV_MODE"))
-	root.Flags().BoolVarP(&dev, "dev", "", defaultDev, "Serve Coder in dev mode for tinkering (uses $CODER_DEV_MODE).")
-	root.Flags().StringVarP(&postgresURL, "postgres-url", "", "",
-		"URL of a PostgreSQL database to connect to (defaults to $CODER_PG_CONNECTION_URL).")
-	root.Flags().Uint8VarP(&provisionerDaemonCount, "provisioner-daemons", "", 1, "The amount of provisioner daemons to create on start.")
-	defaultTLSEnable, _ := strconv.ParseBool(os.Getenv("CODER_TLS_ENABLE"))
-	root.Flags().BoolVarP(&tlsEnable, "tls-enable", "", defaultTLSEnable, "Specifies if TLS will be enabled (uses $CODER_TLS_ENABLE).")
-	root.Flags().StringVarP(&tlsCertFile, "tls-cert-file", "", os.Getenv("CODER_TLS_CERT_FILE"),
+
+	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
+	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
+	// systemd uses the CACHE_DIRECTORY environment variable!
+	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), ".coder-cache"), "Specifies a directory to cache binaries for provision operations.")
+	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
+	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
+	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
+	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
+	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
-			"and the CA certificate together. The primary certificate should appear first in the combined file (uses $CODER_TLS_CERT_FILE).")
-	root.Flags().StringVarP(&tlsClientCAFile, "tls-client-ca-file", "", os.Getenv("CODER_TLS_CLIENT_CA_FILE"),
-		"PEM-encoded Certificate Authority file used for checking the authenticity of client (uses $CODER_TLS_CLIENT_CA_FILE).")
-	defaultTLSClientAuth := os.Getenv("CODER_TLS_CLIENT_AUTH")
-	if defaultTLSClientAuth == "" {
-		defaultTLSClientAuth = "request"
-	}
-	root.Flags().StringVarP(&tlsClientAuth, "tls-client-auth", "", defaultTLSClientAuth,
+			"and the CA certificate together. The primary certificate should appear first in the combined file")
+	cliflag.StringVarP(root.Flags(), &tlsClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
+		"PEM-encoded Certificate Authority file used for checking the authenticity of client")
+	cliflag.StringVarP(root.Flags(), &tlsClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
 		`Specifies the policy the server will follow for TLS Client Authentication. `+
-			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify" (uses $CODER_TLS_CLIENT_AUTH).`)
-	root.Flags().StringVarP(&tlsKeyFile, "tls-key-file", "", os.Getenv("CODER_TLS_KEY_FILE"),
-		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file (uses $CODER_TLS_KEY_FILE).")
-	defaultTLSMinVersion := os.Getenv("CODER_TLS_MIN_VERSION")
-	if defaultTLSMinVersion == "" {
-		defaultTLSMinVersion = "tls12"
-	}
-	root.Flags().StringVarP(&tlsMinVersion, "tls-min-version", "", defaultTLSMinVersion,
-		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13" (uses $CODER_TLS_MIN_VERSION).`)
-	defaultTunnelRaw := os.Getenv("CODER_DEV_TUNNEL")
-	if defaultTunnelRaw == "" {
-		defaultTunnelRaw = "true"
-	}
-	defaultTunnel, _ := strconv.ParseBool(defaultTunnelRaw)
-	root.Flags().BoolVarP(&useTunnel, "tunnel", "", defaultTunnel, "Serve dev mode through a Cloudflare Tunnel for easy setup (uses $CODER_DEV_TUNNEL).")
+			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`)
+	cliflag.StringVarP(root.Flags(), &tlsKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
+		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
+	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
+		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
+	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", false, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
 
 	return root
@@ -380,14 +362,15 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	return nil
 }
 
-func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger) (*provisionerd.Server, error) {
+func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string) (*provisionerd.Server, error) {
 	terraformClient, terraformServer := provisionersdk.TransportPipe()
 	go func() {
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			Logger: logger,
+			CachePath: cacheDir,
+			Logger:    logger,
 		})
 		if err != nil {
 			panic(err)

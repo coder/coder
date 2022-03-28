@@ -64,7 +64,9 @@ func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) workspaceResourceDial(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
 	resource := httpmw.WorkspaceResourceParam(r)
@@ -112,7 +114,9 @@ func (api *api) workspaceResourceDial(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
 	agent := httpmw.WorkspaceAgent(r)

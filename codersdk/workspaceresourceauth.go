@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"cloud.google.com/go/compute/metadata"
@@ -12,6 +13,11 @@ import (
 
 type GoogleInstanceIdentityToken struct {
 	JSONWebToken string `json:"json_web_token" validate:"required"`
+}
+
+type AWSInstanceIdentityToken struct {
+	Signature string `json:"signature" validate:"required"`
+	Document  string `json:"document" validate:"required"`
 }
 
 // WorkspaceAgentAuthenticateResponse is returned when an instance ID
@@ -39,6 +45,71 @@ func (c *Client) AuthWorkspaceGoogleInstanceIdentity(ctx context.Context, servic
 	}
 	res, err := c.request(ctx, http.MethodPost, "/api/v2/workspaceresources/auth/google-instance-identity", GoogleInstanceIdentityToken{
 		JSONWebToken: jwt,
+	})
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentAuthenticateResponse{}, readBodyAsError(res)
+	}
+	var resp WorkspaceAgentAuthenticateResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// AuthWorkspaceAWSInstanceIdentity uses the Amazon Metadata API to
+// fetch a signed payload, and exchange it for a session token for a workspace agent.
+//
+// The requesting instance must be registered as a resource in the latest history for a workspace.
+func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context) (WorkspaceAgentAuthenticateResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://169.254.169.254/latest/api/token", nil)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, nil
+	}
+	req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "21600")
+	res, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, err
+	}
+	defer res.Body.Close()
+	token, err := io.ReadAll(res.Body)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
+	}
+
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, nil
+	}
+	req.Header.Set("X-aws-ec2-metadata-token", string(token))
+	res, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, err
+	}
+	defer res.Body.Close()
+	signature, err := io.ReadAll(res.Body)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
+	}
+
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, nil
+	}
+	req.Header.Set("X-aws-ec2-metadata-token", string(token))
+	res, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, err
+	}
+	defer res.Body.Close()
+	document, err := io.ReadAll(res.Body)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
+	}
+
+	res, err = c.request(ctx, http.MethodPost, "/api/v2/workspaceresources/auth/aws-instance-identity", AWSInstanceIdentityToken{
+		Signature: string(signature),
+		Document:  string(document),
 	})
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, err
