@@ -17,7 +17,7 @@ interface FormHelpers {
   helperText?: string
 }
 
-export function getFormHelpers<T>(form: FormikContextType<T>, name: string): FormHelpers {
+export const getFormHelpers = <T>(form: FormikContextType<T>, name: string): FormHelpers => {
   // getIn is a util function from Formik that gets at any depth of nesting, and is necessary for the types to work
   const touched = getIn(form.touched, name)
   const errors = getIn(form.errors, name)
@@ -29,9 +29,9 @@ export function getFormHelpers<T>(form: FormikContextType<T>, name: string): For
   }
 }
 
-export function onChangeTrimmed<T>(form: FormikContextType<T>): (event: ChangeEvent<HTMLInputElement>) => void {
-  return (event: ChangeEvent<HTMLInputElement>): void => {
+export const onChangeTrimmed =
+  <T>(form: FormikContextType<T>) =>
+  (event: ChangeEvent<HTMLInputElement>): void => {
     event.target.value = event.target.value.trim()
     form.handleChange(event)
   }
-}
