@@ -14,7 +14,7 @@ Provision remote development environments with Terraform.
 
 Install [the latest release](https://github.com/coder/coder/releases).
 
-To tinker, start with dev-mode (all data is in-memory):
+To tinker, start with dev-mode (all data is in-memory, and is destroyed on exit):
 
 ```bash
 $ coder start --dev
@@ -23,24 +23,42 @@ $ coder start --dev
 To run a production deployment with PostgreSQL:
 
 ```bash
-$ CODER_PG_CONNECTION_URL="..." coder start
+$ CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
+    coder start
 ```
 
-To run as a daemon, use the provided service (Linux only):
+To run as a system service, install with `.deb` or `.rpm`:
 
 ```bash
+# Edit the configuration!
 $ sudo vim /etc/coder.d/coder.env
 $ sudo service coder restart
 ```
 
+### Your First Workspace
+
+In a new terminal, create a new project (eg. Develop in Linux on Google Cloud):
+
+```
+$ coder projects init
+$ coder projects create
+```
+
+Create a new workspace and SSH in:
+
+```
+$ coder workspaces create my-first-workspace
+$ coder ssh my-first-workspace
+```
+
 ## Development
 
-Code structure is inspired by [Basics of Unix Philosophy](https://homepage.cs.uri.edu/~thenry/resources/unix_art/ch01s06.html) and [Effective Go](https://go.dev/doc/effective_go); these should be read prior to contributing.
+The code structure is inspired by [Basics of Unix Philosophy](https://homepage.cs.uri.edu/~thenry/resources/unix_art/ch01s06.html) and [Effective Go](https://go.dev/doc/effective_go).
 
-Requires Go 1.18+, Node 14+, and GNU Make.
+Coder requires Go 1.18+, Node 14+, and GNU Make.
 
-- `make bin` build binaries
-- `make install` install binaries to `$GOPATH/bin`
+- `make bin` builds binaries
+- `make install` installs binaries to `$GOPATH/bin`
 - `make test`
-- `make release` dry-run a new release
+- `make release` dry-runs a new release
 - `./develop.sh` hot-reloads for frontend development
