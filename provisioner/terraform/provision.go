@@ -80,7 +80,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			_ = stream.Send(&proto.Provision_Response{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
-						Level:  proto.LogLevel_INFO,
+						Level:  proto.LogLevel_DEBUG,
 						Output: scanner.Text(),
 					},
 				},

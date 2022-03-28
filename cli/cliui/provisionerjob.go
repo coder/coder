@@ -22,9 +22,6 @@ func WorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, build uuid.UUID
 			build, err := client.WorkspaceBuild(cmd.Context(), build)
 			return build.Job, err
 		},
-		Cancel: func() error {
-			return client.CancelWorkspaceBuild(cmd.Context(), build)
-		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
 			return client.WorkspaceBuildLogsAfter(cmd.Context(), build, before)
 		},
@@ -104,29 +101,31 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 	}
 	updateJob()
 
-	// Handles ctrl+c to cancel a job.
-	stopChan := make(chan os.Signal, 1)
-	defer signal.Stop(stopChan)
-	go func() {
-		signal.Notify(stopChan, os.Interrupt)
-		select {
-		case <-ctx.Done():
-			return
-		case _, ok := <-stopChan:
-			if !ok {
+	if opts.Cancel != nil {
+		// Handles ctrl+c to cancel a job.
+		stopChan := make(chan os.Signal, 1)
+		defer signal.Stop(stopChan)
+		go func() {
+			signal.Notify(stopChan, os.Interrupt)
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-stopChan:
+				if !ok {
+					return
+				}
+			}
+			// Stop listening for signals so another one kills it!
+			signal.Stop(stopChan)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling...")+"\n\n")
+			err := opts.Cancel()
+			if err != nil {
+				errChan <- xerrors.Errorf("cancel: %w", err)
 				return
 			}
-		}
-		// Stop listening for signals so another one kills it!
-		signal.Stop(stopChan)
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling... wait for exit or data loss may occur!")+"\n\n")
-		err := opts.Cancel()
-		if err != nil {
-			errChan <- xerrors.Errorf("cancel: %w", err)
-			return
-		}
-		updateJob()
-	}()
+			updateJob()
+		}()
+	}
 
 	logs, err := opts.Logs()
 	if err != nil {
@@ -165,7 +164,9 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 			}
 			output := ""
 			switch log.Level {
-			case database.LogLevelTrace, database.LogLevelDebug, database.LogLevelError:
+			case database.LogLevelDebug:
+				continue
+			case database.LogLevelTrace, database.LogLevelError:
 				output = defaultStyles.Error.Render(log.Output)
 			case database.LogLevelWarn:
 				output = Styles.Warn.Render(log.Output)
