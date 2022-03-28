@@ -14,9 +14,9 @@ on:
   workflow_dispatch:
     inputs:
       iterationCount:
-        description: 'Iteration Count'     
+        description: "Iteration Count"
         required: false
-        default: '10'
+        default: "10"
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes, and serialize builds in branches.
@@ -43,7 +43,7 @@ jobs:
 
       - uses: actions/setup-go@v2
         with:
-          go-version: "^1.17"
+          go-version: "~1.18"
 
       - uses: actions/cache@v3
         with:

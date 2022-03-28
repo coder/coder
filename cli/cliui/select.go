@@ -35,12 +35,15 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 		Templates: &promptui.SelectTemplates{
 			FuncMap: template.FuncMap{
 				"faint": func(value interface{}) string {
+					//nolint:forcetypeassert
 					return Styles.Placeholder.Render(value.(string))
 				},
 				"subtle": func(value interface{}) string {
+					//nolint:forcetypeassert
 					return defaultStyles.Subtle.Render(value.(string))
 				},
 				"selected": func(value interface{}) string {
+					//nolint:forcetypeassert
 					return defaultStyles.Keyword.Render("> " + value.(string))
 					// return defaultStyles.SelectedMenuItem.Render("> " + value.(string))
 				},
