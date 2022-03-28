@@ -88,3 +88,6 @@ site/out:
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
 .PHONY: site/out
+
+test:
+	gotestsum -- -v -short ./...
