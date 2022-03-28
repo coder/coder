@@ -1,81 +1,64 @@
-[![coder](https://github.com/coder/coder/actions/workflows/coder.yaml/badge.svg)](https://github.com/coder/coder/actions/workflows/coder.yaml)
-[![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
+# Coder
 
-# Coder v2
+[!["GitHub Discussions"](https://img.shields.io/badge/%20GitHub-%20Discussions-gray.svg?longCache=true&logo=github&colorB=purple)](https://github.com/coder/coder/discussions) [!["Join us on Slack"](https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=brightgreen)](https://coder.com/community) [![Twitter Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq) [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-This repository contains source code for Coder V2. Additional documentation:
+Provision remote development environments with Terraform.
 
-- [Workspaces V2 RFC](https://www.notion.so/coderhq/b48040da8bfe46eca1f32749b69420dd?v=a4e7d23495094644b939b08caba8e381&p=e908a8cd54804ddd910367abf03c8d0a)
+## Highlights
 
-## Directory Structure
+- Automate development environments for Linux, Windows, and MacOS in your cloud
+- Start writing code with a single command
+- Use one of many [examples](./examples) to get started
 
-- `.github/`: Settings for [Dependabot for updating dependencies](https://docs.github.com/en/code-security/supply-chain-security/customizing-dependency-updates) and [build/deploy pipelines with GitHub Actions](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions).
-  - [`semantic.yaml`](./github/semantic.yaml): Configuration for [semantic pull requests](https://github.com/apps/semantic-pull-requests)
-- `examples`: Example terraform project templates.
-- `site`: Front-end UI code.
+## Getting Started
+
+Install [the latest release](https://github.com/coder/coder/releases).
+
+To tinker, start with dev-mode (all data is in-memory, and is destroyed on exit):
+
+```bash
+$ coder start --dev
+```
+
+To run a production deployment with PostgreSQL:
+
+```bash
+$ CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
+    coder start
+```
+
+To run as a system service, install with `.deb` or `.rpm`:
+
+```bash
+# Edit the configuration!
+$ sudo vim /etc/coder.d/coder.env
+$ sudo service coder restart
+```
+
+### Your First Workspace
+
+In a new terminal, create a new project (eg. Develop in Linux on Google Cloud):
+
+```
+$ coder projects init
+$ coder projects create
+```
+
+Create a new workspace and SSH in:
+
+```
+$ coder workspaces create my-first-workspace
+$ coder ssh my-first-workspace
+```
 
 ## Development
 
-### Pre-requisites
+The code structure is inspired by [Basics of Unix Philosophy](https://homepage.cs.uri.edu/~thenry/resources/unix_art/ch01s06.html) and [Effective Go](https://go.dev/doc/effective_go).
 
-- `git`
-- `go` version 1.17, with the `GOPATH` environment variable set
-- `node`
-- `yarn`
+Coder requires Go 1.18+, Node 14+, and GNU Make.
 
-### Cloning
-
-- `git clone https://github.com/coder/coder`
-- `cd coder`
-
-### Building
-
-- `make build`
-- `make install`
-
-The `coder` CLI binary will now be available at `$GOPATH/bin/coder`
-
-### Running
-
-After building, the binaries will be available at:
-- `dist/coder_{os}_{arch}/coder`
-
-For the purpose of these steps, an OS of `linux` and an arch of `amd64` is assumed.
-
-To manually run the server and go through first-time set up, run the following commands in separate terminals:
-- `dist/coder_linux_amd64/coder daemon` <-- starts the Coder server on port 3000
-- `dist/coder_linux_amd64/coder login http://localhost:3000` <-- runs through first-time setup, creating a user and org
-
-You'll now be able to login and access the server.
-
-- `dist/coder_linux_amd64/coder projects create -d /path/to/project`
-
-### Development
-
-- `./develop.sh`
-
-The `develop.sh` script does three things:
-
-- runs `coder daemon` locally on port `3000`
-- runs `webpack-dev-server` on port `8080`
-- sets up an initial user and organization
-
-This is the recommend flow for working on the front-end, as hot-reload is set up as part of the webpack config.
-
-Note that `./develop.sh` creates a user and allows you to log into the UI, but does not log you into the CLI, which is required for creating a project. Use the `login` command above before the `projects create` command.
-
-While we're working on automating XState typegen, you may need to run `yarn typegen` from `site`.
-
-## Front-End Plan
-
-For the front-end team, we're planning on 2 phases to the 'v2' work:
-
-### Phase 1
-
-Phase 1 is the 'new-wine-in-an-old-bottle' approach - we want to preserve the look and feel (UX) of v1, while testing and validating the market fit of our new v2 provisioner model. This means that we'll preserve Material UI and re-use components from v1 (porting them over to the v2 codebase).
-
-### Phase 2
-
-Phase 2 is the 'new-wine-in-a-new-bottle' - which we can do once we've successfully packaged the new wine in the old bottle.
-
-In other words, once we've validated that the new strategy fits and is desirable for our customers, we'd like to build a new, v2-native UI (leveraging designers on the team to build a first-class experience around the new provisioner model).
+- `make bin` builds binaries
+- `make install` installs binaries to `$GOPATH/bin`
+- `make test`
+- `make release` dry-runs a new release
+- `./develop.sh` hot-reloads for frontend development
