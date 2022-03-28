@@ -25,8 +25,6 @@ func TestProjectInit(t *testing.T) {
 			err := cmd.Execute()
 			require.NoError(t, err)
 		}()
-		pty.ExpectMatch("Develop in Linux")
-		pty.WriteLine("")
 		<-doneChan
 		files, err := os.ReadDir(tempDir)
 		require.NoError(t, err)

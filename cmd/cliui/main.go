@@ -63,10 +63,11 @@ func main() {
 	root.AddCommand(&cobra.Command{
 		Use: "select",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := cliui.Select(cmd, cliui.SelectOptions{
+			value, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
 			})
+			fmt.Printf("Selected: %q\n", value)
 			return err
 		},
 	})
