@@ -16,15 +16,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/briandowns/spinner"
-	"github.com/coreos/go-systemd/daemon"
-	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
-	"google.golang.org/api/idtoken"
-	"google.golang.org/api/option"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/briandowns/spinner"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
@@ -37,6 +31,12 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coreos/go-systemd/daemon"
+	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/api/option"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 func start() *cobra.Command {
@@ -55,12 +55,17 @@ func start() *cobra.Command {
 		tlsKeyFile             string
 		tlsMinVersion          string
 		useTunnel              bool
+		traceDatadog           bool
 	)
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			printLogo(cmd)
+			if traceDatadog {
+				tracer.Start()
+				defer tracer.Stop()
+			}
 
+			printLogo(cmd)
 			listener, err := net.Listen("tcp", address)
 			if err != nil {
 				return xerrors.Errorf("listen %q: %w", address, err)
@@ -328,6 +333,7 @@ func start() *cobra.Command {
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", false, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
+	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
 
 	return root
 }

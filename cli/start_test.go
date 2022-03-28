@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -198,6 +199,21 @@ func TestStart(t *testing.T) {
 		err = currentProcess.Signal(os.Interrupt)
 		require.NoError(t, err)
 		<-done
+	})
+	t.Run("DatadogTracerNoLeak", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0", "--trace-datadog=true")
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			err := root.ExecuteContext(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+		}()
+		cancelFunc()
+		<-done
+		require.Error(t, goleak.Find())
 	})
 }
 

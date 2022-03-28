@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/site"
+	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
 )
 
 // Options are requires parameters for Coder to start.
@@ -43,6 +44,7 @@ func New(options *Options) (http.Handler, func()) {
 
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
+		r.Use(chitrace.Middleware())
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
 				Message: "👋",
