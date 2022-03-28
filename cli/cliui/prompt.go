@@ -36,7 +36,7 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 	signal.Notify(interrupt, os.Interrupt)
 	defer signal.Stop(interrupt)
 
-	errCh := make(chan error)
+	errCh := make(chan error, 1)
 	lineCh := make(chan string)
 	go func() {
 		var line string

@@ -176,7 +176,11 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-					close(completeChan)
+					select {
+					case <-completeChan:
+					default:
+						close(completeChan)
+					}
 					return &proto.UpdateJobResponse{}, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
