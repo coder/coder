@@ -89,10 +89,7 @@ site/out:
 	git checkout HEAD site/out
 .PHONY: site/out
 
-lint/go:
+lint:
 	@echo "--- golangci-lint"
 	golangci-lint run
-.PHONY: lint/go
-
-lint: lint/go
 .PHONY: lint
