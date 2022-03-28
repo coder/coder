@@ -1,6 +1,4 @@
 // Package cliflags extends flagset with environment variable defaults.
-// Helpers will set flags to their default value if the environment variable and flag are unset.
-// Helpers inject environment variable into flag usage docs if provided.
 //
 // Usage:
 //
@@ -68,5 +66,5 @@ func fmtUsage(u string, env string) string {
 		return fmt.Sprintf("%s.", u)
 	}
 
-	return fmt.Sprintf("%s (uses $%s).", u, env)
+	return fmt.Sprintf("%s - consumes $%s.", u, env)
 }

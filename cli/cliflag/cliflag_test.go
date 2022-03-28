@@ -15,7 +15,6 @@ import (
 // Testcliflag cannot run in parallel because it uses t.Setenv.
 //nolint:paralleltest
 func TestCliflag(t *testing.T) {
-
 	t.Run("StringDefault", func(t *testing.T) {
 		var p string
 		flagset, name, shorthand, env, usage := randomFlag()
@@ -26,7 +25,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("(uses $%s).", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
 	})
 
 	t.Run("StringEnvVar", func(t *testing.T) {
@@ -44,16 +43,15 @@ func TestCliflag(t *testing.T) {
 
 	t.Run("EmptyEnvVar", func(t *testing.T) {
 		var p string
-		flagset, name, shorthand, env, usage := randomFlag()
-		env = ""
+		flagset, name, shorthand, _, usage := randomFlag()
 		def, _ := cryptorand.String(10)
 
-		cliflag.StringVarP(flagset, &p, name, shorthand, env, def, usage)
+		cliflag.StringVarP(flagset, &p, name, shorthand, "", def, usage)
 		got, err := flagset.GetString(name)
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.NotContains(t, flagset.FlagUsages(), fmt.Sprintf("(uses $%s).", env))
+		require.NotContains(t, flagset.FlagUsages(), " - consumes")
 	})
 
 	t.Run("IntDefault", func(t *testing.T) {
@@ -66,7 +64,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint8(def), got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("(uses $%s).", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
 	})
 
 	t.Run("IntEnvVar", func(t *testing.T) {
@@ -105,7 +103,7 @@ func TestCliflag(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, def, got)
 		require.Contains(t, flagset.FlagUsages(), usage)
-		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf("(uses $%s).", env))
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
 	})
 
 	t.Run("BoolEnvVar", func(t *testing.T) {
