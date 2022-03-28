@@ -5,7 +5,7 @@ import { history, render } from "../test_helpers"
 import { SignInPage } from "./login"
 import { server } from "../test_helpers/server"
 import { rest } from "msw"
-import { LANGUAGE } from "../components/SignIn/SignInForm"
+import { Language } from "../components/SignIn/SignInForm"
 
 describe("SignInPage", () => {
   beforeEach(() => {
@@ -23,7 +23,7 @@ describe("SignInPage", () => {
     render(<SignInPage />)
 
     // Then
-    await screen.findByText(LANGUAGE.signIn, { exact: false })
+    await screen.findByText(Language.signIn, { exact: false })
   })
 
   it("shows an error message if SignIn fails", async () => {
@@ -38,17 +38,17 @@ describe("SignInPage", () => {
 
     // When
     // Set email / password
-    const email = screen.getByLabelText(LANGUAGE.emailLabel)
-    const password = screen.getByLabelText(LANGUAGE.passwordLabel)
+    const email = screen.getByLabelText(Language.emailLabel)
+    const password = screen.getByLabelText(Language.passwordLabel)
     userEvent.type(email, "test@coder.com")
     userEvent.type(password, "password")
     // Click sign-in
-    const signInButton = await screen.findByText(LANGUAGE.signIn)
+    const signInButton = await screen.findByText(Language.signIn)
     act(() => signInButton.click())
 
     // Then
     // Finding error by test id because it comes from the backend
-    const errorMessage = await screen.findByText(LANGUAGE.authErrorMessage)
+    const errorMessage = await screen.findByText(Language.authErrorMessage)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
   })

@@ -19,7 +19,7 @@ interface BuiltInAuthFormValues {
   password: string
 }
 
-export const LANGUAGE = {
+export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   emailInvalid: "Please enter a valid email address.",
@@ -29,7 +29,7 @@ export const LANGUAGE = {
 }
 
 const validationSchema = Yup.object({
-  email: Yup.string().trim().email(LANGUAGE.emailInvalid).required(LANGUAGE.emailRequired),
+  email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
   password: Yup.string(),
 })
 
@@ -76,7 +76,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
           autoComplete="email"
           className={styles.loginTextField}
           fullWidth
-          label={LANGUAGE.emailLabel}
+          label={Language.emailLabel}
           variant="outlined"
         />
         <TextField
@@ -85,18 +85,18 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
           className={styles.loginTextField}
           fullWidth
           id="password"
-          label={LANGUAGE.passwordLabel}
+          label={Language.passwordLabel}
           type="password"
           variant="outlined"
         />
         {authErrorMessage && (
           <FormHelperText data-testid="sign-in-error" error>
-            {LANGUAGE.authErrorMessage}
+            {Language.authErrorMessage}
           </FormHelperText>
         )}
         <div className={styles.submitBtn}>
           <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
-            {isLoading ? "" : LANGUAGE.signIn}
+            {isLoading ? "" : Language.signIn}
           </LoadingButton>
         </div>
       </form>
