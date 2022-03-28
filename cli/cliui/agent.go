@@ -46,19 +46,25 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 	defer ticker.Stop()
 	timer := time.NewTimer(opts.WarnInterval)
 	defer timer.Stop()
+	go func() {
+		select {
+		case <-cmd.Context().Done():
+			return
+		case <-timer.C:
+		}
+		message := "Don't panic, your workspace is booting up!"
+		if resource.Agent.Status == codersdk.WorkspaceAgentDisconnected {
+			message = "The workspace agent lost connection! Wait for it to reconnect or run: " + Styles.Code.Render("coder workspaces rebuild "+opts.WorkspaceName)
+		}
+		// This saves the cursor position, then defers clearing from the cursor
+		// position to the end of the screen.
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[s\r\033[2K%s\n\n", Styles.Paragraph.Render(Styles.Prompt.String()+message))
+		defer fmt.Fprintf(cmd.OutOrStdout(), "\033[u\033[J")
+	}()
 	for {
 		select {
 		case <-cmd.Context().Done():
 			return cmd.Context().Err()
-		case <-timer.C:
-			message := "Don't panic, your workspace is booting up!"
-			if resource.Agent.Status == codersdk.WorkspaceAgentDisconnected {
-				message = "The workspace agent lost connection! Wait for it to reconnect or run: " + Styles.Code.Render("coder workspaces rebuild "+opts.WorkspaceName)
-			}
-			// This saves the cursor position, then defers clearing from the cursor
-			// position to the end of the screen.
-			fmt.Fprintf(cmd.OutOrStdout(), "\033[s\r\033[2K%s\n\n", Styles.Paragraph.Render(Styles.Prompt.String()+message))
-			defer fmt.Fprintf(cmd.OutOrStdout(), "\033[u\033[J")
 		case <-ticker.C:
 		}
 		resource, err = opts.Fetch(cmd.Context())

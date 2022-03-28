@@ -460,7 +460,7 @@ func convertTerraformLogLevel(logLevel string) (proto.LogLevel, error) {
 // children nodes. This parses GraphViz output from Terraform which
 // certainly is not ideal, but seems reliable.
 func findDirectDependencies(rawGraph string) (map[string][]string, error) {
-	parsedGraph, err := gographviz.ParseString(string(rawGraph))
+	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
 	}
