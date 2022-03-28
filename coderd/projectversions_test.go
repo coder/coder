@@ -94,9 +94,7 @@ func TestPatchCancelProjectVersion(t *testing.T) {
 			var err error
 			version, err = client.ProjectVersion(context.Background(), version.ID)
 			require.NoError(t, err)
-			// The echo provisioner doesn't respond to a shutdown request,
-			// so the job cancel will time out and fail.
-			return version.Job.Status == codersdk.ProvisionerJobFailed
+			return version.Job.Status == codersdk.ProvisionerJobCanceled
 		}, 5*time.Second, 25*time.Millisecond)
 	})
 }
@@ -274,6 +272,10 @@ func TestProjectVersionLogs(t *testing.T) {
 	t.Cleanup(cancelFunc)
 	logs, err := client.ProjectVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
-	log := <-logs
-	require.Equal(t, "example", log.Output)
+	for {
+		_, ok := <-logs
+		if !ok {
+			return
+		}
+	}
 }

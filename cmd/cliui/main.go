@@ -94,7 +94,7 @@ func main() {
 				job.Status = codersdk.ProvisionerJobSucceeded
 			}()
 
-			_, err := cliui.Job(cmd, cliui.JobOptions{
+			err := cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					return job, nil
 				},
@@ -102,16 +102,42 @@ func main() {
 					logs := make(chan codersdk.ProvisionerJobLog)
 					go func() {
 						defer close(logs)
-						ticker := time.NewTicker(500 * time.Millisecond)
+						ticker := time.NewTicker(100 * time.Millisecond)
+						defer ticker.Stop()
+						count := 0
 						for {
 							select {
 							case <-cmd.Context().Done():
 								return
 							case <-ticker.C:
-								logs <- codersdk.ProvisionerJobLog{
-									Output: "Some log",
-									Level:  database.LogLevelInfo,
+								if job.Status == codersdk.ProvisionerJobSucceeded || job.Status == codersdk.ProvisionerJobCanceled {
+									return
 								}
+								log := codersdk.ProvisionerJobLog{
+									CreatedAt: time.Now(),
+									Output:    fmt.Sprintf("Some log %d", count),
+									Level:     database.LogLevelInfo,
+								}
+								switch {
+								case count == 10:
+									log.Stage = "Setting Up"
+								case count == 20:
+									log.Stage = "Executing Hook"
+								case count == 30:
+									log.Stage = "Parsing Variables"
+								case count == 40:
+									log.Stage = "Provisioning"
+								case count == 50:
+									log.Stage = "Cleaning Up"
+								}
+								if count%5 == 0 {
+									log.Level = database.LogLevelWarn
+								}
+								count++
+								if log.Output == "" && log.Stage == "" {
+									continue
+								}
+								logs <- log
 							}
 						}
 					}()

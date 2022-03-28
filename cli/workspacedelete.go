@@ -32,8 +32,7 @@ func workspaceDelete() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = cliui.Job(cmd, cliui.JobOptions{
-				Title: "Deleting workspace...",
+			err = cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					build, err := client.WorkspaceBuild(cmd.Context(), build.ID)
 					return build.Job, err

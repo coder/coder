@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS provisioner_job_logs (
     created_at timestamptz NOT NULL,
     source log_source NOT NULL,
     level log_level NOT NULL,
+    stage varchar(128) NOT NULL,
     output varchar(1024) NOT NULL
 );
 
