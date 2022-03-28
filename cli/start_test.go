@@ -201,12 +201,9 @@ func TestStart(t *testing.T) {
 		<-done
 	})
 	t.Run("DatadogTracerNoLeak", func(t *testing.T) {
-		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		os.Setenv("CODER_TRACE_DATADOG", "true")
-		defer os.Unsetenv("CODER_TRACE_DATADOG")
-		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0")
+		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0", "--trace-datadog=true")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
