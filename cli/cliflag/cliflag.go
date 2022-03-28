@@ -1,4 +1,4 @@
-// Package cliflags extends flagset with environment variable defaults.
+// Package cliflag extends flagset with environment variable defaults.
 //
 // Usage:
 //
