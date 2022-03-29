@@ -258,7 +258,6 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 			if resource.Agent == nil {
 				continue
 			}
-			// fmt.Printf("resources: %+v\n", resource.Agent)
 			if resource.Agent.FirstConnectedAt == nil {
 				return false
 			}

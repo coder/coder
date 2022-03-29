@@ -3,6 +3,7 @@ package cliui
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -19,6 +20,7 @@ type AgentOptions struct {
 	WarnInterval  time.Duration
 }
 
+// Agent displays a spinning indicator that waits for a workspace agent to connect.
 func Agent(cmd *cobra.Command, opts AgentOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
@@ -26,6 +28,7 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 	if opts.WarnInterval == 0 {
 		opts.WarnInterval = 30 * time.Second
 	}
+	var resourceMutex sync.Mutex
 	resource, err := opts.Fetch(cmd.Context())
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
@@ -52,6 +55,8 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 			return
 		case <-timer.C:
 		}
+		resourceMutex.Lock()
+		defer resourceMutex.Unlock()
 		message := "Don't panic, your workspace is booting up!"
 		if resource.Agent.Status == codersdk.WorkspaceAgentDisconnected {
 			message = "The workspace agent lost connection! Wait for it to reconnect or run: " + Styles.Code.Render("coder workspaces rebuild "+opts.WorkspaceName)
@@ -67,13 +72,16 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 			return cmd.Context().Err()
 		case <-ticker.C:
 		}
+		resourceMutex.Lock()
 		resource, err = opts.Fetch(cmd.Context())
 		if err != nil {
 			return xerrors.Errorf("fetch: %w", err)
 		}
 		if resource.Agent.Status != codersdk.WorkspaceAgentConnected {
+			resourceMutex.Unlock()
 			continue
 		}
+		resourceMutex.Unlock()
 		return nil
 	}
 }

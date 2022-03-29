@@ -9,13 +9,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/api/idtoken"
 
+	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/site"
-	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
 )
 
 // Options are requires parameters for Coder to start.
