@@ -31,7 +31,8 @@ builds:
     goarch: [amd64, arm64]
 
 nfpms:
-  - vendor: Coder
+  - id: packages
+    vendor: Coder
     homepage: https://coder.com
     maintainer: Coder <support@coder.com>
     description: |
@@ -53,4 +54,4 @@ nfpms:
         dst: /usr/lib/systemd/system/coder.service
 
 release:
-  ids: [coder]
+  ids: [coder, packages]
