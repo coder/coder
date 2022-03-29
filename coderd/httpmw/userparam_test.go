@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
@@ -32,18 +33,20 @@ func TestUserParam(t *testing.T) {
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
-		_, err := db.InsertUser(r.Context(), database.InsertUserParams{
-			ID: "bananas",
+		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
+			ID: uuid.New(),
 		})
 		require.NoError(t, err)
+
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
-			UserID:       "bananas",
+			UserID:       user.ID,
 			HashedSecret: hashed[:],
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
+
 		return db, rw, r
 	}
 
@@ -82,7 +85,7 @@ func TestUserParam(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
-	t.Run("Me", func(t *testing.T) {
+	t.Run("me", func(t *testing.T) {
 		t.Parallel()
 		db, rw, r := setup(t)
 

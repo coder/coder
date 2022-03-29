@@ -101,7 +101,7 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.
 		AfterID:          workspaceBuild.AfterID.UUID,
 		Name:             workspaceBuild.Name,
 		Transition:       workspaceBuild.Transition,
-		Initiator:        workspaceBuild.Initiator,
+		InitiatorID:      workspaceBuild.InitiatorID,
 		Job:              job,
 	}
 }

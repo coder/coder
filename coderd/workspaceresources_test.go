@@ -44,7 +44,7 @@ func TestWorkspaceResource(t *testing.T) {
 		})
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 	})
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 

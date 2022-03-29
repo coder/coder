@@ -187,6 +187,7 @@ linters-settings:
       - t
       - id
       - wg
+      - Me
     # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
     # Entries must be in the form of "<variable name> <type>" or "<variable name> *<type>" for
     # variables, or "const <name>" for constants.

@@ -44,7 +44,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		})
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		client.HTTPClient = metadataClient
@@ -110,7 +110,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		})
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)

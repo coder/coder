@@ -683,7 +683,7 @@ INSERT INTO
     before_id,
     name,
     transition,
-    initiator,
+    initiator_id,
     job_id,
     provisioner_state
   )

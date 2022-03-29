@@ -155,10 +155,10 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 // with the passed in codersdk client.
 func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirstUserResponse {
 	req := codersdk.CreateFirstUserRequest{
-		Email:        "testuser@coder.com",
-		Username:     "testuser",
-		Password:     "testpass",
-		Organization: "testorg",
+		Email:            "testuser@coder.com",
+		Username:         "testuser",
+		Password:         "testpass",
+		OrganizationName: "testorg",
 	}
 	resp, err := client.CreateFirstUser(context.Background(), req)
 	require.NoError(t, err)
@@ -173,12 +173,12 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t *testing.T, client *codersdk.Client, organization string) *codersdk.Client {
+func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
-		OrganizationID: organization,
+		OrganizationID: organizationID,
 	}
 	_, err := client.CreateUser(context.Background(), req)
 	require.NoError(t, err)
@@ -197,12 +197,12 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organization strin
 // CreateProjectVersion creates a project import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization string, res *echo.Responses) codersdk.ProjectVersion {
+func CreateProjectVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.ProjectVersion {
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
-	projectVersion, err := client.CreateProjectVersion(context.Background(), organization, codersdk.CreateProjectVersionRequest{
+	projectVersion, err := client.CreateProjectVersion(context.Background(), organizationID, codersdk.CreateProjectVersionRequest{
 		StorageSource: file.Hash,
 		StorageMethod: database.ProvisionerStorageMethodFile,
 		Provisioner:   database.ProvisionerTypeEcho,
@@ -213,7 +213,7 @@ func CreateProjectVersion(t *testing.T, client *codersdk.Client, organization st
 
 // CreateProject creates a project with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateProject(t *testing.T, client *codersdk.Client, organization string, version uuid.UUID) codersdk.Project {
+func CreateProject(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Project {
 	project, err := client.CreateProject(context.Background(), organization, codersdk.CreateProjectRequest{
 		Name:      randomUsername(),
 		VersionID: version,
@@ -268,7 +268,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 // CreateWorkspace creates a workspace for the user and project provided.
 // A random name is generated for it.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, user string, projectID uuid.UUID) codersdk.Workspace {
+func CreateWorkspace(t *testing.T, client *codersdk.Client, user uuid.UUID, projectID uuid.UUID) codersdk.Workspace {
 	workspace, err := client.CreateWorkspace(context.Background(), user, codersdk.CreateWorkspaceRequest{
 		ProjectID: projectID,
 		Name:      randomUsername(),

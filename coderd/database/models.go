@@ -209,6 +209,26 @@ func (e *ProvisionerType) Scan(src interface{}) error {
 	return nil
 }
 
+type Rtcmode string
+
+const (
+	RtcmodeAuto Rtcmode = "auto"
+	RtcmodeTurn Rtcmode = "turn"
+	RtcmodeStun Rtcmode = "stun"
+)
+
+func (e *Rtcmode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Rtcmode(s)
+	case string:
+		*e = Rtcmode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Rtcmode: %T", src)
+	}
+	return nil
+}
+
 type UserStatus string
 
 const (
@@ -252,7 +272,7 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 type APIKey struct {
 	ID               string    `db:"id" json:"id"`
 	HashedSecret     []byte    `db:"hashed_secret" json:"hashed_secret"`
-	UserID           string    `db:"user_id" json:"user_id"`
+	UserIDOld        string    `db:"user_id_old" json:"user_id_old"`
 	Application      bool      `db:"application" json:"application"`
 	Name             string    `db:"name" json:"name"`
 	LastUsed         time.Time `db:"last_used" json:"last_used"`
@@ -265,12 +285,13 @@ type APIKey struct {
 	OIDCIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
 	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
 	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 type File struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	CreatedBy string    `db:"created_by" json:"created_by"`
+	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
 	Mimetype  string    `db:"mimetype" json:"mimetype"`
 	Data      []byte    `db:"data" json:"data"`
 }
@@ -282,7 +303,8 @@ type License struct {
 }
 
 type Organization struct {
-	ID                     string    `db:"id" json:"id"`
+	ID                     uuid.UUID `db:"id" json:"id"`
+	IDOld                  string    `db:"id_old" json:"id_old"`
 	Name                   string    `db:"name" json:"name"`
 	Description            string    `db:"description" json:"description"`
 	CreatedAt              time.Time `db:"created_at" json:"created_at"`
@@ -295,11 +317,13 @@ type Organization struct {
 }
 
 type OrganizationMember struct {
-	OrganizationID string    `db:"organization_id" json:"organization_id"`
-	UserID         string    `db:"user_id" json:"user_id"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	Roles          []string  `db:"roles" json:"roles"`
+	OrganizationIDOld string    `db:"organization_id_old" json:"organization_id_old"`
+	UserIDOld         string    `db:"user_id_old" json:"user_id_old"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	Roles             []string  `db:"roles" json:"roles"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID    uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 type ParameterSchema struct {
@@ -326,7 +350,7 @@ type ParameterValue struct {
 	CreatedAt         time.Time                  `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time                  `db:"updated_at" json:"updated_at"`
 	Scope             ParameterScope             `db:"scope" json:"scope"`
-	ScopeID           string                     `db:"scope_id" json:"scope_id"`
+	ScopeID           uuid.UUID                  `db:"scope_id" json:"scope_id"`
 	Name              string                     `db:"name" json:"name"`
 	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
 	SourceValue       string                     `db:"source_value" json:"source_value"`
@@ -337,7 +361,7 @@ type Project struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID  string          `db:"organization_id" json:"organization_id"`
+	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
 	Deleted         bool            `db:"deleted" json:"deleted"`
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
@@ -347,7 +371,7 @@ type Project struct {
 type ProjectVersion struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
-	OrganizationID string        `db:"organization_id" json:"organization_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
 	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 	Name           string        `db:"name" json:"name"`
@@ -359,7 +383,7 @@ type ProvisionerDaemon struct {
 	ID             uuid.UUID         `db:"id" json:"id"`
 	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
 	UpdatedAt      sql.NullTime      `db:"updated_at" json:"updated_at"`
-	OrganizationID sql.NullString    `db:"organization_id" json:"organization_id"`
+	OrganizationID uuid.NullUUID     `db:"organization_id" json:"organization_id"`
 	Name           string            `db:"name" json:"name"`
 	Provisioners   []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
@@ -372,8 +396,8 @@ type ProvisionerJob struct {
 	CanceledAt     sql.NullTime             `db:"canceled_at" json:"canceled_at"`
 	CompletedAt    sql.NullTime             `db:"completed_at" json:"completed_at"`
 	Error          sql.NullString           `db:"error" json:"error"`
-	OrganizationID string                   `db:"organization_id" json:"organization_id"`
-	InitiatorID    string                   `db:"initiator_id" json:"initiator_id"`
+	OrganizationID uuid.UUID                `db:"organization_id" json:"organization_id"`
+	InitiatorID    uuid.UUID                `db:"initiator_id" json:"initiator_id"`
 	Provisioner    ProvisionerType          `db:"provisioner" json:"provisioner"`
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
 	StorageSource  string                   `db:"storage_source" json:"storage_source"`
@@ -393,7 +417,8 @@ type ProvisionerJobLog struct {
 }
 
 type User struct {
-	ID                  string     `db:"id" json:"id"`
+	ID                  uuid.UUID  `db:"id" json:"id"`
+	IDOld               string     `db:"id_old" json:"id_old"`
 	Email               string     `db:"email" json:"email"`
 	Name                string     `db:"name" json:"name"`
 	Revoked             bool       `db:"revoked" json:"revoked"`
@@ -412,13 +437,16 @@ type User struct {
 	GpgKeyRegeneratedAt time.Time  `db:"gpg_key_regenerated_at" json:"gpg_key_regenerated_at"`
 	Decomissioned       bool       `db:"_decomissioned" json:"_decomissioned"`
 	Shell               string     `db:"shell" json:"shell"`
+	AutostartAt         time.Time  `db:"autostart_at" json:"autostart_at"`
+	RtcMode             Rtcmode    `db:"rtc_mode" json:"rtc_mode"`
+	UsernamePreDedup    string     `db:"username_pre_dedup" json:"username_pre_dedup"`
 }
 
 type Workspace struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-	OwnerID   string    `db:"owner_id" json:"owner_id"`
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
 	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
 	Deleted   bool      `db:"deleted" json:"deleted"`
 	Name      string    `db:"name" json:"name"`
@@ -450,7 +478,7 @@ type WorkspaceBuild struct {
 	BeforeID         uuid.NullUUID       `db:"before_id" json:"before_id"`
 	AfterID          uuid.NullUUID       `db:"after_id" json:"after_id"`
 	Transition       WorkspaceTransition `db:"transition" json:"transition"`
-	Initiator        string              `db:"initiator" json:"initiator"`
+	InitiatorID      uuid.UUID           `db:"initiator_id" json:"initiator_id"`
 	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
 	JobID            uuid.UUID           `db:"job_id" json:"job_id"`
 }

@@ -32,12 +32,14 @@ func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	if userCount == 0 {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "The initial user has not been created!",
 		})
 		return
 	}
+
 	httpapi.Write(rw, http.StatusOK, httpapi.Response{
 		Message: "The initial user has already been created!",
 	})
@@ -49,6 +51,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
+
 	// This should only function for the first user.
 	userCount, err := api.Database.GetUserCount(r.Context())
 	if err != nil {
@@ -57,6 +60,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	// If a user already exists, the initial admin user no longer can be created.
 	if userCount != 0 {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
@@ -64,6 +68,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	hashedPassword, err := userpassword.Hash(createUser.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -77,7 +82,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	var organization database.Organization
 	err = api.Database.InTx(func(s database.Store) error {
 		user, err = api.Database.InsertUser(r.Context(), database.InsertUserParams{
-			ID:             uuid.NewString(),
+			ID:             uuid.New(),
 			Email:          createUser.Email,
 			HashedPassword: []byte(hashedPassword),
 			Username:       createUser.Username,
@@ -89,8 +94,8 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("create user: %w", err)
 		}
 		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.NewString(),
-			Name:      createUser.Organization,
+			ID:        uuid.New(),
+			Name:      createUser.OrganizationName,
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 		})
@@ -190,7 +195,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 	var user database.User
 	err = api.Database.InTx(func(db database.Store) error {
 		user, err = db.InsertUser(r.Context(), database.InsertUserParams{
-			ID:             uuid.NewString(),
+			ID:             uuid.New(),
 			Email:          createUser.Email,
 			HashedPassword: []byte(hashedPassword),
 			Username:       createUser.Username,
@@ -317,7 +322,7 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 	var organization database.Organization
 	err = api.Database.InTx(func(db database.Store) error {
 		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.NewString(),
+			ID:        uuid.New(),
 			Name:      req.Name,
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
@@ -611,7 +616,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 				CreatedAt:         database.Now(),
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeWorkspace,
-				ScopeID:           workspace.ID.String(),
+				ScopeID:           workspace.ID,
 				SourceScheme:      parameterValue.SourceScheme,
 				SourceValue:       parameterValue.SourceValue,
 				DestinationScheme: parameterValue.DestinationScheme,
@@ -649,7 +654,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 			WorkspaceID:      workspace.ID,
 			ProjectVersionID: projectVersion.ID,
 			Name:             namesgenerator.GetRandomName(1),
-			Initiator:        apiKey.UserID,
+			InitiatorID:      apiKey.UserID,
 			Transition:       database.WorkspaceTransitionStart,
 			JobID:            provisionerJob.ID,
 		})
@@ -725,35 +730,35 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buildByWorkspaceID := map[string]database.WorkspaceBuild{}
+	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
 	for _, workspaceBuild := range workspaceBuilds {
-		buildByWorkspaceID[workspaceBuild.WorkspaceID.String()] = workspaceBuild
+		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
 	}
-	projectByID := map[string]database.Project{}
+	projectByID := map[uuid.UUID]database.Project{}
 	for _, project := range projects {
-		projectByID[project.ID.String()] = project
+		projectByID[project.ID] = project
 	}
-	jobByID := map[string]database.ProvisionerJob{}
+	jobByID := map[uuid.UUID]database.ProvisionerJob{}
 	for _, job := range jobs {
-		jobByID[job.ID.String()] = job
+		jobByID[job.ID] = job
 	}
 	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
-		build, exists := buildByWorkspaceID[workspace.ID.String()]
+		build, exists := buildByWorkspaceID[workspace.ID]
 		if !exists {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("build not found for workspace %q", workspace.Name),
 			})
 			return
 		}
-		project, exists := projectByID[workspace.ProjectID.String()]
+		project, exists := projectByID[workspace.ProjectID]
 		if !exists {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("project not found for workspace %q", workspace.Name),
 			})
 			return
 		}
-		job, exists := jobByID[build.JobID.String()]
+		job, exists := jobByID[build.JobID]
 		if !exists {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("build job not found for workspace %q", workspace.Name),

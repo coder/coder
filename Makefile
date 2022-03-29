@@ -12,6 +12,7 @@ build: site/out bin
 # Runs migrations to output a dump of the database.
 coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 	go run coderd/database/dump/main.go
+.PHONY: coderd/database/dump.sql
 
 # Generates Go code for querying the database.
 coderd/database/generate: fmt/sql coderd/database/dump.sql coderd/database/query.sql

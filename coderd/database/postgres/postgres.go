@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -31,15 +32,18 @@ func Open() (string, func(), error) {
 			return "", nil, xerrors.Errorf("connect to ci postgres: %w", err)
 		}
 		defer db.Close()
+
 		dbName, err := cryptorand.StringCharset(cryptorand.Lower, 10)
 		if err != nil {
 			return "", nil, xerrors.Errorf("generate db name: %w", err)
 		}
+
 		dbName = "ci" + dbName
 		_, err = db.Exec("CREATE DATABASE " + dbName)
 		if err != nil {
 			return "", nil, xerrors.Errorf("create db: %w", err)
 		}
+
 		return "postgres://postgres:postgres@127.0.0.1:5432/" + dbName + "?sslmode=disable", func() {}, nil
 	}
 
@@ -59,7 +63,7 @@ func Open() (string, func(), error) {
 	port, err := getFreePort()
 	if err != nil {
 		openPortMutex.Unlock()
-		return "", nil, xerrors.Errorf("Unable to get free port: %w", err)
+		return "", nil, xerrors.Errorf("get free port: %w", err)
 	}
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -80,7 +84,8 @@ func Open() (string, func(), error) {
 				// https://github.com/moby/moby/issues/42442
 				// where the ipv4 and ipv6 ports might be _different_ and collide with other running docker containers.
 				HostIP:   "0.0.0.0",
-				HostPort: fmt.Sprintf("%d", port)}},
+				HostPort: strconv.FormatInt(int64(port), 10),
+			}},
 		},
 		Mounts: []string{
 			// The postgres image has a VOLUME parameter in it's image.
@@ -107,18 +112,23 @@ func Open() (string, func(), error) {
 	// Docker should hard-kill the container after 120 seconds.
 	err = resource.Expire(120)
 	if err != nil {
-		return "", nil, xerrors.Errorf("could not expire resource: %w", err)
+		return "", nil, xerrors.Errorf("expire resource: %w", err)
 	}
 
 	pool.MaxWait = 120 * time.Second
 	err = pool.Retry(func() error {
 		db, err := sql.Open("postgres", dbURL)
 		if err != nil {
-			return err
+			return xerrors.Errorf("open postgres: %w", err)
 		}
+		defer db.Close()
+
 		err = db.Ping()
-		_ = db.Close()
-		return err
+		if err != nil {
+			return xerrors.Errorf("ping postgres: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return "", nil, err

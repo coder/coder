@@ -91,7 +91,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 				CreatedAt:         database.Now(),
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeImportJob,
-				ScopeID:           jobID.String(),
+				ScopeID:           jobID,
 				SourceScheme:      parameterValue.SourceScheme,
 				SourceValue:       parameterValue.SourceValue,
 				DestinationScheme: parameterValue.DestinationScheme,
@@ -200,10 +200,11 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	var project codersdk.Project
 	err = api.Database.InTx(func(db database.Store) error {
+		now := database.Now()
 		dbProject, err := db.InsertProject(r.Context(), database.InsertProjectParams{
 			ID:              uuid.New(),
-			CreatedAt:       database.Now(),
-			UpdatedAt:       database.Now(),
+			CreatedAt:       now,
+			UpdatedAt:       now,
 			OrganizationID:  organization.ID,
 			Name:            createProject.Name,
 			Provisioner:     importJob.Provisioner,
@@ -212,6 +213,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			return xerrors.Errorf("insert project: %s", err)
 		}
+
 		err = db.UpdateProjectVersionByID(r.Context(), database.UpdateProjectVersionByIDParams{
 			ID: projectVersion.ID,
 			ProjectID: uuid.NullUUID{
@@ -222,6 +224,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			return xerrors.Errorf("insert project version: %s", err)
 		}
+
 		for _, parameterValue := range createProject.ParameterValues {
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
 				ID:                uuid.New(),
@@ -229,7 +232,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 				CreatedAt:         database.Now(),
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeProject,
-				ScopeID:           dbProject.ID.String(),
+				ScopeID:           dbProject.ID,
 				SourceScheme:      parameterValue.SourceScheme,
 				SourceValue:       parameterValue.SourceValue,
 				DestinationScheme: parameterValue.DestinationScheme,
@@ -238,6 +241,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 				return xerrors.Errorf("insert parameter value: %w", err)
 			}
 		}
+
 		project = convertProject(dbProject, 0)
 		return nil
 	})
@@ -291,18 +295,20 @@ func (api *api) projectByOrganizationAndName(rw http.ResponseWriter, r *http.Req
 		OrganizationID: organization.ID,
 		Name:           projectName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("no project found by name %q in the %q organization", projectName, organization.Name),
-		})
-		return
-	}
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				Message: fmt.Sprintf("no project found by name %q in the %q organization", projectName, organization.Name),
+			})
+			return
+		}
+
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get project by organization and name: %s", err),
 		})
 		return
 	}
+
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), []uuid.UUID{project.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -313,10 +319,12 @@ func (api *api) projectByOrganizationAndName(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+
 	count := uint32(0)
 	if len(workspaceCounts) > 0 {
 		count = uint32(workspaceCounts[0].Count)
 	}
+
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertProject(project, count))
 }

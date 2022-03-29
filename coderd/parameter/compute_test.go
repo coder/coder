@@ -18,7 +18,7 @@ func TestCompute(t *testing.T) {
 	generateScope := func() parameter.ComputeScope {
 		return parameter.ComputeScope{
 			ProjectImportJobID: uuid.New(),
-			OrganizationID:     uuid.NewString(),
+			OrganizationID:     uuid.New(),
 			ProjectID: uuid.NullUUID{
 				UUID:  uuid.New(),
 				Valid: true,
@@ -27,7 +27,7 @@ func TestCompute(t *testing.T) {
 				UUID:  uuid.New(),
 				Valid: true,
 			},
-			UserID: uuid.NewString(),
+			UserID: uuid.New(),
 		}
 	}
 	type parameterOptions struct {
@@ -88,7 +88,7 @@ func TestCompute(t *testing.T) {
 		computedValue := computed[0]
 		require.True(t, computedValue.DefaultSourceValue)
 		require.Equal(t, database.ParameterScopeImportJob, computedValue.Scope)
-		require.Equal(t, scope.ProjectImportJobID.String(), computedValue.ScopeID)
+		require.Equal(t, scope.ProjectImportJobID, computedValue.ScopeID)
 		require.Equal(t, computedValue.SourceValue, parameterSchema.DefaultSourceValue)
 	})
 
@@ -114,7 +114,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeImportJob,
-			ScopeID:           scope.ProjectImportJobID.String(),
+			ScopeID:           scope.ProjectImportJobID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "secondnop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -139,7 +139,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeProject,
-			ScopeID:           scope.ProjectID.UUID.String(),
+			ScopeID:           scope.ProjectID.UUID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -160,11 +160,12 @@ func TestCompute(t *testing.T) {
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			ProjectImportJobID: scope.ProjectImportJobID,
 		})
+
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           scope.WorkspaceID.UUID.String(),
+			ScopeID:           scope.WorkspaceID.UUID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -189,7 +190,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeWorkspace,
-			ScopeID:           scope.WorkspaceID.UUID.String(),
+			ScopeID:           scope.WorkspaceID.UUID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,

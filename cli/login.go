@@ -119,10 +119,10 @@ func login() *cobra.Command {
 				}
 
 				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-					Email:        email,
-					Username:     username,
-					Organization: username,
-					Password:     password,
+					Email:            email,
+					Username:         username,
+					OrganizationName: username,
+					Password:         password,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
@@ -167,7 +167,7 @@ func login() *cobra.Command {
 				Secret: true,
 				Validate: func(token string) error {
 					client.SessionToken = token
-					_, err := client.User(cmd.Context(), "me")
+					_, err := client.User(cmd.Context(), codersdk.Me)
 					if err != nil {
 						return xerrors.New("That's not a valid token!")
 					}
@@ -180,7 +180,7 @@ func login() *cobra.Command {
 
 			// Login to get user data - verify it is OK before persisting
 			client.SessionToken = sessionToken
-			resp, err := client.User(cmd.Context(), "me")
+			resp, err := client.User(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("get user: %w", err)
 			}

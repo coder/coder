@@ -1,0 +1,12 @@
+DROP INDEX idx_organization_member_user_id_uuid;
+DROP INDEX idx_organization_member_organization_id_uuid;
+
+DROP TRIGGER trig_uuid_to_longid_users ON users;
+DROP TRIGGER trig_uuid_to_longid_organizations ON organizations;
+DROP TRIGGER trig_uuid_to_longid_organization_members_user_id ON organization_members;
+DROP TRIGGER trig_uuid_to_longid_organization_members_org_id ON organization_members;
+DROP TRIGGER trig_uuid_to_longid_api_keys_user_id ON api_keys;
+
+DROP FUNCTION org_uuid_to_longid_trigger;
+DROP FUNCTION user_uuid_to_longid_trigger;
+DROP FUNCTION uuid_to_longid_trigger;

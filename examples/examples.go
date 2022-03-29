@@ -38,6 +38,7 @@ func List() ([]Example, error) {
 			returnError = xerrors.Errorf("read dir: %w", err)
 			return
 		}
+
 		for _, dir := range dirs {
 			exampleID := dir.Name()
 			// Each one of these is a example!
@@ -46,31 +47,37 @@ func List() ([]Example, error) {
 				returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
 				return
 			}
+
 			frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
 			if err != nil {
 				returnError = xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
 				return
 			}
+
 			nameRaw, exists := frontMatter.FrontMatter["name"]
 			if !exists {
 				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
 				return
 			}
+
 			name, valid := nameRaw.(string)
 			if !valid {
 				returnError = xerrors.Errorf("example %q name isn't a string", exampleID)
 				return
 			}
+
 			descriptionRaw, exists := frontMatter.FrontMatter["description"]
 			if !exists {
 				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
 				return
 			}
+
 			description, valid := descriptionRaw.(string)
 			if !valid {
 				returnError = xerrors.Errorf("example %q description isn't a string", exampleID)
 				return
 			}
+
 			examples = append(examples, Example{
 				ID:          exampleID,
 				Name:        name,
@@ -87,8 +94,9 @@ func Archive(exampleID string) ([]byte, error) {
 	rawData, err, _ := archives.Do(exampleID, func() (interface{}, error) {
 		examples, err := List()
 		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("list: %w", err)
 		}
+
 		var selected Example
 		for _, example := range examples {
 			if example.ID != exampleID {
@@ -97,6 +105,7 @@ func Archive(exampleID string) ([]byte, error) {
 			selected = example
 			break
 		}
+
 		if selected.ID == "" {
 			return nil, xerrors.Errorf("example with id %q not found", exampleID)
 		}
@@ -114,27 +123,33 @@ func Archive(exampleID string) ([]byte, error) {
 			if err != nil {
 				return nil, xerrors.Errorf("open file: %w", err)
 			}
+
 			info, err := file.Stat()
 			if err != nil {
 				return nil, xerrors.Errorf("stat file: %w", err)
 			}
+
 			if info.IsDir() {
 				continue
 			}
+
 			data := make([]byte, info.Size())
 			_, err = file.Read(data)
 			if err != nil {
 				return nil, xerrors.Errorf("read data: %w", err)
 			}
+
 			header, err := tar.FileInfoHeader(info, entry.Name())
 			if err != nil {
 				return nil, xerrors.Errorf("get file header: %w", err)
 			}
 			header.Mode = 0644
+
 			err = tarWriter.WriteHeader(header)
 			if err != nil {
 				return nil, xerrors.Errorf("write file: %w", err)
 			}
+
 			_, err = tarWriter.Write(data)
 			if err != nil {
 				return nil, xerrors.Errorf("write: %w", err)
@@ -144,6 +159,7 @@ func Archive(exampleID string) ([]byte, error) {
 		if err != nil {
 			return nil, xerrors.Errorf("flush archive: %w", err)
 		}
+
 		return buffer.Bytes(), nil
 	})
 	if err != nil {
