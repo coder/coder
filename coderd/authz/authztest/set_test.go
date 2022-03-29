@@ -5,14 +5,27 @@ import (
 	"testing"
 )
 
+func BenchmarkRole(b *testing.B) {
+	all := GroupedPermissions(AllPermissions())
+	r := ParseRole(all, "w(pa) s(*e) s(*e) s(*e) s(pe) s(pe) s(*) s(*)")
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		if !r.Next() {
+			r.Reset()
+		}
+		FakeAuthorize(r.Permissions())
+	}
+}
+
 func TestRole(t *testing.T) {
 	all := GroupedPermissions(AllPermissions())
 	testCases := []struct {
 		Name         string
 		Permutations *Role
 		Access       bool
-	}{
+	}{ // 410,367,658
 		{
+			// [w] x [s1, s2, ""] = (w, s1), (w, s2), (w, "")
 			Name:         "W+",
 			Permutations: ParseRole(all, "w(pa) s(*e) o(*e) u(*e)"),
 			Access:       true,
@@ -71,20 +84,23 @@ func TestRole(t *testing.T) {
 	fmt.Printf("Total cases=%d\n", total)
 
 	// This is how you run the test cases
-	//for _, c := range testCases {
-	//	t.Run(c.Name, func(t *testing.T) {
-	//		c.Permutations.Each(func(set Set) {
-	//			// Actually printing all the errors would be insane
-	//			//require.Equal(t, c.Access, FakeAuthorize(set))
-	//			FakeAuthorize(set)
-	//		})
-	//	})
-	//}
+	for _, c := range testCases {
+		//t.Run(c.Name, func(t *testing.T) {
+		c.Permutations.Each(func(set Set) {
+			// Actually printing all the errors would be insane
+			//require.Equal(t, c.Access, FakeAuthorize(set))
+			FakeAuthorize(set)
+		})
+		//})
+	}
 }
 
 func FakeAuthorize(s Set) bool {
 	var f bool
 	for _, i := range s {
+		if i == nil {
+			continue
+		}
 		if i.Type() == "+" {
 			f = true
 		}
