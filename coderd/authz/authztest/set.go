@@ -39,6 +39,12 @@ func NewRole(sets ...iterable) *Role {
 	}
 }
 
+func (s *Role) Reset() {
+	for _, i := range s.PermissionSets {
+		i.Reset()
+	}
+}
+
 // Next will gr
 func (s *Role) Next() bool {
 	if !s.first {
@@ -63,7 +69,7 @@ func (s *Role) Permissions() Set {
 	for _, set := range s.PermissionSets {
 		i += copy(s.buffer[i:], set.Permissions())
 	}
-	all := make(Set, 0, s.Size)
+	all := make(Set, 0, s.ReturnSize)
 	for _, set := range s.PermissionSets {
 		all = append(all, set.Permissions()...)
 	}
