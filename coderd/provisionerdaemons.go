@@ -273,12 +273,6 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 	if job.WorkerID.UUID.String() != server.ID.String() {
 		return nil, xerrors.New("you don't own this job")
 	}
-	if job.CanceledAt.Valid {
-		// Allows for graceful cancelation on the backend!
-		return &proto.UpdateJobResponse{
-			Canceled: true,
-		}, nil
-	}
 	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
 		UpdatedAt: database.Now(),
@@ -401,11 +395,14 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		}
 
 		return &proto.UpdateJobResponse{
+			Canceled:        job.CanceledAt.Valid,
 			ParameterValues: protoParameters,
 		}, nil
 	}
 
-	return &proto.UpdateJobResponse{}, nil
+	return &proto.UpdateJobResponse{
+		Canceled: job.CanceledAt.Valid,
+	}, nil
 }
 
 func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
@@ -446,7 +443,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
 		err = server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-			ID:               jobID,
+			ID:               input.WorkspaceBuildID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: jobType.WorkspaceBuild.State,
 		})

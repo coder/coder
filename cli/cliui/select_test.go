@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
@@ -25,10 +24,7 @@ func TestSelect(t *testing.T) {
 			require.NoError(t, err)
 			msgChan <- resp
 		}()
-		ptty.ExpectMatch("Second")
-		ptty.Write(promptui.KeyNext)
-		ptty.WriteLine("")
-		require.Equal(t, "Second", <-msgChan)
+		require.Equal(t, "First", <-msgChan)
 	})
 }
 

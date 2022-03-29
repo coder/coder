@@ -166,8 +166,10 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 	for {
 		clientToServerMessage, err := stream.Recv()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
+			// p2p connections should never die if this stream does due
+			// to proper closure or context cancellation!
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+				return nil
 			}
 			return peerConn.CloseWithError(xerrors.Errorf("recv: %w", err))
 		}
@@ -186,6 +188,4 @@ func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_Nego
 			return peerConn.CloseWithError(xerrors.Errorf("unhandled message: %s", reflect.TypeOf(clientToServerMessage).String()))
 		}
 	}
-
-	return nil
 }

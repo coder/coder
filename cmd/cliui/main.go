@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -62,10 +63,11 @@ func main() {
 	root.AddCommand(&cobra.Command{
 		Use: "select",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := cliui.Select(cmd, cliui.SelectOptions{
+			value, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
 			})
+			fmt.Printf("Selected: %q\n", value)
 			return err
 		},
 	})
@@ -153,6 +155,35 @@ func main() {
 				},
 			})
 			return err
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use: "agent",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resource := codersdk.WorkspaceResource{
+				Type: "google_compute_instance",
+				Name: "dev",
+				Agent: &codersdk.WorkspaceAgent{
+					Status: codersdk.WorkspaceAgentDisconnected,
+				},
+			}
+			go func() {
+				time.Sleep(3 * time.Second)
+				resource.Agent.Status = codersdk.WorkspaceAgentConnected
+			}()
+			err := cliui.Agent(cmd, cliui.AgentOptions{
+				WorkspaceName: "dev",
+				Fetch: func(ctx context.Context) (codersdk.WorkspaceResource, error) {
+					return resource, nil
+				},
+				WarnInterval: 2 * time.Second,
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Completed!\n")
+			return nil
 		},
 	})
 

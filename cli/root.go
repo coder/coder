@@ -64,7 +64,7 @@ func Root() *cobra.Command {
 		projects(),
 		users(),
 		workspaces(),
-		workspaceSSH(),
+		ssh(),
 		workspaceTunnel(),
 	)
 

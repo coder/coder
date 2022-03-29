@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/awalterschulze/gographviz"
 	"github.com/hashicorp/terraform-exec/tfexec"
-	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
@@ -80,7 +80,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			_ = stream.Send(&proto.Provision_Response{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
-						Level:  proto.LogLevel_INFO,
+						Level:  proto.LogLevel_DEBUG,
 						Output: scanner.Text(),
 					},
 				},
@@ -140,7 +140,6 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			if err != nil {
 				return
 			}
-
 			logLevel, err := convertTerraformLogLevel(log.Level)
 			if err != nil {
 				// Not a big deal, but we should handle this at some point!
@@ -209,7 +208,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		case <-stream.Context().Done():
 			return
 		case <-shutdown.Done():
-			_ = cmd.Process.Signal(os.Kill)
+			_ = cmd.Process.Signal(os.Interrupt)
 		}
 	}()
 	cmd.Stdout = writer
@@ -266,27 +265,13 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
-	// Maps resource dependencies to expression references.
-	// This is *required* for a plan, because "DependsOn"
-	// does not propagate.
-	resourceDependencies := map[string][]string{}
-	for _, resource := range plan.Config.RootModule.Resources {
-		if resource.Expressions == nil {
-			resource.Expressions = map[string]*tfjson.Expression{}
-		}
-		// Count expression is separated for logical reasons,
-		// but it's simpler syntactically for us to combine here.
-		if resource.CountExpression != nil {
-			resource.Expressions["count"] = resource.CountExpression
-		}
-		for _, expression := range resource.Expressions {
-			dependencies, exists := resourceDependencies[resource.Address]
-			if !exists {
-				dependencies = []string{}
-			}
-			dependencies = append(dependencies, expression.References...)
-			resourceDependencies[resource.Address] = dependencies
-		}
+	rawGraph, err := terraform.Graph(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("graph: %w", err)
+	}
+	resourceDependencies, err := findDirectDependencies(rawGraph)
+	if err != nil {
+		return nil, xerrors.Errorf("find dependencies: %w", err)
 	}
 
 	resources := make([]*proto.Resource, 0)
@@ -322,31 +307,21 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 
 		agents[resource.Address] = agent
 	}
-
 	for _, resource := range plan.PlannedValues.RootModule.Resources {
 		if resource.Type == "coder_agent" {
 			continue
 		}
-		// The resource address on planned values can include the indexed
-		// value like "[0]", but the config doesn't have these, and we don't
-		// care which index the resource is.
-		resourceAddress := fmt.Sprintf("%s.%s", resource.Type, resource.Name)
-		var agent *proto.Agent
-		// Associate resources that depend on an agent.
-		for _, dependency := range resourceDependencies[resourceAddress] {
-			var has bool
-			agent, has = agents[dependency]
-			if has {
-				break
-			}
+		resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
+		resourceNode, exists := resourceDependencies[resourceKey]
+		if !exists {
+			continue
 		}
-		// Associate resources where the agent depends on it.
-		for agentAddress := range agents {
-			for _, depend := range resourceDependencies[agentAddress] {
-				if depend != resourceAddress {
-					continue
-				}
-				agent = agents[agentAddress]
+		// Associate resources that depend on an agent.
+		var agent *proto.Agent
+		for _, dep := range resourceNode {
+			var has bool
+			agent, has = agents[dep]
+			if has {
 				break
 			}
 		}
@@ -378,6 +353,14 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 	}
 	resources := make([]*proto.Resource, 0)
 	if state.Values != nil {
+		rawGraph, err := terraform.Graph(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("graph: %w", err)
+		}
+		resourceDependencies, err := findDirectDependencies(rawGraph)
+		if err != nil {
+			return nil, xerrors.Errorf("find dependencies: %w", err)
+		}
 		type agentAttributes struct {
 			ID            string            `mapstructure:"id"`
 			Token         string            `mapstructure:"token"`
@@ -386,7 +369,6 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			StartupScript string            `mapstructure:"startup_script"`
 		}
 		agents := map[string]*proto.Agent{}
-		agentDepends := map[string][]string{}
 
 		// Store all agents inside the maps!
 		for _, resource := range state.Values.RootModule.Resources {
@@ -413,32 +395,24 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			}
 			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
 			agents[resourceKey] = agent
-			agentDepends[resourceKey] = resource.DependsOn
 		}
 
 		for _, resource := range state.Values.RootModule.Resources {
 			if resource.Type == "coder_agent" {
 				continue
 			}
-			var agent *proto.Agent
+			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
+			resourceNode, exists := resourceDependencies[resourceKey]
+			if !exists {
+				continue
+			}
 			// Associate resources that depend on an agent.
-			for _, dep := range resource.DependsOn {
+			var agent *proto.Agent
+			for _, dep := range resourceNode {
 				var has bool
 				agent, has = agents[dep]
 				if has {
 					break
-				}
-			}
-			if agent == nil {
-				// Associate resources where the agent depends on it.
-				for agentKey, dependsOn := range agentDepends {
-					for _, depend := range dependsOn {
-						if depend != strings.Join([]string{resource.Type, resource.Name}, ".") {
-							continue
-						}
-						agent = agents[agentKey]
-						break
-					}
 				}
 			}
 
@@ -488,4 +462,47 @@ func convertTerraformLogLevel(logLevel string) (proto.LogLevel, error) {
 	default:
 		return proto.LogLevel(0), xerrors.Errorf("invalid log level %q", logLevel)
 	}
+}
+
+// findDirectDependencies maps Terraform resources to their parent and
+// children nodes. This parses GraphViz output from Terraform which
+// certainly is not ideal, but seems reliable.
+func findDirectDependencies(rawGraph string) (map[string][]string, error) {
+	parsedGraph, err := gographviz.ParseString(rawGraph)
+	if err != nil {
+		return nil, xerrors.Errorf("parse graph: %w", err)
+	}
+	graph, err := gographviz.NewAnalysedGraph(parsedGraph)
+	if err != nil {
+		return nil, xerrors.Errorf("analyze graph: %w", err)
+	}
+	direct := map[string][]string{}
+	for _, node := range graph.Nodes.Nodes {
+		label, exists := node.Attrs["label"]
+		if !exists {
+			continue
+		}
+		label = strings.Trim(label, `"`)
+
+		dependencies := make([]string, 0)
+		for _, edges := range []map[string][]*gographviz.Edge{
+			graph.Edges.SrcToDsts[node.Name],
+			graph.Edges.DstToSrcs[node.Name],
+		} {
+			for destination := range edges {
+				dependencyNode, exists := graph.Nodes.Lookup[destination]
+				if !exists {
+					continue
+				}
+				label, exists := dependencyNode.Attrs["label"]
+				if !exists {
+					continue
+				}
+				label = strings.Trim(label, `"`)
+				dependencies = append(dependencies, label)
+			}
+		}
+		direct[label] = dependencies
+	}
+	return direct, nil
 }

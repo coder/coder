@@ -6,7 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -161,40 +160,9 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond, spinner.WithColor("fgGreen"))
-			spin.Writer = cmd.OutOrStdout()
-			spin.Suffix = " Waiting for agent to connect..."
-			spin.Start()
-			defer spin.Stop()
-			for _, resource := range resources {
-				if resource.Agent == nil {
-					continue
-				}
-				ticker := time.NewTicker(1 * time.Second)
-				for {
-					select {
-					case <-cmd.Context().Done():
-						return nil
-					case <-ticker.C:
-					}
-					resource, err := client.WorkspaceResource(cmd.Context(), resource.ID)
-					if err != nil {
-						return err
-					}
-					if resource.Agent.FirstConnectedAt == nil {
-						continue
-					}
-					spin.Stop()
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created!\n\n", cliui.Styles.Keyword.Render(workspace.Name))
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder ssh "+workspace.Name))
-					_, _ = fmt.Fprintln(cmd.OutOrStdout())
-					break
-				}
-			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created!\n\n", cliui.Styles.Keyword.Render(workspace.Name))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder ssh "+workspace.Name))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
 			return err
 		},

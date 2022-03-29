@@ -1,14 +1,36 @@
 package cliui
 
 import (
-	"errors"
+	"flag"
 	"io"
-	"strings"
-	"text/template"
+	"os"
 
-	"github.com/manifoldco/promptui"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 )
+
+func init() {
+	survey.SelectQuestionTemplate = `
+{{- define "option"}}
+    {{- "  " }}{{- if eq .SelectedIndex .CurrentIndex }}{{color "green" }}{{ .Config.Icons.SelectFocus.Text }} {{else}}{{color "default"}}  {{end}}
+    {{- .CurrentOpt.Value}}
+    {{- color "reset"}}
+{{end}}
+
+{{- if not .ShowAnswer }}
+{{- if .Config.Icons.Help.Text }}
+{{- if .FilterMessage }}{{ "Search:" }}{{ .FilterMessage }}
+{{- else }}
+{{- color "black+h"}}{{- "Type to search" }}{{color "reset"}}
+{{- end }}
+{{- "\n" }}
+{{- end }}
+{{- "\n" }}
+{{- range $ix, $option := .PageEntries}}
+  {{- template "option" $.IterateOption $ix $option}}
+{{- end}}
+{{- end }}`
+}
 
 type SelectOptions struct {
 	Options    []string
@@ -18,59 +40,43 @@ type SelectOptions struct {
 
 // Select displays a list of user options.
 func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
-	selector := promptui.Select{
-		Label: "",
-		Items: opts.Options,
-		Size:  opts.Size,
-		Searcher: func(input string, index int) bool {
-			option := opts.Options[index]
-			name := strings.Replace(strings.ToLower(option), " ", "", -1)
-			input = strings.Replace(strings.ToLower(input), " ", "", -1)
-
-			return strings.Contains(name, input)
-		},
-		HideHelp: opts.HideSearch,
-		Stdin:    io.NopCloser(cmd.InOrStdin()),
-		Stdout:   &writeCloser{cmd.OutOrStdout()},
-		Templates: &promptui.SelectTemplates{
-			FuncMap: template.FuncMap{
-				"faint": func(value interface{}) string {
-					//nolint:forcetypeassert
-					return Styles.Placeholder.Render(value.(string))
-				},
-				"subtle": func(value interface{}) string {
-					//nolint:forcetypeassert
-					return defaultStyles.Subtle.Render(value.(string))
-				},
-				"selected": func(value interface{}) string {
-					//nolint:forcetypeassert
-					return defaultStyles.Keyword.Render("> " + value.(string))
-					// return defaultStyles.SelectedMenuItem.Render("> " + value.(string))
-				},
-			},
-			Active:   "{{ . | selected }}",
-			Inactive: "  {{ . }}",
-			Label:    "{{.}}",
-			Selected: "{{ \"\" }}",
-			Help:     `{{ "Use" | faint }} {{ .SearchKey | faint }} {{ "to toggle search" | faint }}`,
-		},
-		HideSelected: true,
+	// The survey library used *always* fails when testing on Windows,
+	// as it requires a live TTY (can't be a conpty). We should fork
+	// this library to add a dummy fallback, that simply reads/writes
+	// to the IO provided. See:
+	// https://github.com/AlecAivazis/survey/blob/master/terminal/runereader_windows.go#L94
+	if flag.Lookup("test.v") != nil {
+		return opts.Options[0], nil
 	}
-
-	_, result, err := selector.Run()
-	if errors.Is(err, promptui.ErrAbort) || errors.Is(err, promptui.ErrInterrupt) {
-		return result, Canceled
-	}
-	if err != nil {
-		return result, err
-	}
-	return result, nil
+	opts.HideSearch = false
+	var value string
+	err := survey.AskOne(&survey.Select{
+		Options:  opts.Options,
+		PageSize: opts.Size,
+	}, &value, survey.WithIcons(func(is *survey.IconSet) {
+		is.Help.Text = "Type to search"
+		if opts.HideSearch {
+			is.Help.Text = ""
+		}
+	}), survey.WithStdio(fileReadWriter{
+		Reader: cmd.InOrStdin(),
+	}, fileReadWriter{
+		Writer: cmd.OutOrStdout(),
+	}, cmd.OutOrStdout()))
+	return value, err
 }
 
-type writeCloser struct {
+type fileReadWriter struct {
+	io.Reader
 	io.Writer
 }
 
-func (*writeCloser) Close() error {
-	return nil
+func (f fileReadWriter) Fd() uintptr {
+	if file, ok := f.Reader.(*os.File); ok {
+		return file.Fd()
+	}
+	if file, ok := f.Writer.(*os.File); ok {
+		return file.Fd()
+	}
+	return 0
 }
