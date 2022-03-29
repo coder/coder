@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"net/http"
@@ -323,7 +322,7 @@ func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*
 			require.NoError(t, err)
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader(data)),
+				Body:       io.NopCloser(bytes.NewReader(data)),
 				Header:     make(http.Header),
 			}, nil
 		}),
@@ -334,7 +333,7 @@ func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*
 		Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(bytes.NewReader([]byte(signedKey))),
+				Body:       io.NopCloser(bytes.NewReader([]byte(signedKey))),
 				Header:     make(http.Header),
 			}, nil
 		}),
@@ -379,19 +378,19 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 				case "/latest/api/token":
 					return &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader([]byte("faketoken"))),
+						Body:       io.NopCloser(bytes.NewReader([]byte("faketoken"))),
 						Header:     make(http.Header),
 					}, nil
 				case "/latest/dynamic/instance-identity/signature":
 					return &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(signature)),
+						Body:       io.NopCloser(bytes.NewReader(signature)),
 						Header:     make(http.Header),
 					}, nil
 				case "/latest/dynamic/instance-identity/document":
 					return &http.Response{
 						StatusCode: http.StatusOK,
-						Body:       ioutil.NopCloser(bytes.NewReader(document)),
+						Body:       io.NopCloser(bytes.NewReader(document)),
 						Header:     make(http.Header),
 					}, nil
 				default:

@@ -1,7 +1,6 @@
 package provisionersdk_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,7 +13,7 @@ import (
 func TestTar(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	file, err := ioutil.TempFile(dir, "")
+	file, err := os.CreateTemp(dir, "")
 	require.NoError(t, err)
 	_ = file.Close()
 	_, err = provisionersdk.Tar(dir)
@@ -24,7 +23,7 @@ func TestTar(t *testing.T) {
 func TestUntar(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	file, err := ioutil.TempFile(dir, "")
+	file, err := os.CreateTemp(dir, "")
 	require.NoError(t, err)
 	_ = file.Close()
 	archive, err := provisionersdk.Tar(dir)

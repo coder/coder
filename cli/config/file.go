@@ -1,7 +1,7 @@
 package config
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -67,5 +67,5 @@ func read(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer fi.Close()
-	return ioutil.ReadAll(fi)
+	return io.ReadAll(fi)
 }

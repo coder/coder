@@ -27,7 +27,7 @@ linters-settings:
       - codegenComment
       # - commentedOutCode
       - commentedOutImport
-      # - commentFormatting
+      - commentFormatting
       - defaultCaseOrder
       - deferUnlambda
       # - deprecatedComment
@@ -54,7 +54,7 @@ linters-settings:
       # - importShadow
       - indexAlloc
       - initClause
-      # - ioutilDeprecated
+      - ioutilDeprecated
       - mapKey
       - methodExprCall
       # - nestingReduce
