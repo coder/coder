@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v2
         with:
-          go-version: "~1.17"
+          go-version: "~1.18"
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3.1.0
         with:
@@ -82,7 +82,7 @@ jobs:
           version: "3.19.4"
       - uses: actions/setup-go@v2
         with:
-          go-version: "~1.17"
+          go-version: "~1.18"
       - run: curl -sSL
           https://github.com/kyleconroy/sqlc/releases/download/v1.11.0/sqlc_1.11.0_linux_amd64.tar.gz
           | sudo tar -C /usr/bin -xz sqlc
@@ -133,7 +133,7 @@ jobs:
 
       - uses: actions/setup-go@v2
         with:
-          go-version: "~1.17"
+          go-version: "~1.18"
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -426,7 +426,7 @@ jobs:
       # Go is required for uploading the test results to datadog
       - uses: actions/setup-go@v2
         with:
-          go-version: "~1.17"
+          go-version: "~1.18"
 
       - uses: hashicorp/setup-terraform@v1
         with:
