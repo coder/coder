@@ -3,8 +3,9 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/url"
+	"os"
 	"os/exec"
 	"os/user"
 	"runtime"
@@ -30,8 +31,8 @@ func init() {
 	// when in SSH or another type of headless session
 	// NOTE: This needs to be in `init` to prevent data races
 	// (multiple threads trying to set the global browser.Std* variables)
-	browser.Stderr = ioutil.Discard
-	browser.Stdout = ioutil.Discard
+	browser.Stderr = io.Discard
+	browser.Stdout = io.Discard
 }
 
 func login() *cobra.Command {
@@ -205,7 +206,7 @@ func isWSL() (bool, error) {
 	if runtime.GOOS == goosDarwin || runtime.GOOS == goosWindows {
 		return false, nil
 	}
-	data, err := ioutil.ReadFile("/proc/version")
+	data, err := os.ReadFile("/proc/version")
 	if err != nil {
 		return false, xerrors.Errorf("read /proc/version: %w", err)
 	}

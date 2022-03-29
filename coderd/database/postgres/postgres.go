@@ -3,7 +3,6 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"sync"
@@ -48,10 +47,12 @@ func Open() (string, func(), error) {
 	if err != nil {
 		return "", nil, xerrors.Errorf("create pool: %w", err)
 	}
-	tempDir, err := ioutil.TempDir(os.TempDir(), "postgres")
+
+	tempDir, err := os.MkdirTemp(os.TempDir(), "postgres")
 	if err != nil {
 		return "", nil, xerrors.Errorf("create tempdir: %w", err)
 	}
+
 	openPortMutex.Lock()
 	// Pick an explicit port on the host to connect to 5432.
 	// This is necessary so we can configure the port to only use ipv4.

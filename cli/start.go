@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -383,10 +382,12 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 			panic(err)
 		}
 	}()
-	tempDir, err := ioutil.TempDir("", "provisionerd")
+
+	tempDir, err := os.MkdirTemp("", "provisionerd")
 	if err != nil {
 		return nil, err
 	}
+
 	return provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
 		PollInterval:   50 * time.Millisecond,
@@ -473,7 +474,7 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 
 	if tlsClientCAFile != "" {
 		caPool := x509.NewCertPool()
-		data, err := ioutil.ReadFile(tlsClientCAFile)
+		data, err := os.ReadFile(tlsClientCAFile)
 		if err != nil {
 			return nil, xerrors.Errorf("read %q: %w", tlsClientCAFile, err)
 		}

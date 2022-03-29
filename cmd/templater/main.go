@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http/httptest"
 	"net/url"
@@ -263,10 +262,12 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 			panic(err)
 		}
 	}()
-	tempDir, err := ioutil.TempDir("", "provisionerd")
+
+	tempDir, err := os.MkdirTemp("", "provisionerd")
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("mkdir temp: %w", err)
 	}
+
 	return provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
 		PollInterval:   50 * time.Millisecond,
