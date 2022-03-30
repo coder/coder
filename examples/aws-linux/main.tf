@@ -85,6 +85,11 @@ resource "coder_agent" "dev" {
 }
 
 locals {
+
+  # with AWS, we are using user data
+  # to start/stop instances with Terraform
+  # https://github.com/hashicorp/terraform-provider-aws/issues/22
+
   user_data_start = <<EOT
 Content-Type: multipart/mixed; boundary="//"
 MIME-Version: 1.0
@@ -137,7 +142,6 @@ EOT
 }
 
 resource "aws_instance" "dev" {
-  # count             = data.coder_workspace.me.transition == "start" ? 1 : 0
   ami               = data.aws_ami.ubuntu.id
   availability_zone = "${var.region}a"
   instance_type     = "t3.micro"
