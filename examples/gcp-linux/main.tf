@@ -1,8 +1,12 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
-      version = "0.2.1"
+      source  = "coder/coder"
+      version = "~> 0.2"
+    }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 4.15"
     }
   }
 }
@@ -78,7 +82,7 @@ resource "google_compute_instance" "dev" {
   }
   boot_disk {
     auto_delete = false
-    source = google_compute_disk.root.name
+    source      = google_compute_disk.root.name
   }
   service_account {
     email  = data.google_compute_default_service_account.default.email
@@ -88,6 +92,6 @@ resource "google_compute_instance" "dev" {
 }
 
 resource "coder_agent" "dev" {
-  count = length(google_compute_instance.dev)
+  count       = length(google_compute_instance.dev)
   instance_id = google_compute_instance.dev[0].instance_id
 }
