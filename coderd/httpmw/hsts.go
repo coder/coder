@@ -20,10 +20,11 @@ const (
 // This header only makes sense if the app is using tls.
 // Full header example
 //	Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-func HSTS(hsts bool) func(next http.Handler) http.Handler {
+// nolint:revive
+func HSTS(enable bool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if hsts {
+			if enable {
 				w.Header().Set(HSTSHeader, fmt.Sprintf("max-age=%d", int64(HSTSMaxAge)))
 			}
 
