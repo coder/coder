@@ -11,7 +11,15 @@
 
 ## How to use
 
-These are available during `coder projects init`. Optionally modify the terraform and use `coder projects create` or `coder projects update`, if you have already imported the project.
+These are embedded as examples when you run `coder projects init`. Optionally modify the terraform and use `coder projects create` or `coder projects update`, if you have already imported the project.
+
+You can still use projects that are not embedded in your version of Coder:
+
+```sh
+git clone https://github.com/coder/coder
+cd examples/aws-macos
+coder projects create
+```
 
 ## Statuses
 
