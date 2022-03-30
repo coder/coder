@@ -13,6 +13,12 @@ EOT
   sensitive   = true
 }
 
+variable "dedicated_host_id" {
+  description = "Dedicated host ID: (leave blank to create a new one)"
+  default     = false
+  type        = string
+}
+
 variable "secret_key" {
   description = <<EOT
 AWS Secret Key
@@ -21,6 +27,7 @@ EOT
 }
 
 resource "aws_ec2_host" "dedicated" {
+  count             = var.dedicated_host_id == "" ? 1 : 0
   instance_type     = "mac1.metal"
   availability_zone = "us-west-2a"
   host_recovery     = "off"
@@ -85,7 +92,7 @@ EOT
 resource "aws_instance" "dev" {
   ami               = data.aws_ami.mac.id
   availability_zone = "us-west-2a"
-  host_id           = aws_ec2_host.dedicated.id
+  host_id           = var.dedicated_host_id == "" ? aws_ec2_host.dedicated[0].id : var.dedicated_host_id
   instance_type     = "mac1.metal"
   count             = 1
 
