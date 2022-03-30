@@ -89,11 +89,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
           type="password"
           variant="outlined"
         />
-        {authErrorMessage && (
-          <FormHelperText data-testid="sign-in-error" error>
-            {Language.authErrorMessage}
-          </FormHelperText>
-        )}
+        {authErrorMessage && <FormHelperText error>{Language.authErrorMessage}</FormHelperText>}
         <div className={styles.submitBtn}>
           <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
             {isLoading ? "" : Language.signIn}
