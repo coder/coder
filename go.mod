@@ -35,7 +35,7 @@ require (
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.18.1
-	github.com/charmbracelet/charm v0.10.3
+	github.com/charmbracelet/charm v0.11.0
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/cloudflare/cloudflared v0.0.0-20220308214351-5352b3cf0489
 	github.com/coder/retry v1.3.0
