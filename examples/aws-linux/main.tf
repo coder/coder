@@ -86,8 +86,7 @@ resource "coder_agent" "dev" {
 
 locals {
 
-  # with AWS, we are using user data
-  # to start/stop instances with Terraform
+  # User data is used to stop/start AWS instances. See:
   # https://github.com/hashicorp/terraform-provider-aws/issues/22
 
   user_data_start = <<EOT
