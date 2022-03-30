@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -87,7 +88,9 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			})
 		}
 	}()
-	if t.cachePath != "" {
+	// Windows doesn't work with a plugin cache directory.
+	// The cause is unknown, but it should work.
+	if t.cachePath != "" && runtime.GOOS != "windows" {
 		err = terraform.SetEnv(map[string]string{
 			"TF_PLUGIN_CACHE_DIR": t.cachePath,
 		})

@@ -109,7 +109,7 @@ func configSSH() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "An auto-generated ssh config was written to \"%s\"\n", sshConfigFile)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "An auto-generated ssh config was written to %q\n", sshConfigFile)
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "You should now be able to ssh into your workspace")
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "For example, try running\n\n\t$ ssh coder.%s\n\n", workspaces[0].Name)
 			return nil

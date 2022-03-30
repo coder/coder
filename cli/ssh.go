@@ -11,13 +11,13 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 func ssh() *cobra.Command {
@@ -121,18 +121,16 @@ func ssh() *cobra.Command {
 			}
 
 			if isatty.IsTerminal(os.Stdout.Fd()) {
-				state, err := terminal.MakeRaw(int(os.Stdout.Fd()))
+				state, err := terminal.MakeRaw(int(os.Stdin.Fd()))
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = terminal.Restore(int(os.Stdout.Fd()), state)
+					_ = terminal.Restore(int(os.Stdin.Fd()), state)
 				}()
 			}
 
-			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{
-				gossh.OCRNL: 1,
-			})
+			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
 			if err != nil {
 				return err
 			}

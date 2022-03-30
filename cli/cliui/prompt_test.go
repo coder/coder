@@ -93,9 +93,7 @@ func TestPrompt(t *testing.T) {
 		ptty.WriteLine(`{
 "test": "wow"
 }`)
-		require.Equal(t, `{
-"test": "wow"
-}`, <-doneChan)
+		require.Equal(t, `{"test":"wow"}`, <-doneChan)
 	})
 }
 

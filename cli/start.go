@@ -314,7 +314,7 @@ func start() *cobra.Command {
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
 	// systemd uses the CACHE_DIRECTORY environment variable!
-	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), ".coder-cache"), "Specifies a directory to cache binaries for provision operations.")
+	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
@@ -370,6 +370,11 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 }
 
 func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string) (*provisionerd.Server, error) {
+	err := os.MkdirAll(cacheDir, 0700)
+	if err != nil {
+		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
+	}
+
 	terraformClient, terraformServer := provisionersdk.TransportPipe()
 	go func() {
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
