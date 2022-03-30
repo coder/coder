@@ -47,17 +47,17 @@ func start() *cobra.Command {
 		dev         bool
 		postgresURL string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
-		provisionerDaemonCount uint8
-		tlsCertFile            string
-		tlsClientCAFile        string
-		tlsClientAuth          string
-		tlsEnable              bool
-		tlsKeyFile             string
-		tlsMinVersion          string
-		useTunnel              bool
-		traceDatadog           bool
-		hsts                   bool
-		secureCookie           bool
+		provisionerDaemonCount  uint8
+		tlsCertFile             string
+		tlsClientCAFile         string
+		tlsClientAuth           string
+		tlsEnable               bool
+		tlsKeyFile              string
+		tlsMinVersion           string
+		useTunnel               bool
+		traceDatadog            bool
+		strictTransportSecurity bool
+		secureCookie            bool
 	)
 	root := &cobra.Command{
 		Use: "start",
@@ -134,7 +134,7 @@ func start() *cobra.Command {
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
-				HSTS:                 hsts,
+				HSTS:                 strictTransportSecurity,
 				SecureCookie:         secureCookie,
 			}
 
@@ -338,7 +338,7 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", true, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
-	cliflag.BoolVarP(root.Flags(), &hsts, "hsts", "", "CODER_HSTS", false, "Set the 'strict-transport-security' header on http responses")
+	cliflag.BoolVarP(root.Flags(), &strictTransportSecurity, "strict-transport-security", "", "CODER_STRICT_TRANSPORT_SECURITY", false, "Set the 'strict-transport-security' header on http responses")
 	cliflag.BoolVarP(root.Flags(), &secureCookie, "secure-cookie", "", "CODER_SECURE_COOKIE", false, "Set the 'Secure' property on browser session cookies")
 
 	return root

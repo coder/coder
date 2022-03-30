@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	HSTSHeader = "Strict-Transport-Security"
-	HSTSMaxAge = time.Hour * 24 * 365 // 1 year
+	StrictTransportSecurityHeader = "Strict-Transport-Security"
+	StrictTransportSecurityMaxAge = time.Hour * 24 * 365 // 1 year
 )
 
-// HSTS will add the strict-transport-security header if enabled.
+// StrictTransportSecurity will add the strict-transport-security header if enabled.
 // This header forces a browser to always use https for the domain after it loads https
 // once.
 // Meaning: On first load of product.coder.com, they are redirected to https.
@@ -19,13 +19,13 @@ const (
 //
 // This header only makes sense if the app is using tls.
 // Full header example
-//	Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+//	Strict-Transport-Security: max-age=63072000;
 // nolint:revive
-func HSTS(enable bool) func(next http.Handler) http.Handler {
+func StrictTransportSecurity(enable bool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if enable {
-				w.Header().Set(HSTSHeader, fmt.Sprintf("max-age=%d", int64(HSTSMaxAge)))
+				w.Header().Set(StrictTransportSecurityHeader, fmt.Sprintf("max-age=%d", int64(StrictTransportSecurityMaxAge.Seconds())))
 			}
 
 			next.ServeHTTP(w, r)
