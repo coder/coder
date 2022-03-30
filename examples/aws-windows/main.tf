@@ -47,12 +47,6 @@ data "coder_agent_script" "dev" {
   os   = "windows"
 }
 
-# assign a random name for the workspace
-resource "random_string" "random" {
-  length  = 8
-  special = false
-}
-
 data "aws_ami" "windows" {
   most_recent = true
   owners      = ["amazon"]
@@ -97,7 +91,7 @@ resource "aws_instance" "dev" {
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {
-    Name = "coder-${lower(random_string.random.result)}"
+    Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
   }
 
 }
