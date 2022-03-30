@@ -20,7 +20,7 @@ func TestAgent(t *testing.T) {
 	ptty := ptytest.New(t)
 	cmd := &cobra.Command{
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := cliui.Agent(cmd, cliui.AgentOptions{
+			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "example",
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceResource, error) {
 					resource := codersdk.WorkspaceResource{

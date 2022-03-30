@@ -137,8 +137,6 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", agent))
-
 	defer func() {
 		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}()
@@ -183,6 +181,23 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	}
+	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+		return
+	}
+	// Ensure the resource is still valid!
+	// We only accept agents for resources on the latest build.
+	ensureLatestBuild := func() error {
+		latestBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), build.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		if build.ID.String() != latestBuild.ID.String() {
+			return xerrors.New("build is outdated")
+		}
+		return nil
+	}
 
 	defer func() {
 		disconnectedAt = sql.NullTime{
@@ -197,6 +212,13 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
+	err = ensureLatestBuild()
+	if err != nil {
+		_ = conn.Close(websocket.StatusGoingAway, "")
+		return
+	}
+
+	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", agent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
 	defer ticker.Stop()
@@ -212,6 +234,12 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 			err = updateConnectionTimes()
 			if err != nil {
 				_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
+				return
+			}
+			err = ensureLatestBuild()
+			if err != nil {
+				// Disconnect agents that are no longer valid.
+				_ = conn.Close(websocket.StatusGoingAway, "")
 				return
 			}
 		}

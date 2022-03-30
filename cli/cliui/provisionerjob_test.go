@@ -126,7 +126,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	logs := make(chan codersdk.ProvisionerJobLog, 1)
 	cmd := &cobra.Command{
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
+			return cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 				FetchInterval: time.Millisecond,
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					jobLock.Lock()

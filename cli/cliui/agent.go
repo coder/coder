@@ -3,11 +3,11 @@ package cliui
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
@@ -21,7 +21,7 @@ type AgentOptions struct {
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
-func Agent(cmd *cobra.Command, opts AgentOptions) error {
+func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
 	}
@@ -29,7 +29,7 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 		opts.WarnInterval = 30 * time.Second
 	}
 	var resourceMutex sync.Mutex
-	resource, err := opts.Fetch(cmd.Context())
+	resource, err := opts.Fetch(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
 	}
@@ -40,7 +40,8 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 		opts.WarnInterval = 0
 	}
 	spin := spinner.New(spinner.CharSets[78], 100*time.Millisecond, spinner.WithColor("fgHiGreen"))
-	spin.Writer = cmd.OutOrStdout()
+	spin.Writer = writer
+	spin.ForceOutput = true
 	spin.Suffix = " Waiting for connection from " + Styles.Field.Render(resource.Type+"."+resource.Name) + "..."
 	spin.Start()
 	defer spin.Stop()
@@ -51,7 +52,7 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 	defer timer.Stop()
 	go func() {
 		select {
-		case <-cmd.Context().Done():
+		case <-ctx.Done():
 			return
 		case <-timer.C:
 		}
@@ -63,17 +64,17 @@ func Agent(cmd *cobra.Command, opts AgentOptions) error {
 		}
 		// This saves the cursor position, then defers clearing from the cursor
 		// position to the end of the screen.
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[s\r\033[2K%s\n\n", Styles.Paragraph.Render(Styles.Prompt.String()+message))
-		defer fmt.Fprintf(cmd.OutOrStdout(), "\033[u\033[J")
+		_, _ = fmt.Fprintf(writer, "\033[s\r\033[2K%s\n\n", Styles.Paragraph.Render(Styles.Prompt.String()+message))
+		defer fmt.Fprintf(writer, "\033[u\033[J")
 	}()
 	for {
 		select {
-		case <-cmd.Context().Done():
-			return cmd.Context().Err()
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-ticker.C:
 		}
 		resourceMutex.Lock()
-		resource, err = opts.Fetch(cmd.Context())
+		resource, err = opts.Fetch(ctx)
 		if err != nil {
 			return xerrors.Errorf("fetch: %w", err)
 		}

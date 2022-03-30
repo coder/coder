@@ -96,7 +96,7 @@ func main() {
 				job.Status = codersdk.ProvisionerJobSucceeded
 			}()
 
-			err := cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
+			err := cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					return job, nil
 				},
@@ -172,7 +172,7 @@ func main() {
 				time.Sleep(3 * time.Second)
 				resource.Agent.Status = codersdk.WorkspaceAgentConnected
 			}()
-			err := cliui.Agent(cmd, cliui.AgentOptions{
+			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "dev",
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceResource, error) {
 					return resource, nil

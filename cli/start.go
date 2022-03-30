@@ -267,7 +267,7 @@ func start() *cobra.Command {
 						return xerrors.Errorf("delete workspace: %w", err)
 					}
 
-					err = cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
+					err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 						Fetch: func() (codersdk.ProvisionerJob, error) {
 							build, err := client.WorkspaceBuild(cmd.Context(), build.ID)
 							return build.Job, err

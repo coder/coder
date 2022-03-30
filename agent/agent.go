@@ -148,7 +148,7 @@ func (s *agent) init(ctx context.Context) {
 		Handler: func(session ssh.Session) {
 			err := s.handleSSHSession(session)
 			if err != nil {
-				s.options.Logger.Debug(ctx, "ssh session failed", slog.Error(err))
+				s.options.Logger.Warn(ctx, "ssh session failed", slog.Error(err))
 				_ = session.Exit(1)
 				return
 			}
@@ -177,12 +177,6 @@ func (s *agent) init(ctx context.Context) {
 		},
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
-				Config: gossh.Config{
-					// "arcfour" is the fastest SSH cipher. We prioritize throughput
-					// over encryption here, because the WebRTC connection is already
-					// encrypted. If possible, we'd disable encryption entirely here.
-					Ciphers: []string{"arcfour"},
-				},
 				NoClientAuth: true,
 			}
 		},
@@ -198,14 +192,11 @@ func (*agent) handleSSHSession(session ssh.Session) error {
 		err     error
 	)
 
-	username := session.User()
-	if username == "" {
-		currentUser, err := user.Current()
-		if err != nil {
-			return xerrors.Errorf("get current user: %w", err)
-		}
-		username = currentUser.Username
+	currentUser, err := user.Current()
+	if err != nil {
+		return xerrors.Errorf("get current user: %w", err)
 	}
+	username := currentUser.Username
 
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
@@ -249,10 +240,7 @@ func (*agent) handleSSHSession(session ssh.Session) error {
 		}
 		go func() {
 			for win := range windowSize {
-				err := ptty.Resize(uint16(win.Width), uint16(win.Height))
-				if err != nil {
-					panic(err)
-				}
+				_ = ptty.Resize(uint16(win.Width), uint16(win.Height))
 			}
 		}()
 		go func() {
