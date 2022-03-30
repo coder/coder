@@ -29,6 +29,9 @@ type Options struct {
 
 	AWSCertificates      awsidentity.Certificates
 	GoogleTokenValidator *idtoken.Validator
+
+	HSTS         bool
+	SecureCookie bool
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -45,7 +48,10 @@ func New(options *Options) (http.Handler, func()) {
 
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
-		r.Use(chitrace.Middleware())
+		r.Use(
+			chitrace.Middleware(),
+			httpmw.HSTS(api.HSTS),
+		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
 				Message: "👋",
