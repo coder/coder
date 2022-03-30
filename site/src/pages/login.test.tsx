@@ -1,9 +1,11 @@
 import React from "react"
-import { act, fireEvent, screen } from "@testing-library/react"
+import { act, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { history, render } from "../test_helpers"
 import { SignInPage } from "./login"
 import { server } from "../test_helpers/server"
 import { rest } from "msw"
+import { Language } from "../components/SignIn/SignInForm"
 
 describe("SignInPage", () => {
   beforeEach(() => {
@@ -21,12 +23,12 @@ describe("SignInPage", () => {
     render(<SignInPage />)
 
     // Then
-    await screen.findByText("Sign In", { exact: false })
+    await screen.findByText(Language.signIn, { exact: false })
   })
 
   it("shows an error message if SignIn fails", async () => {
     // Given
-    const { container } = render(<SignInPage />)
+    render(<SignInPage />)
     // Make login fail
     server.use(
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
@@ -35,17 +37,18 @@ describe("SignInPage", () => {
     )
 
     // When
-    // Set username / password
-    const [username, password] = container.querySelectorAll("input")
-    fireEvent.change(username, { target: { value: "test@coder.com" } })
-    fireEvent.change(password, { target: { value: "password" } })
+    // Set email / password
+    const email = screen.getByLabelText(Language.emailLabel)
+    const password = screen.getByLabelText(Language.passwordLabel)
+    userEvent.type(email, "test@coder.com")
+    userEvent.type(password, "password")
     // Click sign-in
-    const signInButton = await screen.findByText("Sign In")
+    const signInButton = await screen.findByText(Language.signIn)
     act(() => signInButton.click())
 
     // Then
     // Finding error by test id because it comes from the backend
-    const errorMessage = await screen.findByTestId("sign-in-error")
+    const errorMessage = await screen.findByText(Language.authErrorMessage)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
   })
