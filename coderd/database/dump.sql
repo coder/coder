@@ -57,64 +57,16 @@ CREATE TYPE provisioner_type AS ENUM (
     'terraform'
 );
 
-CREATE TYPE rtcmode AS ENUM (
-    'auto',
-    'turn',
-    'stun'
-);
-
-CREATE TYPE userstatus AS ENUM (
-    'active',
-    'dormant',
-    'decommissioned'
-);
-
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
     'delete'
 );
 
-CREATE FUNCTION org_uuid_to_longid_trigger() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    if NEW.organization_id_old IS NULL THEN
-        NEW.organization_id_old := NEW.organization_id::text;
-    END if;
-
-    return NEW;
-END;
-$$;
-
-CREATE FUNCTION user_uuid_to_longid_trigger() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    if NEW.user_id_old IS NULL THEN
-        NEW.user_id_old := NEW.user_id::text;
-    END if;
-
-    return NEW;
-END;
-$$;
-
-CREATE FUNCTION uuid_to_longid_trigger() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    if NEW.id_old IS NULL THEN
-        NEW.id_old := NEW.id::text;
-    END if;
-
-    return NEW;
-END;
-$$;
-
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
-    user_id_old text NOT NULL,
+    user_id uuid NOT NULL,
     application boolean NOT NULL,
     name text NOT NULL,
     last_used timestamp with time zone NOT NULL,
@@ -126,8 +78,7 @@ CREATE TABLE api_keys (
     oidc_refresh_token text DEFAULT ''::text NOT NULL,
     oidc_id_token text DEFAULT ''::text NOT NULL,
     oidc_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    devurl_token boolean DEFAULT false NOT NULL,
-    user_id uuid NOT NULL
+    devurl_token boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE files (
@@ -155,27 +106,19 @@ CREATE SEQUENCE licenses_id_seq
 ALTER SEQUENCE licenses_id_seq OWNED BY public.licenses.id;
 
 CREATE TABLE organization_members (
-    organization_id_old text NOT NULL,
-    user_id_old text NOT NULL,
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    roles text[] DEFAULT '{organization-member}'::text[] NOT NULL,
-    user_id uuid NOT NULL,
-    organization_id uuid NOT NULL
+    roles text[] DEFAULT '{organization-member}'::text[] NOT NULL
 );
 
 CREATE TABLE organizations (
     id uuid NOT NULL,
-    id_old text NOT NULL,
     name text NOT NULL,
     description text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    "default" boolean DEFAULT false NOT NULL,
-    auto_off_threshold bigint DEFAULT '28800000000000'::bigint NOT NULL,
-    cpu_provisioning_rate real DEFAULT 4.0 NOT NULL,
-    memory_provisioning_rate real DEFAULT 1.0 NOT NULL,
-    workspace_auto_off boolean DEFAULT false NOT NULL
+    updated_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -270,7 +213,6 @@ CREATE TABLE provisioner_jobs (
 
 CREATE TABLE users (
     id uuid NOT NULL,
-    id_old text NOT NULL,
     email text NOT NULL,
     name text NOT NULL,
     revoked boolean NOT NULL,
@@ -278,20 +220,7 @@ CREATE TABLE users (
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    temporary_password boolean DEFAULT false NOT NULL,
-    avatar_hash text DEFAULT ''::text NOT NULL,
-    ssh_key_regenerated_at timestamp with time zone DEFAULT now() NOT NULL,
-    username text DEFAULT ''::text NOT NULL,
-    dotfiles_git_uri text DEFAULT ''::text NOT NULL,
-    roles text[] DEFAULT '{site-member}'::text[] NOT NULL,
-    status userstatus DEFAULT 'active'::public.userstatus NOT NULL,
-    relatime timestamp with time zone DEFAULT now() NOT NULL,
-    gpg_key_regenerated_at timestamp with time zone DEFAULT now() NOT NULL,
-    _decomissioned boolean DEFAULT false NOT NULL,
-    shell text DEFAULT ''::text NOT NULL,
-    autostart_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    rtc_mode rtcmode DEFAULT 'auto'::public.rtcmode NOT NULL,
-    username_pre_dedup text DEFAULT ''::text NOT NULL
+    username text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -361,7 +290,7 @@ ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
 ALTER TABLE ONLY organizations
-    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id_old);
+    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_name_key UNIQUE (job_id, name);
@@ -400,7 +329,7 @@ ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
-    ADD CONSTRAINT users_pkey PRIMARY KEY (id_old);
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_auth_token_key UNIQUE (auth_token);
@@ -423,27 +352,17 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
-CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id_old);
-
-CREATE INDEX idx_api_keys_user_uuid ON api_keys USING btree (user_id);
-
-CREATE INDEX idx_organization_member_organization_id ON organization_members USING btree (organization_id_old);
+CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
-CREATE INDEX idx_organization_member_user_id ON organization_members USING btree (user_id_old);
-
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
-
-CREATE UNIQUE INDEX idx_organization_members_user_org_id_uuid ON organization_members USING btree (user_id, organization_id);
 
 CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
-CREATE UNIQUE INDEX idx_organizations_id_uuid ON organizations USING btree (id);
+CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
-
-CREATE UNIQUE INDEX idx_users_id_uuid ON users USING btree (id);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
@@ -453,27 +372,11 @@ CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(usernam
 
 CREATE UNIQUE INDEX workspaces_owner_id_name_idx ON workspaces USING btree (owner_id, name) WHERE (deleted = false);
 
-CREATE TRIGGER trig_uuid_to_longid_api_keys_user_id BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE PROCEDURE public.user_uuid_to_longid_trigger();
-
-CREATE TRIGGER trig_uuid_to_longid_organization_members_org_id BEFORE INSERT ON organization_members FOR EACH ROW EXECUTE PROCEDURE public.org_uuid_to_longid_trigger();
-
-CREATE TRIGGER trig_uuid_to_longid_organization_members_user_id BEFORE INSERT ON organization_members FOR EACH ROW EXECUTE PROCEDURE public.user_uuid_to_longid_trigger();
-
-CREATE TRIGGER trig_uuid_to_longid_organizations BEFORE INSERT ON organizations FOR EACH ROW EXECUTE PROCEDURE public.uuid_to_longid_trigger();
-
-CREATE TRIGGER trig_uuid_to_longid_users BEFORE INSERT ON users FOR EACH ROW EXECUTE PROCEDURE public.uuid_to_longid_trigger();
-
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
-    ADD CONSTRAINT organization_members_organization_id_fkey FOREIGN KEY (organization_id_old) REFERENCES organizations(id_old) ON DELETE CASCADE;
-
-ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY organization_members
-    ADD CONSTRAINT organization_members_user_id_fkey FOREIGN KEY (user_id_old) REFERENCES users(id_old) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

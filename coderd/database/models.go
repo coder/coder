@@ -209,46 +209,6 @@ func (e *ProvisionerType) Scan(src interface{}) error {
 	return nil
 }
 
-type Rtcmode string
-
-const (
-	RtcmodeAuto Rtcmode = "auto"
-	RtcmodeTurn Rtcmode = "turn"
-	RtcmodeStun Rtcmode = "stun"
-)
-
-func (e *Rtcmode) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = Rtcmode(s)
-	case string:
-		*e = Rtcmode(s)
-	default:
-		return fmt.Errorf("unsupported scan type for Rtcmode: %T", src)
-	}
-	return nil
-}
-
-type UserStatus string
-
-const (
-	UserstatusActive         UserStatus = "active"
-	UserstatusDormant        UserStatus = "dormant"
-	UserstatusDecommissioned UserStatus = "decommissioned"
-)
-
-func (e *UserStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = UserStatus(s)
-	case string:
-		*e = UserStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for UserStatus: %T", src)
-	}
-	return nil
-}
-
 type WorkspaceTransition string
 
 const (
@@ -272,7 +232,7 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 type APIKey struct {
 	ID               string    `db:"id" json:"id"`
 	HashedSecret     []byte    `db:"hashed_secret" json:"hashed_secret"`
-	UserIDOld        string    `db:"user_id_old" json:"user_id_old"`
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	Application      bool      `db:"application" json:"application"`
 	Name             string    `db:"name" json:"name"`
 	LastUsed         time.Time `db:"last_used" json:"last_used"`
@@ -285,7 +245,6 @@ type APIKey struct {
 	OIDCIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
 	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
 	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
-	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 type File struct {
@@ -303,27 +262,19 @@ type License struct {
 }
 
 type Organization struct {
-	ID                     uuid.UUID `db:"id" json:"id"`
-	IDOld                  string    `db:"id_old" json:"id_old"`
-	Name                   string    `db:"name" json:"name"`
-	Description            string    `db:"description" json:"description"`
-	CreatedAt              time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
-	Default                bool      `db:"default" json:"default"`
-	AutoOffThreshold       int64     `db:"auto_off_threshold" json:"auto_off_threshold"`
-	CpuProvisioningRate    float32   `db:"cpu_provisioning_rate" json:"cpu_provisioning_rate"`
-	MemoryProvisioningRate float32   `db:"memory_provisioning_rate" json:"memory_provisioning_rate"`
-	WorkspaceAutoOff       bool      `db:"workspace_auto_off" json:"workspace_auto_off"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type OrganizationMember struct {
-	OrganizationIDOld string    `db:"organization_id_old" json:"organization_id_old"`
-	UserIDOld         string    `db:"user_id_old" json:"user_id_old"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
-	Roles             []string  `db:"roles" json:"roles"`
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	OrganizationID    uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	Roles          []string  `db:"roles" json:"roles"`
 }
 
 type ParameterSchema struct {
@@ -417,29 +368,15 @@ type ProvisionerJobLog struct {
 }
 
 type User struct {
-	ID                  uuid.UUID  `db:"id" json:"id"`
-	IDOld               string     `db:"id_old" json:"id_old"`
-	Email               string     `db:"email" json:"email"`
-	Name                string     `db:"name" json:"name"`
-	Revoked             bool       `db:"revoked" json:"revoked"`
-	LoginType           LoginType  `db:"login_type" json:"login_type"`
-	HashedPassword      []byte     `db:"hashed_password" json:"hashed_password"`
-	CreatedAt           time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time  `db:"updated_at" json:"updated_at"`
-	TemporaryPassword   bool       `db:"temporary_password" json:"temporary_password"`
-	AvatarHash          string     `db:"avatar_hash" json:"avatar_hash"`
-	SshKeyRegeneratedAt time.Time  `db:"ssh_key_regenerated_at" json:"ssh_key_regenerated_at"`
-	Username            string     `db:"username" json:"username"`
-	DotfilesGitUri      string     `db:"dotfiles_git_uri" json:"dotfiles_git_uri"`
-	Roles               []string   `db:"roles" json:"roles"`
-	Status              UserStatus `db:"status" json:"status"`
-	Relatime            time.Time  `db:"relatime" json:"relatime"`
-	GpgKeyRegeneratedAt time.Time  `db:"gpg_key_regenerated_at" json:"gpg_key_regenerated_at"`
-	Decomissioned       bool       `db:"_decomissioned" json:"_decomissioned"`
-	Shell               string     `db:"shell" json:"shell"`
-	AutostartAt         time.Time  `db:"autostart_at" json:"autostart_at"`
-	RtcMode             Rtcmode    `db:"rtc_mode" json:"rtc_mode"`
-	UsernamePreDedup    string     `db:"username_pre_dedup" json:"username_pre_dedup"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	Email          string    `db:"email" json:"email"`
+	Name           string    `db:"name" json:"name"`
+	Revoked        bool      `db:"revoked" json:"revoked"`
+	LoginType      LoginType `db:"login_type" json:"login_type"`
+	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	Username       string    `db:"username" json:"username"`
 }
 
 type Workspace struct {

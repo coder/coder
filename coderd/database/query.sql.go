@@ -90,7 +90,7 @@ func (q *sqlQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID)
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-  id, hashed_secret, user_id_old, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token, user_id
+  id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
 FROM
   api_keys
 WHERE
@@ -105,7 +105,7 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	err := row.Scan(
 		&i.ID,
 		&i.HashedSecret,
-		&i.UserIDOld,
+		&i.UserID,
 		&i.Application,
 		&i.Name,
 		&i.LastUsed,
@@ -118,7 +118,6 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.OIDCIDToken,
 		&i.OIDCExpiry,
 		&i.DevurlToken,
-		&i.UserID,
 	)
 	return i, err
 }
@@ -149,7 +148,7 @@ func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, erro
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-  id, id_old, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  id, name, description, created_at, updated_at
 FROM
   organizations
 WHERE
@@ -161,23 +160,17 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 	var i Organization
 	err := row.Scan(
 		&i.ID,
-		&i.IDOld,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Default,
-		&i.AutoOffThreshold,
-		&i.CpuProvisioningRate,
-		&i.MemoryProvisioningRate,
-		&i.WorkspaceAutoOff,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-  id, id_old, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  id, name, description, created_at, updated_at
 FROM
   organizations
 WHERE
@@ -191,23 +184,17 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 	var i Organization
 	err := row.Scan(
 		&i.ID,
-		&i.IDOld,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Default,
-		&i.AutoOffThreshold,
-		&i.CpuProvisioningRate,
-		&i.MemoryProvisioningRate,
-		&i.WorkspaceAutoOff,
 	)
 	return i, err
 }
 
 const getOrganizationMemberByUserID = `-- name: GetOrganizationMemberByUserID :one
 SELECT
-  organization_id_old, user_id_old, created_at, updated_at, roles, user_id, organization_id
+  user_id, organization_id, created_at, updated_at, roles
 FROM
   organization_members
 WHERE
@@ -226,20 +213,18 @@ func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetO
 	row := q.db.QueryRowContext(ctx, getOrganizationMemberByUserID, arg.OrganizationID, arg.UserID)
 	var i OrganizationMember
 	err := row.Scan(
-		&i.OrganizationIDOld,
-		&i.UserIDOld,
+		&i.UserID,
+		&i.OrganizationID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		pq.Array(&i.Roles),
-		&i.UserID,
-		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-  id, id_old, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  id, name, description, created_at, updated_at
 FROM
   organizations
 WHERE
@@ -264,16 +249,10 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 		var i Organization
 		if err := rows.Scan(
 			&i.ID,
-			&i.IDOld,
 			&i.Name,
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Default,
-			&i.AutoOffThreshold,
-			&i.CpuProvisioningRate,
-			&i.MemoryProvisioningRate,
-			&i.WorkspaceAutoOff,
 		); err != nil {
 			return nil, err
 		}
@@ -887,7 +866,7 @@ func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetP
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-  id, id_old, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell, autostart_at, rtc_mode, username_pre_dedup
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
 FROM
   users
 WHERE
@@ -907,7 +886,6 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.IDOld,
 		&i.Email,
 		&i.Name,
 		&i.Revoked,
@@ -915,27 +893,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TemporaryPassword,
-		&i.AvatarHash,
-		&i.SshKeyRegeneratedAt,
 		&i.Username,
-		&i.DotfilesGitUri,
-		pq.Array(&i.Roles),
-		&i.Status,
-		&i.Relatime,
-		&i.GpgKeyRegeneratedAt,
-		&i.Decomissioned,
-		&i.Shell,
-		&i.AutostartAt,
-		&i.RtcMode,
-		&i.UsernamePreDedup,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-  id, id_old, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell, autostart_at, rtc_mode, username_pre_dedup
+  id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
 FROM
   users
 WHERE
@@ -949,7 +914,6 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.IDOld,
 		&i.Email,
 		&i.Name,
 		&i.Revoked,
@@ -957,20 +921,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TemporaryPassword,
-		&i.AvatarHash,
-		&i.SshKeyRegeneratedAt,
 		&i.Username,
-		&i.DotfilesGitUri,
-		pq.Array(&i.Roles),
-		&i.Status,
-		&i.Relatime,
-		&i.GpgKeyRegeneratedAt,
-		&i.Decomissioned,
-		&i.Shell,
-		&i.AutostartAt,
-		&i.RtcMode,
-		&i.UsernamePreDedup,
 	)
 	return i, err
 }
@@ -1596,7 +1547,7 @@ VALUES
     $13,
     $14,
     $15
-  ) RETURNING id, hashed_secret, user_id_old, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token, user_id
+  ) RETURNING id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
 `
 
 type InsertAPIKeyParams struct {
@@ -1639,7 +1590,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 	err := row.Scan(
 		&i.ID,
 		&i.HashedSecret,
-		&i.UserIDOld,
+		&i.UserID,
 		&i.Application,
 		&i.Name,
 		&i.LastUsed,
@@ -1652,7 +1603,6 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.OIDCIDToken,
 		&i.OIDCExpiry,
 		&i.DevurlToken,
-		&i.UserID,
 	)
 	return i, err
 }
@@ -1695,7 +1645,7 @@ const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
   organizations (id, name, description, created_at, updated_at)
 VALUES
-  ($1, $2, $3, $4, $5) RETURNING id, id_old, name, description, created_at, updated_at, "default", auto_off_threshold, cpu_provisioning_rate, memory_provisioning_rate, workspace_auto_off
+  ($1, $2, $3, $4, $5) RETURNING id, name, description, created_at, updated_at
 `
 
 type InsertOrganizationParams struct {
@@ -1717,16 +1667,10 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 	var i Organization
 	err := row.Scan(
 		&i.ID,
-		&i.IDOld,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Default,
-		&i.AutoOffThreshold,
-		&i.CpuProvisioningRate,
-		&i.MemoryProvisioningRate,
-		&i.WorkspaceAutoOff,
 	)
 	return i, err
 }
@@ -1741,7 +1685,7 @@ INSERT INTO
     roles
   )
 VALUES
-  ($1, $2, $3, $4, $5) RETURNING organization_id_old, user_id_old, created_at, updated_at, roles, user_id, organization_id
+  ($1, $2, $3, $4, $5) RETURNING user_id, organization_id, created_at, updated_at, roles
 `
 
 type InsertOrganizationMemberParams struct {
@@ -1762,13 +1706,11 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 	)
 	var i OrganizationMember
 	err := row.Scan(
-		&i.OrganizationIDOld,
-		&i.UserIDOld,
+		&i.UserID,
+		&i.OrganizationID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		pq.Array(&i.Roles),
-		&i.UserID,
-		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -2207,7 +2149,7 @@ INSERT INTO
     username
   )
 VALUES
-  ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING id, id_old, email, name, revoked, login_type, hashed_password, created_at, updated_at, temporary_password, avatar_hash, ssh_key_regenerated_at, username, dotfiles_git_uri, roles, status, relatime, gpg_key_regenerated_at, _decomissioned, shell, autostart_at, rtc_mode, username_pre_dedup
+  ($1, $2, $3, $4, false, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
 `
 
 type InsertUserParams struct {
@@ -2235,7 +2177,6 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.IDOld,
 		&i.Email,
 		&i.Name,
 		&i.Revoked,
@@ -2243,20 +2184,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TemporaryPassword,
-		&i.AvatarHash,
-		&i.SshKeyRegeneratedAt,
 		&i.Username,
-		&i.DotfilesGitUri,
-		pq.Array(&i.Roles),
-		&i.Status,
-		&i.Relatime,
-		&i.GpgKeyRegeneratedAt,
-		&i.Decomissioned,
-		&i.Shell,
-		&i.AutostartAt,
-		&i.RtcMode,
-		&i.UsernamePreDedup,
 	)
 	return i, err
 }
