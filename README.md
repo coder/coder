@@ -51,6 +51,17 @@ $ coder workspaces create my-first-workspace
 $ coder ssh my-first-workspace
 ```
 
+### Working with Projects
+
+You can edit the Terraform from a sample project:
+
+```sh
+$ coder projects init
+$ cd gcp-linux/
+$ vim main.tf
+$ coder projects update gcp-linux
+```
+
 ## Development
 
 The code structure is inspired by [Basics of Unix Philosophy](https://homepage.cs.uri.edu/~thenry/resources/unix_art/ch01s06.html) and [Effective Go](https://go.dev/doc/effective_go).
