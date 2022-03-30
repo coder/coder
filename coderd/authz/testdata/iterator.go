@@ -1,4 +1,8 @@
-package authztest
+package testdata
+
+import (
+	. "github.com/coder/coder/coderd/authz"
+)
 
 type iterable interface {
 	Iterator() iterator

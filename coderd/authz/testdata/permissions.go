@@ -4,50 +4,62 @@ import (
 	. "github.com/coder/coder/coderd/authz"
 )
 
-type level string
-
 const (
 	otherOption = "other"
-
-	levelWild   level = "*"
-	levelSite   level = "site"
-	levelOrg    level = "org"
-	levelOrgMem level = "org:mem"
-	// levelOrgAll is a helper to get both org levels above
-	levelOrgAll level = "org:*"
-	levelUser   level = "user"
 )
 
 var (
-	PermissionTypes = []bool{true, false}
-	Levels          = PermissionLevels
-	LevelIDs        = []string{"", "mem"}
-	ResourceTypes   = []string{"resource", "*", otherOption}
-	ResourceIDs     = []string{"rid", "*", otherOption}
-	Actions         = []string{"action", "*", otherOption}
+	Levels        = PermissionLevels
+	LevelIDs      = []string{"", "mem"}
+	ResourceTypes = []string{"resource", "*", otherOption}
+	ResourceIDs   = []string{"rid", "*", otherOption}
+	Actions       = []string{"action", "*", otherOption}
 )
 
+// AllPermissions returns all the possible permissions ever.
 func AllPermissions() Set {
-	all := make(Set, 0, 2*len(Levels)*len(LevelIDs)*len(ResourceTypes)*len(ResourceIDs)*len(Actions))
-	for _, p := range PermissionTypes {
+	permissionTypes := []bool{true, false}
+	all := make(Set, 0, len(permissionTypes)*len(Levels)*len(LevelIDs)*len(ResourceTypes)*len(ResourceIDs)*len(Actions))
+	for _, s := range permissionTypes {
 		for _, l := range Levels {
-			for _, lid := range LevelIDs {
-				for _, t := range ResourceTypes {
-					for _, i := range ResourceIDs {
-						for _, a := range Actions {
+			for _, t := range ResourceTypes {
+				for _, i := range ResourceIDs {
+					for _, a := range Actions {
+						if l == LevelOrg {
 							all = append(all, &Permission{
-								Sign:         p,
+								Sign:         s,
 								Level:        l,
-								LevelID:      lid,
+								LevelID:      "mem",
 								ResourceType: t,
 								ResourceID:   i,
 								Action:       a,
 							})
 						}
+						all = append(all, &Permission{
+							Sign:         s,
+							Level:        l,
+							LevelID:      "",
+							ResourceType: t,
+							ResourceID:   i,
+							Action:       a,
+						})
 					}
 				}
 			}
 		}
 	}
 	return all
+}
+
+// Impact returns the impact (positive, negative, abstain) of p
+func Impact(p *Permission) PermissionSet {
+	if p.ResourceType == otherOption ||
+		p.ResourceID == otherOption ||
+		p.Action == otherOption {
+		return SetNeutral
+	}
+	if p.Sign {
+		return SetPositive
+	}
+	return SetNegative
 }

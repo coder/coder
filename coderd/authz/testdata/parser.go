@@ -1,28 +1,30 @@
-package authztest
+package testdata
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Parser struct {
 	input string
 	stack []interface{}
-	grp   setGroup
+	grp   SetGroup
 
 	setI []iterable
 }
 
-func ParseRole(grp setGroup, input string) *Role {
+func ParseRole(grp SetGroup, input string) *Role {
 	p := NewParser(grp, input)
 	p.parse()
 	return NewRole(p.setI...)
 }
 
-func Parse(grp setGroup, input string) []iterable {
+func Parse(grp SetGroup, input string) []iterable {
 	p := NewParser(grp, input)
 	p.parse()
 	return p.setI
 }
 
-func NewParser(grp setGroup, input string) *Parser {
+func NewParser(grp SetGroup, input string) *Parser {
 
 	return &Parser{
 		grp:   grp,

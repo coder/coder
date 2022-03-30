@@ -1,4 +1,4 @@
-package authztest
+package testdata
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ func TestRole(t *testing.T) {
 		{
 			// [w] x [s1, s2, ""] = (w, s1), (w, s2), (w, "")
 			Name:         "W+",
-			Permutations: ParseRole(all, "w(pa) s(*e) o(*e) u(*e)"),
+			Permutations: ParseRole(all, "w(p) w(ae) s(pe) s(ne) s(ae) o(pe) o(ne) o(ae) u(pe) u(ne) u(ae)"),
 			Access:       true,
 		},
 		{
@@ -74,25 +74,25 @@ func TestRole(t *testing.T) {
 
 	var total uint64
 	for _, c := range testCases {
-		total += uint64(c.Permutations.Size)
+		total += uint64(c.Permutations.N)
 	}
 
 	for _, c := range testCases {
-		fmt.Printf("%s: Size=%10d, %10f%% of total\n",
-			c.Name, c.Permutations.Size, 100*(float64(c.Permutations.Size)/float64(total)))
+		fmt.Printf("%s: N=%10d, %10f%% of total\n",
+			c.Name, c.Permutations.N, 100*(float64(c.Permutations.N)/float64(total)))
 	}
 	fmt.Printf("Total cases=%d\n", total)
 
 	// This is how you run the test cases
-	for _, c := range testCases {
-		//t.Run(c.Name, func(t *testing.T) {
-		c.Permutations.Each(func(set Set) {
-			// Actually printing all the errors would be insane
-			//require.Equal(t, c.Access, FakeAuthorize(set))
-			FakeAuthorize(set)
-		})
-		//})
-	}
+	//for _, c := range testCases {
+	//t.Run(c.Name, func(t *testing.T) {
+	//c.Permutations.Each(func(set Set) {
+	//	// Actually printing all the errors would be insane
+	//	//require.Equal(t, c.Access, FakeAuthorize(set))
+	//	FakeAuthorize(set)
+	//})
+	//})
+	//}
 }
 
 func FakeAuthorize(s Set) bool {
@@ -101,8 +101,8 @@ func FakeAuthorize(s Set) bool {
 		if i == nil {
 			continue
 		}
-		if i.Type() == "+" {
-			f = true
+		if i.Sign {
+			return true
 		}
 	}
 	return f
