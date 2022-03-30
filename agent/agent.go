@@ -56,24 +56,24 @@ type agent struct {
 	sshServer *ssh.Server
 }
 
-func (s *agent) run(ctx context.Context) {
+func (a *agent) run(ctx context.Context) {
 	var peerListener *peerbroker.Listener
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		peerListener, err = s.clientDialer(ctx, s.options)
+		peerListener, err = a.clientDialer(ctx, a.options)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			if s.isClosed() {
+			if a.isClosed() {
 				return
 			}
-			s.options.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			a.options.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
-		s.options.Logger.Info(context.Background(), "connected")
+		a.options.Logger.Info(context.Background(), "connected")
 		break
 	}
 	select {
@@ -85,40 +85,40 @@ func (s *agent) run(ctx context.Context) {
 	for {
 		conn, err := peerListener.Accept()
 		if err != nil {
-			if s.isClosed() {
+			if a.isClosed() {
 				return
 			}
-			s.options.Logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
-			s.run(ctx)
+			a.options.Logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
+			a.run(ctx)
 			return
 		}
-		s.closeMutex.Lock()
-		s.connCloseWait.Add(1)
-		s.closeMutex.Unlock()
-		go s.handlePeerConn(ctx, conn)
+		a.closeMutex.Lock()
+		a.connCloseWait.Add(1)
+		a.closeMutex.Unlock()
+		go a.handlePeerConn(ctx, conn)
 	}
 }
 
-func (s *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
+func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	go func() {
 		<-conn.Closed()
-		s.connCloseWait.Done()
+		a.connCloseWait.Done()
 	}()
 	for {
 		channel, err := conn.Accept(ctx)
 		if err != nil {
-			if errors.Is(err, peer.ErrClosed) || s.isClosed() {
+			if errors.Is(err, peer.ErrClosed) || a.isClosed() {
 				return
 			}
-			s.options.Logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
+			a.options.Logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
 			return
 		}
 
 		switch channel.Protocol() {
 		case "ssh":
-			s.sshServer.HandleConn(channel.NetConn())
+			a.sshServer.HandleConn(channel.NetConn())
 		default:
-			s.options.Logger.Warn(ctx, "unhandled protocol from channel",
+			a.options.Logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
 				slog.F("label", channel.Label()),
 			)
@@ -126,7 +126,7 @@ func (s *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	}
 }
 
-func (s *agent) init(ctx context.Context) {
+func (a *agent) init(ctx context.Context) {
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -138,17 +138,17 @@ func (s *agent) init(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	sshLogger := s.options.Logger.Named("ssh-server")
+	sshLogger := a.options.Logger.Named("ssh-server")
 	forwardHandler := &ssh.ForwardedTCPHandler{}
-	s.sshServer = &ssh.Server{
+	a.sshServer = &ssh.Server{
 		ChannelHandlers: ssh.DefaultChannelHandlers,
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
 			sshLogger.Info(ctx, "ssh connection ended", slog.Error(err))
 		},
 		Handler: func(session ssh.Session) {
-			err := s.handleSSHSession(session)
+			err := a.handleSSHSession(session)
 			if err != nil {
-				s.options.Logger.Debug(ctx, "ssh session failed", slog.Error(err))
+				a.options.Logger.Warn(ctx, "ssh session failed", slog.Error(err))
 				_ = session.Exit(1)
 				return
 			}
@@ -177,35 +177,26 @@ func (s *agent) init(ctx context.Context) {
 		},
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
-				Config: gossh.Config{
-					// "arcfour" is the fastest SSH cipher. We prioritize throughput
-					// over encryption here, because the WebRTC connection is already
-					// encrypted. If possible, we'd disable encryption entirely here.
-					Ciphers: []string{"arcfour"},
-				},
 				NoClientAuth: true,
 			}
 		},
 	}
 
-	go s.run(ctx)
+	go a.run(ctx)
 }
 
-func (*agent) handleSSHSession(session ssh.Session) error {
+func (a *agent) handleSSHSession(session ssh.Session) error {
 	var (
 		command string
 		args    = []string{}
 		err     error
 	)
 
-	username := session.User()
-	if username == "" {
-		currentUser, err := user.Current()
-		if err != nil {
-			return xerrors.Errorf("get current user: %w", err)
-		}
-		username = currentUser.Username
+	currentUser, err := user.Current()
+	if err != nil {
+		return xerrors.Errorf("get current user: %w", err)
 	}
+	username := currentUser.Username
 
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
@@ -249,9 +240,9 @@ func (*agent) handleSSHSession(session ssh.Session) error {
 		}
 		go func() {
 			for win := range windowSize {
-				err := ptty.Resize(uint16(win.Width), uint16(win.Height))
+				err = ptty.Resize(uint16(win.Width), uint16(win.Height))
 				if err != nil {
-					panic(err)
+					a.options.Logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
 				}
 			}
 		}()
@@ -286,24 +277,24 @@ func (*agent) handleSSHSession(session ssh.Session) error {
 }
 
 // isClosed returns whether the API is closed or not.
-func (s *agent) isClosed() bool {
+func (a *agent) isClosed() bool {
 	select {
-	case <-s.closed:
+	case <-a.closed:
 		return true
 	default:
 		return false
 	}
 }
 
-func (s *agent) Close() error {
-	s.closeMutex.Lock()
-	defer s.closeMutex.Unlock()
-	if s.isClosed() {
+func (a *agent) Close() error {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	if a.isClosed() {
 		return nil
 	}
-	close(s.closed)
-	s.closeCancel()
-	_ = s.sshServer.Close()
-	s.connCloseWait.Wait()
+	close(a.closed)
+	a.closeCancel()
+	_ = a.sshServer.Close()
+	a.connCloseWait.Wait()
 	return nil
 }

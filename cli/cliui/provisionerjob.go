@@ -3,27 +3,27 @@ package cliui
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
-func WorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, build uuid.UUID, before time.Time) error {
-	return ProvisionerJob(cmd, ProvisionerJobOptions{
+func WorkspaceBuild(ctx context.Context, writer io.Writer, client *codersdk.Client, build uuid.UUID, before time.Time) error {
+	return ProvisionerJob(ctx, writer, ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
-			build, err := client.WorkspaceBuild(cmd.Context(), build)
+			build, err := client.WorkspaceBuild(ctx, build)
 			return build.Job, err
 		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
-			return client.WorkspaceBuildLogsAfter(cmd.Context(), build, before)
+			return client.WorkspaceBuildLogsAfter(ctx, build, before)
 		},
 	})
 }
@@ -39,25 +39,25 @@ type ProvisionerJobOptions struct {
 }
 
 // ProvisionerJob renders a provisioner job with interactive cancellation.
-func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
+func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = time.Second
 	}
+	ctx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
 
 	var (
 		currentStage          = "Queued"
 		currentStageStartedAt = time.Now().UTC()
 		didLogBetweenStage    = false
-		ctx, cancelFunc       = context.WithCancel(cmd.Context())
 
 		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
 		jobMutex sync.Mutex
 	)
-	defer cancelFunc()
 
 	printStage := func() {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), Styles.Prompt.Render("⧗")+"%s\n", Styles.Field.Render(currentStage))
+		_, _ = fmt.Fprintf(writer, Styles.Prompt.Render("⧗")+"%s\n", Styles.Field.Render(currentStage))
 	}
 
 	updateStage := func(stage string, startedAt time.Time) {
@@ -70,7 +70,7 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 			if job.CompletedAt != nil && job.Status != codersdk.ProvisionerJobSucceeded {
 				mark = Styles.Crossmark
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), prefix+mark.String()+Styles.Placeholder.Render(" %s [%dms]")+"\n", currentStage, startedAt.Sub(currentStageStartedAt).Milliseconds())
+			_, _ = fmt.Fprintf(writer, prefix+mark.String()+Styles.Placeholder.Render(" %s [%dms]")+"\n", currentStage, startedAt.Sub(currentStageStartedAt).Milliseconds())
 		}
 		if stage == "" {
 			return
@@ -116,7 +116,7 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 					return
 				}
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling...")+"\n\n")
+			_, _ = fmt.Fprintf(writer, "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling...")+"\n\n")
 			err := opts.Cancel()
 			if err != nil {
 				errChan <- xerrors.Errorf("cancel: %w", err)
@@ -183,7 +183,7 @@ func ProvisionerJob(cmd *cobra.Command, opts ProvisionerJobOptions) error {
 				jobMutex.Unlock()
 				continue
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", Styles.Placeholder.Render(" "), output)
+			_, _ = fmt.Fprintf(writer, "%s %s\n", Styles.Placeholder.Render(" "), output)
 			didLogBetweenStage = true
 			jobMutex.Unlock()
 		}

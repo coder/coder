@@ -39,9 +39,6 @@ func (c *Conn) SSHClient() (*ssh.Client, error) {
 		return nil, xerrors.Errorf("ssh: %w", err)
 	}
 	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
-		Config: ssh.Config{
-			Ciphers: []string{"arcfour"},
-		},
 		// SSH host validation isn't helpful, because obtaining a peer
 		// connection already signifies user-intent to dial a workspace.
 		// #nosec

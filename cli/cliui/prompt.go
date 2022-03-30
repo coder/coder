@@ -2,6 +2,7 @@ package cliui
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -62,7 +63,11 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 				var rawMessage json.RawMessage
 				err := json.NewDecoder(pipeReader).Decode(&rawMessage)
 				if err == nil {
-					line = string(rawMessage)
+					var buf bytes.Buffer
+					err = json.Compact(&buf, rawMessage)
+					if err == nil {
+						line = buf.String()
+					}
 				}
 			}
 		}

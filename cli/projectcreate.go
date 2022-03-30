@@ -125,7 +125,7 @@ func createValidProjectVersion(cmd *cobra.Command, client *codersdk.Client, orga
 		return nil, nil, err
 	}
 
-	err = cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
+	err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			version, err := client.ProjectVersion(cmd.Context(), version.ID)
 			return version.Job, err

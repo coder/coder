@@ -31,7 +31,7 @@ func workspaceStop() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = cliui.ProvisionerJob(cmd, cliui.ProvisionerJobOptions{
+			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					build, err := client.WorkspaceBuild(cmd.Context(), build.ID)
 					return build.Job, err

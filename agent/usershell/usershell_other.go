@@ -27,5 +27,5 @@ func Get(username string) (string, error) {
 		}
 		return parts[6], nil
 	}
-	return "", xerrors.New("user not found in /etc/passwd and $SHELL not set")
+	return "", xerrors.Errorf("user %q not found in /etc/passwd", username)
 }

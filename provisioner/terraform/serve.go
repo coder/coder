@@ -2,13 +2,14 @@ package terraform
 
 import (
 	"context"
-	"os/exec"
+	"path/filepath"
 
 	"github.com/hashicorp/go-version"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
+	"github.com/cli/safeexec"
 	"github.com/coder/coder/provisionersdk"
 
 	"github.com/hashicorp/hc-install/product"
@@ -41,7 +42,7 @@ type ServeOptions struct {
 // Serve starts a dRPC server on the provided transport speaking Terraform provisioner.
 func Serve(ctx context.Context, options *ServeOptions) error {
 	if options.BinaryPath == "" {
-		binaryPath, err := exec.LookPath("terraform")
+		binaryPath, err := safeexec.LookPath("terraform")
 		if err != nil {
 			installer := &releases.ExactVersion{
 				InstallDir: options.CachePath,
@@ -55,7 +56,16 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			}
 			options.BinaryPath = execPath
 		} else {
-			options.BinaryPath = binaryPath
+			// If the "coder" binary is in the same directory as
+			// the "terraform" binary, "terraform" is returned.
+			//
+			// We must resolve the absolute path for other processes
+			// to execute this properly!
+			absoluteBinary, err := filepath.Abs(binaryPath)
+			if err != nil {
+				return xerrors.Errorf("absolute: %w", err)
+			}
+			options.BinaryPath = absoluteBinary
 		}
 	}
 	return provisionersdk.Serve(ctx, &terraform{

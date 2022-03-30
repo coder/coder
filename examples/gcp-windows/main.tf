@@ -22,7 +22,7 @@ Coder requires a Google Cloud Service Account to provision workspaces.
    - Service Account User
 3. Click on the created key, and navigate to the "Keys" tab.
 4. Click "Add key", then "Create new key".
-5. Generate a JSON private key, and paste the contents in \'\' quotes below.
+5. Generate a JSON private key, and paste the contents below.
 EOF
   sensitive   = true
 }
