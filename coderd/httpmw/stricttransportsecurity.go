@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	StrictTransportSecurityHeader = "Strict-Transport-Security"
-	StrictTransportSecurityMaxAge = time.Hour * 24 * 365 // 1 year
+	strictTransportSecurityHeader = "Strict-Transport-Security"
+	strictTransportSecurityMaxAge = time.Hour * 24 * 365 // 1 year
 )
 
 // StrictTransportSecurity will add the strict-transport-security header if enabled.
@@ -25,7 +25,7 @@ func StrictTransportSecurity(enable bool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if enable {
-				w.Header().Set(StrictTransportSecurityHeader, fmt.Sprintf("max-age=%d", int64(StrictTransportSecurityMaxAge.Seconds())))
+				w.Header().Set(strictTransportSecurityHeader, fmt.Sprintf("max-age=%d", int64(strictTransportSecurityMaxAge.Seconds())))
 			}
 
 			next.ServeHTTP(w, r)

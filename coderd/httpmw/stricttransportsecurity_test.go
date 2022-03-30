@@ -5,10 +5,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/httpmw"
+)
+
+const (
+	strictTransportSecurityHeader = "Strict-Transport-Security"
+	strictTransportSecurityMaxAge = time.Hour * 24 * 365
 )
 
 func TestStrictTransportSecurity(t *testing.T) {
@@ -32,14 +39,14 @@ func TestStrictTransportSecurity(t *testing.T) {
 
 		res := setup(true)
 		defer res.Body.Close()
-		require.Contains(t, res.Header.Get(httpmw.StrictTransportSecurityHeader), fmt.Sprintf("max-age=%d", int64(httpmw.StrictTransportSecurityMaxAge)))
+		require.Contains(t, res.Header.Get(strictTransportSecurityHeader), fmt.Sprintf("max-age=%d", int64(strictTransportSecurityMaxAge.Seconds())))
 	})
 	t.Run("False", func(t *testing.T) {
 		t.Parallel()
 
 		res := setup(false)
 		defer res.Body.Close()
-		require.NotContains(t, res.Header.Get(httpmw.StrictTransportSecurityHeader), fmt.Sprintf("max-age=%d", int64(httpmw.StrictTransportSecurityMaxAge)))
-		require.Equal(t, res.Header.Get(httpmw.StrictTransportSecurityHeader), "")
+		require.NotContains(t, res.Header.Get(strictTransportSecurityHeader), fmt.Sprintf("max-age=%d", int64(strictTransportSecurityMaxAge.Seconds())))
+		require.Equal(t, res.Header.Get(strictTransportSecurityHeader), "")
 	})
 }

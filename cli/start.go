@@ -57,7 +57,7 @@ func start() *cobra.Command {
 		useTunnel               bool
 		traceDatadog            bool
 		strictTransportSecurity bool
-		secureCookie            bool
+		secureAuthCookie        bool
 	)
 	root := &cobra.Command{
 		Use: "start",
@@ -129,13 +129,13 @@ func start() *cobra.Command {
 			}
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			options := &coderd.Options{
-				AccessURL:            accessURLParsed,
-				Logger:               logger.Named("coderd"),
-				Database:             databasefake.New(),
-				Pubsub:               database.NewPubsubInMemory(),
-				GoogleTokenValidator: validator,
-				HSTS:                 strictTransportSecurity,
-				SecureCookie:         secureCookie,
+				AccessURL:               accessURLParsed,
+				Logger:                  logger.Named("coderd"),
+				Database:                databasefake.New(),
+				Pubsub:                  database.NewPubsubInMemory(),
+				GoogleTokenValidator:    validator,
+				StrictTransportSecurity: strictTransportSecurity,
+				SecureAuthCookie:        secureAuthCookie,
 			}
 
 			if !dev {
@@ -338,8 +338,8 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", true, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
-	cliflag.BoolVarP(root.Flags(), &strictTransportSecurity, "strict-transport-security", "", "CODER_STRICT_TRANSPORT_SECURITY", false, "Set the 'strict-transport-security' header on http responses")
-	cliflag.BoolVarP(root.Flags(), &secureCookie, "secure-cookie", "", "CODER_SECURE_COOKIE", false, "Set the 'Secure' property on browser session cookies")
+	cliflag.BoolVarP(root.Flags(), &strictTransportSecurity, "strict-transport-security", "", "CODER_STRICT_TRANSPORT_SECURITY", false, `Specifies if the "strict-transport-security" header is set on http responses`)
+	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 
 	return root
 }
