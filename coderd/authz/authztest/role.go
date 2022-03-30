@@ -1,4 +1,4 @@
-package testdata
+package authztest
 
 import (
 	. "github.com/coder/coder/coderd/authz"

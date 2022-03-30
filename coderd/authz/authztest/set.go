@@ -1,4 +1,4 @@
-package testdata
+package authztest
 
 import (
 	"strings"

@@ -1,4 +1,4 @@
-package testdata
+package authztest
 
 type PermissionSet string
 
