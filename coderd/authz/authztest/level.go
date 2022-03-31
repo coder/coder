@@ -5,13 +5,13 @@ import "github.com/coder/coder/coderd/authz"
 type level string
 
 const (
-	levelWild   level = "level-wild"
-	levelSite   level = "level-site"
-	levelOrg    level = "level-org"
-	levelOrgMem level = "level-org:mem"
-	// levelOrgAll is a helper to get both org levels above
-	levelOrgAll level = "level-org:*"
-	levelUser   level = "level-user"
+	LevelWildKey   level = "level-wild"
+	LevelSiteKey   level = "level-site"
+	LevelOrgKey    level = "level-org"
+	LevelOrgMemKey level = "level-org:mem"
+	// LevelOrgAllKey is a helper to get both org levels above
+	LevelOrgAllKey level = "level-org:*"
+	LevelUserKey   level = "level-user"
 )
 
 // LevelGroup is all permissions for a given level
@@ -43,7 +43,7 @@ func (lg LevelGroup) Abstain() Set {
 
 func GroupedPermissions(perms Set) SetGroup {
 	groups := make(SetGroup)
-	allLevelKeys := []level{levelWild, levelSite, levelOrg, levelOrgMem, levelOrgAll, levelUser}
+	allLevelKeys := []level{LevelWildKey, LevelSiteKey, LevelOrgKey, LevelOrgMemKey, LevelOrgAllKey, LevelUserKey}
 
 	for _, l := range allLevelKeys {
 		groups[l] = make(LevelGroup)
@@ -53,18 +53,18 @@ func GroupedPermissions(perms Set) SetGroup {
 		m := Impact(p)
 		switch {
 		case p.Level == authz.LevelSite:
-			groups[levelSite][m] = append(groups[levelSite][m], p)
+			groups[LevelSiteKey][m] = append(groups[LevelSiteKey][m], p)
 		case p.Level == authz.LevelOrg:
-			groups[levelOrgAll][m] = append(groups[levelOrgAll][m], p)
+			groups[LevelOrgAllKey][m] = append(groups[LevelOrgAllKey][m], p)
 			if p.LevelID == "" || p.LevelID == "*" {
-				groups[levelOrg][m] = append(groups[levelOrg][m], p)
+				groups[LevelOrgKey][m] = append(groups[LevelOrgKey][m], p)
 			} else {
-				groups[levelOrgMem][m] = append(groups[levelOrgMem][m], p)
+				groups[LevelOrgMemKey][m] = append(groups[LevelOrgMemKey][m], p)
 			}
 		case p.Level == authz.LevelUser:
-			groups[levelUser][m] = append(groups[levelUser][m], p)
+			groups[LevelUserKey][m] = append(groups[LevelUserKey][m], p)
 		case p.Level == authz.LevelWildcard:
-			groups[levelWild][m] = append(groups[levelWild][m], p)
+			groups[LevelWildKey][m] = append(groups[LevelWildKey][m], p)
 		}
 	}
 
@@ -74,25 +74,25 @@ func GroupedPermissions(perms Set) SetGroup {
 type SetGroup map[level]LevelGroup
 
 func (s SetGroup) Wildcard() LevelGroup {
-	return s[levelWild]
+	return s[LevelWildKey]
 }
 
 func (s SetGroup) Site() LevelGroup {
-	return s[levelSite]
+	return s[LevelSiteKey]
 }
 
 func (s SetGroup) Org() LevelGroup {
-	return s[levelOrg]
+	return s[LevelOrgKey]
 }
 
 func (s SetGroup) AllOrgs() LevelGroup {
-	return s[levelOrgAll]
+	return s[LevelOrgAllKey]
 }
 
 func (s SetGroup) OrgMem() LevelGroup {
-	return s[levelOrgMem]
+	return s[LevelOrgMemKey]
 }
 
 func (s SetGroup) User() LevelGroup {
-	return s[levelUser]
+	return s[LevelUserKey]
 }

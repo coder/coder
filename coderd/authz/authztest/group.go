@@ -18,17 +18,17 @@ var nilSet = Set{nil}
 // *.*.*.*
 //var PermissionSetWPlus = NewRole(
 //	all.Wildcard().Positive(),
-//	union(all.Wildcard().Abstain(), nilSet),
+//	Union(all.Wildcard().Abstain(), nilSet),
 //
-//	union(all.Site().Positive(), nilSet),
-//	union(all.Site().Negative(), nilSet),
-//	union(all.Site().Abstain(), nilSet),
+//	Union(all.Site().Positive(), nilSet),
+//	Union(all.Site().Negative(), nilSet),
+//	Union(all.Site().Abstain(), nilSet),
 //
-//	union(all.AllOrgs().Positive(), nilSet),
-//	union(all.AllOrgs().Negative(), nilSet),
-//	union(all.AllOrgs().Abstain(), nilSet),
+//	Union(all.AllOrgs().Positive(), nilSet),
+//	Union(all.AllOrgs().Negative(), nilSet),
+//	Union(all.AllOrgs().Abstain(), nilSet),
 //
-//	union(all.User().Positive(), nilSet),
-//	union(all.User().Negative(), nilSet),
-//	union(all.User().Abstain(), nilSet),
+//	Union(all.User().Positive(), nilSet),
+//	Union(all.User().Negative(), nilSet),
+//	Union(all.User().Abstain(), nilSet),
 //)

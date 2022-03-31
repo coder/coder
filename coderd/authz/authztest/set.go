@@ -8,10 +8,10 @@ import (
 
 type Set []*Permission
 
-var _ iterable = (Set)(nil)
+var _ Iterable = (Set)(nil)
 
-func (s Set) Iterator() iterator {
-	return union(s)
+func (s Set) Iterator() Iterator {
+	return Union(s)
 }
 
 func (s Set) String() string {

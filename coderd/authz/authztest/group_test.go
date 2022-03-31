@@ -9,19 +9,19 @@ func Test_PermissionSetWPlusSearchSpace(t *testing.T) {
 	all := GroupedPermissions(AllPermissions())
 	wplus := NewRole(
 		all.Wildcard().Positive(),
-		union(all.Wildcard().Abstain()[:1], nilSet),
+		Union(all.Wildcard().Abstain()[:1], nilSet),
 
-		union(all.Site().Positive()[:1], nilSet),
-		union(all.Site().Negative()[:1], nilSet),
-		union(all.Site().Abstain()[:1], nilSet),
+		Union(all.Site().Positive()[:1], nilSet),
+		Union(all.Site().Negative()[:1], nilSet),
+		Union(all.Site().Abstain()[:1], nilSet),
 
-		union(all.AllOrgs().Positive()[:1], nilSet),
-		union(all.AllOrgs().Negative()[:1], nilSet),
-		union(all.AllOrgs().Abstain()[:1], nilSet),
+		Union(all.AllOrgs().Positive()[:1], nilSet),
+		Union(all.AllOrgs().Negative()[:1], nilSet),
+		Union(all.AllOrgs().Abstain()[:1], nilSet),
 
-		union(all.User().Positive()[:1], nilSet),
-		union(all.User().Negative()[:1], nilSet),
-		union(all.User().Abstain()[:1], nilSet),
+		Union(all.User().Positive()[:1], nilSet),
+		Union(all.User().Negative()[:1], nilSet),
+		Union(all.User().Abstain()[:1], nilSet),
 	)
 	fmt.Println(wplus.N)
 	fmt.Println(len(AllPermissions()))

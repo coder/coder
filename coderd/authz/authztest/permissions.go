@@ -9,22 +9,21 @@ const (
 )
 
 var (
-	Levels        = PermissionLevels
-	LevelIDs      = []string{"", "mem"}
-	ResourceTypes = []string{"resource", "*", otherOption}
-	ResourceIDs   = []string{"rid", "*", otherOption}
-	Actions       = []string{"action", "*", otherOption}
+	levelIDs      = []string{"", "mem"}
+	resourceTypes = []string{"resource", "*", otherOption}
+	resourceIDs   = []string{"rid", "*", otherOption}
+	actions       = []string{"action", "*", otherOption}
 )
 
 // AllPermissions returns all the possible permissions ever.
 func AllPermissions() Set {
 	permissionTypes := []bool{true, false}
-	all := make(Set, 0, len(permissionTypes)*len(Levels)*len(LevelIDs)*len(ResourceTypes)*len(ResourceIDs)*len(Actions))
+	all := make(Set, 0, len(permissionTypes)*len(PermissionLevels)*len(levelIDs)*len(resourceTypes)*len(resourceIDs)*len(actions))
 	for _, s := range permissionTypes {
-		for _, l := range Levels {
-			for _, t := range ResourceTypes {
-				for _, i := range ResourceIDs {
-					for _, a := range Actions {
+		for _, l := range PermissionLevels {
+			for _, t := range resourceTypes {
+				for _, i := range resourceIDs {
+					for _, a := range actions {
 						if l == LevelOrg {
 							all = append(all, &Permission{
 								Sign:         s,

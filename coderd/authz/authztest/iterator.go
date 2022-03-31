@@ -4,12 +4,12 @@ import (
 	. "github.com/coder/coder/coderd/authz"
 )
 
-type iterable interface {
-	Iterator() iterator
+type Iterable interface {
+	Iterator() Iterator
 }
 
-type iterator interface {
-	iterable
+type Iterator interface {
+	Iterable
 
 	Next() bool
 	Permissions() Set
@@ -32,7 +32,7 @@ type unionIterator struct {
 	N int
 }
 
-func union(sets ...Set) *unionIterator {
+func Union(sets ...Set) *unionIterator {
 	var n int
 	for _, s := range sets {
 		n += len(s)
@@ -76,8 +76,35 @@ func (si *unionIterator) Size() int {
 	return si.N
 }
 
-func (si *unionIterator) Iterator() iterator {
+func (si *unionIterator) Iterator() Iterator {
 	return si
+}
+
+type productI struct {
+	ReturnSize     int
+	N              int
+	PermissionSets []Iterator
+
+	buffer Set
+}
+
+func ProductI(sets ...Iterable) *productI {
+	setInterfaces := make([]Iterator, 0, len(sets))
+	var retSize int
+	var size int = 1
+	for _, s := range sets {
+		v := s.Iterator()
+		setInterfaces = append(setInterfaces, v)
+		retSize += v.ReturnSize()
+		// size is the cross product of all Iterator sets
+		size *= v.Size()
+	}
+	return &productI{
+		ReturnSize:     retSize,
+		N:              size,
+		PermissionSets: setInterfaces,
+		buffer:         make([]*Permission, retSize),
+	}
 }
 
 type productIterator struct {
@@ -87,7 +114,7 @@ type productIterator struct {
 	buffer Set
 }
 
-func product(a, b Set) *productIterator {
+func Product(a, b Set) *productIterator {
 	i := &productIterator{
 		i: 0,
 		j: 0,
@@ -128,6 +155,6 @@ func (s *productIterator) Size() int {
 	return len(s.a) * len(s.b)
 }
 
-func (s *productIterator) Iterator() iterator {
+func (s *productIterator) Iterator() Iterator {
 	return s
 }

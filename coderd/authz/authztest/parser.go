@@ -9,7 +9,7 @@ type Parser struct {
 	stack []interface{}
 	grp   SetGroup
 
-	setI []iterable
+	setI []Iterable
 }
 
 func ParseRole(grp SetGroup, input string) *Role {
@@ -18,7 +18,7 @@ func ParseRole(grp SetGroup, input string) *Role {
 	return NewRole(p.setI...)
 }
 
-func Parse(grp SetGroup, input string) []iterable {
+func Parse(grp SetGroup, input string) []Iterable {
 	p := NewParser(grp, input)
 	p.parse()
 	return p.setI
@@ -110,7 +110,7 @@ func (p *Parser) handleLevel(l uint8, ptr int) int {
 		}
 		ptr++
 		if stop {
-			p.setI = append(p.setI, union(sets...))
+			p.setI = append(p.setI, Union(sets...))
 			return ptr
 		}
 	}
