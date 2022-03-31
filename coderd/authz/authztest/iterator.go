@@ -18,52 +18,65 @@ type iterator interface {
 	Size() int
 }
 
-// SetIterator is very primitive, just used to hold a place in a set.
-type SetIterator struct {
-	i      int
-	set    Set
+// unionIterator is very primitive, just used to hold a place in a set.
+type unionIterator struct {
+	// setIdx determines which set the offset is for
+	setIdx int
+	// offset is which permission for a given setIdx
+	offset int
+	sets   []Set
+	// buffer is used to prevent allocations when `Permissions` is called, as we must
+	// return a set.
 	buffer Set
+
+	N int
 }
 
-func union(sets ...Set) *SetIterator {
-	all := Set{}
-	for _, set := range sets {
-		all = append(all, set...)
+func union(sets ...Set) *unionIterator {
+	var n int
+	for _, s := range sets {
+		n += len(s)
 	}
-	return &SetIterator{
-		i:      0,
-		set:    all,
+	return &unionIterator{
+		sets:   sets,
 		buffer: make(Set, 1),
+		N:      n,
 	}
 }
 
-func (si *SetIterator) Next() bool {
-	si.i++
-	return si.i < len(si.set)
+func (si *unionIterator) Next() bool {
+	si.offset++
+	if si.offset >= len(si.sets[si.setIdx]) {
+		si.setIdx++
+		si.offset = 0
+	}
+
+	return si.setIdx >= len(si.sets)
 }
 
-func (si *SetIterator) Permissions() Set {
-	si.buffer[0] = si.set[si.i]
+func (si *unionIterator) Permissions() Set {
+	si.buffer[0] = si.Permission()
 	return si.buffer
 }
 
-func (si *SetIterator) Permission() *Permission {
-	return si.set[si.i]
+func (si unionIterator) Permission() *Permission {
+	return si.sets[si.setIdx][si.offset]
 }
 
-func (si *SetIterator) Reset() {
-	si.i = 0
+func (si *unionIterator) Reset() {
+	si.setIdx = 0
+	si.offset = 0
 }
 
-func (si *SetIterator) ReturnSize() int {
+func (si *unionIterator) ReturnSize() int {
 	return 1
 }
 
-func (si *SetIterator) Size() int {
-	return len(si.set)
+func (si *unionIterator) Size() int {
+	return si.N
 }
 
-func (si *SetIterator) Iterator() iterator {
+func (si *unionIterator) Iterator() iterator {
 	return si
 }
 
