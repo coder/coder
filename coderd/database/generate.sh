@@ -25,8 +25,9 @@ done
 # Remove temporary go files.
 rm -f queries/*.go
 
-go mod tidy
-# Ensure correct imports exist.
+# Ensure correct imports exist. Modules must all be downloaded so we get correct
+# suggestions.
+go mod download
 goimports -w queries.sql.go
 
 # Fix struct/interface names.
