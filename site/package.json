@@ -28,6 +28,7 @@
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
+    "@xstate/inspect": "^0.6.4",
     "@xstate/react": "2.0.1",
     "axios": "0.26.1",
     "formik": "2.2.9",
