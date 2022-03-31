@@ -2,8 +2,10 @@ package authz_test
 
 import (
 	"fmt"
+	"github.com/coder/coder/coderd/authz"
 	"github.com/coder/coder/coderd/authz/authztest"
 	"math/bits"
+	"strings"
 	"testing"
 )
 
@@ -11,17 +13,109 @@ var nilSet = authztest.Set{nil}
 
 func Test_ExhaustiveAuthorize(t *testing.T) {
 	all := authztest.GroupedPermissions(authztest.AllPermissions())
-	variants := permissionVariants(all)
-	for name, v := range variants {
+	roleVariants := permissionVariants(all)
+
+	testCases := []struct {
+		Name string
+		Objs []authz.Object
+		// Action is constant
+		// Subject comes from roleVariants
+		Result func(pv string) bool
+	}{
+		{
+			Name: "User:Org",
+			Objs: authztest.Objects(
+				[]string{authztest.PermMe, authztest.PermOrgID},
+			),
+			Result: func(pv string) bool {
+				return strings.Contains(pv, "+")
+			},
+		},
+		{
+			// All U+/- tests should fail
+			Name: "NotUser:Org",
+			Objs: authztest.Objects(
+				[]string{"other", authztest.PermOrgID},
+				[]string{"", authztest.PermOrgID},
+			),
+			Result: func(pv string) bool {
+				if strings.Contains(pv, "U") {
+					return false
+				}
+				return strings.Contains(pv, "+")
+			},
+		},
+		{
+			// All O+/- and U+/- tests should fail
+			Name: "NotUser:NotOrg",
+			Objs: authztest.Objects(
+				[]string{authztest.PermMe, "non-mem"},
+				[]string{"other", "non-mem"},
+				[]string{"other", ""},
+				[]string{"", "non-mem"},
+				[]string{"", ""},
+			),
+			Result: func(pv string) bool {
+				if strings.Contains(pv, "U") {
+					return false
+				}
+				if strings.Contains(pv, "O") {
+					return false
+				}
+				return strings.Contains(pv, "+")
+			},
+		},
+		// TODO: @emyrk for this one, we should probably pass a custom roles variant
+		//{
+		//	// O+, O- no longer pass judgement. Defer to user level judgement (only somewhat tricky case)
+		//	Name: "User:NotOrg",
+		//	Objs: authztest.Objects(
+		//		[]string{authztest.PermMe, ""},
+		//	),
+		//	Result: func(pv string) bool {
+		//		return strings.Contains(pv, "+")
+		//	},
+		//},
+	}
+
+	var pvars int
+	for name, v := range roleVariants {
 		fmt.Printf("%s: %d\n", name, v.Size())
+		pvars += v.Size()
+	}
+	var total int = 0
+	for _, c := range testCases {
+		total += len(c.Objs) * pvars
+	}
+	fmt.Printf("pvars=%d, total=%d\n", pvars, total)
+
+	var tot int
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			for _, o := range c.Objs {
+				for _, v := range roleVariants {
+					v.Each(func(set authztest.Set) {
+						// TODO: Authz.Permissions does allocations at the moment. We should fix that.
+						err := authz.AuthorizePermissions(
+							authztest.PermMe,
+							set.Permissions(),
+							o,
+							authztest.PermAction)
+						var _ = err
+						tot++
+					})
+					v.Reset()
+				}
+			}
+		})
 	}
 }
 
 func permissionVariants(all authztest.SetGroup) map[string]*authztest.Role {
 	// an is any noise above the impactful set
-	an := abstain
+	an := noiseAbstain
 	// ln is any noise below the impactful set
-	ln := positive | negative | abstain
+	ln := noisePositive | noiseNegative | noiseAbstain
 
 	// Cases are X+/- where X indicates the level where the impactful set is.
 	// The impactful set determines the result.
@@ -46,26 +140,25 @@ func permissionVariants(all authztest.SetGroup) map[string]*authztest.Role {
 			neg(all.Site()),
 			noise(ln, all.Org(), all.User()),
 		),
-		// TODO: Figure out cross org noise between org:* and org:mem
-		// Org:*
+		// Org:* -- Added org:mem noise
 		"O+": authztest.NewRole(
-			noise(an, all.Wildcard(), all.Site()),
+			noise(an, all.Wildcard(), all.Site(), all.OrgMem()),
 			pos(all.Org()),
 			noise(ln, all.User()),
 		),
 		"O-": authztest.NewRole(
-			noise(an, all.Wildcard(), all.Site()),
+			noise(an, all.Wildcard(), all.Site(), all.OrgMem()),
 			neg(all.Org()),
 			noise(ln, all.User()),
 		),
-		// Org:Mem
+		// Org:Mem -- Added org:* noise
 		"M+": authztest.NewRole(
-			noise(an, all.Wildcard(), all.Site()),
+			noise(an, all.Wildcard(), all.Site(), all.Org()),
 			pos(all.OrgMem()),
 			noise(ln, all.User()),
 		),
 		"M-": authztest.NewRole(
-			noise(an, all.Wildcard(), all.Site()),
+			noise(an, all.Wildcard(), all.Site(), all.Org()),
 			neg(all.OrgMem()),
 			noise(ln, all.User()),
 		),
@@ -78,14 +171,8 @@ func permissionVariants(all authztest.SetGroup) map[string]*authztest.Role {
 			noise(an, all.Wildcard(), all.Site(), all.Org()),
 			neg(all.User()),
 		),
+		// TODO: @Emyrk the abstain sets
 	}
-}
-
-func l() {
-	//authztest.Levels
-	//noise(an, all.Wildcard()),
-	//	neg(all.Site()),
-	//	noise(ln, all.Org(), all.User()),
 }
 
 // pos returns the positive impactful variant for a given level. It does not
@@ -108,10 +195,10 @@ func neg(lvl authztest.LevelGroup) *authztest.Role {
 type noiseBits uint8
 
 const (
-	none noiseBits = 1 << iota
-	positive
-	negative
-	abstain
+	_ noiseBits = 1 << iota
+	noisePositive
+	noiseNegative
+	noiseAbstain
 )
 
 func flagMatch(flag, in noiseBits) bool {
@@ -128,13 +215,13 @@ func noise(f noiseBits, lvls ...authztest.LevelGroup) *authztest.Role {
 	for _, lvl := range lvls {
 		sets := make([]authztest.Iterable, 0, bits.OnesCount8(uint8(f)))
 
-		if flagMatch(positive, f) {
+		if flagMatch(noisePositive, f) {
 			sets = append(sets, authztest.Union(lvl.Positive()[:1], nilSet))
 		}
-		if flagMatch(negative, f) {
+		if flagMatch(noiseNegative, f) {
 			sets = append(sets, authztest.Union(lvl.Negative()[:1], nilSet))
 		}
-		if flagMatch(abstain, f) {
+		if flagMatch(noiseAbstain, f) {
 			sets = append(sets, authztest.Union(lvl.Abstain()[:1], nilSet))
 		}
 

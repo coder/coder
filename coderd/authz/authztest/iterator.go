@@ -1,7 +1,7 @@
 package authztest
 
 import (
-	. "github.com/coder/coder/coderd/authz"
+	"github.com/coder/coder/coderd/authz"
 )
 
 type Iterable interface {
@@ -59,7 +59,7 @@ func (si *unionIterator) Permissions() Set {
 	return si.buffer
 }
 
-func (si unionIterator) Permission() *Permission {
+func (si unionIterator) Permission() *authz.Permission {
 	return si.sets[si.setIdx][si.offset]
 }
 
@@ -103,7 +103,7 @@ func ProductI(sets ...Iterable) *productI {
 		ReturnSize:     retSize,
 		N:              size,
 		PermissionSets: setInterfaces,
-		buffer:         make([]*Permission, retSize),
+		buffer:         make([]*authz.Permission, retSize),
 	}
 }
 

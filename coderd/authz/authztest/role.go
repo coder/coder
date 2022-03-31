@@ -1,10 +1,8 @@
 package authztest
 
 import (
-	. "github.com/coder/coder/coderd/authz"
+	"github.com/coder/coder/coderd/authz"
 )
-
-var _ Permission
 
 // Role can print all possible permutations of the given iterators.
 type Role struct {
@@ -16,7 +14,7 @@ type Role struct {
 	// This is kinda werird, but the first scan should not move anything.
 	first bool
 
-	buffer []*Permission
+	buffer []*authz.Permission
 }
 
 func NewRole(sets ...Iterable) *Role {
@@ -34,7 +32,7 @@ func NewRole(sets ...Iterable) *Role {
 		returnSize:     retSize,
 		N:              size,
 		PermissionSets: setInterfaces,
-		buffer:         make([]*Permission, retSize),
+		buffer:         make([]*authz.Permission, retSize),
 	}
 }
 
@@ -60,6 +58,7 @@ func (r *Role) Permissions() Set {
 }
 
 func (r *Role) Each(ea func(set Set)) {
+	ea(r.Permissions())
 	for r.Next() {
 		ea(r.Permissions())
 	}
@@ -67,10 +66,6 @@ func (r *Role) Each(ea func(set Set)) {
 
 // Next will grab the next cross-product permutation of all permissions of r.
 func (r *Role) Next() bool {
-	if !r.first {
-		r.first = true
-		return true
-	}
 	for i := range r.PermissionSets {
 		if r.PermissionSets[i].Next() {
 			break

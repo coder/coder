@@ -3,12 +3,22 @@ package authztest
 import (
 	"strings"
 
-	. "github.com/coder/coder/coderd/authz"
+	"github.com/coder/coder/coderd/authz"
 )
 
-type Set []*Permission
+type Set []*authz.Permission
 
 var _ Iterable = (Set)(nil)
+
+func (s Set) Permissions() []authz.Permission {
+	perms := make([]authz.Permission, 0, len(s))
+	for i := range s {
+		if s[i] != nil {
+			perms = append(perms, *s[i])
+		}
+	}
+	return perms
+}
 
 func (s Set) Iterator() Iterator {
 	return Union(s)
