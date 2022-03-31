@@ -9,6 +9,8 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 )
 
+const UserKey = "user"
+
 type userParamContextKey struct{}
 
 // UserParam returns the user from the ExtractUserParam handler.
@@ -24,7 +26,7 @@ func UserParam(r *http.Request) database.User {
 func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			userID, ok := parseUUID(rw, r, "user")
+			userID, ok := parseUUID(rw, r, UserKey)
 			if !ok {
 				return
 			}
