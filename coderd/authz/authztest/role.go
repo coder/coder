@@ -44,10 +44,6 @@ func (r *Role) Permissions() Set {
 	for _, ps := range r.PermissionSets {
 		i += copy(r.buffer[i:], ps.Permissions())
 	}
-	//all := make(Set, 0, r.ReturnSize)
-	//for _, set := range r.PermissionSets {
-	//	all = append(all, set.Permissions()...)
-	//}
 	return r.buffer
 }
 

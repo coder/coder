@@ -1,5 +1,6 @@
 package authztest
 
+// PermissionSet defines a set of permissions with the same impact.
 type PermissionSet string
 
 const (

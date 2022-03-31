@@ -51,7 +51,7 @@ func (si *unionIterator) Next() bool {
 		si.offset = 0
 	}
 
-	return si.setIdx >= len(si.sets)
+	return si.setIdx < len(si.sets)
 }
 
 func (si *unionIterator) Permissions() Set {

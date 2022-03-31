@@ -28,4 +28,10 @@ func Test_PermissionSetWPlusSearchSpace(t *testing.T) {
 	for k, v := range all {
 		fmt.Printf("%s=%d\n", string(k), len(v.All()))
 	}
+
+	var i int
+	wplus.Each(func(set Set) {
+		fmt.Printf("%d: %s\n", i, set.String())
+		i++
+	})
 }
