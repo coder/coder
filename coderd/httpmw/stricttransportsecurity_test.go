@@ -13,13 +13,11 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 )
 
-const (
-	strictTransportSecurityHeader = "Strict-Transport-Security"
-	strictTransportSecurityMaxAge = time.Hour * 24 * 365
-)
-
 func TestStrictTransportSecurity(t *testing.T) {
 	t.Parallel()
+
+	strictTransportSecurityHeader := "Strict-Transport-Security"
+	strictTransportSecurityMaxAge := time.Hour * 24 * 365
 
 	setup := func(enable bool) *http.Response {
 		rw := httptest.NewRecorder()

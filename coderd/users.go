@@ -417,7 +417,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   api.SecureCookie,
+		Secure:   api.SecureAuthCookie,
 	})
 
 	render.Status(r, http.StatusCreated)

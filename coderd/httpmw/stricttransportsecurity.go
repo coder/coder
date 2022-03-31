@@ -6,11 +6,6 @@ import (
 	"time"
 )
 
-const (
-	strictTransportSecurityHeader = "Strict-Transport-Security"
-	strictTransportSecurityMaxAge = time.Hour * 24 * 365 // 1 year
-)
-
 // StrictTransportSecurity will add the strict-transport-security header if enabled.
 // This header forces a browser to always use https for the domain after it loads https
 // once.
@@ -23,12 +18,13 @@ const (
 // nolint:revive
 func StrictTransportSecurity(enable bool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			if enable {
-				w.Header().Set(strictTransportSecurityHeader, fmt.Sprintf("max-age=%d", int64(strictTransportSecurityMaxAge.Seconds())))
+				age := time.Hour * 24 * 365 // 1 year
+				rw.Header().Set("Strict-Transport-Security", fmt.Sprintf("max-age=%d", int64(age.Seconds())))
 			}
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(rw, r)
 		})
 	}
 }
