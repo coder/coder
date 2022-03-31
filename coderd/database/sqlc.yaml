@@ -5,7 +5,7 @@ version: "1"
 packages:
   - name: "database"
     path: "."
-    queries: "./query.sql"
+    queries: "./queries/"
     schema: "./dump.sql"
     engine: "postgresql"
     emit_interface: true

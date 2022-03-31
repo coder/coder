@@ -12,7 +12,8 @@ CREATE TABLE workspaces (
 );
 
 -- Enforces no active workspaces have the same name.
-CREATE UNIQUE INDEX ON workspaces (owner_id, name) WHERE deleted = FALSE;
+CREATE UNIQUE INDEX ON workspaces USING btree (owner_id, name) WHERE deleted = FALSE;
+CREATE UNIQUE INDEX idx_workspaces_name_lower ON workspaces USING btree (lower(name));
 
 CREATE TYPE workspace_transition AS ENUM (
     'start',

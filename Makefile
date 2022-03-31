@@ -15,7 +15,7 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 .PHONY: coderd/database/dump.sql
 
 # Generates Go code for querying the database.
-coderd/database/generate: fmt/sql coderd/database/dump.sql coderd/database/query.sql
+coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	cd coderd/database && sqlc generate && rm db_tmp.go
 	cd coderd/database && gofmt -w -r 'Querier -> querier' *.go
 	cd coderd/database && gofmt -w -r 'Queries -> sqlQuerier' *.go
@@ -31,13 +31,17 @@ else
 endif
 .PHONY: fmt/prettier
 
-fmt/sql: ./coderd/database/query.sql
-	npx sql-formatter \
-		--language postgresql \
-		--lines-between-queries 2 \
-		./coderd/database/query.sql \
-		--output ./coderd/database/query.sql
-	sed -i 's/@ /@/g' ./coderd/database/query.sql
+fmt/sql: $(wildcard coderd/database/queries/*.sql)
+	for fi in coderd/database/queries/*.sql; do \
+		npx sql-formatter \
+			--language postgresql \
+			--lines-between-queries 2 \
+			--tab-indent \
+			$$fi \
+			--output $$fi; \
+	done
+
+	sed -i 's/@ /@/g' ./coderd/database/queries/*.sql
 
 fmt: fmt/prettier fmt/sql
 .PHONY: fmt
