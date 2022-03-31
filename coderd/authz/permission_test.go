@@ -1,8 +1,10 @@
-package authz
+package authz_test
 
 import (
-	crand "github.com/coder/coder/cryptorand"
 	"testing"
+
+	"github.com/coder/coder/coderd/authz"
+	crand "github.com/coder/coder/cryptorand"
 )
 
 func BenchmarkPermissionString(b *testing.B) {
@@ -10,7 +12,7 @@ func BenchmarkPermissionString(b *testing.B) {
 	if b.N < total {
 		total = b.N
 	}
-	perms := make([]Permission, b.N)
+	perms := make([]authz.Permission, b.N)
 	for n := 0; n < total; n++ {
 		perms[n] = RandomPermission()
 	}
@@ -30,13 +32,13 @@ var actions = []string{
 	"read", "create", "delete", "modify", "*",
 }
 
-func RandomPermission() Permission {
-	n, _ := crand.Intn(len(PermissionLevels))
+func RandomPermission() authz.Permission {
+	n, _ := crand.Intn(len(authz.PermissionLevels))
 	m, _ := crand.Intn(len(resourceTypes))
 	a, _ := crand.Intn(len(actions))
-	return Permission{
+	return authz.Permission{
 		Sign:         n%2 == 0,
-		Level:        PermissionLevels[n],
+		Level:        authz.PermissionLevels[n],
 		ResourceType: resourceTypes[m],
 		ResourceID:   "*",
 		Action:       actions[a],
