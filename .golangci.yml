@@ -251,6 +251,13 @@ linters:
     - staticcheck
     - structcheck
     - tenv
+    # In Go, it's possible for a package to test it's internal functionality
+    # without testing any exported functions. This is enabled to promote
+    # decomposing a package before testing it's internals. A function caller
+    # should be able to test most of the functionality from exported functions.
+    # 
+    # There are edge-cases to this rule, but they should be carefully considered
+    # to avoid structural inconsistency.
     - testpackage
     - tparallel
     - typecheck
