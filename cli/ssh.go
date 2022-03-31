@@ -13,11 +13,12 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
+	"golang.org/x/crypto/ssh/terminal"
+
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 func ssh() *cobra.Command {

@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/cli/safeexec"
+
 	"github.com/coder/coder/provisionersdk"
 
 	"github.com/hashicorp/hc-install/product"
