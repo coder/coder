@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/coder/coder/coderd/authz"
 	"github.com/coder/coder/coderd/authz/authztest"
+	"github.com/stretchr/testify/require"
 	"math/bits"
 	"strings"
 	"testing"
@@ -78,22 +79,11 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 		//},
 	}
 
-	var pvars int
-	for name, v := range roleVariants {
-		fmt.Printf("%s: %d\n", name, v.Size())
-		pvars += v.Size()
-	}
-	var total int = 0
-	for _, c := range testCases {
-		total += len(c.Objs) * pvars
-	}
-	fmt.Printf("pvars=%d, total=%d\n", pvars, total)
-
-	var tot int
+	var failedTests int
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
 			for _, o := range c.Objs {
-				for _, v := range roleVariants {
+				for name, v := range roleVariants {
 					v.Each(func(set authztest.Set) {
 						// TODO: Authz.Permissions does allocations at the moment. We should fix that.
 						err := authz.AuthorizePermissions(
@@ -101,14 +91,18 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 							set.Permissions(),
 							o,
 							authztest.PermAction)
-						var _ = err
-						tot++
+						if c.Result(name) && err != nil {
+							failedTests++
+						} else if !c.Result(name) && err == nil {
+							failedTests++
+						}
 					})
 					v.Reset()
 				}
 			}
 		})
 	}
+	require.Equal(t, 0, failedTests, fmt.Sprintf("%d tests failed", failedTests))
 }
 
 func permissionVariants(all authztest.SetGroup) map[string]*authztest.Role {
