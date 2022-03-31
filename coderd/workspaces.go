@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
@@ -190,7 +191,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	var provisionerJob database.ProvisionerJob
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(r.Context(), func(db database.Store) error {
 		workspaceBuildID := uuid.New()
 		input, err := json.Marshal(workspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
@@ -208,7 +209,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  projectVersionJob.StorageMethod,
 			StorageSource:  projectVersionJob.StorageSource,
-			Input:          input,
+			Input:          pgtype.JSONB{Bytes: input, Status: pgtype.Present},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)

@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
@@ -82,7 +83,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 
 	var projectVersion database.ProjectVersion
 	var provisionerJob database.ProvisionerJob
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(r.Context(), func(db database.Store) error {
 		jobID := uuid.New()
 		for _, parameterValue := range req.ParameterValues {
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
@@ -111,7 +112,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			StorageSource:  file.Hash,
 			Type:           database.ProvisionerJobTypeProjectVersionImport,
-			Input:          []byte{'{', '}'},
+			Input:          pgtype.JSONB{Bytes: []byte("{}"), Status: pgtype.Present},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -199,7 +200,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var project codersdk.Project
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(r.Context(), func(db database.Store) error {
 		now := database.Now()
 		dbProject, err := db.InsertProject(r.Context(), database.InsertProjectParams{
 			ID:              uuid.New(),

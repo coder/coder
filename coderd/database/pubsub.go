@@ -2,12 +2,12 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 )
@@ -26,7 +26,7 @@ type Pubsub interface {
 // Pubsub implementation using PostgreSQL.
 type pgPubsub struct {
 	pgListener *pq.Listener
-	db         *sql.DB
+	db         *pgxpool.Pool
 	mut        sync.Mutex
 	listeners  map[string]map[string]Listener
 }
@@ -75,7 +75,7 @@ func (p *pgPubsub) Publish(event string, message []byte) error {
 	// This is safe because we are calling pq.QuoteLiteral. pg_notify doesn't
 	// support the first parameter being a prepared statement.
 	//nolint:gosec
-	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
+	_, err := p.db.Exec(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
 		return xerrors.Errorf("exec: %w", err)
 	}
@@ -125,7 +125,7 @@ func (p *pgPubsub) listenReceive(ctx context.Context, notif *pq.Notification) {
 }
 
 // NewPubsub creates a new Pubsub implementation using a PostgreSQL connection.
-func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub, error) {
+func NewPubsub(ctx context.Context, database *pgxpool.Pool, connectURL string) (Pubsub, error) {
 	// Creates a new listener using pq.
 	errCh := make(chan error)
 	listener := pq.NewListener(connectURL, time.Second*10, time.Minute, func(event pq.ListenerEventType, err error) {

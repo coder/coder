@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
@@ -80,7 +81,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// Create the user, organization, and membership to the user.
 	var user database.User
 	var organization database.Organization
-	err = api.Database.InTx(func(s database.Store) error {
+	err = api.Database.InTx(r.Context(), func(s database.Store) error {
 		user, err = api.Database.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             uuid.New(),
 			Email:          createUser.Email,
@@ -193,7 +194,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var user database.User
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(r.Context(), func(db database.Store) error {
 		user, err = db.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             uuid.New(),
 			Email:          createUser.Email,
@@ -320,7 +321,7 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 	}
 
 	var organization database.Organization
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(r.Context(), func(db database.Store) error {
 		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      req.Name,
@@ -595,7 +596,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 
 	var provisionerJob database.ProvisionerJob
 	var workspaceBuild database.WorkspaceBuild
-	err = api.Database.InTx(func(db database.Store) error {
+	err = api.Database.InTx(r.Context(), func(db database.Store) error {
 		workspaceBuildID := uuid.New()
 		// Workspaces are created without any versions.
 		workspace, err = db.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
@@ -642,7 +643,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod:  projectVersionJob.StorageMethod,
 			StorageSource:  projectVersionJob.StorageSource,
-			Input:          input,
+			Input:          pgtype.JSONB{Bytes: input, Status: pgtype.Present},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)

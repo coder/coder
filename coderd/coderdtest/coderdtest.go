@@ -23,9 +23,13 @@ import (
 	"testing"
 	"time"
 
+	// Used for pgx stdlib sql support.
+	_ "github.com/jackc/pgx/v4/stdlib"
+
 	"cloud.google.com/go/compute/metadata"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/idtoken"
@@ -54,6 +58,9 @@ type Options struct {
 // New constructs an in-memory coderd instance and returns
 // the connected client.
 func New(t *testing.T, options *Options) *codersdk.Client {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	if options == nil {
 		options = &Options{}
 	}
@@ -72,16 +79,27 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		connectionURL, close, err := postgres.Open()
 		require.NoError(t, err)
 		t.Cleanup(close)
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		err = database.MigrateUp(sqlDB)
-		require.NoError(t, err)
-		db = database.New(sqlDB)
 
-		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
+		pool, err := pgxpool.Connect(ctx, connectionURL)
+		require.NoError(t, err)
+		t.Cleanup(pool.Close)
+
+		err = pool.Ping(ctx)
+		require.NoError(t, err)
+
+		db = database.New(pool)
+
+		// Open stdlib compatible db for migrations.
+		func() {
+			db, err := sql.Open("pgx", connectionURL)
+			require.NoError(t, err)
+			defer func() { _ = db.Close() }()
+
+			err = database.MigrateUp(db)
+			require.NoError(t, err)
+		}()
+
+		pubsub, err = database.NewPubsub(context.Background(), pool, connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = pubsub.Close()

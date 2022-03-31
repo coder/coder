@@ -60,7 +60,7 @@ type fakeQuerier struct {
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
-func (q *fakeQuerier) InTx(fn func(database.Store) error) error {
+func (q *fakeQuerier) InTx(_ context.Context, fn func(database.Store) error) error {
 	return fn(q)
 }
 

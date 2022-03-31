@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/hashicorp/yamux"
+	"github.com/jackc/pgtype"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
@@ -248,8 +249,8 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 
 func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
-	if dbAgent.EnvironmentVariables.Valid {
-		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
+	if dbAgent.EnvironmentVariables.Status == pgtype.Present {
+		err := json.Unmarshal(dbAgent.EnvironmentVariables.Bytes, &envs)
 		if err != nil {
 			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
 		}

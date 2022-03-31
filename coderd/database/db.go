@@ -10,9 +10,11 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"golang.org/x/xerrors"
 )
 
@@ -21,55 +23,60 @@ import (
 type Store interface {
 	querier
 
-	InTx(func(Store) error) error
+	InTx(context.Context, func(Store) error) error
 }
 
 // DBTX represents a database connection or transaction.
 type DBTX interface {
-	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
-	PrepareContext(context.Context, string) (*sql.Stmt, error)
-	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...interface{}) pgx.Row
 }
 
 // New creates a new database store using a SQL database connection.
-func New(sdb *sql.DB) Store {
+func New(pool *pgxpool.Pool) Store {
 	return &sqlQuerier{
-		db:  sdb,
-		sdb: sdb,
+		db:   pool,
+		pool: pool,
 	}
 }
 
 type sqlQuerier struct {
-	sdb *sql.DB
-	db  DBTX
+	pool *pgxpool.Pool
+	db   DBTX
 }
 
 // InTx performs database operations inside a transaction.
-func (q *sqlQuerier) InTx(function func(Store) error) error {
-	if q.sdb == nil {
+func (q *sqlQuerier) InTx(ctx context.Context, function func(Store) error) error {
+	if q.pool == nil {
 		return nil
 	}
-	transaction, err := q.sdb.Begin()
+
+	transaction, err := q.pool.Begin(ctx)
 	if err != nil {
 		return xerrors.Errorf("begin transaction: %w", err)
 	}
+
 	defer func() {
-		rerr := transaction.Rollback()
-		if rerr == nil || errors.Is(rerr, sql.ErrTxDone) {
+		rerr := transaction.Rollback(ctx)
+		if rerr == nil || errors.Is(rerr, pgx.ErrTxClosed) {
 			// no need to do anything, tx committed successfully
 			return
 		}
+
 		// couldn't roll back for some reason, extend returned error
 		err = xerrors.Errorf("defer (%s): %w", rerr.Error(), err)
 	}()
+
 	err = function(&sqlQuerier{db: transaction})
 	if err != nil {
 		return xerrors.Errorf("execute transaction: %w", err)
 	}
-	err = transaction.Commit()
+
+	err = transaction.Commit(ctx)
 	if err != nil {
 		return xerrors.Errorf("commit transaction: %w", err)
 	}
+
 	return nil
 }

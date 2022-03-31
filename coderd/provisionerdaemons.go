@@ -14,8 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"github.com/jackc/pgtype"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -165,7 +165,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		var input workspaceProvisionJob
-		err = json.Unmarshal(job.Input, &input)
+		err = json.Unmarshal(job.Input.Bytes, &input)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
@@ -438,7 +438,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 			break
 		}
 		var input workspaceProvisionJob
-		err = json.Unmarshal(job.Input, &input)
+		err = json.Unmarshal(job.Input.Bytes, &input)
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
@@ -510,7 +510,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 		}
 	case *proto.CompletedJob_WorkspaceBuild_:
 		var input workspaceProvisionJob
-		err = json.Unmarshal(job.Input, &input)
+		err = json.Unmarshal(job.Input.Bytes, &input)
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal job data: %w", err)
 		}
@@ -520,7 +520,7 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 			return nil, xerrors.Errorf("get workspace build: %w", err)
 		}
 
-		err = server.Database.InTx(func(db database.Store) error {
+		err = server.Database.InTx(ctx, func(db database.Store) error {
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
@@ -603,15 +603,16 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Valid:  true,
 			}
 		}
-		var env pqtype.NullRawMessage
+		var env pgtype.JSONB
 		if protoResource.Agent.Env != nil {
 			data, err := json.Marshal(protoResource.Agent.Env)
 			if err != nil {
 				return xerrors.Errorf("marshal env: %w", err)
 			}
-			env = pqtype.NullRawMessage{
-				RawMessage: data,
-				Valid:      true,
+
+			env = pgtype.JSONB{
+				Bytes:  data,
+				Status: pgtype.Present,
 			}
 		}
 		authToken := uuid.New()

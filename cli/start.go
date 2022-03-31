@@ -15,8 +15,12 @@ import (
 	"path/filepath"
 	"time"
 
+	// Used for pgx stdlib sql support.
+	_ "github.com/jackc/pgx/v4/stdlib"
+
 	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -137,20 +141,38 @@ func start() *cobra.Command {
 			}
 
 			if !dev {
-				sqlDB, err := sql.Open("postgres", postgresURL)
+				pool, err := pgxpool.Connect(cmd.Context(), postgresURL)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
-				err = sqlDB.Ping()
+
+				err = pool.Ping(cmd.Context())
 				if err != nil {
 					return xerrors.Errorf("ping postgres: %w", err)
 				}
-				err = database.MigrateUp(sqlDB)
+
+				// Open stdlib compatible db for migrations.
+				err = func() error {
+					db, err := sql.Open("pgx", postgresURL)
+					if err != nil {
+						return xerrors.Errorf("open stdlib pgx: %w", err)
+					}
+					defer func() { _ = db.Close() }()
+
+					err = database.MigrateUp(db)
+					if err != nil {
+						return xerrors.Errorf("migrate up: %w", err)
+					}
+
+					return nil
+				}()
 				if err != nil {
-					return xerrors.Errorf("migrate up: %w", err)
+					return xerrors.Errorf("migrate: %w", err)
 				}
-				options.Database = database.New(sqlDB)
-				options.Pubsub, err = database.NewPubsub(cmd.Context(), sqlDB, postgresURL)
+
+				options.Database = database.New(pool)
+
+				options.Pubsub, err = database.NewPubsub(cmd.Context(), pool, postgresURL)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}

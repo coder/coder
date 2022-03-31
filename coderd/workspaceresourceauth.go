@@ -104,7 +104,7 @@ func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		return
 	}
 	var jobData workspaceProvisionJob
-	err = json.Unmarshal(job.Input, &jobData)
+	err = json.Unmarshal(job.Input.Bytes, &jobData)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("extract job data: %s", err),

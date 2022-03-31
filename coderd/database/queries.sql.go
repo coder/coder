@@ -5,12 +5,10 @@ package database
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
-	"github.com/tabbed/pqtype"
+	"github.com/jackc/pgtype"
 )
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
@@ -25,7 +23,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, error) {
-	row := q.db.QueryRowContext(ctx, getAPIKeyByID, id)
+	row := q.db.QueryRow(ctx, getAPIKeyByID, id)
 	var i APIKey
 	err := row.Scan(
 		&i.ID,
@@ -105,7 +103,7 @@ type InsertAPIKeyParams struct {
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
-	row := q.db.QueryRowContext(ctx, insertAPIKey,
+	row := q.db.QueryRow(ctx, insertAPIKey,
 		arg.ID,
 		arg.HashedSecret,
 		arg.UserID,
@@ -166,7 +164,7 @@ type UpdateAPIKeyByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateAPIKeyByID,
+	_, err := q.db.Exec(ctx, updateAPIKeyByID,
 		arg.ID,
 		arg.LastUsed,
 		arg.ExpiresAt,
@@ -189,7 +187,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, error) {
-	row := q.db.QueryRowContext(ctx, getFileByHash, hash)
+	row := q.db.QueryRow(ctx, getFileByHash, hash)
 	var i File
 	err := row.Scan(
 		&i.Hash,
@@ -217,7 +215,7 @@ type InsertFileParams struct {
 }
 
 func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File, error) {
-	row := q.db.QueryRowContext(ctx, insertFile,
+	row := q.db.QueryRow(ctx, insertFile,
 		arg.Hash,
 		arg.CreatedAt,
 		arg.CreatedBy,
@@ -253,14 +251,14 @@ type GetOrganizationMemberByUserIDParams struct {
 }
 
 func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationMemberByUserID, arg.OrganizationID, arg.UserID)
+	row := q.db.QueryRow(ctx, getOrganizationMemberByUserID, arg.OrganizationID, arg.UserID)
 	var i OrganizationMember
 	err := row.Scan(
 		&i.UserID,
 		&i.OrganizationID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		pq.Array(&i.Roles),
+		&i.Roles,
 	)
 	return i, err
 }
@@ -287,12 +285,12 @@ type InsertOrganizationMemberParams struct {
 }
 
 func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error) {
-	row := q.db.QueryRowContext(ctx, insertOrganizationMember,
+	row := q.db.QueryRow(ctx, insertOrganizationMember,
 		arg.OrganizationID,
 		arg.UserID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
-		pq.Array(arg.Roles),
+		arg.Roles,
 	)
 	var i OrganizationMember
 	err := row.Scan(
@@ -300,7 +298,7 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 		&i.OrganizationID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		pq.Array(&i.Roles),
+		&i.Roles,
 	)
 	return i, err
 }
@@ -315,7 +313,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationByID, id)
+	row := q.db.QueryRow(ctx, getOrganizationByID, id)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -339,7 +337,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationByName, name)
+	row := q.db.QueryRow(ctx, getOrganizationByName, name)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -368,7 +366,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationsByUserID, userID)
+	rows, err := q.db.Query(ctx, getOrganizationsByUserID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -386,9 +384,6 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -412,7 +407,7 @@ type InsertOrganizationParams struct {
 }
 
 func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, insertOrganization,
+	row := q.db.QueryRow(ctx, insertOrganization,
 		arg.ID,
 		arg.Name,
 		arg.Description,
@@ -440,7 +435,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error) {
-	rows, err := q.db.QueryContext(ctx, getParameterSchemasByJobID, jobID)
+	rows, err := q.db.Query(ctx, getParameterSchemasByJobID, jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -469,9 +464,6 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -540,7 +532,7 @@ type InsertParameterSchemaParams struct {
 }
 
 func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error) {
-	row := q.db.QueryRowContext(ctx, insertParameterSchema,
+	row := q.db.QueryRow(ctx, insertParameterSchema,
 		arg.ID,
 		arg.CreatedAt,
 		arg.JobID,
@@ -588,7 +580,7 @@ WHERE
 `
 
 func (q *sqlQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteParameterValueByID, id)
+	_, err := q.db.Exec(ctx, deleteParameterValueByID, id)
 	return err
 }
 
@@ -612,7 +604,7 @@ type GetParameterValueByScopeAndNameParams struct {
 }
 
 func (q *sqlQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, getParameterValueByScopeAndName, arg.Scope, arg.ScopeID, arg.Name)
+	row := q.db.QueryRow(ctx, getParameterValueByScopeAndName, arg.Scope, arg.ScopeID, arg.Name)
 	var i ParameterValue
 	err := row.Scan(
 		&i.ID,
@@ -644,7 +636,7 @@ type GetParameterValuesByScopeParams struct {
 }
 
 func (q *sqlQuerier) GetParameterValuesByScope(ctx context.Context, arg GetParameterValuesByScopeParams) ([]ParameterValue, error) {
-	rows, err := q.db.QueryContext(ctx, getParameterValuesByScope, arg.Scope, arg.ScopeID)
+	rows, err := q.db.Query(ctx, getParameterValuesByScope, arg.Scope, arg.ScopeID)
 	if err != nil {
 		return nil, err
 	}
@@ -666,9 +658,6 @@ func (q *sqlQuerier) GetParameterValuesByScope(ctx context.Context, arg GetParam
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -706,7 +695,7 @@ type InsertParameterValueParams struct {
 }
 
 func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error) {
-	row := q.db.QueryRowContext(ctx, insertParameterValue,
+	row := q.db.QueryRow(ctx, insertParameterValue,
 		arg.ID,
 		arg.Name,
 		arg.CreatedAt,
@@ -744,7 +733,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error) {
-	row := q.db.QueryRowContext(ctx, getProjectByID, id)
+	row := q.db.QueryRow(ctx, getProjectByID, id)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -779,7 +768,7 @@ type GetProjectByOrganizationAndNameParams struct {
 }
 
 func (q *sqlQuerier) GetProjectByOrganizationAndName(ctx context.Context, arg GetProjectByOrganizationAndNameParams) (Project, error) {
-	row := q.db.QueryRowContext(ctx, getProjectByOrganizationAndName, arg.OrganizationID, arg.Deleted, arg.Name)
+	row := q.db.QueryRow(ctx, getProjectByOrganizationAndName, arg.OrganizationID, arg.Deleted, arg.Name)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -804,7 +793,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]Project, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectsByIDs, pq.Array(ids))
+	rows, err := q.db.Query(ctx, getProjectsByIDs, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -825,9 +814,6 @@ func (q *sqlQuerier) GetProjectsByIDs(ctx context.Context, ids []uuid.UUID) ([]P
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -851,7 +837,7 @@ type GetProjectsByOrganizationParams struct {
 }
 
 func (q *sqlQuerier) GetProjectsByOrganization(ctx context.Context, arg GetProjectsByOrganizationParams) ([]Project, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectsByOrganization, arg.OrganizationID, arg.Deleted)
+	rows, err := q.db.Query(ctx, getProjectsByOrganization, arg.OrganizationID, arg.Deleted)
 	if err != nil {
 		return nil, err
 	}
@@ -872,9 +858,6 @@ func (q *sqlQuerier) GetProjectsByOrganization(ctx context.Context, arg GetProje
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -908,7 +891,7 @@ type InsertProjectParams struct {
 }
 
 func (q *sqlQuerier) InsertProject(ctx context.Context, arg InsertProjectParams) (Project, error) {
-	row := q.db.QueryRowContext(ctx, insertProject,
+	row := q.db.QueryRow(ctx, insertProject,
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -946,7 +929,7 @@ type UpdateProjectActiveVersionByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateProjectActiveVersionByID(ctx context.Context, arg UpdateProjectActiveVersionByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProjectActiveVersionByID, arg.ID, arg.ActiveVersionID)
+	_, err := q.db.Exec(ctx, updateProjectActiveVersionByID, arg.ID, arg.ActiveVersionID)
 	return err
 }
 
@@ -965,7 +948,7 @@ type UpdateProjectDeletedByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateProjectDeletedByID(ctx context.Context, arg UpdateProjectDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProjectDeletedByID, arg.ID, arg.Deleted)
+	_, err := q.db.Exec(ctx, updateProjectDeletedByID, arg.ID, arg.Deleted)
 	return err
 }
 
@@ -979,7 +962,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetProjectVersionByID(ctx context.Context, id uuid.UUID) (ProjectVersion, error) {
-	row := q.db.QueryRowContext(ctx, getProjectVersionByID, id)
+	row := q.db.QueryRow(ctx, getProjectVersionByID, id)
 	var i ProjectVersion
 	err := row.Scan(
 		&i.ID,
@@ -1004,7 +987,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetProjectVersionByJobID(ctx context.Context, jobID uuid.UUID) (ProjectVersion, error) {
-	row := q.db.QueryRowContext(ctx, getProjectVersionByJobID, jobID)
+	row := q.db.QueryRow(ctx, getProjectVersionByJobID, jobID)
 	var i ProjectVersion
 	err := row.Scan(
 		&i.ID,
@@ -1035,7 +1018,7 @@ type GetProjectVersionByProjectIDAndNameParams struct {
 }
 
 func (q *sqlQuerier) GetProjectVersionByProjectIDAndName(ctx context.Context, arg GetProjectVersionByProjectIDAndNameParams) (ProjectVersion, error) {
-	row := q.db.QueryRowContext(ctx, getProjectVersionByProjectIDAndName, arg.ProjectID, arg.Name)
+	row := q.db.QueryRow(ctx, getProjectVersionByProjectIDAndName, arg.ProjectID, arg.Name)
 	var i ProjectVersion
 	err := row.Scan(
 		&i.ID,
@@ -1060,7 +1043,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, dollar_1 uuid.UUID) ([]ProjectVersion, error) {
-	rows, err := q.db.QueryContext(ctx, getProjectVersionsByProjectID, dollar_1)
+	rows, err := q.db.Query(ctx, getProjectVersionsByProjectID, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -1081,9 +1064,6 @@ func (q *sqlQuerier) GetProjectVersionsByProjectID(ctx context.Context, dollar_1
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1119,7 +1099,7 @@ type InsertProjectVersionParams struct {
 }
 
 func (q *sqlQuerier) InsertProjectVersion(ctx context.Context, arg InsertProjectVersionParams) (ProjectVersion, error) {
-	row := q.db.QueryRowContext(ctx, insertProjectVersion,
+	row := q.db.QueryRow(ctx, insertProjectVersion,
 		arg.ID,
 		arg.ProjectID,
 		arg.OrganizationID,
@@ -1160,7 +1140,7 @@ type UpdateProjectVersionByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateProjectVersionByID(ctx context.Context, arg UpdateProjectVersionByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProjectVersionByID, arg.ID, arg.ProjectID, arg.UpdatedAt)
+	_, err := q.db.Exec(ctx, updateProjectVersionByID, arg.ID, arg.ProjectID, arg.UpdatedAt)
 	return err
 }
 
@@ -1174,7 +1154,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerDaemonByID, id)
+	row := q.db.QueryRow(ctx, getProvisionerDaemonByID, id)
 	var i ProvisionerDaemon
 	err := row.Scan(
 		&i.ID,
@@ -1182,7 +1162,7 @@ func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID)
 		&i.UpdatedAt,
 		&i.OrganizationID,
 		&i.Name,
-		pq.Array(&i.Provisioners),
+		&i.Provisioners,
 	)
 	return i, err
 }
@@ -1195,7 +1175,7 @@ FROM
 `
 
 func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerDaemons)
+	rows, err := q.db.Query(ctx, getProvisionerDaemons)
 	if err != nil {
 		return nil, err
 	}
@@ -1209,14 +1189,11 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.UpdatedAt,
 			&i.OrganizationID,
 			&i.Name,
-			pq.Array(&i.Provisioners),
+			&i.Provisioners,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1246,12 +1223,12 @@ type InsertProvisionerDaemonParams struct {
 }
 
 func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
-	row := q.db.QueryRowContext(ctx, insertProvisionerDaemon,
+	row := q.db.QueryRow(ctx, insertProvisionerDaemon,
 		arg.ID,
 		arg.CreatedAt,
 		arg.OrganizationID,
 		arg.Name,
-		pq.Array(arg.Provisioners),
+		arg.Provisioners,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -1260,7 +1237,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.UpdatedAt,
 		&i.OrganizationID,
 		&i.Name,
-		pq.Array(&i.Provisioners),
+		&i.Provisioners,
 	)
 	return i, err
 }
@@ -1282,7 +1259,7 @@ type UpdateProvisionerDaemonByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
+	_, err := q.db.Exec(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, arg.Provisioners)
 	return err
 }
 
@@ -1308,7 +1285,7 @@ type GetProvisionerLogsByIDBetweenParams struct {
 }
 
 func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerLogsByIDBetween, arg.JobID, arg.CreatedAfter, arg.CreatedBefore)
+	rows, err := q.db.Query(ctx, getProvisionerLogsByIDBetween, arg.JobID, arg.CreatedAfter, arg.CreatedBefore)
 	if err != nil {
 		return nil, err
 	}
@@ -1328,9 +1305,6 @@ func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetP
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1362,14 +1336,14 @@ type InsertProvisionerJobLogsParams struct {
 }
 
 func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error) {
-	rows, err := q.db.QueryContext(ctx, insertProvisionerJobLogs,
-		pq.Array(arg.ID),
+	rows, err := q.db.Query(ctx, insertProvisionerJobLogs,
+		arg.ID,
 		arg.JobID,
-		pq.Array(arg.CreatedAt),
-		pq.Array(arg.Source),
-		pq.Array(arg.Level),
-		pq.Array(arg.Stage),
-		pq.Array(arg.Output),
+		arg.CreatedAt,
+		arg.Source,
+		arg.Level,
+		arg.Stage,
+		arg.Output,
 	)
 	if err != nil {
 		return nil, err
@@ -1390,9 +1364,6 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1440,7 +1411,7 @@ type AcquireProvisionerJobParams struct {
 // multiple provisioners from acquiring the same jobs. See:
 // https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error) {
-	row := q.db.QueryRowContext(ctx, acquireProvisionerJob, arg.StartedAt, arg.WorkerID, pq.Array(arg.Types))
+	row := q.db.QueryRow(ctx, acquireProvisionerJob, arg.StartedAt, arg.WorkerID, arg.Types)
 	var i ProvisionerJob
 	err := row.Scan(
 		&i.ID,
@@ -1472,7 +1443,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerJobByID, id)
+	row := q.db.QueryRow(ctx, getProvisionerJobByID, id)
 	var i ProvisionerJob
 	err := row.Scan(
 		&i.ID,
@@ -1504,7 +1475,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDs, pq.Array(ids))
+	rows, err := q.db.Query(ctx, getProvisionerJobsByIDs, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -1532,9 +1503,6 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1570,11 +1538,11 @@ type InsertProvisionerJobParams struct {
 	StorageMethod  ProvisionerStorageMethod `db:"storage_method" json:"storage_method"`
 	StorageSource  string                   `db:"storage_source" json:"storage_source"`
 	Type           ProvisionerJobType       `db:"type" json:"type"`
-	Input          json.RawMessage          `db:"input" json:"input"`
+	Input          pgtype.JSONB             `db:"input" json:"input"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
-	row := q.db.QueryRowContext(ctx, insertProvisionerJob,
+	row := q.db.QueryRow(ctx, insertProvisionerJob,
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -1622,7 +1590,7 @@ type UpdateProvisionerJobByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobByID, arg.ID, arg.UpdatedAt)
+	_, err := q.db.Exec(ctx, updateProvisionerJobByID, arg.ID, arg.UpdatedAt)
 	return err
 }
 
@@ -1641,7 +1609,7 @@ type UpdateProvisionerJobWithCancelByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt)
+	_, err := q.db.Exec(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt)
 	return err
 }
 
@@ -1664,7 +1632,7 @@ type UpdateProvisionerJobWithCompleteByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCompleteByID,
+	_, err := q.db.Exec(ctx, updateProvisionerJobWithCompleteByID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.CompletedAt,
@@ -1691,7 +1659,7 @@ type GetUserByEmailOrUsernameParams struct {
 }
 
 func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
+	row := q.db.QueryRow(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -1719,7 +1687,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -1743,7 +1711,7 @@ FROM
 `
 
 func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUserCount)
+	row := q.db.QueryRow(ctx, getUserCount)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1778,7 +1746,7 @@ type InsertUserParams struct {
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, insertUser,
+	row := q.db.QueryRow(ctx, insertUser,
 		arg.ID,
 		arg.Email,
 		arg.Name,
@@ -1815,7 +1783,7 @@ ORDER BY
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByAuthToken, authToken)
+	row := q.db.QueryRow(ctx, getWorkspaceAgentByAuthToken, authToken)
 	var i WorkspaceAgent
 	err := row.Scan(
 		&i.ID,
@@ -1847,7 +1815,7 @@ ORDER BY
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByInstanceID, authInstanceID)
+	row := q.db.QueryRow(ctx, getWorkspaceAgentByInstanceID, authInstanceID)
 	var i WorkspaceAgent
 	err := row.Scan(
 		&i.ID,
@@ -1877,7 +1845,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentByResourceID(ctx context.Context, resourceID uuid.UUID) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByResourceID, resourceID)
+	row := q.db.QueryRow(ctx, getWorkspaceAgentByResourceID, resourceID)
 	var i WorkspaceAgent
 	err := row.Scan(
 		&i.ID,
@@ -1916,20 +1884,20 @@ VALUES
 `
 
 type InsertWorkspaceAgentParams struct {
-	ID                   uuid.UUID             `db:"id" json:"id"`
-	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
-	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
-	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	ID                   uuid.UUID      `db:"id" json:"id"`
+	CreatedAt            time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time      `db:"updated_at" json:"updated_at"`
+	ResourceID           uuid.UUID      `db:"resource_id" json:"resource_id"`
+	AuthToken            uuid.UUID      `db:"auth_token" json:"auth_token"`
+	AuthInstanceID       sql.NullString `db:"auth_instance_id" json:"auth_instance_id"`
+	EnvironmentVariables pgtype.JSONB   `db:"environment_variables" json:"environment_variables"`
+	StartupScript        sql.NullString `db:"startup_script" json:"startup_script"`
+	InstanceMetadata     pgtype.JSONB   `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata     pgtype.JSONB   `db:"resource_metadata" json:"resource_metadata"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceAgent,
+	row := q.db.QueryRow(ctx, insertWorkspaceAgent,
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -1979,7 +1947,7 @@ type UpdateWorkspaceAgentConnectionByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentConnectionByID,
+	_, err := q.db.Exec(ctx, updateWorkspaceAgentConnectionByID,
 		arg.ID,
 		arg.FirstConnectedAt,
 		arg.LastConnectedAt,
@@ -2000,7 +1968,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByID, id)
+	row := q.db.QueryRow(ctx, getWorkspaceBuildByID, id)
 	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
@@ -2031,7 +1999,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByJobID, jobID)
+	row := q.db.QueryRow(ctx, getWorkspaceBuildByJobID, jobID)
 	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
@@ -2060,7 +2028,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildByWorkspaceID, workspaceID)
+	rows, err := q.db.Query(ctx, getWorkspaceBuildByWorkspaceID, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -2086,9 +2054,6 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspa
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -2111,7 +2076,7 @@ type GetWorkspaceBuildByWorkspaceIDAndNameParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndNameParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDAndName, arg.WorkspaceID, arg.Name)
+	row := q.db.QueryRow(ctx, getWorkspaceBuildByWorkspaceIDAndName, arg.WorkspaceID, arg.Name)
 	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
@@ -2143,7 +2108,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDWithoutAfter, workspaceID)
+	row := q.db.QueryRow(ctx, getWorkspaceBuildByWorkspaceIDWithoutAfter, workspaceID)
 	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
@@ -2173,7 +2138,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildsByWorkspaceIDsWithoutAfter, pq.Array(ids))
+	rows, err := q.db.Query(ctx, getWorkspaceBuildsByWorkspaceIDsWithoutAfter, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -2198,9 +2163,6 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Co
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2242,7 +2204,7 @@ type InsertWorkspaceBuildParams struct {
 }
 
 func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceBuild,
+	row := q.db.QueryRow(ctx, insertWorkspaceBuild,
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -2292,7 +2254,7 @@ type UpdateWorkspaceBuildByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
+	_, err := q.db.Exec(ctx, updateWorkspaceBuildByID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.AfterID,
@@ -2311,7 +2273,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceResourceByID, id)
+	row := q.db.QueryRow(ctx, getWorkspaceResourceByID, id)
 	var i WorkspaceResource
 	err := row.Scan(
 		&i.ID,
@@ -2336,7 +2298,7 @@ WHERE
 `
 
 func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceResourcesByJobID, jobID)
+	rows, err := q.db.Query(ctx, getWorkspaceResourcesByJobID, jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -2357,9 +2319,6 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2395,7 +2354,7 @@ type InsertWorkspaceResourceParams struct {
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceResource,
+	row := q.db.QueryRow(ctx, insertWorkspaceResource,
 		arg.ID,
 		arg.CreatedAt,
 		arg.JobID,
@@ -2431,7 +2390,7 @@ LIMIT
 `
 
 func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceByID, id)
+	row := q.db.QueryRow(ctx, getWorkspaceByID, id)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
@@ -2463,7 +2422,7 @@ type GetWorkspaceByUserIDAndNameParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWorkspaceByUserIDAndNameParams) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceByUserIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	row := q.db.QueryRow(ctx, getWorkspaceByUserIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
@@ -2496,7 +2455,7 @@ type GetWorkspaceOwnerCountsByProjectIDsRow struct {
 }
 
 func (q *sqlQuerier) GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByProjectIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceOwnerCountsByProjectIDs, pq.Array(ids))
+	rows, err := q.db.Query(ctx, getWorkspaceOwnerCountsByProjectIDs, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -2508,9 +2467,6 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByProjectIDs(ctx context.Context, id
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2534,7 +2490,7 @@ type GetWorkspacesByProjectIDParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspacesByProjectID(ctx context.Context, arg GetWorkspacesByProjectIDParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesByProjectID, arg.ProjectID, arg.Deleted)
+	rows, err := q.db.Query(ctx, getWorkspacesByProjectID, arg.ProjectID, arg.Deleted)
 	if err != nil {
 		return nil, err
 	}
@@ -2554,9 +2510,6 @@ func (q *sqlQuerier) GetWorkspacesByProjectID(ctx context.Context, arg GetWorksp
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2580,7 +2533,7 @@ type GetWorkspacesByUserIDParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspacesByUserID(ctx context.Context, arg GetWorkspacesByUserIDParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesByUserID, arg.OwnerID, arg.Deleted)
+	rows, err := q.db.Query(ctx, getWorkspacesByUserID, arg.OwnerID, arg.Deleted)
 	if err != nil {
 		return nil, err
 	}
@@ -2600,9 +2553,6 @@ func (q *sqlQuerier) GetWorkspacesByUserID(ctx context.Context, arg GetWorkspace
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2634,7 +2584,7 @@ type InsertWorkspaceParams struct {
 }
 
 func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspace,
+	row := q.db.QueryRow(ctx, insertWorkspace,
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -2670,6 +2620,6 @@ type UpdateWorkspaceDeletedByIDParams struct {
 }
 
 func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceDeletedByID, arg.ID, arg.Deleted)
+	_, err := q.db.Exec(ctx, updateWorkspaceDeletedByID, arg.ID, arg.Deleted)
 	return err
 }
