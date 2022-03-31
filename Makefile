@@ -16,9 +16,7 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 
 # Generates Go code for querying the database.
 coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
-	cd coderd/database && sqlc generate && rm db_tmp.go
-	cd coderd/database && gofmt -w -r 'Querier -> querier' *.go
-	cd coderd/database && gofmt -w -r 'Queries -> sqlQuerier' *.go
+	coderd/database/generate.sh
 .PHONY: coderd/database/generate
 
 fmt/prettier:
@@ -32,6 +30,7 @@ endif
 .PHONY: fmt/prettier
 
 fmt/sql: $(wildcard coderd/database/queries/*.sql)
+	# TODO: this is slightly slow
 	for fi in coderd/database/queries/*.sql; do \
 		npx sql-formatter \
 			--language postgresql \
