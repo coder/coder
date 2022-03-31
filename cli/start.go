@@ -56,6 +56,7 @@ func start() *cobra.Command {
 		tlsMinVersion          string
 		useTunnel              bool
 		traceDatadog           bool
+		secureAuthCookie       bool
 	)
 	root := &cobra.Command{
 		Use: "start",
@@ -132,6 +133,7 @@ func start() *cobra.Command {
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
+				SecureAuthCookie:     secureAuthCookie,
 			}
 
 			if !dev {
@@ -334,6 +336,7 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", true, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 
 	return root
 }
