@@ -323,6 +323,17 @@ jobs:
         with:
           install-only: true
 
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+
       - name: Build Release
         run: make release
 
