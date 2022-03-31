@@ -4201,6 +4201,13 @@
     commander "^8.0.0"
     xstate "^4.29.0"
 
+"@xstate/inspect@^0.6.4":
+  version "0.6.4"
+  resolved "https://registry.yarnpkg.com/@xstate/inspect/-/inspect-0.6.4.tgz#dd12abb30375dcb0471b81e8db3b81377cd00be6"
+  integrity sha512-2Gz5wu/RdpeLEpQ93qWQe/lDybJHQq8NzgWyB/EmDUBhOggCeZu4JqJCT7/RsQ7FNSEenZILFbNTftOY00Kg4A==
+  dependencies:
+    fast-safe-stringify "^2.0.7"
+
 "@xstate/machine-extractor@0.6.2":
   version "0.6.2"
   resolved "https://registry.yarnpkg.com/@xstate/machine-extractor/-/machine-extractor-0.6.2.tgz#2fe5edb6b965fd1f45fa68644a4ef69f125c4fc0"
@@ -7364,6 +7371,11 @@ fast-levenshtein@^2.0.6, fast-levenshtein@~2.0.6:
   version "2.0.6"
   resolved "https://registry.yarnpkg.com/fast-levenshtein/-/fast-levenshtein-2.0.6.tgz#3d8a5c66883a16a30ca8643e851f19baa7797917"
   integrity sha1-PYpcZog6FqMMqGQ+hR8Zuqd5eRc=
+
+fast-safe-stringify@^2.0.7:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/fast-safe-stringify/-/fast-safe-stringify-2.1.1.tgz#c406a83b6e70d9e35ce3b30a81141df30aeba884"
+  integrity sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==
 
 fastest-levenshtein@^1.0.12:
   version "1.0.12"
