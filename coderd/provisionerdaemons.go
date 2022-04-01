@@ -56,7 +56,7 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
 	})
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("insert provisioner daemon:% s", err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("insert provisioner daemon: %s", err))
 		return
 	}
 
@@ -67,7 +67,7 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 	config.LogOutput = io.Discard
 	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("multiplex server: %s", err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("multiplex server: %s", err))
 		return
 	}
 	mux := drpcmux.New()
@@ -80,13 +80,13 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("drpc register provisioner daemon: %s", err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
 		return
 	}
 	server := drpcserver.New(mux)
 	err = server.Serve(r.Context(), session)
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("serve: %s", err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}
 	_ = conn.Close(websocket.StatusGoingAway, "")
