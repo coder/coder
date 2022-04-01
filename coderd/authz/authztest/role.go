@@ -65,6 +65,7 @@ func (r *Role) Each(ea func(set Set)) {
 }
 
 // Next will grab the next cross-product permutation of all permissions of r.
+// When Next() returns false, the role would be Reset()
 func (r *Role) Next() bool {
 	for i := range r.PermissionSets {
 		if r.PermissionSets[i].Next() {

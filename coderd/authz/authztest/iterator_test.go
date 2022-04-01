@@ -11,30 +11,41 @@ import (
 )
 
 func TestUnion(t *testing.T) {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		allPerms := make(authztest.Set, 0)
 		// 2 - 4 sets
-		sets := make([]authztest.Set, 2+must(crand.Intn(2)))
+		sets := make([]authztest.Set, 1+must(crand.Intn(2)))
 		for j := range sets {
-			sets[j] = make(authztest.Set, 1+must(crand.Intn(4)))
+			sets[j] = RandomSet(1 + must(crand.Intn(4)))
 			allPerms = append(allPerms, sets[j]...)
 		}
 
-		u := authztest.Union(sets...)
-		require.Equal(t, len(allPerms), u.Size(), "union set total")
-		require.Equal(t, 1, u.ReturnSize(), "union ret size is 1")
+		ui := authztest.Union(sets...).Iterator()
+		require.Equal(t, len(allPerms), ui.Size(), "union set total")
+		require.Equal(t, 1, ui.ReturnSize(), "union ret size is 1")
 		for c := 0; ; c++ {
-			require.Equal(t, allPerms[c], u.Permission(), "permission order")
-			require.Equal(t, 1, len(u.Permissions()), "permissions size")
-			require.Equal(t, allPerms[c], u.Permissions()[0], "permission order")
-			if !u.Next() {
+			require.Equal(t, 1, len(ui.Permissions()), "permissions size")
+			require.Equal(t, allPerms[c], ui.Permissions()[0], "permission order")
+			if !ui.Next() {
 				break
 			}
 		}
 
-		u.Reset()
-		require.True(t, u.Next(), "reset should make next true again")
+		ui.Reset()
+		// If the size is 1, next will always return false
+		if ui.Size() > 1 {
+			require.True(t, ui.Next(), "reset should make next true again")
+		}
 	}
+}
+
+func RandomSet(size int) authztest.Set {
+	set := make(authztest.Set, 0, size)
+	for i := 0; i < size; i++ {
+		p := RandomPermission()
+		set = append(set, &p)
+	}
+	return set
 }
 
 func RandomPermission() authz.Permission {
