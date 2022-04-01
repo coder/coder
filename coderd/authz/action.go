@@ -3,8 +3,8 @@ package authz
 type Action string
 
 const (
-	ReadAction   = "read"
-	WriteAction  = "write"
-	ModifyAction = "modify"
-	DeleteAction = "delete"
+	ActionRead   = "read"
+	ActionWrite  = "write"
+	ActionModify = "modify"
+	ActionDelete = "delete"
 )
