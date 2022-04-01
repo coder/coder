@@ -32,3 +32,10 @@ func (r ResourceType) Owner(id string) zObject {
 		ObjectType: r,
 	}
 }
+
+func (r ResourceType) AsID(id string) zObject {
+	return zObject{
+		ObjectID:   id,
+		ObjectType: r,
+	}
+}

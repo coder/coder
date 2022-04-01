@@ -5,12 +5,12 @@ type Resource interface {
 	ResourceType() ResourceType
 }
 
-type UserObject interface {
+type UserResource interface {
 	Resource
 	OwnerID() string
 }
 
-type OrgObject interface {
+type OrgResource interface {
 	Resource
 	OrgOwnerID() string
 }

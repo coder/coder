@@ -23,12 +23,12 @@ func BenchmarkPermissionString(b *testing.B) {
 	}
 }
 
-var resourceTypes = []string{
+var resourceTypes = []authz.ResourceType{
 	"project", "config", "user", "user_role",
 	"workspace", "dev-url", "metric", "*",
 }
 
-var actions = []string{
+var actions = []authz.Action{
 	"read", "create", "delete", "modify", "*",
 }
 

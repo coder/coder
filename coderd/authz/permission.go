@@ -22,9 +22,9 @@ type Permission struct {
 	//	org:1234
 	LevelID string
 
-	ResourceType string
+	ResourceType ResourceType
 	ResourceID   string
-	Action       string
+	Action       Action
 }
 
 // String returns the <level>.<resource_type>.<id>.<action> string formatted permission.
@@ -44,10 +44,10 @@ func (p Permission) String() string {
 		s.WriteString(p.LevelID)
 	}
 	s.WriteRune('.')
-	s.WriteString(p.ResourceType)
+	s.WriteString(string(p.ResourceType))
 	s.WriteRune('.')
 	s.WriteString(p.ResourceID)
 	s.WriteRune('.')
-	s.WriteString(p.Action)
+	s.WriteString(string(p.Action))
 	return s.String()
 }

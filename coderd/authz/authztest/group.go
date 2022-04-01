@@ -8,9 +8,3 @@ const (
 	SetNegative PermissionSet = "j!"
 	SetNeutral  PermissionSet = "a"
 )
-
-var (
-	PermissionSets = []PermissionSet{SetPositive, SetNegative, SetNeutral}
-)
-
-var nilSet = Set{nil}

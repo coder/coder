@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	otherOption    = "other"
+	OtherOption    = "other"
 	PermObjectType = "resource"
 	PermAction     = "read"
 	PermOrgID      = "mem"
@@ -15,9 +15,9 @@ const (
 
 var (
 	levelIDs      = []string{"", PermOrgID}
-	resourceTypes = []string{PermObjectType, "*", otherOption}
-	resourceIDs   = []string{PermObjectID, "*", otherOption}
-	actions       = []string{PermAction, "*", otherOption}
+	resourceTypes = []authz.ResourceType{PermObjectType, "*", OtherOption}
+	resourceIDs   = []string{PermObjectID, "*", OtherOption}
+	actions       = []authz.Action{PermAction, "*", OtherOption}
 )
 
 // AllPermissions returns all the possible permissions ever.
@@ -57,9 +57,9 @@ func AllPermissions() Set {
 
 // Impact returns the impact (positive, negative, abstain) of p
 func Impact(p *authz.Permission) PermissionSet {
-	if p.ResourceType == otherOption ||
-		p.ResourceID == otherOption ||
-		p.Action == otherOption {
+	if p.ResourceType == OtherOption ||
+		p.ResourceID == OtherOption ||
+		p.Action == OtherOption {
 		return SetNeutral
 	}
 	if p.Sign {

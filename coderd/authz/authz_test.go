@@ -15,6 +15,7 @@ var nilSet = authztest.Set{nil}
 func Test_ExhaustiveAuthorize(t *testing.T) {
 	all := authztest.GroupedPermissions(authztest.AllPermissions())
 	roleVariants := permissionVariants(all)
+	res := authz.ResourceType(authztest.PermObjectType).AsID(authztest.PermObjectID)
 
 	testCases := []struct {
 		Name string
@@ -25,9 +26,9 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 	}{
 		{
 			Name: "User:Org",
-			Objs: authztest.Objects(
-				[]string{authztest.PermMe, authztest.PermOrgID},
-			),
+			Objs: []authz.Resource{
+				res.Owner(authztest.PermMe).Org(authztest.PermOrgID),
+			},
 			Result: func(pv string) bool {
 				return strings.Contains(pv, "+")
 			},
@@ -35,10 +36,10 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 		{
 			// All U+/- tests should fail
 			Name: "NotUser:Org",
-			Objs: authztest.Objects(
-				[]string{"other", authztest.PermOrgID},
-				[]string{"", authztest.PermOrgID},
-			),
+			Objs: []authz.Resource{
+				res.Owner("other").Org(authztest.PermOrgID),
+				res.Owner("").Org(authztest.PermOrgID),
+			},
 			Result: func(pv string) bool {
 				if strings.Contains(pv, "U") {
 					return false
@@ -49,13 +50,14 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 		{
 			// All O+/- and U+/- tests should fail
 			Name: "NotUser:NotOrg",
-			Objs: authztest.Objects(
-				[]string{authztest.PermMe, "non-mem"},
-				[]string{"other", "non-mem"},
-				[]string{"other", ""},
-				[]string{"", "non-mem"},
-				[]string{"", ""},
-			),
+			Objs: []authz.Resource{
+				res.Owner(authztest.PermMe).Org("non-mem"),
+				res.Owner("other").Org("non-mem"),
+				res.Owner("other").Org(""),
+				res.Owner("").Org("non-mem"),
+				res.Owner("").Org(""),
+			},
+
 			Result: func(pv string) bool {
 				if strings.Contains(pv, "U") {
 					return false
