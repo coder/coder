@@ -362,9 +362,13 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
+CREATE UNIQUE INDEX idx_projects_name_lower ON projects USING btree (lower((name)::text));
+
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
+
+CREATE UNIQUE INDEX idx_workspaces_name_lower ON workspaces USING btree (lower((name)::text));
 
 CREATE UNIQUE INDEX projects_organization_id_name_idx ON projects USING btree (organization_id, name) WHERE (deleted = false);
 

@@ -33,6 +33,7 @@ CREATE TABLE projects (
 
 -- Enforces no active projects have the same name.
 CREATE UNIQUE INDEX ON projects (organization_id, name) WHERE deleted = FALSE;
+CREATE UNIQUE INDEX idx_projects_name_lower ON projects USING btree (lower(name));
 
 -- Project Versions store historical project data. When a Project Version is imported,
 -- an "import" job is queued to parse parameters. A Project Version
