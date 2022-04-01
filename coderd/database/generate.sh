@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# This script turns many *.sql.go files into a single queries.sql.go file. This
+# is due to sqlc's behavior when using multiple sql files to output them to
+# multiple Go files. We decided it would be cleaner to move these to a single
+# file for readability. We should probably contribute the option to do this
+# upstream instead, because this is quite janky.
+
 set -euo pipefail
 
 cd "$(dirname "$0")"
