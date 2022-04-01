@@ -89,6 +89,14 @@ CREATE TABLE files (
     data bytea NOT NULL
 );
 
+CREATE TABLE git_ssh_keys (
+    user_id text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    private_key bytea NOT NULL,
+    public_key bytea NOT NULL
+);
+
 CREATE TABLE licenses (
     id integer NOT NULL,
     license jsonb NOT NULL,
@@ -291,6 +299,11 @@ ALTER TABLE ONLY organization_members
 
 ALTER TABLE ONLY organizations
     ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY git_ssh_keys
+    ADD CONSTRAINT git_ssh_keys_pkey PRIMARY KEY (user_id);
+
+ALTER TABLE ONLY parameter_schemas
+    ADD CONSTRAINT parameter_schemas_id_key UNIQUE (id);
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_name_key UNIQUE (job_id, name);

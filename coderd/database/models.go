@@ -255,6 +255,14 @@ type File struct {
 	Data      []byte    `db:"data" json:"data"`
 }
 
+type GitSshKey struct {
+	UserID     string    `db:"user_id" json:"user_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	PrivateKey []byte    `db:"private_key" json:"private_key"`
+	PublicKey  []byte    `db:"public_key" json:"public_key"`
+}
+
 type License struct {
 	ID        int32           `db:"id" json:"id"`
 	License   json.RawMessage `db:"license" json:"license"`

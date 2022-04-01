@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/site"
@@ -30,7 +31,8 @@ type Options struct {
 	AWSCertificates      awsidentity.Certificates
 	GoogleTokenValidator *idtoken.Validator
 
-	SecureAuthCookie bool
+	SecureAuthCookie   bool
+	SSHKeygenAlgorithm gitsshkey.SSHKeygenAlgorithm
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -137,6 +139,8 @@ func New(options *Options) (http.Handler, func()) {
 						r.Get("/", api.workspacesByUser)
 						r.Get("/{workspacename}", api.workspaceByUserAndName)
 					})
+					r.Get("/gitsshkey", api.getGitSSHKey)
+					r.Post("/gitsshkey", api.regenerateGitSSHKey)
 				})
 			})
 		})
