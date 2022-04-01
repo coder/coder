@@ -11,9 +11,8 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/term"
 	"golang.org/x/xerrors"
-
-	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -131,12 +130,12 @@ func ssh() *cobra.Command {
 			}
 
 			if isatty.IsTerminal(os.Stdout.Fd()) {
-				state, err := terminal.MakeRaw(int(os.Stdin.Fd()))
+				state, err := term.MakeRaw(int(os.Stdin.Fd()))
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = terminal.Restore(int(os.Stdin.Fd()), state)
+					_ = term.Restore(int(os.Stdin.Fd()), state)
 				}()
 			}
 
