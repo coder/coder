@@ -2,7 +2,7 @@ package authztest_test
 
 import (
 	"testing"
-	
+
 	"github.com/coder/coder/coderd/authz"
 	"github.com/coder/coder/coderd/authz/authztest"
 	crand "github.com/coder/coder/cryptorand"
@@ -39,10 +39,10 @@ func TestUnion(t *testing.T) {
 
 func RandomPermission() authz.Permission {
 	actions := []authz.Action{
-		authz.ReadAction,
-		authz.DeleteAction,
-		authz.WriteAction,
-		authz.ModifyAction,
+		authz.ActionRead,
+		authz.ActionWrite,
+		authz.ActionModify,
+		authz.ActionDelete,
 	}
 	return authz.Permission{
 		Sign:         must(crand.Intn(2))%2 == 0,

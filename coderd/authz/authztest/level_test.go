@@ -13,7 +13,7 @@ func Test_GroupedPermissions(t *testing.T) {
 	var total int
 	for _, lvl := range authz.PermissionLevels {
 		for _, s := range []bool{true, false} {
-			for _, a := range []authz.Action{authz.ReadAction, authztest.OtherOption} {
+			for _, a := range []authz.Action{authz.ActionRead, authztest.OtherOption} {
 				if lvl == authz.LevelOrg {
 					set = append(set, &authz.Permission{
 						Sign:         s,
