@@ -45,15 +45,13 @@ func Test_NewRole(t *testing.T) {
 				merged = authztest.NewRole(sets[i], merged)
 			}
 
-			crossProduct.Reset()
-			for {
-				require.Equal(t, crossProduct.Permissions(), merged.Permissions(), "same next")
-				mn, cn := merged.Next(), crossProduct.Next()
-				require.Equal(t, cn, mn, "next should be same")
-				if !cn {
-					break
-				}
-			}
+			require.Equal(t, crossProduct.Size(), merged.Size())
+			var c int
+			merged.Each(func(set authztest.Set) {
+				require.Equal(t, merged.ReturnSize(), len(set), "each set is correct size")
+				c++
+			})
+			require.Equal(t, merged.Size(), c, "each run N times")
 		})
 	}
 }

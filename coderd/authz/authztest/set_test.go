@@ -47,6 +47,7 @@ func Test_Set(t *testing.T) {
 				ResourceID:   "1234",
 				Action:       authz.ActionRead,
 			},
+			nil,
 			&authz.Permission{
 				Sign:         false,
 				Level:        authz.LevelSite,
