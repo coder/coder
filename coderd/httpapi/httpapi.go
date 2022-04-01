@@ -118,9 +118,9 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 
 const websocketCloseMaxLen = 123
 
-// WebsocketCloseMsg formats a websocket close message and ensures it is
+// WebsocketCloseSprintf formats a websocket close message and ensures it is
 // truncated to the maximum allowed length.
-func WebsocketCloseMsg(format string, vars ...any) string {
+func WebsocketCloseSprintf(format string, vars ...any) string {
 	msg := fmt.Sprintf(format, vars...)
 
 	// Cap msg length at 123 bytes. nhooyr/websocket only allows close messages

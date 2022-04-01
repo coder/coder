@@ -152,7 +152,7 @@ func WebsocketCloseMsg(t *testing.T) {
 		t.Parallel()
 
 		msg := strings.Repeat("d", 255)
-		trunc := httpapi.WebsocketCloseMsg(msg)
+		trunc := httpapi.WebsocketCloseSprintf(msg)
 		assert.LessOrEqual(t, len(trunc), 123)
 	})
 
@@ -160,7 +160,7 @@ func WebsocketCloseMsg(t *testing.T) {
 		t.Parallel()
 
 		msg := strings.Repeat("こんにちは", 10)
-		trunc := httpapi.WebsocketCloseMsg(msg)
+		trunc := httpapi.WebsocketCloseSprintf(msg)
 		assert.LessOrEqual(t, len(trunc), 123)
 	})
 }
