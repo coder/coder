@@ -1,43 +1,63 @@
 package authz
 
-type Object interface {
+type Resource interface {
 	ID() string
 	ResourceType() ResourceType
 }
 
 type UserObject interface {
-	Object
+	Resource
 	OwnerID() string
 }
 
 type OrgObject interface {
-	Object
+	Resource
 	OrgOwnerID() string
 }
 
-// ZObject is the resource being accessed
-type ZObject struct {
-	ObjectID string `json:"object_id"`
-	Owner    string `json:"owner_id"`
-	OrgOwner string `json:"org_owner_id"`
+// zObject is used to create objects for authz checks when you have none in
+// hand to run the check on.
+// An example is if you want to list all workspaces, you can create a zObject
+// that represents the set of workspaces you are trying to get access too.
+type zObject struct {
+	ObjectID   string `json:"object_id"`
+	OwnedBy    string `json:"owner_id"`
+	OwnedByOrg string `json:"org_owner_id"`
 
 	// ObjectType is "workspace", "project", "devurl", etc
 	ObjectType ResourceType `json:"object_type"`
 	// TODO: SharedUsers?
 }
 
-func (z ZObject) ID() string {
+func (z zObject) ID() string {
 	return z.ObjectID
 }
 
-func (z ZObject) ResourceType() ResourceType {
+func (z zObject) ResourceType() ResourceType {
 	return z.ObjectType
 }
 
-func (z ZObject) OwnerID() string {
-	return z.Owner
+func (z zObject) OwnerID() string {
+	return z.OwnedBy
 }
 
-func (z ZObject) OrgOwnerID() string {
-	return z.OrgOwner
+func (z zObject) OrgOwnerID() string {
+	return z.OwnedByOrg
+}
+
+// Org adds an org OwnerID to the resource
+func (z zObject) Org(orgID string) zObject {
+	z.OwnedByOrg = orgID
+	return z
+}
+
+// Owner adds an OwnerID to the resource
+func (z zObject) Owner(id string) zObject {
+	z.OwnedBy = id
+	return z
+}
+
+func (z zObject) AsID(id string) zObject {
+	z.ObjectID = id
+	return z
 }

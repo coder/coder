@@ -14,21 +14,3 @@ var (
 )
 
 var nilSet = Set{nil}
-
-// *.*.*.*
-//var PermissionSetWPlus = NewRole(
-//	all.Wildcard().Positive(),
-//	Union(all.Wildcard().Abstain(), nilSet),
-//
-//	Union(all.Site().Positive(), nilSet),
-//	Union(all.Site().Negative(), nilSet),
-//	Union(all.Site().Abstain(), nilSet),
-//
-//	Union(all.AllOrgs().Positive(), nilSet),
-//	Union(all.AllOrgs().Negative(), nilSet),
-//	Union(all.AllOrgs().Abstain(), nilSet),
-//
-//	Union(all.User().Positive(), nilSet),
-//	Union(all.User().Negative(), nilSet),
-//	Union(all.User().Abstain(), nilSet),
-//)

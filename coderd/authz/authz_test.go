@@ -18,7 +18,7 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 
 	testCases := []struct {
 		Name string
-		Objs []authz.Object
+		Objs []authz.Resource
 		// Action is constant
 		// Subject comes from roleVariants
 		Result func(pv string) bool
