@@ -25,11 +25,11 @@ done
 # Remove temporary go files.
 rm -f queries/*.go
 
+# Fix struct/interface names.
+gofmt -w -r 'Querier -> querier' -- *.go
+gofmt -w -r 'Queries -> sqlQuerier' -- *.go
+
 # Ensure correct imports exist. Modules must all be downloaded so we get correct
 # suggestions.
 go mod download
 goimports -w queries.sql.go
-
-# Fix struct/interface names.
-gofmt -w -r 'Querier -> querier' -- *.go
-gofmt -w -r 'Queries -> sqlQuerier' -- *.go
