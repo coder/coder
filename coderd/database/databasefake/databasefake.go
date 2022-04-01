@@ -143,7 +143,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserByID(_ context.Context, id string) (database.User, error) {
+func (q *fakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -217,34 +217,33 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, pro
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	counts := map[string]map[string]struct{}{}
+	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
 	for _, projectID := range projectIDs {
 		found := false
 		for _, workspace := range q.workspace {
-			if workspace.ProjectID.String() != projectID.String() {
+			if workspace.ProjectID != projectID {
 				continue
 			}
 			if workspace.Deleted {
 				continue
 			}
-			countByOwnerID, ok := counts[projectID.String()]
+			countByOwnerID, ok := counts[projectID]
 			if !ok {
-				countByOwnerID = map[string]struct{}{}
+				countByOwnerID = map[uuid.UUID]struct{}{}
 			}
 			countByOwnerID[workspace.OwnerID] = struct{}{}
-			counts[projectID.String()] = countByOwnerID
+			counts[projectID] = countByOwnerID
 			found = true
 			break
 		}
 		if !found {
-			counts[projectID.String()] = map[string]struct{}{}
+			counts[projectID] = map[uuid.UUID]struct{}{}
 		}
 	}
 	res := make([]database.GetWorkspaceOwnerCountsByProjectIDsRow, 0)
 	for key, value := range counts {
-		uid := uuid.MustParse(key)
 		res = append(res, database.GetWorkspaceOwnerCountsByProjectIDsRow{
-			ProjectID: uid,
+			ProjectID: key,
 			Count:     int64(len(value)),
 		})
 	}
@@ -364,7 +363,7 @@ func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetW
 	return workspaces, nil
 }
 
-func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id string) (database.Organization, error) {
+func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -388,7 +387,7 @@ func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (dat
 	return database.Organization{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID string) ([]database.Organization, error) {
+func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -483,7 +482,7 @@ func (q *fakeQuerier) GetProjectVersionByProjectIDAndName(_ context.Context, arg
 	defer q.mutex.RUnlock()
 
 	for _, projectVersion := range q.projectVersion {
-		if projectVersion.ProjectID.UUID.String() != arg.ProjectID.UUID.String() {
+		if projectVersion.ProjectID != arg.ProjectID {
 			continue
 		}
 		if !strings.EqualFold(projectVersion.Name, arg.Name) {
@@ -1056,7 +1055,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		ProjectVersionID: arg.ProjectVersionID,
 		BeforeID:         arg.BeforeID,
 		Transition:       arg.Transition,
-		Initiator:        arg.Initiator,
+		InitiatorID:      arg.InitiatorID,
 		JobID:            arg.JobID,
 		ProvisionerState: arg.ProvisionerState,
 	}

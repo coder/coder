@@ -32,10 +32,11 @@ func TestOrganizationParam(t *testing.T) {
 			Name:  httpmw.AuthCookie,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
-		userID, err := cryptorand.String(16)
-		require.NoError(t, err)
+
+		userID := uuid.New()
 		username, err := cryptorand.String(8)
 		require.NoError(t, err)
+
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             userID,
 			Email:          "testaccount@coder.com",
@@ -86,7 +87,7 @@ func TestOrganizationParam(t *testing.T) {
 			r, _ = setupAuthentication(db)
 			rtr  = chi.NewRouter()
 		)
-		chi.RouteContext(r.Context()).URLParams.Add("organization", "nothin")
+		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.NewString())
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
@@ -98,6 +99,26 @@ func TestOrganizationParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
+	t.Run("InvalidUUID", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db   = databasefake.New()
+			rw   = httptest.NewRecorder()
+			r, _ = setupAuthentication(db)
+			rtr  = chi.NewRouter()
+		)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", "not-a-uuid")
+		rtr.Use(
+			httpmw.ExtractAPIKey(db, nil),
+			httpmw.ExtractOrganizationParam(db),
+		)
+		rtr.Get("/", nil)
+		rtr.ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
 	t.Run("NotInOrganization", func(t *testing.T) {
 		t.Parallel()
 		var (
@@ -107,13 +128,13 @@ func TestOrganizationParam(t *testing.T) {
 			rtr  = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.NewString(),
+			ID:        uuid.New(),
 			Name:      "test",
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),
@@ -134,7 +155,7 @@ func TestOrganizationParam(t *testing.T) {
 			rtr     = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.NewString(),
+			ID:        uuid.New(),
 			Name:      "test",
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
@@ -147,7 +168,7 @@ func TestOrganizationParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID)
+		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
 		rtr.Use(
 			httpmw.ExtractAPIKey(db, nil),
 			httpmw.ExtractOrganizationParam(db),

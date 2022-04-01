@@ -47,7 +47,7 @@ func ExtractProjectVersionParam(db database.Store) func(http.Handler) http.Handl
 			}
 
 			ctx := context.WithValue(r.Context(), projectVersionParamContextKey{}, projectVersion)
-			chi.RouteContext(ctx).URLParams.Add("organization", projectVersion.OrganizationID)
+			chi.RouteContext(ctx).URLParams.Add("organization", projectVersion.OrganizationID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

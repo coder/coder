@@ -138,7 +138,7 @@ func convertParameterValue(parameterValue database.ParameterValue) codersdk.Para
 	}
 }
 
-func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.ParameterScope, string, bool) {
+func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.ParameterScope, uuid.UUID, bool) {
 	var scope database.ParameterScope
 	switch chi.URLParam(r, "scope") {
 	case string(codersdk.ParameterOrganization):
@@ -153,8 +153,17 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("invalid scope %q", scope),
 		})
-		return scope, "", false
+		return scope, uuid.Nil, false
 	}
 
-	return scope, chi.URLParam(r, "id"), true
+	id := chi.URLParam(r, "id")
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("invalid uuid %q: %s", id, err),
+		})
+		return scope, uuid.Nil, false
+	}
+
+	return scope, uid, true
 }

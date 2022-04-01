@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func workspaceShow() *cobra.Command {
@@ -14,7 +16,7 @@ func workspaceShow() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := client.WorkspaceByName(cmd.Context(), "", args[0])
+			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}

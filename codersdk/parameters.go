@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -27,7 +28,7 @@ type Parameter struct {
 	CreatedAt         time.Time                           `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time                           `db:"updated_at" json:"updated_at"`
 	Scope             ParameterScope                      `db:"scope" json:"scope"`
-	ScopeID           string                              `db:"scope_id" json:"scope_id"`
+	ScopeID           uuid.UUID                           `db:"scope_id" json:"scope_id"`
 	Name              string                              `db:"name" json:"name"`
 	SourceScheme      database.ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
 	DestinationScheme database.ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
@@ -41,40 +42,47 @@ type CreateParameterRequest struct {
 	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
 }
 
-func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id string, req CreateParameterRequest) (Parameter, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id), req)
+func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, req CreateParameterRequest) (Parameter, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), req)
 	if err != nil {
 		return Parameter{}, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusCreated {
 		return Parameter{}, readBodyAsError(res)
 	}
+
 	var param Parameter
 	return param, json.NewDecoder(res.Body).Decode(&param)
 }
 
-func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id, name string) error {
-	res, err := c.request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/parameters/%s/%s/%s", scope, id, name), nil)
+func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, name string) error {
+	res, err := c.request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/parameters/%s/%s/%s", scope, id.String(), name), nil)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		return readBodyAsError(res)
 	}
+
+	_, _ = io.Copy(io.Discard, res.Body)
 	return nil
 }
 
-func (c *Client) Parameters(ctx context.Context, scope ParameterScope, id string) ([]Parameter, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id), nil)
+func (c *Client) Parameters(ctx context.Context, scope ParameterScope, id uuid.UUID) ([]Parameter, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
+
 	var parameters []Parameter
 	return parameters, json.NewDecoder(res.Body).Decode(&parameters)
 }

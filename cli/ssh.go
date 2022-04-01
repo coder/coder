@@ -32,26 +32,32 @@ func ssh() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := client.WorkspaceByName(cmd.Context(), "", args[0])
+
+			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}
+
 			if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
 				return xerrors.New("workspace must be in start transition to ssh")
 			}
+
 			if workspace.LatestBuild.Job.CompletedAt == nil {
 				err = cliui.WorkspaceBuild(cmd.Context(), cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
 				if err != nil {
 					return err
 				}
 			}
+
 			if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
 				return xerrors.New("workspace is deleting...")
 			}
+
 			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
+
 			resourceByAddress := make(map[string]codersdk.WorkspaceResource)
 			for _, resource := range resources {
 				if resource.Agent == nil {
@@ -59,6 +65,7 @@ func ssh() *cobra.Command {
 				}
 				resourceByAddress[resource.Address] = resource
 			}
+
 			var resourceAddress string
 			if len(args) >= 2 {
 				resourceAddress = args[1]
@@ -73,6 +80,7 @@ func ssh() *cobra.Command {
 					break
 				}
 			}
+
 			resource, exists := resourceByAddress[resourceAddress]
 			if !exists {
 				resourceKeys := make([]string, 0)
@@ -100,6 +108,7 @@ func ssh() *cobra.Command {
 				return err
 			}
 			defer conn.Close()
+
 			if stdio {
 				rawSSH, err := conn.SSH()
 				if err != nil {
@@ -135,13 +144,16 @@ func ssh() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			sshSession.Stdin = cmd.InOrStdin()
 			sshSession.Stdout = cmd.OutOrStdout()
 			sshSession.Stderr = cmd.OutOrStdout()
+
 			err = sshSession.Shell()
 			if err != nil {
 				return err
 			}
+
 			err = sshSession.Wait()
 			if err != nil {
 				return err

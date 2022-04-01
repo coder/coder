@@ -27,10 +27,10 @@ func TestFirstUser(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		_, err := client.CreateFirstUser(context.Background(), codersdk.CreateFirstUserRequest{
-			Email:        "some@email.com",
-			Username:     "exampleuser",
-			Password:     "password",
-			Organization: "someorg",
+			Email:            "some@email.com",
+			Username:         "exampleuser",
+			Password:         "password",
+			OrganizationName: "someorg",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -62,10 +62,10 @@ func TestPostLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		req := codersdk.CreateFirstUserRequest{
-			Email:        "testuser@coder.com",
-			Username:     "testuser",
-			Password:     "testpass",
-			Organization: "testorg",
+			Email:            "testuser@coder.com",
+			Username:         "testuser",
+			Password:         "testpass",
+			OrganizationName: "testorg",
 		}
 		_, err := client.CreateFirstUser(context.Background(), req)
 		require.NoError(t, err)
@@ -82,10 +82,10 @@ func TestPostLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		req := codersdk.CreateFirstUserRequest{
-			Email:        "testuser@coder.com",
-			Username:     "testuser",
-			Password:     "testpass",
-			Organization: "testorg",
+			Email:            "testuser@coder.com",
+			Username:         "testuser",
+			Password:         "testpass",
+			OrganizationName: "testorg",
 		}
 		_, err := client.CreateFirstUser(context.Background(), req)
 		require.NoError(t, err)
@@ -137,13 +137,13 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		me, err := client.User(context.Background(), "")
+		me, err := client.User(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		_, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          me.Email,
 			Username:       me.Username,
 			Password:       "password",
-			OrganizationID: "someorg",
+			OrganizationID: uuid.New(),
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -155,7 +155,7 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		_, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-			OrganizationID: "not-exists",
+			OrganizationID: uuid.New(),
 			Email:          "another@user.org",
 			Username:       "someone-else",
 			Password:       "testing",
@@ -170,7 +170,7 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := other.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestUserByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
-	_, err := client.User(context.Background(), "")
+	_, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err)
 }
 
@@ -212,7 +212,7 @@ func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
-	orgs, err := client.OrganizationsByUser(context.Background(), "")
+	orgs, err := client.OrganizationsByUser(context.Background(), codersdk.Me)
 	require.NoError(t, err)
 	require.NotNil(t, orgs)
 	require.Len(t, orgs, 1)
@@ -224,7 +224,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		_, err := client.OrganizationByName(context.Background(), "", "nothing")
+		_, err := client.OrganizationByName(context.Background(), codersdk.Me, "nothing")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -235,11 +235,11 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := other.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
-		_, err = client.OrganizationByName(context.Background(), "", org.Name)
+		_, err = client.OrganizationByName(context.Background(), codersdk.Me, org.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -251,7 +251,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		org, err := client.Organization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
-		_, err = client.OrganizationByName(context.Background(), "", org.Name)
+		_, err = client.OrganizationByName(context.Background(), codersdk.Me, org.Name)
 		require.NoError(t, err)
 	})
 }
@@ -264,7 +264,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		org, err := client.Organization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
-		_, err = client.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
+		_, err = client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: org.Name,
 		})
 		var apiErr *codersdk.Error
@@ -276,7 +276,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
+		_, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "new",
 		})
 		require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestPostAPIKey(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		client.SessionToken = ""
-		_, err := client.CreateAPIKey(context.Background(), "")
+		_, err := client.CreateAPIKey(context.Background(), codersdk.Me)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -301,7 +301,7 @@ func TestPostAPIKey(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		apiKey, err := client.CreateAPIKey(context.Background(), "")
+		apiKey, err := client.CreateAPIKey(context.Background(), codersdk.Me)
 		require.NotNil(t, apiKey)
 		require.GreaterOrEqual(t, len(apiKey.Key), 2)
 		require.NoError(t, err)
@@ -314,7 +314,7 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
+		_, err := client.CreateWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{
 			ProjectID: uuid.New(),
 			Name:      "workspace",
 		})
@@ -330,14 +330,14 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		first := coderdtest.CreateFirstUser(t, client)
 
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		org, err := other.CreateOrganization(context.Background(), "", codersdk.CreateOrganizationRequest{
+		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
 		version := coderdtest.CreateProjectVersion(t, other, org.ID, nil)
 		project := coderdtest.CreateProject(t, other, org.ID, version.ID)
 
-		_, err = client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
+		_, err = client.CreateWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{
 			ProjectID: project.ID,
 			Name:      "workspace",
 		})
@@ -355,8 +355,8 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		_, err := client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		_, err := client.CreateWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{
 			ProjectID: project.ID,
 			Name:      workspace.Name,
 		})
@@ -374,7 +374,7 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
+		_ = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 	})
 }
 
@@ -384,7 +384,7 @@ func TestWorkspacesByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		_, err := client.WorkspacesByUser(context.Background(), "")
+		_, err := client.WorkspacesByUser(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 	})
 	t.Run("List", func(t *testing.T) {
@@ -395,8 +395,8 @@ func TestWorkspacesByUser(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		_ = coderdtest.CreateWorkspace(t, client, "", project.ID)
-		workspaces, err := client.WorkspacesByUser(context.Background(), "")
+		_ = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		workspaces, err := client.WorkspacesByUser(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
@@ -408,7 +408,7 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		_, err := client.WorkspaceByName(context.Background(), "", "something")
+		_, err := client.WorkspaceByName(context.Background(), codersdk.Me, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -421,8 +421,8 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
-		_, err := client.WorkspaceByName(context.Background(), "", workspace.Name)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		_, err := client.WorkspaceByName(context.Background(), codersdk.Me, workspace.Name)
 		require.NoError(t, err)
 	})
 }

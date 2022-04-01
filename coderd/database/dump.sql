@@ -57,12 +57,6 @@ CREATE TYPE provisioner_type AS ENUM (
     'terraform'
 );
 
-CREATE TYPE userstatus AS ENUM (
-    'active',
-    'dormant',
-    'decommissioned'
-);
-
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -72,7 +66,7 @@ CREATE TYPE workspace_transition AS ENUM (
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
-    user_id text NOT NULL,
+    user_id uuid NOT NULL,
     application boolean NOT NULL,
     name text NOT NULL,
     last_used timestamp with time zone NOT NULL,
@@ -90,7 +84,7 @@ CREATE TABLE api_keys (
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    created_by text NOT NULL,
+    created_by uuid NOT NULL,
     mimetype character varying(64) NOT NULL,
     data bytea NOT NULL
 );
@@ -101,25 +95,30 @@ CREATE TABLE licenses (
     created_at timestamp with time zone NOT NULL
 );
 
+CREATE SEQUENCE licenses_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE licenses_id_seq OWNED BY public.licenses.id;
+
 CREATE TABLE organization_members (
-    organization_id text NOT NULL,
-    user_id text NOT NULL,
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     roles text[] DEFAULT '{organization-member}'::text[] NOT NULL
 );
 
 CREATE TABLE organizations (
-    id text NOT NULL,
+    id uuid NOT NULL,
     name text NOT NULL,
     description text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    "default" boolean DEFAULT false NOT NULL,
-    auto_off_threshold bigint DEFAULT '28800000000000'::bigint NOT NULL,
-    cpu_provisioning_rate real DEFAULT 4.0 NOT NULL,
-    memory_provisioning_rate real DEFAULT 1.0 NOT NULL,
-    workspace_auto_off boolean DEFAULT false NOT NULL
+    updated_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
@@ -146,7 +145,7 @@ CREATE TABLE parameter_values (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     scope parameter_scope NOT NULL,
-    scope_id text NOT NULL,
+    scope_id uuid NOT NULL,
     name character varying(64) NOT NULL,
     source_scheme parameter_source_scheme NOT NULL,
     source_value text NOT NULL,
@@ -156,7 +155,7 @@ CREATE TABLE parameter_values (
 CREATE TABLE project_versions (
     id uuid NOT NULL,
     project_id uuid,
-    organization_id text NOT NULL,
+    organization_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
@@ -168,7 +167,7 @@ CREATE TABLE projects (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    organization_id text NOT NULL,
+    organization_id uuid NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
@@ -179,7 +178,7 @@ CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone,
-    organization_id text,
+    organization_id uuid,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL
 );
@@ -202,8 +201,8 @@ CREATE TABLE provisioner_jobs (
     canceled_at timestamp with time zone,
     completed_at timestamp with time zone,
     error text,
-    organization_id text NOT NULL,
-    initiator_id text NOT NULL,
+    organization_id uuid NOT NULL,
+    initiator_id uuid NOT NULL,
     provisioner provisioner_type NOT NULL,
     storage_method provisioner_storage_method NOT NULL,
     storage_source text NOT NULL,
@@ -213,7 +212,7 @@ CREATE TABLE provisioner_jobs (
 );
 
 CREATE TABLE users (
-    id text NOT NULL,
+    id uuid NOT NULL,
     email text NOT NULL,
     name text NOT NULL,
     revoked boolean NOT NULL,
@@ -221,17 +220,7 @@ CREATE TABLE users (
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    temporary_password boolean DEFAULT false NOT NULL,
-    avatar_hash text DEFAULT ''::text NOT NULL,
-    ssh_key_regenerated_at timestamp with time zone DEFAULT now() NOT NULL,
-    username text DEFAULT ''::text NOT NULL,
-    dotfiles_git_uri text DEFAULT ''::text NOT NULL,
-    roles text[] DEFAULT '{site-member}'::text[] NOT NULL,
-    status userstatus DEFAULT 'active'::public.userstatus NOT NULL,
-    relatime timestamp with time zone DEFAULT now() NOT NULL,
-    gpg_key_regenerated_at timestamp with time zone DEFAULT now() NOT NULL,
-    _decomissioned boolean DEFAULT false NOT NULL,
-    shell text DEFAULT ''::text NOT NULL
+    username text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -260,7 +249,7 @@ CREATE TABLE workspace_builds (
     before_id uuid,
     after_id uuid,
     transition workspace_transition NOT NULL,
-    initiator character varying(255) NOT NULL,
+    initiator_id uuid NOT NULL,
     provisioner_state bytea,
     job_id uuid NOT NULL
 );
@@ -280,84 +269,135 @@ CREATE TABLE workspaces (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    owner_id text NOT NULL,
+    owner_id uuid NOT NULL,
     project_id uuid NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL
 );
 
-ALTER TABLE ONLY files
-    ADD CONSTRAINT files_hash_key UNIQUE (hash);
+ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
 
-ALTER TABLE ONLY parameter_schemas
-    ADD CONSTRAINT parameter_schemas_id_key UNIQUE (id);
+ALTER TABLE ONLY api_keys
+    ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (hash);
+
+ALTER TABLE ONLY licenses
+    ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY organization_members
+    ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
+
+ALTER TABLE ONLY organizations
+    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_name_key UNIQUE (job_id, name);
 
+ALTER TABLE ONLY parameter_schemas
+    ADD CONSTRAINT parameter_schemas_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY parameter_values
-    ADD CONSTRAINT parameter_values_id_key UNIQUE (id);
+    ADD CONSTRAINT parameter_values_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY parameter_values
     ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
 
 ALTER TABLE ONLY project_versions
-    ADD CONSTRAINT project_versions_id_key UNIQUE (id);
+    ADD CONSTRAINT project_versions_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY project_versions
     ADD CONSTRAINT project_versions_project_id_name_key UNIQUE (project_id, name);
 
 ALTER TABLE ONLY projects
-    ADD CONSTRAINT projects_id_key UNIQUE (id);
-
-ALTER TABLE ONLY projects
     ADD CONSTRAINT projects_organization_id_name_key UNIQUE (organization_id, name);
 
-ALTER TABLE ONLY provisioner_daemons
-    ADD CONSTRAINT provisioner_daemons_id_key UNIQUE (id);
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
 
+ALTER TABLE ONLY provisioner_daemons
+    ADD CONSTRAINT provisioner_daemons_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY provisioner_job_logs
-    ADD CONSTRAINT provisioner_job_logs_id_key UNIQUE (id);
+    ADD CONSTRAINT provisioner_job_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY provisioner_jobs
-    ADD CONSTRAINT provisioner_jobs_id_key UNIQUE (id);
+    ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_auth_token_key UNIQUE (auth_token);
 
 ALTER TABLE ONLY workspace_agents
-    ADD CONSTRAINT workspace_agents_id_key UNIQUE (id);
-
-ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_id_key UNIQUE (id);
+    ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
 
 ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
 
 ALTER TABLE ONLY workspace_resources
-    ADD CONSTRAINT workspace_resources_id_key UNIQUE (id);
+    ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspaces
-    ADD CONSTRAINT workspaces_id_key UNIQUE (id);
+    ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
+
+CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
+
+CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
+
+CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
+
+CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
+
+CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
+
+CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
 CREATE UNIQUE INDEX projects_organization_id_name_idx ON projects USING btree (organization_id, name) WHERE (deleted = false);
 
+CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
+
 CREATE UNIQUE INDEX workspaces_owner_id_name_idx ON workspaces USING btree (owner_id, name) WHERE (deleted = false);
+
+ALTER TABLE ONLY api_keys
+    ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_members
+    ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_members
+    ADD CONSTRAINT organization_members_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY project_versions
-    ADD CONSTRAINT project_versions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id);
+    ADD CONSTRAINT project_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY project_versions
+    ADD CONSTRAINT project_versions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY projects
+    ADD CONSTRAINT projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_job_logs
     ADD CONSTRAINT provisioner_job_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_jobs
+    ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
@@ -375,5 +415,8 @@ ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspaces
-    ADD CONSTRAINT workspaces_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id);
+    ADD CONSTRAINT workspaces_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY workspaces
+    ADD CONSTRAINT workspaces_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT;
 

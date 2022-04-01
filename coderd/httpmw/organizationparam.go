@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 )
@@ -40,17 +38,15 @@ func OrganizationMemberParam(r *http.Request) database.OrganizationMember {
 func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			organizationID := chi.URLParam(r, "organization")
-			if organizationID == "" {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "organization must be provided",
-				})
+			orgID, ok := parseUUID(rw, r, "organization")
+			if !ok {
 				return
 			}
-			organization, err := db.GetOrganizationByID(r.Context(), organizationID)
+
+			organization, err := db.GetOrganizationByID(r.Context(), orgID)
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-					Message: fmt.Sprintf("organization %q does not exist", organizationID),
+					Message: fmt.Sprintf("organization %q does not exist", orgID),
 				})
 				return
 			}
@@ -60,6 +56,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				})
 				return
 			}
+
 			apiKey := APIKey(r)
 			organizationMember, err := db.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
 				OrganizationID: organization.ID,

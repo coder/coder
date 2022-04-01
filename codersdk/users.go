@@ -10,32 +10,35 @@ import (
 	"github.com/google/uuid"
 )
 
+// Me is used as a replacement for your own ID.
+var Me = uuid.Nil
+
 // User represents a user in Coder.
 type User struct {
-	ID        string    `json:"id" validate:"required"`
+	ID        uuid.UUID `json:"id" validate:"required"`
 	Email     string    `json:"email" validate:"required"`
 	CreatedAt time.Time `json:"created_at" validate:"required"`
 	Username  string    `json:"username" validate:"required"`
 }
 
 type CreateFirstUserRequest struct {
-	Email        string `json:"email" validate:"required,email"`
-	Username     string `json:"username" validate:"required,username"`
-	Password     string `json:"password" validate:"required"`
-	Organization string `json:"organization" validate:"required,username"`
+	Email            string `json:"email" validate:"required,email"`
+	Username         string `json:"username" validate:"required,username"`
+	Password         string `json:"password" validate:"required"`
+	OrganizationName string `json:"organization" validate:"required,username"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
 type CreateFirstUserResponse struct {
-	UserID         string `json:"user_id"`
-	OrganizationID string `json:"organization_id"`
+	UserID         uuid.UUID `json:"user_id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
 }
 
 type CreateUserRequest struct {
-	Email          string `json:"email" validate:"required,email"`
-	Username       string `json:"username" validate:"required,username"`
-	Password       string `json:"password" validate:"required"`
-	OrganizationID string `json:"organization_id" validate:"required"`
+	Email          string    `json:"email" validate:"required,email"`
+	Username       string    `json:"username" validate:"required,username"`
+	Password       string    `json:"password" validate:"required"`
+	OrganizationID uuid.UUID `json:"organization_id" validate:"required"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -113,11 +116,8 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
-func (c *Client) CreateAPIKey(ctx context.Context, id string) (*GenerateAPIKeyResponse, error) {
-	if id == "" {
-		id = "me"
-	}
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", id), nil)
+func (c *Client) CreateAPIKey(ctx context.Context, userID uuid.UUID) (*GenerateAPIKeyResponse, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", uuidOrMe(userID)), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -162,12 +162,9 @@ func (c *Client) Logout(ctx context.Context) error {
 }
 
 // User returns a user for the ID provided.
-// If the ID string is empty, the current user will be returned.
-func (c *Client) User(ctx context.Context, id string) (User, error) {
-	if id == "" {
-		id = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", id), nil)
+// If the uuid is nil, the current user will be returned.
+func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", uuidOrMe(id)), nil)
 	if err != nil {
 		return User{}, err
 	}
@@ -180,11 +177,8 @@ func (c *Client) User(ctx context.Context, id string) (User, error) {
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.
-func (c *Client) OrganizationsByUser(ctx context.Context, id string) ([]Organization, error) {
-	if id == "" {
-		id = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", id), nil)
+func (c *Client) OrganizationsByUser(ctx context.Context, userID uuid.UUID) ([]Organization, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", uuidOrMe(userID)), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -196,11 +190,8 @@ func (c *Client) OrganizationsByUser(ctx context.Context, id string) ([]Organiza
 	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
 }
 
-func (c *Client) OrganizationByName(ctx context.Context, user, name string) (Organization, error) {
-	if user == "" {
-		user = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", user, name), nil)
+func (c *Client) OrganizationByName(ctx context.Context, userID uuid.UUID, name string) (Organization, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", uuidOrMe(userID), name), nil)
 	if err != nil {
 		return Organization{}, err
 	}
@@ -213,68 +204,74 @@ func (c *Client) OrganizationByName(ctx context.Context, user, name string) (Org
 }
 
 // CreateOrganization creates an organization and adds the provided user as an admin.
-func (c *Client) CreateOrganization(ctx context.Context, user string, req CreateOrganizationRequest) (Organization, error) {
-	if user == "" {
-		user = "me"
-	}
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", user), req)
+func (c *Client) CreateOrganization(ctx context.Context, userID uuid.UUID, req CreateOrganizationRequest) (Organization, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", uuidOrMe(userID)), req)
 	if err != nil {
 		return Organization{}, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusCreated {
 		return Organization{}, readBodyAsError(res)
 	}
+
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
 }
 
 // CreateWorkspace creates a new workspace for the project specified.
-func (c *Client) CreateWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
-	if user == "" {
-		user = "me"
-	}
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
+func (c *Client) CreateWorkspace(ctx context.Context, userID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), request)
 	if err != nil {
 		return Workspace{}, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusCreated {
 		return Workspace{}, readBodyAsError(res)
 	}
+
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
 // WorkspacesByUser returns all workspaces the specified user has access to.
-func (c *Client) WorkspacesByUser(ctx context.Context, user string) ([]Workspace, error) {
-	if user == "" {
-		user = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", user), nil)
+func (c *Client) WorkspacesByUser(ctx context.Context, userID uuid.UUID) ([]Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
+
 	var workspaces []Workspace
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
-func (c *Client) WorkspaceByName(ctx context.Context, user, name string) (Workspace, error) {
-	if user == "" {
-		user = "me"
-	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces/%s", user, name), nil)
+func (c *Client) WorkspaceByName(ctx context.Context, userID uuid.UUID, name string) (Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces/%s", uuidOrMe(userID), name), nil)
 	if err != nil {
 		return Workspace{}, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		return Workspace{}, readBodyAsError(res)
 	}
+
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// uuidOrMe returns the provided uuid as a string if it's valid, ortherwise
+// `me`.
+func uuidOrMe(id uuid.UUID) string {
+	if id == Me {
+		return "me"
+	}
+
+	return id.String()
 }
