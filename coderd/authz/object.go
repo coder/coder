@@ -15,6 +15,10 @@ type OrgResource interface {
 	OrgOwnerID() string
 }
 
+var _ Resource = (*zObject)(nil)
+var _ UserResource = (*zObject)(nil)
+var _ OrgResource = (*zObject)(nil)
+
 // zObject is used to create objects for authz checks when you have none in
 // hand to run the check on.
 // An example is if you want to list all workspaces, you can create a zObject
