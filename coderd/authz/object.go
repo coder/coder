@@ -26,6 +26,8 @@ type ZObject struct {
 	// TODO: SharedUsers?
 }
 
+var _ Object = (*ZObject)(nil)
+
 func (z ZObject) ID() string {
 	return z.ObjectID
 }

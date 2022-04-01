@@ -5,10 +5,10 @@ import "github.com/coder/coder/coderd/authz"
 func Objects(pairs ...[]string) []authz.Object {
 	objs := make([]authz.Object, 0, len(pairs))
 	for _, p := range pairs {
-		objs = append(objs, authz.Object{
+		objs = append(objs, &authz.ZObject{
 			ObjectID:   PermObjectID,
-			OwnerID:    p[0],
-			OrgOwnerID: p[1],
+			Owner:      p[0],
+			OrgOwner:   p[1],
 			ObjectType: PermObjectType,
 		})
 	}
