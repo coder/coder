@@ -1,10 +1,8 @@
 package coderd
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -200,22 +198,4 @@ type api struct {
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
-}
-
-const websocketCloseMaxLen = 123
-
-// fmtWebsocketCloseMsg formats a websocket close message and ensures it is
-// truncated to the maximum allowed length.
-func FmtWebsocketCloseMsg(format string, vars ...any) string {
-	msg := fmt.Sprintf(format, vars...)
-
-	// Cap msg length at 123 bytes. nhooyr/websocket only allows close messages
-	// of this length.
-	if len(msg) > websocketCloseMaxLen {
-		// Trim the string to 123 bytes. If we accidentally cut in the middle of
-		// a UTF-8 character, remove it from the string.
-		return strings.ToValidUTF8(string(msg[123]), "")
-	}
-
-	return msg
 }
