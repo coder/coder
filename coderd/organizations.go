@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -27,7 +26,7 @@ func (*api) organization(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -53,7 +52,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 	}
 	if req.ProjectID != uuid.Nil {
 		_, err := api.Database.GetProjectByID(r.Context(), req.ProjectID)
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, database.ErrNoRows) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 				Message: "project does not exist",
 			})
@@ -68,7 +67,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 	}
 
 	file, err := api.Database.GetFileByHash(r.Context(), req.StorageSource)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "file not found",
 		})
@@ -173,14 +172,14 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get project by name: %s", err),
 		})
 		return
 	}
 	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), createProject.VersionID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "project version does not exist",
 		})
@@ -262,7 +261,7 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 	projects, err := api.Database.GetProjectsByOrganization(r.Context(), database.GetProjectsByOrganizationParams{
 		OrganizationID: organization.ID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -276,7 +275,7 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 		projectIDs = append(projectIDs, project.ID)
 	}
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), projectIDs)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -297,7 +296,7 @@ func (api *api) projectByOrganizationAndName(rw http.ResponseWriter, r *http.Req
 		Name:           projectName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, database.ErrNoRows) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 				Message: fmt.Sprintf("no project found by name %q in the %q organization", projectName, organization.Name),
 			})
@@ -311,7 +310,7 @@ func (api *api) projectByOrganizationAndName(rw http.ResponseWriter, r *http.Req
 	}
 
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), []uuid.UUID{project.ID})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {

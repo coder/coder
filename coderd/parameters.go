@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -35,7 +34,7 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get parameter value: %s", err),
 		})
@@ -72,7 +71,7 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 		Scope:   scope,
 		ScopeID: scopeID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -101,7 +100,7 @@ func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 		ScopeID: scopeID,
 		Name:    name,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("parameter doesn't exist in the provided scope with name %q", name),
 		})

@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,7 +70,7 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 
 func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
 	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), instanceID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("instance with id %q not found", instanceID),
 		})

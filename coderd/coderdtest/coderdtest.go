@@ -24,6 +24,9 @@ import (
 	"time"
 
 	// Used for pgx stdlib sql support.
+
+	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v4/stdlib"
 
 	"cloud.google.com/go/compute/metadata"
@@ -58,9 +61,6 @@ type Options struct {
 // New constructs an in-memory coderd instance and returns
 // the connected client.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	if options == nil {
 		options = &Options{}
 	}
@@ -76,18 +76,12 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
 		connectionURL, close, err := postgres.Open()
 		require.NoError(t, err)
 		t.Cleanup(close)
-
-		pool, err := pgxpool.Connect(ctx, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(pool.Close)
-
-		err = pool.Ping(ctx)
-		require.NoError(t, err)
-
-		db = database.New(pool)
 
 		// Open stdlib compatible db for migrations.
 		func() {
@@ -98,6 +92,37 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 			err = database.MigrateUp(db)
 			require.NoError(t, err)
 		}()
+
+		config, err := pgxpool.ParseConfig(connectionURL)
+		require.NoError(t, err)
+
+		config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			var provisionerTypeOID, logLevelOID, logSourceOID uint32
+			err = conn.QueryRow(context.Background(), `
+				SELECT
+					'provisioner_type[]'::regtype::oid,
+					'log_level[]'::regtype::oid,
+					'log_source[]'::regtype::oid
+
+			`).Scan(&provisionerTypeOID, &logLevelOID, &logSourceOID)
+			if err != nil {
+				return err
+			}
+
+			conn.ConnInfo().RegisterDataType(pgtype.DataType{Value: &database.ProvisionerTypes{}, Name: "provisioner_type[]", OID: provisionerTypeOID})
+			conn.ConnInfo().RegisterDataType(pgtype.DataType{Value: &database.LogLevels{}, Name: "log_level[]", OID: logLevelOID})
+			conn.ConnInfo().RegisterDataType(pgtype.DataType{Value: &database.LogSources{}, Name: "log_source[]", OID: logSourceOID})
+			return nil
+		}
+
+		pool, err := pgxpool.ConnectConfig(ctx, config)
+		require.NoError(t, err)
+		t.Cleanup(pool.Close)
+
+		err = pool.Ping(ctx)
+		require.NoError(t, err)
+
+		db = database.New(pool)
 
 		pubsub, err = database.NewPubsub(context.Background(), pool, connectionURL)
 		require.NoError(t, err)

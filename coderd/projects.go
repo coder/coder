@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,7 +19,7 @@ import (
 func (api *api) project(rw http.ResponseWriter, r *http.Request) {
 	project := httpmw.ProjectParam(r)
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), []uuid.UUID{project.ID})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -44,7 +43,7 @@ func (api *api) deleteProject(rw http.ResponseWriter, r *http.Request) {
 	workspaces, err := api.Database.GetWorkspacesByProjectID(r.Context(), database.GetWorkspacesByProjectIDParams{
 		ProjectID: project.ID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -78,7 +77,7 @@ func (api *api) projectVersionsByProject(rw http.ResponseWriter, r *http.Request
 	project := httpmw.ProjectParam(r)
 
 	versions, err := api.Database.GetProjectVersionsByProjectID(r.Context(), project.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -128,7 +127,7 @@ func (api *api) projectVersionByName(rw http.ResponseWriter, r *http.Request) {
 		},
 		Name: projectVersionName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no project version found by name %q", projectVersionName),
 		})
@@ -159,7 +158,7 @@ func (api *api) patchActiveProjectVersion(rw http.ResponseWriter, r *http.Reques
 	}
 	project := httpmw.ProjectParam(r)
 	version, err := api.Database.GetProjectVersionByID(r.Context(), req.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "project version not found",
 		})

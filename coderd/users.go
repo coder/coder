@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
@@ -147,7 +147,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get user: %s", err),
 		})
@@ -155,7 +155,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	organization, err := api.Database.GetOrganizationByID(r.Context(), createUser.OrganizationID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "organization does not exist with the provided id",
 		})
@@ -172,7 +172,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		OrganizationID: organization.ID,
 		UserID:         apiKey.UserID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: "you are not authorized to add members to that organization",
 		})
@@ -243,7 +243,7 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 		organizations = []database.Organization{}
 	}
@@ -267,7 +267,7 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	user := httpmw.UserParam(r)
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no organization found by name %q", organizationName),
 		})
@@ -283,7 +283,7 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		OrganizationID: organization.ID,
 		UserID:         user.ID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: "you are not a member of that organization",
 		})
@@ -313,7 +313,7 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization: %s", err.Error()),
 		})
@@ -363,7 +363,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 	user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: "invalid email or password",
 		})
@@ -498,7 +498,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	apiKey := httpmw.APIKey(r)
 	project, err := api.Database.GetProjectByID(r.Context(), createWorkspace.ProjectID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("project %q doesn't exist", createWorkspace.ProjectID.String()),
 			Errors: []httpapi.Error{{
@@ -518,7 +518,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		OrganizationID: project.OrganizationID,
 		UserID:         apiKey.UserID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: "you aren't allowed to access projects in that organization",
 		})
@@ -554,7 +554,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace by name: %s", err.Error()),
 		})
@@ -681,7 +681,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	workspaces, err := api.Database.GetWorkspacesByUserID(r.Context(), database.GetWorkspacesByUserIDParams{
 		OwnerID: user.ID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -697,7 +697,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		projectIDs = append(projectIDs, workspace.ProjectID)
 	}
 	workspaceBuilds, err := api.Database.GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(r.Context(), workspaceIDs)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -707,7 +707,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projects, err := api.Database.GetProjectsByIDs(r.Context(), projectIDs)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -721,7 +721,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		jobIDs = append(jobIDs, build.JobID)
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -780,7 +780,7 @@ func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) 
 		OwnerID: user.ID,
 		Name:    workspaceName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no workspace found by name %q", workspaceName),
 		})

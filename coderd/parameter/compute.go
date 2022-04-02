@@ -2,7 +2,6 @@ package parameter
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
@@ -49,7 +48,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 
 	// All parameters for the import job ID!
 	parameterSchemas, err := db.GetParameterSchemasByJobID(ctx, scope.ProjectImportJobID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -159,7 +158,7 @@ type compute struct {
 // Validates and computes the value for parameters; setting the value on "parameterByName".
 func (c *compute) injectScope(ctx context.Context, scopeParams database.GetParameterValuesByScopeParams) error {
 	scopedParameters, err := c.db.GetParameterValuesByScope(ctx, scopeParams)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {

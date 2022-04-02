@@ -19,6 +19,8 @@ packages:
 overrides:
   - db_type: citext
     go_type: string
+  # - db_type: "provisioner_type[]"
+  #   go_type: github.com/coder/coder/coderd/database.ProvisionerTypes
 rename:
   api_key: APIKey
   login_type_oidc: LoginTypeOIDC

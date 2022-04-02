@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -31,7 +30,7 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			workspace, err := db.GetWorkspaceByID(r.Context(), workspaceID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, database.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("workspace %q does not exist", workspaceID),
 				})

@@ -2,7 +2,6 @@ package databasefake
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 	"sync"
 
@@ -89,7 +88,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		q.provisionerJobs[index] = provisionerJob
 		return provisionerJob, nil
 	}
-	return database.ProvisionerJob{}, sql.ErrNoRows
+	return database.ProvisionerJob{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) DeleteParameterValueByID(_ context.Context, id uuid.UUID) error {
@@ -104,7 +103,7 @@ func (q *fakeQuerier) DeleteParameterValueByID(_ context.Context, id uuid.UUID) 
 		q.parameterValue = q.parameterValue[:len(q.parameterValue)-1]
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -116,7 +115,7 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 			return apiKey, nil
 		}
 	}
-	return database.APIKey{}, sql.ErrNoRows
+	return database.APIKey{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetFileByHash(_ context.Context, hash string) (database.File, error) {
@@ -128,7 +127,7 @@ func (q *fakeQuerier) GetFileByHash(_ context.Context, hash string) (database.Fi
 			return file, nil
 		}
 	}
-	return database.File{}, sql.ErrNoRows
+	return database.File{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
@@ -140,7 +139,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 			return user, nil
 		}
 	}
-	return database.User{}, sql.ErrNoRows
+	return database.User{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.User, error) {
@@ -152,7 +151,7 @@ func (q *fakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.Use
 			return user, nil
 		}
 	}
-	return database.User{}, sql.ErrNoRows
+	return database.User{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
@@ -177,7 +176,7 @@ func (q *fakeQuerier) GetWorkspacesByProjectID(_ context.Context, arg database.G
 		workspaces = append(workspaces, workspace)
 	}
 	if len(workspaces) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return workspaces, nil
 }
@@ -191,7 +190,7 @@ func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (databas
 			return workspace, nil
 		}
 	}
-	return database.Workspace{}, sql.ErrNoRows
+	return database.Workspace{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg database.GetWorkspaceByUserIDAndNameParams) (database.Workspace, error) {
@@ -210,7 +209,7 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 		}
 		return workspace, nil
 	}
-	return database.Workspace{}, sql.ErrNoRows
+	return database.Workspace{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, projectIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByProjectIDsRow, error) {
@@ -248,7 +247,7 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, pro
 		})
 	}
 	if len(res) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return res, nil
 }
@@ -262,7 +261,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 			return history, nil
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -274,7 +273,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 			return build, nil
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -289,7 +288,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Conte
 			return workspaceBuild, nil
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -306,7 +305,7 @@ func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(_ context.Con
 		}
 	}
 	if len(builds) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return builds, nil
 }
@@ -322,7 +321,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context, workspac
 		}
 	}
 	if len(history) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return history, nil
 }
@@ -340,7 +339,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 		}
 		return workspaceBuild, nil
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetWorkspacesByUserIDParams) ([]database.Workspace, error) {
@@ -358,7 +357,7 @@ func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetW
 		workspaces = append(workspaces, workspace)
 	}
 	if len(workspaces) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return workspaces, nil
 }
@@ -372,7 +371,7 @@ func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (data
 			return organization, nil
 		}
 	}
-	return database.Organization{}, sql.ErrNoRows
+	return database.Organization{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
@@ -384,7 +383,7 @@ func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (dat
 			return organization, nil
 		}
 	}
-	return database.Organization{}, sql.ErrNoRows
+	return database.Organization{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
@@ -404,7 +403,7 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 		}
 	}
 	if len(organizations) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return organizations, nil
 }
@@ -424,7 +423,7 @@ func (q *fakeQuerier) GetParameterValuesByScope(_ context.Context, arg database.
 		parameterValues = append(parameterValues, parameterValue)
 	}
 	if len(parameterValues) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return parameterValues, nil
 }
@@ -438,7 +437,7 @@ func (q *fakeQuerier) GetProjectByID(_ context.Context, id uuid.UUID) (database.
 			return project, nil
 		}
 	}
-	return database.Project{}, sql.ErrNoRows
+	return database.Project{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg database.GetProjectByOrganizationAndNameParams) (database.Project, error) {
@@ -457,7 +456,7 @@ func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg dat
 		}
 		return project, nil
 	}
-	return database.Project{}, sql.ErrNoRows
+	return database.Project{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProjectVersionsByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectVersion, error) {
@@ -472,7 +471,7 @@ func (q *fakeQuerier) GetProjectVersionsByProjectID(_ context.Context, projectID
 		version = append(version, projectVersion)
 	}
 	if len(version) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return version, nil
 }
@@ -490,7 +489,7 @@ func (q *fakeQuerier) GetProjectVersionByProjectIDAndName(_ context.Context, arg
 		}
 		return projectVersion, nil
 	}
-	return database.ProjectVersion{}, sql.ErrNoRows
+	return database.ProjectVersion{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID uuid.UUID) (database.ProjectVersion, error) {
@@ -503,7 +502,7 @@ func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID 
 		}
 		return projectVersion, nil
 	}
-	return database.ProjectVersion{}, sql.ErrNoRows
+	return database.ProjectVersion{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProjectVersionByJobID(_ context.Context, jobID uuid.UUID) (database.ProjectVersion, error) {
@@ -516,7 +515,7 @@ func (q *fakeQuerier) GetProjectVersionByJobID(_ context.Context, jobID uuid.UUI
 		}
 		return projectVersion, nil
 	}
-	return database.ProjectVersion{}, sql.ErrNoRows
+	return database.ProjectVersion{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
@@ -531,7 +530,7 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 		parameters = append(parameters, parameterSchema)
 	}
 	if len(parameters) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return parameters, nil
 }
@@ -552,7 +551,7 @@ func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg dat
 		}
 		return parameterValue, nil
 	}
-	return database.ParameterValue{}, sql.ErrNoRows
+	return database.ParameterValue{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, arg database.GetProjectsByOrganizationParams) ([]database.Project, error) {
@@ -570,7 +569,7 @@ func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, arg database.
 		projects = append(projects, project)
 	}
 	if len(projects) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return projects, nil
 }
@@ -589,7 +588,7 @@ func (q *fakeQuerier) GetProjectsByIDs(_ context.Context, ids []uuid.UUID) ([]da
 		}
 	}
 	if len(projects) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return projects, nil
 }
@@ -607,7 +606,7 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 		}
 		return organizationMember, nil
 	}
-	return database.OrganizationMember{}, sql.ErrNoRows
+	return database.OrganizationMember{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
@@ -615,7 +614,7 @@ func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	defer q.mutex.RUnlock()
 
 	if len(q.provisionerDaemons) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return q.provisionerDaemons, nil
 }
@@ -629,7 +628,7 @@ func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken 
 			return agent, nil
 		}
 	}
-	return database.WorkspaceAgent{}, sql.ErrNoRows
+	return database.WorkspaceAgent{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceID string) (database.WorkspaceAgent, error) {
@@ -643,7 +642,7 @@ func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 			return agent, nil
 		}
 	}
-	return database.WorkspaceAgent{}, sql.ErrNoRows
+	return database.WorkspaceAgent{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceAgentByResourceID(_ context.Context, resourceID uuid.UUID) (database.WorkspaceAgent, error) {
@@ -655,7 +654,7 @@ func (q *fakeQuerier) GetWorkspaceAgentByResourceID(_ context.Context, resourceI
 			return agent, nil
 		}
 	}
-	return database.WorkspaceAgent{}, sql.ErrNoRows
+	return database.WorkspaceAgent{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
@@ -668,7 +667,7 @@ func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) 
 		}
 		return provisionerDaemon, nil
 	}
-	return database.ProvisionerDaemon{}, sql.ErrNoRows
+	return database.ProvisionerDaemon{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -681,7 +680,7 @@ func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (da
 		}
 		return provisionerJob, nil
 	}
-	return database.ProvisionerJob{}, sql.ErrNoRows
+	return database.ProvisionerJob{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
@@ -693,7 +692,7 @@ func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) 
 			return resource, nil
 		}
 	}
-	return database.WorkspaceResource{}, sql.ErrNoRows
+	return database.WorkspaceResource{}, database.ErrNoRows
 }
 
 func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
@@ -708,7 +707,7 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 		resources = append(resources, resource)
 	}
 	if len(resources) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return resources, nil
 }
@@ -727,7 +726,7 @@ func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 		}
 	}
 	if len(jobs) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 
 	return jobs, nil
@@ -751,7 +750,7 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 		logs = append(logs, jobLog)
 	}
 	if len(logs) == 0 {
-		return nil, sql.ErrNoRows
+		return nil, database.ErrNoRows
 	}
 	return logs, nil
 }
@@ -1079,7 +1078,7 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		q.apiKeys[index] = apiKey
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateProjectActiveVersionByID(_ context.Context, arg database.UpdateProjectActiveVersionByIDParams) error {
@@ -1094,7 +1093,7 @@ func (q *fakeQuerier) UpdateProjectActiveVersionByID(_ context.Context, arg data
 		q.project[index] = project
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateProjectDeletedByID(_ context.Context, arg database.UpdateProjectDeletedByIDParams) error {
@@ -1109,7 +1108,7 @@ func (q *fakeQuerier) UpdateProjectDeletedByID(_ context.Context, arg database.U
 		q.project[index] = project
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateProjectVersionByID(_ context.Context, arg database.UpdateProjectVersionByIDParams) error {
@@ -1125,7 +1124,7 @@ func (q *fakeQuerier) UpdateProjectVersionByID(_ context.Context, arg database.U
 		q.projectVersion[index] = projectVersion
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
@@ -1141,7 +1140,7 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg databas
 		q.provisionerDaemons[index] = daemon
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
@@ -1158,7 +1157,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 		q.provisionerJobAgent[index] = agent
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
@@ -1173,7 +1172,7 @@ func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 		q.provisionerJobs[index] = job
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
@@ -1188,7 +1187,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 		q.provisionerJobs[index] = job
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
@@ -1205,7 +1204,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		q.provisionerJobs[index] = job
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
@@ -1222,7 +1221,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		q.workspaceBuild[index] = workspaceBuild
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
@@ -1237,5 +1236,5 @@ func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 		q.workspace[index] = workspace
 		return nil
 	}
-	return sql.ErrNoRows
+	return database.ErrNoRows
 }

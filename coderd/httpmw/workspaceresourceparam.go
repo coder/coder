@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,7 +32,7 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 				return
 			}
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), resourceUUID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, database.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: "resource doesn't exist with that id",
 				})

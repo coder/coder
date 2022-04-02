@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,7 +32,7 @@ func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handl
 				return
 			}
 			workspaceBuild, err := db.GetWorkspaceBuildByID(r.Context(), workspaceBuildID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, database.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("workspace build %q does not exist", workspaceBuildID),
 				})

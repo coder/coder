@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -43,8 +42,8 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			agent, err := db.GetWorkspaceAgentByAuthToken(r.Context(), token)
-			if errors.Is(err, sql.ErrNoRows) {
-				if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, database.ErrNoRows) {
+				if errors.Is(err, database.ErrNoRows) {
 					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 						Message: "agent token is invalid",
 					})

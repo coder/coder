@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,7 +43,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			}
 
 			organization, err := db.GetOrganizationByID(r.Context(), orgID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, database.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("organization %q does not exist", orgID),
 				})
@@ -62,7 +61,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 				OrganizationID: organization.ID,
 				UserID:         apiKey.UserID,
 			})
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, database.ErrNoRows) {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: "not a member of the organization",
 				})

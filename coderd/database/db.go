@@ -18,6 +18,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var (
+	ErrNoRows = pgx.ErrNoRows
+)
+
 // Store contains all queryable database functions.
 // It extends the generated interface to add transaction support.
 type Store interface {
@@ -35,6 +39,7 @@ type DBTX interface {
 
 // New creates a new database store using a SQL database connection.
 func New(pool *pgxpool.Pool) Store {
+
 	return &sqlQuerier{
 		db:   pool,
 		pool: pool,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -75,7 +74,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 			}
 			key, err := db.GetAPIKeyByID(r.Context(), keyID)
 			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
+				if errors.Is(err, database.ErrNoRows) {
 					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 						Message: "api key is invalid",
 					})

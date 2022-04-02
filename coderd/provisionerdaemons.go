@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/jackc/pgtype"
@@ -56,9 +57,12 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
 	})
 	if err != nil {
+		api.Logger.Error(r.Context(), "insert provisioner daemon", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("insert provisioner daemon: %s", err))
 		return
 	}
+
+	spew.Dump(daemon)
 
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over
@@ -122,7 +126,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		},
 		Types: server.Provisioners,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		// The provisioner daemon assumes no jobs are available if
 		// an empty struct is returned.
 		return &proto.AcquiredJob{}, nil
@@ -603,18 +607,20 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Valid:  true,
 			}
 		}
-		var env pgtype.JSONB
+
+		env := pgtype.JSONB{
+			Bytes:  []byte("{}"),
+			Status: pgtype.Present,
+		}
 		if protoResource.Agent.Env != nil {
 			data, err := json.Marshal(protoResource.Agent.Env)
 			if err != nil {
 				return xerrors.Errorf("marshal env: %w", err)
 			}
 
-			env = pgtype.JSONB{
-				Bytes:  data,
-				Status: pgtype.Present,
-			}
+			env.Bytes = data
 		}
+
 		authToken := uuid.New()
 		if protoResource.Agent.GetToken() != "" {
 			authToken, err = uuid.Parse(protoResource.Agent.GetToken())
@@ -635,6 +641,8 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: protoResource.Agent.StartupScript,
 				Valid:  protoResource.Agent.StartupScript != "",
 			},
+			InstanceMetadata: pgtype.JSONB{Bytes: []byte("{}"), Status: pgtype.Present},
+			ResourceMetadata: pgtype.JSONB{Bytes: []byte("{}"), Status: pgtype.Present},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

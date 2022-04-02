@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,7 +51,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
 	builds, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -66,7 +65,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		jobIDs = append(jobIDs, version.JobID)
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -114,7 +113,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		createBuild.ProjectVersionID = latestBuild.ProjectVersionID
 	}
 	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), createBuild.ProjectVersionID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "project version not found",
 			Errors: []httpapi.Error{{
@@ -180,7 +179,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			UUID:  priorHistory.ID,
 			Valid: true,
 		}
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get prior workspace build: %s", err),
 		})
@@ -267,7 +266,7 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID: workspace.ID,
 		Name:        workspaceBuildName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no workspace build found by name %q", workspaceBuildName),
 		})

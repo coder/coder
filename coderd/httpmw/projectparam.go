@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,7 +32,7 @@ func ExtractProjectParam(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			project, err := db.GetProjectByID(r.Context(), projectID)
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, database.ErrNoRows) {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("project %q does not exist", projectID),
 				})

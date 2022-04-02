@@ -83,7 +83,7 @@ func (api *api) projectVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	schemas, err := api.Database.GetParameterSchemasByJobID(r.Context(), job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {

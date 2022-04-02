@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -78,7 +77,7 @@ func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	file, err := api.Database.GetFileByHash(r.Context(), hash)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "no file exists with that hash",
 		})

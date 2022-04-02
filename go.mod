@@ -125,7 +125,7 @@ require (
 	github.com/coredns/caddy v1.1.1 // indirect
 	github.com/coredns/coredns v1.9.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/dhui/dktest v0.3.9 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect

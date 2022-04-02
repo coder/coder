@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,7 +74,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			CreatedAfter:  after,
 			CreatedBefore: before,
 		})
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, database.ErrNoRows) {
 			err = nil
 		}
 		if err != nil {
@@ -119,12 +118,13 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 	defer closeSubscribe()
 
+	fmt.Println("get job logs")
 	provisionerJobLogs, err := api.Database.GetProvisionerLogsByIDBetween(r.Context(), database.GetProvisionerLogsByIDBetweenParams{
 		JobID:         job.ID,
 		CreatedAfter:  after,
 		CreatedBefore: before,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
@@ -134,6 +134,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		return
 	}
 
+	fmt.Println("after get job logs")
 	// "follow" uses the ndjson format to stream data.
 	// See: https://canjs.com/doc/can-ndjson-stream.html
 	rw.Header().Set("Content-Type", "application/stream+json")
@@ -166,6 +167,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			if flusher, ok := rw.(http.Flusher); ok {
 				flusher.Flush()
 			}
+			fmt.Println("stream log")
 		case <-ticker.C:
 			job, err := api.Database.GetProvisionerJobByID(r.Context(), job.ID)
 			if err != nil {
@@ -175,6 +177,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			if job.CompletedAt.Valid {
 				return
 			}
+			fmt.Println("check job")
 		}
 	}
 }
@@ -187,7 +190,7 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 	resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), job.ID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, database.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
