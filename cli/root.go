@@ -4,12 +4,14 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/buildinfo"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
@@ -28,6 +30,7 @@ const (
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "coder",
+		Version:      buildinfo.Version(),
 		SilenceUsage: true,
 		Long: `    ▄█▀    ▀█▄
      ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
@@ -55,6 +58,7 @@ func Root() *cobra.Command {
 		`Flags:`, header.Render("Flags:"),
 		`Additional help topics:`, header.Render("Additional help:"),
 	).Replace(cmd.UsageTemplate()))
+	cmd.SetVersionTemplate(versionTemplate())
 
 	cmd.AddCommand(
 		configSSH(),
@@ -141,4 +145,15 @@ func isTTY(cmd *cobra.Command) bool {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
+}
+
+func versionTemplate() string {
+	template := `Coder {{printf "%s" .Version}}`
+	buildTime, valid := buildinfo.Time()
+	if valid {
+		template += " " + buildTime.Format(time.UnixDate)
+	}
+	template += "\r\n" + buildinfo.ExternalURL()
+	template += "\r\n"
+	return template
 }

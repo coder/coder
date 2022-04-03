@@ -5,6 +5,7 @@
     "coderd",
     "coderdtest",
     "codersdk",
+    "devel",
     "drpc",
     "drpcconn",
     "drpcmux",

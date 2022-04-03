@@ -16,7 +16,7 @@ before:
 builds:
   - id: coder-slim
     dir: cmd/coder
-    ldflags: ["-s -w"]
+    ldflags: ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]
     goarch: [amd64]
@@ -28,7 +28,7 @@ builds:
   - id: coder
     dir: cmd/coder
     flags: [-tags=embed]
-    ldflags: ["-s -w"]
+    ldflags: ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]
     goarch: [amd64, arm64]
@@ -58,3 +58,6 @@ nfpms:
 
 release:
   ids: [coder, packages]
+
+snapshot:
+  name_template: '{{ .Version }}-devel+{{ .ShortCommit }}'
