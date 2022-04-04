@@ -25,7 +25,7 @@ func (lg LevelGroup) All() Set {
 	var i int
 	i += copy(all[i:], pos)
 	i += copy(all[i:], neg)
-	i += copy(all[i:], net)
+	copy(all[i:], net)
 	return all
 }
 

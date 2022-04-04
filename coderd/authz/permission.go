@@ -2,8 +2,9 @@ package authz
 
 import (
 	"fmt"
-	"golang.org/x/xerrors"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 type permLevel string

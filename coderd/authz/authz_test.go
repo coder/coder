@@ -79,10 +79,11 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 		//	Result: func(pv string) bool {
 		//		return strings.Contains(pv, "+")
 		//	},
-		//},
+		// },
 	}
 
 	var failedTests int
+	//nolint:paralleltest
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
 			for _, o := range c.Objs {
@@ -106,7 +107,7 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 		})
 	}
 	// TODO: @emyrk when we implement the correct authorize, we can enable this check.
-	//require.Equal(t, 0, failedTests, fmt.Sprintf("%d tests failed", failedTests))
+	// require.Equal(t, 0, failedTests, fmt.Sprintf("%d tests failed", failedTests))
 }
 
 func permissionVariants(all authztest.SetGroup) map[string]*authztest.Role {
@@ -248,7 +249,8 @@ func noise(f noiseBits, lvls ...authztest.LevelGroup) *authztest.Role {
 	}
 
 	if len(rs) == 1 {
-		return rs[0].(*authztest.Role)
+		role, _ := rs[0].(*authztest.Role)
+		return role
 	}
 	return authztest.NewRole(rs...)
 }

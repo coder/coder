@@ -3,9 +3,10 @@ package authztest_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/authz"
 	"github.com/coder/coder/coderd/authz/authztest"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_GroupedPermissions(t *testing.T) {
@@ -81,7 +82,9 @@ func Test_GroupedPermissions(t *testing.T) {
 	}
 
 	for _, c := range cases {
+		c := c
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, c.ExpPos+c.ExpNeg+c.ExpAbs, len(c.Lvl.All()), "set size")
 			require.Equal(t, c.ExpPos, len(c.Lvl.Positive()), "correct num pos")
 			require.Equal(t, c.ExpNeg, len(c.Lvl.Negative()), "correct num neg")

@@ -7,7 +7,6 @@ func Authorize(subj Subject, obj Resource, action Action) error {
 }
 
 // AuthorizePermissions runs the authorize function with the raw permissions in a single list.
-func AuthorizePermissions(subjID string, permissions []Permission, object Resource, action Action) error {
-
+func AuthorizePermissions(_ string, _ []Permission, _ Resource, _ Action) error {
 	return nil
 }

@@ -3,8 +3,9 @@ package authz_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/authz"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/authz"
 )
 
 // Test_Example gives some examples on how to use the authz library.
@@ -30,19 +31,22 @@ func Test_Example(t *testing.T) {
 
 	// TODO: Uncomment all assertions when implementation is done.
 
+	//nolint:paralleltest
 	t.Run("ReadAllWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the site
 		err := authz.Authorize(user, authz.ResourceWorkspace, authz.ActionRead)
 		var _ = err
-		//require.Error(t, err, "this user cannot read all workspaces")
+		// require.Error(t, err, "this user cannot read all workspaces")
 	})
 
+	//nolint:paralleltest
 	t.Run("ReadOrgWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the org 'default'
 		err := authz.Authorize(user, authz.ResourceWorkspace.Org("default"), authz.ActionRead)
 		require.NoError(t, err, "this user can read all org workspaces in 'default'")
 	})
 
+	//nolint:paralleltest
 	t.Run("ReadMyWorkspace", func(t *testing.T) {
 		// Note 'database.Workspace' could fulfill the object interface and be passed in directly
 		err := authz.Authorize(user, authz.ResourceWorkspace.Org("default").Owner(user.UserID), authz.ActionRead)
@@ -52,10 +56,11 @@ func Test_Example(t *testing.T) {
 		require.NoError(t, err, "this user can read workspace '1234'")
 	})
 
+	//nolint:paralleltest
 	t.Run("CreateNewSiteUser", func(t *testing.T) {
 		err := authz.Authorize(user, authz.ResourceUser, authz.ActionCreate)
 		var _ = err
-		//require.Error(t, err, "this user cannot create new users")
+		// require.Error(t, err, "this user cannot create new users")
 	})
 }
 

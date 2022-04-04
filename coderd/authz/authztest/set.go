@@ -33,8 +33,8 @@ func (s Set) String() string {
 		if v == nil {
 			continue
 		}
-		str.WriteString(sep)
-		str.WriteString(v.String())
+		_, _ = str.WriteString(sep)
+		_, _ = str.WriteString(v.String())
 		sep = ", "
 	}
 	return str.String()

@@ -10,7 +10,7 @@ const (
 	ResourceUser      ResourceType = "user"
 )
 
-func (t ResourceType) ID() string {
+func (ResourceType) ID() string {
 	return ""
 }
 
@@ -19,6 +19,7 @@ func (t ResourceType) ResourceType() ResourceType {
 }
 
 // Org adds an org OwnerID to the resource
+//nolint:revive
 func (r ResourceType) Org(orgID string) zObject {
 	return zObject{
 		OwnedByOrg: orgID,
@@ -27,6 +28,7 @@ func (r ResourceType) Org(orgID string) zObject {
 }
 
 // Owner adds an OwnerID to the resource
+//nolint:revive
 func (r ResourceType) Owner(id string) zObject {
 	return zObject{
 		OwnedBy:    id,
@@ -34,6 +36,7 @@ func (r ResourceType) Owner(id string) zObject {
 	}
 }
 
+//nolint:revive
 func (r ResourceType) AsID(id string) zObject {
 	return zObject{
 		ObjectID:   id,

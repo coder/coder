@@ -3,11 +3,12 @@ package authztest_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/authz"
 	"github.com/coder/coder/coderd/authz/authztest"
 	crand "github.com/coder/coder/cryptorand"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUnion(t *testing.T) {

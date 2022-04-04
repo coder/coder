@@ -3,8 +3,9 @@ package authztest_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/authz/authztest"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/authz/authztest"
 )
 
 func Test_AllPermissions(t *testing.T) {

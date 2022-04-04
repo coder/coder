@@ -64,6 +64,6 @@ func (s SubjectTODO) UserRoles() ([]Role, error) {
 	return s.User, nil
 }
 
-func (s SubjectTODO) Scopes() ([]Permission, error) {
+func (SubjectTODO) Scopes() ([]Permission, error) {
 	return []Permission{}, nil
 }

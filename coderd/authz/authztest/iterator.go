@@ -32,6 +32,7 @@ type unionIterator struct {
 	N int
 }
 
+//nolint:revive
 func Union(sets ...Set) *unionIterator {
 	var n int
 	for _, s := range sets {
@@ -68,7 +69,7 @@ func (si *unionIterator) Reset() {
 	si.offset = 0
 }
 
-func (si *unionIterator) ReturnSize() int {
+func (unionIterator) ReturnSize() int {
 	return 1
 }
 

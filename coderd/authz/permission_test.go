@@ -3,8 +3,9 @@ package authz_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/authz"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/authz"
 )
 
 func Test_PermissionString(t *testing.T) {
@@ -54,7 +55,10 @@ func Test_PermissionString(t *testing.T) {
 	}
 
 	for _, c := range testCases {
+		c := c
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
 			require.Equal(t, c.Expected, c.Permission.String())
 			perm, err := authz.ParsePermission(c.Expected)
 			require.NoError(t, err, "parse perm string")
@@ -125,8 +129,11 @@ func Test_ParsePermissions(t *testing.T) {
 			},
 		},
 	}
+
 	for _, c := range testCases {
+		c := c
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
 			perms, err := authz.ParsePermissions(c.Str)
 			if c.ErrStr != "" {
 				require.Error(t, err)

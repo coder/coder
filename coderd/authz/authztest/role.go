@@ -21,7 +21,7 @@ type Role struct {
 func NewRole(sets ...Iterable) *Role {
 	setInterfaces := make([]Iterator, 0, len(sets))
 	var retSize int
-	var size int = 1
+	size := 1
 	for _, s := range sets {
 		v := s.Iterator()
 		setInterfaces = append(setInterfaces, v)
@@ -71,11 +71,11 @@ func (r *Role) Next() bool {
 	for i := range r.PermissionSets {
 		if r.PermissionSets[i].Next() {
 			break
-		} else {
-			r.PermissionSets[i].Reset()
-			if i == len(r.PermissionSets)-1 {
-				return false
-			}
+		}
+
+		r.PermissionSets[i].Reset()
+		if i == len(r.PermissionSets)-1 {
+			return false
 		}
 	}
 	return true

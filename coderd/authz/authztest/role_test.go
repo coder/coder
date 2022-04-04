@@ -3,15 +3,18 @@ package authztest_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/authz/authztest"
 	crand "github.com/coder/coder/cryptorand"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_NewRole(t *testing.T) {
+	t.Parallel()
+
 	for i := 0; i < 50; i++ {
 		sets := make([]authztest.Iterable, 1+(i%4))
-		var total int = 1
+		total := 1
 		for j := range sets {
 			size := 1 + must(crand.Intn(3))
 			if i < 5 {
