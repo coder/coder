@@ -29,6 +29,7 @@ for fi in queries/*.sql.go; do
 done
 
 # Remove temporary go files.
+mv queries/querier.go .
 rm -f queries/*.go
 
 # Fix struct/interface names.
