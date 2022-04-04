@@ -64,7 +64,7 @@ $ coder projects update gcp-linux
 
 ## Development
 
-The code structure is inspired by [Basics of Unix Philosophy](https://homepage.cs.uri.edu/~thenry/resources/unix_art/ch01s06.html) and [Effective Go](https://go.dev/doc/effective_go).
+Read the [contributing docs](./CONTRIBUTING.md) for style and review guidelines.
 
 Coder requires Go 1.18+, Node 14+, and GNU Make.
 
