@@ -4,14 +4,15 @@ import (
 	"github.com/coder/coder/coderd/authz"
 )
 
-// Role can print all possible permutations of the given iterators.
+// Role can print all possible permutations of the given iterators. It represents
+// the cross product between all sets given.
 type Role struct {
 	// returnSize is how many permissions are the returned set for the role
 	returnSize int
 	// N is the total number of permutations of sets this role will produce.
 	N              int
 	PermissionSets []Iterator
-	// This is kinda werird, but the first scan should not move anything.
+	// This is kinda weird, but the first scan should not move anything.
 	first bool
 
 	buffer []*authz.Permission

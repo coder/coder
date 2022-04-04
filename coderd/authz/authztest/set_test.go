@@ -1,10 +1,10 @@
 package authztest_test
 
 import (
-	"github.com/coder/coder/coderd/authz"
-	"github.com/coder/coder/coderd/authz/authztest"
 	"testing"
 
+	"github.com/coder/coder/coderd/authz"
+	"github.com/coder/coder/coderd/authz/authztest"
 	crand "github.com/coder/coder/cryptorand"
 	"github.com/stretchr/testify/require"
 )

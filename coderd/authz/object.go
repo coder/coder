@@ -23,6 +23,7 @@ var _ OrgResource = (*zObject)(nil)
 // hand to run the check on.
 // An example is if you want to list all workspaces, you can create a zObject
 // that represents the set of workspaces you are trying to get access too.
+// Do not export this type, as it can be created from a resource type constant.
 type zObject struct {
 	ObjectID   string `json:"object_id"`
 	OwnedBy    string `json:"owner_id"`

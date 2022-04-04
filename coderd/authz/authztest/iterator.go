@@ -18,7 +18,7 @@ type Iterator interface {
 	Size() int
 }
 
-// unionIterator is very primitive, just used to hold a place in a set.
+// unionIterator is used to merge sets, or a union in set theory.
 type unionIterator struct {
 	// setIdx determines which set the offset is for
 	setIdx int

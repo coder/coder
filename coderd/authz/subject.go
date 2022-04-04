@@ -22,6 +22,7 @@ type Subject interface {
 
 // SubjectTODO is a placeholder until we get an actual actor struct in place.
 // This will come with the Authn epic.
+// TODO: @emyrk delete this data structure when authn exists
 type SubjectTODO struct {
 	UserID string `json:"user_id"`
 

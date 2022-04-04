@@ -1,11 +1,12 @@
 package authz_test
 
 import (
-	"github.com/coder/coder/coderd/authz"
-	"github.com/coder/coder/coderd/authz/authztest"
 	"math/bits"
 	"strings"
 	"testing"
+
+	"github.com/coder/coder/coderd/authz"
+	"github.com/coder/coder/coderd/authz/authztest"
 )
 
 var nilSet = authztest.Set{nil}
