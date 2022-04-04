@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/crontab"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/crontab"
 )
 
 func Test_Parse(t *testing.T) {
