@@ -280,7 +280,9 @@ CREATE TABLE workspaces (
     owner_id uuid NOT NULL,
     template_id uuid NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    autostop_schedule text
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
