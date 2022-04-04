@@ -93,8 +93,8 @@ CREATE TABLE git_ssh_keys (
     user_id text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    private_key bytea NOT NULL,
-    public_key bytea NOT NULL
+    private_key text NOT NULL,
+    public_key text NOT NULL
 );
 
 CREATE TABLE licenses (

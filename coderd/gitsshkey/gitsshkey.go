@@ -13,35 +13,33 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type SSHKeygenAlgorithm string
+type Algorithm string
 
 const (
-	// SSHKeygenAlgorithmEd25519 is the Edwards-curve Digital Signature Algorithm using Curve25519
-	SSHKeygenAlgorithmEd25519 SSHKeygenAlgorithm = "ed25519"
-	// SSHKeygenAlgorithmECDSA is the Digital Signature Algorithm (DSA) using NIST Elliptic Curve
-	SSHKeygenAlgorithmECDSA SSHKeygenAlgorithm = "ecdsa"
-	// SSHKeygenAlgorithmRSA4096 is the venerable Rivest-Shamir-Adleman algorithm
+	// AlgorithmEd25519 is the Edwards-curve Digital Signature Algorithm using Curve25519
+	AlgorithmEd25519 Algorithm = "ed25519"
+	// AlgorithmECDSA is the Digital Signature Algorithm (DSA) using NIST Elliptic Curve
+	AlgorithmECDSA Algorithm = "ecdsa"
+	// AlgorithmRSA4096 is the venerable Rivest-Shamir-Adleman algorithm
 	// and creates a key with a fixed size of 4096-bit.
-	SSHKeygenAlgorithmRSA4096 SSHKeygenAlgorithm = "rsa4096"
+	AlgorithmRSA4096 Algorithm = "rsa4096"
 )
 
-func GenerateKeyPair(algo SSHKeygenAlgorithm) ([]byte, []byte, error) {
+func GenerateKeyPair(algo Algorithm) ([]byte, []byte, error) {
 	switch algo {
-	case SSHKeygenAlgorithmEd25519:
+	case AlgorithmEd25519:
 		return ed25519KeyGen()
-	case SSHKeygenAlgorithmECDSA:
+	case AlgorithmECDSA:
 		return ecdsaKeyGen()
-	case SSHKeygenAlgorithmRSA4096:
+	case AlgorithmRSA4096:
 		return rsa4096KeyGen()
 	default:
-		return nil, nil, xerrors.Errorf("invalid SSHKeygenAlgorithm: %s", algo)
+		return nil, nil, xerrors.Errorf("invalid algorithm: %s", algo)
 	}
 }
 
 // ed25519KeyGen returns an ED25519-based SSH private key.
 func ed25519KeyGen() ([]byte, []byte, error) {
-	const blockType = "OPENSSH PRIVATE KEY"
-
 	publicKey, privateKeyRaw, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("generate ed25519 private key: %w", err)
@@ -56,7 +54,7 @@ func ed25519KeyGen() ([]byte, []byte, error) {
 	}
 
 	pb := pem.Block{
-		Type:    blockType,
+		Type:    "OPENSSH PRIVATE KEY",
 		Headers: nil,
 		Bytes:   byt,
 	}
@@ -67,15 +65,13 @@ func ed25519KeyGen() ([]byte, []byte, error) {
 
 // ecdsaKeyGen returns an ECDSA-based SSH private key.
 func ecdsaKeyGen() ([]byte, []byte, error) {
-	const blockType = "EC PRIVATE KEY"
-
 	privateKeyRaw, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("generate ecdsa private key: %w", err)
 	}
 	publicKey, err := x509.MarshalPKIXPublicKey(privateKeyRaw.PublicKey)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate RSA4096 public key: %w", err)
+		return nil, nil, xerrors.Errorf("generate ecdsa public key: %w", err)
 	}
 
 	byt, err := x509.MarshalECPrivateKey(privateKeyRaw)
@@ -84,7 +80,7 @@ func ecdsaKeyGen() ([]byte, []byte, error) {
 	}
 
 	pb := pem.Block{
-		Type:    blockType,
+		Type:    "EC PRIVATE KEY",
 		Headers: nil,
 		Bytes:   byt,
 	}
@@ -97,8 +93,6 @@ func ecdsaKeyGen() ([]byte, []byte, error) {
 //
 // Administrators may configure this for SSH key compatibility with Azure DevOps.
 func rsa4096KeyGen() ([]byte, []byte, error) {
-	const blockType = "RSA PRIVATE KEY"
-
 	privateKeyRaw, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("generate RSA4096 private key: %w", err)
@@ -109,7 +103,7 @@ func rsa4096KeyGen() ([]byte, []byte, error) {
 	}
 
 	pb := pem.Block{
-		Type:  blockType,
+		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKeyRaw),
 	}
 	privateKey := pem.EncodeToMemory(&pb)
@@ -118,16 +112,16 @@ func rsa4096KeyGen() ([]byte, []byte, error) {
 }
 
 // ParseSSHKeygenAlgorithm returns a valid SSHKeygenAlgorithm or error if input is not a valid.
-func ParseSSHKeygenAlgorithm(t string) (SSHKeygenAlgorithm, error) {
+func ParseSSHKeygenAlgorithm(t string) (Algorithm, error) {
 	ok := []string{
-		string(SSHKeygenAlgorithmEd25519),
-		string(SSHKeygenAlgorithmECDSA),
-		string(SSHKeygenAlgorithmRSA4096),
+		string(AlgorithmEd25519),
+		string(AlgorithmECDSA),
+		string(AlgorithmRSA4096),
 	}
 
 	for _, a := range ok {
-		if string(t) == a {
-			return SSHKeygenAlgorithm(a), nil
+		if t == a {
+			return Algorithm(a), nil
 		}
 	}
 

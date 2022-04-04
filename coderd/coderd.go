@@ -32,7 +32,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 
 	SecureAuthCookie   bool
-	SSHKeygenAlgorithm gitsshkey.SSHKeygenAlgorithm
+	SSHKeygenAlgorithm gitsshkey.Algorithm
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -139,7 +139,7 @@ func New(options *Options) (http.Handler, func()) {
 						r.Get("/", api.workspacesByUser)
 						r.Get("/{workspacename}", api.workspaceByUserAndName)
 					})
-					r.Get("/gitsshkey", api.getGitSSHKey)
+					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Post("/gitsshkey", api.regenerateGitSSHKey)
 				})
 			})

@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -108,6 +109,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 		AWSCertificates:      options.AWSInstanceIdentity,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
+		SSHKeygenAlgorithm:   gitsshkey.AlgorithmEd25519,
 	})
 	t.Cleanup(func() {
 		srv.Close()

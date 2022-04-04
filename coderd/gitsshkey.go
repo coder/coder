@@ -43,7 +43,7 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) getGitSSHKey(rw http.ResponseWriter, r *http.Request) {
+func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user = httpmw.UserParam(r)
 	)
@@ -66,6 +66,6 @@ func (api *api) getGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) getPrivateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
+func (api *api) privateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	// connect agent to workspace to user to gitsshkey
 }
