@@ -24,14 +24,13 @@ import (
 	"time"
 
 	// Used for pgx stdlib sql support.
-
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v4/stdlib"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"

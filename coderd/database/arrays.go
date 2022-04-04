@@ -1,9 +1,8 @@
 package database
 
 import (
-	"errors"
-
 	"github.com/jackc/pgtype"
+	"golang.org/x/xerrors"
 )
 
 type ProvisionerTypes []ProvisionerType
@@ -34,15 +33,15 @@ func (p *ProvisionerTypes) AssignTo(dst interface{}) error {
 			(*vs)[i] = v
 		}
 		return nil
-	}
 
-	dst = []ProvisionerType(*p)
-	return nil
+	default:
+		panic("what")
+	}
 }
 
 func (p *ProvisionerTypes) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 	if src == nil {
-		return errors.New("NULL values can't be decoded. Scan into a &amp;*Positions to handle NULLs")
+		return xerrors.New("NULL values can't be decoded. Scan into a &amp;*Positions to handle NULLs")
 	}
 
 	val := pgtype.EnumArray{}
@@ -116,7 +115,7 @@ func (p *LogLevels) AssignTo(dst interface{}) error {
 
 func (p *LogLevels) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 	if src == nil {
-		return errors.New("NULL values can't be decoded. Scan into a &amp;*Positions to handle NULLs")
+		return xerrors.New("NULL values can't be decoded. Scan into a &amp;*Positions to handle NULLs")
 	}
 
 	val := pgtype.EnumArray{}
@@ -190,7 +189,7 @@ func (p *LogSources) AssignTo(dst interface{}) error {
 
 func (p *LogSources) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 	if src == nil {
-		return errors.New("NULL values can't be decoded. Scan into a &amp;*Positions to handle NULLs")
+		return xerrors.New("NULL values can't be decoded. Scan into a &amp;*Positions to handle NULLs")
 	}
 
 	val := pgtype.EnumArray{}
