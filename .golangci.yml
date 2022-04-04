@@ -177,27 +177,6 @@ linters-settings:
       - name: var-declaration
       - name: var-naming
       - name: waitgroup-by-value
-  varnamelen:
-    ignore-names:
-      - err
-      - rw
-      - r
-      - i
-      - db
-      - t
-      - id
-      - wg
-      - Me
-    # Optional list of variable declarations that should be ignored completely. (defaults to empty list)
-    # Entries must be in the form of "<variable name> <type>" or "<variable name> *<type>" for
-    # variables, or "const <name>" for constants.
-    ignore-decls:
-      - rw http.ResponseWriter
-      - r *http.Request
-      - t testing.T
-      - t testing.TB
-      - ok bool
-      - wg sync.WaitGroup
 
 issues:
   # Rules listed here: https://github.com/securego/gosec#available-rules
@@ -265,5 +244,4 @@ linters:
     - unconvert
     - unused
     - varcheck
-    - varnamelen
     - wastedassign
