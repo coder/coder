@@ -10,13 +10,10 @@ import (
 
 type querier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
-	DeleteGitSSHKey(ctx context.Context, userID string) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	GetFileByHash(ctx context.Context, hash string) (File, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
-	GetGitSSHKey(ctx context.Context, userID string) (GitSshKey, error)
-	GetOrganizationByID(ctx context.Context, id string) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error)
 	GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error)
@@ -57,7 +54,6 @@ type querier interface {
 	GetWorkspacesByUserID(ctx context.Context, arg GetWorkspacesByUserIDParams) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
-	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSshKey, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error)
@@ -73,7 +69,6 @@ type querier interface {
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
-	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error
 	UpdateProjectActiveVersionByID(ctx context.Context, arg UpdateProjectActiveVersionByIDParams) error
 	UpdateProjectDeletedByID(ctx context.Context, arg UpdateProjectDeletedByIDParams) error
 	UpdateProjectVersionByID(ctx context.Context, arg UpdateProjectVersionByIDParams) error
