@@ -2767,6 +2767,44 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
+const updateWorkspaceAutostart = `-- name: UpdateWorkspaceAutostart :exec
+UPDATE
+	workspaces
+SET
+	autostart_schedule = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAutostartParams struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostart, arg.ID, arg.AutostartSchedule)
+	return err
+}
+
+const updateWorkspaceAutostop = `-- name: UpdateWorkspaceAutostop :exec
+UPDATE
+	workspaces
+SET
+	autostop_schedule = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAutostopParams struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	AutostopSchedule sql.NullString `db:"autostop_schedule" json:"autostop_schedule"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAutostop(ctx context.Context, arg UpdateWorkspaceAutostopParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostop, arg.ID, arg.AutostopSchedule)
+	return err
+}
+
 const updateWorkspaceDeletedByID = `-- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
 	workspaces
