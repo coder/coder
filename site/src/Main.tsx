@@ -4,8 +4,8 @@ import { inspect } from "@xstate/inspect";
 import { Interpreter } from "xstate"
 import { App } from "./app"
 
-// if this is a development build
-if (process.env.NODE_ENV === "development") {
+// if this is a development build and the developer wants to inspect
+if (process.env.NODE_ENV === "development" && process.env.INSPECT_XSTATE === "true") {
   // configure the XState inspector to open in a new tab
   inspect({
     url: "https://stately.ai/viz?inspect",

@@ -14,6 +14,6 @@ cd "${PROJECT_ROOT}"
 (
   trap 'kill 0' SIGINT
   create_initial_user &
-  CODERV2_HOST=http://127.0.0.1:3000 yarn --cwd=./site dev &
+  CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
   go run cmd/coder/main.go start --dev --tunnel=false
 )
