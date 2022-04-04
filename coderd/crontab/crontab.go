@@ -45,20 +45,20 @@ func (s cronSchedule) Next(t time.Time) time.Time {
 }
 
 func Parse(spec string) (WeeklySchedule, error) {
-	s, err := defaultParser.Parse(spec)
+	specSched, err := defaultParser.Parse(spec)
 	if err != nil {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
 	}
 
-	schedule, ok := s.(*cron.SpecSchedule)
+	schedule, ok := specSched.(*cron.SpecSchedule)
 	if !ok {
-		return nil, xerrors.Errorf("expected cron.SpecSchedule but got %T", s)
+		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
 
-	cs := &cronSchedule{
+	cronSched := &cronSchedule{
 		sched: schedule,
 		spec:  spec,
 	}
-	return cs, nil
+	return cronSched, nil
 
 }

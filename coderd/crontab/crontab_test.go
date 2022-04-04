@@ -1,9 +1,10 @@
-package crontab
+package crontab_test
 
 import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/cron"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,18 +47,18 @@ func Test_Parse(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			actual, err := Parse(tc.spec)
-			if tc.expectedError == "" {
-				nextTime := actual.Next(tc.at)
+			actual, err := cron.Parse(testCase.spec)
+			if testCase.expectedError == "" {
+				nextTime := actual.Next(testCase.at)
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedNext, nextTime)
-				require.Equal(t, tc.spec, actual.String())
+				require.Equal(t, testCase.expectedNext, nextTime)
+				require.Equal(t, testCase.spec, actual.String())
 			} else {
-				require.EqualError(t, err, tc.expectedError)
+				require.EqualError(t, err, testCase.expectedError)
 				require.Nil(t, actual)
 			}
 		})
