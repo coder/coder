@@ -18,7 +18,7 @@ func Test_Parse(t *testing.T) {
 	}{
 		{
 			name:          "with timezone",
-			spec:          "TZ=US/Central 30 9 1-5",
+			spec:          "CRON_TZ=US/Central 30 9 1-5",
 			at:            time.Date(2022, 4, 1, 14, 29, 0, 0, time.UTC),
 			expectedNext:  time.Date(2022, 4, 1, 14, 30, 0, 0, time.UTC),
 			expectedError: "",
@@ -39,7 +39,7 @@ func Test_Parse(t *testing.T) {
 		},
 		{
 			name:          "invalid location",
-			spec:          "TZ=Fictional/Country 30 9 1-5",
+			spec:          "CRON_TZ=Fictional/Country 30 9 1-5",
 			at:            time.Time{},
 			expectedNext:  time.Time{},
 			expectedError: "parse schedule: provided bad location Fictional/Country: unknown time zone Fictional/Country",
