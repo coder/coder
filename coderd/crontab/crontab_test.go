@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/cron"
+	"github.com/coder/coder/coderd/crontab"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +51,7 @@ func Test_Parse(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			actual, err := cron.Parse(testCase.spec)
+			actual, err := crontab.Parse(testCase.spec)
 			if testCase.expectedError == "" {
 				nextTime := actual.Next(testCase.at)
 				require.NoError(t, err)
