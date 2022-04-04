@@ -1,6 +1,6 @@
-// package crontab provides utilities for parsing and deserializing
+// package schedule provides utilities for parsing and deserializing
 // cron-style expressions.
-package crontab
+package schedule
 
 import (
 	"time"
@@ -10,21 +10,26 @@ import (
 )
 
 // For the purposes of this library, we only need minute, hour, and
-//day-of-week.
-const parserFormat = cron.Minute | cron.Hour | cron.Dow
+// day-of-week.
+const parserFormatWeekly = cron.Minute | cron.Hour | cron.Dow
 
-var defaultParser = cron.NewParser(parserFormat)
+var defaultParser = cron.NewParser(parserFormatWeekly)
 
-// Parse parses a WeeklySchedule from spec.
+// Weekly parses a Schedule from spec scoped to a recurring weekly event.
+// Spec consists of the following space-delimited fields, in the following order:
+// - timezone e.g. CRON_TZ=US/Central (optional)
+// - minutes of hour e.g. 30 (required)
+// - hour of day e.g. 9 (required)
+// - day of week e.g. 1 (required)
 //
 // Example Usage:
-//  local_sched, _ := cron.Parse("59 23 *")
+//  local_sched, _ := schedule.Weekly("59 23 *")
 //  fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
 //  // Output: 2022-04-04T23:59:00Z
-//  us_sched, _ := cron.Parse("CRON_TZ=US/Central 30 9 1-5")
+//  us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
 //  fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //  // Output: 2022-04-04T14:30:00Z
-func Parse(spec string) (*WeeklySchedule, error) {
+func Weekly(spec string) (*Schedule, error) {
 	specSched, err := defaultParser.Parse(spec)
 	if err != nil {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
@@ -35,27 +40,27 @@ func Parse(spec string) (*WeeklySchedule, error) {
 		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
 
-	cronSched := &WeeklySchedule{
+	cronSched := &Schedule{
 		sched: schedule,
 		spec:  spec,
 	}
 	return cronSched, nil
 }
 
-// WeeklySchedule represents a weekly cron schedule.
+// Schedule represents a cron schedule.
 // It's essentially a thin wrapper for robfig/cron/v3 that implements Stringer.
-type WeeklySchedule struct {
+type Schedule struct {
 	sched *cron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
 	spec string
 }
 
 // String serializes the schedule to its original human-friendly format.
-func (s WeeklySchedule) String() string {
+func (s Schedule) String() string {
 	return s.spec
 }
 
 // Next returns the next time in the schedule relative to t.
-func (s WeeklySchedule) Next(t time.Time) time.Time {
+func (s Schedule) Next(t time.Time) time.Time {
 	return s.sched.Next(t)
 }

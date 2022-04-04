@@ -1,4 +1,4 @@
-package crontab_test
+package schedule_test
 
 import (
 	"testing"
@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/crontab"
+	"github.com/coder/coder/coderd/autostart/schedule"
 )
 
-func Test_Parse(t *testing.T) {
+func Test_Weekly(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name          string
@@ -52,7 +52,7 @@ func Test_Parse(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			actual, err := crontab.Parse(testCase.spec)
+			actual, err := schedule.Weekly(testCase.spec)
 			if testCase.expectedError == "" {
 				nextTime := actual.Next(testCase.at)
 				require.NoError(t, err)
