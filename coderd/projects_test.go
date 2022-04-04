@@ -47,7 +47,7 @@ func TestDeleteProject(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		err := client.DeleteProject(context.Background(), project.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)

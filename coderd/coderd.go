@@ -29,6 +29,8 @@ type Options struct {
 
 	AWSCertificates      awsidentity.Certificates
 	GoogleTokenValidator *idtoken.Validator
+
+	SecureAuthCookie bool
 }
 
 // New constructs the Coder API into an HTTP handler.

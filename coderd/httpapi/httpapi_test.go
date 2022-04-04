@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/httpapi"
@@ -141,4 +143,24 @@ func TestReadUsername(t *testing.T) {
 			require.Equal(t, httpapi.Read(rw, r, &validate), testCase.Valid)
 		})
 	}
+}
+
+func WebsocketCloseMsg(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TruncateSingleByteCharacters", func(t *testing.T) {
+		t.Parallel()
+
+		msg := strings.Repeat("d", 255)
+		trunc := httpapi.WebsocketCloseSprintf(msg)
+		assert.LessOrEqual(t, len(trunc), 123)
+	})
+
+	t.Run("TruncateMultiByteCharacters", func(t *testing.T) {
+		t.Parallel()
+
+		msg := strings.Repeat("こんにちは", 10)
+		trunc := httpapi.WebsocketCloseSprintf(msg)
+		assert.LessOrEqual(t, len(trunc), 123)
+	})
 }

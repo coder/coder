@@ -7,6 +7,10 @@
 # https://www.notion.so/coderhq/Conventional-commits-1d51287f58b64026bb29393f277734ed
 ###############################################################################
 
+# We have no valid scopes right now.
+# A scope should be added when commits aren't aligning with associated change anymore.
+scopes:
+
 # We only check that the PR title is semantic. The PR title is automatically
 # applied to the "Squash & Merge" flow as the suggested commit message, so this
 # should suffice unless someone drastically alters the message in that flow.

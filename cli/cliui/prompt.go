@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 
 	"github.com/bgentry/speakeasy"
@@ -42,10 +43,21 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 	go func() {
 		var line string
 		var err error
+
 		inFile, valid := cmd.InOrStdin().(*os.File)
 		if opts.Secret && valid && isatty.IsTerminal(inFile.Fd()) {
 			line, err = speakeasy.Ask("")
 		} else {
+			if runtime.GOOS == "darwin" && valid {
+				var restore func()
+				restore, err = removeLineLengthLimit(int(inFile.Fd()))
+				if err != nil {
+					errCh <- err
+					return
+				}
+				defer restore()
+			}
+
 			reader := bufio.NewReader(cmd.InOrStdin())
 			line, err = reader.ReadString('\n')
 

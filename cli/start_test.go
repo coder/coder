@@ -59,10 +59,10 @@ func TestStart(t *testing.T) {
 			return true
 		}, 15*time.Second, 25*time.Millisecond)
 		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-			Email:        "some@one.com",
-			Username:     "example",
-			Password:     "password",
-			Organization: "example",
+			Email:            "some@one.com",
+			Username:         "example",
+			Password:         "password",
+			OrganizationName: "example",
 		})
 		require.NoError(t, err)
 		cancelFunc()
@@ -90,7 +90,7 @@ func TestStart(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(parsed)
 		client.SessionToken = token
-		_, err = client.User(ctx, "")
+		_, err = client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 	})
 	t.Run("TLSBadVersion", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestStart(t *testing.T) {
 		require.NoError(t, err)
 		client := codersdk.New(parsed)
 		client.SessionToken = token
-		orgs, err := client.OrganizationsByUser(ctx, "")
+		orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
 		require.NoError(t, err)
 		coderdtest.NewProvisionerDaemon(t, client)
 
@@ -190,7 +190,7 @@ func TestStart(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, orgs[0].ID, nil)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, orgs[0].ID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		require.NoError(t, err)

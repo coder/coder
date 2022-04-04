@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -43,7 +44,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		cmd, _ := clitest.New(t, "workspaces", "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
@@ -97,7 +98,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		cmd, _ := clitest.New(t, "workspaces", "agent", "--auth", "google-instance-identity", "--url", client.URL.String())

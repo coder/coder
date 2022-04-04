@@ -40,6 +40,7 @@ require (
 	github.com/briandowns/spinner v1.18.1
 	github.com/charmbracelet/charm v0.11.0
 	github.com/charmbracelet/lipgloss v0.5.0
+	github.com/cli/safeexec v1.0.0
 	github.com/cloudflare/cloudflared v0.0.0-20220308214351-5352b3cf0489
 	github.com/coder/retry v1.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
@@ -92,8 +93,6 @@ require (
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
 )
-
-require github.com/cli/safeexec v1.0.0
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -237,7 +236,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/mod v0.5.1 // indirect
 	golang.org/x/net v0.0.0-20220325170049-de3da57026de // indirect
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	golang.org/x/tools v0.1.9 // indirect

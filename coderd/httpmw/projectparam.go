@@ -46,7 +46,7 @@ func ExtractProjectParam(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), projectParamContextKey{}, project)
-			chi.RouteContext(ctx).URLParams.Add("organization", project.OrganizationID)
+			chi.RouteContext(ctx).URLParams.Add("organization", project.OrganizationID.String())
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

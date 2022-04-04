@@ -12,14 +12,13 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-// Project is the JSON representation of a Coder project.
-// This type matches the database object for now, but is
-// abstracted for ease of change later on.
+// Project is the JSON representation of a Coder project. This type matches the
+// database object for now, but is abstracted for ease of change later on.
 type Project struct {
 	ID                  uuid.UUID                `json:"id"`
 	CreatedAt           time.Time                `json:"created_at"`
 	UpdatedAt           time.Time                `json:"updated_at"`
-	OrganizationID      string                   `json:"organization_id"`
+	OrganizationID      uuid.UUID                `json:"organization_id"`
 	Name                string                   `json:"name"`
 	Provisioner         database.ProvisionerType `json:"provisioner"`
 	ActiveVersionID     uuid.UUID                `json:"active_version_id"`

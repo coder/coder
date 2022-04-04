@@ -27,7 +27,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:
@@ -36,7 +36,7 @@ updates:
   - package-ecosystem: "npm"
     directory: "/site/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
       time: "06:00"
       timezone: "America/Chicago"
     commit-message:

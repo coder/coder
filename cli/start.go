@@ -56,6 +56,7 @@ func start() *cobra.Command {
 		tlsMinVersion          string
 		useTunnel              bool
 		traceDatadog           bool
+		secureAuthCookie       bool
 	)
 	root := &cobra.Command{
 		Use: "start",
@@ -132,6 +133,7 @@ func start() *cobra.Command {
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
+				SecureAuthCookie:     secureAuthCookie,
 			}
 
 			if !dev {
@@ -253,7 +255,7 @@ func start() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+cliui.Styles.Bold.Render("Interrupt caught. Gracefully exiting..."))
 
 			if dev {
-				workspaces, err := client.WorkspacesByUser(cmd.Context(), "")
+				workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("get workspaces: %w", err)
 				}
@@ -334,16 +336,17 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", true, "Serve dev mode through a Cloudflare Tunnel for easy setup")
 	_ = root.Flags().MarkHidden("tunnel")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 
 	return root
 }
 
 func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root) error {
 	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-		Email:        "admin@coder.com",
-		Username:     "developer",
-		Password:     "password",
-		Organization: "acme-corp",
+		Email:            "admin@coder.com",
+		Username:         "developer",
+		Password:         "password",
+		OrganizationName: "acme-corp",
 	})
 	if err != nil {
 		return xerrors.Errorf("create first user: %w", err)

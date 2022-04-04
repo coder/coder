@@ -23,7 +23,7 @@ func TestWorkspace(t *testing.T) {
 	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 	_, err := client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
 }
@@ -38,7 +38,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		_, err := client.WorkspaceBuilds(context.Background(), workspace.ID)
 		require.NoError(t, err)
 	})
@@ -54,7 +54,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			ProjectVersionID: uuid.New(),
 			Transition:       database.WorkspaceTransitionStart,
@@ -75,7 +75,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		_, err := client.CreateWorkspace(context.Background(), "", codersdk.CreateWorkspaceRequest{
+		_, err := client.CreateWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{
 			ProjectID: project.ID,
 			Name:      "workspace",
 		})
@@ -94,7 +94,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		// Close here so workspace build doesn't process!
 		closeDaemon.Close()
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
 			Transition:       database.WorkspaceTransitionStart,
@@ -113,7 +113,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			ProjectVersionID: project.ActiveVersionID,
@@ -135,7 +135,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: database.WorkspaceTransitionDelete,
@@ -160,7 +160,7 @@ func TestWorkspaceBuildByName(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		_, err := client.WorkspaceBuildByName(context.Background(), workspace.ID, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -175,7 +175,7 @@ func TestWorkspaceBuildByName(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		build, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
 		_, err = client.WorkspaceBuildByName(context.Background(), workspace.ID, build.Name)

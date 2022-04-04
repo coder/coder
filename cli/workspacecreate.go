@@ -74,7 +74,7 @@ func workspaceCreate() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Creating with the "+cliui.Styles.Field.Render(project.Name)+" project...")
 
 			workspaceName := args[0]
-			_, err = client.WorkspaceByName(cmd.Context(), "", workspaceName)
+			_, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceName)
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
@@ -137,7 +137,7 @@ func workspaceCreate() *cobra.Command {
 			}
 
 			before := time.Now()
-			workspace, err := client.CreateWorkspace(cmd.Context(), "", codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateWorkspace(cmd.Context(), codersdk.Me, codersdk.CreateWorkspaceRequest{
 				ProjectID:       project.ID,
 				Name:            workspaceName,
 				ParameterValues: parameters,

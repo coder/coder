@@ -4,16 +4,14 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/cli/safeexec"
 	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/hc-install/product"
+	"github.com/hashicorp/hc-install/releases"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/cli/safeexec"
 	"github.com/coder/coder/provisionersdk"
-
-	"github.com/hashicorp/hc-install/product"
-	"github.com/hashicorp/hc-install/releases"
 )
 
 var (

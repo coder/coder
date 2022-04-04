@@ -53,7 +53,7 @@ func TestSSH(t *testing.T) {
 		})
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		go func() {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
@@ -111,7 +111,7 @@ func TestSSH(t *testing.T) {
 		})
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		go func() {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!

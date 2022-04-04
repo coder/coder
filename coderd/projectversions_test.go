@@ -240,7 +240,8 @@ func TestProjectVersionLogs(t *testing.T) {
 	coderdtest.NewProvisionerDaemon(t, client)
 	before := time.Now()
 	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse: echo.ParseComplete,
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
 		Provision: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Log{
 				Log: &proto.Log{

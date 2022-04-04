@@ -4,6 +4,9 @@ archives:
       - coder
     files:
       - README.md
+    format_overrides:
+      - goos: windows
+        format: zip
 
 before:
   hooks:
