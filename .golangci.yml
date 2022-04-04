@@ -265,5 +265,4 @@ linters:
     - unconvert
     - unused
     - varcheck
-    - varnamelen
     - wastedassign
