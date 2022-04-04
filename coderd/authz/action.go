@@ -5,7 +5,7 @@ type Action string
 
 const (
 	ActionRead   = "read"
-	ActionWrite  = "write"
+	ActionCreate = "create"
 	ActionModify = "modify"
 	ActionDelete = "delete"
 )

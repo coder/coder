@@ -53,7 +53,7 @@ func RandomSet(size int) authztest.Set {
 func RandomPermission() authz.Permission {
 	actions := []authz.Action{
 		authz.ActionRead,
-		authz.ActionWrite,
+		authz.ActionCreate,
 		authz.ActionModify,
 		authz.ActionDelete,
 	}

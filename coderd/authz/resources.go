@@ -7,6 +7,7 @@ const (
 	ResourceWorkspace ResourceType = "workspace"
 	ResourceProject   ResourceType = "project"
 	ResourceDevURL    ResourceType = "devurl"
+	ResourceUser      ResourceType = "user"
 )
 
 func (t ResourceType) ID() string {

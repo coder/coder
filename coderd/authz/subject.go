@@ -26,9 +26,9 @@ type Subject interface {
 type SubjectTODO struct {
 	UserID string `json:"user_id"`
 
-	Site []Role `json:"site_roles"`
-	Org  []Role `json:"org_roles"`
-	User []Role `json:"user_roles"`
+	Site []Role            `json:"site_roles"`
+	Org  map[string][]Role `json:"org_roles"`
+	User []Role            `json:"user_roles"`
 }
 
 func (s SubjectTODO) ID() string {
@@ -39,8 +39,25 @@ func (s SubjectTODO) SiteRoles() ([]Role, error) {
 	return s.Site, nil
 }
 
-func (s SubjectTODO) OrgRoles() ([]Role, error) {
-	return s.Org, nil
+func (s SubjectTODO) OrgRoles(_ context.Context, orgID string) ([]Role, error) {
+	v, ok := s.Org[orgID]
+	if !ok {
+		// Members not in an org return the negative perm
+		return []Role{{
+			Permissions: []Permission{
+				{
+					Sign:         false,
+					Level:        "*",
+					LevelID:      "",
+					ResourceType: "*",
+					ResourceID:   "*",
+					Action:       "*",
+				},
+			},
+		}}, nil
+	}
+
+	return v, nil
 }
 
 func (s SubjectTODO) UserRoles() ([]Role, error) {
