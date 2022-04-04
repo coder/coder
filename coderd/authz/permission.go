@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"fmt"
 	"golang.org/x/xerrors"
 	"strings"
 )
@@ -31,28 +32,18 @@ type Permission struct {
 }
 
 // String returns the <level>.<resource_type>.<id>.<action> string formatted permission.
-// A string builder is used to be the most efficient.
 func (p Permission) String() string {
-	var s strings.Builder
-	// This could be 1 more than the actual capacity. But being 1 byte over for capacity is ok.
-	s.Grow(1 + 4 + len(p.Level) + len(p.LevelID) + len(p.ResourceType) + len(p.ResourceID) + len(p.Action))
+	sign := "-"
 	if p.Sign {
-		s.WriteRune('+')
-	} else {
-		s.WriteRune('-')
+		sign = "+"
 	}
-	s.WriteString(string(p.Level))
+	levelID := ""
 	if p.LevelID != "" {
-		s.WriteRune(':')
-		s.WriteString(p.LevelID)
+		levelID = ":" + p.LevelID
 	}
-	s.WriteRune('.')
-	s.WriteString(string(p.ResourceType))
-	s.WriteRune('.')
-	s.WriteString(p.ResourceID)
-	s.WriteRune('.')
-	s.WriteString(string(p.Action))
-	return s.String()
+
+	return fmt.Sprintf("%s%s%s.%s.%s.%s",
+		sign, p.Level, levelID, p.ResourceType, p.ResourceID, p.Action)
 }
 
 func ParsePermissions(perms string) ([]Permission, error) {
