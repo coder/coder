@@ -47,14 +47,23 @@ func New(options *Options) (http.Handler, func()) {
 
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
-		r.Use(chitrace.Middleware())
+		r.Use(
+			chitrace.Middleware(),
+			// Specific routes can specify smaller limits.
+			httpmw.RateLimitPerMinute(512),
+		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
 				Message: "👋",
 			})
 		})
 		r.Route("/files", func(r chi.Router) {
-			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				// This number is arbitrary, but reading/writing
+				// file content is expensive so it should be small.
+				httpmw.RateLimitPerMinute(12),
+			)
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
 		})

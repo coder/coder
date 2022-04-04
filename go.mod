@@ -94,6 +94,8 @@ require (
 	storj.io/drpc v0.0.30
 )
 
+require github.com/go-chi/httprate v0.5.3
+
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.0.0 // indirect
