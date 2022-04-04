@@ -28,8 +28,8 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.UpdateGitSSHKey(r.Context(), database.UpdateGitSSHKeyParams{
 		UserID:     user.ID,
 		UpdatedAt:  database.Now(),
-		PrivateKey: privateKey,
-		PublicKey:  publicKey,
+		PrivateKey: string(privateKey),
+		PublicKey:  string(publicKey),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
