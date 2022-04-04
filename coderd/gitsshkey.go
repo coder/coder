@@ -67,7 +67,7 @@ func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) privateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
+func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		agent = httpmw.WorkspaceAgent(r)
 	)
