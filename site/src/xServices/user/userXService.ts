@@ -3,7 +3,7 @@ import * as Types from "../../api/types"
 import * as API from "../../api"
 
 export interface UserContext {
-  getUserError?: Error | unknown // unknown is a concession while I work out typing issues
+  getUserError?: Error | unknown
   authError?: Error | unknown
   me?: Types.UserResponse
 }
@@ -23,7 +23,7 @@ export const userMachine =
             data: Types.UserResponse
           }
           signIn: {
-            data: Types.LoginResponse | undefined
+            data: Types.LoginResponse
           }
         },
       },
@@ -110,10 +110,8 @@ export const userMachine =
     },
     {
       services: {
-        signIn: async (_, event: UserEvent) => {
-          if (event.type === "SIGN_IN") {
-            return await API.login(event.email, event.password)
-          }
+        signIn: async (_, event) => {
+          return await API.login(event.email, event.password)
         },
         signOut: API.logout,
         getMe: API.getUser,
