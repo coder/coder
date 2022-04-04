@@ -44,7 +44,7 @@ func (s cronSchedule) Next(t time.Time) time.Time {
 	return s.sched.Next(t)
 }
 
-func Parse(spec string) (WeeklySchedule, error) {
+func Parse(spec string) (*cronSchedule, error) {
 	specSched, err := defaultParser.Parse(spec)
 	if err != nil {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
