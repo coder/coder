@@ -167,7 +167,26 @@ func permissionVariants(all authztest.SetGroup) map[string]*authztest.Role {
 			noise(an, all.Wildcard(), all.Site(), all.Org()),
 			neg(all.User()),
 		),
-		// TODO: @Emyrk the abstain sets
+		// Abstain
+		"A+": authztest.NewRole(
+			authztest.Union(
+				all.Wildcard().Abstain(),
+				all.Site().Abstain(),
+				all.Org().Abstain(),
+				all.OrgMem().Abstain(),
+				all.User().Abstain(),
+			),
+			all.User().Positive()[:1],
+		),
+		"A-": authztest.NewRole(
+			authztest.Union(
+				all.Wildcard().Abstain(),
+				all.Site().Abstain(),
+				all.Org().Abstain(),
+				all.OrgMem().Abstain(),
+				all.User().Abstain(),
+			),
+		),
 	}
 }
 

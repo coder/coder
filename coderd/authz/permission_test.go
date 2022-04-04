@@ -1,11 +1,11 @@
 package authz_test
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/coder/coder/coderd/authz"
 	crand "github.com/coder/coder/cryptorand"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_PermissionString(t *testing.T) {
