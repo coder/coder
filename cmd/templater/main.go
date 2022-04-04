@@ -20,7 +20,7 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/coder/coder/coderd/tunnel"
+	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
@@ -63,7 +63,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	if err != nil {
 		return err
 	}
-	accessURL, errCh, err := tunnel.New(cmd.Context(), srv.URL)
+	accessURL, errCh, err := devtunnel.New(cmd.Context(), serverURL)
 	if err != nil {
 		return err
 	}
