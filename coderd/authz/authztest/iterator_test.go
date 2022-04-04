@@ -11,6 +11,8 @@ import (
 )
 
 func TestUnion(t *testing.T) {
+	t.Parallel()
+
 	for i := 0; i < 100; i++ {
 		allPerms := make(authztest.Set, 0)
 		// 2 - 4 sets

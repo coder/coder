@@ -12,6 +12,8 @@ import (
 var nilSet = authztest.Set{nil}
 
 func Test_ExhaustiveAuthorize(t *testing.T) {
+	t.Parallel()
+
 	all := authztest.GroupedPermissions(authztest.AllPermissions())
 	roleVariants := permissionVariants(all)
 	res := authz.ResourceType(authztest.PermObjectType).AsID(authztest.PermObjectID)

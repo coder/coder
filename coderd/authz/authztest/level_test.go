@@ -9,6 +9,8 @@ import (
 )
 
 func Test_GroupedPermissions(t *testing.T) {
+	t.Parallel()
+
 	set := make(authztest.Set, 0)
 	var total int
 	for _, lvl := range authz.PermissionLevels {
@@ -86,5 +88,4 @@ func Test_GroupedPermissions(t *testing.T) {
 			require.Equal(t, c.ExpAbs, len(c.Lvl.Abstain()), "correct num abs")
 		})
 	}
-
 }

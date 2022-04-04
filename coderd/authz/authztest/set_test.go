@@ -10,7 +10,11 @@ import (
 )
 
 func Test_Set(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Simple", func(t *testing.T) {
+		t.Parallel()
+
 		for i := 0; i < 10; i++ {
 			set := RandomSet(i)
 			require.Equal(t, i, len(set), "set size")
@@ -23,6 +27,8 @@ func Test_Set(t *testing.T) {
 	})
 
 	t.Run("NilPerms", func(t *testing.T) {
+		t.Parallel()
+
 		for i := 0; i < 100; i++ {
 			set := RandomSet(i)
 			// Set some nils
@@ -38,6 +44,8 @@ func Test_Set(t *testing.T) {
 	})
 
 	t.Run("String", func(t *testing.T) {
+		t.Parallel()
+
 		set := authztest.Set{
 			&authz.Permission{
 				Sign:         true,
