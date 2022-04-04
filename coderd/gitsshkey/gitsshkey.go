@@ -25,7 +25,8 @@ const (
 	AlgorithmRSA4096 Algorithm = "rsa4096"
 )
 
-func GenerateKeyPair(algo Algorithm) ([]byte, []byte, error) {
+// nolint: revive
+func GenerateKeyPair(algo Algorithm) (string, string, error) {
 	switch algo {
 	case AlgorithmEd25519:
 		return ed25519KeyGen()
@@ -34,15 +35,15 @@ func GenerateKeyPair(algo Algorithm) ([]byte, []byte, error) {
 	case AlgorithmRSA4096:
 		return rsa4096KeyGen()
 	default:
-		return nil, nil, xerrors.Errorf("invalid algorithm: %s", algo)
+		return "", "", xerrors.Errorf("invalid algorithm: %s", algo)
 	}
 }
 
 // ed25519KeyGen returns an ED25519-based SSH private key.
-func ed25519KeyGen() ([]byte, []byte, error) {
-	publicKey, privateKeyRaw, err := ed25519.GenerateKey(rand.Reader)
+func ed25519KeyGen() (privateKey string, publicKey string, err error) {
+	publicKeyRaw, privateKeyRaw, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate ed25519 private key: %w", err)
+		return "", "", xerrors.Errorf("generate ed25519 private key: %w", err)
 	}
 
 	// NOTE: as of the time of writing, x/crypto/ssh is unable to marshal an ED25519 private key
@@ -50,7 +51,7 @@ func ed25519KeyGen() ([]byte, []byte, error) {
 	// Until this support is added, using a third-party implementation.
 	byt, err := MarshalED25519PrivateKey(privateKeyRaw)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("marshal ed25519 private key: %w", err)
+		return "", "", xerrors.Errorf("marshal ed25519 private key: %w", err)
 	}
 
 	pb := pem.Block{
@@ -58,25 +59,26 @@ func ed25519KeyGen() ([]byte, []byte, error) {
 		Headers: nil,
 		Bytes:   byt,
 	}
-	privateKey := pem.EncodeToMemory(&pb)
+	privateKey = string(pem.EncodeToMemory(&pb))
+	publicKey = string(publicKeyRaw)
 
 	return privateKey, publicKey, nil
 }
 
 // ecdsaKeyGen returns an ECDSA-based SSH private key.
-func ecdsaKeyGen() ([]byte, []byte, error) {
+func ecdsaKeyGen() (privateKey string, publicKey string, err error) {
 	privateKeyRaw, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate ecdsa private key: %w", err)
+		return "", "", xerrors.Errorf("generate ecdsa private key: %w", err)
 	}
-	publicKey, err := x509.MarshalPKIXPublicKey(privateKeyRaw.PublicKey)
+	publicKeyRaw, err := x509.MarshalPKIXPublicKey(privateKeyRaw.PublicKey)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate ecdsa public key: %w", err)
+		return "", "", xerrors.Errorf("generate ecdsa public key: %w", err)
 	}
 
 	byt, err := x509.MarshalECPrivateKey(privateKeyRaw)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("marshal private key: %w", err)
+		return "", "", xerrors.Errorf("marshal private key: %w", err)
 	}
 
 	pb := pem.Block{
@@ -84,7 +86,8 @@ func ecdsaKeyGen() ([]byte, []byte, error) {
 		Headers: nil,
 		Bytes:   byt,
 	}
-	privateKey := pem.EncodeToMemory(&pb)
+	privateKey = string(pem.EncodeToMemory(&pb))
+	publicKey = string(publicKeyRaw)
 
 	return privateKey, publicKey, nil
 }
@@ -92,21 +95,22 @@ func ecdsaKeyGen() ([]byte, []byte, error) {
 // rsaKeyGen returns an RSA-based SSH private key of size 4096.
 //
 // Administrators may configure this for SSH key compatibility with Azure DevOps.
-func rsa4096KeyGen() ([]byte, []byte, error) {
+func rsa4096KeyGen() (privateKey string, publicKey string, err error) {
 	privateKeyRaw, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate RSA4096 private key: %w", err)
+		return "", "", xerrors.Errorf("generate RSA4096 private key: %w", err)
 	}
-	publicKey, err := x509.MarshalPKIXPublicKey(privateKeyRaw.PublicKey)
+	publicKeyRaw, err := x509.MarshalPKIXPublicKey(privateKeyRaw.PublicKey)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("generate RSA4096 public key: %w", err)
+		return "", "", xerrors.Errorf("generate RSA4096 public key: %w", err)
 	}
 
 	pb := pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKeyRaw),
 	}
-	privateKey := pem.EncodeToMemory(&pb)
+	privateKey = string(pem.EncodeToMemory(&pb))
+	publicKey = string(publicKeyRaw)
 
 	return privateKey, publicKey, nil
 }
@@ -125,5 +129,5 @@ func ParseSSHKeygenAlgorithm(t string) (Algorithm, error) {
 		}
 	}
 
-	return "", xerrors.Errorf(`invalid key type: %s, must be one of: %s`, t, strings.Join([]string(ok), ","))
+	return "", xerrors.Errorf(`invalid key type: %s, must be one of: %s`, t, strings.Join(ok, ","))
 }

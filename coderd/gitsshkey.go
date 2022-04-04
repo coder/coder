@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -28,8 +29,8 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.UpdateGitSSHKey(r.Context(), database.UpdateGitSSHKeyParams{
 		UserID:     user.ID,
 		UpdatedAt:  database.Now(),
-		PrivateKey: string(privateKey),
-		PublicKey:  string(publicKey),
+		PrivateKey: privateKey,
+		PublicKey:  publicKey,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -67,5 +68,48 @@ func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) privateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
-	// connect agent to workspace to user to gitsshkey
+	var (
+		agent = httpmw.WorkspaceAgent(r)
+	)
+
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting workspace resources: %s", err),
+		})
+		return
+	}
+
+	job, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting workspace build: %s", err),
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), job.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting workspace: %s", err),
+		})
+		return
+	}
+
+	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting git ssh key: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, codersdk.AgentGitSSHKey{
+		UserID:     gitSSHKey.UserID,
+		CreatedAt:  gitSSHKey.CreatedAt,
+		UpdatedAt:  gitSSHKey.UpdatedAt,
+		PrivateKey: gitSSHKey.PrivateKey,
+		PublicKey:  gitSSHKey.PublicKey,
+	})
 }

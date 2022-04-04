@@ -256,7 +256,7 @@ type File struct {
 }
 
 type GitSshKey struct {
-	UserID     string    `db:"user_id" json:"user_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 	PrivateKey string    `db:"private_key" json:"private_key"`
