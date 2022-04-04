@@ -1,12 +1,13 @@
 CREATE TABLE IF NOT EXISTS provisioner_daemons (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz,
-    organization_id text,
+    organization_id uuid,
     -- Name is generated for ease of differentiation.
     -- eg. WowBananas16
     name varchar(64) NOT NULL UNIQUE,
-    provisioners provisioner_type [ ] NOT NULL
+    provisioners provisioner_type [ ] NOT NULL,
+    PRIMARY KEY (id)
 );
 
 CREATE TYPE provisioner_job_type AS ENUM (
@@ -17,21 +18,23 @@ CREATE TYPE provisioner_job_type AS ENUM (
 CREATE TYPE provisioner_storage_method AS ENUM ('file');
 
 CREATE TABLE IF NOT EXISTS provisioner_jobs (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     started_at timestamptz,
     canceled_at timestamptz,
     completed_at timestamptz,
     error text,
-    organization_id text NOT NULL,
-    initiator_id text NOT NULL,
+    organization_id uuid NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
+    -- foreign key?
+    initiator_id uuid NOT NULL,
     provisioner provisioner_type NOT NULL,
     storage_method provisioner_storage_method NOT NULL,
     storage_source text NOT NULL,
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
-    worker_id uuid
+    worker_id uuid,
+    PRIMARY KEY (id)
 );
 
 CREATE TYPE log_level AS ENUM (
@@ -48,28 +51,30 @@ CREATE TYPE log_source AS ENUM (
 );
 
 CREATE TABLE IF NOT EXISTS provisioner_job_logs (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     job_id uuid NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL,
     source log_source NOT NULL,
     level log_level NOT NULL,
     stage varchar(128) NOT NULL,
-    output varchar(1024) NOT NULL
+    output varchar(1024) NOT NULL,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE workspace_resources (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     job_id uuid NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
     transition workspace_transition NOT NULL,
     address varchar(256) NOT NULL,
     type varchar(192) NOT NULL,
     name varchar(64) NOT NULL,
-    agent_id uuid
+    agent_id uuid,
+    PRIMARY KEY (id)
 );
 
 CREATE TABLE workspace_agents (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     first_connected_at timestamptz,
@@ -81,7 +86,8 @@ CREATE TABLE workspace_agents (
     environment_variables jsonb,
     startup_script varchar(65534),
     instance_metadata jsonb,
-    resource_metadata jsonb
+    resource_metadata jsonb,
+    PRIMARY KEY (id)
 );
 
 CREATE TYPE parameter_scope AS ENUM (
@@ -111,7 +117,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable',
 -- a UI for users to enter values.
 -- Needs to be made consistent with the examples below.
 CREATE TABLE parameter_schemas (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     job_id uuid NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
@@ -131,26 +137,28 @@ CREATE TABLE parameter_schemas (
     validation_condition varchar(512) NOT NULL,
     validation_type_system parameter_type_system NOT NULL,
     validation_value_type varchar(64) NOT NULL,
+    PRIMARY KEY (id),
     UNIQUE(job_id, name)
 );
 
 -- Parameters are provided to jobs for provisioning and to workspaces.
 CREATE TABLE parameter_values (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     scope parameter_scope NOT NULL,
-    scope_id text NOT NULL,
+    scope_id uuid NOT NULL,
     name varchar(64) NOT NULL,
     source_scheme parameter_source_scheme NOT NULL,
     source_value text NOT NULL,
     destination_scheme parameter_destination_scheme NOT NULL,
+    PRIMARY KEY (id),
     -- Prevents duplicates for parameters in the same scope.
     UNIQUE(scope_id, name)
 );
 
 CREATE TABLE workspace_builds (
-    id uuid NOT NULL UNIQUE,
+    id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE CASCADE,
@@ -159,10 +167,11 @@ CREATE TABLE workspace_builds (
     before_id uuid,
     after_id uuid,
     transition workspace_transition NOT NULL,
-    initiator varchar(255) NOT NULL,
+    initiator_id uuid NOT NULL,
     -- State stored by the provisioner
     provisioner_state bytea,
     -- Job ID of the action
     job_id uuid NOT NULL UNIQUE REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
+    PRIMARY KEY (id),
     UNIQUE(workspace_id, name)
 );

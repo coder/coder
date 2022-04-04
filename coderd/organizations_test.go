@@ -19,7 +19,7 @@ func TestProvisionerDaemonsByOrganization(t *testing.T) {
 	t.Run("NoAuth", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_, err := client.ProvisionerDaemonsByOrganization(context.Background(), "someorg")
+		_, err := client.ProvisionerDaemonsByOrganization(context.Background(), uuid.New())
 		require.Error(t, err)
 	})
 

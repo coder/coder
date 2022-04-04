@@ -32,8 +32,8 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			Name:  httpmw.AuthCookie,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
-		userID, err := cryptorand.String(16)
-		require.NoError(t, err)
+
+		userID := uuid.New()
 		username, err := cryptorand.String(8)
 		require.NoError(t, err)
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
@@ -47,6 +47,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
+
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			UserID:       user.ID,
@@ -55,6 +56,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			ExpiresAt:    database.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
+
 		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
 			ID:        uuid.New(),
 			ProjectID: uuid.New(),
@@ -64,7 +66,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := chi.NewRouteContext()
-		ctx.URLParams.Add("user", userID)
+		ctx.URLParams.Add("user", userID.String())
 		ctx.URLParams.Add("workspace", workspace.Name)
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
 		return r, workspace

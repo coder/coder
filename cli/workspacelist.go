@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func workspaceList() *cobra.Command {
@@ -21,7 +22,7 @@ func workspaceList() *cobra.Command {
 				return err
 			}
 			start := time.Now()
-			workspaces, err := client.WorkspacesByUser(cmd.Context(), "")
+			workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return err
 			}

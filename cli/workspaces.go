@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func workspaces() *cobra.Command {
@@ -29,7 +31,7 @@ func validArgsWorkspaceName(cmd *cobra.Command, _ []string, toComplete string) (
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
-	workspaces, err := client.WorkspacesByUser(cmd.Context(), "")
+	workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}

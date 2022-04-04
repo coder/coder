@@ -32,8 +32,8 @@ func TestProjectVersionParam(t *testing.T) {
 			Name:  httpmw.AuthCookie,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
-		userID, err := cryptorand.String(16)
-		require.NoError(t, err)
+
+		userID := uuid.New()
 		username, err := cryptorand.String(8)
 		require.NoError(t, err)
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
@@ -47,6 +47,7 @@ func TestProjectVersionParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
+
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			UserID:       user.ID,
@@ -55,8 +56,8 @@ func TestProjectVersionParam(t *testing.T) {
 			ExpiresAt:    database.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
-		orgID, err := cryptorand.String(16)
-		require.NoError(t, err)
+
+		orgID := uuid.New()
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:          orgID,
 			Name:        "banana",
@@ -65,6 +66,7 @@ func TestProjectVersionParam(t *testing.T) {
 			UpdatedAt:   database.Now(),
 		})
 		require.NoError(t, err)
+
 		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
 			OrganizationID: orgID,
 			UserID:         user.ID,
@@ -72,6 +74,7 @@ func TestProjectVersionParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
+
 		project, err := db.InsertProject(context.Background(), database.InsertProjectParams{
 			ID:             uuid.New(),
 			OrganizationID: organization.ID,

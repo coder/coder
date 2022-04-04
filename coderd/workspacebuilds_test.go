@@ -22,7 +22,7 @@ func TestWorkspaceBuild(t *testing.T) {
 	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, "me", project.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 	_, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 	require.NoError(t, err)
 }
@@ -43,7 +43,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	})
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 	var build codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
@@ -72,7 +72,7 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		closeDaemon.Close()
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		_, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -105,7 +105,7 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		})
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	})
 	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)

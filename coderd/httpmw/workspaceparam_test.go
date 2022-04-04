@@ -32,8 +32,8 @@ func TestWorkspaceParam(t *testing.T) {
 			Name:  httpmw.AuthCookie,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
-		userID, err := cryptorand.String(16)
-		require.NoError(t, err)
+
+		userID := uuid.New()
 		username, err := cryptorand.String(8)
 		require.NoError(t, err)
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
@@ -47,6 +47,7 @@ func TestWorkspaceParam(t *testing.T) {
 			UpdatedAt:      database.Now(),
 		})
 		require.NoError(t, err)
+
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			UserID:       user.ID,
@@ -105,7 +106,7 @@ func TestWorkspaceParam(t *testing.T) {
 		r, _ := setup(db)
 		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
 			ID:      uuid.New(),
-			OwnerID: "not-me",
+			OwnerID: uuid.New(),
 			Name:    "hello",
 		})
 		require.NoError(t, err)

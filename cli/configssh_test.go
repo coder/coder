@@ -4,10 +4,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConfigSSH(t *testing.T) {
@@ -20,7 +22,7 @@ func TestConfigSSH(t *testing.T) {
 		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
 		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, "", project.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		tempFile, err := os.CreateTemp(t.TempDir(), "")
 		require.NoError(t, err)

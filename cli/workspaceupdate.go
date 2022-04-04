@@ -17,7 +17,7 @@ func workspaceUpdate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := client.WorkspaceByName(cmd.Context(), "", args[0])
+			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}

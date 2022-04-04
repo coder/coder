@@ -14,8 +14,8 @@ import (
 // ComputeScope targets identifiers to pull parameters from.
 type ComputeScope struct {
 	ProjectImportJobID uuid.UUID
-	OrganizationID     string
-	UserID             string
+	OrganizationID     uuid.UUID
+	UserID             uuid.UUID
 	ProjectID          uuid.NullUUID
 	WorkspaceID        uuid.NullUUID
 }
@@ -71,7 +71,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	// Job parameters come second!
 	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeImportJob,
-		ScopeID: scope.ProjectImportJobID.String(),
+		ScopeID: scope.ProjectImportJobID,
 	})
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				SourceValue:       parameterSchema.DefaultSourceValue,
 				Scope:             database.ParameterScopeImportJob,
-				ScopeID:           scope.ProjectImportJobID.String(),
+				ScopeID:           scope.ProjectImportJobID,
 			}, true)
 			if err != nil {
 				return nil, xerrors.Errorf("insert default value: %w", err)
@@ -115,7 +115,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		// Project parameters come third!
 		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 			Scope:   database.ParameterScopeProject,
-			ScopeID: scope.ProjectID.UUID.String(),
+			ScopeID: scope.ProjectID.UUID,
 		})
 		if err != nil {
 			return nil, err
@@ -135,7 +135,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		// Workspace parameters come last!
 		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 			Scope:   database.ParameterScopeWorkspace,
-			ScopeID: scope.WorkspaceID.UUID.String(),
+			ScopeID: scope.WorkspaceID.UUID,
 		})
 		if err != nil {
 			return nil, err

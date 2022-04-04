@@ -108,7 +108,7 @@ func (api *api) workspaceResourceDial(rw http.ResponseWriter, r *http.Request) {
 		Pubsub:    api.Pubsub,
 	})
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, fmt.Sprintf("serve: %s", err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}
 }

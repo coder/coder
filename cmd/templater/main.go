@@ -99,10 +99,10 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	defer daemonClose.Close()
 
 	created, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-		Email:        "templater@coder.com",
-		Username:     "templater",
-		Organization: "templater",
-		Password:     "insecure",
+		Email:            "templater@coder.com",
+		Username:         "templater",
+		OrganizationName: "templater",
+		Password:         "insecure",
 	})
 	if err != nil {
 		return err

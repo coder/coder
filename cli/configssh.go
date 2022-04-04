@@ -52,7 +52,7 @@ func configSSH() *cobra.Command {
 				sshConfigContent = sshConfigContent[:startIndex-1] + sshConfigContent[endIndex+len(sshEndToken):]
 			}
 
-			workspaces, err := client.WorkspacesByUser(cmd.Context(), "")
+			workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return err
 			}

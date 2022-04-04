@@ -19,14 +19,17 @@ func main() {
 		panic(err)
 	}
 	defer closeFn()
+
 	db, err := sql.Open("postgres", connection)
 	if err != nil {
 		panic(err)
 	}
+
 	err = database.MigrateUp(db)
 	if err != nil {
 		panic(err)
 	}
+
 	cmd := exec.Command(
 		"pg_dump",
 		"--schema-only",
@@ -39,10 +42,11 @@ func main() {
 		// queries executing against this table.
 		"--exclude-table=schema_migrations",
 	)
-	cmd.Env = []string{
+
+	cmd.Env = append(os.Environ(), []string{
 		"PGTZ=UTC",
 		"PGCLIENTENCODING=UTF8",
-	}
+	}...)
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = os.Stderr
@@ -57,7 +61,7 @@ func main() {
 		// Public is implicit in the schema.
 		"s/ public\\./ /",
 		// Remove database settings.
-		"s/SET.*;//g",
+		"s/SET .* = .*;//g",
 		// Remove select statements. These aren't useful
 		// to a reader of the dump.
 		"s/SELECT.*;//g",

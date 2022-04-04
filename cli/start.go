@@ -255,7 +255,7 @@ func start() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+cliui.Styles.Bold.Render("Interrupt caught. Gracefully exiting..."))
 
 			if dev {
-				workspaces, err := client.WorkspacesByUser(cmd.Context(), "")
+				workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("get workspaces: %w", err)
 				}
@@ -343,10 +343,10 @@ func start() *cobra.Command {
 
 func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root) error {
 	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-		Email:        "admin@coder.com",
-		Username:     "developer",
-		Password:     "password",
-		Organization: "acme-corp",
+		Email:            "admin@coder.com",
+		Username:         "developer",
+		Password:         "password",
+		OrganizationName: "acme-corp",
 	})
 	if err != nil {
 		return xerrors.Errorf("create first user: %w", err)

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -20,42 +21,45 @@ func parameters() *cobra.Command {
 	return cmd
 }
 
-func parseScopeAndID(ctx context.Context, client *codersdk.Client, organization codersdk.Organization, rawScope string, name string) (codersdk.ParameterScope, string, error) {
+func parseScopeAndID(ctx context.Context, client *codersdk.Client, organization codersdk.Organization, rawScope string, name string) (codersdk.ParameterScope, uuid.UUID, error) {
 	scope, err := parseParameterScope(rawScope)
 	if err != nil {
-		return scope, "", err
+		return scope, uuid.Nil, err
 	}
-	var scopeID string
+
+	var scopeID uuid.UUID
 	switch scope {
 	case codersdk.ParameterOrganization:
 		if name == "" {
 			scopeID = organization.ID
 		} else {
-			org, err := client.OrganizationByName(ctx, "", name)
+			org, err := client.OrganizationByName(ctx, codersdk.Me, name)
 			if err != nil {
-				return scope, "", err
+				return scope, uuid.Nil, err
 			}
 			scopeID = org.ID
 		}
 	case codersdk.ParameterProject:
 		project, err := client.ProjectByName(ctx, organization.ID, name)
 		if err != nil {
-			return scope, "", err
+			return scope, uuid.Nil, err
 		}
-		scopeID = project.ID.String()
+		scopeID = project.ID
 	case codersdk.ParameterUser:
-		user, err := client.User(ctx, name)
+		uid, _ := uuid.Parse(name)
+		user, err := client.User(ctx, uid)
 		if err != nil {
-			return scope, "", err
+			return scope, uuid.Nil, err
 		}
 		scopeID = user.ID
 	case codersdk.ParameterWorkspace:
-		workspace, err := client.WorkspaceByName(ctx, "", name)
+		workspace, err := client.WorkspaceByName(ctx, codersdk.Me, name)
 		if err != nil {
-			return scope, "", err
+			return scope, uuid.Nil, err
 		}
-		scopeID = workspace.ID.String()
+		scopeID = workspace.ID
 	}
+
 	return scope, scopeID, nil
 }
 
