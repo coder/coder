@@ -1,7 +1,19 @@
 import React from "react"
 import ReactDOM from "react-dom"
-
+import { inspect } from "@xstate/inspect"
+import { Interpreter } from "xstate"
 import { App } from "./app"
+
+// if this is a development build and the developer wants to inspect
+if (process.env.NODE_ENV === "development" && process.env.INSPECT_XSTATE === "true") {
+  // configure the XState inspector to open in a new tab
+  inspect({
+    url: "https://stately.ai/viz?inspect",
+    iframe: false,
+  })
+  // configure all XServices to use the inspector
+  Interpreter.defaultOptions.devTools = true
+}
 
 // This is the entry point for the app - where everything start.
 // In the future, we'll likely bring in more bootstrapping logic -

@@ -18,7 +18,7 @@ interface XServiceContextType {
 export const XServiceContext = createContext({} as XServiceContextType)
 
 export const XServiceProvider: React.FC = ({ children }) => {
-  const userXService = useInterpret(userMachine, { devTools: true })
+  const userXService = useInterpret(userMachine)
 
   return <XServiceContext.Provider value={{ userXService }}>{children}</XServiceContext.Provider>
 }
