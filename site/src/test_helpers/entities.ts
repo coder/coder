@@ -1,4 +1,4 @@
-import { Provisioner, Organization, Project, Workspace, UserResponse, UserAgent } from "../api/types"
+import { Organization, Project, Provisioner, UserAgent, UserResponse, Workspace } from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 

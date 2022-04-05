@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
-import { render } from "./../../test_helpers"
 import React from "react"
-import { Table, Column } from "./Table"
+import { render } from "./../../test_helpers"
+import { Column, Table } from "./Table"
 
 interface TestData {
   name: string

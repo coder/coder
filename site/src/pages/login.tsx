@@ -1,10 +1,10 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
-import { SignInForm } from "./../components/SignIn"
 import { Navigate, useLocation } from "react-router-dom"
-import { XServiceContext } from "../xServices/StateContext"
 import { retrieveRedirect } from "../util/redirect"
+import { XServiceContext } from "../xServices/StateContext"
+import { SignInForm } from "./../components/SignIn"
 
 export const useStyles = makeStyles((theme) => ({
   root: {

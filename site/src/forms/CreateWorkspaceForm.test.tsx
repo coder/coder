@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import React from "react"
-import { CreateWorkspaceForm } from "./CreateWorkspaceForm"
 import { MockProject, MockWorkspace } from "./../test_helpers"
+import { CreateWorkspaceForm } from "./CreateWorkspaceForm"
 
 describe("CreateWorkspaceForm", () => {
   it("renders", async () => {

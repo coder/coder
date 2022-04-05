@@ -7,12 +7,11 @@ import { fade, makeStyles } from "@material-ui/core/styles"
 import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
 import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
 import React, { useState } from "react"
-import { LogoutIcon } from "../Icons"
-import { BorderedMenu } from "./BorderedMenu"
-import { UserProfileCard } from "../User/UserProfileCard"
-
-import { UserAvatar } from "../User"
 import { UserResponse } from "../../api/types"
+import { LogoutIcon } from "../Icons"
+import { UserAvatar } from "../User"
+import { UserProfileCard } from "../User/UserProfileCard"
+import { BorderedMenu } from "./BorderedMenu"
 
 export interface UserDropdownProps {
   user: UserResponse

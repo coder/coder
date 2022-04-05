@@ -1,6 +1,6 @@
 import React from "react"
-import { Routes, Route } from "react-router-dom"
-import { RequireAuth, AuthAndNav } from "./components"
+import { Route, Routes } from "react-router-dom"
+import { AuthAndNav, RequireAuth } from "./components"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404"
 import { CliAuthenticationPage } from "./pages/cli-auth"

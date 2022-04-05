@@ -3,17 +3,16 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-
+import { CreateProjectRequest, Organization, Project, Provisioner } from "../api/types"
+import { LoadingButton } from "../components/Button"
 import {
   DropdownItem,
+  FormCloseButton,
   FormDropdownField,
+  FormSection,
   FormTextField,
   FormTitle,
-  FormSection,
-  FormCloseButton,
 } from "../components/Form"
-import { LoadingButton } from "../components/Button"
-import { Organization, Project, Provisioner, CreateProjectRequest } from "../api/types"
 
 export interface CreateProjectFormProps {
   provisioners: Provisioner[]

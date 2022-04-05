@@ -1,7 +1,7 @@
-import React from "react"
+import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
-import { makeStyles } from "@material-ui/core/styles"
+import React from "react"
 
 export interface TableHeadersProps {
   columns: string[]

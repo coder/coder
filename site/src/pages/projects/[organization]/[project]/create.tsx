@@ -1,10 +1,9 @@
-import React, { useCallback } from "react"
 import { makeStyles } from "@material-ui/core/styles"
+import React, { useCallback } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
-
-import * as Types from "../../../../api/types"
 import * as API from "../../../../api"
+import * as Types from "../../../../api/types"
 import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
