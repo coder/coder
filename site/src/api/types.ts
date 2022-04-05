@@ -66,3 +66,10 @@ export interface UserAgent {
   readonly ip_address: string
   readonly os: string
 }
+
+/**
+ * `BuildInfoResponse` must be kept in sync with the go struct in buildinfo.go.
+ */
+export interface BuildInfoResponse {
+  version: string
+}
