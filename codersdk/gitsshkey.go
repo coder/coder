@@ -43,7 +43,7 @@ func (c *Client) GitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, er
 }
 
 func (c *Client) RegenerateGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userID.String()), nil)
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userID.String()), nil)
 	if err != nil {
 		return xerrors.Errorf("execute request: %w", err)
 	}

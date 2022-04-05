@@ -140,7 +140,7 @@ func New(options *Options) (http.Handler, func()) {
 						r.Get("/{workspacename}", api.workspaceByUserAndName)
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
-					r.Post("/gitsshkey", api.regenerateGitSSHKey)
+					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 				})
 			})
 		})
