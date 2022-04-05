@@ -23,7 +23,7 @@ func TestGitSSHKey(t *testing.T) {
 		res := coderdtest.CreateFirstUser(t, client)
 		key, err := client.GitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
-		require.Empty(t, key.PublicKey)
+		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("Ed25519", func(t *testing.T) {
 		t.Parallel()

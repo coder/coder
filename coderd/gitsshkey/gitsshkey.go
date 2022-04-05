@@ -25,12 +25,11 @@ const (
 	// AlgorithmRSA4096 is the venerable Rivest-Shamir-Adleman algorithm
 	// and creates a key with a fixed size of 4096-bit.
 	AlgorithmRSA4096 Algorithm = "rsa4096"
-	// AlgorithmNone will return empty keys.
-	AlgorithmNone Algorithm = "none"
 )
 
-// nolint: revive
-func GenerateKeyPair(algo Algorithm) (string, string, error) {
+// GenerateKeyPair creates a private key in the OpenSSH PEM format and public key in
+// the authorized key format.
+func GenerateKeyPair(algo Algorithm) (privateKey string, publicKey string, err error) {
 	switch algo {
 	case AlgorithmEd25519:
 		return ed25519KeyGen()
@@ -38,8 +37,6 @@ func GenerateKeyPair(algo Algorithm) (string, string, error) {
 		return ecdsaKeyGen()
 	case AlgorithmRSA4096:
 		return rsa4096KeyGen()
-	case AlgorithmNone:
-		return "", "", nil
 	default:
 		return "", "", xerrors.Errorf("invalid algorithm: %s", algo)
 	}
@@ -118,11 +115,10 @@ func ParseSSHKeygenAlgorithm(t string) (Algorithm, error) {
 		string(AlgorithmEd25519),
 		string(AlgorithmECDSA),
 		string(AlgorithmRSA4096),
-		string(AlgorithmNone),
 	}
 
 	for _, a := range ok {
-		if t == a {
+		if strings.EqualFold(a, t) {
 			return Algorithm(a), nil
 		}
 	}

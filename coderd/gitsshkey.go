@@ -34,13 +34,26 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Could not update git ssh key.",
+			Message: "Could not update git SSH key.",
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, httpapi.Response{
-		Message: "Updated git ssh key!",
+	newKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "Could not update git SSH key.",
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, codersdk.GitSSHKey{
+		UserID:    newKey.UserID,
+		CreatedAt: newKey.CreatedAt,
+		UpdatedAt: newKey.UpdatedAt,
+		// No need to return the private key to the user
+		PublicKey: newKey.PublicKey,
 	})
 }
 
@@ -52,7 +65,7 @@ func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: "Could not update git ssh key.",
+			Message: "Could not update git SSH key.",
 		})
 		return
 	}
@@ -99,7 +112,7 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("getting git ssh key: %s", err),
+			Message: fmt.Sprintf("getting git SSH key: %s", err),
 		})
 		return
 	}

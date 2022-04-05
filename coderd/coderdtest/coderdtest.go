@@ -101,9 +101,9 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	require.NoError(t, err)
 	var closeWait func()
 
-	// Default to none so we don't burn a ton of CPU in tests
+	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
-		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmNone
+		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
 	// We set the handler after server creation for the access URL.

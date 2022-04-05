@@ -22,13 +22,6 @@ func TestGitSSHKeys(t *testing.T) {
 		require.Equal(t, publicKey, public)
 	}
 
-	t.Run("None", func(t *testing.T) {
-		t.Parallel()
-		pv, pb, err := gitsshkey.GenerateKeyPair(gitsshkey.AlgorithmNone)
-		require.NoError(t, err)
-		require.Empty(t, pv)
-		require.Empty(t, pb)
-	})
 	t.Run("Ed25519", func(t *testing.T) {
 		t.Parallel()
 		pv, pb, err := gitsshkey.GenerateKeyPair(gitsshkey.AlgorithmEd25519)
@@ -49,9 +42,7 @@ func TestGitSSHKeys(t *testing.T) {
 	})
 	t.Run("ParseAlgorithm", func(t *testing.T) {
 		t.Parallel()
-		_, err := gitsshkey.ParseSSHKeygenAlgorithm(string(gitsshkey.AlgorithmNone))
-		require.NoError(t, err)
-		_, err = gitsshkey.ParseSSHKeygenAlgorithm(string(gitsshkey.AlgorithmEd25519))
+		_, err := gitsshkey.ParseSSHKeygenAlgorithm(string(gitsshkey.AlgorithmEd25519))
 		require.NoError(t, err)
 		_, err = gitsshkey.ParseSSHKeygenAlgorithm(string(gitsshkey.AlgorithmECDSA))
 		require.NoError(t, err)
