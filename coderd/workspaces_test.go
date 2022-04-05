@@ -187,6 +187,7 @@ func TestWorkspaceBuildByName(t *testing.T) {
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {
+	t.Parallel()
 	var dublinLoc = mustLocation(t, "Europe/Dublin")
 
 	testCases := []struct {
@@ -251,6 +252,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 			var (
 				ctx       = context.Background()
 				client    = coderdtest.New(t, nil)

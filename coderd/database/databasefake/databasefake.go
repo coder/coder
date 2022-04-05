@@ -1210,7 +1210,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1226,7 +1226,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg database
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAutostop(ctx context.Context, arg database.UpdateWorkspaceAutostopParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.UpdateWorkspaceAutostopParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

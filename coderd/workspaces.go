@@ -321,8 +321,6 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	return
 }
 
 // TODO(cian): api.updateWorkspaceAutostop
