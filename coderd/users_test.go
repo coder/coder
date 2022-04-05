@@ -310,13 +310,13 @@ func TestPostAPIKey(t *testing.T) {
 
 func TestPostWorkspacesByUser(t *testing.T) {
 	t.Parallel()
-	t.Run("InvalidProject", func(t *testing.T) {
+	t.Run("InvalidTemplate", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		_, err := client.CreateWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{
-			ProjectID: uuid.New(),
-			Name:      "workspace",
+			TemplateID: uuid.New(),
+			Name:       "workspace",
 		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -324,7 +324,7 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("NoProjectAccess", func(t *testing.T) {
+	t.Run("NoTemplateAccess", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
@@ -334,12 +334,12 @@ func TestPostWorkspacesByUser(t *testing.T) {
 			Name: "another",
 		})
 		require.NoError(t, err)
-		version := coderdtest.CreateProjectVersion(t, other, org.ID, nil)
-		project := coderdtest.CreateProject(t, other, org.ID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, other, org.ID, nil)
+		template := coderdtest.CreateTemplate(t, other, org.ID, version.ID)
 
 		_, err = client.CreateWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{
-			ProjectID: project.ID,
-			Name:      "workspace",
+			TemplateID: template.ID,
+			Name:       "workspace",
 		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -352,13 +352,13 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		_, err := client.CreateWorkspace(context.Background(), codersdk.Me, codersdk.CreateWorkspaceRequest{
-			ProjectID: project.ID,
-			Name:      workspace.Name,
+			TemplateID: template.ID,
+			Name:       workspace.Name,
 		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -371,10 +371,10 @@ func TestPostWorkspacesByUser(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		_ = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 	})
 }
 
@@ -392,10 +392,10 @@ func TestWorkspacesByUser(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		_ = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_ = coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		workspaces, err := client.WorkspacesByUser(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
@@ -418,10 +418,10 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		_, err := client.WorkspaceByName(context.Background(), codersdk.Me, workspace.Name)
 		require.NoError(t, err)
 	})

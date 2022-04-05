@@ -88,7 +88,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 			rw.WriteHeader(http.StatusOK)
 		})
 
-		r, job := setup(db, database.ProvisionerJobTypeProjectVersionImport)
+		r, job := setup(db, database.ProvisionerJobTypeTemplateVersionImport)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", job.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)

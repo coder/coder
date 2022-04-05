@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS provisioner_daemons (
 );
 
 CREATE TYPE provisioner_job_type AS ENUM (
-    'project_version_import',
+    'template_version_import',
     'workspace_build'
 );
 
@@ -92,7 +92,7 @@ CREATE TABLE workspace_agents (
 
 CREATE TYPE parameter_scope AS ENUM (
      'organization',
-     'project',
+     'template',
      'import_job',
      'user',
      'workspace'
@@ -107,7 +107,7 @@ CREATE TYPE parameter_source_scheme AS ENUM('none', 'data');
 -- Supported schemes for a parameter destination.
 CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable', 'provisioner_variable');
 
--- Stores project version parameters parsed on import.
+-- Stores template version parameters parsed on import.
 -- No secrets are stored here.
 -- 
 -- All parameter validation occurs server-side to process
@@ -162,7 +162,7 @@ CREATE TABLE workspace_builds (
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE CASCADE,
-    project_version_id uuid NOT NULL REFERENCES project_versions (id) ON DELETE CASCADE,
+    template_version_id uuid NOT NULL REFERENCES template_versions (id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
     before_id uuid,
     after_id uuid,

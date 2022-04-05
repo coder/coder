@@ -17,7 +17,7 @@ type ParameterScope string
 
 const (
 	ParameterOrganization ParameterScope = "organization"
-	ParameterProject      ParameterScope = "project"
+	ParameterTemplate     ParameterScope = "template"
 	ParameterUser         ParameterScope = "user"
 	ParameterWorkspace    ParameterScope = "workspace"
 )

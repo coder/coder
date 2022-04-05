@@ -17,9 +17,9 @@ func TestCompute(t *testing.T) {
 	t.Parallel()
 	generateScope := func() parameter.ComputeScope {
 		return parameter.ComputeScope{
-			ProjectImportJobID: uuid.New(),
-			OrganizationID:     uuid.New(),
-			ProjectID: uuid.NullUUID{
+			TemplateImportJobID: uuid.New(),
+			OrganizationID:      uuid.New(),
+			TemplateID: uuid.NullUUID{
 				UUID:  uuid.New(),
 				Valid: true,
 			},
@@ -34,7 +34,7 @@ func TestCompute(t *testing.T) {
 		AllowOverrideSource      bool
 		AllowOverrideDestination bool
 		DefaultDestinationScheme database.ParameterDestinationScheme
-		ProjectImportJobID       uuid.UUID
+		TemplateImportJobID      uuid.UUID
 	}
 	generateParameter := func(t *testing.T, db database.Store, opts parameterOptions) database.ParameterSchema {
 		if opts.DefaultDestinationScheme == "" {
@@ -47,7 +47,7 @@ func TestCompute(t *testing.T) {
 		param, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
 			ID:                       uuid.New(),
 			Name:                     name,
-			JobID:                    opts.ProjectImportJobID,
+			JobID:                    opts.TemplateImportJobID,
 			DefaultSourceScheme:      database.ParameterSourceSchemeData,
 			DefaultSourceValue:       sourceValue,
 			AllowOverrideSource:      opts.AllowOverrideSource,
@@ -64,7 +64,7 @@ func TestCompute(t *testing.T) {
 		scope := generateScope()
 		_, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
 			ID:                  uuid.New(),
-			JobID:               scope.ProjectImportJobID,
+			JobID:               scope.TemplateImportJobID,
 			Name:                "hey",
 			DefaultSourceScheme: database.ParameterSourceSchemeNone,
 		})
@@ -74,12 +74,12 @@ func TestCompute(t *testing.T) {
 		require.Len(t, computed, 0)
 	})
 
-	t.Run("UseDefaultProjectValue", func(t *testing.T) {
+	t.Run("UseDefaultTemplateValue", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID:       scope.ProjectImportJobID,
+			TemplateImportJobID:      scope.TemplateImportJobID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
 		computed, err := parameter.Compute(context.Background(), db, scope, nil)
@@ -88,7 +88,7 @@ func TestCompute(t *testing.T) {
 		computedValue := computed[0]
 		require.True(t, computedValue.DefaultSourceValue)
 		require.Equal(t, database.ParameterScopeImportJob, computedValue.Scope)
-		require.Equal(t, scope.ProjectImportJobID, computedValue.ScopeID)
+		require.Equal(t, scope.TemplateImportJobID, computedValue.ScopeID)
 		require.Equal(t, computedValue.SourceValue, parameterSchema.DefaultSourceValue)
 	})
 
@@ -97,7 +97,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID: scope.ProjectImportJobID,
+			TemplateImportJobID: scope.TemplateImportJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -114,7 +114,7 @@ func TestCompute(t *testing.T) {
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeImportJob,
-			ScopeID:           scope.ProjectImportJobID,
+			ScopeID:           scope.TemplateImportJobID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "secondnop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -128,18 +128,18 @@ func TestCompute(t *testing.T) {
 		require.Equal(t, value.SourceValue, computed[0].SourceValue)
 	})
 
-	t.Run("ProjectOverridesProjectDefault", func(t *testing.T) {
+	t.Run("TemplateOverridesTemplateDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID: scope.ProjectImportJobID,
+			TemplateImportJobID: scope.TemplateImportJobID,
 		})
 		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
 			Name:              parameterSchema.Name,
-			Scope:             database.ParameterScopeProject,
-			ScopeID:           scope.ProjectID.UUID,
+			Scope:             database.ParameterScopeTemplate,
+			ScopeID:           scope.TemplateID.UUID,
 			SourceScheme:      database.ParameterSourceSchemeData,
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
@@ -153,12 +153,12 @@ func TestCompute(t *testing.T) {
 		require.Equal(t, value.SourceValue, computed[0].SourceValue)
 	})
 
-	t.Run("WorkspaceCannotOverwriteProjectDefault", func(t *testing.T) {
+	t.Run("WorkspaceCannotOverwriteTemplateDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
-			ProjectImportJobID: scope.ProjectImportJobID,
+			TemplateImportJobID: scope.TemplateImportJobID,
 		})
 
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
@@ -178,13 +178,13 @@ func TestCompute(t *testing.T) {
 		require.Equal(t, true, computed[0].DefaultSourceValue)
 	})
 
-	t.Run("WorkspaceOverwriteProjectDefault", func(t *testing.T) {
+	t.Run("WorkspaceOverwriteTemplateDefault", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			AllowOverrideSource: true,
-			ProjectImportJobID:  scope.ProjectImportJobID,
+			TemplateImportJobID: scope.TemplateImportJobID,
 		})
 		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 			ID:                uuid.New(),
@@ -208,7 +208,7 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		_ = generateParameter(t, db, parameterOptions{
-			ProjectImportJobID:       scope.ProjectImportJobID,
+			TemplateImportJobID:      scope.TemplateImportJobID,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
 		computed, err := parameter.Compute(context.Background(), db, scope, &parameter.ComputeOptions{

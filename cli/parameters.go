@@ -39,12 +39,12 @@ func parseScopeAndID(ctx context.Context, client *codersdk.Client, organization 
 			}
 			scopeID = org.ID
 		}
-	case codersdk.ParameterProject:
-		project, err := client.ProjectByName(ctx, organization.ID, name)
+	case codersdk.ParameterTemplate:
+		template, err := client.TemplateByName(ctx, organization.ID, name)
 		if err != nil {
 			return scope, uuid.Nil, err
 		}
-		scopeID = project.ID
+		scopeID = template.ID
 	case codersdk.ParameterUser:
 		uid, _ := uuid.Parse(name)
 		user, err := client.User(ctx, uid)
@@ -67,8 +67,8 @@ func parseParameterScope(scope string) (codersdk.ParameterScope, error) {
 	switch scope {
 	case string(codersdk.ParameterOrganization):
 		return codersdk.ParameterOrganization, nil
-	case string(codersdk.ParameterProject):
-		return codersdk.ParameterProject, nil
+	case string(codersdk.ParameterTemplate):
+		return codersdk.ParameterTemplate, nil
 	case string(codersdk.ParameterUser):
 		return codersdk.ParameterUser, nil
 	case string(codersdk.ParameterWorkspace):
