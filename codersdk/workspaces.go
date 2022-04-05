@@ -90,10 +90,13 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+// UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
 type UpdateWorkspaceAutostartRequest struct {
 	Schedule string
 }
 
+// UpdateWorkspaceAutostart sets the autostart schedule for workspace by id.
+// If the provided schedule is empty, autostart is disabled for the workspace.
 func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostartRequest) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/autostart", id.String())
 	res, err := c.request(ctx, http.MethodPut, path, req)
