@@ -7,15 +7,18 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"google.golang.org/api/idtoken"
 
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/cli/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
 
@@ -210,4 +213,10 @@ type api struct {
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
+}
+
+func (*api) buildInfo(rw http.ResponseWriter, r *http.Request) {
+	render.JSON(rw, r, codersdk.BuildInfoResponse{
+		Version: buildinfo.Version(),
+	})
 }
