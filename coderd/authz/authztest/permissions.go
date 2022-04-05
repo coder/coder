@@ -31,7 +31,7 @@ func AllPermissions() Set {
 					for _, a := range actions {
 						if l == authz.LevelOrg {
 							all = append(all, &authz.Permission{
-								Sign:         s,
+								Negate:       s,
 								Level:        l,
 								LevelID:      PermOrgID,
 								ResourceType: t,
@@ -40,7 +40,7 @@ func AllPermissions() Set {
 							})
 						}
 						all = append(all, &authz.Permission{
-							Sign:         s,
+							Negate:       s,
 							Level:        l,
 							LevelID:      "",
 							ResourceType: t,
@@ -62,8 +62,8 @@ func Impact(p *authz.Permission) PermissionSet {
 		p.Action == OtherOption {
 		return SetNeutral
 	}
-	if p.Sign {
-		return SetPositive
+	if p.Negate {
+		return SetNegative
 	}
-	return SetNegative
+	return SetPositive
 }

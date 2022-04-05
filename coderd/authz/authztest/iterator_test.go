@@ -55,11 +55,11 @@ func RandomPermission() authz.Permission {
 	actions := []authz.Action{
 		authz.ActionRead,
 		authz.ActionCreate,
-		authz.ActionModify,
+		authz.ActionUpdate,
 		authz.ActionDelete,
 	}
 	return authz.Permission{
-		Sign:         must(crand.Intn(2))%2 == 0,
+		Negate:       must(crand.Intn(2))%2 == 0,
 		Level:        authz.PermissionLevels[must(crand.Intn(len(authz.PermissionLevels)))],
 		LevelID:      uuid.New().String(),
 		ResourceType: authz.ResourceWorkspace,

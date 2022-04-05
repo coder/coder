@@ -19,7 +19,7 @@ func Test_PermissionString(t *testing.T) {
 		{
 			Name: "BasicPositive",
 			Permission: authz.Permission{
-				Sign:         true,
+				Negate:       false,
 				Level:        authz.LevelSite,
 				LevelID:      "",
 				ResourceType: authz.ResourceWorkspace,
@@ -31,7 +31,7 @@ func Test_PermissionString(t *testing.T) {
 		{
 			Name: "BasicNegative",
 			Permission: authz.Permission{
-				Sign:         false,
+				Negate:       true,
 				Level:        authz.LevelUser,
 				LevelID:      "",
 				ResourceType: authz.ResourceDevURL,
@@ -43,14 +43,14 @@ func Test_PermissionString(t *testing.T) {
 		{
 			Name: "OrgID",
 			Permission: authz.Permission{
-				Sign:         false,
+				Negate:       true,
 				Level:        authz.LevelOrg,
 				LevelID:      "default",
 				ResourceType: authz.ResourceProject,
 				ResourceID:   "456",
-				Action:       authz.ActionModify,
+				Action:       authz.ActionUpdate,
 			},
-			Expected: "-org:default.project.456.modify",
+			Expected: "-org:default.project.456.update",
 		},
 	}
 
@@ -111,7 +111,7 @@ func Test_ParsePermissions(t *testing.T) {
 			Str:  "+org:1234.workspace.5678.read, -site.*.*.create",
 			Permissions: []authz.Permission{
 				{
-					Sign:         true,
+					Negate:       false,
 					Level:        "org",
 					LevelID:      "1234",
 					ResourceType: authz.ResourceWorkspace,
@@ -119,7 +119,7 @@ func Test_ParsePermissions(t *testing.T) {
 					Action:       authz.ActionRead,
 				},
 				{
-					Sign:         false,
+					Negate:       true,
 					Level:        "site",
 					LevelID:      "",
 					ResourceType: "*",

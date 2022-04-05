@@ -7,22 +7,21 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type permLevel string
+type PermLevel string
 
 const (
-	LevelWildcard permLevel = "*"
-	LevelSite     permLevel = "site"
-	LevelOrg      permLevel = "org"
-	LevelUser     permLevel = "user"
+	LevelWildcard PermLevel = "*"
+	LevelSite     PermLevel = "site"
+	LevelOrg      PermLevel = "org"
+	LevelUser     PermLevel = "user"
 )
 
-var PermissionLevels = [4]permLevel{LevelWildcard, LevelSite, LevelOrg, LevelUser}
+var PermissionLevels = [4]PermLevel{LevelWildcard, LevelSite, LevelOrg, LevelUser}
 
 type Permission struct {
-	// Sign is positive or negative.
-	// True = Positive, False = negative
-	Sign  bool
-	Level permLevel
+	// Negate makes this a negative permission
+	Negate bool
+	Level  PermLevel
 	// LevelID is used for identifying a particular org.
 	//	org:1234
 	LevelID string
@@ -34,9 +33,9 @@ type Permission struct {
 
 // String returns the <level>.<resource_type>.<id>.<action> string formatted permission.
 func (p Permission) String() string {
-	sign := "-"
-	if p.Sign {
-		sign = "+"
+	sign := "+"
+	if p.Negate {
+		sign = "-"
 	}
 	levelID := ""
 	if p.LevelID != "" {
@@ -81,13 +80,13 @@ func ParsePermission(perm string) (Permission, error) {
 
 	switch sign {
 	case '+':
-		permission.Sign = true
 	case '-':
+		permission.Negate = true
 	default:
 		return Permission{}, xerrors.Errorf("sign must be +/-")
 	}
 
-	switch permLevel(strings.ToLower(levelParts[0])) {
+	switch PermLevel(strings.ToLower(levelParts[0])) {
 	case LevelWildcard:
 		permission.Level = LevelWildcard
 	case LevelSite:

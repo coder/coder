@@ -46,7 +46,7 @@ func (s SubjectTODO) OrgRoles(_ context.Context, orgID string) ([]Role, error) {
 		return []Role{{
 			Permissions: []Permission{
 				{
-					Sign:         false,
+					Negate:       true,
 					Level:        "*",
 					LevelID:      "",
 					ResourceType: "*",

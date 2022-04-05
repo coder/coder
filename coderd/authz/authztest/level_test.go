@@ -19,7 +19,7 @@ func Test_GroupedPermissions(t *testing.T) {
 			for _, a := range []authz.Action{authz.ActionRead, authztest.OtherOption} {
 				if lvl == authz.LevelOrg {
 					set = append(set, &authz.Permission{
-						Sign:         s,
+						Negate:       s,
 						Level:        lvl,
 						LevelID:      "mem",
 						ResourceType: authz.ResourceWorkspace,
@@ -28,7 +28,7 @@ func Test_GroupedPermissions(t *testing.T) {
 					total++
 				}
 				set = append(set, &authz.Permission{
-					Sign:         s,
+					Negate:       s,
 					Level:        lvl,
 					ResourceType: authz.ResourceWorkspace,
 					Action:       a,
