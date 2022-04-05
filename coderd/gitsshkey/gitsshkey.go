@@ -1,6 +1,7 @@
 package gitsshkey
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -10,6 +11,7 @@ import (
 	"encoding/pem"
 	"strings"
 
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 )
 
@@ -23,6 +25,8 @@ const (
 	// AlgorithmRSA4096 is the venerable Rivest-Shamir-Adleman algorithm
 	// and creates a key with a fixed size of 4096-bit.
 	AlgorithmRSA4096 Algorithm = "rsa4096"
+	// AlgorithmNone will return empty keys.
+	AlgorithmNone Algorithm = "none"
 )
 
 // nolint: revive
@@ -34,6 +38,8 @@ func GenerateKeyPair(algo Algorithm) (string, string, error) {
 		return ecdsaKeyGen()
 	case AlgorithmRSA4096:
 		return rsa4096KeyGen()
+	case AlgorithmNone:
+		return "", "", nil
 	default:
 		return "", "", xerrors.Errorf("invalid algorithm: %s", algo)
 	}
@@ -41,7 +47,7 @@ func GenerateKeyPair(algo Algorithm) (string, string, error) {
 
 // ed25519KeyGen returns an ED25519-based SSH private key.
 func ed25519KeyGen() (privateKey string, publicKey string, err error) {
-	publicKeyRaw, privateKeyRaw, err := ed25519.GenerateKey(rand.Reader)
+	_, privateKeyRaw, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return "", "", xerrors.Errorf("generate ed25519 private key: %w", err)
 	}
@@ -54,15 +60,10 @@ func ed25519KeyGen() (privateKey string, publicKey string, err error) {
 		return "", "", xerrors.Errorf("marshal ed25519 private key: %w", err)
 	}
 
-	pb := pem.Block{
-		Type:    "OPENSSH PRIVATE KEY",
-		Headers: nil,
-		Bytes:   byt,
-	}
-	privateKey = string(pem.EncodeToMemory(&pb))
-	publicKey = string(publicKeyRaw)
-
-	return privateKey, publicKey, nil
+	return generateKeys(pem.Block{
+		Type:  "OPENSSH PRIVATE KEY",
+		Bytes: byt,
+	}, privateKeyRaw)
 }
 
 // ecdsaKeyGen returns an ECDSA-based SSH private key.
@@ -71,25 +72,15 @@ func ecdsaKeyGen() (privateKey string, publicKey string, err error) {
 	if err != nil {
 		return "", "", xerrors.Errorf("generate ecdsa private key: %w", err)
 	}
-	publicKeyRaw, err := x509.MarshalPKIXPublicKey(privateKeyRaw.PublicKey)
-	if err != nil {
-		return "", "", xerrors.Errorf("generate ecdsa public key: %w", err)
-	}
-
 	byt, err := x509.MarshalECPrivateKey(privateKeyRaw)
 	if err != nil {
 		return "", "", xerrors.Errorf("marshal private key: %w", err)
 	}
 
-	pb := pem.Block{
-		Type:    "EC PRIVATE KEY",
-		Headers: nil,
-		Bytes:   byt,
-	}
-	privateKey = string(pem.EncodeToMemory(&pb))
-	publicKey = string(publicKeyRaw)
-
-	return privateKey, publicKey, nil
+	return generateKeys(pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: byt,
+	}, privateKeyRaw)
 }
 
 // rsaKeyGen returns an RSA-based SSH private key of size 4096.
@@ -100,17 +91,23 @@ func rsa4096KeyGen() (privateKey string, publicKey string, err error) {
 	if err != nil {
 		return "", "", xerrors.Errorf("generate RSA4096 private key: %w", err)
 	}
-	publicKeyRaw, err := x509.MarshalPKIXPublicKey(privateKeyRaw.PublicKey)
-	if err != nil {
-		return "", "", xerrors.Errorf("generate RSA4096 public key: %w", err)
-	}
 
-	pb := pem.Block{
+	return generateKeys(pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKeyRaw),
+	}, privateKeyRaw)
+}
+
+func generateKeys(block pem.Block, cp crypto.Signer) (privateKey string, publicKey string, err error) {
+	pkBytes := pem.EncodeToMemory(&block)
+	privateKey = string(pkBytes)
+
+	publicKeyRaw := cp.Public()
+	p, err := ssh.NewPublicKey(publicKeyRaw)
+	if err != nil {
+		return "", "", err
 	}
-	privateKey = string(pem.EncodeToMemory(&pb))
-	publicKey = string(publicKeyRaw)
+	publicKey = string(ssh.MarshalAuthorizedKey(p))
 
 	return privateKey, publicKey, nil
 }
@@ -121,6 +118,7 @@ func ParseSSHKeygenAlgorithm(t string) (Algorithm, error) {
 		string(AlgorithmEd25519),
 		string(AlgorithmECDSA),
 		string(AlgorithmRSA4096),
+		string(AlgorithmNone),
 	}
 
 	for _, a := range ok {

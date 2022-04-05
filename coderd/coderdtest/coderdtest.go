@@ -109,7 +109,8 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 		AWSCertificates:      options.AWSInstanceIdentity,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
-		SSHKeygenAlgorithm:   gitsshkey.AlgorithmEd25519,
+		// Default to none so we don't burn a ton of CPU in tests
+		SSHKeygenAlgorithm: gitsshkey.AlgorithmNone,
 	})
 	t.Cleanup(func() {
 		srv.Close()
