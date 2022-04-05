@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGitSSHKey(t *testing.T) {
@@ -70,6 +71,7 @@ func TestGitSSHKey(t *testing.T) {
 		err = client.RegenerateGitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
 		key2, err := client.GitSSHKey(ctx, res.UserID)
+		require.NoError(t, err)
 		require.Greater(t, key2.UpdatedAt, key1.UpdatedAt)
 		require.NotEmpty(t, key2.PublicKey)
 		require.NotEqual(t, key2.PublicKey, key1.PublicKey)

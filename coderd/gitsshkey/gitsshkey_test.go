@@ -11,6 +11,8 @@ import (
 )
 
 func TestGitSSHKeys(t *testing.T) {
+	t.Parallel()
+
 	verifyKeyPair := func(t *testing.T, private, public string) {
 		signer, err := ssh.ParsePrivateKey([]byte(private))
 		require.NoError(t, err)
@@ -21,27 +23,32 @@ func TestGitSSHKeys(t *testing.T) {
 	}
 
 	t.Run("None", func(t *testing.T) {
+		t.Parallel()
 		pv, pb, err := gitsshkey.GenerateKeyPair(gitsshkey.AlgorithmNone)
 		require.NoError(t, err)
 		require.Empty(t, pv)
 		require.Empty(t, pb)
 	})
 	t.Run("Ed25519", func(t *testing.T) {
+		t.Parallel()
 		pv, pb, err := gitsshkey.GenerateKeyPair(gitsshkey.AlgorithmEd25519)
 		require.NoError(t, err)
 		verifyKeyPair(t, pv, pb)
 	})
 	t.Run("ECDSA", func(t *testing.T) {
+		t.Parallel()
 		pv, pb, err := gitsshkey.GenerateKeyPair(gitsshkey.AlgorithmECDSA)
 		require.NoError(t, err)
 		verifyKeyPair(t, pv, pb)
 	})
 	t.Run("RSA4096", func(t *testing.T) {
+		t.Parallel()
 		pv, pb, err := gitsshkey.GenerateKeyPair(gitsshkey.AlgorithmRSA4096)
 		require.NoError(t, err)
 		verifyKeyPair(t, pv, pb)
 	})
 	t.Run("ParseAlgorithm", func(t *testing.T) {
+		t.Parallel()
 		_, err := gitsshkey.ParseSSHKeygenAlgorithm(string(gitsshkey.AlgorithmNone))
 		require.NoError(t, err)
 		_, err = gitsshkey.ParseSSHKeygenAlgorithm(string(gitsshkey.AlgorithmEd25519))

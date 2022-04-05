@@ -27,8 +27,8 @@ type AgentGitSSHKey struct {
 }
 
 // GitSSHKey returns the user
-func (c *Client) GitSSHKey(ctx context.Context, userId uuid.UUID) (GitSSHKey, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userId.String()), nil)
+func (c *Client) GitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userID.String()), nil)
 	if err != nil {
 		return GitSSHKey{}, xerrors.Errorf("execute request: %w", err)
 	}
@@ -42,8 +42,8 @@ func (c *Client) GitSSHKey(ctx context.Context, userId uuid.UUID) (GitSSHKey, er
 	return gitsshkey, json.NewDecoder(res.Body).Decode(&gitsshkey)
 }
 
-func (c *Client) RegenerateGitSSHKey(ctx context.Context, userId uuid.UUID) error {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userId.String()), nil)
+func (c *Client) RegenerateGitSSHKey(ctx context.Context, userID uuid.UUID) error {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userID.String()), nil)
 	if err != nil {
 		return xerrors.Errorf("execute request: %w", err)
 	}
