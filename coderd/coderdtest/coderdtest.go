@@ -50,6 +50,7 @@ import (
 type Options struct {
 	AWSInstanceIdentity    awsidentity.Certificates
 	GoogleInstanceIdentity *idtoken.Validator
+	SSHKeygenAlgorithm     gitsshkey.Algorithm
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -99,6 +100,12 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	var closeWait func()
+
+	// Default to none so we don't burn a ton of CPU in tests
+	if options.SSHKeygenAlgorithm == "" {
+		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmNone
+	}
+
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 25 * time.Millisecond,
@@ -109,8 +116,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 		AWSCertificates:      options.AWSInstanceIdentity,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
-		// Default to none so we don't burn a ton of CPU in tests
-		SSHKeygenAlgorithm: gitsshkey.AlgorithmNone,
+		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 	})
 	t.Cleanup(func() {
 		srv.Close()
