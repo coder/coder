@@ -3,7 +3,8 @@ archives:
     builds:
       - coder
     files:
-      - README.md
+      - src: docs/README.md
+        dst: README.md
     format_overrides:
       - goos: windows
         format: zip
