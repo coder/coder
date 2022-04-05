@@ -186,17 +186,15 @@ func TestWorkspaceBuildByName(t *testing.T) {
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {
-	// TODO(cian): CST -> CDT
-	// TODO(cian): CDT -> CST
-
 	var dublinLoc = mustLocation(t, "Europe/Dublin")
 
 	testCases := []struct {
-		name          string
-		schedule      string
-		expectedError string
-		at            time.Time
-		expectedNext  time.Time
+		name             string
+		schedule         string
+		expectedError    string
+		at               time.Time
+		expectedNext     time.Time
+		expectedInterval time.Duration
 	}{
 		{
 			name:          "disable autostart",
@@ -204,18 +202,38 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name:          "friday to monday",
-			schedule:      "CRON_TZ=Europe/Dublin 30 9 1-5",
-			expectedError: "",
-			at:            time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
-			expectedNext:  time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
+			name:             "friday to monday",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 1-5",
+			expectedError:    "",
+			at:               time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
+			expectedNext:     time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
+			expectedInterval: 71*time.Hour + 59*time.Minute,
 		},
 		{
-			name:          "monday to tuesday",
-			schedule:      "CRON_TZ=Europe/Dublin 30 9 1-5",
-			expectedError: "",
-			at:            time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
-			expectedNext:  time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
+			name:             "monday to tuesday",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 1-5",
+			expectedError:    "",
+			at:               time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
+			expectedNext:     time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
+			expectedInterval: 23*time.Hour + 59*time.Minute,
+		},
+		{
+			// DST in Ireland began on Mar 27 in 2022 at 0100. Forward 1 hour.
+			name:             "DST start",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 *",
+			expectedError:    "",
+			at:               time.Date(2022, 3, 26, 9, 31, 0, 0, dublinLoc),
+			expectedNext:     time.Date(2022, 3, 27, 9, 30, 0, 0, dublinLoc),
+			expectedInterval: 22*time.Hour + 59*time.Minute,
+		},
+		{
+			// DST in Ireland ends on Oct 30 in 2022 at 0200. Back 1 hour.
+			name:             "DST end",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 *",
+			expectedError:    "",
+			at:               time.Date(2022, 10, 29, 9, 31, 0, 0, dublinLoc),
+			expectedNext:     time.Date(2022, 10, 30, 9, 30, 0, 0, dublinLoc),
+			expectedInterval: 24*time.Hour + 59*time.Minute,
 		},
 		{
 			name:          "invalid location",
@@ -270,6 +288,8 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 
 			next := sched.Next(testCase.at)
 			require.Equal(t, testCase.expectedNext, next, "unexpected next scheduled autostart time")
+			interval := next.Sub(testCase.at)
+			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 		})
 	}
 }
