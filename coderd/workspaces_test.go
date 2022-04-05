@@ -190,38 +190,66 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	// TODO(cian): mon -> tue
 	// TODO(cian): CST -> CDT
 	// TODO(cian): CDT -> CST
-	t.Parallel()
-	var (
-		ctx       = context.Background()
-		client    = coderdtest.New(t, nil)
-		_         = coderdtest.NewProvisionerDaemon(t, client)
-		user      = coderdtest.CreateFirstUser(t, client)
-		version   = coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project   = coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
-	)
 
-	require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
+	var dublinLoc = mustLocation(t, "Europe/Dublin")
 
-	schedSpec := "CRON_TZ=Europe/Dublin 30 9 1-5"
-	err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: schedSpec,
-	})
-	require.NoError(t, err, "expected no error")
+	testCases := []struct {
+		name          string
+		schedule      string
+		expectedError string
+		at            time.Time
+		expectedNext  time.Time
+	}{
+		{
+			name:          "friday to monday",
+			schedule:      "CRON_TZ=Europe/Dublin 30 9 1-5",
+			expectedError: "",
+			at:            time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
+			expectedNext:  time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
+		},
+	}
 
-	updated, err := client.Workspace(ctx, workspace.ID)
-	require.NoError(t, err, "fetch updated workspace")
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			var (
+				ctx       = context.Background()
+				client    = coderdtest.New(t, nil)
+				_         = coderdtest.NewProvisionerDaemon(t, client)
+				user      = coderdtest.CreateFirstUser(t, client)
+				version   = coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+				project   = coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+				workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+			)
 
-	require.Equal(t, schedSpec, updated.AutostartSchedule, "expected autostart schedule to equal")
+			// ensure test invariant: new workspaces have no autostart schedule.
+			require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
 
-	sched, err := schedule.Weekly(updated.AutostartSchedule)
-	require.NoError(t, err, "parse returned schedule")
+			err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+				Schedule: testCase.schedule,
+			})
+			require.NoError(t, err, "expected no error setting workspace autostart schedule")
 
-	dublinLoc, err := time.LoadLocation("Europe/Dublin")
-	require.NoError(t, err, "failed to load timezone location")
+			updated, err := client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err, "fetch updated workspace")
 
-	timeAt := time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc)
-	expectedNext := time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc)
-	require.Equal(t, expectedNext, sched.Next(timeAt), "unexpected next scheduled autostart time")
+			require.Equal(t, testCase.schedule, updated.AutostartSchedule, "expected autostart schedule to equal requested")
+
+			sched, err := schedule.Weekly(updated.AutostartSchedule)
+			require.NoError(t, err, "parse returned schedule")
+
+			next := sched.Next(testCase.at)
+			require.Equal(t, testCase.expectedNext, next, "unexpected next scheduled autostart time")
+		})
+	}
+}
+
+func mustLocation(t *testing.T, location string) *time.Location {
+	loc, err := time.LoadLocation(location)
+	if err != nil {
+		t.Errorf("failed to load location %s: %s", location, err.Error())
+	}
+
+	return loc
 }
