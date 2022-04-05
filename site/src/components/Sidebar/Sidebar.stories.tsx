@@ -14,7 +14,7 @@ Example.args = {
   activeItem: "oauthSettings",
   menuItems: [
     { label: "OAuth Settings", value: "oauthSettings" },
-    { label: "Security", value: "oauthSettings", hasChanges: true },
-    { label: "Hardware", value: "oauthSettings" },
+    { label: "Security", value: "security", hasChanges: true },
+    { label: "Hardware", value: "hardware" },
   ],
 }
