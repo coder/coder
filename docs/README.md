@@ -73,3 +73,10 @@ Coder requires Go 1.18+, Node 14+, and GNU Make.
 - `make test`
 - `make release` dry-runs a new release
 - `./develop.sh` hot-reloads for frontend development
+
+### Front-End Development
+
+After run the commands above, you can access the UI trough <http://localhost:8080> using the following credentials:
+
+- User: admin@coder.com
+- Password: password
