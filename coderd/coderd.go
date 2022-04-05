@@ -191,6 +191,9 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
 		})
+		r.Route("/buildinfo", func(r chi.Router) {
+			r.Get("/", api.buildInfo)
+		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)
 	return r, func() {
