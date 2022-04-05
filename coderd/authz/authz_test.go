@@ -1,12 +1,14 @@
 package authz_test
 
 import (
+	"fmt"
 	"math/bits"
 	"strings"
 	"testing"
 
 	"github.com/coder/coder/coderd/authz"
 	"github.com/coder/coder/coderd/authz/authztest"
+	"github.com/stretchr/testify/require"
 )
 
 var nilSet = authztest.Set{nil}
@@ -82,7 +84,7 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 		// },
 	}
 
-	var failedTests int
+	failedTests := make(map[string]int)
 	//nolint:paralleltest
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
@@ -96,9 +98,9 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 							o,
 							authztest.PermAction)
 						if c.Result(name) && err != nil {
-							failedTests++
+							failedTests[name]++
 						} else if !c.Result(name) && err == nil {
-							failedTests++
+							failedTests[name]++
 						}
 					})
 					v.Reset()
@@ -107,7 +109,9 @@ func Test_ExhaustiveAuthorize(t *testing.T) {
 		})
 	}
 	// TODO: @emyrk when we implement the correct authorize, we can enable this check.
-	// require.Equal(t, 0, failedTests, fmt.Sprintf("%d tests failed", failedTests))
+	for testName, numFailed := range failedTests {
+		require.Zero(t, failedTests[testName], fmt.Sprintf("%s: %d tests failed", testName, numFailed))
+	}
 }
 
 func permissionVariants(all authztest.SetGroup) map[string]*authztest.Role {
