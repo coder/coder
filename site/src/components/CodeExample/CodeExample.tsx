@@ -1,7 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-
 import { CopyButton } from "../Button"
 
 export interface CodeExampleProps {

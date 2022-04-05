@@ -1,7 +1,7 @@
-import React, { useContext } from "react"
 import { useActor } from "@xstate/react"
-import { NavbarView } from "./NavbarView"
+import React, { useContext } from "react"
 import { XServiceContext } from "../../xServices/StateContext"
+import { NavbarView } from "./NavbarView"
 
 export const Navbar: React.FC = () => {
   const xServices = useContext(XServiceContext)

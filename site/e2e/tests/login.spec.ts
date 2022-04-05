@@ -1,6 +1,6 @@
 import { test } from "@playwright/test"
-import { ProjectsPage, SignInPage } from "../pom"
 import { email, password } from "../constants"
+import { ProjectsPage, SignInPage } from "../pom"
 import { waitForClientSideNavigation } from "./../util"
 
 test("Login takes user to /projects", async ({ baseURL, page }) => {

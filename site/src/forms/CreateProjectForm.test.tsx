@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import React from "react"
+import { MockOrganization, MockProject, MockProvisioner } from "./../test_helpers"
 import { CreateProjectForm } from "./CreateProjectForm"
-import { MockProvisioner, MockOrganization, MockProject } from "./../test_helpers"
 
 describe("CreateProjectForm", () => {
   it("renders", async () => {

@@ -1,17 +1,16 @@
-import React from "react"
-import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
+import { makeStyles } from "@material-ui/core/styles"
+import React from "react"
 import { Link } from "react-router-dom"
+import useSWR from "swr"
+import { Organization, Project } from "../../api/types"
 import { EmptyState } from "../../components"
+import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { Header } from "../../components/Header"
+import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Footer } from "../../components/Page"
 import { Column, Table } from "../../components/Table"
-import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-
-import { Organization, Project } from "../../api/types"
-import useSWR from "swr"
-import { CodeExample } from "../../components/CodeExample/CodeExample"
 
 export const ProjectsPage: React.FC = () => {
   const styles = useStyles()

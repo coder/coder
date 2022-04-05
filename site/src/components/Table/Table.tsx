@@ -1,13 +1,12 @@
-import React from "react"
 import Box from "@material-ui/core/Box"
 import MuiTable from "@material-ui/core/Table"
+import TableBody from "@material-ui/core/TableBody"
+import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import TableCell from "@material-ui/core/TableCell"
-
-import { TableTitle } from "./TableTitle"
+import React from "react"
 import { TableHeaders } from "./TableHeaders"
-import TableBody from "@material-ui/core/TableBody"
+import { TableTitle } from "./TableTitle"
 
 export interface Column<T> {
   /**

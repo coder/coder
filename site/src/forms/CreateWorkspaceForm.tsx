@@ -3,10 +3,9 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-
-import { FormCloseButton, FormTextField, FormTitle, FormSection } from "../components/Form"
+import { CreateWorkspaceRequest, Project, Workspace } from "../api/types"
 import { LoadingButton } from "../components/Button"
-import { Project, Workspace, CreateWorkspaceRequest } from "../api/types"
+import { FormCloseButton, FormSection, FormTextField, FormTitle } from "../components/Form"
 
 export interface CreateWorkspaceForm {
   project: Project
