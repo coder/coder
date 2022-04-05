@@ -186,8 +186,6 @@ func TestWorkspaceBuildByName(t *testing.T) {
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {
-	// fri -> monday
-	// TODO(cian): mon -> tue
 	// TODO(cian): CST -> CDT
 	// TODO(cian): CDT -> CST
 
@@ -201,11 +199,33 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		expectedNext  time.Time
 	}{
 		{
+			name:          "disable autostart",
+			schedule:      "",
+			expectedError: "",
+		},
+		{
 			name:          "friday to monday",
 			schedule:      "CRON_TZ=Europe/Dublin 30 9 1-5",
 			expectedError: "",
 			at:            time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
 			expectedNext:  time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
+		},
+		{
+			name:          "monday to tuesday",
+			schedule:      "CRON_TZ=Europe/Dublin 30 9 1-5",
+			expectedError: "",
+			at:            time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
+			expectedNext:  time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
+		},
+		{
+			name:          "invalid location",
+			schedule:      "CRON_TZ=Imaginary/Place 30 9 1-5",
+			expectedError: "status code 500: invalid autostart schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
+		},
+		{
+			name:          "invalid schedule",
+			schedule:      "asdf asdf asdf ",
+			expectedError: `status code 500: invalid autostart schedule: parse schedule: failed to parse int from asdf: strconv.Atoi: parsing "asdf": invalid syntax`,
 		},
 	}
 
@@ -229,6 +249,12 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 				Schedule: testCase.schedule,
 			})
+
+			if testCase.expectedError != "" {
+				require.EqualError(t, err, testCase.expectedError, "unexpected error when setting workspace autostart schedule")
+				return
+			}
+
 			require.NoError(t, err, "expected no error setting workspace autostart schedule")
 
 			updated, err := client.Workspace(ctx, workspace.ID)
@@ -236,6 +262,9 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 
 			require.Equal(t, testCase.schedule, updated.AutostartSchedule, "expected autostart schedule to equal requested")
 
+			if testCase.schedule == "" {
+				return
+			}
 			sched, err := schedule.Weekly(updated.AutostartSchedule)
 			require.NoError(t, err, "parse returned schedule")
 

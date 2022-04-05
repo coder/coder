@@ -13,6 +13,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/autostart/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -291,18 +292,28 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
-	var spec codersdk.UpdateWorkspaceAutostartRequest
-	if !httpapi.Read(rw, r, &spec) {
+	var req codersdk.UpdateWorkspaceAutostartRequest
+	if !httpapi.Read(rw, r, &req) {
 		return
+	}
+
+	var dbSched sql.NullString
+	if req.Schedule != "" {
+		validSched, err := schedule.Weekly(req.Schedule)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("invalid autostart schedule: %s", err),
+			})
+			return
+		}
+		dbSched.String = validSched.String()
+		dbSched.Valid = true
 	}
 
 	workspace := httpmw.WorkspaceParam(r)
 	err := api.Database.UpdateWorkspaceAutostart(r.Context(), database.UpdateWorkspaceAutostartParams{
-		ID: workspace.ID,
-		AutostartSchedule: sql.NullString{
-			String: spec.Schedule,
-			Valid:  true,
-		},
+		ID:                workspace.ID,
+		AutostartSchedule: dbSched,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
