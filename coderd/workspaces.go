@@ -292,14 +292,16 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 
 func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template) codersdk.Workspace {
 	return codersdk.Workspace{
-		ID:           workspace.ID,
-		CreatedAt:    workspace.CreatedAt,
-		UpdatedAt:    workspace.UpdatedAt,
-		OwnerID:      workspace.OwnerID,
-		TemplateID:   workspace.TemplateID,
-		LatestBuild:  workspaceBuild,
-		TemplateName: template.Name,
-		Outdated:     workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
-		Name:         workspace.Name,
+		ID:                workspace.ID,
+		CreatedAt:         workspace.CreatedAt,
+		UpdatedAt:         workspace.UpdatedAt,
+		OwnerID:           workspace.OwnerID,
+		TemplateID:        workspace.TemplateID,
+		LatestBuild:       workspaceBuild,
+		TemplateName:      template.Name,
+		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
+		Name:              workspace.Name,
+		AutostartSchedule: workspace.AutostartSchedule.String,
+		AutostopSchedule:  workspace.AutostopSchedule.String,
 	}
 }

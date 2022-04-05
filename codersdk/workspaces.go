@@ -15,15 +15,17 @@ import (
 // Workspace is a per-user deployment of a template. It tracks
 // template versions, and can be updated.
 type Workspace struct {
-	ID           uuid.UUID      `json:"id"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	OwnerID      uuid.UUID      `json:"owner_id"`
-	TemplateID   uuid.UUID      `json:"template_id"`
-	TemplateName string         `json:"template_name"`
-	LatestBuild  WorkspaceBuild `json:"latest_build"`
-	Outdated     bool           `json:"outdated"`
-	Name         string         `json:"name"`
+	ID                uuid.UUID      `json:"id"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	OwnerID           uuid.UUID      `json:"owner_id"`
+	TemplateID        uuid.UUID      `json:"template_id"`
+	TemplateName      string         `json:"template_name"`
+	LatestBuild       WorkspaceBuild `json:"latest_build"`
+	Outdated          bool           `json:"outdated"`
+	Name              string         `json:"name"`
+	AutostartSchedule string         `json:"autostart_schedule"`
+	AutostopSchedule  string         `json:"autostop_schedule"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
