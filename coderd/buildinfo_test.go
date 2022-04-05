@@ -12,12 +12,8 @@ import (
 
 func TestBuildInfo(t *testing.T) {
 	t.Parallel()
-
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		buildInfo, err := client.BuildInfo(context.Background())
-		require.NoError(t, err)
-		require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
-	})
+	client := coderdtest.New(t, nil)
+	buildInfo, err := client.BuildInfo(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
 }
