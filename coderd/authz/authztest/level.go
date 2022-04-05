@@ -56,7 +56,7 @@ func GroupedPermissions(perms Set) SetGroup {
 			groups[LevelSiteKey][m] = append(groups[LevelSiteKey][m], p)
 		case p.Level == authz.LevelOrg:
 			groups[LevelOrgAllKey][m] = append(groups[LevelOrgAllKey][m], p)
-			if p.LevelID == "" || p.LevelID == "*" {
+			if p.OrganizationID == "" || p.OrganizationID == "*" {
 				groups[LevelOrgKey][m] = append(groups[LevelOrgKey][m], p)
 			} else {
 				groups[LevelOrgMemKey][m] = append(groups[LevelOrgMemKey][m], p)

@@ -22,9 +22,9 @@ type Permission struct {
 	// Negate makes this a negative permission
 	Negate bool
 	Level  PermLevel
-	// LevelID is used for identifying a particular org.
+	// OrganizationID is used for identifying a particular org.
 	//	org:1234
-	LevelID string
+	OrganizationID string
 
 	ResourceType ResourceType
 	ResourceID   string
@@ -38,8 +38,8 @@ func (p Permission) String() string {
 		sign = "-"
 	}
 	levelID := ""
-	if p.LevelID != "" {
-		levelID = ":" + p.LevelID
+	if p.OrganizationID != "" {
+		levelID = ":" + p.OrganizationID
 	}
 
 	return fmt.Sprintf("%s%s%s.%s.%s.%s",
@@ -100,7 +100,7 @@ func ParsePermission(perm string) (Permission, error) {
 	}
 
 	if len(levelParts) > 1 {
-		permission.LevelID = levelParts[1]
+		permission.OrganizationID = levelParts[1]
 	}
 
 	// might want to check if these are valid resource types and actions.

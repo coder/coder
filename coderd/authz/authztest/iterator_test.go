@@ -59,12 +59,12 @@ func RandomPermission() authz.Permission {
 		authz.ActionDelete,
 	}
 	return authz.Permission{
-		Negate:       must(crand.Intn(2))%2 == 0,
-		Level:        authz.PermissionLevels[must(crand.Intn(len(authz.PermissionLevels)))],
-		LevelID:      uuid.New().String(),
-		ResourceType: authz.ResourceWorkspace,
-		ResourceID:   uuid.New().String(),
-		Action:       actions[must(crand.Intn(len(actions)))],
+		Negate:         must(crand.Intn(2))%2 == 0,
+		Level:          authz.PermissionLevels[must(crand.Intn(len(authz.PermissionLevels)))],
+		OrganizationID: uuid.New().String(),
+		ResourceType:   authz.ResourceWorkspace,
+		ResourceID:     uuid.New().String(),
+		Action:         actions[must(crand.Intn(len(actions)))],
 	}
 }
 

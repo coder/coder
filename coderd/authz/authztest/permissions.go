@@ -31,21 +31,21 @@ func AllPermissions() Set {
 					for _, a := range actions {
 						if l == authz.LevelOrg {
 							all = append(all, &authz.Permission{
-								Negate:       s,
-								Level:        l,
-								LevelID:      PermOrgID,
-								ResourceType: t,
-								ResourceID:   i,
-								Action:       a,
+								Negate:         s,
+								Level:          l,
+								OrganizationID: PermOrgID,
+								ResourceType:   t,
+								ResourceID:     i,
+								Action:         a,
 							})
 						}
 						all = append(all, &authz.Permission{
-							Negate:       s,
-							Level:        l,
-							LevelID:      "",
-							ResourceType: t,
-							ResourceID:   i,
-							Action:       a,
+							Negate:         s,
+							Level:          l,
+							OrganizationID: "",
+							ResourceType:   t,
+							ResourceID:     i,
+							Action:         a,
 						})
 					}
 				}

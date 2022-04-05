@@ -49,21 +49,21 @@ func Test_Set(t *testing.T) {
 
 		set := authztest.Set{
 			&authz.Permission{
-				Negate:       false,
-				Level:        authz.LevelOrg,
-				LevelID:      "1234",
-				ResourceType: authz.ResourceWorkspace,
-				ResourceID:   "1234",
-				Action:       authz.ActionRead,
+				Negate:         false,
+				Level:          authz.LevelOrg,
+				OrganizationID: "1234",
+				ResourceType:   authz.ResourceWorkspace,
+				ResourceID:     "1234",
+				Action:         authz.ActionRead,
 			},
 			nil,
 			&authz.Permission{
-				Negate:       true,
-				Level:        authz.LevelSite,
-				LevelID:      "",
-				ResourceType: authz.ResourceWorkspace,
-				ResourceID:   "*",
-				Action:       authz.ActionRead,
+				Negate:         true,
+				Level:          authz.LevelSite,
+				OrganizationID: "",
+				ResourceType:   authz.ResourceWorkspace,
+				ResourceID:     "*",
+				Action:         authz.ActionRead,
 			},
 		}
 
