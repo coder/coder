@@ -57,6 +57,9 @@ func New(options *Options) (http.Handler, func()) {
 				Message: "👋",
 			})
 		})
+		r.Route("/buildinfo", func(r chi.Router) {
+			r.Get("/", api.buildInfo)
+		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
@@ -190,9 +193,6 @@ func New(options *Options) (http.Handler, func()) {
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
-		})
-		r.Route("/buildinfo", func(r chi.Router) {
-			r.Get("/", api.buildInfo)
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)
