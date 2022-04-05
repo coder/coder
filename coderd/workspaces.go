@@ -290,6 +290,32 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
+func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
+	var spec codersdk.UpdateWorkspaceAutostartRequest
+	if !httpapi.Read(rw, r, &spec) {
+		return
+	}
+
+	workspace := httpmw.WorkspaceParam(r)
+	err := api.Database.UpdateWorkspaceAutostart(r.Context(), database.UpdateWorkspaceAutostartParams{
+		ID: workspace.ID,
+		AutostartSchedule: sql.NullString{
+			String: spec.Schedule,
+			Valid:  true,
+		},
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update workspace autostart schedule: %s", err),
+		})
+		return
+	}
+
+	return
+}
+
+// TODO(cian): api.updateWorkspaceAutostop
+
 func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template) codersdk.Workspace {
 	return codersdk.Workspace{
 		ID:                workspace.ID,

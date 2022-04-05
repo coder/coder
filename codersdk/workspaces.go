@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 )
@@ -88,3 +89,23 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
+
+type UpdateWorkspaceAutostartRequest struct {
+	Schedule string
+}
+
+func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostartRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/autostart", id.String())
+	res, err := c.request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("update workspace autostart: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	// TODO(cian): should we return the updated schedule?
+	return nil
+}
+
+// TODO(cian): client.UpdateWorkspaceAutostop
