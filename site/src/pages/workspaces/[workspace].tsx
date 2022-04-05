@@ -1,14 +1,14 @@
-import React from "react"
-import useSWR from "swr"
 import { makeStyles } from "@material-ui/core/styles"
+import React from "react"
 import { useParams } from "react-router-dom"
-import { Footer } from "../../components/Page"
-import { firstOrItem } from "../../util/array"
+import useSWR from "swr"
+import * as Types from "../../api/types"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+import { Footer } from "../../components/Page"
 import { Workspace } from "../../components/Workspace"
 import { unsafeSWRArgument } from "../../util"
-import * as Types from "../../api/types"
+import { firstOrItem } from "../../util/array"
 
 export const WorkspacePage: React.FC = () => {
   const styles = useStyles()

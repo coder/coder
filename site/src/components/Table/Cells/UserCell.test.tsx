@@ -1,7 +1,7 @@
+import { fireEvent, render, screen } from "@testing-library/react"
+import React from "react"
 import { MockUser, MockUserAgent, WrapperComponent } from "../../../test_helpers"
 import { UserCell, UserCellProps } from "./UserCell"
-import React from "react"
-import { fireEvent, render, screen } from "@testing-library/react"
 
 namespace Helpers {
   export const Props: UserCellProps = {

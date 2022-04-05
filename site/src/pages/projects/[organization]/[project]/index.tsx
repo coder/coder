@@ -1,18 +1,17 @@
-import React from "react"
-import { makeStyles } from "@material-ui/core/styles"
 import Paper from "@material-ui/core/Paper"
+import { makeStyles } from "@material-ui/core/styles"
+import React from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
-
 import { Organization, Project, Workspace } from "../../../../api/types"
+import { EmptyState } from "../../../../components/EmptyState"
+import { ErrorSummary } from "../../../../components/ErrorSummary"
 import { Header } from "../../../../components/Header"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { Footer } from "../../../../components/Page"
 import { Column, Table } from "../../../../components/Table"
-import { ErrorSummary } from "../../../../components/ErrorSummary"
-import { firstOrItem } from "../../../../util/array"
-import { EmptyState } from "../../../../components/EmptyState"
 import { unsafeSWRArgument } from "../../../../util"
+import { firstOrItem } from "../../../../util/array"
 
 export const ProjectPage: React.FC = () => {
   const styles = useStyles()

@@ -1,12 +1,12 @@
 import Box from "@material-ui/core/Box"
 import Paper from "@material-ui/core/Paper"
-import Typography from "@material-ui/core/Typography"
 import { makeStyles } from "@material-ui/core/styles"
+import Typography from "@material-ui/core/Typography"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
-import { Link } from "react-router-dom"
 import React from "react"
-import * as Constants from "./constants"
+import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
+import * as Constants from "./constants"
 import { WorkspaceSection } from "./WorkspaceSection"
 
 export interface WorkspaceProps {

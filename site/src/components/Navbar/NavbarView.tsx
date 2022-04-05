@@ -1,10 +1,10 @@
-import React from "react"
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
+import React from "react"
 import { Link } from "react-router-dom"
+import { UserResponse } from "../../api/types"
 import { Logo } from "../Icons"
 import { UserDropdown } from "./UserDropdown"
-import { UserResponse } from "../../api/types"
 
 export interface NavbarViewProps {
   user?: UserResponse

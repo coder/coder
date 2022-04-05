@@ -1,11 +1,11 @@
-import React from "react"
 import { act, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { history, render } from "../test_helpers"
-import { SignInPage } from "./login"
-import { server } from "../test_helpers/server"
 import { rest } from "msw"
+import React from "react"
 import { Language } from "../components/SignIn/SignInForm"
+import { history, render } from "../test_helpers"
+import { server } from "../test_helpers/server"
+import { SignInPage } from "./login"
 
 describe("SignInPage", () => {
   beforeEach(() => {

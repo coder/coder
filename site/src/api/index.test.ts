@@ -1,6 +1,6 @@
 import axios from "axios"
 import { getApiKey, login, logout } from "."
-import { LoginResponse, APIKeyResponse } from "./types"
+import { APIKeyResponse, LoginResponse } from "./types"
 
 // Mock the axios module so that no real network requests are made, but rather
 // we swap in a resolved or rejected value

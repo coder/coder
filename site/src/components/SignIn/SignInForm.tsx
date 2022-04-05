@@ -1,13 +1,12 @@
+import FormHelperText from "@material-ui/core/FormHelperText"
 import { makeStyles } from "@material-ui/core/styles"
+import TextField from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-
-import { Welcome } from "./Welcome"
-import FormHelperText from "@material-ui/core/FormHelperText"
-import { LoadingButton } from "./../Button"
-import TextField from "@material-ui/core/TextField"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
+import { LoadingButton } from "./../Button"
+import { Welcome } from "./Welcome"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)

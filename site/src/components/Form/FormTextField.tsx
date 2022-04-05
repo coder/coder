@@ -1,7 +1,7 @@
 import TextField, { TextFieldProps } from "@material-ui/core/TextField"
+import { FormikContextType } from "formik"
 import React from "react"
 import { PasswordField } from "./PasswordField"
-import { FormikContextType } from "formik"
 
 /**
  * FormFieldProps are required props for creating form fields using a factory.
