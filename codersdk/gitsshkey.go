@@ -26,7 +26,7 @@ type AgentGitSSHKey struct {
 	PublicKey  string    `json:"public_key"`
 }
 
-// GitSSHKey returns the user
+// GitSSHKey returns the user's git SSH public key.
 func (c *Client) GitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userID.String()), nil)
 	if err != nil {
@@ -42,20 +42,23 @@ func (c *Client) GitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, er
 	return gitsshkey, json.NewDecoder(res.Body).Decode(&gitsshkey)
 }
 
-func (c *Client) RegenerateGitSSHKey(ctx context.Context, userID uuid.UUID) error {
+// RegenerateGitSSHKey will create a new SSH key pair for the user and return it.
+func (c *Client) RegenerateGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error) {
 	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/gitsshkey", userID.String()), nil)
 	if err != nil {
-		return xerrors.Errorf("execute request: %w", err)
+		return GitSSHKey{}, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return GitSSHKey{}, readBodyAsError(res)
 	}
 
-	return nil
+	var gitsshkey GitSSHKey
+	return gitsshkey, json.NewDecoder(res.Body).Decode(&gitsshkey)
 }
 
+// AgentGitSSHKey will return the user's SSH key pair for the workspace.
 func (c *Client) AgentGitSSHKey(ctx context.Context) (AgentGitSSHKey, error) {
 	res, err := c.request(ctx, http.MethodGet, "/api/v2/workspaceresources/agent/gitsshkey", nil)
 	if err != nil {
