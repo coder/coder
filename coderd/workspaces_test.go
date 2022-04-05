@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -292,6 +293,21 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 		})
 	}
+
+	t.Run("NotFound", func(t *testing.T) {
+		var (
+			ctx    = context.Background()
+			client = coderdtest.New(t, nil)
+			_      = coderdtest.CreateFirstUser(t, client)
+			wsid   = uuid.New()
+			req    = codersdk.UpdateWorkspaceAutostartRequest{
+				Schedule: "9 30 1-5",
+			}
+		)
+
+		err := client.UpdateWorkspaceAutostart(ctx, wsid, req)
+		require.EqualError(t, err, fmt.Sprintf("status code 404: workspace %q does not exist", wsid), "unexpected error")
+	})
 }
 
 func mustLocation(t *testing.T, location string) *time.Location {
