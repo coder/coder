@@ -323,7 +323,37 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// TODO(cian): api.updateWorkspaceAutostop
+func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
+	var req codersdk.UpdateWorkspaceAutostopRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	var dbSched sql.NullString
+	if req.Schedule != "" {
+		validSched, err := schedule.Weekly(req.Schedule)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("invalid autostop schedule: %s", err),
+			})
+			return
+		}
+		dbSched.String = validSched.String()
+		dbSched.Valid = true
+	}
+
+	workspace := httpmw.WorkspaceParam(r)
+	err := api.Database.UpdateWorkspaceAutostop(r.Context(), database.UpdateWorkspaceAutostopParams{
+		ID:               workspace.ID,
+		AutostopSchedule: dbSched,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update workspace autostop schedule: %s", err),
+		})
+		return
+	}
+}
 
 func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template) codersdk.Workspace {
 	return codersdk.Workspace{

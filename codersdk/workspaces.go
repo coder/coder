@@ -107,8 +107,25 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	if res.StatusCode != http.StatusOK {
 		return readBodyAsError(res)
 	}
-	// TODO(cian): should we return the updated schedule?
 	return nil
 }
 
-// TODO(cian): client.UpdateWorkspaceAutostop
+// UpdateWorkspaceAutostopRequest is a request to update a workspace's autostop schedule.
+type UpdateWorkspaceAutostopRequest struct {
+	Schedule string
+}
+
+// UpdateWorkspaceAutostop sets the autostop schedule for workspace by id.
+// If the provided schedule is empty, autostop is disabled for the workspace.
+func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostopRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/autostop", id.String())
+	res, err := c.request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("update workspace autostop: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}

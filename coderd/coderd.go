@@ -187,6 +187,9 @@ func New(options *Options) (http.Handler, func()) {
 			r.Route("/autostart", func(r chi.Router) {
 				r.Put("/", api.putWorkspaceAutostart)
 			})
+			r.Route("/autostop", func(r chi.Router) {
+				r.Put("/", api.putWorkspaceAutostop)
+			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
