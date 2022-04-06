@@ -258,9 +258,9 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 				client    = coderdtest.New(t, nil)
 				_         = coderdtest.NewProvisionerDaemon(t, client)
 				user      = coderdtest.CreateFirstUser(t, client)
-				version   = coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-				_         = coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-				project   = coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 				workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 			)
 
