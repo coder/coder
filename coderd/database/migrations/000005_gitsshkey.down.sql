@@ -1,1 +1,1 @@
-DROP TABLE git_ssh_keys;
+DROP TABLE gitsshkeys;

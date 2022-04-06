@@ -237,7 +237,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 
 const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec
 DELETE FROM
-	git_ssh_keys
+	gitsshkeys
 WHERE
 	user_id = $1
 `
@@ -251,14 +251,14 @@ const getGitSSHKey = `-- name: GetGitSSHKey :one
 SELECT
 	user_id, created_at, updated_at, private_key, public_key
 FROM
-	git_ssh_keys
+	gitsshkeys
 WHERE
 	user_id = $1
 `
 
-func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSshKey, error) {
+func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error) {
 	row := q.db.QueryRowContext(ctx, getGitSSHKey, userID)
-	var i GitSshKey
+	var i GitSSHKey
 	err := row.Scan(
 		&i.UserID,
 		&i.CreatedAt,
@@ -271,7 +271,7 @@ func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSsh
 
 const insertGitSSHKey = `-- name: InsertGitSSHKey :one
 INSERT INTO
-	git_ssh_keys (
+	gitsshkeys (
 		user_id,
 		created_at,
 		updated_at,
@@ -290,7 +290,7 @@ type InsertGitSSHKeyParams struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 }
 
-func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSshKey, error) {
+func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error) {
 	row := q.db.QueryRowContext(ctx, insertGitSSHKey,
 		arg.UserID,
 		arg.CreatedAt,
@@ -298,7 +298,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 		arg.PrivateKey,
 		arg.PublicKey,
 	)
-	var i GitSshKey
+	var i GitSSHKey
 	err := row.Scan(
 		&i.UserID,
 		&i.CreatedAt,
@@ -311,7 +311,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 
 const updateGitSSHKey = `-- name: UpdateGitSSHKey :exec
 UPDATE
-	git_ssh_keys
+	gitsshkeys
 SET
 	updated_at = $2,
 	private_key = $3,

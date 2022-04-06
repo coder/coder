@@ -95,7 +95,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("create user: %w", err)
 		}
 
-		privateKey, publicKey, err := gitsshkey.GenerateKeyPair(api.SSHKeygenAlgorithm)
+		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
 		if err != nil {
 			return xerrors.Errorf("generate user gitsshkey: %w", err)
 		}
@@ -224,7 +224,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("create user: %w", err)
 		}
 
-		privateKey, publicKey, err := gitsshkey.GenerateKeyPair(api.SSHKeygenAlgorithm)
+		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
 		if err != nil {
 			return xerrors.Errorf("generate user gitsshkey: %w", err)
 		}

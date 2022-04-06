@@ -129,7 +129,7 @@ func start() *cobra.Command {
 				return xerrors.Errorf("parse access url %q: %w", accessURL, err)
 			}
 
-			sshKeygenAlgorithm, err := gitsshkey.ParseSSHKeygenAlgorithm(sshKeygenAlgorithmRaw)
+			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(sshKeygenAlgorithmRaw)
 			if err != nil {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}

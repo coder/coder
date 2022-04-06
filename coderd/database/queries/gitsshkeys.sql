@@ -1,6 +1,6 @@
 -- name: InsertGitSSHKey :one
 INSERT INTO
-	git_ssh_keys (
+	gitsshkeys (
 		user_id,
 		created_at,
 		updated_at,
@@ -14,13 +14,13 @@ VALUES
 SELECT
 	*
 FROM
-	git_ssh_keys
+	gitsshkeys
 WHERE
 	user_id = $1;
 
 -- name: UpdateGitSSHKey :exec
 UPDATE
-	git_ssh_keys
+	gitsshkeys
 SET
 	updated_at = $2,
 	private_key = $3,
@@ -30,6 +30,6 @@ WHERE
 
 -- name: DeleteGitSSHKey :exec
 DELETE FROM
-	git_ssh_keys
+	gitsshkeys
 WHERE
 	user_id = $1;

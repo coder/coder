@@ -27,9 +27,26 @@ const (
 	AlgorithmRSA4096 Algorithm = "rsa4096"
 )
 
-// GenerateKeyPair creates a private key in the OpenSSH PEM format and public key in
+// ParseAlgorithm returns a valid Algorithm or error if input is not a valid.
+func ParseAlgorithm(t string) (Algorithm, error) {
+	ok := []string{
+		string(AlgorithmEd25519),
+		string(AlgorithmECDSA),
+		string(AlgorithmRSA4096),
+	}
+
+	for _, a := range ok {
+		if strings.EqualFold(a, t) {
+			return Algorithm(a), nil
+		}
+	}
+
+	return "", xerrors.Errorf(`invalid key type: %s, must be one of: %s`, t, strings.Join(ok, ","))
+}
+
+// Generate creates a private key in the OpenSSH PEM format and public key in
 // the authorized key format.
-func GenerateKeyPair(algo Algorithm) (privateKey string, publicKey string, err error) {
+func Generate(algo Algorithm) (privateKey string, publicKey string, err error) {
 	switch algo {
 	case AlgorithmEd25519:
 		return ed25519KeyGen()
@@ -107,21 +124,4 @@ func generateKeys(block pem.Block, cp crypto.Signer) (privateKey string, publicK
 	publicKey = string(ssh.MarshalAuthorizedKey(p))
 
 	return privateKey, publicKey, nil
-}
-
-// ParseSSHKeygenAlgorithm returns a valid SSHKeygenAlgorithm or error if input is not a valid.
-func ParseSSHKeygenAlgorithm(t string) (Algorithm, error) {
-	ok := []string{
-		string(AlgorithmEd25519),
-		string(AlgorithmECDSA),
-		string(AlgorithmRSA4096),
-	}
-
-	for _, a := range ok {
-		if strings.EqualFold(a, t) {
-			return Algorithm(a), nil
-		}
-	}
-
-	return "", xerrors.Errorf(`invalid key type: %s, must be one of: %s`, t, strings.Join(ok, ","))
 }

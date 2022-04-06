@@ -31,7 +31,7 @@ func New() database.Store {
 		provisionerJobResource: make([]database.WorkspaceResource, 0),
 		workspaceBuild:         make([]database.WorkspaceBuild, 0),
 		provisionerJobAgent:    make([]database.WorkspaceAgent, 0),
-		gitsshkey:              make([]database.GitSshKey, 0),
+		GitSSHKey:              make([]database.GitSSHKey, 0),
 	}
 }
 
@@ -58,7 +58,7 @@ type fakeQuerier struct {
 	provisionerJobLog      []database.ProvisionerJobLog
 	workspace              []database.Workspace
 	workspaceBuild         []database.WorkspaceBuild
-	gitsshkey              []database.GitSshKey
+	GitSSHKey              []database.GitSSHKey
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
@@ -1242,46 +1242,46 @@ func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSshKey, error) {
+func (q *fakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	gitsshkey := database.GitSshKey{
+	GitSSHKey := database.GitSSHKey{
 		UserID:     arg.UserID,
 		CreatedAt:  arg.CreatedAt,
 		UpdatedAt:  arg.UpdatedAt,
 		PrivateKey: arg.PrivateKey,
 		PublicKey:  arg.PublicKey,
 	}
-	q.gitsshkey = append(q.gitsshkey, gitsshkey)
-	return gitsshkey, nil
+	q.GitSSHKey = append(q.GitSSHKey, GitSSHKey)
+	return GitSSHKey, nil
 }
 
-func (q *fakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSshKey, error) {
+func (q *fakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, key := range q.gitsshkey {
+	for _, key := range q.GitSSHKey {
 		if key.UserID == userID {
 			return key, nil
 		}
 	}
-	return database.GitSshKey{}, sql.ErrNoRows
+	return database.GitSSHKey{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, key := range q.gitsshkey {
+	for index, key := range q.GitSSHKey {
 		if key.UserID.String() != arg.UserID.String() {
 			continue
 		}
 		key.UpdatedAt = arg.UpdatedAt
 		key.PrivateKey = arg.PrivateKey
 		key.PublicKey = arg.PublicKey
-		q.gitsshkey[index] = key
+		q.GitSSHKey[index] = key
 		return nil
 	}
 	return sql.ErrNoRows
@@ -1291,12 +1291,12 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, key := range q.gitsshkey {
+	for index, key := range q.GitSSHKey {
 		if key.UserID.String() != userID.String() {
 			continue
 		}
-		q.gitsshkey[index] = q.gitsshkey[len(q.gitsshkey)-1]
-		q.gitsshkey = q.gitsshkey[:len(q.gitsshkey)-1]
+		q.GitSSHKey[index] = q.GitSSHKey[len(q.GitSSHKey)-1]
+		q.GitSSHKey = q.GitSSHKey[:len(q.GitSSHKey)-1]
 		return nil
 	}
 	return sql.ErrNoRows

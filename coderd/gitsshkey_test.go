@@ -125,6 +125,5 @@ func TestAgentGitSSHKey(t *testing.T) {
 		agentKey, err := client.AgentGitSSHKey(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, agentKey.PrivateKey)
-		require.NotEmpty(t, agentKey.PublicKey)
 	})
 }
