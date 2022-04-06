@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import React from "react"
-import { MockProject, MockWorkspace } from "./../test_helpers"
+import { MockTemplate, MockWorkspace } from "./../test_helpers"
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm"
 
 describe("CreateWorkspaceForm", () => {
@@ -10,7 +10,7 @@ describe("CreateWorkspaceForm", () => {
     const onCancel = () => Promise.resolve()
 
     // When
-    render(<CreateWorkspaceForm project={MockProject} onSubmit={onSubmit} onCancel={onCancel} />)
+    render(<CreateWorkspaceForm template={MockTemplate} onSubmit={onSubmit} onCancel={onCancel} />)
 
     // Then
     // Simple smoke test to verify form renders

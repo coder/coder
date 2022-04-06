@@ -177,13 +177,13 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace: %s", err))
 		}
-		projectVersion, err := server.Database.GetProjectVersionByID(ctx, workspaceBuild.ProjectVersionID)
+		templateVersion, err := server.Database.GetTemplateVersionByID(ctx, workspaceBuild.TemplateVersionID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get project version: %s", err))
+			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
-		project, err := server.Database.GetProjectByID(ctx, projectVersion.ProjectID.UUID)
+		template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 		if err != nil {
-			return nil, failJob(fmt.Sprintf("get project: %s", err))
+			return nil, failJob(fmt.Sprintf("get template: %s", err))
 		}
 		owner, err := server.Database.GetUserByID(ctx, workspace.OwnerID)
 		if err != nil {
@@ -192,10 +192,10 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			ProjectImportJobID: projectVersion.JobID,
-			OrganizationID:     job.OrganizationID,
-			ProjectID: uuid.NullUUID{
-				UUID:  project.ID,
+			TemplateImportJobID: templateVersion.JobID,
+			OrganizationID:      job.OrganizationID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
 				Valid: true,
 			},
 			UserID: user.ID,
@@ -235,9 +235,9 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 				},
 			},
 		}
-	case database.ProvisionerJobTypeProjectVersionImport:
-		protoJob.Type = &proto.AcquiredJob_ProjectImport_{
-			ProjectImport: &proto.AcquiredJob_ProjectImport{
+	case database.ProvisionerJobTypeTemplateVersionImport:
+		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
+			TemplateImport: &proto.AcquiredJob_TemplateImport{
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
@@ -250,7 +250,7 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
 		}
-		protoJob.ProjectSourceArchive = file.Data
+		protoJob.TemplateSourceArchive = file.Data
 	default:
 		return nil, failJob(fmt.Sprintf("unsupported storage method: %s", job.StorageMethod))
 	}
@@ -366,20 +366,20 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 			}
 		}
 
-		var projectID uuid.NullUUID
-		if job.Type == database.ProvisionerJobTypeProjectVersionImport {
-			projectVersion, err := server.Database.GetProjectVersionByJobID(ctx, job.ID)
+		var templateID uuid.NullUUID
+		if job.Type == database.ProvisionerJobTypeTemplateVersionImport {
+			templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
 			if err != nil {
-				return nil, xerrors.Errorf("get project version by job id: %w", err)
+				return nil, xerrors.Errorf("get template version by job id: %w", err)
 			}
-			projectID = projectVersion.ProjectID
+			templateID = templateVersion.TemplateID
 		}
 
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
-			ProjectImportJobID: job.ID,
-			ProjectID:          projectID,
-			OrganizationID:     job.OrganizationID,
-			UserID:             job.InitiatorID,
+			TemplateImportJobID: job.ID,
+			TemplateID:          templateID,
+			OrganizationID:      job.OrganizationID,
+			UserID:              job.InitiatorID,
 		}, nil)
 		if err != nil {
 			return nil, xerrors.Errorf("compute parameters: %w", err)
@@ -450,7 +450,7 @@ func (server *provisionerdServer) FailJob(ctx context.Context, failJob *proto.Fa
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace build state: %w", err)
 		}
-	case *proto.FailedJob_ProjectImport_:
+	case *proto.FailedJob_TemplateImport_:
 	}
 	return &proto.Empty{}, nil
 }
@@ -470,17 +470,17 @@ func (server *provisionerdServer) CompleteJob(ctx context.Context, completed *pr
 	}
 
 	switch jobType := completed.Type.(type) {
-	case *proto.CompletedJob_ProjectImport_:
+	case *proto.CompletedJob_TemplateImport_:
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
-			database.WorkspaceTransitionStart: jobType.ProjectImport.StartResources,
-			database.WorkspaceTransitionStop:  jobType.ProjectImport.StopResources,
+			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
+			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
 		} {
 			addresses, err := provisionersdk.ResourceAddresses(resources)
 			if err != nil {
 				return nil, xerrors.Errorf("compute resource addresses: %w", err)
 			}
 			for index, resource := range resources {
-				server.Logger.Info(ctx, "inserting project import job resource",
+				server.Logger.Info(ctx, "inserting template import job resource",
 					slog.F("job_id", job.ID.String()),
 					slog.F("resource_name", resource.Name),
 					slog.F("resource_type", resource.Type),

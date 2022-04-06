@@ -217,7 +217,7 @@ func start() *cobra.Command {
 					cliui.Styles.Field.Render("dev")+` mode. All data is in-memory! Do not use in production. Press `+cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`))+
 					`
 `+
-					cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Run `+cliui.Styles.Code.Render("coder projects init")+" in a new terminal to get started.\n"))+`
+					cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Run `+cliui.Styles.Code.Render("coder templates init")+" in a new terminal to get started.\n"))+`
 `)
 			} else {
 				// This is helpful for tests, but can be silently ignored.

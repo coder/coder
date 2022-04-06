@@ -23,7 +23,7 @@ const (
 
 // Compare checks the equality of passwords from a hashed pbkdf2 string.
 // This uses pbkdf2 to ensure FIPS 140-2 compliance. See:
-// https://csrc.nist.gov/csrc/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp2261.pdf
+// https://csrc.nist.gov/csrc/media/templates/cryptographic-module-validation-program/documents/security-policies/140sp2261.pdf
 func Compare(hashed string, password string) (bool, error) {
 	if len(hashed) < hashLength {
 		return false, xerrors.Errorf("hash too short: %d", len(hashed))

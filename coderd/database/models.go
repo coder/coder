@@ -97,7 +97,7 @@ type ParameterScope string
 
 const (
 	ParameterScopeOrganization ParameterScope = "organization"
-	ParameterScopeProject      ParameterScope = "project"
+	ParameterScopeTemplate     ParameterScope = "template"
 	ParameterScopeImportJob    ParameterScope = "import_job"
 	ParameterScopeUser         ParameterScope = "user"
 	ParameterScopeWorkspace    ParameterScope = "workspace"
@@ -156,8 +156,8 @@ func (e *ParameterTypeSystem) Scan(src interface{}) error {
 type ProvisionerJobType string
 
 const (
-	ProvisionerJobTypeProjectVersionImport ProvisionerJobType = "project_version_import"
-	ProvisionerJobTypeWorkspaceBuild       ProvisionerJobType = "workspace_build"
+	ProvisionerJobTypeTemplateVersionImport ProvisionerJobType = "template_version_import"
+	ProvisionerJobTypeWorkspaceBuild        ProvisionerJobType = "workspace_build"
 )
 
 func (e *ProvisionerJobType) Scan(src interface{}) error {
@@ -316,28 +316,6 @@ type ParameterValue struct {
 	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
 }
 
-type Project struct {
-	ID              uuid.UUID       `db:"id" json:"id"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Deleted         bool            `db:"deleted" json:"deleted"`
-	Name            string          `db:"name" json:"name"`
-	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-}
-
-type ProjectVersion struct {
-	ID             uuid.UUID     `db:"id" json:"id"`
-	ProjectID      uuid.NullUUID `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-}
-
 type ProvisionerDaemon struct {
 	ID             uuid.UUID         `db:"id" json:"id"`
 	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
@@ -375,6 +353,28 @@ type ProvisionerJobLog struct {
 	Output    string    `db:"output" json:"output"`
 }
 
+type Template struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted         bool            `db:"deleted" json:"deleted"`
+	Name            string          `db:"name" json:"name"`
+	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+}
+
+type TemplateVersion struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
+}
+
 type User struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	Email          string    `db:"email" json:"email"`
@@ -388,13 +388,13 @@ type User struct {
 }
 
 type Workspace struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
-	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
-	Deleted   bool      `db:"deleted" json:"deleted"`
-	Name      string    `db:"name" json:"name"`
+	ID         uuid.UUID `db:"id" json:"id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	Deleted    bool      `db:"deleted" json:"deleted"`
+	Name       string    `db:"name" json:"name"`
 }
 
 type WorkspaceAgent struct {
@@ -414,18 +414,18 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceBuild struct {
-	ID               uuid.UUID           `db:"id" json:"id"`
-	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID      uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	ProjectVersionID uuid.UUID           `db:"project_version_id" json:"project_version_id"`
-	Name             string              `db:"name" json:"name"`
-	BeforeID         uuid.NullUUID       `db:"before_id" json:"before_id"`
-	AfterID          uuid.NullUUID       `db:"after_id" json:"after_id"`
-	Transition       WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID      uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID            uuid.UUID           `db:"job_id" json:"job_id"`
+	ID                uuid.UUID           `db:"id" json:"id"`
+	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	Name              string              `db:"name" json:"name"`
+	BeforeID          uuid.NullUUID       `db:"before_id" json:"before_id"`
+	AfterID           uuid.NullUUID       `db:"after_id" json:"after_id"`
+	Transition        WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
 }
 
 type WorkspaceResource struct {

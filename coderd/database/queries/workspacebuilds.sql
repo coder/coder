@@ -62,7 +62,7 @@ INSERT INTO
 		created_at,
 		updated_at,
 		workspace_id,
-		project_version_id,
+		template_version_id,
 		before_id,
 		"name",
 		transition,

@@ -150,7 +150,7 @@ func login() *cobra.Command {
 					cliui.Styles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.Styles.Keyword.Render(username)))+"\n")
 
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-					cliui.Styles.Paragraph.Render("Get started by creating a project: "+cliui.Styles.Code.Render("coder projects create"))+"\n")
+					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates create"))+"\n")
 				return nil
 			}
 

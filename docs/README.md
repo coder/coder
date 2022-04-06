@@ -62,14 +62,7 @@ $ vim main.tf
 $ coder projects update gcp-linux
 ```
 
-## Development
+## Contributing
 
-Read the [contributing docs](./CONTRIBUTING.md) for style and review guidelines.
+Read the [contributing docs](./CONTRIBUTING.md).
 
-Coder requires Go 1.18+, Node 14+, and GNU Make.
-
-- `make bin` builds binaries
-- `make install` installs binaries to `$GOPATH/bin`
-- `make test`
-- `make release` dry-runs a new release
-- `./develop.sh` hot-reloads for frontend development

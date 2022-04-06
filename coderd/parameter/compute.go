@@ -13,11 +13,11 @@ import (
 
 // ComputeScope targets identifiers to pull parameters from.
 type ComputeScope struct {
-	ProjectImportJobID uuid.UUID
-	OrganizationID     uuid.UUID
-	UserID             uuid.UUID
-	ProjectID          uuid.NullUUID
-	WorkspaceID        uuid.NullUUID
+	TemplateImportJobID uuid.UUID
+	OrganizationID      uuid.UUID
+	UserID              uuid.UUID
+	TemplateID          uuid.NullUUID
+	WorkspaceID         uuid.NullUUID
 }
 
 type ComputeOptions struct {
@@ -48,12 +48,12 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	}
 
 	// All parameters for the import job ID!
-	parameterSchemas, err := db.GetParameterSchemasByJobID(ctx, scope.ProjectImportJobID)
+	parameterSchemas, err := db.GetParameterSchemasByJobID(ctx, scope.TemplateImportJobID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("get project parameters: %w", err)
+		return nil, xerrors.Errorf("get template parameters: %w", err)
 	}
 	for _, parameterSchema := range parameterSchemas {
 		compute.parameterSchemasByName[parameterSchema.Name] = parameterSchema
@@ -71,13 +71,13 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	// Job parameters come second!
 	err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
 		Scope:   database.ParameterScopeImportJob,
-		ScopeID: scope.ProjectImportJobID,
+		ScopeID: scope.TemplateImportJobID,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Default project parameter values come second!
+	// Default template parameter values come second!
 	for _, parameterSchema := range parameterSchemas {
 		if parameterSchema.DefaultSourceScheme == database.ParameterSourceSchemeNone {
 			continue
@@ -101,21 +101,21 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				SourceValue:       parameterSchema.DefaultSourceValue,
 				Scope:             database.ParameterScopeImportJob,
-				ScopeID:           scope.ProjectImportJobID,
+				ScopeID:           scope.TemplateImportJobID,
 			}, true)
 			if err != nil {
 				return nil, xerrors.Errorf("insert default value: %w", err)
 			}
 		default:
-			return nil, xerrors.Errorf("unsupported source scheme for project version parameter %q: %q", parameterSchema.Name, string(parameterSchema.DefaultSourceScheme))
+			return nil, xerrors.Errorf("unsupported source scheme for template version parameter %q: %q", parameterSchema.Name, string(parameterSchema.DefaultSourceScheme))
 		}
 	}
 
-	if scope.ProjectID.Valid {
-		// Project parameters come third!
+	if scope.TemplateID.Valid {
+		// Template parameters come third!
 		err = compute.injectScope(ctx, database.GetParameterValuesByScopeParams{
-			Scope:   database.ParameterScopeProject,
-			ScopeID: scope.ProjectID.UUID,
+			Scope:   database.ParameterScopeTemplate,
+			ScopeID: scope.TemplateID.UUID,
 		})
 		if err != nil {
 			return nil, err
@@ -178,14 +178,14 @@ func (c *compute) injectScope(ctx context.Context, scopeParams database.GetParam
 func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultValue bool) error {
 	parameterSchema, hasParameterSchema := c.parameterSchemasByName[scopedParameter.Name]
 	if !hasParameterSchema {
-		// Don't inject parameters that aren't defined by the project.
+		// Don't inject parameters that aren't defined by the template.
 		return nil
 	}
 
 	_, hasParameterValue := c.computedParameterByName[scopedParameter.Name]
 	if hasParameterValue {
 		if !parameterSchema.AllowOverrideSource &&
-			// Users and workspaces cannot override anything on a project!
+			// Users and workspaces cannot override anything on a template!
 			(scopedParameter.Scope == database.ParameterScopeUser ||
 				scopedParameter.Scope == database.ParameterScopeWorkspace) {
 			return nil

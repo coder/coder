@@ -9,7 +9,7 @@
     "build:analyze": "NODE_ENV=production webpack --profile --progress --json --config=webpack.prod.ts > out/stats.json && webpack-bundle-analyzer out/stats.json out",
     "dev": "webpack-dev-server --config=webpack.dev.ts",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
-    "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}' && sql-formatter -l postgresql ./database/query.sql -o ./database/query.sql",
+    "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "lint": "jest --selectProjects lint",
     "lint:fix": "FIX=true yarn lint",
     "playwright:install": "playwright install",
