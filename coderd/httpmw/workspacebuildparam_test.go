@@ -58,10 +58,10 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		require.NoError(t, err)
 
 		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
-			ID:        uuid.New(),
-			ProjectID: uuid.New(),
-			OwnerID:   user.ID,
-			Name:      "potato",
+			ID:         uuid.New(),
+			TemplateID: uuid.New(),
+			OwnerID:    user.ID,
+			Name:       "potato",
 		})
 		require.NoError(t, err)
 

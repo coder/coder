@@ -63,8 +63,8 @@ type CreateOrganizationRequest struct {
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
 type CreateWorkspaceRequest struct {
-	ProjectID uuid.UUID `json:"project_id" validate:"required"`
-	Name      string    `json:"name" validate:"username,required"`
+	TemplateID uuid.UUID `json:"template_id" validate:"required"`
+	Name       string    `json:"name" validate:"username,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
 	ParameterValues []CreateParameterRequest `json:"parameter_values"`
@@ -219,7 +219,7 @@ func (c *Client) CreateOrganization(ctx context.Context, userID uuid.UUID, req C
 	return org, json.NewDecoder(res.Body).Decode(&org)
 }
 
-// CreateWorkspace creates a new workspace for the project specified.
+// CreateWorkspace creates a new workspace for the template specified.
 func (c *Client) CreateWorkspace(ctx context.Context, userID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), request)
 	if err != nil {

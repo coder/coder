@@ -18,12 +18,12 @@ import (
 
 func workspaceCreate() *cobra.Command {
 	var (
-		projectName string
+		templateName string
 	)
 	cmd := &cobra.Command{
 		Use:   "create <name>",
 		Args:  cobra.ExactArgs(1),
-		Short: "Create a workspace from a project",
+		Short: "Create a workspace from a template",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -34,36 +34,36 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
-			var project codersdk.Project
-			if projectName == "" {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a project:"))
+			var template codersdk.Template
+			if templateName == "" {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a template:"))
 
-				projectNames := []string{}
-				projectByName := map[string]codersdk.Project{}
-				projects, err := client.ProjectsByOrganization(cmd.Context(), organization.ID)
+				templateNames := []string{}
+				templateByName := map[string]codersdk.Template{}
+				templates, err := client.TemplatesByOrganization(cmd.Context(), organization.ID)
 				if err != nil {
 					return err
 				}
-				for _, project := range projects {
-					projectNames = append(projectNames, project.Name)
-					projectByName[project.Name] = project
+				for _, template := range templates {
+					templateNames = append(templateNames, template.Name)
+					templateByName[template.Name] = template
 				}
-				sort.Slice(projectNames, func(i, j int) bool {
-					return projectByName[projectNames[i]].WorkspaceOwnerCount > projectByName[projectNames[j]].WorkspaceOwnerCount
+				sort.Slice(templateNames, func(i, j int) bool {
+					return templateByName[templateNames[i]].WorkspaceOwnerCount > templateByName[templateNames[j]].WorkspaceOwnerCount
 				})
 				// Move the cursor up a single line for nicer display!
 				option, err := cliui.Select(cmd, cliui.SelectOptions{
-					Options:    projectNames,
+					Options:    templateNames,
 					HideSearch: true,
 				})
 				if err != nil {
 					return err
 				}
-				project = projectByName[option]
+				template = templateByName[option]
 			} else {
-				project, err = client.ProjectByName(cmd.Context(), organization.ID, projectName)
+				template, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
 				if err != nil {
-					return xerrors.Errorf("get project by name: %w", err)
+					return xerrors.Errorf("get template by name: %w", err)
 				}
 				if err != nil {
 					return err
@@ -71,7 +71,7 @@ func workspaceCreate() *cobra.Command {
 			}
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Creating with the "+cliui.Styles.Field.Render(project.Name)+" project...")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Creating with the "+cliui.Styles.Field.Render(template.Name)+" template...")
 
 			workspaceName := args[0]
 			_, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceName)
@@ -79,11 +79,11 @@ func workspaceCreate() *cobra.Command {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
 
-			projectVersion, err := client.ProjectVersion(cmd.Context(), project.ActiveVersionID)
+			templateVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
 			if err != nil {
 				return err
 			}
-			parameterSchemas, err := client.ProjectVersionSchema(cmd.Context(), projectVersion.ID)
+			parameterSchemas, err := client.TemplateVersionSchema(cmd.Context(), templateVersion.ID)
 			if err != nil {
 				return err
 			}
@@ -95,7 +95,7 @@ func workspaceCreate() *cobra.Command {
 					continue
 				}
 				if !printed {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This project has customizable parameters! These can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters! These can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 					printed = true
 				}
 
@@ -115,11 +115,11 @@ func workspaceCreate() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.FocusedPrompt.String()+"Previewing resources...")
 				_, _ = fmt.Fprintln(cmd.OutOrStdout())
 			}
-			resources, err := client.ProjectVersionResources(cmd.Context(), projectVersion.ID)
+			resources, err := client.TemplateVersionResources(cmd.Context(), templateVersion.ID)
 			if err != nil {
 				return err
 			}
-			err = displayProjectVersionInfo(cmd, resources)
+			err = displayTemplateVersionInfo(cmd, resources)
 			if err != nil {
 				return err
 			}
@@ -138,7 +138,7 @@ func workspaceCreate() *cobra.Command {
 
 			before := time.Now()
 			workspace, err := client.CreateWorkspace(cmd.Context(), codersdk.Me, codersdk.CreateWorkspaceRequest{
-				ProjectID:       project.ID,
+				TemplateID:      template.ID,
 				Name:            workspaceName,
 				ParameterValues: parameters,
 			})
@@ -167,7 +167,7 @@ func workspaceCreate() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVarP(&projectName, "project", "p", "", "Specify a project name.")
+	cmd.Flags().StringVarP(&templateName, "template", "p", "", "Specify a template name.")
 
 	return cmd
 }

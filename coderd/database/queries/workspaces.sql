@@ -8,13 +8,13 @@ WHERE
 LIMIT
 	1;
 
--- name: GetWorkspacesByProjectID :many
+-- name: GetWorkspacesByTemplateID :many
 SELECT
 	*
 FROM
 	workspaces
 WHERE
-	project_id = $1
+	template_id = $1
 	AND deleted = $2;
 
 -- name: GetWorkspacesByUserID :many
@@ -36,16 +36,16 @@ WHERE
 	AND deleted = @deleted
 	AND LOWER("name") = LOWER(@name);
 
--- name: GetWorkspaceOwnerCountsByProjectIDs :many
+-- name: GetWorkspaceOwnerCountsByTemplateIDs :many
 SELECT
-	project_id,
+	template_id,
 	COUNT(DISTINCT owner_id)
 FROM
 	workspaces
 WHERE
-	project_id = ANY(@ids :: uuid [ ])
+	template_id = ANY(@ids :: uuid [ ])
 GROUP BY
-	project_id,
+	template_id,
 	owner_id;
 
 -- name: InsertWorkspace :one
@@ -55,7 +55,7 @@ INSERT INTO
 		created_at,
 		updated_at,
 		owner_id,
-		project_id,
+		template_id,
 		name
 	)
 VALUES
