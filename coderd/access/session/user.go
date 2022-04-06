@@ -8,13 +8,13 @@ type userActor struct {
 
 var _ UserActor = &userActor{}
 
-func NewUserActor(u *database.User) *userActor {
+func NewUserActor(u *database.User) UserActor {
 	return &userActor{
 		user: u,
 	}
 }
 
-func (ua *userActor) Type() ActorType {
+func (*userActor) Type() ActorType {
 	return ActorTypeUser
 }
 
