@@ -8,6 +8,11 @@ import (
 
 // BuildInfoResponse contains build information for this instance of Coder.
 type BuildInfoResponse struct {
+	// ExternalURL is a URL referencing the current Coder version.  For production
+	// builds, this will link directly to a release.  For development builds, this
+	// will link to a commit.
+	ExternalURL string `json:"external_url"`
+	// Version returns the semantic version of the build.
 	Version string `json:"version"`
 }
 

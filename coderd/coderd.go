@@ -64,7 +64,8 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 				render.Status(r, http.StatusOK)
 				render.JSON(rw, r, codersdk.BuildInfoResponse{
-					Version: buildinfo.Version(),
+					ExternalURL: buildinfo.ExternalURL(),
+					Version:     buildinfo.Version(),
 				})
 			})
 		})

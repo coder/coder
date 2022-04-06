@@ -21,5 +21,6 @@ func TestBuildInfo(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	buildInfo, err := client.BuildInfo(context.Background())
 	require.NoError(t, err)
+	require.Equal(t, buildinfo.ExternalURL(), buildInfo.ExternalURL, "external URL")
 	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")
 }
