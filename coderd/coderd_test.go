@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/buildinfo"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/coderdtest"
 )
 

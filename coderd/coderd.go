@@ -13,7 +13,7 @@ import (
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/cli/buildinfo"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
