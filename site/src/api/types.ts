@@ -2,6 +2,7 @@
  * `BuildInfoResponse` must be kept in sync with the go struct in buildinfo.go.
  */
 export interface BuildInfoResponse {
+  external_url: string
   version: string
 }
 

@@ -1,3 +1,4 @@
+import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { useActor } from "@xstate/react"
@@ -8,7 +9,7 @@ import { XServiceContext } from "../../xServices/StateContext"
 export const Language = {
   buildInfoText: (buildInfo: BuildInfoResponse) => {
     return `Coder ${buildInfo.version}`
-  }
+  },
 }
 
 export const Footer: React.FC = ({ children }) => {
@@ -25,10 +26,10 @@ export const Footer: React.FC = ({ children }) => {
         </Typography>
       </div>
       {buildInfoState.context.buildInfo && (
-        <div className={styles.version}>
-          <Typography color="textSecondary" variant="caption">
+        <div className={styles.buildInfo}>
+          <Link variant="caption" href={buildInfoState.context.buildInfo.external_url}>
             {Language.buildInfoText(buildInfoState.context.buildInfo)}
-          </Typography>
+          </Link>
         </div>
       )}
     </div>
@@ -42,11 +43,9 @@ const useFooterStyles = makeStyles((theme) => ({
     flex: "0",
   },
   copyRight: {
-    backgroundColor: theme.palette.background.default,
     margin: theme.spacing(0.25),
   },
-  version: {
-    backgroundColor: theme.palette.background.default,
+  buildInfo: {
     margin: theme.spacing(0.25),
   },
 }))
