@@ -61,7 +61,12 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/buildinfo", func(r chi.Router) {
-			r.Get("/", api.buildInfo)
+			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+				render.Status(r, http.StatusOK)
+				render.JSON(rw, r, codersdk.BuildInfoResponse{
+					Version: buildinfo.Version(),
+				})
+			})
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
@@ -213,11 +218,4 @@ type api struct {
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
-}
-
-func (*api) buildInfo(rw http.ResponseWriter, r *http.Request) {
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, codersdk.BuildInfoResponse{
-		Version: buildinfo.Version(),
-	})
 }
