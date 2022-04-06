@@ -308,7 +308,10 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		)
 
 		err := client.UpdateWorkspaceAutostart(ctx, wsid, req)
-		require.EqualError(t, err, fmt.Sprintf("status code 404: workspace %q does not exist", wsid), "unexpected error")
+		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
+		coderSDKErr, _ := err.(*codersdk.Error)
+		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
+		require.Equal(t, fmt.Sprintf("workspace %q does not exist", wsid), coderSDKErr.Message, "unexpected response code")
 	})
 }
 
