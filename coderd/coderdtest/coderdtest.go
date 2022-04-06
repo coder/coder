@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -49,6 +50,7 @@ import (
 type Options struct {
 	AWSInstanceIdentity    awsidentity.Certificates
 	GoogleInstanceIdentity *idtoken.Validator
+	SSHKeygenAlgorithm     gitsshkey.Algorithm
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -98,6 +100,12 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	var closeWait func()
+
+	// match default with cli default
+	if options.SSHKeygenAlgorithm == "" {
+		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
+	}
+
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 25 * time.Millisecond,
@@ -108,6 +116,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 		AWSCertificates:      options.AWSInstanceIdentity,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
+		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 	})
 	t.Cleanup(func() {
 		srv.Close()

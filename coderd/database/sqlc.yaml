@@ -27,3 +27,4 @@ rename:
   oidc_refresh_token: OIDCRefreshToken
   parameter_type_system_hcl: ParameterTypeSystemHCL
   userstatus: UserStatus
+  gitsshkey: GitSSHKey

@@ -89,6 +89,14 @@ CREATE TABLE files (
     data bytea NOT NULL
 );
 
+CREATE TABLE gitsshkeys (
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    private_key text NOT NULL,
+    public_key text NOT NULL
+);
+
 CREATE TABLE licenses (
     id integer NOT NULL,
     license jsonb NOT NULL,
@@ -283,6 +291,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (hash);
 
+ALTER TABLE ONLY gitsshkeys
+    ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
@@ -378,6 +389,9 @@ CREATE UNIQUE INDEX workspaces_owner_id_name_idx ON workspaces USING btree (owne
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY gitsshkeys
+    ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/tunnel"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/terraform"
@@ -57,6 +58,7 @@ func start() *cobra.Command {
 		useTunnel              bool
 		traceDatadog           bool
 		secureAuthCookie       bool
+		sshKeygenAlgorithmRaw  string
 	)
 	root := &cobra.Command{
 		Use: "start",
@@ -126,6 +128,12 @@ func start() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse access url %q: %w", accessURL, err)
 			}
+
+			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(sshKeygenAlgorithmRaw)
+			if err != nil {
+				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
+			}
+
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
@@ -134,6 +142,7 @@ func start() *cobra.Command {
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
 				SecureAuthCookie:     secureAuthCookie,
+				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 			}
 
 			if !dev {
@@ -337,6 +346,8 @@ func start() *cobra.Command {
 	_ = root.Flags().MarkHidden("tunnel")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
+	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
+		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
 
 	return root
 }

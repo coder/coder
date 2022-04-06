@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/userpassword"
@@ -80,7 +81,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// Create the user, organization, and membership to the user.
 	var user database.User
 	var organization database.Organization
-	err = api.Database.InTx(func(s database.Store) error {
+	err = api.Database.InTx(func(db database.Store) error {
 		user, err = api.Database.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             uuid.New(),
 			Email:          createUser.Email,
@@ -93,6 +94,22 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
+
+		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
+		if err != nil {
+			return xerrors.Errorf("generate user gitsshkey: %w", err)
+		}
+		_, err = db.InsertGitSSHKey(r.Context(), database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  database.Now(),
+			UpdatedAt:  database.Now(),
+			PrivateKey: privateKey,
+			PublicKey:  publicKey,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert user gitsshkey: %w", err)
+		}
+
 		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      createUser.OrganizationName,
@@ -206,6 +223,22 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create user: %w", err)
 		}
+
+		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
+		if err != nil {
+			return xerrors.Errorf("generate user gitsshkey: %w", err)
+		}
+		_, err = db.InsertGitSSHKey(r.Context(), database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  database.Now(),
+			UpdatedAt:  database.Now(),
+			PrivateKey: privateKey,
+			PublicKey:  publicKey,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert user gitsshkey: %w", err)
+		}
+
 		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         user.ID,
