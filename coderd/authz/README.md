@@ -4,27 +4,27 @@ Package `authz` implements AuthoriZation for Coder.
 
 ## Overview
 
-Authorization defines what **permission** an **subject** has to perform **actions** to **resources**:
+Authorization defines what **permission** an **subject** has to perform **actions** to **objects**:
 - **Permission** is binary: *yes* (allowed) or *no* (denied).
 - **Subject** in this case is anything that implements interface `authz.Subject`.
 - **Action** here is an enumerated list of actions, but we stick to `Create`, `Read`, `Update`, and `Delete` here.
-- **Resource** here is anything that implements `authz.Resource`.
+- **Object** here is anything that implements `authz.Object`.
 
 ## Permission Structure
 
-A **permission** is a rule that grants or denies access for a **subject** to perform an **action** on a **resource**.
+A **permission** is a rule that grants or denies access for a **subject** to perform an **action** on a **object**.
 A **permission** is always applied at a given **level**:
 
-- **site** level applies to all resources in a given Coder deployment.
-- **org** level applies to all resources that have an organization owner (`org_owner`)
-- **user** level applies to all resources that have an owner with the same ID as the subject.
+- **site** level applies to all objects in a given Coder deployment.
+- **org** level applies to all objects that have an organization owner (`org_owner`)
+- **user** level applies to all objects that have an owner with the same ID as the subject.
 
 **Permissions** at a higher **level** always override permissions at a **lower** level.
 
 The effect of a **permission** can be:
 - **positive** (allows)
 - **negative** (denies)
-- **abstain** (neither allows or denies, but interpreted as deny by default)
+- **abstain** (neither allows or denies, not applicable)
 
 **Negative** permissions **always** override **positive** permissions at the same level.
 Both **negative** and **positive** permissions override **abstain** at the same level.
@@ -41,24 +41,24 @@ This can be represented by the following truth table, where Y represents *positi
 
 ## Permission Representation
 
-**Permissions** are represented in string format as `<sign>?<level>.<resource>.<id>.<action>`, where:
+**Permissions** are represented in string format as `<sign>?<level>.<object>.<id>.<action>`, where:
 
 - `sign` can be either `+` or `-`. If it is omitted, sign is assumed to be `+`.
 - `level` is either `*`, `site`, `org`, or `user`.
-- `resource` is any valid resource type.
+- `object` is any valid resource type.
 - `id` is any valid UUID v4.
 - `action` is `create`, `read`, `modify`, or `delete`.
 
 ## Example Permissions
 
-- `+site.devurl.*.read`: allowed to perform the `read` action against all resources of type `devurl` in a given Coder deployment.
+- `+site.*.*.read`: allowed to perform the `read` action against all objects of type `devurl` in a given Coder deployment.
 - `-user.workspace.*.create`: user is not allowed to create workspaces.
 
 ## Roles
 
 A *role* is a set of permissions. When evaluating a role's permission to form an action, all the relevant permissions for the role are combined at each level. Permissions at a higher level override permissions at a lower level.
 
-The following table shows the per-level role evaluation logic.
+The following table shows the per-level role evaluation.
 Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _ indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result.
 
 | Role (example)  | Site | Org | User | Result |
