@@ -22,8 +22,8 @@ func (t ResourceType) ResourceType() ResourceType {
 //nolint:revive
 func (r ResourceType) Org(orgID string) zObject {
 	return zObject{
-		OwnedByOrg: orgID,
-		ObjectType: r,
+		orgOwner:   orgID,
+		objectType: r,
 	}
 }
 
@@ -32,7 +32,7 @@ func (r ResourceType) Org(orgID string) zObject {
 func (r ResourceType) Owner(id string) zObject {
 	return zObject{
 		owner:      id,
-		ObjectType: r,
+		objectType: r,
 	}
 }
 
@@ -40,6 +40,6 @@ func (r ResourceType) Owner(id string) zObject {
 func (r ResourceType) AsID(id string) zObject {
 	return zObject{
 		id:         id,
-		ObjectType: r,
+		objectType: r,
 	}
 }
