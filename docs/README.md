@@ -1,6 +1,12 @@
-# Coder
+# Coder (alpha)
 
-[!["GitHub Discussions"](https://img.shields.io/badge/%20GitHub-%20Discussions-gray.svg?longCache=true&logo=github&colorB=purple)](https://github.com/coder/coder/discussions) [!["Join us on Slack"](https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=brightgreen)](https://coder.com/community) [![Twitter Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq) [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
+⚠ This is an alpha version of Coder. It is not ready for production use. We
+welcome early and constructive feedback! ⚠️
+
+[!["GitHub Discussions"](https://img.shields.io/badge/%20GitHub-%20Discussions-gray.svg?longCache=true&logo=github&colorB=purple)](https://github.com/coder/coder/discussions)
+[!["Join us on Slack"](https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=brightgreen)](https://coder.com/community)
+[![Twitter Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
+[![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
 Provision remote development environments with Terraform.
 
@@ -14,7 +20,8 @@ Provision remote development environments with Terraform.
 
 Install [the latest release](https://github.com/coder/coder/releases).
 
-To tinker, start with dev-mode (all data is in-memory, and is destroyed on exit):
+To tinker, start with dev-mode (all data is in-memory, and is destroyed on
+exit):
 
 ```bash
 $ coder start --dev
@@ -65,4 +72,3 @@ $ coder projects update gcp-linux
 ## Contributing
 
 Read the [contributing docs](./CONTRIBUTING.md).
-
