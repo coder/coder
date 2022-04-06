@@ -18,7 +18,7 @@ const Language = {
   orgsLabel: "Organizations",
   orgsDescription: "Manage organizations.",
   settingsLabel: "Settings",
-  settingsDescription: "Configure authentication and more."
+  settingsDescription: "Configure authentication and more.",
 }
 
 const entries = [
@@ -38,8 +38,8 @@ const entries = [
     label: Language.settingsLabel,
     description: Language.settingsDescription,
     path: "/settings",
-    Icon: AdminIcon
-  }
+    Icon: AdminIcon,
+  },
 ]
 
 export const AdminDropdown: React.FC = () => {
@@ -54,11 +54,7 @@ export const AdminDropdown: React.FC = () => {
       <div className={styles.link}>
         <ListItem selected={Boolean(anchorEl)} button onClick={onOpenAdminMenu}>
           <ListItemText className="no-brace" color="primary" primary="Admin" />
-          {anchorEl ? (
-            <CloseDropdown />
-          ) : (
-            <OpenDropdown />
-          )}
+          {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
         </ListItem>
       </div>
 

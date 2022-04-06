@@ -38,11 +38,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
             <Badge overlap="circle">
               <UserAvatar username={user.username} />
             </Badge>
-            {anchorEl ? (
-              <CloseDropdown />
-            ) : (
-              <OpenDropdown />
-            )}
+            {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
           </div>
         </MenuItem>
       </div>

@@ -24,9 +24,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         </Link>
       </div>
       <div className={styles.fullWidth} />
-      {user && user.email === "admin@coder.com" &&
-        <AdminDropdown />
-      } 
+      {user && user.email === "admin@coder.com" && <AdminDropdown />}
       <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
     </div>
   )
