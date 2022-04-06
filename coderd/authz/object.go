@@ -25,17 +25,17 @@ var _ OrgResource = (*zObject)(nil)
 // that represents the set of workspaces you are trying to get access too.
 // Do not export this type, as it can be created from a resource type constant.
 type zObject struct {
-	ObjectID   string `json:"object_id"`
-	OwnedBy    string `json:"owner_id"`
-	OwnedByOrg string `json:"org_owner_id"`
+	id         string
+	owner      string
+	OwnedByOrg string
 
 	// ObjectType is "workspace", "project", "devurl", etc
-	ObjectType ResourceType `json:"object_type"`
+	ObjectType ResourceType
 	// TODO: SharedUsers?
 }
 
 func (z zObject) ID() string {
-	return z.ObjectID
+	return z.id
 }
 
 func (z zObject) ResourceType() ResourceType {
@@ -43,7 +43,7 @@ func (z zObject) ResourceType() ResourceType {
 }
 
 func (z zObject) OwnerID() string {
-	return z.OwnedBy
+	return z.owner
 }
 
 func (z zObject) OrgOwnerID() string {
@@ -60,12 +60,12 @@ func (z zObject) Org(orgID string) zObject {
 // Owner adds an OwnerID to the resource
 //nolint:revive
 func (z zObject) Owner(id string) zObject {
-	z.OwnedBy = id
+	z.owner = id
 	return z
 }
 
 //nolint:revive
 func (z zObject) AsID(id string) zObject {
-	z.ObjectID = id
+	z.id = id
 	return z
 }

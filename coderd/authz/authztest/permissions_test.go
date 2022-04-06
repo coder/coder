@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/coderd/authz/authztest"
 )
 
-func Test_AllPermissions(t *testing.T) {
+func TestAllPermissions(t *testing.T) {
 	t.Parallel()
 
 	// If this changes, then we might have to fix some other tests. This constant

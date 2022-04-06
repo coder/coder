@@ -9,7 +9,7 @@ import (
 	crand "github.com/coder/coder/cryptorand"
 )
 
-func Test_NewRole(t *testing.T) {
+func TestNewRole(t *testing.T) {
 	t.Parallel()
 
 	for i := 0; i < 50; i++ {

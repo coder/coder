@@ -11,7 +11,7 @@ import (
 
 var nilSet = authztest.Set{nil}
 
-func Test_ExhaustiveAuthorize(t *testing.T) {
+func TestExhaustiveAuthorize(t *testing.T) {
 	t.Parallel()
 
 	all := authztest.GroupedPermissions(authztest.AllPermissions())

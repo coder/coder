@@ -8,9 +8,9 @@ import (
 	"github.com/coder/coder/coderd/authz"
 )
 
-// Test_Example gives some examples on how to use the authz library.
+// TestExample gives some examples on how to use the authz library.
 // This serves to test syntax more than functionality.
-func Test_Example(t *testing.T) {
+func TestExample(t *testing.T) {
 	t.Parallel()
 
 	// user will become an authn object, and can even be a database.User if it

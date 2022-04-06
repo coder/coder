@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/coderd/authz"
 )
 
-func Test_PermissionString(t *testing.T) {
+func TestPermissionString(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -72,7 +72,7 @@ func Test_PermissionString(t *testing.T) {
 	}
 }
 
-func Test_ParsePermissions(t *testing.T) {
+func TestParsePermissions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {

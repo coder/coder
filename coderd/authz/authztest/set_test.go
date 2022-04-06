@@ -10,7 +10,7 @@ import (
 	crand "github.com/coder/coder/cryptorand"
 )
 
-func Test_Set(t *testing.T) {
+func TestSet(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Simple", func(t *testing.T) {

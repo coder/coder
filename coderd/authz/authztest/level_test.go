@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/coderd/authz/authztest"
 )
 
-func Test_GroupedPermissions(t *testing.T) {
+func TestGroupedPermissions(t *testing.T) {
 	t.Parallel()
 
 	set := make(authztest.Set, 0)
