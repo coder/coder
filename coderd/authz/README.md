@@ -58,7 +58,7 @@ This can be represented by the following truth table, where Y represents *positi
 
 A *role* is a set of permissions. When evaluating a role's permission to form an action, all the relevant permissions for the role are combined at each level. Permissions at a higher level override permissions at a lower level.
 
-The following table shows the per-level role evaluation.
+The following table shows the per-level role evaluation logic.
 Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _ indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result.
 
 | Role (example)  | Site | Org | User | Result |
