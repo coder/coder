@@ -18,7 +18,7 @@ jobs:
       # storybook snapshots will require manual approval/review in order for
       # the check to pass. This is desired in PRs, but not in mainline.
       - name: Publish to Chromatic (non-mainline)
-        if: github.ref != "refs/heads/main"
+        if: github.ref != 'refs/heads/main'
         uses: chromaui/action@v1
         with:
           buildScriptName: "storybook:build"
@@ -30,7 +30,7 @@ jobs:
       # avoid the same changeset from requiring review once squashed into
       # main.
       - name: Publish to Chromatic (mainline)
-        if: github.ref == "refs/heads/main"
+        if: github.ref == 'refs/heads/main'
         uses: chromaui/action@v1
         with:
           autoAcceptChanges: true
