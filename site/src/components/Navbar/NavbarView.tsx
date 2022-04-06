@@ -23,8 +23,8 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
           </NavLink>
         </ListItem>
         <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/projects">
-            Projects
+          <NavLink className={styles.link} to="/templates">
+            Templates
           </NavLink>
         </ListItem>
       </List>
