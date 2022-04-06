@@ -19,10 +19,7 @@ type GitSSHKey struct {
 }
 
 type AgentGitSSHKey struct {
-	UserID     uuid.UUID `json:"user_id"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	PrivateKey string    `json:"private_key"`
+	PrivateKey string `json:"private_key"`
 }
 
 // GitSSHKey returns the user's git SSH public key.
