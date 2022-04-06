@@ -1247,15 +1247,15 @@ func (q *fakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitS
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	GitSSHKey := database.GitSSHKey{
+	gitSSHKey := database.GitSSHKey{
 		UserID:     arg.UserID,
 		CreatedAt:  arg.CreatedAt,
 		UpdatedAt:  arg.UpdatedAt,
 		PrivateKey: arg.PrivateKey,
 		PublicKey:  arg.PublicKey,
 	}
-	q.GitSSHKey = append(q.GitSSHKey, GitSSHKey)
-	return GitSSHKey, nil
+	q.GitSSHKey = append(q.GitSSHKey, gitSSHKey)
+	return gitSSHKey, nil
 }
 
 func (q *fakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
