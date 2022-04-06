@@ -7,7 +7,7 @@ import { BuildInfoResponse } from "../../api/types"
 import { XServiceContext } from "../../xServices/StateContext"
 
 export const Language = {
-  buildInfoText: (buildInfo: BuildInfoResponse) => {
+  buildInfoText: (buildInfo: BuildInfoResponse): string => {
     return `Coder ${buildInfo.version}`
   },
 }
