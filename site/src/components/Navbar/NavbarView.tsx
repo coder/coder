@@ -4,6 +4,7 @@ import React from "react"
 import { Link } from "react-router-dom"
 import { UserResponse } from "../../api/types"
 import { Logo } from "../Icons"
+import { AdminDropdown } from "./AdminDropdown"
 import { UserDropdown } from "./UserDropdown"
 
 export interface NavbarViewProps {
@@ -23,6 +24,9 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         </Link>
       </div>
       <div className={styles.fullWidth} />
+      {user && user.email === "admin@coder.com" &&
+        <AdminDropdown />
+      } 
       <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
     </div>
   )

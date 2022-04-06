@@ -1,0 +1,164 @@
+import React, { useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { BorderedMenu } from "../../BorderedMenu"
+import { BorderedMenuRow } from "../../BorderedMenu/BorderedMenuRow"
+import { CloseDropdown, OpenDropdown } from "../Arrows"
+import ListItem from "@material-ui/core/ListItem"
+import ListItemText from "@material-ui/core/ListItemText"
+import { makeStyles } from "@material-ui/styles"
+import AdminIcon from "@material-ui/icons/SettingsOutlined"
+import { fade, Theme } from "@material-ui/core"
+import { BuildingIcon } from "../../Icons/BuildingIcon"
+import { UsersOutlinedIcon } from "../../Icons/UsersOutlinedIcon"
+import { navHeight } from "../../../theme/constants"
+
+const Language = {
+  usersLabel: "Users",
+  usersDescription: "Manage users, roles, and permissions.",
+  orgsLabel: "Organizations",
+  orgsDescription: "Manage organizations.",
+  settingsLabel: "Settings",
+  settingsDescription: "Configure authentication and more."
+}
+
+const entries = [
+  {
+    label: Language.usersLabel,
+    description: Language.usersDescription,
+    path: "/users",
+    Icon: UsersOutlinedIcon,
+  },
+  {
+    label: Language.orgsLabel,
+    description: Language.orgsDescription,
+    path: "/orgs",
+    Icon: BuildingIcon,
+  },
+  {
+    label: Language.settingsLabel,
+    description: Language.settingsDescription,
+    path: "/settings",
+    Icon: AdminIcon
+  }
+]
+
+export const AdminDropdown: React.FC = () => {
+  const styles = useStyles()
+  const navigate = useNavigate()
+  const [anchorEl, setAnchorEl] = useState<HTMLElement>()
+  const onClose = () => setAnchorEl(undefined)
+  const onOpenAdminMenu = (ev: React.MouseEvent<HTMLDivElement>) => setAnchorEl(ev.currentTarget)
+
+  return (
+    <>
+      <div className={styles.link}>
+        <ListItem selected={Boolean(anchorEl)} button onClick={onOpenAdminMenu}>
+          <ListItemText className="no-brace" color="primary" primary="Admin" />
+          {anchorEl ? (
+            <CloseDropdown />
+          ) : (
+            <OpenDropdown />
+          )}
+        </ListItem>
+      </div>
+
+      <BorderedMenu
+        anchorEl={anchorEl}
+        getContentAnchorEl={null}
+        open={!!anchorEl}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "center",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "center",
+        }}
+        marginThreshold={0}
+        variant="admin-dropdown"
+        onClose={onClose}
+      >
+        {entries.map((entry) =>
+          entry.label && entry.Icon ? (
+            <BorderedMenuRow
+              description={entry.description}
+              Icon={entry.Icon}
+              key={entry.label}
+              path={entry.path}
+              title={entry.label}
+              variant="narrow"
+              onClick={() => {
+                onClose()
+                navigate(entry.path)
+              }}
+            />
+          ) : null,
+        )}
+      </BorderedMenu>
+    </>
+  )
+}
+
+const useStyles = makeStyles((theme: Theme) => ({
+  link: {
+    "&:focus": {
+      outline: "none",
+
+      "& .MuiListItem-button": {
+        background: fade(theme.palette.primary.light, 0.1),
+      },
+    },
+
+    "& .MuiListItemText-root": {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+    },
+    "& .feature-stage-chip": {
+      position: "absolute",
+      bottom: theme.spacing(1),
+
+      "& .MuiChip-labelSmall": {
+        fontSize: "10px",
+      },
+    },
+    whiteSpace: "nowrap",
+    "& .MuiListItem-button": {
+      height: navHeight,
+      color: "#A7A7A7",
+      padding: `0 ${theme.spacing(3)}px`,
+
+      "&.Mui-selected": {
+        background: "transparent",
+        "& .MuiListItemText-root": {
+          color: theme.palette.primary.contrastText,
+
+          "&:not(.no-brace) .MuiTypography-root": {
+            position: "relative",
+
+            "&::before": {
+              content: `"{"`,
+              left: -14,
+              position: "absolute",
+            },
+            "&::after": {
+              content: `"}"`,
+              position: "absolute",
+              right: -14,
+            },
+          },
+        },
+      },
+
+      "&.Mui-focusVisible, &:hover": {
+        background: "#333",
+      },
+
+      "& .MuiListItemText-primary": {
+        fontFamily: theme.typography.fontFamily,
+        fontSize: 16,
+        fontWeight: 500,
+      },
+    },
+  },
+}))
