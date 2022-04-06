@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
@@ -33,7 +34,8 @@ type Options struct {
 	AWSCertificates      awsidentity.Certificates
 	GoogleTokenValidator *idtoken.Validator
 
-	SecureAuthCookie bool
+	SecureAuthCookie   bool
+	SSHKeygenAlgorithm gitsshkey.Algorithm
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -86,11 +88,11 @@ func New(options *Options) (http.Handler, func()) {
 			)
 			r.Get("/", api.organization)
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
-			r.Post("/projectversions", api.postProjectVersionsByOrganization)
-			r.Route("/projects", func(r chi.Router) {
-				r.Post("/", api.postProjectsByOrganization)
-				r.Get("/", api.projectsByOrganization)
-				r.Get("/{projectname}", api.projectByOrganizationAndName)
+			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
+			r.Route("/templates", func(r chi.Router) {
+				r.Post("/", api.postTemplatesByOrganization)
+				r.Get("/", api.templatesByOrganization)
+				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
@@ -101,33 +103,33 @@ func New(options *Options) (http.Handler, func()) {
 				r.Delete("/", api.deleteParameter)
 			})
 		})
-		r.Route("/projects/{project}", func(r chi.Router) {
+		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
-				httpmw.ExtractProjectParam(options.Database),
+				httpmw.ExtractTemplateParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			r.Get("/", api.project)
-			r.Delete("/", api.deleteProject)
+			r.Get("/", api.template)
+			r.Delete("/", api.deleteTemplate)
 			r.Route("/versions", func(r chi.Router) {
-				r.Get("/", api.projectVersionsByProject)
-				r.Patch("/", api.patchActiveProjectVersion)
-				r.Get("/{projectversionname}", api.projectVersionByName)
+				r.Get("/", api.templateVersionsByTemplate)
+				r.Patch("/", api.patchActiveTemplateVersion)
+				r.Get("/{templateversionname}", api.templateVersionByName)
 			})
 		})
-		r.Route("/projectversions/{projectversion}", func(r chi.Router) {
+		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractAPIKey(options.Database, nil),
-				httpmw.ExtractProjectVersionParam(options.Database),
+				httpmw.ExtractTemplateVersionParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 
-			r.Get("/", api.projectVersion)
-			r.Patch("/cancel", api.patchCancelProjectVersion)
-			r.Get("/schema", api.projectVersionSchema)
-			r.Get("/parameters", api.projectVersionParameters)
-			r.Get("/resources", api.projectVersionResources)
-			r.Get("/logs", api.projectVersionLogs)
+			r.Get("/", api.templateVersion)
+			r.Patch("/cancel", api.patchCancelTemplateVersion)
+			r.Get("/schema", api.templateVersionSchema)
+			r.Get("/parameters", api.templateVersionParameters)
+			r.Get("/resources", api.templateVersionResources)
+			r.Get("/logs", api.templateVersionLogs)
 		})
 		r.Route("/provisionerdaemons", func(r chi.Router) {
 			r.Route("/me", func(r chi.Router) {
@@ -158,6 +160,8 @@ func New(options *Options) (http.Handler, func()) {
 						r.Get("/", api.workspacesByUser)
 						r.Get("/{workspacename}", api.workspaceByUserAndName)
 					})
+					r.Get("/gitsshkey", api.gitSSHKey)
+					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 				})
 			})
 		})
@@ -169,6 +173,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Route("/agent", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/", api.workspaceAgentListen)
+				r.Get("/gitsshkey", api.agentGitSSHKey)
 			})
 			r.Route("/{workspaceresource}", func(r chi.Router) {
 				r.Use(

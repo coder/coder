@@ -42,25 +42,25 @@ func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http
 	render.JSON(rw, r, daemons)
 }
 
-// Creates a new version of a project. An import job is queued to parse the storage method provided.
-func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
+// Creates a new version of a template. An import job is queued to parse the storage method provided.
+func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
-	var req codersdk.CreateProjectVersionRequest
+	var req codersdk.CreateTemplateVersionRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
-	if req.ProjectID != uuid.Nil {
-		_, err := api.Database.GetProjectByID(r.Context(), req.ProjectID)
+	if req.TemplateID != uuid.Nil {
+		_, err := api.Database.GetTemplateByID(r.Context(), req.TemplateID)
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-				Message: "project does not exist",
+				Message: "template does not exist",
 			})
 			return
 		}
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get project: %s", err),
+				Message: fmt.Sprintf("get template: %s", err),
 			})
 			return
 		}
@@ -80,7 +80,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	var projectVersion database.ProjectVersion
+	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
 	err = api.Database.InTx(func(db database.Store) error {
 		jobID := uuid.New()
@@ -110,24 +110,24 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 			Provisioner:    req.Provisioner,
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			StorageSource:  file.Hash,
-			Type:           database.ProvisionerJobTypeProjectVersionImport,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          []byte{'{', '}'},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 
-		var projectID uuid.NullUUID
-		if req.ProjectID != uuid.Nil {
-			projectID = uuid.NullUUID{
-				UUID:  req.ProjectID,
+		var templateID uuid.NullUUID
+		if req.TemplateID != uuid.Nil {
+			templateID = uuid.NullUUID{
+				UUID:  req.TemplateID,
 				Valid: true,
 			}
 		}
 
-		projectVersion, err = api.Database.InsertProjectVersion(r.Context(), database.InsertProjectVersionParams{
+		templateVersion, err = api.Database.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
 			ID:             uuid.New(),
-			ProjectID:      projectID,
+			TemplateID:     templateID,
 			OrganizationID: organization.ID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
@@ -136,7 +136,7 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 			JobID:          provisionerJob.ID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert project version: %w", err)
+			return xerrors.Errorf("insert template version: %w", err)
 		}
 		return nil
 	})
@@ -148,23 +148,23 @@ func (api *api) postProjectVersionsByOrganization(rw http.ResponseWriter, r *htt
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertProjectVersion(projectVersion, convertProvisionerJob(provisionerJob)))
+	render.JSON(rw, r, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob)))
 }
 
-// Create a new project in an organization.
-func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Request) {
-	var createProject codersdk.CreateProjectRequest
-	if !httpapi.Read(rw, r, &createProject) {
+// Create a new template in an organization.
+func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	var createTemplate codersdk.CreateTemplateRequest
+	if !httpapi.Read(rw, r, &createTemplate) {
 		return
 	}
 	organization := httpmw.OrganizationParam(r)
-	_, err := api.Database.GetProjectByOrganizationAndName(r.Context(), database.GetProjectByOrganizationAndNameParams{
+	_, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
-		Name:           createProject.Name,
+		Name:           createTemplate.Name,
 	})
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("project %q already exists", createProject.Name),
+			Message: fmt.Sprintf("template %q already exists", createTemplate.Name),
 			Errors: []httpapi.Error{{
 				Field: "name",
 				Code:  "exists",
@@ -174,23 +174,23 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project by name: %s", err),
+			Message: fmt.Sprintf("get template by name: %s", err),
 		})
 		return
 	}
-	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), createProject.VersionID)
+	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createTemplate.VersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "project version does not exist",
+			Message: "template version does not exist",
 		})
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project version by id: %s", err),
+			Message: fmt.Sprintf("get template version by id: %s", err),
 		})
 		return
 	}
-	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)
+	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get import job by id: %s", err),
@@ -198,41 +198,41 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var project codersdk.Project
+	var template codersdk.Template
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
-		dbProject, err := db.InsertProject(r.Context(), database.InsertProjectParams{
+		dbTemplate, err := db.InsertTemplate(r.Context(), database.InsertTemplateParams{
 			ID:              uuid.New(),
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			OrganizationID:  organization.ID,
-			Name:            createProject.Name,
+			Name:            createTemplate.Name,
 			Provisioner:     importJob.Provisioner,
-			ActiveVersionID: projectVersion.ID,
+			ActiveVersionID: templateVersion.ID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert project: %s", err)
+			return xerrors.Errorf("insert template: %s", err)
 		}
 
-		err = db.UpdateProjectVersionByID(r.Context(), database.UpdateProjectVersionByIDParams{
-			ID: projectVersion.ID,
-			ProjectID: uuid.NullUUID{
-				UUID:  dbProject.ID,
+		err = db.UpdateTemplateVersionByID(r.Context(), database.UpdateTemplateVersionByIDParams{
+			ID: templateVersion.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  dbTemplate.ID,
 				Valid: true,
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("insert project version: %s", err)
+			return xerrors.Errorf("insert template version: %s", err)
 		}
 
-		for _, parameterValue := range createProject.ParameterValues {
+		for _, parameterValue := range createTemplate.ParameterValues {
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              parameterValue.Name,
 				CreatedAt:         database.Now(),
 				UpdatedAt:         database.Now(),
-				Scope:             database.ParameterScopeProject,
-				ScopeID:           dbProject.ID,
+				Scope:             database.ParameterScopeTemplate,
+				ScopeID:           dbTemplate.ID,
 				SourceScheme:      parameterValue.SourceScheme,
 				SourceValue:       parameterValue.SourceValue,
 				DestinationScheme: parameterValue.DestinationScheme,
@@ -242,7 +242,7 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 			}
 		}
 
-		project = convertProject(dbProject, 0)
+		template = convertTemplate(dbTemplate, 0)
 		return nil
 	})
 	if err != nil {
@@ -253,12 +253,12 @@ func (api *api) postProjectsByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, project)
+	render.JSON(rw, r, template)
 }
 
-func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	projects, err := api.Database.GetProjectsByOrganization(r.Context(), database.GetProjectsByOrganizationParams{
+	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
 		OrganizationID: organization.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -266,15 +266,15 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get projects: %s", err.Error()),
+			Message: fmt.Sprintf("get templates: %s", err.Error()),
 		})
 		return
 	}
-	projectIDs := make([]uuid.UUID, 0, len(projects))
-	for _, project := range projects {
-		projectIDs = append(projectIDs, project.ID)
+	templateIDs := make([]uuid.UUID, 0, len(templates))
+	for _, template := range templates {
+		templateIDs = append(templateIDs, template.ID)
 	}
-	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), projectIDs)
+	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), templateIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -285,31 +285,31 @@ func (api *api) projectsByOrganization(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertProjects(projects, workspaceCounts))
+	render.JSON(rw, r, convertTemplates(templates, workspaceCounts))
 }
 
-func (api *api) projectByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	projectName := chi.URLParam(r, "projectname")
-	project, err := api.Database.GetProjectByOrganizationAndName(r.Context(), database.GetProjectByOrganizationAndNameParams{
+	templateName := chi.URLParam(r, "templatename")
+	template, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
-		Name:           projectName,
+		Name:           templateName,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-				Message: fmt.Sprintf("no project found by name %q in the %q organization", projectName, organization.Name),
+				Message: fmt.Sprintf("no template found by name %q in the %q organization", templateName, organization.Name),
 			})
 			return
 		}
 
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project by organization and name: %s", err),
+			Message: fmt.Sprintf("get template by organization and name: %s", err),
 		})
 		return
 	}
 
-	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByProjectIDs(r.Context(), []uuid.UUID{project.ID})
+	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -326,7 +326,7 @@ func (api *api) projectByOrganizationAndName(rw http.ResponseWriter, r *http.Req
 	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertProject(project, count))
+	render.JSON(rw, r, convertTemplate(template, count))
 }
 
 // convertOrganization consumes the database representation and outputs an API friendly representation.

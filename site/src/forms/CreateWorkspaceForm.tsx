@@ -3,12 +3,12 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { CreateWorkspaceRequest, Project, Workspace } from "../api/types"
+import { CreateWorkspaceRequest, Template, Workspace } from "../api/types"
 import { LoadingButton } from "../components/Button"
 import { FormCloseButton, FormSection, FormTextField, FormTitle } from "../components/Form"
 
 export interface CreateWorkspaceForm {
-  project: Project
+  template: Template
   onSubmit: (request: CreateWorkspaceRequest) => Promise<Workspace>
   onCancel: () => void
 }
@@ -17,7 +17,7 @@ const validationSchema = Yup.object({
   name: Yup.string().required("Name is required"),
 })
 
-export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ project, onSubmit, onCancel }) => {
+export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ template, onSubmit, onCancel }) => {
   const styles = useStyles()
 
   const form: FormikContextType<{ name: string }> = useFormik<{ name: string }>({
@@ -28,7 +28,7 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ project, on
     validationSchema: validationSchema,
     onSubmit: ({ name }) => {
       return onSubmit({
-        project_id: project.id,
+        template_id: template.id,
         name: name,
       })
     },
@@ -40,7 +40,7 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ project, on
         title="Create Workspace"
         detail={
           <span>
-            for project <strong>{project.name}</strong>
+            for template <strong>{template.name}</strong>
           </span>
         }
       />

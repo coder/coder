@@ -62,14 +62,7 @@ $ vim main.tf
 $ coder projects update gcp-linux
 ```
 
-## Development
+## Contributing
 
-The code structure is inspired by [Basics of Unix Philosophy](https://homepage.cs.uri.edu/~thenry/resources/unix_art/ch01s06.html) and [Effective Go](https://go.dev/doc/effective_go).
+Read the [contributing docs](./CONTRIBUTING.md).
 
-Coder requires Go 1.18+, Node 14+, and GNU Make.
-
-- `make bin` builds binaries
-- `make install` installs binaries to `$GOPATH/bin`
-- `make test`
-- `make release` dry-runs a new release
-- `./develop.sh` hot-reloads for frontend development
