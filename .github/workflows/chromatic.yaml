@@ -32,6 +32,7 @@ jobs:
         uses: chromaui/action@v1
         with:
           buildScriptName: "storybook:build"
+          exitOnceUploaded: true
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           workingDir: "./site"
 
