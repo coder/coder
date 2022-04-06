@@ -216,6 +216,7 @@ type api struct {
 }
 
 func (*api) buildInfo(rw http.ResponseWriter, r *http.Request) {
+	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, codersdk.BuildInfoResponse{
 		Version: buildinfo.Version(),
 	})
