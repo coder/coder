@@ -1,0 +1,39 @@
+name: "Chromatic"
+
+on: push
+
+jobs:
+  chromatic-deployment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # <-- required by Chromatic for build-over-build history
+
+      - name: Install dependencies
+        run: cd site && yarn
+
+      # This step is not meant for mainline because any detected changes to
+      # storybook snapshots will require manual approval/review in order for
+      # the check to pass. This is desired in PRs, but not in mainline.
+      - name: Publish to Chromatic (non-mainline)
+        if: github.ref != "refs/heads/main"
+        uses: chromaui/action@v1
+        with:
+          buildScriptName: "storybook:build"
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          workingDir: "./site"
+
+      # This is a separate step for mainline only that auto accepts and changes
+      # instead of holding CI up. Since we squash/merge, this is defensive to
+      # avoid the same changeset from requiring review once squashed into
+      # main.
+      - name: Publish to Chromatic (mainline)
+        if: github.ref == "refs/heads/main"
+        uses: chromaui/action@v1
+        with:
+          autoAcceptChanges: true
+          buildScriptName: "storybook:build"
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          workingDir: "./site"
