@@ -70,7 +70,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
 
           <Divider />
 
-          <Link to="/preferences">
+          <Link to="/preferences" className={styles.link}>
             <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
               <ListItemIcon className={styles.icon}>
                 <AccountIcon />
@@ -79,7 +79,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
             </MenuItem>
           </Link>
 
-          <a href="https://coder.com/docs" target="_blank" rel="noreferrer">
+          <a href="https://coder.com/docs" target="_blank" rel="noreferrer" className={styles.link}>
             <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
               <ListItemIcon className={styles.icon}>
                 <DocsIcon />
@@ -115,18 +115,15 @@ export const useStyles = makeStyles((theme) => ({
 
   userInfo: {
     marginBottom: theme.spacing(1),
-
-    "& a": {
-      textDecoration: "none",
-      color: "inherit",
-    },
   },
+
   arrowIcon: {
     color: fade(theme.palette.primary.contrastText, 0.7),
     marginLeft: theme.spacing(1),
     width: 16,
     height: 16,
   },
+
   arrowIconUp: {
     color: theme.palette.primary.contrastText,
   },
@@ -139,6 +136,11 @@ export const useStyles = makeStyles((theme) => ({
       backgroundColor: fade(theme.palette.primary.light, 0.1),
       transition: "background-color 0.3s ease",
     },
+  },
+
+  link: {
+    textDecoration: "none",
+    color: "inherit",
   },
 
   icon: {
