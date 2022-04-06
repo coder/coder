@@ -2,7 +2,7 @@ import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
-import { combineClasses } from "../../util/combine-classes"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface SidebarItem {
   value: string
