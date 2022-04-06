@@ -19,10 +19,10 @@ func TestWorkspaceBuild(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	coderdtest.NewProvisionerDaemon(t, client)
-	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 	_, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 	require.NoError(t, err)
 }
@@ -32,7 +32,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	coderdtest.NewProvisionerDaemon(t, client)
-	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
 		Provision: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Log{
@@ -41,9 +41,9 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		}},
 		ProvisionDryRun: echo.ProvisionComplete,
 	})
-	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 	var build codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
@@ -68,11 +68,11 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		closeDaemon.Close()
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		_, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -83,7 +83,7 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -103,9 +103,9 @@ func TestWorkspaceBuildResources(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	coderdtest.NewProvisionerDaemon(t, client)
 	before := time.Now()
-	version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
 		Provision: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Log{
@@ -150,9 +150,9 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 			},
 		}},
 	})
-	coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-	project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 	logs, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, before)

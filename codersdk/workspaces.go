@@ -12,25 +12,25 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-// Workspace is a per-user deployment of a project. It tracks
-// project versions, and can be updated.
+// Workspace is a per-user deployment of a template. It tracks
+// template versions, and can be updated.
 type Workspace struct {
-	ID          uuid.UUID      `json:"id"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	OwnerID     uuid.UUID      `json:"owner_id"`
-	ProjectID   uuid.UUID      `json:"project_id"`
-	ProjectName string         `json:"project_name"`
-	LatestBuild WorkspaceBuild `json:"latest_build"`
-	Outdated    bool           `json:"outdated"`
-	Name        string         `json:"name"`
+	ID           uuid.UUID      `json:"id"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	OwnerID      uuid.UUID      `json:"owner_id"`
+	TemplateID   uuid.UUID      `json:"template_id"`
+	TemplateName string         `json:"template_name"`
+	LatestBuild  WorkspaceBuild `json:"latest_build"`
+	Outdated     bool           `json:"outdated"`
+	Name         string         `json:"name"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	ProjectVersionID uuid.UUID                    `json:"project_version_id"`
-	Transition       database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-	DryRun           bool                         `json:"dry_run"`
+	TemplateVersionID uuid.UUID                    `json:"template_version_id"`
+	Transition        database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+	DryRun            bool                         `json:"dry_run"`
 }
 
 // Workspace returns a single workspace.

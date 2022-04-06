@@ -110,9 +110,6 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, codersdk.AgentGitSSHKey{
-		UserID:     gitSSHKey.UserID,
-		CreatedAt:  gitSSHKey.CreatedAt,
-		UpdatedAt:  gitSSHKey.UpdatedAt,
 		PrivateKey: gitSSHKey.PrivateKey,
 	})
 }

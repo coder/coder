@@ -36,9 +36,9 @@ func SetupConfig(t *testing.T, client *codersdk.Client, root config.Root) {
 	require.NoError(t, err)
 }
 
-// CreateProjectVersionSource writes the echo provisioner responses into a
+// CreateTemplateVersionSource writes the echo provisioner responses into a
 // new temporary testing directory.
-func CreateProjectVersionSource(t *testing.T, responses *echo.Responses) string {
+func CreateTemplateVersionSource(t *testing.T, responses *echo.Responses) string {
 	directory := t.TempDir()
 	data, err := echo.Tar(responses)
 	require.NoError(t, err)

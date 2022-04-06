@@ -312,15 +312,15 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		return
 	}
 
-	p.opts.Logger.Info(ctx, "unpacking project source archive", slog.F("size_bytes", len(job.ProjectSourceArchive)))
-	reader := tar.NewReader(bytes.NewBuffer(job.ProjectSourceArchive))
+	p.opts.Logger.Info(ctx, "unpacking template source archive", slog.F("size_bytes", len(job.TemplateSourceArchive)))
+	reader := tar.NewReader(bytes.NewBuffer(job.TemplateSourceArchive))
 	for {
 		header, err := reader.Next()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			p.failActiveJobf("read project source archive: %s", err)
+			p.failActiveJobf("read template source archive: %s", err)
 			return
 		}
 		// #nosec
@@ -371,10 +371,10 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	}
 
 	switch jobType := job.Type.(type) {
-	case *proto.AcquiredJob_ProjectImport_:
-		p.opts.Logger.Debug(context.Background(), "acquired job is project import")
+	case *proto.AcquiredJob_TemplateImport_:
+		p.opts.Logger.Debug(context.Background(), "acquired job is template import")
 
-		p.runProjectImport(ctx, shutdown, provisioner, job)
+		p.runTemplateImport(ctx, shutdown, provisioner, job)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
@@ -409,7 +409,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	}
 }
 
-func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
+func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
 	_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
@@ -424,7 +424,7 @@ func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdk
 		return
 	}
 
-	parameterSchemas, err := p.runProjectImportParse(ctx, provisioner, job)
+	parameterSchemas, err := p.runTemplateImportParse(ctx, provisioner, job)
 	if err != nil {
 		p.failActiveJobf("run parse: %s", err)
 		return
@@ -464,12 +464,12 @@ func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdk
 		p.failActiveJobf("write log: %s", err)
 		return
 	}
-	startResources, err := p.runProjectImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
-		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
+	startResources, err := p.runTemplateImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+		CoderUrl:            job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
 	if err != nil {
-		p.failActiveJobf("project import provision for start: %s", err)
+		p.failActiveJobf("template import provision for start: %s", err)
 		return
 	}
 	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -485,19 +485,19 @@ func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdk
 		p.failActiveJobf("write log: %s", err)
 		return
 	}
-	stopResources, err := p.runProjectImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
-		CoderUrl:            job.GetProjectImport().Metadata.CoderUrl,
+	stopResources, err := p.runTemplateImportProvision(ctx, shutdown, provisioner, job, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+		CoderUrl:            job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
 	if err != nil {
-		p.failActiveJobf("project import provision for start: %s", err)
+		p.failActiveJobf("template import provision for start: %s", err)
 		return
 	}
 
 	_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
 		JobId: job.JobId,
-		Type: &proto.CompletedJob_ProjectImport_{
-			ProjectImport: &proto.CompletedJob_ProjectImport{
+		Type: &proto.CompletedJob_TemplateImport_{
+			TemplateImport: &proto.CompletedJob_TemplateImport{
 				StartResources: startResources,
 				StopResources:  stopResources,
 			},
@@ -510,7 +510,7 @@ func (p *Server) runProjectImport(ctx, shutdown context.Context, provisioner sdk
 }
 
 // Parses parameter schemas from source.
-func (p *Server) runProjectImportParse(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) ([]*sdkproto.ParameterSchema, error) {
+func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) ([]*sdkproto.ParameterSchema, error) {
 	stream, err := provisioner.Parse(ctx, &sdkproto.Parse_Request{
 		Directory: p.opts.WorkDirectory,
 	})
@@ -554,10 +554,10 @@ func (p *Server) runProjectImportParse(ctx context.Context, provisioner sdkproto
 	}
 }
 
-// Performs a dry-run provision when importing a project.
+// Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
-func (p *Server) runProjectImportProvision(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
+func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
 	stream, err := provisioner.Provision(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("provision: %w", err)
@@ -596,7 +596,7 @@ func (p *Server) runProjectImportProvision(ctx, shutdown context.Context, provis
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			p.opts.Logger.Debug(context.Background(), "project import provision job logged",
+			p.opts.Logger.Debug(context.Background(), "template import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)

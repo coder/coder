@@ -10,9 +10,9 @@ import { PreferencesAccountPage } from "./pages/preferences/account"
 import { PreferencesLinkedAccountsPage } from "./pages/preferences/linked-accounts"
 import { PreferencesSecurityPage } from "./pages/preferences/security"
 import { PreferencesSSHKeysPage } from "./pages/preferences/ssh-keys"
-import { ProjectsPage } from "./pages/projects"
-import { ProjectPage } from "./pages/projects/[organization]/[project]"
-import { CreateWorkspacePage } from "./pages/projects/[organization]/[project]/create"
+import { TemplatesPage } from "./pages/templates"
+import { TemplatePage } from "./pages/templates/[organization]/[template]"
+import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 
 export const AppRouter: React.FC = () => (
@@ -31,21 +31,21 @@ export const AppRouter: React.FC = () => (
       <Route path="healthz" element={<HealthzPage />} />
       <Route path="cli-auth" element={<CliAuthenticationPage />} />
 
-      <Route path="projects">
+      <Route path="templates">
         <Route
           index
           element={
             <AuthAndNav>
-              <ProjectsPage />
+              <TemplatesPage />
             </AuthAndNav>
           }
         />
-        <Route path=":organization/:project">
+        <Route path=":organization/:template">
           <Route
             index
             element={
               <AuthAndNav>
-                <ProjectPage />
+                <TemplatePage />
               </AuthAndNav>
             }
           />

@@ -529,12 +529,12 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiKey := httpmw.APIKey(r)
-	project, err := api.Database.GetProjectByID(r.Context(), createWorkspace.ProjectID)
+	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("project %q doesn't exist", createWorkspace.ProjectID.String()),
+			Message: fmt.Sprintf("template %q doesn't exist", createWorkspace.TemplateID.String()),
 			Errors: []httpapi.Error{{
-				Field: "project_id",
+				Field: "template_id",
 				Code:  "not_found",
 			}},
 		})
@@ -542,17 +542,17 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project: %s", err),
+			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
 	}
 	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
-		OrganizationID: project.OrganizationID,
+		OrganizationID: template.OrganizationID,
 		UserID:         apiKey.UserID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "you aren't allowed to access projects in that organization",
+			Message: "you aren't allowed to access templates in that organization",
 		})
 		return
 	}
@@ -569,16 +569,16 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err == nil {
 		// If the workspace already exists, don't allow creation.
-		project, err := api.Database.GetProjectByID(r.Context(), workspace.ProjectID)
+		template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("find project for conflicting workspace name %q: %s", createWorkspace.Name, err),
+				Message: fmt.Sprintf("find template for conflicting workspace name %q: %s", createWorkspace.Name, err),
 			})
 			return
 		}
-		// The project is fetched for clarity to the user on where the conflicting name may be.
+		// The template is fetched for clarity to the user on where the conflicting name may be.
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("workspace %q already exists in the %q project", createWorkspace.Name, project.Name),
+			Message: fmt.Sprintf("workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
 			Errors: []httpapi.Error{{
 				Field: "name",
 				Code:  "exists",
@@ -593,35 +593,35 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), project.ActiveVersionID)
+	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), template.ActiveVersionID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project version: %s", err),
+			Message: fmt.Sprintf("get template version: %s", err),
 		})
 		return
 	}
-	projectVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)
+	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project version job: %s", err),
+			Message: fmt.Sprintf("get template version job: %s", err),
 		})
 		return
 	}
-	projectVersionJobStatus := convertProvisionerJob(projectVersionJob).Status
-	switch projectVersionJobStatus {
+	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
+	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
-			Message: fmt.Sprintf("The provided project version is %s. Wait for it to complete importing!", projectVersionJobStatus),
+			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
 		})
 		return
 	case codersdk.ProvisionerJobFailed:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("The provided project version %q has failed to import. You cannot create workspaces using it!", projectVersion.Name),
+			Message: fmt.Sprintf("The provided template version %q has failed to import. You cannot create workspaces using it!", templateVersion.Name),
 		})
 		return
 	case codersdk.ProvisionerJobCanceled:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "The provided project version was canceled during import. You cannot create workspaces using it!",
+			Message: "The provided template version was canceled during import. You cannot create workspaces using it!",
 		})
 		return
 	}
@@ -632,12 +632,12 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuildID := uuid.New()
 		// Workspaces are created without any versions.
 		workspace, err = db.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
-			OwnerID:   apiKey.UserID,
-			ProjectID: project.ID,
-			Name:      createWorkspace.Name,
+			ID:         uuid.New(),
+			CreatedAt:  database.Now(),
+			UpdatedAt:  database.Now(),
+			OwnerID:    apiKey.UserID,
+			TemplateID: template.ID,
+			Name:       createWorkspace.Name,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
@@ -670,26 +670,26 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			InitiatorID:    apiKey.UserID,
-			OrganizationID: project.OrganizationID,
-			Provisioner:    project.Provisioner,
+			OrganizationID: template.OrganizationID,
+			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StorageMethod:  projectVersionJob.StorageMethod,
-			StorageSource:  projectVersionJob.StorageSource,
+			StorageMethod:  templateVersionJob.StorageMethod,
+			StorageSource:  templateVersionJob.StorageSource,
 			Input:          input,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
-			ID:               workspaceBuildID,
-			CreatedAt:        database.Now(),
-			UpdatedAt:        database.Now(),
-			WorkspaceID:      workspace.ID,
-			ProjectVersionID: projectVersion.ID,
-			Name:             namesgenerator.GetRandomName(1),
-			InitiatorID:      apiKey.UserID,
-			Transition:       database.WorkspaceTransitionStart,
-			JobID:            provisionerJob.ID,
+			ID:                workspaceBuildID,
+			CreatedAt:         database.Now(),
+			UpdatedAt:         database.Now(),
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			Name:              namesgenerator.GetRandomName(1),
+			InitiatorID:       apiKey.UserID,
+			Transition:        database.WorkspaceTransitionStart,
+			JobID:             provisionerJob.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -705,7 +705,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(rw, r, convertWorkspace(workspace,
-		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(projectVersionJob)), project))
+		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template))
 }
 
 func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
@@ -723,10 +723,10 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
-	projectIDs := make([]uuid.UUID, 0, len(workspaces))
+	templateIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		workspaceIDs = append(workspaceIDs, workspace.ID)
-		projectIDs = append(projectIDs, workspace.ProjectID)
+		templateIDs = append(templateIDs, workspace.TemplateID)
 	}
 	workspaceBuilds, err := api.Database.GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(r.Context(), workspaceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -738,13 +738,13 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	projects, err := api.Database.GetProjectsByIDs(r.Context(), projectIDs)
+	templates, err := api.Database.GetTemplatesByIDs(r.Context(), templateIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get projects: %s", err),
+			Message: fmt.Sprintf("get templates: %s", err),
 		})
 		return
 	}
@@ -767,9 +767,9 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	for _, workspaceBuild := range workspaceBuilds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
 	}
-	projectByID := map[uuid.UUID]database.Project{}
-	for _, project := range projects {
-		projectByID[project.ID] = project
+	templateByID := map[uuid.UUID]database.Template{}
+	for _, template := range templates {
+		templateByID[template.ID] = template
 	}
 	jobByID := map[uuid.UUID]database.ProvisionerJob{}
 	for _, job := range jobs {
@@ -784,10 +784,10 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		project, exists := projectByID[workspace.ProjectID]
+		template, exists := templateByID[workspace.TemplateID]
 		if !exists {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("project not found for workspace %q", workspace.Name),
+				Message: fmt.Sprintf("template not found for workspace %q", workspace.Name),
 			})
 			return
 		}
@@ -799,7 +799,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		apiWorkspaces = append(apiWorkspaces,
-			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), project))
+			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiWorkspaces)
@@ -838,17 +838,17 @@ func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	project, err := api.Database.GetProjectByID(r.Context(), workspace.ProjectID)
+	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project: %s", err),
+			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
 	}
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertWorkspace(workspace,
-		convertWorkspaceBuild(build, convertProvisionerJob(job)), project))
+		convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 }
 
 // Generates a new ID and secret for an API key.

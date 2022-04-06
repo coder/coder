@@ -22,8 +22,8 @@ func New() database.Store {
 		files:                  make([]database.File, 0),
 		parameterValue:         make([]database.ParameterValue, 0),
 		parameterSchema:        make([]database.ParameterSchema, 0),
-		project:                make([]database.Project, 0),
-		projectVersion:         make([]database.ProjectVersion, 0),
+		template:               make([]database.Template, 0),
+		templateVersion:        make([]database.TemplateVersion, 0),
 		provisionerDaemons:     make([]database.ProvisionerDaemon, 0),
 		provisionerJobs:        make([]database.ProvisionerJob, 0),
 		provisionerJobLog:      make([]database.ProvisionerJobLog, 0),
@@ -49,8 +49,8 @@ type fakeQuerier struct {
 	files                  []database.File
 	parameterValue         []database.ParameterValue
 	parameterSchema        []database.ParameterSchema
-	project                []database.Project
-	projectVersion         []database.ProjectVersion
+	template               []database.Template
+	templateVersion        []database.TemplateVersion
 	provisionerDaemons     []database.ProvisionerDaemon
 	provisionerJobs        []database.ProvisionerJob
 	provisionerJobAgent    []database.WorkspaceAgent
@@ -164,13 +164,13 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) GetWorkspacesByProjectID(_ context.Context, arg database.GetWorkspacesByProjectIDParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspace {
-		if workspace.ProjectID.String() != arg.ProjectID.String() {
+		if workspace.TemplateID.String() != arg.TemplateID.String() {
 			continue
 		}
 		if workspace.Deleted != arg.Deleted {
@@ -215,38 +215,38 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceOwnerCountsByProjectIDs(_ context.Context, projectIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByProjectIDsRow, error) {
+func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
-	for _, projectID := range projectIDs {
+	for _, templateID := range templateIDs {
 		found := false
 		for _, workspace := range q.workspace {
-			if workspace.ProjectID != projectID {
+			if workspace.TemplateID != templateID {
 				continue
 			}
 			if workspace.Deleted {
 				continue
 			}
-			countByOwnerID, ok := counts[projectID]
+			countByOwnerID, ok := counts[templateID]
 			if !ok {
 				countByOwnerID = map[uuid.UUID]struct{}{}
 			}
 			countByOwnerID[workspace.OwnerID] = struct{}{}
-			counts[projectID] = countByOwnerID
+			counts[templateID] = countByOwnerID
 			found = true
 			break
 		}
 		if !found {
-			counts[projectID] = map[uuid.UUID]struct{}{}
+			counts[templateID] = map[uuid.UUID]struct{}{}
 		}
 	}
-	res := make([]database.GetWorkspaceOwnerCountsByProjectIDsRow, 0)
+	res := make([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, 0)
 	for key, value := range counts {
-		res = append(res, database.GetWorkspaceOwnerCountsByProjectIDsRow{
-			ProjectID: key,
-			Count:     int64(len(value)),
+		res = append(res, database.GetWorkspaceOwnerCountsByTemplateIDsRow{
+			TemplateID: key,
+			Count:      int64(len(value)),
 		})
 	}
 	if len(res) == 0 {
@@ -431,47 +431,47 @@ func (q *fakeQuerier) GetParameterValuesByScope(_ context.Context, arg database.
 	return parameterValues, nil
 }
 
-func (q *fakeQuerier) GetProjectByID(_ context.Context, id uuid.UUID) (database.Project, error) {
+func (q *fakeQuerier) GetTemplateByID(_ context.Context, id uuid.UUID) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, project := range q.project {
-		if project.ID.String() == id.String() {
-			return project, nil
+	for _, template := range q.template {
+		if template.ID.String() == id.String() {
+			return template, nil
 		}
 	}
-	return database.Project{}, sql.ErrNoRows
+	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectByOrganizationAndName(_ context.Context, arg database.GetProjectByOrganizationAndNameParams) (database.Project, error) {
+func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, project := range q.project {
-		if project.OrganizationID != arg.OrganizationID {
+	for _, template := range q.template {
+		if template.OrganizationID != arg.OrganizationID {
 			continue
 		}
-		if !strings.EqualFold(project.Name, arg.Name) {
+		if !strings.EqualFold(template.Name, arg.Name) {
 			continue
 		}
-		if project.Deleted != arg.Deleted {
+		if template.Deleted != arg.Deleted {
 			continue
 		}
-		return project, nil
+		return template, nil
 	}
-	return database.Project{}, sql.ErrNoRows
+	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectVersionsByProjectID(_ context.Context, projectID uuid.UUID) ([]database.ProjectVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, templateID uuid.UUID) ([]database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	version := make([]database.ProjectVersion, 0)
-	for _, projectVersion := range q.projectVersion {
-		if projectVersion.ProjectID.UUID.String() != projectID.String() {
+	version := make([]database.TemplateVersion, 0)
+	for _, templateVersion := range q.templateVersion {
+		if templateVersion.TemplateID.UUID.String() != templateID.String() {
 			continue
 		}
-		version = append(version, projectVersion)
+		version = append(version, templateVersion)
 	}
 	if len(version) == 0 {
 		return nil, sql.ErrNoRows
@@ -479,46 +479,46 @@ func (q *fakeQuerier) GetProjectVersionsByProjectID(_ context.Context, projectID
 	return version, nil
 }
 
-func (q *fakeQuerier) GetProjectVersionByProjectIDAndName(_ context.Context, arg database.GetProjectVersionByProjectIDAndNameParams) (database.ProjectVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, arg database.GetTemplateVersionByTemplateIDAndNameParams) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, projectVersion := range q.projectVersion {
-		if projectVersion.ProjectID != arg.ProjectID {
+	for _, templateVersion := range q.templateVersion {
+		if templateVersion.TemplateID != arg.TemplateID {
 			continue
 		}
-		if !strings.EqualFold(projectVersion.Name, arg.Name) {
+		if !strings.EqualFold(templateVersion.Name, arg.Name) {
 			continue
 		}
-		return projectVersion, nil
+		return templateVersion, nil
 	}
-	return database.ProjectVersion{}, sql.ErrNoRows
+	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectVersionByID(_ context.Context, projectVersionID uuid.UUID) (database.ProjectVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, projectVersion := range q.projectVersion {
-		if projectVersion.ID.String() != projectVersionID.String() {
+	for _, templateVersion := range q.templateVersion {
+		if templateVersion.ID.String() != templateVersionID.String() {
 			continue
 		}
-		return projectVersion, nil
+		return templateVersion, nil
 	}
-	return database.ProjectVersion{}, sql.ErrNoRows
+	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectVersionByJobID(_ context.Context, jobID uuid.UUID) (database.ProjectVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, projectVersion := range q.projectVersion {
-		if projectVersion.JobID.String() != jobID.String() {
+	for _, templateVersion := range q.templateVersion {
+		if templateVersion.JobID.String() != jobID.String() {
 			continue
 		}
-		return projectVersion, nil
+		return templateVersion, nil
 	}
-	return database.ProjectVersion{}, sql.ErrNoRows
+	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
@@ -557,43 +557,43 @@ func (q *fakeQuerier) GetParameterValueByScopeAndName(_ context.Context, arg dat
 	return database.ParameterValue{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProjectsByOrganization(_ context.Context, arg database.GetProjectsByOrganizationParams) ([]database.Project, error) {
+func (q *fakeQuerier) GetTemplatesByOrganization(_ context.Context, arg database.GetTemplatesByOrganizationParams) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	projects := make([]database.Project, 0)
-	for _, project := range q.project {
-		if project.Deleted != arg.Deleted {
+	templates := make([]database.Template, 0)
+	for _, template := range q.template {
+		if template.Deleted != arg.Deleted {
 			continue
 		}
-		if project.OrganizationID != arg.OrganizationID {
+		if template.OrganizationID != arg.OrganizationID {
 			continue
 		}
-		projects = append(projects, project)
+		templates = append(templates, template)
 	}
-	if len(projects) == 0 {
+	if len(templates) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return projects, nil
+	return templates, nil
 }
 
-func (q *fakeQuerier) GetProjectsByIDs(_ context.Context, ids []uuid.UUID) ([]database.Project, error) {
+func (q *fakeQuerier) GetTemplatesByIDs(_ context.Context, ids []uuid.UUID) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	projects := make([]database.Project, 0)
-	for _, project := range q.project {
+	templates := make([]database.Template, 0)
+	for _, template := range q.template {
 		for _, id := range ids {
-			if project.ID.String() != id.String() {
+			if template.ID.String() != id.String() {
 				continue
 			}
-			projects = append(projects, project)
+			templates = append(templates, template)
 		}
 	}
-	if len(projects) == 0 {
+	if len(templates) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return projects, nil
+	return templates, nil
 }
 
 func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
@@ -850,12 +850,12 @@ func (q *fakeQuerier) InsertParameterValue(_ context.Context, arg database.Inser
 	return parameterValue, nil
 }
 
-func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjectParams) (database.Project, error) {
+func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (database.Template, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	project := database.Project{
+	template := database.Template{
 		ID:              arg.ID,
 		CreatedAt:       arg.CreatedAt,
 		UpdatedAt:       arg.UpdatedAt,
@@ -864,18 +864,18 @@ func (q *fakeQuerier) InsertProject(_ context.Context, arg database.InsertProjec
 		Provisioner:     arg.Provisioner,
 		ActiveVersionID: arg.ActiveVersionID,
 	}
-	q.project = append(q.project, project)
-	return project, nil
+	q.template = append(q.template, template)
+	return template, nil
 }
 
-func (q *fakeQuerier) InsertProjectVersion(_ context.Context, arg database.InsertProjectVersionParams) (database.ProjectVersion, error) {
+func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	version := database.ProjectVersion{
+	version := database.TemplateVersion{
 		ID:             arg.ID,
-		ProjectID:      arg.ProjectID,
+		TemplateID:     arg.TemplateID,
 		OrganizationID: arg.OrganizationID,
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
@@ -883,7 +883,7 @@ func (q *fakeQuerier) InsertProjectVersion(_ context.Context, arg database.Inser
 		Description:    arg.Description,
 		JobID:          arg.JobID,
 	}
-	q.projectVersion = append(q.projectVersion, version)
+	q.templateVersion = append(q.templateVersion, version)
 	return version, nil
 }
 
@@ -1033,12 +1033,12 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 
 	//nolint:gosimple
 	workspace := database.Workspace{
-		ID:        arg.ID,
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		OwnerID:   arg.OwnerID,
-		ProjectID: arg.ProjectID,
-		Name:      arg.Name,
+		ID:         arg.ID,
+		CreatedAt:  arg.CreatedAt,
+		UpdatedAt:  arg.UpdatedAt,
+		OwnerID:    arg.OwnerID,
+		TemplateID: arg.TemplateID,
+		Name:       arg.Name,
 	}
 	q.workspace = append(q.workspace, workspace)
 	return workspace, nil
@@ -1049,17 +1049,17 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	workspaceBuild := database.WorkspaceBuild{
-		ID:               arg.ID,
-		CreatedAt:        arg.CreatedAt,
-		UpdatedAt:        arg.UpdatedAt,
-		WorkspaceID:      arg.WorkspaceID,
-		Name:             arg.Name,
-		ProjectVersionID: arg.ProjectVersionID,
-		BeforeID:         arg.BeforeID,
-		Transition:       arg.Transition,
-		InitiatorID:      arg.InitiatorID,
-		JobID:            arg.JobID,
-		ProvisionerState: arg.ProvisionerState,
+		ID:                arg.ID,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		WorkspaceID:       arg.WorkspaceID,
+		Name:              arg.Name,
+		TemplateVersionID: arg.TemplateVersionID,
+		BeforeID:          arg.BeforeID,
+		Transition:        arg.Transition,
+		InitiatorID:       arg.InitiatorID,
+		JobID:             arg.JobID,
+		ProvisionerState:  arg.ProvisionerState,
 	}
 	q.workspaceBuild = append(q.workspaceBuild, workspaceBuild)
 	return workspaceBuild, nil
@@ -1084,47 +1084,47 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProjectActiveVersionByID(_ context.Context, arg database.UpdateProjectActiveVersionByIDParams) error {
+func (q *fakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, project := range q.project {
-		if project.ID.String() != arg.ID.String() {
+	for index, template := range q.template {
+		if template.ID.String() != arg.ID.String() {
 			continue
 		}
-		project.ActiveVersionID = arg.ActiveVersionID
-		q.project[index] = project
+		template.ActiveVersionID = arg.ActiveVersionID
+		q.template[index] = template
 		return nil
 	}
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProjectDeletedByID(_ context.Context, arg database.UpdateProjectDeletedByIDParams) error {
+func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.UpdateTemplateDeletedByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, project := range q.project {
-		if project.ID.String() != arg.ID.String() {
+	for index, template := range q.template {
+		if template.ID.String() != arg.ID.String() {
 			continue
 		}
-		project.Deleted = arg.Deleted
-		q.project[index] = project
+		template.Deleted = arg.Deleted
+		q.template[index] = template
 		return nil
 	}
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProjectVersionByID(_ context.Context, arg database.UpdateProjectVersionByIDParams) error {
+func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, projectVersion := range q.projectVersion {
-		if projectVersion.ID.String() != arg.ID.String() {
+	for index, templateVersion := range q.templateVersion {
+		if templateVersion.ID.String() != arg.ID.String() {
 			continue
 		}
-		projectVersion.ProjectID = arg.ProjectID
-		projectVersion.UpdatedAt = arg.UpdatedAt
-		q.projectVersion[index] = projectVersion
+		templateVersion.TemplateID = arg.TemplateID
+		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersion[index] = templateVersion
 		return nil
 	}
 	return sql.ErrNoRows
