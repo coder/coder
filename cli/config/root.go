@@ -4,21 +4,23 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/coder/coder/cli/file"
 )
 
 // Root represents the configuration directory.
 type Root string
 
-func (r Root) Session() File {
-	return File(filepath.Join(string(r), "session"))
+func (r Root) Session() file.File {
+	return file.File(filepath.Join(string(r), "session"))
 }
 
-func (r Root) URL() File {
-	return File(filepath.Join(string(r), "url"))
+func (r Root) URL() file.File {
+	return file.File(filepath.Join(string(r), "url"))
 }
 
-func (r Root) Organization() File {
-	return File(filepath.Join(string(r), "organization"))
+func (r Root) Organization() file.File {
+	return file.File(filepath.Join(string(r), "organization"))
 }
 
 // File provides convenience methods for interacting with *os.File.
