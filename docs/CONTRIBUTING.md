@@ -1,6 +1,22 @@
 # Contributing
 
-## Go Style
+## Requirements
+
+`coder` requires Go 1.18+, Node 14+, and GNU Make.
+
+### Development Workflow
+
+The following `make` commands and scripts used in development:
+
+- `make bin` builds binaries
+- `make install` installs binaries to `$GOPATH/bin`
+- `make test`
+- `make release` dry-runs a new release
+- `./develop.sh` hot-reloads for frontend development
+
+## Styling
+
+### Go Style
 
 Contributions must adhere to [Effective Go](https://go.dev/doc/effective_go). Linting rules should
 be preferred over documenting styles (run ours with `make lint`); humans are error prone!
@@ -8,7 +24,7 @@ be preferred over documenting styles (run ours with `make lint`); humans are err
 Read [Go's Code Review Comments Wiki](https://github.com/golang/go/wiki/CodeReviewComments) to find
 common comments made during reviews of Go code.
 
-### No Unused Packages
+#### No Unused Packages
 
 Coders write packages that are used during implementation. It's difficult to validate whether an
 abstraction is valid until it's checked against an implementation. This results in a larger
