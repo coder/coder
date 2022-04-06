@@ -15,6 +15,8 @@ func gitssh() *cobra.Command {
 			// fmt.Fprintf(os.Stderr, "%s %s", "ssh", strings.Join(append([]string{"-i", "/home/coder/.ssh/coder"}, args...), " "))
 			a := append([]string{"-i", "/home/coder/.ssh/coder"}, args...)
 			c := exec.Command("ssh", a...)
+			c.Stdout = cmd.OutOrStdout()
+			c.Stdin = cmd.InOrStdin()
 			err := c.Run()
 			if err != nil {
 				return xerrors.Errorf("running ssh command: %w", err)
