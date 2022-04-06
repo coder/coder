@@ -108,7 +108,7 @@ func start() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Coder requires a network endpoint that can be accessed by provisioned workspaces. In dev mode, a free tunnel can be created for you. This will expose your Coder deployment to the internet.")+"\n")
 
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Would you like Coder to start a tunnel for simple setup?",
+					Text:      "Would you like Joe to start a tunnel for simple setup?",
 					IsConfirm: true,
 				})
 				if err == nil {

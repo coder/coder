@@ -15,7 +15,7 @@ import (
 func templateInit() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init [directory]",
-		Short: "Get started with a templated template.",
+		Short: "Get started with a templated template. Aw yeah",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			exampleList, err := examples.List()
 			if err != nil {
