@@ -4,11 +4,12 @@ import ListItemIcon from "@material-ui/core/ListItemIcon"
 import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
-import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
-import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
+import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import React, { useState } from "react"
+import { Link } from "react-router-dom"
 import { UserResponse } from "../../api/types"
 import { LogoutIcon } from "../Icons"
+import { DocsIcon } from "../Icons/DocsIcon"
 import { UserAvatar } from "../User"
 import { UserProfileCard } from "../User/UserProfileCard"
 import { BorderedMenu } from "./BorderedMenu"
@@ -65,7 +66,25 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
         <div className={styles.userInfo}>
           <UserProfileCard user={user} />
 
-          <Divider className={styles.divider} />
+          <Divider />
+
+          <Link to="/preferences">
+            <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
+              <ListItemIcon className={styles.icon}>
+                <AccountIcon />
+              </ListItemIcon>
+              <ListItemText primary="Account" />
+            </MenuItem>
+          </Link>
+
+          <a href="https://coder.com/docs" target="_blank" rel="noreferrer">
+            <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
+              <ListItemIcon className={styles.icon}>
+                <DocsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Documentation" />
+            </MenuItem>
+          </a>
 
           <MenuItem className={styles.menuItem} onClick={onSignOut}>
             <ListItemIcon className={styles.icon}>
@@ -84,6 +103,7 @@ export const useStyles = makeStyles((theme) => ({
     marginTop: theme.spacing(1),
     marginBottom: theme.spacing(1),
   },
+
   inner: {
     display: "flex",
     alignItems: "center",
@@ -93,6 +113,11 @@ export const useStyles = makeStyles((theme) => ({
 
   userInfo: {
     marginBottom: theme.spacing(1),
+
+    "& a": {
+      textDecoration: "none",
+      color: "inherit",
+    },
   },
   arrowIcon: {
     color: fade(theme.palette.primary.contrastText, 0.7),
