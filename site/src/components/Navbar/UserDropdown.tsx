@@ -12,6 +12,7 @@ import { BorderedMenu } from "../BorderedMenu"
 import { LogoutIcon } from "../Icons"
 import { UserAvatar } from "../User"
 import { UserProfileCard } from "../User/UserProfileCard"
+import { CloseDropdown, OpenDropdown } from "./Arrows"
 
 export interface UserDropdownProps {
   user: UserResponse
@@ -38,9 +39,9 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
               <UserAvatar username={user.username} />
             </Badge>
             {anchorEl ? (
-              <KeyboardArrowUp className={`${styles.arrowIcon} ${styles.arrowIconUp}`} />
+              <CloseDropdown />
             ) : (
-              <KeyboardArrowDown className={styles.arrowIcon} />
+              <OpenDropdown />
             )}
           </div>
         </MenuItem>
@@ -93,15 +94,6 @@ export const useStyles = makeStyles((theme) => ({
 
   userInfo: {
     marginBottom: theme.spacing(1),
-  },
-  arrowIcon: {
-    color: fade(theme.palette.primary.contrastText, 0.7),
-    marginLeft: theme.spacing(1),
-    width: 16,
-    height: 16,
-  },
-  arrowIconUp: {
-    color: theme.palette.primary.contrastText,
   },
 
   menuItem: {
