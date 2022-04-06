@@ -235,6 +235,108 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	return i, err
 }
 
+const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec
+DELETE FROM
+	gitsshkeys
+WHERE
+	user_id = $1
+`
+
+func (q *sqlQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteGitSSHKey, userID)
+	return err
+}
+
+const getGitSSHKey = `-- name: GetGitSSHKey :one
+SELECT
+	user_id, created_at, updated_at, private_key, public_key
+FROM
+	gitsshkeys
+WHERE
+	user_id = $1
+`
+
+func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error) {
+	row := q.db.QueryRowContext(ctx, getGitSSHKey, userID)
+	var i GitSSHKey
+	err := row.Scan(
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PrivateKey,
+		&i.PublicKey,
+	)
+	return i, err
+}
+
+const insertGitSSHKey = `-- name: InsertGitSSHKey :one
+INSERT INTO
+	gitsshkeys (
+		user_id,
+		created_at,
+		updated_at,
+		private_key,
+		public_key
+	)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING user_id, created_at, updated_at, private_key, public_key
+`
+
+type InsertGitSSHKeyParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	PrivateKey string    `db:"private_key" json:"private_key"`
+	PublicKey  string    `db:"public_key" json:"public_key"`
+}
+
+func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error) {
+	row := q.db.QueryRowContext(ctx, insertGitSSHKey,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.PrivateKey,
+		arg.PublicKey,
+	)
+	var i GitSSHKey
+	err := row.Scan(
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PrivateKey,
+		&i.PublicKey,
+	)
+	return i, err
+}
+
+const updateGitSSHKey = `-- name: UpdateGitSSHKey :exec
+UPDATE
+	gitsshkeys
+SET
+	updated_at = $2,
+	private_key = $3,
+	public_key = $4
+WHERE
+	user_id = $1
+`
+
+type UpdateGitSSHKeyParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	PrivateKey string    `db:"private_key" json:"private_key"`
+	PublicKey  string    `db:"public_key" json:"public_key"`
+}
+
+func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error {
+	_, err := q.db.ExecContext(ctx, updateGitSSHKey,
+		arg.UserID,
+		arg.UpdatedAt,
+		arg.PrivateKey,
+		arg.PublicKey,
+	)
+	return err
+}
+
 const getOrganizationMemberByUserID = `-- name: GetOrganizationMemberByUserID :one
 SELECT
 	user_id, organization_id, created_at, updated_at, roles
