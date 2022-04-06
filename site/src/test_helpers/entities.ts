@@ -1,4 +1,12 @@
-import { BuildInfoResponse, Organization, Provisioner, Template, UserAgent, UserResponse, Workspace } from "../api/types"
+import {
+  BuildInfoResponse,
+  Organization,
+  Provisioner,
+  Template,
+  UserAgent,
+  UserResponse,
+  Workspace,
+} from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
