@@ -1,15 +1,25 @@
+# Note: Chromatic is a separate workflow for coder.yaml as suggested by the
+# chromatic docs. Explicitly, Chromatic works best on 'push' instead of other
+# event types (like pull request), keep in mind that it works build-over-build
+# by storing snapshots.
+#
+# SEE: https://www.chromatic.com/docs/ci
 name: "Chromatic"
 
+# Chromatic works best with push events, not pull_request or other event types.
 on: push
 
 jobs:
   chromatic-deployment:
+    # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # <-- required by Chromatic for build-over-build history
+          # Required by Chromatic for build-over-build history, otherwise we
+          # only get 1 commit on shallow checkout.
+          fetch-depth: 0
 
       - name: Install dependencies
         run: cd site && yarn
@@ -28,7 +38,9 @@ jobs:
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
       # avoid the same changeset from requiring review once squashed into
-      # main.
+      # main. Chromatic is supposed to be able to detect that we use squash
+      # commits, but it's good to be defensive in case, otherwise CI remains
+      # infinitely "in progress" in mainline unless we re-review each build.
       - name: Publish to Chromatic (mainline)
         if: github.ref == 'refs/heads/main'
         uses: chromaui/action@v1
