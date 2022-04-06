@@ -1,3 +1,10 @@
+/**
+ * `BuildInfoResponse` must be kept in sync with the go struct in buildinfo.go.
+ */
+export interface BuildInfoResponse {
+  version: string
+}
+
 export interface LoginResponse {
   session_token: string
 }
@@ -65,11 +72,4 @@ export interface UserAgent {
   readonly device: string
   readonly ip_address: string
   readonly os: string
-}
-
-/**
- * `BuildInfoResponse` must be kept in sync with the go struct in buildinfo.go.
- */
-export interface BuildInfoResponse {
-  version: string
 }
