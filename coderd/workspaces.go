@@ -37,14 +37,14 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	project, err := api.Database.GetProjectByID(r.Context(), workspace.ProjectID)
+	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project: %s", err),
+			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
 	}
-	render.JSON(rw, r, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), project))
+	render.JSON(rw, r, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 }
 
 func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -102,7 +102,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &createBuild) {
 		return
 	}
-	if createBuild.ProjectVersionID == uuid.Nil {
+	if createBuild.TemplateVersionID == uuid.Nil {
 		latestBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -110,14 +110,14 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		createBuild.ProjectVersionID = latestBuild.ProjectVersionID
+		createBuild.TemplateVersionID = latestBuild.TemplateVersionID
 	}
-	projectVersion, err := api.Database.GetProjectVersionByID(r.Context(), createBuild.ProjectVersionID)
+	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createBuild.TemplateVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: "project version not found",
+			Message: "template version not found",
 			Errors: []httpapi.Error{{
-				Field: "project_version_id",
+				Field: "template_version_id",
 				Code:  "exists",
 			}},
 		})
@@ -125,40 +125,40 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project version: %s", err),
+			Message: fmt.Sprintf("get template version: %s", err),
 		})
 		return
 	}
-	projectVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), projectVersion.JobID)
+	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
-	projectVersionJobStatus := convertProvisionerJob(projectVersionJob).Status
-	switch projectVersionJobStatus {
+	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
+	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
-			Message: fmt.Sprintf("The provided project version is %s. Wait for it to complete importing!", projectVersionJobStatus),
+			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
 		})
 		return
 	case codersdk.ProvisionerJobFailed:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("The provided project version %q has failed to import: %q. You cannot build workspaces with it!", projectVersion.Name, projectVersionJob.Error.String),
+			Message: fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String),
 		})
 		return
 	case codersdk.ProvisionerJobCanceled:
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "The provided project version was canceled during import. You cannot builds workspaces with it!",
+			Message: "The provided template version was canceled during import. You cannot builds workspaces with it!",
 		})
 		return
 	}
 
-	project, err := api.Database.GetProjectByID(r.Context(), projectVersion.ProjectID.UUID)
+	template, err := api.Database.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get project: %s", err),
+			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
 	}
@@ -203,28 +203,28 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			InitiatorID:    apiKey.UserID,
-			OrganizationID: project.OrganizationID,
-			Provisioner:    project.Provisioner,
+			OrganizationID: template.OrganizationID,
+			Provisioner:    template.Provisioner,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StorageMethod:  projectVersionJob.StorageMethod,
-			StorageSource:  projectVersionJob.StorageSource,
+			StorageMethod:  templateVersionJob.StorageMethod,
+			StorageSource:  templateVersionJob.StorageSource,
 			Input:          input,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
-			ID:               workspaceBuildID,
-			CreatedAt:        database.Now(),
-			UpdatedAt:        database.Now(),
-			WorkspaceID:      workspace.ID,
-			ProjectVersionID: projectVersion.ID,
-			BeforeID:         priorHistoryID,
-			Name:             namesgenerator.GetRandomName(1),
-			ProvisionerState: priorHistory.ProvisionerState,
-			InitiatorID:      apiKey.UserID,
-			Transition:       createBuild.Transition,
-			JobID:            provisionerJob.ID,
+			ID:                workspaceBuildID,
+			CreatedAt:         database.Now(),
+			UpdatedAt:         database.Now(),
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BeforeID:          priorHistoryID,
+			Name:              namesgenerator.GetRandomName(1),
+			ProvisionerState:  priorHistory.ProvisionerState,
+			InitiatorID:       apiKey.UserID,
+			Transition:        createBuild.Transition,
+			JobID:             provisionerJob.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -290,16 +290,16 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
-func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, project database.Project) codersdk.Workspace {
+func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template) codersdk.Workspace {
 	return codersdk.Workspace{
-		ID:          workspace.ID,
-		CreatedAt:   workspace.CreatedAt,
-		UpdatedAt:   workspace.UpdatedAt,
-		OwnerID:     workspace.OwnerID,
-		ProjectID:   workspace.ProjectID,
-		LatestBuild: workspaceBuild,
-		ProjectName: project.Name,
-		Outdated:    workspaceBuild.ProjectVersionID.String() != project.ActiveVersionID.String(),
-		Name:        workspace.Name,
+		ID:           workspace.ID,
+		CreatedAt:    workspace.CreatedAt,
+		UpdatedAt:    workspace.UpdatedAt,
+		OwnerID:      workspace.OwnerID,
+		TemplateID:   workspace.TemplateID,
+		LatestBuild:  workspaceBuild,
+		TemplateName: template.Name,
+		Outdated:     workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
+		Name:         workspace.Name,
 	}
 }

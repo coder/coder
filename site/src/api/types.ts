@@ -24,8 +24,8 @@ export interface Provisioner {
   name: string
 }
 
-// This must be kept in sync with the `Project` struct in the back-end
-export interface Project {
+// This must be kept in sync with the `Template` struct in the back-end
+export interface Template {
   id: string
   created_at: string
   updated_at: string
@@ -35,7 +35,7 @@ export interface Project {
   active_version_id: string
 }
 
-export interface CreateProjectRequest {
+export interface CreateTemplateRequest {
   name: string
   organizationId: string
   provisioner: string
@@ -43,7 +43,7 @@ export interface CreateProjectRequest {
 
 export interface CreateWorkspaceRequest {
   name: string
-  project_id: string
+  template_id: string
 }
 
 // Must be kept in sync with backend Workspace struct
@@ -52,7 +52,7 @@ export interface Workspace {
   created_at: string
   updated_at: string
   owner_id: string
-  project_id: string
+  template_id: string
   name: string
 }
 

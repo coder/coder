@@ -27,7 +27,7 @@ CREATE TYPE parameter_destination_scheme AS ENUM (
 
 CREATE TYPE parameter_scope AS ENUM (
     'organization',
-    'project',
+    'template',
     'import_job',
     'user',
     'workspace'
@@ -44,7 +44,7 @@ CREATE TYPE parameter_type_system AS ENUM (
 );
 
 CREATE TYPE provisioner_job_type AS ENUM (
-    'project_version_import',
+    'template_version_import',
     'workspace_build'
 );
 
@@ -160,28 +160,6 @@ CREATE TABLE parameter_values (
     destination_scheme parameter_destination_scheme NOT NULL
 );
 
-CREATE TABLE project_versions (
-    id uuid NOT NULL,
-    project_id uuid,
-    organization_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    name character varying(64) NOT NULL,
-    description character varying(1048576) NOT NULL,
-    job_id uuid NOT NULL
-);
-
-CREATE TABLE projects (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    organization_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    provisioner provisioner_type NOT NULL,
-    active_version_id uuid NOT NULL
-);
-
 CREATE TABLE provisioner_daemons (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -219,6 +197,28 @@ CREATE TABLE provisioner_jobs (
     worker_id uuid
 );
 
+CREATE TABLE template_versions (
+    id uuid NOT NULL,
+    template_id uuid,
+    organization_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    description character varying(1048576) NOT NULL,
+    job_id uuid NOT NULL
+);
+
+CREATE TABLE templates (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    provisioner provisioner_type NOT NULL,
+    active_version_id uuid NOT NULL
+);
+
 CREATE TABLE users (
     id uuid NOT NULL,
     email text NOT NULL,
@@ -252,7 +252,7 @@ CREATE TABLE workspace_builds (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     workspace_id uuid NOT NULL,
-    project_version_id uuid NOT NULL,
+    template_version_id uuid NOT NULL,
     name character varying(64) NOT NULL,
     before_id uuid,
     after_id uuid,
@@ -278,7 +278,7 @@ CREATE TABLE workspaces (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     owner_id uuid NOT NULL,
-    project_id uuid NOT NULL,
+    template_id uuid NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL
 );
@@ -315,18 +315,6 @@ ALTER TABLE ONLY parameter_values
 ALTER TABLE ONLY parameter_values
     ADD CONSTRAINT parameter_values_scope_id_name_key UNIQUE (scope_id, name);
 
-ALTER TABLE ONLY project_versions
-    ADD CONSTRAINT project_versions_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY project_versions
-    ADD CONSTRAINT project_versions_project_id_name_key UNIQUE (project_id, name);
-
-ALTER TABLE ONLY projects
-    ADD CONSTRAINT projects_organization_id_name_key UNIQUE (organization_id, name);
-
-ALTER TABLE ONLY projects
-    ADD CONSTRAINT projects_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
 
@@ -338,6 +326,18 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_versions
+    ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_versions
+    ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
+
+ALTER TABLE ONLY templates
+    ADD CONSTRAINT templates_organization_id_name_key UNIQUE (organization_id, name);
+
+ALTER TABLE ONLY templates
+    ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
@@ -373,7 +373,7 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_projects_name_lower ON projects USING btree (lower((name)::text));
+CREATE UNIQUE INDEX idx_templates_name_lower ON templates USING btree (lower((name)::text));
 
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
@@ -381,7 +381,7 @@ CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
 CREATE UNIQUE INDEX idx_workspaces_name_lower ON workspaces USING btree (lower((name)::text));
 
-CREATE UNIQUE INDEX projects_organization_id_name_idx ON projects USING btree (organization_id, name) WHERE (deleted = false);
+CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, name) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
 
@@ -402,20 +402,20 @@ ALTER TABLE ONLY organization_members
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY project_versions
-    ADD CONSTRAINT project_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY project_versions
-    ADD CONSTRAINT project_versions_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY projects
-    ADD CONSTRAINT projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY provisioner_job_logs
     ADD CONSTRAINT provisioner_job_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_versions
+    ADD CONSTRAINT template_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_versions
+    ADD CONSTRAINT template_versions_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY templates
+    ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
@@ -424,7 +424,7 @@ ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_project_version_id_fkey FOREIGN KEY (project_version_id) REFERENCES project_versions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_builds_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
@@ -436,5 +436,5 @@ ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY workspaces
-    ADD CONSTRAINT workspaces_project_id_fkey FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
 

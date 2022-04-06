@@ -24,7 +24,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -42,9 +42,9 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 				},
 			}},
 		})
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		client.HTTPClient = metadataClient
@@ -90,7 +90,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -108,9 +108,9 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 				},
 			}},
 		})
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
