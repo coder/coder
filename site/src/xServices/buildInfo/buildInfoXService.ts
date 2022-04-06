@@ -7,6 +7,8 @@ export interface BuildInfoContext {
   buildInfo?: Types.BuildInfoResponse
 }
 
+// TODO@asher: Add retry.  Maybe make it general for any API call (depending on
+// the type of error)?
 export const buildInfoMachine = createMachine(
   {
     tsTypes: {} as import("./buildInfoXService.typegen").Typegen0,
