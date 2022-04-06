@@ -2,7 +2,14 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
+import { BuildInfoResponse } from "../../api/types"
 import { XServiceContext } from "../../xServices/StateContext"
+
+export const Language = {
+  buildInfoText: (buildInfo: BuildInfoResponse) => {
+    return `Coder ${buildInfo.version}`
+  }
+}
 
 export const Footer: React.FC = ({ children }) => {
   const styles = useFooterStyles()
@@ -20,7 +27,7 @@ export const Footer: React.FC = ({ children }) => {
       {buildInfoState.context.buildInfo && (
         <div className={styles.version}>
           <Typography color="textSecondary" variant="caption">
-            Coder {buildInfoState.context.buildInfo.version}
+            {Language.buildInfoText(buildInfoState.context.buildInfo)}
           </Typography>
         </div>
       )}
