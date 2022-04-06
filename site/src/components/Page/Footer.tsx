@@ -17,11 +17,13 @@ export const Footer: React.FC = ({ children }) => {
           {`Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc. All rights reserved.`}
         </Typography>
       </div>
-      <div className={styles.version}>
-        <Typography color="textSecondary" variant="caption">
-          Coder {buildInfoState.context.buildInfo?.version}
-        </Typography>
-      </div>
+      {buildInfoState.context.buildInfo && (
+        <div className={styles.version}>
+          <Typography color="textSecondary" variant="caption">
+            Coder {buildInfoState.context.buildInfo.version}
+          </Typography>
+        </div>
+      )}
     </div>
   )
 }
