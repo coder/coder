@@ -2,6 +2,11 @@ import { rest } from "msw"
 import * as M from "./entities"
 
 export const handlers = [
+  // build info
+  rest.get("/api/v2/buildinfo", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockBuildInfo))
+  }),
+
   // organizations
   rest.get("/api/v2/organizations/:organizationId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockOrganization))
