@@ -35,7 +35,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
   return (
     <>
       <div>
-        <MenuItem onClick={handleDropdownClick}>
+        <MenuItem onClick={handleDropdownClick} data-testid="user-dropdown-trigger">
           <div className={styles.inner}>
             <Badge overlap="circle">
               <UserAvatar username={user.username} />
