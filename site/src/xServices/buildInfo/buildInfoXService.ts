@@ -35,7 +35,7 @@ export const buildInfoMachine = createMachine(
           ],
           onError: [
             {
-              actions: "assignGetBuildInfoError",
+              actions: ["assignGetBuildInfoError", "clearBuildInfo"],
             },
           ],
         },
@@ -50,6 +50,10 @@ export const buildInfoMachine = createMachine(
       assignBuildInfo: assign({
         buildInfo: (_, event) => event.data,
       }),
+      clearBuildInfo: assign((context: BuildInfoContext) => ({
+        ...context,
+        buildInfo: undefined,
+      })),
       assignGetBuildInfoError: assign({
         getBuildInfoError: (_, event) => event.data,
       }),
