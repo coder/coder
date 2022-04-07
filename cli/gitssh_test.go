@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
@@ -26,11 +27,8 @@ func TestGitSSH(t *testing.T) {
 	t.Run("Dial", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
-		instanceID := "instanceidentifier"
-		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
-		client := coderdtest.New(t, &coderdtest.Options{
-			AWSInstanceIdentity: certificates,
-		})
+		token := uuid.New().String()
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// get user public key
@@ -50,8 +48,8 @@ func TestGitSSH(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agent: &proto.Agent{
-								Auth: &proto.Agent_InstanceId{
-									InstanceId: instanceID,
+								Auth: &proto.Agent_Token{
+									Token: token,
 								},
 							},
 						}},
@@ -65,16 +63,12 @@ func TestGitSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		// start workspace agent
-		cmd, root := clitest.New(t, "workspaces", "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
+		cmd, root := clitest.New(t, "workspaces", "agent", "--token", token, "--url", client.URL.String())
 		agentClient := &*client
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
-			// A linting error occurs for weakly typing the context value here,
-			// but it seems reasonable for a one-off test.
-			// nolint
-			ctx = context.WithValue(ctx, "aws-client", metadataClient)
 			err := cmd.ExecuteContext(ctx)
 			require.NoError(t, err)
 		}()
