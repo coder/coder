@@ -27,7 +27,7 @@ func New() database.Store {
 		provisionerDaemons:     make([]database.ProvisionerDaemon, 0),
 		provisionerJobs:        make([]database.ProvisionerJob, 0),
 		provisionerJobLog:      make([]database.ProvisionerJobLog, 0),
-		workspace:              make([]database.Workspace, 0),
+		workspaces:             make([]database.Workspace, 0),
 		provisionerJobResource: make([]database.WorkspaceResource, 0),
 		workspaceBuild:         make([]database.WorkspaceBuild, 0),
 		provisionerJobAgent:    make([]database.WorkspaceAgent, 0),
@@ -56,7 +56,7 @@ type fakeQuerier struct {
 	provisionerJobAgent    []database.WorkspaceAgent
 	provisionerJobResource []database.WorkspaceResource
 	provisionerJobLog      []database.ProvisionerJobLog
-	workspace              []database.Workspace
+	workspaces             []database.Workspace
 	workspaceBuild         []database.WorkspaceBuild
 	GitSSHKey              []database.GitSSHKey
 }
@@ -169,7 +169,7 @@ func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.
 	defer q.mutex.RUnlock()
 
 	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspace {
+	for _, workspace := range q.workspaces {
 		if workspace.TemplateID.String() != arg.TemplateID.String() {
 			continue
 		}
@@ -188,7 +188,7 @@ func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (databas
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, workspace := range q.workspace {
+	for _, workspace := range q.workspaces {
 		if workspace.ID.String() == id.String() {
 			return workspace, nil
 		}
@@ -200,7 +200,7 @@ func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg databas
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, workspace := range q.workspace {
+	for _, workspace := range q.workspaces {
 		if workspace.OwnerID != arg.OwnerID {
 			continue
 		}
@@ -222,7 +222,7 @@ func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, te
 	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
 	for _, templateID := range templateIDs {
 		found := false
-		for _, workspace := range q.workspace {
+		for _, workspace := range q.workspaces {
 			if workspace.TemplateID != templateID {
 				continue
 			}
@@ -350,7 +350,7 @@ func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetW
 	defer q.mutex.RUnlock()
 
 	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspace {
+	for _, workspace := range q.workspaces {
 		if workspace.OwnerID != req.OwnerID {
 			continue
 		}
@@ -1040,7 +1040,7 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 		TemplateID: arg.TemplateID,
 		Name:       arg.Name,
 	}
-	q.workspace = append(q.workspace, workspace)
+	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
 }
 
@@ -1210,6 +1210,38 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID.String() != arg.ID.String() {
+			continue
+		}
+		workspace.AutostartSchedule = arg.AutostartSchedule
+		q.workspaces[index] = workspace
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.UpdateWorkspaceAutostopParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID.String() != arg.ID.String() {
+			continue
+		}
+		workspace.AutostopSchedule = arg.AutostopSchedule
+		q.workspaces[index] = workspace
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1231,12 +1263,12 @@ func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, workspace := range q.workspace {
+	for index, workspace := range q.workspaces {
 		if workspace.ID.String() != arg.ID.String() {
 			continue
 		}
 		workspace.Deleted = arg.Deleted
-		q.workspace[index] = workspace
+		q.workspaces[index] = workspace
 		return nil
 	}
 	return sql.ErrNoRows

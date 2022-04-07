@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 )
@@ -15,15 +16,17 @@ import (
 // Workspace is a per-user deployment of a template. It tracks
 // template versions, and can be updated.
 type Workspace struct {
-	ID           uuid.UUID      `json:"id"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	OwnerID      uuid.UUID      `json:"owner_id"`
-	TemplateID   uuid.UUID      `json:"template_id"`
-	TemplateName string         `json:"template_name"`
-	LatestBuild  WorkspaceBuild `json:"latest_build"`
-	Outdated     bool           `json:"outdated"`
-	Name         string         `json:"name"`
+	ID                uuid.UUID      `json:"id"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	OwnerID           uuid.UUID      `json:"owner_id"`
+	TemplateID        uuid.UUID      `json:"template_id"`
+	TemplateName      string         `json:"template_name"`
+	LatestBuild       WorkspaceBuild `json:"latest_build"`
+	Outdated          bool           `json:"outdated"`
+	Name              string         `json:"name"`
+	AutostartSchedule string         `json:"autostart_schedule"`
+	AutostopSchedule  string         `json:"autostop_schedule"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -85,4 +88,44 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	}
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+}
+
+// UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
+type UpdateWorkspaceAutostartRequest struct {
+	Schedule string
+}
+
+// UpdateWorkspaceAutostart sets the autostart schedule for workspace by id.
+// If the provided schedule is empty, autostart is disabled for the workspace.
+func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostartRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/autostart", id.String())
+	res, err := c.request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("update workspace autostart: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateWorkspaceAutostopRequest is a request to update a workspace's autostop schedule.
+type UpdateWorkspaceAutostopRequest struct {
+	Schedule string
+}
+
+// UpdateWorkspaceAutostop sets the autostop schedule for workspace by id.
+// If the provided schedule is empty, autostop is disabled for the workspace.
+func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostopRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/autostop", id.String())
+	res, err := c.request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("update workspace autostop: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
 }

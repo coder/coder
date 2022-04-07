@@ -4,7 +4,7 @@
   "trailingComma": "all",
   "overrides": [
     {
-      "files": ["./README.md", "**/*.yaml", "**/*.yml"],
+      "files": ["./README.md", "**/*.yaml"],
       "options": {
         "printWidth": 80,
         "proseWrap": "always"
