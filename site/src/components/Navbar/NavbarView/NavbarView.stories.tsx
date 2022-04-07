@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { NavbarView, NavbarViewProps } from "./NavbarView"
+import { NavbarView, NavbarViewProps } from "."
 
 export default {
   title: "Page/NavbarView",

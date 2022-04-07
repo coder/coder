@@ -3,11 +3,11 @@ import ListItem from "@material-ui/core/ListItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { NavLink } from "react-router-dom"
-import { UserResponse } from "../../api/types"
-import { navHeight } from "../../theme/constants"
-import { Logo } from "../Icons"
-import { AdminDropdown } from "./AdminDropdown"
-import { UserDropdown } from "./UserDropdown"
+import { UserResponse } from "../../../api/types"
+import { navHeight } from "../../../theme/constants"
+import { Logo } from "../../Icons"
+import { AdminDropdown } from "../AdminDropdown"
+import { UserDropdown } from "../UserDropdown"
 
 export interface NavbarViewProps {
   user?: UserResponse
