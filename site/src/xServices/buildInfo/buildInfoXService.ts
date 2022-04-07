@@ -31,14 +31,22 @@ export const buildInfoMachine = createMachine(
           onDone: [
             {
               actions: ["assignBuildInfo", "clearGetBuildInfoError"],
+              target: "#buildInfoState.success",
             },
           ],
           onError: [
             {
               actions: ["assignGetBuildInfoError", "clearBuildInfo"],
+              target: "#buildInfoState.failure",
             },
           ],
         },
+      },
+      success: {
+        type: "final",
+      },
+      failure: {
+        type: "final",
       },
     },
   },
