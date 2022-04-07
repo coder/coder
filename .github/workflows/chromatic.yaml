@@ -4,13 +4,13 @@
 # by storing snapshots.
 #
 # SEE: https://www.chromatic.com/docs/ci
-name: "Chromatic"
+name: chromatic
 
 # Chromatic works best with push events, not pull_request or other event types.
 on: push
 
 jobs:
-  chromatic-deployment:
+  deploy:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
 
