@@ -40,8 +40,8 @@ $ sudo service coder restart
 In a new terminal, create a new project (eg. Develop in Linux on Google Cloud):
 
 ```
-$ coder projects init
-$ coder projects create
+$ coder templates init
+$ coder templates create
 ```
 
 Create a new workspace and SSH in:
@@ -56,10 +56,10 @@ $ coder ssh my-first-workspace
 You can edit the Terraform from a sample project:
 
 ```sh
-$ coder projects init
+$ coder templates init
 $ cd gcp-linux/
 $ vim main.tf
-$ coder projects update gcp-linux
+$ coder templates update gcp-linux
 ```
 
 ## Contributing
