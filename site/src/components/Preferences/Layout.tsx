@@ -1,5 +1,7 @@
 import Box from "@material-ui/core/Box"
 import React from "react"
+import { Outlet } from "react-router-dom"
+import { AuthAndNav } from "../Page"
 import { TabPanel } from "../TabPanel"
 
 const menuItems = [
@@ -9,12 +11,16 @@ const menuItems = [
   { label: "Linked Accounts", path: "/preferences/linked-accounts" },
 ]
 
-export const Layout: React.FC = ({ children }) => {
+export const PreferencesLayout: React.FC = () => {
   return (
-    <Box style={{ maxWidth: "1380px", margin: "1em auto" }}>
-      <TabPanel title="Preferences" menuItems={menuItems}>
-        {children}
-      </TabPanel>
-    </Box>
+    <AuthAndNav>
+      <Box display="flex" flexDirection="column">
+        <Box style={{ maxWidth: "1380px", margin: "1em auto" }}>
+          <TabPanel title="Preferences" menuItems={menuItems}>
+            <Outlet />
+          </TabPanel>
+        </Box>
+      </Box>
+    </AuthAndNav>
   )
 }
