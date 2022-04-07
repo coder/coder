@@ -177,7 +177,7 @@ jobs:
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v3
         if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -262,7 +262,7 @@ jobs:
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v3
         if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -381,7 +381,7 @@ jobs:
       - run: yarn test:coverage
         working-directory: site
 
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v3
         if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
