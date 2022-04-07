@@ -1,10 +1,20 @@
 package authz
 
-import "github.com/coder/coder/coderd/authz/rbac"
+import (
+	"errors"
+
+	"github.com/coder/coder/coderd/authz/rbac"
+)
+
+var ErrUnauthorized = errors.New("unauthorized")
 
 // TODO: Implement Authorize
-func Authorize(subj Subject, obj Resource, action rbac.Operation) error {
+func Authorize(subj Subject, res Resource, action rbac.Operation) error {
 	// TODO: Expand subject roles into their permissions as appropriate. Apply scopes.
 
-	return nil
+	if SiteEnforcer.RolesHavePermission(subj.Roles(), res.ResourceType(), action) {
+		return nil
+	}
+
+	return ErrUnauthorized
 }

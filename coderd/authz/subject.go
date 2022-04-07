@@ -13,7 +13,7 @@ type Subject interface {
 	// object, we can assume the object is owned by this subject.
 	ID() string
 
-	Roles() (rbac.Roles, error)
+	Roles() rbac.Roles
 
 	// OrgRoles only need to be returned for the organization in question.
 	// This is because users typically belong to more than 1 organization,
@@ -38,8 +38,8 @@ func (s SubjectTODO) ID() string {
 	return s.UserID
 }
 
-func (s SubjectTODO) Roles() (rbac.Roles, error) {
-	return s.Site, nil
+func (s SubjectTODO) Roles() rbac.Roles {
+	return s.Site
 }
 
 func (s SubjectTODO) OrgRoles(_ context.Context, orgID string) (rbac.Roles, error) {
