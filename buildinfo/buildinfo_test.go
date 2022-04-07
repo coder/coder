@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/mod/semver"
 
-	"github.com/coder/coder/cli/buildinfo"
+	"github.com/coder/coder/buildinfo"
 )
 
 func TestBuildInfo(t *testing.T) {
