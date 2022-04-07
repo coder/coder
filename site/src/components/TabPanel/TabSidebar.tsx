@@ -2,8 +2,8 @@ import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
-import { combineClasses } from "../../util/combineClasses"
 import { NavLink } from "react-router-dom"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface TabSidebarItem {
   path: string
