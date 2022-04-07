@@ -41,7 +41,7 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, FALSE, $5, $6, $7, $8) RETURNING *;
 
--- name: UpdateUser :exec
+-- name: UpdateUser :one
 UPDATE
 	users
 SET
@@ -50,5 +50,6 @@ SET
 	username = $4,
 	updated_at = CURRENT_TIMESTAMP
 WHERE
-	id = $1;
+	id = $1
+RETURNING *;
 

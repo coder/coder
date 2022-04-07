@@ -41,6 +41,12 @@ type CreateUserRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" validate:"required"`
 }
 
+type PatchUserRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"username"`
+}
+
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
 	Email    string `json:"email" validate:"required,email"`
