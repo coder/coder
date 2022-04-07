@@ -3,9 +3,8 @@ package authz
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/coder/coder/coderd/authz/rbac"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestResolveSiteEnforcer(t *testing.T) {
