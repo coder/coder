@@ -1,6 +1,7 @@
 package authz_test
 
 import (
+	"github.com/coder/coder/coderd/authz/rbac"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -18,12 +19,12 @@ func TestExample(t *testing.T) {
 	user := authz.SubjectTODO{
 		UserID: "alice",
 		// No site perms
-		Site: []authz.Role{},
-		Org: map[string][]authz.Role{
+		Site: []rbac.Role{},
+		Org: map[string][]rbac.Role{
 			// Admin of org "default".
 			"default": {{Permissions: must(authz.ParsePermissions("+org.*.*.*"))}},
 		},
-		User: []authz.Role{
+		User: []rbac.Role{
 			// Site user role
 			{Permissions: must(authz.ParsePermissions("+user.*.*.*"))},
 		},
@@ -34,7 +35,7 @@ func TestExample(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("ReadAllWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the site
-		err := authz.Authorize(user, authz.ResourceWorkspace, authz.ActionRead)
+		err := authz.Authorize(user, rbac.ResourceWorkspace, authz.ActionRead)
 		var _ = err
 		// require.Error(t, err, "this user cannot read all workspaces")
 	})
