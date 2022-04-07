@@ -6,6 +6,7 @@ import { NotFoundPage } from "./pages/404"
 import { CliAuthenticationPage } from "./pages/cli-auth"
 import { HealthzPage } from "./pages/healthz"
 import { SignInPage } from "./pages/login"
+import { PreferencesPage } from "./pages/preferences"
 import { TemplatesPage } from "./pages/templates"
 import { TemplatePage } from "./pages/templates/[organization]/[template]"
 import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
@@ -62,6 +63,17 @@ export const AppRouter: React.FC = () => (
           element={
             <AuthAndNav>
               <WorkspacePage />
+            </AuthAndNav>
+          }
+        />
+      </Route>
+
+      <Route path="preferences">
+        <Route
+          index
+          element={
+            <AuthAndNav>
+              <PreferencesPage />
             </AuthAndNav>
           }
         />

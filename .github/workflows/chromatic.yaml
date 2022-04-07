@@ -4,13 +4,13 @@
 # by storing snapshots.
 #
 # SEE: https://www.chromatic.com/docs/ci
-name: "Chromatic"
+name: chromatic
 
 # Chromatic works best with push events, not pull_request or other event types.
 on: push
 
 jobs:
-  chromatic-deployment:
+  deploy:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
 
@@ -33,7 +33,9 @@ jobs:
         with:
           buildScriptName: "storybook:build"
           exitOnceUploaded: true
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          # Chromatic states its fine to make this token public. See:
+          # https://www.chromatic.com/docs/github-actions#forked-repositories
+          projectToken: 695c25b6cb65
           workingDir: "./site"
 
       # This is a separate step for mainline only that auto accepts and changes
@@ -48,5 +50,5 @@ jobs:
         with:
           autoAcceptChanges: true
           buildScriptName: "storybook:build"
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          projectToken: 695c25b6cb65
           workingDir: "./site"

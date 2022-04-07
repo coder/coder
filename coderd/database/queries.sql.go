@@ -2523,7 +2523,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name
+	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 FROM
 	workspaces
 WHERE
@@ -2543,13 +2543,15 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.TemplateID,
 		&i.Deleted,
 		&i.Name,
+		&i.AutostartSchedule,
+		&i.AutostopSchedule,
 	)
 	return i, err
 }
 
 const getWorkspaceByUserIDAndName = `-- name: GetWorkspaceByUserIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name
+	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 FROM
 	workspaces
 WHERE
@@ -2575,6 +2577,8 @@ func (q *sqlQuerier) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWor
 		&i.TemplateID,
 		&i.Deleted,
 		&i.Name,
+		&i.AutostartSchedule,
+		&i.AutostopSchedule,
 	)
 	return i, err
 }
@@ -2622,7 +2626,7 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 
 const getWorkspacesByTemplateID = `-- name: GetWorkspacesByTemplateID :many
 SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name
+	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 FROM
 	workspaces
 WHERE
@@ -2652,6 +2656,8 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorks
 			&i.TemplateID,
 			&i.Deleted,
 			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
 		); err != nil {
 			return nil, err
 		}
@@ -2668,7 +2674,7 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorks
 
 const getWorkspacesByUserID = `-- name: GetWorkspacesByUserID :many
 SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name
+	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 FROM
 	workspaces
 WHERE
@@ -2698,6 +2704,8 @@ func (q *sqlQuerier) GetWorkspacesByUserID(ctx context.Context, arg GetWorkspace
 			&i.TemplateID,
 			&i.Deleted,
 			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
 		); err != nil {
 			return nil, err
 		}
@@ -2723,7 +2731,7 @@ INSERT INTO
 		name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, owner_id, template_id, deleted, name
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 `
 
 type InsertWorkspaceParams struct {
@@ -2753,8 +2761,48 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.TemplateID,
 		&i.Deleted,
 		&i.Name,
+		&i.AutostartSchedule,
+		&i.AutostopSchedule,
 	)
 	return i, err
+}
+
+const updateWorkspaceAutostart = `-- name: UpdateWorkspaceAutostart :exec
+UPDATE
+	workspaces
+SET
+	autostart_schedule = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAutostartParams struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostart, arg.ID, arg.AutostartSchedule)
+	return err
+}
+
+const updateWorkspaceAutostop = `-- name: UpdateWorkspaceAutostop :exec
+UPDATE
+	workspaces
+SET
+	autostop_schedule = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAutostopParams struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	AutostopSchedule sql.NullString `db:"autostop_schedule" json:"autostop_schedule"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAutostop(ctx context.Context, arg UpdateWorkspaceAutostopParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostop, arg.ID, arg.AutostopSchedule)
+	return err
 }
 
 const updateWorkspaceDeletedByID = `-- name: UpdateWorkspaceDeletedByID :exec
