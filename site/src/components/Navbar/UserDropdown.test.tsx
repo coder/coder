@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react"
 import React from "react"
 import { render } from "../../test_helpers"
 import { MockUser } from "../../test_helpers/entities"
-import { UserDropdown, UserDropdownProps } from "./UserDropdown"
+import { Language, UserDropdown, UserDropdownProps } from "./UserDropdown"
 
 const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {
   render(<UserDropdown user={props.user ?? MockUser} onSignOut={props.onSignOut ?? jest.fn()} />)
@@ -14,9 +14,9 @@ describe("UserDropdown", () => {
   describe("when the trigger is clicked", () => {
     it("opens the menu", async () => {
       await renderAndClick()
-      expect(screen.getByText(/account/i)).toBeDefined()
-      expect(screen.getByText(/documentation/i)).toBeDefined()
-      expect(screen.getByText(/sign out/i)).toBeDefined()
+      expect(screen.getByText(Language.accountLabel)).toBeDefined()
+      expect(screen.getByText(Language.docsLabel)).toBeDefined()
+      expect(screen.getByText(Language.signOutLabel)).toBeDefined()
     })
   })
 
@@ -25,7 +25,7 @@ describe("UserDropdown", () => {
       it("calls the onSignOut function", async () => {
         const onSignOut = jest.fn()
         await renderAndClick({ onSignOut })
-        screen.getByText(/sign out/i).click()
+        screen.getByText(Language.signOutLabel).click()
         expect(onSignOut).toBeCalledTimes(1)
       })
     })
@@ -34,7 +34,7 @@ describe("UserDropdown", () => {
   it("has the correct link for the documentation item", async () => {
     await renderAndClick()
 
-    const link = screen.getByText(/documentation/i).closest("a")
+    const link = screen.getByText(Language.docsLabel).closest("a")
     if (!link) {
       throw new Error("Anchor tag not found for the documentation menu item")
     }
@@ -45,7 +45,7 @@ describe("UserDropdown", () => {
   it("has the correct link for the account item", async () => {
     await renderAndClick()
 
-    const link = screen.getByText(/account/i).closest("a")
+    const link = screen.getByText(Language.accountLabel).closest("a")
     if (!link) {
       throw new Error("Anchor tag not found for the account menu item")
     }
