@@ -388,13 +388,15 @@ type User struct {
 }
 
 type Workspace struct {
-	ID         uuid.UUID `db:"id" json:"id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	Deleted    bool      `db:"deleted" json:"deleted"`
-	Name       string    `db:"name" json:"name"`
+	ID                uuid.UUID      `db:"id" json:"id"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
+	Deleted           bool           `db:"deleted" json:"deleted"`
+	Name              string         `db:"name" json:"name"`
+	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+	AutostopSchedule  sql.NullString `db:"autostop_schedule" json:"autostop_schedule"`
 }
 
 type WorkspaceAgent struct {

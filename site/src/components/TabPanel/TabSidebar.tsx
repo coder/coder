@@ -2,41 +2,35 @@ import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
+import { NavLink } from "react-router-dom"
 import { combineClasses } from "../../util/combine-classes"
 
-export interface SidebarItem {
-  value: string
+export interface TabSidebarItem {
+  path: string
   label: string
   hasChanges?: boolean
 }
 
-export interface SidebarProps {
-  menuItems: SidebarItem[]
-  activeItem?: string
-  onSelect?: (value: string) => void
+export interface TabSidebarProps {
+  menuItems: TabSidebarItem[]
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ menuItems, activeItem, onSelect }) => {
+export const TabSidebar: React.FC<TabSidebarProps> = ({ menuItems }) => {
   const styles = useStyles()
 
   return (
     <List className={styles.menu}>
       {menuItems.map(({ hasChanges, ...tab }) => {
-        const isActive = activeItem === tab.value
         return (
-          <ListItem
-            key={tab.value}
-            button
-            onClick={onSelect ? () => onSelect(tab.value) : undefined}
-            className={styles.menuItem}
-            disableRipple
-            focusRipple={false}
-            component="li"
-          >
-            <span className={combineClasses({ [styles.menuItemSpan]: true, active: isActive })}>
-              {hasChanges ? `${tab.label}*` : tab.label}
-            </span>
-          </ListItem>
+          <NavLink to={tab.path} key={tab.path} className={styles.link}>
+            {({ isActive }) => (
+              <ListItem button className={styles.menuItem} disableRipple focusRipple={false} component="li">
+                <span className={combineClasses({ [styles.menuItemSpan]: true, active: isActive })}>
+                  {hasChanges ? `${tab.label}*` : tab.label}
+                </span>
+              </ListItem>
+            )}
+          </NavLink>
         )
       })}
     </List>
@@ -47,6 +41,10 @@ const useStyles = makeStyles((theme) => ({
   menu: {
     minWidth: 160,
     marginTop: theme.spacing(5),
+  },
+
+  link: {
+    textDecoration: "none",
   },
 
   menuItem: {

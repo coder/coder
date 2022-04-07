@@ -1,9 +1,21 @@
+import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import { useActor } from "@xstate/react"
+import React, { useContext } from "react"
+import { BuildInfoResponse } from "../../api/types"
+import { XServiceContext } from "../../xServices/StateContext"
+
+export const Language = {
+  buildInfoText: (buildInfo: BuildInfoResponse): string => {
+    return `Coder ${buildInfo.version}`
+  },
+}
 
 export const Footer: React.FC = ({ children }) => {
   const styles = useFooterStyles()
+  const xServices = useContext(XServiceContext)
+  const [buildInfoState] = useActor(xServices.buildInfoXService)
 
   return (
     <div className={styles.root}>
@@ -13,11 +25,13 @@ export const Footer: React.FC = ({ children }) => {
           {`Copyright \u00a9 ${new Date().getFullYear()} Coder Technologies, Inc. All rights reserved.`}
         </Typography>
       </div>
-      <div className={styles.version}>
-        <Typography color="textSecondary" variant="caption">
-          v2 0.0.0-prototype
-        </Typography>
-      </div>
+      {buildInfoState.context.buildInfo && (
+        <div className={styles.buildInfo}>
+          <Link variant="caption" href={buildInfoState.context.buildInfo.external_url}>
+            {Language.buildInfoText(buildInfoState.context.buildInfo)}
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
@@ -29,11 +43,9 @@ const useFooterStyles = makeStyles((theme) => ({
     flex: "0",
   },
   copyRight: {
-    backgroundColor: theme.palette.background.default,
     margin: theme.spacing(0.25),
   },
-  version: {
-    backgroundColor: theme.palette.background.default,
+  buildInfo: {
     margin: theme.spacing(0.25),
   },
 }))

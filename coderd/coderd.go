@@ -7,17 +7,20 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"google.golang.org/api/idtoken"
 
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/access/session"
+	"github.com/coder/coder/buildinfo"
+  "github.com/coder/coder/coderd/access/session"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
 
@@ -59,6 +62,15 @@ func New(options *Options) (http.Handler, func()) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
 				Message: "👋",
+			})
+		})
+		r.Route("/buildinfo", func(r chi.Router) {
+			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+				render.Status(r, http.StatusOK)
+				render.JSON(rw, r, codersdk.BuildInfoResponse{
+					ExternalURL: buildinfo.ExternalURL(),
+					Version:     buildinfo.Version(),
+				})
 			})
 		})
 		r.Route("/files", func(r chi.Router) {
@@ -185,6 +197,12 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.workspaceBuilds)
 				r.Post("/", api.postWorkspaceBuilds)
 				r.Get("/{workspacebuildname}", api.workspaceBuildByName)
+			})
+			r.Route("/autostart", func(r chi.Router) {
+				r.Put("/", api.putWorkspaceAutostart)
+			})
+			r.Route("/autostop", func(r chi.Router) {
+				r.Put("/", api.putWorkspaceAutostop)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

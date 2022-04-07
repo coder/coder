@@ -13,6 +13,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/autostart/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -290,16 +291,82 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
+func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
+	var req codersdk.UpdateWorkspaceAutostartRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	var dbSched sql.NullString
+	if req.Schedule != "" {
+		validSched, err := schedule.Weekly(req.Schedule)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("invalid autostart schedule: %s", err),
+			})
+			return
+		}
+		dbSched.String = validSched.String()
+		dbSched.Valid = true
+	}
+
+	workspace := httpmw.WorkspaceParam(r)
+	err := api.Database.UpdateWorkspaceAutostart(r.Context(), database.UpdateWorkspaceAutostartParams{
+		ID:                workspace.ID,
+		AutostartSchedule: dbSched,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update workspace autostart schedule: %s", err),
+		})
+		return
+	}
+}
+
+func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
+	var req codersdk.UpdateWorkspaceAutostopRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+
+	var dbSched sql.NullString
+	if req.Schedule != "" {
+		validSched, err := schedule.Weekly(req.Schedule)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("invalid autostop schedule: %s", err),
+			})
+			return
+		}
+		dbSched.String = validSched.String()
+		dbSched.Valid = true
+	}
+
+	workspace := httpmw.WorkspaceParam(r)
+	err := api.Database.UpdateWorkspaceAutostop(r.Context(), database.UpdateWorkspaceAutostopParams{
+		ID:               workspace.ID,
+		AutostopSchedule: dbSched,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update workspace autostop schedule: %s", err),
+		})
+		return
+	}
+}
+
 func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template) codersdk.Workspace {
 	return codersdk.Workspace{
-		ID:           workspace.ID,
-		CreatedAt:    workspace.CreatedAt,
-		UpdatedAt:    workspace.UpdatedAt,
-		OwnerID:      workspace.OwnerID,
-		TemplateID:   workspace.TemplateID,
-		LatestBuild:  workspaceBuild,
-		TemplateName: template.Name,
-		Outdated:     workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
-		Name:         workspace.Name,
+		ID:                workspace.ID,
+		CreatedAt:         workspace.CreatedAt,
+		UpdatedAt:         workspace.UpdatedAt,
+		OwnerID:           workspace.OwnerID,
+		TemplateID:        workspace.TemplateID,
+		LatestBuild:       workspaceBuild,
+		TemplateName:      template.Name,
+		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
+		Name:              workspace.Name,
+		AutostartSchedule: workspace.AutostartSchedule.String,
+		AutostopSchedule:  workspace.AutostopSchedule.String,
 	}
 }

@@ -29,24 +29,7 @@ func TestAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("SessionExec", func(t *testing.T) {
 		t.Parallel()
-		api := setup(t)
-		stream, err := api.NegotiateConnection(context.Background())
-		require.NoError(t, err)
-		conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
-			Logger: slogtest.Make(t, nil),
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = conn.Close()
-		})
-		client := agent.Conn{
-			Negotiator: api,
-			Conn:       conn,
-		}
-		sshClient, err := client.SSHClient()
-		require.NoError(t, err)
-		session, err := sshClient.NewSession()
-		require.NoError(t, err)
+		session := setupSSH(t)
 		command := "echo test"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe /c echo test"
@@ -56,33 +39,28 @@ func TestAgent(t *testing.T) {
 		require.Equal(t, "test", strings.TrimSpace(string(output)))
 	})
 
+	t.Run("GitSSH", func(t *testing.T) {
+		t.Parallel()
+		session := setupSSH(t)
+		command := "sh -c 'echo $GIT_SSH_COMMAND'"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
+		}
+		output, err := session.Output(command)
+		require.NoError(t, err)
+		require.Contains(t, string(output), "gitssh --")
+	})
+
 	t.Run("SessionTTY", func(t *testing.T) {
 		t.Parallel()
-		api := setup(t)
-		stream, err := api.NegotiateConnection(context.Background())
-		require.NoError(t, err)
-		conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
-			Logger: slogtest.Make(t, nil),
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = conn.Close()
-		})
-		client := &agent.Conn{
-			Negotiator: api,
-			Conn:       conn,
-		}
-		sshClient, err := client.SSHClient()
-		require.NoError(t, err)
-		session, err := sshClient.NewSession()
-		require.NoError(t, err)
+		session := setupSSH(t)
 		prompt := "$"
 		command := "bash"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe"
 			prompt = ">"
 		}
-		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 		ptty := ptytest.New(t)
 		require.NoError(t, err)
@@ -100,7 +78,7 @@ func TestAgent(t *testing.T) {
 	})
 }
 
-func setup(t *testing.T) proto.DRPCPeerBrokerClient {
+func setupSSH(t *testing.T) *ssh.Session {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(func(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
 		return peerbroker.Listen(server, nil, opts)
@@ -112,5 +90,24 @@ func setup(t *testing.T) proto.DRPCPeerBrokerClient {
 		_ = server.Close()
 		_ = closer.Close()
 	})
-	return proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
+	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
+	stream, err := api.NegotiateConnection(context.Background())
+	require.NoError(t, err)
+	conn, err := peerbroker.Dial(stream, []webrtc.ICEServer{}, &peer.ConnOptions{
+		Logger: slogtest.Make(t, nil),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+	agentClient := &agent.Conn{
+		Negotiator: api,
+		Conn:       conn,
+	}
+	sshClient, err := agentClient.SSHClient()
+	require.NoError(t, err)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+
+	return session
 }

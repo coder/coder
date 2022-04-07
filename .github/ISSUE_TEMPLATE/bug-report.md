@@ -2,7 +2,7 @@
 name: Bug report
 about: Report a bug
 title: "Bug: "
-labels: "bug 🐛"
+labels: "bug :bug:"
 ---
 
 ## OS Information

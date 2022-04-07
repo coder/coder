@@ -68,3 +68,8 @@ export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
   const response = await axios.post<Types.APIKeyResponse>("/api/v2/users/me/keys")
   return response.data
 }
+
+export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
+  const response = await axios.get("/api/v2/buildinfo")
+  return response.data
+}

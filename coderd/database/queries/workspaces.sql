@@ -68,3 +68,19 @@ SET
 	deleted = $2
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspaceAutostart :exec
+UPDATE
+	workspaces
+SET
+	autostart_schedule = $2
+WHERE
+	id = $1;
+
+-- name: UpdateWorkspaceAutostop :exec
+UPDATE
+	workspaces
+SET
+	autostop_schedule = $2
+WHERE
+	id = $1;
