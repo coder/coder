@@ -184,6 +184,12 @@ func New(options *Options) (http.Handler, func()) {
 				r.Post("/", api.postWorkspaceBuilds)
 				r.Get("/{workspacebuildname}", api.workspaceBuildByName)
 			})
+			r.Route("/autostart", func(r chi.Router) {
+				r.Put("/", api.putWorkspaceAutostart)
+			})
+			r.Route("/autostop", func(r chi.Router) {
+				r.Put("/", api.putWorkspaceAutostop)
+			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
