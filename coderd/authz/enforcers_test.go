@@ -15,7 +15,7 @@ func TestResolveSiteEnforcer(t *testing.T) {
 	assert.Exactly(t, siteEnforcerMap[SiteAdmin][AuditLogs][ReadAll], true)
 
 	// SiteAuditor inherited from SiteMember
-	assert.Exactly(t, siteEnforcerMap[SiteAuditor][DevURLs][Create], true)
+	assert.Exactly(t, siteEnforcerMap[SiteAuditor][DevURLs][CreateOwn], true)
 
 	// SiteManager merged Metrics perms with SiteMember
 	assert.Exactly(t, siteEnforcerMap[SiteManager][Metrics][ReadOwn], true)
@@ -31,7 +31,7 @@ func TestResolveOrgEnforcer(t *testing.T) {
 	assert.NotNil(t, orgEnforcerMap[OrganizationAdmin])
 
 	// OrganizationManager merged Workspaces perms with OrganizationMember
-	testOps := rbac.Operations{Create, ReadAll, UpdateAll, UpdateOwn, DeleteAll}
+	testOps := rbac.Operations{CreateOwn, ReadAll, UpdateAll, UpdateOwn, DeleteAll}
 	for _, op := range testOps {
 		assert.Exactly(t, orgEnforcerMap[OrganizationManager][Workspaces][op], true)
 	}

@@ -1,79 +1,113 @@
 package authz_test
 
 import (
+	"context"
 	"testing"
 
-	"github.com/coder/coder/coderd/authz/rbac"
-
-	"github.com/stretchr/testify/require"
-
 	"github.com/coder/coder/coderd/authz"
+	"github.com/coder/coder/coderd/authz/rbac"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuthorize(t *testing.T) {
 	t.Parallel()
 
-	// testCases := []struct {
-	// 	Subject       authz.Subject
-	// 	Resource      authz.Object
-	// 	Action        rbac.Operation
-	// 	ExpectedError string
-	// }{
-	// 	{
-	// 		Subject: &authz.SubjectTODO{
-	// 			UserID: "user",
-	// 			Site:   []rbac.Role{authz.SiteMember},
-	// 			Org: map[string]rbac.Roles{
-	// 				"default": {authz.OrganizationAdmin},
-	// 			},
-	// 		},
-	// 		Resource: &authz.Object{},
-	// 	},
-	// }
-
-	// user will become an authn object, and can even be a database.User if it
-	// fulfills the interface. Until then, use a placeholder.
-	user := authz.SubjectTODO{
-		UserID: "alice",
-		// No site perms
-		Site: []rbac.Role{authz.SiteMember},
-		Org: map[string]rbac.Roles{
-			// Admin of org "default".
-			"default": {authz.OrganizationAdmin},
+	testCases := []struct {
+		Name          string
+		Subject       authz.Subject
+		Resource      authz.Object
+		Action        rbac.Operation
+		ExpectedError bool
+	}{
+		{
+			Name: "Org admin trying to read all workspace",
+			Subject: &authz.SubjectTODO{
+				UserID: "org-admin",
+				Site:   []rbac.Role{authz.SiteMember},
+				Org: map[string]rbac.Roles{
+					"default": {authz.OrganizationAdmin},
+				},
+			},
+			Resource: authz.Object{
+				ObjectType: authz.Workspaces,
+			},
+			Action:        authz.ReadAll,
+			ExpectedError: true,
+		},
+		{
+			Name: "Org admin read org workspace",
+			Subject: &authz.SubjectTODO{
+				UserID: "org-admin",
+				Site:   []rbac.Role{authz.SiteMember},
+				Org: map[string]rbac.Roles{
+					"default": {authz.OrganizationAdmin},
+				},
+			},
+			Resource: authz.Object{
+				ObjectType: authz.Workspaces,
+				OrgOwner:   "default",
+			},
+			Action: authz.ReadAll,
+		},
+		{
+			Name: "Org admin read someone else's workspace",
+			Subject: &authz.SubjectTODO{
+				UserID: "org-admin",
+				Site:   []rbac.Role{authz.SiteMember},
+				Org: map[string]rbac.Roles{
+					"default": {authz.OrganizationAdmin},
+				},
+			},
+			Resource: authz.Object{
+				Owner:      "org-member",
+				ObjectType: authz.Workspaces,
+				OrgOwner:   "default",
+			},
+			Action: authz.ReadOwn,
+		},
+		{
+			Name: "Org member read their workspace",
+			Subject: &authz.SubjectTODO{
+				UserID: "org-member",
+				Site:   []rbac.Role{authz.SiteMember},
+				Org: map[string]rbac.Roles{
+					"default": {authz.OrganizationMember},
+				},
+			},
+			Resource: authz.Object{
+				Owner:      "org-member",
+				ObjectType: authz.Workspaces,
+				OrgOwner:   "default",
+			},
+			Action: authz.ReadOwn,
+		},
+		{
+			Name: "Site member read their workspace in other org",
+			Subject: &authz.SubjectTODO{
+				UserID: "site-member",
+				Site:   []rbac.Role{authz.SiteMember},
+				Org: map[string]rbac.Roles{
+					"default": {authz.OrganizationMember},
+				},
+			},
+			Resource: authz.Object{
+				Owner:      "site-member",
+				ObjectType: authz.Workspaces,
+				OrgOwner:   "not-default",
+			},
+			Action:        authz.ReadOwn,
+			ExpectedError: true,
 		},
 	}
 
-	// TODO: Uncomment all assertions when implementation is done.
-
-	//nolint:paralleltest
-	t.Run("ReadAllWorkspaces", func(t *testing.T) {
-		// To read all workspaces on the site
-		err := authz.Authorize(user, authz.Object{}, authz.ReadAll)
-		var _ = err
-		require.Error(t, err, "this user cannot read all workspaces")
-	})
-
-	// nolint:paralleltest
-	// t.Run("ReadOrgWorkspaces", func(t *testing.T) {
-	// To read all workspaces on the org 'default'
-	// err := authz.Authorize(user, authz.ResourceWorkspace.Org("default"), authz.ActionRead)
-	// require.NoError(t, err, "this user can read all org workspaces in 'default'")
-	// })
-	//
-	// nolint:paralleltest
-	// t.Run("ReadMyWorkspace", func(t *testing.T) {
-	// Note 'database.Workspace' could fulfill the object interface and be passed in directly
-	// err := authz.Authorize(user, authz.ResourceWorkspace.Org("default").Owner(user.UserID), authz.ActionRead)
-	// require.NoError(t, err, "this user can their workspace")
-	//
-	// err = authz.Authorize(user, authz.ResourceWorkspace.Org("default").Owner(user.UserID).AsID("1234"), authz.ActionRead)
-	// require.NoError(t, err, "this user can read workspace '1234'")
-	// })
-	//
-	// nolint:paralleltest
-	// t.Run("CreateNewSiteUser", func(t *testing.T) {
-	// err := authz.Authorize(user, authz.ResourceUser, authz.ActionCreate)
-	// var _ = err
-	// require.Error(t, err, "this user cannot create new users")
-	// })
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			err := authz.Authorize(context.Background(), c.Subject, c.Resource, c.Action)
+			if c.ExpectedError {
+				require.EqualError(t, err, authz.ErrUnauthorized.Error(), "unauth")
+			} else {
+				require.NoError(t, err, "exp auth succeed")
+			}
+		})
+	}
 }

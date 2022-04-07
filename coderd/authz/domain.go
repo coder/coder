@@ -50,9 +50,10 @@ const (
 	Workspaces          rbac.Resource = "environments"
 )
 
-// Operations
+// Operations **must** have an -all or -own suffix
 const (
-	Create    rbac.Operation = "create"     // create a new resource
+	CreateOwn rbac.Operation = "create-own" // create a new resource owned by me
+	CreateAll rbac.Operation = "create-all" // create a new resource in this scope
 	DeleteAll rbac.Operation = "delete-all" // delete any of these resources in this scope
 	DeleteOwn rbac.Operation = "delete-own" // delete any of these resources owned in this scope
 	ReadAll   rbac.Operation = "read-all"   // read all fields in any of these resources in this scope
@@ -77,7 +78,7 @@ var SiteEnforcer = rbac.Enforcer{
 			ResourcePools: {UpdateAll},
 		},
 		SiteAdmin: {
-			APIKeys: {Create, ReadAll, UpdateAll, DeleteAll},
+			APIKeys: {CreateAll, ReadAll, UpdateAll, DeleteAll},
 		},
 		SiteAuditor: {
 			AuditLogs: {ReadAll},
@@ -86,28 +87,28 @@ var SiteEnforcer = rbac.Enforcer{
 			AuditLogs:           {ReadAll},
 			Configs:             {ReadAll, UpdateAll},
 			SecretConfigs:       {ReadAll, UpdateAll},
-			Workspaces:          {Create, ReadAll, UpdateAll, DeleteAll},
-			Extensions:          {Create, DeleteAll},
+			Workspaces:          {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			Extensions:          {CreateAll, DeleteAll},
 			FeatureFlags:        {ReadAll, UpdateAll},
-			ImageTags:           {Create, ReadAll, UpdateAll, DeleteAll},
-			Images:              {Create, ReadAll, UpdateAll, DeleteAll},
+			ImageTags:           {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			Images:              {CreateAll, ReadAll, UpdateAll, DeleteAll},
 			Metrics:             {ReadAll},
 			OAuth:               {ReadAll, UpdateAll},
-			OrganizationMembers: {Create, ReadAll, UpdateAll, DeleteAll},
-			Organizations:       {Create, ReadAll, UpdateAll, DeleteAll},
-			Registries:          {Create, ReadAll, UpdateAll, DeleteAll},
+			OrganizationMembers: {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			Organizations:       {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			Registries:          {CreateAll, ReadAll, UpdateAll, DeleteAll},
 			ResourcePools:       {UpdateAll, ReadAll},
-			Satellites:          {Create, ReadAll, UpdateAll, DeleteAll},
-			SystemBanners:       {Create, ReadAll, UpdateAll, DeleteAll},
-			TLSCertificates:     {Create, ReadAll, UpdateAll, DeleteAll},
-			Usage:               {Create, ReadAll, UpdateAll, DeleteAll},
-			Users:               {Create, ReadAll, UpdateAll, DeleteAll},
-			WorkspaceProviders:  {Create, ReadAll, UpdateAll, DeleteAll},
+			Satellites:          {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			SystemBanners:       {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			TLSCertificates:     {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			Usage:               {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			Users:               {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			WorkspaceProviders:  {CreateAll, ReadAll, UpdateAll, DeleteAll},
 		},
 		SiteMember: {
-			APIKeys:       {Create, ReadOwn, UpdateOwn, DeleteOwn},
+			APIKeys:       {CreateOwn, ReadOwn, UpdateOwn, DeleteOwn},
 			Configs:       {ReadAll},
-			DevURLs:       {Create, ReadOwn, UpdateOwn, DeleteOwn},
+			DevURLs:       {CreateOwn, ReadOwn, UpdateOwn, DeleteOwn},
 			FeatureFlags:  {ReadAll},
 			ResourcePools: {ReadAll},
 			Metrics:       {ReadOwn},
@@ -124,20 +125,20 @@ var OrganizationEnforcer = rbac.Enforcer{
 	},
 	RolePermissions: rbac.RolePermissions{
 		OrganizationManager: {
-			Workspaces:          {Create, ReadAll, UpdateAll, DeleteAll},
-			ImageTags:           {Create, ReadAll, UpdateAll, DeleteAll},
-			Images:              {Create, ReadAll, UpdateAll, DeleteAll},
+			Workspaces:          {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			ImageTags:           {CreateAll, ReadAll, UpdateAll, DeleteAll},
+			Images:              {CreateAll, ReadAll, UpdateAll, DeleteAll},
 			Metrics:             {ReadAll},
-			OrganizationMembers: {Create, ReadAll, UpdateAll, DeleteAll},
+			OrganizationMembers: {CreateAll, ReadAll, UpdateAll, DeleteAll},
 			Organizations:       {ReadAll},
-			Registries:          {Create, ReadAll, UpdateAll, DeleteAll},
+			Registries:          {CreateAll, ReadAll, UpdateAll, DeleteAll},
 			Users:               {ReadAll},
 		},
 		OrganizationMember: {
 			DevURLs:             {ReadAll},
-			Workspaces:          {Create, ReadAll, UpdateOwn, DeleteOwn},
-			ImageTags:           {Create, ReadAll},
-			Images:              {Create, ReadAll},
+			Workspaces:          {CreateOwn, ReadAll, UpdateOwn, DeleteOwn},
+			ImageTags:           {CreateOwn, ReadAll},
+			Images:              {CreateOwn, ReadAll},
 			Metrics:             {ReadOwn},
 			OrganizationMembers: {},
 			Organizations:       {},
@@ -146,7 +147,7 @@ var OrganizationEnforcer = rbac.Enforcer{
 			Users:               {ReadOwn},
 		},
 		OrganizationRegistryManager: {
-			Registries: {Create, ReadAll, UpdateAll, DeleteAll},
+			Registries: {CreateAll, ReadAll, UpdateAll, DeleteAll},
 		},
 	},
 }
