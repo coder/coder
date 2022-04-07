@@ -40,7 +40,7 @@ func gitssh() *cobra.Command {
 			}
 
 			a := append([]string{"-i", f.Name()}, args...)
-			c := exec.Command("ssh", a...)
+			c := exec.CommandContext(cmd.Context(), "ssh", a...)
 			c.Stdout = cmd.OutOrStdout()
 			c.Stdin = cmd.InOrStdin()
 			err = c.Run()
