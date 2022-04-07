@@ -18,8 +18,14 @@ func gitssh() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
+			cfg := createConfig(cmd)
+			session, err := cfg.AgentSession().Read()
+			if err != nil {
+				return xerrors.Errorf("read agent session from config: %w", err)
+			}
+			client.SessionToken = session
 
-			key, err := client.GitSSHKey(cmd.Context())
+			key, err := client.AgentGitSSHKey(cmd.Context())
 			if err != nil {
 				return xerrors.Errorf("get agent git ssh token: %w", err)
 			}

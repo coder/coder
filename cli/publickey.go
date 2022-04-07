@@ -3,6 +3,8 @@ package cli
 import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func publickey() *cobra.Command {
@@ -14,7 +16,7 @@ func publickey() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			key, err := client.GitSSHKey(cmd.Context())
+			key, err := client.GitSSHKey(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
