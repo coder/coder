@@ -13,7 +13,7 @@ type Subject interface {
 	// OrgRoles only need to be returned for the organization in question.
 	// This is because users typically belong to more than 1 organization,
 	// and grabbing all the roles for all orgs is excessive.
-	OrgRoles(ctx context.Context, orgID string) ([]Role, error)
+	OrgRoles(ctx context.Context, orgID string) ([]Role, bool, error)
 	UserRoles() ([]Role, error)
 }
 
@@ -36,8 +36,9 @@ func (s SubjectTODO) SiteRoles() ([]Role, error) {
 	return s.Site, nil
 }
 
-func (s SubjectTODO) OrgRoles(_ context.Context, orgID string) ([]Role, error) {
-	return s.Org[orgID], nil
+func (s SubjectTODO) OrgRoles(_ context.Context, orgID string) ([]Role, bool, error) {
+	v, ok := s.Org[orgID]
+	return v, ok, nil
 }
 
 func (s SubjectTODO) UserRoles() ([]Role, error) {
