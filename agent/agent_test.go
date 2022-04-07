@@ -42,9 +42,9 @@ func TestAgent(t *testing.T) {
 	t.Run("GitSSH", func(t *testing.T) {
 		t.Parallel()
 		session := setupSSH(t)
-		command := "echo $GIT_SSH_COMMAND"
+		command := "sh -c 'echo $GIT_SSH_COMMAND'"
 		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c echo $GIT_SSH_COMMAND"
+			command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
 		}
 		output, err := session.Output(command)
 		require.NoError(t, err)
