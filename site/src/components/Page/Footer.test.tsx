@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { render } from "../../test_helpers"
-import { Footer } from "./Footer"
+import { MockBuildInfo, render } from "../../test_helpers"
+import { Footer, Language } from "./Footer"
 
 describe("Footer", () => {
   it("renders content", async () => {
@@ -10,5 +10,6 @@ describe("Footer", () => {
 
     // Then
     await screen.findByText("Copyright", { exact: false })
+    await screen.findByText(Language.buildInfoText(MockBuildInfo))
   })
 })
