@@ -4,7 +4,7 @@ import React from "react"
 
 type BorderedMenuVariant = "admin-dropdown" | "user-dropdown"
 
-type BorderedMenuProps = Omit<PopoverProps, "variant"> & {
+export type BorderedMenuProps = Omit<PopoverProps, "variant"> & {
   variant?: BorderedMenuVariant
 }
 
