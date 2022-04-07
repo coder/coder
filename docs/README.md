@@ -1,7 +1,8 @@
 # Coder (alpha)
 
-⚠ This is an alpha version of Coder. It is not ready for production use. We
-welcome early and constructive feedback! ⚠️
+| ⚠ This is an alpha version of Coder. It is not ready for production use. We
+welcome early and constructive feedback!
+| ---
 
 [!["GitHub Discussions"](https://img.shields.io/badge/%20GitHub-%20Discussions-gray.svg?longCache=true&logo=github&colorB=purple)](https://github.com/coder/coder/discussions)
 [!["Join us on Slack"](https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=brightgreen)](https://coder.com/community)
