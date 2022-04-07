@@ -1027,6 +1027,22 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
+func (q *fakeQuerier) UpdateUser(_ context.Context, arg database.UpdateUserParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.Email = arg.Email
+		user.Username = arg.Username
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

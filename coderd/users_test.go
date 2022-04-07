@@ -200,6 +200,19 @@ func TestPostUsers(t *testing.T) {
 	})
 }
 
+func TestPatchUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	user, err := client.PatchUser(context.Background(), codersdk.Me, codersdk.PatchUserRequest{
+		Username: "newusername",
+		Email:    "newemail@coder.com",
+	})
+	require.NoError(t, err)
+	require.Equal(t, user.Username, "newusername")
+	require.Equal(t, user.Email, "newemail@coder.com")
+}
+
 func TestUserByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

@@ -292,6 +292,7 @@ func (api *api) patchUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, convertUser(updatedUser))
 }
 

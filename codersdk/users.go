@@ -44,7 +44,7 @@ type CreateUserRequest struct {
 type PatchUserRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name" validate:"username"`
+	Name     string `json:"name"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -115,6 +115,20 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// Patch User
+func (c *Client) PatchUser(ctx context.Context, userID uuid.UUID, req PatchUserRequest) (User, error) {
+	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/users/%s", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		return User{}, readBodyAsError(res)
 	}
 	var user User
