@@ -1,7 +1,7 @@
 ---
 name: Feature request
 about: Suggest an idea to improve coder
-title: "Enhancement: "
+title: "Feat: "
 labels: "new feature :sparkles:"
 ---
 
