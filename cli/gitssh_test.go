@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/gliderlabs/ssh"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
+
+	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/coderd/coderdtest"
 )
 
 func TestGitSSH(t *testing.T) {
@@ -49,8 +50,9 @@ func TestGitSSH(t *testing.T) {
 		}()
 
 		// start ssh session
-		port := l.Addr().(*net.TCPAddr).Port
-		cmd, root = clitest.New(t, "gitssh", "--", fmt.Sprintf("-p%d", port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
+		addr, ok := l.Addr().(*net.TCPAddr)
+		require.True(t, ok)
+		cmd, root = clitest.New(t, "gitssh", "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 
