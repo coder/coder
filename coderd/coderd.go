@@ -12,6 +12,7 @@ import (
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/access/session"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -53,6 +54,7 @@ func New(options *Options) (http.Handler, func()) {
 			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(512),
+			session.ExtractActor(options.Database),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{

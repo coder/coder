@@ -1,5 +1,7 @@
 package session
 
+const AnonymousUserID = "anonymous"
+
 type anonymousActor struct{}
 
 // Anon is a static AnonymousActor implementation.
@@ -10,11 +12,11 @@ func (anonymousActor) Type() ActorType {
 }
 
 func (anonymousActor) ID() string {
-	return "anon"
+	return AnonymousUserID
 }
 
 func (anonymousActor) Name() string {
-	return "anonymous"
+	return AnonymousUserID
 }
 
 func (anonymousActor) Anonymous() {}

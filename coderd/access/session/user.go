@@ -53,12 +53,15 @@ func (ua *userActor) User() *database.User {
 	return &ua.user
 }
 
-// userActorFromRequest tries to get a UserActor from the API key supplied in
+// UserActorFromRequest tries to get a UserActor from the API key supplied in
 // the request cookies. If the cookie doesn't exist, nil is returned. If there
 // was an error that was responded to, false is returned.
-func userActorFromRequest(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request) (UserActor, bool) {
+//
+// You should probably be calling session.ExtractActor as a middleware, or
+// session.RequestActor instead.
+func UserActorFromRequest(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request) (UserActor, bool) {
 	cookie, err := r.Cookie(AuthCookie)
-	if err != nil {
+	if err != nil || cookie.Value == "" {
 		// No cookie provided, return true so any actor handlers further down
 		// the chain can make their attempt.
 		return nil, true
@@ -67,6 +70,12 @@ func userActorFromRequest(ctx context.Context, db database.Store, rw http.Respon
 	// APIKeys are formatted: ${id}-${secret}. The ID is 10 characters and the
 	// secret is 22.
 	parts := strings.Split(cookie.Value, "-")
+	// TODO: Dean - workspace agent token auth should not share the same cookie
+	// name as regular auth
+	if len(parts) == 5 {
+		// Skip anything that looks like a UUID for now.
+		return nil, true
+	}
 	if len(parts) != 2 || len(parts[0]) != 10 || len(parts[1]) != 22 {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("invalid API key cookie %q format", AuthCookie),
@@ -118,7 +127,7 @@ func userActorFromRequest(ctx context.Context, db database.Store, rw http.Respon
 
 	// Only update LastUsed and key expiry once an hour to prevent database
 	// spam.
-	if now.Sub(key.LastUsed) > time.Hour {
+	if now.Sub(key.LastUsed) > time.Hour || key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
 		err := db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
 			ID:               key.ID,
 			ExpiresAt:        now.Add(apiKeyLifetime),

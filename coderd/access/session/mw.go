@@ -31,7 +31,7 @@ func ExtractActor(db database.Store) func(http.Handler) http.Handler {
 			)
 
 			// Try to get a UserActor.
-			act, ok := userActorFromRequest(ctx, db, rw, r)
+			act, ok := UserActorFromRequest(ctx, db, rw, r)
 			if !ok {
 				return
 			}

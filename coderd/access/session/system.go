@@ -1,5 +1,7 @@
 package session
 
+const SystemUserID = "system"
+
 type systemActor struct{}
 
 // System is a static SystemActor implementation.
@@ -10,11 +12,11 @@ func (systemActor) Type() ActorType {
 }
 
 func (systemActor) ID() string {
-	return "system"
+	return SystemUserID
 }
 
 func (systemActor) Name() string {
-	return "system"
+	return SystemUserID
 }
 
 func (systemActor) System() {}
