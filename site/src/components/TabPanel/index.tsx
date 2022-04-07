@@ -1,18 +1,16 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { fade } from "@material-ui/core/styles/colorManipulator"
 import React from "react"
-import { Sidebar, SidebarItem } from "../Sidebar"
+import { TabSidebar, TabSidebarItem } from "./TabSidebar"
 
 export type AdminMenuItemCallback = (menuItem: string) => void
 
-export interface PanelProps {
+export interface TabPanelProps {
   title: string
-  menuItems: SidebarItem[]
-  activeTab: string
-  onSelect: AdminMenuItemCallback
+  menuItems: TabSidebarItem[]
 }
 
-export const Panel: React.FC<PanelProps> = ({ children, title, menuItems, activeTab, onSelect }) => {
+export const TabPanel: React.FC<TabPanelProps> = ({ children, title, menuItems }) => {
   const styles = useStyles()
 
   return (
@@ -20,7 +18,7 @@ export const Panel: React.FC<PanelProps> = ({ children, title, menuItems, active
       <div className={styles.inner}>
         <div className={styles.menuPanel}>
           <div className={styles.title}>{title}</div>
-          <Sidebar menuItems={menuItems} activeItem={activeTab} onSelect={onSelect} />
+          <TabSidebar menuItems={menuItems} />
         </div>
 
         <div className={styles.contentPanel}>{children}</div>
