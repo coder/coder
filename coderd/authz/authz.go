@@ -10,7 +10,7 @@ import (
 
 var ErrUnauthorized = errors.New("unauthorized")
 
-func Authorize(ctx context.Context, subj Subject, res Object, action rbac.Operation) error {
+func Authorize(ctx context.Context, subj Subject, action rbac.Operation, res Object) error {
 	if res.ObjectType == "" {
 		return ErrUnauthorized
 	}
@@ -18,7 +18,7 @@ func Authorize(ctx context.Context, subj Subject, res Object, action rbac.Operat
 	// Own actions only succeed if the subject owns the resource.
 	if !isAll(action) {
 		// Before we reject this, the user could be an admin with "-all" perms.
-		err := Authorize(ctx, subj, res, rbac.Operation(strings.ReplaceAll(string(action), "-own", "-all")))
+		err := Authorize(ctx, subj, rbac.Operation(strings.ReplaceAll(string(action), "-own", "-all")), res)
 		if err == nil {
 			return nil
 		}

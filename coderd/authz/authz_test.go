@@ -102,7 +102,7 @@ func TestAuthorize(t *testing.T) {
 
 	for _, c := range testCases {
 		t.Run(c.Name, func(t *testing.T) {
-			err := authz.Authorize(context.Background(), c.Subject, c.Resource, c.Action)
+			err := authz.Authorize(context.Background(), c.Subject, c.Action, c.Resource)
 			if c.ExpectedError {
 				require.EqualError(t, err, authz.ErrUnauthorized.Error(), "unauth")
 			} else {
