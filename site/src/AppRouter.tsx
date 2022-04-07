@@ -6,10 +6,13 @@ import { NotFoundPage } from "./pages/404"
 import { CliAuthenticationPage } from "./pages/cli-auth"
 import { HealthzPage } from "./pages/healthz"
 import { SignInPage } from "./pages/login"
+import { OrganizationsPage } from "./pages/orgs"
 import { PreferencesPage } from "./pages/preferences"
+import { SettingsPage } from "./pages/settings"
 import { TemplatesPage } from "./pages/templates"
 import { TemplatePage } from "./pages/templates/[organization]/[template]"
 import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
+import { UsersPage } from "./pages/users"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 
 export const AppRouter: React.FC = () => (
@@ -67,6 +70,10 @@ export const AppRouter: React.FC = () => (
           }
         />
       </Route>
+
+      <Route path="users" element={<UsersPage />} />
+      <Route path="orgs" element={<OrganizationsPage />} />
+      <Route path="settings" element={<SettingsPage />} />
 
       <Route path="preferences">
         <Route
