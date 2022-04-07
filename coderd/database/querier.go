@@ -81,6 +81,8 @@ type querier interface {
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
+	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
+	UpdateWorkspaceAutostop(ctx context.Context, arg UpdateWorkspaceAutostopParams) error
 	UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 }
