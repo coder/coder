@@ -1,4 +1,4 @@
-import { Organization, Project, Provisioner, UserAgent, UserResponse, Workspace } from "../api/types"
+import { Organization, Provisioner, Template, UserAgent, UserResponse, Workspace } from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
@@ -23,12 +23,12 @@ export const MockProvisioner: Provisioner = {
   name: "Test Provisioner",
 }
 
-export const MockProject: Project = {
-  id: "test-project",
+export const MockTemplate: Template = {
+  id: "test-template",
   created_at: "",
   updated_at: "",
   organization_id: MockOrganization.id,
-  name: "Test Project",
+  name: "Test Template",
   provisioner: MockProvisioner.id,
   active_version_id: "",
 }
@@ -38,7 +38,7 @@ export const MockWorkspace: Workspace = {
   name: "Test-Workspace",
   created_at: "",
   updated_at: "",
-  project_id: MockProject.id,
+  template_id: MockTemplate.id,
   owner_id: MockUser.id,
 }
 

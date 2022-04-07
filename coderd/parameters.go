@@ -143,8 +143,8 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	switch chi.URLParam(r, "scope") {
 	case string(codersdk.ParameterOrganization):
 		scope = database.ParameterScopeOrganization
-	case string(codersdk.ParameterProject):
-		scope = database.ParameterScopeProject
+	case string(codersdk.ParameterTemplate):
+		scope = database.ParameterScopeTemplate
 	case string(codersdk.ParameterUser):
 		scope = database.ParameterScopeUser
 	case string(codersdk.ParameterWorkspace):

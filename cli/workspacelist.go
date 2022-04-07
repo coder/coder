@@ -42,14 +42,14 @@ func workspaceList() *cobra.Command {
 			writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 4, ' ', 0)
 			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n",
 				color.HiBlackString("Workspace"),
-				color.HiBlackString("Project"),
+				color.HiBlackString("Template"),
 				color.HiBlackString("Status"),
 				color.HiBlackString("Last Built"),
 				color.HiBlackString("Outdated"))
 			for _, workspace := range workspaces {
 				_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%+v\n",
 					color.New(color.FgHiCyan).Sprint(workspace.Name),
-					color.WhiteString(workspace.ProjectName),
+					color.WhiteString(workspace.TemplateName),
 					color.WhiteString(string(workspace.LatestBuild.Transition)),
 					color.WhiteString(workspace.LatestBuild.Job.CompletedAt.Format("January 2, 2006")),
 					workspace.Outdated)

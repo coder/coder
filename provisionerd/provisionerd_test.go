@@ -92,11 +92,11 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
-						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{
+						Type: &proto.AcquiredJob_TemplateImport_{
+							TemplateImport: &proto.AcquiredJob_TemplateImport{
 								Metadata: &sdkproto.Provision_Metadata{},
 							},
 						},
@@ -133,11 +133,11 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"../../../etc/passwd": "content",
 						}),
-						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{
+						Type: &proto.AcquiredJob_TemplateImport_{
+							TemplateImport: &proto.AcquiredJob_TemplateImport{
 								Metadata: &sdkproto.Provision_Metadata{},
 							},
 						},
@@ -165,11 +165,11 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
-						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{
+						Type: &proto.AcquiredJob_TemplateImport_{
+							TemplateImport: &proto.AcquiredJob_TemplateImport{
 								Metadata: &sdkproto.Provision_Metadata{},
 							},
 						},
@@ -199,7 +199,7 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 	})
 
-	t.Run("ProjectImport", func(t *testing.T) {
+	t.Run("TemplateImport", func(t *testing.T) {
 		t.Parallel()
 		var (
 			didComplete   atomic.Bool
@@ -219,11 +219,11 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
-						Type: &proto.AcquiredJob_ProjectImport_{
-							ProjectImport: &proto.AcquiredJob_ProjectImport{
+						Type: &proto.AcquiredJob_TemplateImport_{
+							TemplateImport: &proto.AcquiredJob_TemplateImport{
 								Metadata: &sdkproto.Provision_Metadata{},
 							},
 						},
@@ -319,7 +319,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -387,7 +387,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -431,7 +431,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -500,7 +500,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						ProjectSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{

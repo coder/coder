@@ -31,7 +31,7 @@ func TestSSH(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		agentToken := uuid.NewString()
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
@@ -51,9 +51,9 @@ func TestSSH(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		go func() {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
@@ -89,7 +89,7 @@ func TestSSH(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
 		agentToken := uuid.NewString()
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
@@ -109,9 +109,9 @@ func TestSSH(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		go func() {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!

@@ -15,7 +15,7 @@ import (
 
 type workspaceResourceParamContextKey struct{}
 
-// ProvisionerJobParam returns the project from the ExtractProjectParam handler.
+// ProvisionerJobParam returns the template from the ExtractTemplateParam handler.
 func WorkspaceResourceParam(r *http.Request) database.WorkspaceResource {
 	resource, ok := r.Context().Value(workspaceResourceParamContextKey{}).(database.WorkspaceResource)
 	if !ok {

@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -49,6 +50,7 @@ import (
 type Options struct {
 	AWSInstanceIdentity    awsidentity.Certificates
 	GoogleInstanceIdentity *idtoken.Validator
+	SSHKeygenAlgorithm     gitsshkey.Algorithm
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -98,6 +100,12 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	var closeWait func()
+
+	// match default with cli default
+	if options.SSHKeygenAlgorithm == "" {
+		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
+	}
+
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 25 * time.Millisecond,
@@ -108,6 +116,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 		AWSCertificates:      options.AWSInstanceIdentity,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
+		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 	})
 	t.Cleanup(func() {
 		srv.Close()
@@ -194,44 +203,44 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 	return other
 }
 
-// CreateProjectVersion creates a project import provisioner job
+// CreateTemplateVersion creates a template import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateProjectVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.ProjectVersion {
+func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.TemplateVersion {
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 	require.NoError(t, err)
-	projectVersion, err := client.CreateProjectVersion(context.Background(), organizationID, codersdk.CreateProjectVersionRequest{
+	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		StorageSource: file.Hash,
 		StorageMethod: database.ProvisionerStorageMethodFile,
 		Provisioner:   database.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
-	return projectVersion
+	return templateVersion
 }
 
-// CreateProject creates a project with the "echo" provisioner for
+// CreateTemplate creates a template with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateProject(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Project {
-	project, err := client.CreateProject(context.Background(), organization, codersdk.CreateProjectRequest{
+func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Template {
+	template, err := client.CreateTemplate(context.Background(), organization, codersdk.CreateTemplateRequest{
 		Name:      randomUsername(),
 		VersionID: version,
 	})
 	require.NoError(t, err)
-	return project
+	return template
 }
 
-// AwaitProjectImportJob awaits for an import job to reach completed status.
-func AwaitProjectVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.ProjectVersion {
-	var projectVersion codersdk.ProjectVersion
+// AwaitTemplateImportJob awaits for an import job to reach completed status.
+func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
-		projectVersion, err = client.ProjectVersion(context.Background(), version)
+		templateVersion, err = client.TemplateVersion(context.Background(), version)
 		require.NoError(t, err)
-		return projectVersion.Job.CompletedAt != nil
+		return templateVersion.Job.CompletedAt != nil
 	}, 5*time.Second, 25*time.Millisecond)
-	return projectVersion
+	return templateVersion
 }
 
 // AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
@@ -266,12 +275,12 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 	return resources
 }
 
-// CreateWorkspace creates a workspace for the user and project provided.
+// CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, user uuid.UUID, projectID uuid.UUID) codersdk.Workspace {
+func CreateWorkspace(t *testing.T, client *codersdk.Client, user uuid.UUID, templateID uuid.UUID) codersdk.Workspace {
 	workspace, err := client.CreateWorkspace(context.Background(), user, codersdk.CreateWorkspaceRequest{
-		ProjectID: projectID,
-		Name:      randomUsername(),
+		TemplateID: templateID,
+		Name:       randomUsername(),
 	})
 	require.NoError(t, err)
 	return workspace

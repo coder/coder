@@ -92,17 +92,17 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.ProvisionerJob) codersdk.WorkspaceBuild {
 	//nolint:unconvert
 	return codersdk.WorkspaceBuild{
-		ID:               workspaceBuild.ID,
-		CreatedAt:        workspaceBuild.CreatedAt,
-		UpdatedAt:        workspaceBuild.UpdatedAt,
-		WorkspaceID:      workspaceBuild.WorkspaceID,
-		ProjectVersionID: workspaceBuild.ProjectVersionID,
-		BeforeID:         workspaceBuild.BeforeID.UUID,
-		AfterID:          workspaceBuild.AfterID.UUID,
-		Name:             workspaceBuild.Name,
-		Transition:       workspaceBuild.Transition,
-		InitiatorID:      workspaceBuild.InitiatorID,
-		Job:              job,
+		ID:                workspaceBuild.ID,
+		CreatedAt:         workspaceBuild.CreatedAt,
+		UpdatedAt:         workspaceBuild.UpdatedAt,
+		WorkspaceID:       workspaceBuild.WorkspaceID,
+		TemplateVersionID: workspaceBuild.TemplateVersionID,
+		BeforeID:          workspaceBuild.BeforeID.UUID,
+		AfterID:           workspaceBuild.AfterID.UUID,
+		Name:              workspaceBuild.Name,
+		Transition:        workspaceBuild.Transition,
+		InitiatorID:       workspaceBuild.InitiatorID,
+		Job:               job,
 	}
 }
 

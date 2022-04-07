@@ -187,10 +187,10 @@ func TestStart(t *testing.T) {
 		coderdtest.NewProvisionerDaemon(t, client)
 
 		// Create a workspace so the cleanup occurs!
-		version := coderdtest.CreateProjectVersion(t, client, orgs[0].ID, nil)
-		coderdtest.AwaitProjectVersionJob(t, client, version.ID)
-		project := coderdtest.CreateProject(t, client, orgs[0].ID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, orgs[0].ID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, orgs[0].ID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		require.NoError(t, err)
