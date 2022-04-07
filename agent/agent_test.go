@@ -54,6 +54,13 @@ func TestAgent(t *testing.T) {
 		output, err := session.Output(command)
 		require.NoError(t, err)
 		require.Equal(t, "test", strings.TrimSpace(string(output)))
+		command = "echo $GIT_SSH_COMMAND"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c echo $GIT_SSH_COMMAND"
+		}
+		output, err = session.Output(command)
+		require.NoError(t, err)
+		require.Contains(t, "gitssh", strings.TrimSpace(string(output)))
 	})
 
 	t.Run("SessionTTY", func(t *testing.T) {

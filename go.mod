@@ -83,10 +83,10 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
+	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220328115105-d36c6a25d886
+	golang.org/x/sys v0.0.0-20220406163625-3f8b81556e12
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	google.golang.org/api v0.74.0
 	google.golang.org/protobuf v1.28.0

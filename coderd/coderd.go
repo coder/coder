@@ -161,7 +161,6 @@ func New(options *Options) (http.Handler, func()) {
 			r.Route("/agent", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/", api.workspaceAgentListen)
-				r.Get("/gitsshkey", api.agentGitSSHKey)
 			})
 			r.Route("/{workspaceresource}", func(r chi.Router) {
 				r.Use(

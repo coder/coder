@@ -17,9 +17,9 @@ func gitssh() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			key, err := client.AgentGitSSHKey(cmd.Context())
+			key, err := client.GitSSHKey(cmd.Context())
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return xerrors.Errorf("get agent git ssh token: %w", err)
 			}
 
 			f, err := os.CreateTemp("", "coder-gitsshkey-*")
