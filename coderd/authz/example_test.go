@@ -17,16 +17,7 @@ func TestExample(t *testing.T) {
 	// fulfills the interface. Until then, use a placeholder.
 	user := authz.SubjectTODO{
 		UserID: "alice",
-		// No site perms
-		Site: []authz.Role{},
-		Org: map[string][]authz.Role{
-			// Admin of org "default".
-			"default": {{Permissions: must(authz.ParsePermissions("+org.*.*.*"))}},
-		},
-		User: []authz.Role{
-			// Site user role
-			{Permissions: must(authz.ParsePermissions("+user.*.*.*"))},
-		},
+		Site:   []authz.Role{authz.RoleReadOnly},
 	}
 
 	// TODO: Uncomment all assertions when implementation is done.
@@ -62,11 +53,4 @@ func TestExample(t *testing.T) {
 		var _ = err
 		// require.Error(t, err, "this user cannot create new users")
 	})
-}
-
-func must[r any](v r, err error) r {
-	if err != nil {
-		panic(err)
-	}
-	return v
 }

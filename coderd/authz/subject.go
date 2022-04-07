@@ -15,9 +15,6 @@ type Subject interface {
 	// and grabbing all the roles for all orgs is excessive.
 	OrgRoles(ctx context.Context, orgID string) ([]Role, error)
 	UserRoles() ([]Role, error)
-
-	// Scopes can limit the roles above.
-	Scopes() ([]Permission, error)
 }
 
 // SubjectTODO is a placeholder until we get an actual actor struct in place.
@@ -26,9 +23,9 @@ type Subject interface {
 type SubjectTODO struct {
 	UserID string `json:"user_id"`
 
-	Site []Role            `json:"site_roles"`
-	Org  map[string][]Role `json:"org_roles"`
-	User []Role            `json:"user_roles"`
+	Site []Role
+	Org  map[string][]Role
+	User []Role
 }
 
 func (s SubjectTODO) ID() string {
@@ -40,24 +37,7 @@ func (s SubjectTODO) SiteRoles() ([]Role, error) {
 }
 
 func (s SubjectTODO) OrgRoles(_ context.Context, orgID string) ([]Role, error) {
-	v, ok := s.Org[orgID]
-	if !ok {
-		// Members not in an org return the negative perm
-		return []Role{{
-			Permissions: []Permission{
-				{
-					Negate:         true,
-					Level:          "*",
-					OrganizationID: "",
-					ResourceType:   "*",
-					ResourceID:     "*",
-					Action:         "*",
-				},
-			},
-		}}, nil
-	}
-
-	return v, nil
+	return s.Org[orgID], nil
 }
 
 func (s SubjectTODO) UserRoles() ([]Role, error) {
