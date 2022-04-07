@@ -1905,6 +1905,35 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
+const updateUser = `-- name: UpdateUser :exec
+UPDATE
+	users
+SET
+	email = $2,
+	"name" = $3,
+	username = $4,
+	updated_at = CURRENT_TIMESTAMP
+WHERE
+	id = $1
+`
+
+type UpdateUserParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	Email    string    `db:"email" json:"email"`
+	Name     string    `db:"name" json:"name"`
+	Username string    `db:"username" json:"username"`
+}
+
+func (q *sqlQuerier) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
+	_, err := q.db.ExecContext(ctx, updateUser,
+		arg.ID,
+		arg.Email,
+		arg.Name,
+		arg.Username,
+	)
+	return err
+}
+
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
 	id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
