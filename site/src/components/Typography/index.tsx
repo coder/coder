@@ -6,7 +6,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import MuiTypography, { TypographyProps as MuiTypographyProps } from "@material-ui/core/Typography"
 import * as React from "react"
-import { combineClasses, appendCSSString } from "../../util/combineClasses"
+import { appendCSSString, combineClasses } from "../../util/combineClasses"
 
 export interface TypographyProps extends MuiTypographyProps {
   short?: boolean
