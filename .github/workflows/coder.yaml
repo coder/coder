@@ -2,15 +2,6 @@ name: coder
 
 on:
   push:
-    branches:
-      - main
-      - "release/*"
-    tags:
-      - "*"
-
-  pull_request:
-    branches:
-      - "*"
 
   workflow_dispatch:
 
@@ -178,7 +169,7 @@ jobs:
           -timeout=3m -count=$GOCOUNT -short -failfast
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: fake
@@ -187,7 +178,7 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v2
-        if: github.actor != 'dependabot[bot]'
+        if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
@@ -264,7 +255,7 @@ jobs:
           -count=1 -parallel=2 -race -failfast
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: postgresql
@@ -272,17 +263,17 @@ jobs:
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
       - uses: codecov/codecov-action@v2
-        if: github.actor != 'dependabot[bot]'
+        if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
-          flags: unittest-go-${{ matrix.os }}
+          flags: unittest-go-postgres-${{ matrix.os }}
           fail_ci_if_error: true
 
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
     permissions:
       contents: read
       id-token: write
@@ -391,7 +382,7 @@ jobs:
         working-directory: site
 
       - uses: codecov/codecov-action@v2
-        if: github.actor != 'dependabot[bot]'
+        if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
@@ -399,7 +390,7 @@ jobs:
           fail_ci_if_error: true
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_CATEGORY: unit
@@ -413,10 +404,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
-          # TODO: Get `make build` running on Windows 2022
-          # https://github.com/coder/coder/issues/384
-          # - windows-2022
     steps:
       - uses: actions/checkout@v3
 
@@ -483,7 +470,7 @@ jobs:
         working-directory: site
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_CATEGORY: e2e
