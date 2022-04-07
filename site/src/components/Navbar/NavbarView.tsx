@@ -4,6 +4,7 @@ import { fade, makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { NavLink } from "react-router-dom"
 import { UserResponse } from "../../api/types"
+import { navHeight } from "../../theme/constants"
 import { Logo } from "../Icons"
 import { AdminDropdown } from "./AdminDropdown"
 import { UserDropdown } from "./UserDropdown"
@@ -44,7 +45,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    height: 56,
+    height: navHeight,
     background: theme.palette.navbar.main,
     marginTop: 0,
     transition: "margin 150ms ease",
@@ -64,7 +65,7 @@ const useStyles = makeStyles((theme) => ({
   logo: {
     alignItems: "center",
     display: "flex",
-    height: 56,
+    height: navHeight,
     paddingLeft: theme.spacing(4),
     paddingRight: theme.spacing(2),
     "& svg": {
@@ -83,7 +84,7 @@ const useStyles = makeStyles((theme) => ({
     color: "#A7A7A7",
     display: "flex",
     fontSize: 16,
-    height: 56,
+    height: navHeight,
     padding: `0 ${theme.spacing(3)}px`,
     textDecoration: "none",
     transition: "background-color 0.3s ease",
