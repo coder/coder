@@ -2,6 +2,7 @@ package authz
 
 import (
 	"context"
+
 	"github.com/coder/coder/coderd/authz/rbac"
 )
 
@@ -41,7 +42,7 @@ func (s SubjectTODO) Roles() (rbac.Roles, error) {
 	return s.Site, nil
 }
 
-func (s SubjectTODO) OwnerRoles(_ context.Context, orgID string) (rbac.Roles, error) {
+func (s SubjectTODO) OrgRoles(_ context.Context, orgID string) (rbac.Roles, error) {
 	v, ok := s.Org[orgID]
 	if !ok {
 		// Members not in an org return the negative perm

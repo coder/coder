@@ -1,8 +1,10 @@
 package authz
 
+import "github.com/coder/coder/coderd/authz/rbac"
+
 type Resource interface {
 	ID() string
-	ResourceType() ResourceType
+	ResourceType() rbac.Resource
 }
 
 type UserResource interface {
@@ -15,57 +17,57 @@ type OrgResource interface {
 	OrgOwnerID() string
 }
 
-var _ Resource = (*zObject)(nil)
-var _ UserResource = (*zObject)(nil)
-var _ OrgResource = (*zObject)(nil)
+var _ Resource = (*Object)(nil)
+var _ UserResource = (*Object)(nil)
+var _ OrgResource = (*Object)(nil)
 
-// zObject is used to create objects for authz checks when you have none in
+// Object is used to create objects for authz checks when you have none in
 // hand to run the check on.
-// An example is if you want to list all workspaces, you can create a zObject
+// An example is if you want to list all workspaces, you can create a Object
 // that represents the set of workspaces you are trying to get access too.
 // Do not export this type, as it can be created from a resource type constant.
-type zObject struct {
+type Object struct {
 	id       string
 	owner    string
 	orgOwner string
 
 	// objectType is "workspace", "project", "devurl", etc
-	objectType ResourceType
+	objectType rbac.Resource
 	// TODO: SharedUsers?
 }
 
-func (z zObject) ID() string {
+func (z Object) ID() string {
 	return z.id
 }
 
-func (z zObject) ResourceType() ResourceType {
+func (z Object) ResourceType() rbac.Resource {
 	return z.objectType
 }
 
-func (z zObject) OwnerID() string {
+func (z Object) OwnerID() string {
 	return z.owner
 }
 
-func (z zObject) OrgOwnerID() string {
+func (z Object) OrgOwnerID() string {
 	return z.orgOwner
 }
 
 // Org adds an org OwnerID to the resource
 //nolint:revive
-func (z zObject) Org(orgID string) zObject {
+func (z Object) Org(orgID string) Object {
 	z.orgOwner = orgID
 	return z
 }
 
 // Owner adds an OwnerID to the resource
 //nolint:revive
-func (z zObject) Owner(id string) zObject {
+func (z Object) Owner(id string) Object {
 	z.owner = id
 	return z
 }
 
 //nolint:revive
-func (z zObject) AsID(id string) zObject {
+func (z Object) AsID(id string) Object {
 	z.id = id
 	return z
 }
