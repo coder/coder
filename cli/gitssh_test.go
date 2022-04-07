@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -18,20 +17,16 @@ import (
 
 func TestGitSSH(t *testing.T) {
 	t.Parallel()
-	t.Run("SSH", func(t *testing.T) {
+	t.Run("Dial", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// get user public key
-		cmd, root := clitest.New(t, "publickey")
-		clitest.SetupConfig(t, client, root)
-		buf := new(bytes.Buffer)
-		cmd.SetOutput(buf)
-		err := cmd.Execute()
+		keypair, err := client.GitSSHKey(ctx)
 		require.NoError(t, err)
-		publicKey, _, _, _, err := gossh.ParseAuthorizedKey(bytes.TrimSpace(buf.Bytes()))
+		publicKey, _, _, _, err := gossh.ParseAuthorizedKey([]byte(keypair.PublicKey))
 		require.NoError(t, err)
 
 		// start ssh server
@@ -42,17 +37,18 @@ func TestGitSSH(t *testing.T) {
 			return ssh.KeysEqual(publicKey, key)
 		})
 		go func() {
-			ssh.Serve(l, func(s ssh.Session) {
+			err := ssh.Serve(l, func(s ssh.Session) {
 				t.Log("got authenticated sesion")
 				err := s.Exit(0)
 				require.NoError(t, err)
 			}, publicKeyOption)
+			require.NoError(t, err)
 		}()
 
 		// start ssh session
 		addr, ok := l.Addr().(*net.TCPAddr)
 		require.True(t, ok)
-		cmd, root = clitest.New(t, "gitssh", "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
+		cmd, root := clitest.New(t, "gitssh", "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 

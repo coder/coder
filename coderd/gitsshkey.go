@@ -66,10 +66,50 @@ func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, codersdk.GitSSHKey{
-		UserID:     gitSSHKey.UserID,
-		CreatedAt:  gitSSHKey.CreatedAt,
-		UpdatedAt:  gitSSHKey.UpdatedAt,
+		UserID:    gitSSHKey.UserID,
+		CreatedAt: gitSSHKey.CreatedAt,
+		UpdatedAt: gitSSHKey.UpdatedAt,
+		// No need to return the private key to the user
+		PublicKey: gitSSHKey.PublicKey,
+	})
+}
+
+func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
+	agent := httpmw.WorkspaceAgent(r)
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting workspace resources: %s", err),
+		})
+		return
+	}
+
+	job, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting workspace build: %s", err),
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), job.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting workspace: %s", err),
+		})
+		return
+	}
+
+	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("getting git SSH key: %s", err),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, codersdk.AgentGitSSHKey{
 		PrivateKey: gitSSHKey.PrivateKey,
-		PublicKey:  gitSSHKey.PublicKey,
 	})
 }

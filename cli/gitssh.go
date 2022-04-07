@@ -10,7 +10,9 @@ import (
 
 func gitssh() *cobra.Command {
 	return &cobra.Command{
-		Use: "gitssh",
+		Use:    "gitssh",
+		Hidden: true,
+		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -22,24 +24,24 @@ func gitssh() *cobra.Command {
 				return xerrors.Errorf("get agent git ssh token: %w", err)
 			}
 
-			f, err := os.CreateTemp("", "coder-gitsshkey-*")
+			privateKeyFile, err := os.CreateTemp("", "coder-gitsshkey-*")
 			if err != nil {
 				return xerrors.Errorf("create temp gitsshkey file: %w", err)
 			}
 			defer func() {
-				_ = f.Close()
-				_ = os.Remove(f.Name())
+				_ = privateKeyFile.Close()
+				_ = os.Remove(privateKeyFile.Name())
 			}()
-			_, err = f.WriteString(key.PrivateKey)
+			_, err = privateKeyFile.WriteString(key.PrivateKey)
 			if err != nil {
 				return xerrors.Errorf("write to temp gitsshkey file: %w", err)
 			}
-			err = f.Close()
+			err = privateKeyFile.Close()
 			if err != nil {
 				return xerrors.Errorf("close temp gitsshkey file: %w", err)
 			}
 
-			a := append([]string{"-i", f.Name()}, args...)
+			a := append([]string{"-i", privateKeyFile.Name()}, args...)
 			c := exec.CommandContext(cmd.Context(), "ssh", a...)
 			c.Stdout = cmd.OutOrStdout()
 			c.Stdin = cmd.InOrStdin()
