@@ -62,7 +62,7 @@ export const BorderedMenuRow: React.FC<BorderedMenuRowProps> = ({
 
   if (path) {
     return (
-      <NavLink to={path}>
+      <NavLink to={path} className={styles.link}>
         <Component />
       </NavLink>
     )
@@ -121,6 +121,10 @@ const useStyles = makeStyles((theme) => ({
     "& path": {
       fill: theme.palette.text.secondary,
     },
+  },
+  link: {
+    textDecoration: "none",
+    color: "inherit",
   },
   title: {
     fontSize: 16,
