@@ -9,10 +9,14 @@ import (
 var ErrUnauthorized = errors.New("unauthorized")
 
 // TODO: Implement Authorize
-func Authorize(subj Subject, res Resource, action rbac.Operation) error {
+func Authorize(subj Subject, res Object, action rbac.Operation) error {
 	// TODO: Expand subject roles into their permissions as appropriate. Apply scopes.
 
-	if SiteEnforcer.RolesHavePermission(subj.Roles(), res.ResourceType(), action) {
+	if res.ObjectType == "" {
+		return ErrUnauthorized
+	}
+
+	if SiteEnforcer.RolesHavePermission(subj.Roles(), res.ObjectType, action) {
 		return nil
 	}
 
