@@ -40,3 +40,15 @@ INSERT INTO
 	)
 VALUES
 	($1, $2, $3, $4, FALSE, $5, $6, $7, $8) RETURNING *;
+
+-- name: UpdateUser :exec
+UPDATE
+	users
+SET
+	email = $2,
+	"name" = $3,
+	username = $4,
+	updated_at = CURRENT_TIMESTAMP
+WHERE
+	id = $1;
+
