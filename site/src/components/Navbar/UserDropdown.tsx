@@ -16,6 +16,11 @@ import { UserAvatar } from "../User"
 import { UserProfileCard } from "../User/UserProfileCard"
 import { BorderedMenu } from "./BorderedMenu"
 
+export const Language = {
+  accountLabel: "Account",
+  docsLabel: "Documentation",
+  signOutLabel: "Sign Out",
+}
 export interface UserDropdownProps {
   user: UserResponse
   onSignOut: () => void
@@ -75,7 +80,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
               <ListItemIcon className={styles.icon}>
                 <AccountIcon />
               </ListItemIcon>
-              <ListItemText primary="Account" />
+              <ListItemText primary={Language.accountLabel} />
             </MenuItem>
           </Link>
 
@@ -84,7 +89,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
               <ListItemIcon className={styles.icon}>
                 <DocsIcon />
               </ListItemIcon>
-              <ListItemText primary="Documentation" />
+              <ListItemText primary={Language.docsLabel} />
             </MenuItem>
           </a>
 
@@ -92,7 +97,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
             <ListItemIcon className={styles.icon}>
               <LogoutIcon />
             </ListItemIcon>
-            <ListItemText primary="Sign Out" />
+            <ListItemText primary={Language.signOutLabel} />
           </MenuItem>
         </div>
       </BorderedMenu>
