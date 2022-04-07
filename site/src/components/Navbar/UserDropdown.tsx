@@ -4,15 +4,23 @@ import ListItemIcon from "@material-ui/core/ListItemIcon"
 import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
+import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
 import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
 import React, { useState } from "react"
+import { Link } from "react-router-dom"
 import { UserResponse } from "../../api/types"
 import { LogoutIcon } from "../Icons"
+import { DocsIcon } from "../Icons/DocsIcon"
 import { UserAvatar } from "../User"
 import { UserProfileCard } from "../User/UserProfileCard"
 import { BorderedMenu } from "./BorderedMenu"
 
+export const Language = {
+  accountLabel: "Account",
+  docsLabel: "Documentation",
+  signOutLabel: "Sign Out",
+}
 export interface UserDropdownProps {
   user: UserResponse
   onSignOut: () => void
@@ -32,7 +40,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
   return (
     <>
       <div>
-        <MenuItem onClick={handleDropdownClick}>
+        <MenuItem onClick={handleDropdownClick} data-testid="user-dropdown-trigger">
           <div className={styles.inner}>
             <Badge overlap="circle">
               <UserAvatar username={user.username} />
@@ -65,13 +73,31 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
         <div className={styles.userInfo}>
           <UserProfileCard user={user} />
 
-          <Divider className={styles.divider} />
+          <Divider />
+
+          <Link to="/preferences" className={styles.link}>
+            <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
+              <ListItemIcon className={styles.icon}>
+                <AccountIcon />
+              </ListItemIcon>
+              <ListItemText primary={Language.accountLabel} />
+            </MenuItem>
+          </Link>
+
+          <a href="https://coder.com/docs" target="_blank" rel="noreferrer" className={styles.link}>
+            <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
+              <ListItemIcon className={styles.icon}>
+                <DocsIcon />
+              </ListItemIcon>
+              <ListItemText primary={Language.docsLabel} />
+            </MenuItem>
+          </a>
 
           <MenuItem className={styles.menuItem} onClick={onSignOut}>
             <ListItemIcon className={styles.icon}>
               <LogoutIcon />
             </ListItemIcon>
-            <ListItemText primary="Sign Out" />
+            <ListItemText primary={Language.signOutLabel} />
           </MenuItem>
         </div>
       </BorderedMenu>
@@ -84,6 +110,7 @@ export const useStyles = makeStyles((theme) => ({
     marginTop: theme.spacing(1),
     marginBottom: theme.spacing(1),
   },
+
   inner: {
     display: "flex",
     alignItems: "center",
@@ -94,12 +121,14 @@ export const useStyles = makeStyles((theme) => ({
   userInfo: {
     marginBottom: theme.spacing(1),
   },
+
   arrowIcon: {
     color: fade(theme.palette.primary.contrastText, 0.7),
     marginLeft: theme.spacing(1),
     width: 16,
     height: 16,
   },
+
   arrowIconUp: {
     color: theme.palette.primary.contrastText,
   },
@@ -112,6 +141,11 @@ export const useStyles = makeStyles((theme) => ({
       backgroundColor: fade(theme.palette.primary.light, 0.1),
       transition: "background-color 0.3s ease",
     },
+  },
+
+  link: {
+    textDecoration: "none",
+    color: "inherit",
   },
 
   icon: {
