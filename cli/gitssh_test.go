@@ -98,10 +98,10 @@ func TestGitSSH(t *testing.T) {
 		go func() {
 			// as long as we get a successful session we don't care if the server errors
 			_ = ssh.Serve(l, func(s ssh.Session) {
+				atomic.AddInt64(&inc, 1)
 				t.Log("got authenticated sesion")
 				err := s.Exit(0)
 				require.NoError(t, err)
-				atomic.AddInt64(&inc, 1)
 			}, publicKeyOption)
 		}()
 
@@ -115,7 +115,7 @@ func TestGitSSH(t *testing.T) {
 
 		err = cmd.ExecuteContext(ctx)
 		require.NoError(t, err)
-		require.Equal(t, int64(1), inc)
+		require.EqualValues(t, 1, inc)
 	})
 }
 
