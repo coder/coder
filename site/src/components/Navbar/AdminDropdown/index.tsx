@@ -1,8 +1,7 @@
-import { fade, Theme } from "@material-ui/core"
 import ListItem from "@material-ui/core/ListItem"
 import ListItemText from "@material-ui/core/ListItemText"
+import { fade, makeStyles, Theme } from "@material-ui/core/styles"
 import AdminIcon from "@material-ui/icons/SettingsOutlined"
-import { makeStyles } from "@material-ui/styles"
 import React, { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { navHeight } from "../../../theme/constants"
@@ -12,7 +11,8 @@ import { BuildingIcon } from "../../Icons/BuildingIcon"
 import { UsersOutlinedIcon } from "../../Icons/UsersOutlinedIcon"
 import { CloseDropdown, OpenDropdown } from "../Arrows"
 
-const Language = {
+export const Language = {
+  menuTitle: "Admin",
   usersLabel: "Users",
   usersDescription: "Manage users, roles, and permissions.",
   orgsLabel: "Organizations",
@@ -53,7 +53,7 @@ export const AdminDropdown: React.FC = () => {
     <>
       <div className={styles.link}>
         <ListItem selected={Boolean(anchorEl)} button onClick={onOpenAdminMenu}>
-          <ListItemText className="no-brace" color="primary" primary="Admin" />
+          <ListItemText className="no-brace" color="primary" primary={Language.menuTitle} />
           {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
         </ListItem>
       </div>
@@ -74,22 +74,20 @@ export const AdminDropdown: React.FC = () => {
         variant="admin-dropdown"
         onClose={onClose}
       >
-        {entries.map((entry) =>
-          entry.label && entry.Icon ? (
-            <BorderedMenuRow
-              description={entry.description}
-              Icon={entry.Icon}
-              key={entry.label}
-              path={entry.path}
-              title={entry.label}
-              variant="narrow"
-              onClick={() => {
-                onClose()
-                navigate(entry.path)
-              }}
-            />
-          ) : null,
-        )}
+        {entries.map((entry) => (
+          <BorderedMenuRow
+            description={entry.description}
+            Icon={entry.Icon}
+            key={entry.label}
+            path={entry.path}
+            title={entry.label}
+            variant="narrow"
+            onClick={() => {
+              onClose()
+              navigate(entry.path)
+            }}
+          />
+        ))}
       </BorderedMenu>
     </>
   )

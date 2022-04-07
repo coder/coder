@@ -15,12 +15,12 @@ const useStyles = makeStyles((theme: Theme) => ({
   },
 }))
 
-export const OpenDropdown = () => {
+export const OpenDropdown: React.FC = () => {
   const styles = useStyles()
   return <KeyboardArrowDown className={styles.arrowIcon} />
 }
 
-export const CloseDropdown = () => {
+export const CloseDropdown: React.FC = () => {
   const styles = useStyles()
   return <KeyboardArrowUp className={`${styles.arrowIcon} ${styles.arrowIconUp}`} />
 }
