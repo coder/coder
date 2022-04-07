@@ -2,7 +2,7 @@
 name: Feature request
 about: Suggest an idea to improve coder
 title: "Enhancement: "
-labels: "new feature"
+labels: "new feature :sparkles:"
 ---
 
 ## What is your suggestion?
