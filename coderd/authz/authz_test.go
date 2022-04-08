@@ -69,7 +69,7 @@ func TestAuthorizeBasic(t *testing.T) {
 	user = authz.SubjectTODO{
 		UserID: "me",
 		Roles: []authz.Role{
-			authz.OrgAdmin(defOrg),
+			authz.RoleOrgAdmin(defOrg),
 			authz.RoleSiteMember,
 		},
 	}
@@ -130,7 +130,7 @@ func TestAuthorizeBasic(t *testing.T) {
 	user = authz.SubjectTODO{
 		UserID: "me",
 		Roles: []authz.Role{
-			authz.WorkspaceAgentRole(defWorkspaceID),
+			authz.RoleWorkspaceAgent(defWorkspaceID),
 		},
 	}
 
