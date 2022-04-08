@@ -1,12 +1,12 @@
 import { useInterpret } from "@xstate/react"
 import React, { createContext } from "react"
 import { ActorRefFrom } from "xstate"
-import { userMachine } from "./auth/authXService"
+import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
 
 interface XServiceContextType {
   buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
-  authXService: ActorRefFrom<typeof userMachine>
+  authXService: ActorRefFrom<typeof authMachine>
 }
 
 /**
@@ -24,7 +24,7 @@ export const XServiceProvider: React.FC = ({ children }) => {
     <XServiceContext.Provider
       value={{
         buildInfoXService: useInterpret(buildInfoMachine),
-        authXService: useInterpret(userMachine),
+        authXService: useInterpret(authMachine),
       }}
     >
       {children}
