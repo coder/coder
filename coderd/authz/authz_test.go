@@ -17,7 +17,7 @@ func TestAuthorizeBasic(t *testing.T) {
 
 	user := authz.SubjectTODO{
 		UserID: "me",
-		Roles:  []authz.Role{authz.RoleSiteMember, authz.OrgMember(defOrg)},
+		Roles:  []authz.Role{authz.RoleSiteMember, authz.RoleOrgMember(defOrg)},
 	}
 
 	testAuthorize(t, "Member", user, []authTestCase{
