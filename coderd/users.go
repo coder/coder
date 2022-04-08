@@ -285,22 +285,22 @@ func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
-		errors := []httpapi.Error{}
+		responseErrors := []httpapi.Error{}
 		if existentUser.Email == patchUserProfile.Email {
-			errors = append(errors, httpapi.Error{
+			responseErrors = append(responseErrors, httpapi.Error{
 				Field: "email",
 				Code:  "exists",
 			})
 		}
 		if existentUser.Username == patchUserProfile.Username {
-			errors = append(errors, httpapi.Error{
+			responseErrors = append(responseErrors, httpapi.Error{
 				Field: "username",
 				Code:  "exists",
 			})
 		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("user already exists"),
-			Errors:  errors,
+			Errors:  responseErrors,
 		})
 		return
 	}
