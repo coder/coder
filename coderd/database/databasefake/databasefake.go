@@ -1035,6 +1035,7 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		if user.ID != arg.ID {
 			continue
 		}
+		user.Name = arg.Name
 		user.Email = arg.Email
 		user.Username = arg.Username
 		q.users[index] = user

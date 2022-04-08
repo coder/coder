@@ -278,6 +278,10 @@ func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if patchUserProfile.Name == nil {
+		patchUserProfile.Name = &user.Name
+	}
+
 	existentUser, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
 		Email:    patchUserProfile.Email,
 		Username: patchUserProfile.Username,
@@ -313,7 +317,7 @@ func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:        user.ID,
-		Name:      patchUserProfile.Name,
+		Name:      *patchUserProfile.Name,
 		Email:     patchUserProfile.Email,
 		Username:  patchUserProfile.Username,
 		UpdatedAt: database.Now(),
@@ -932,5 +936,6 @@ func convertUser(user database.User) codersdk.User {
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		Username:  user.Username,
+		Name:      user.Name,
 	}
 }

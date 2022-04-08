@@ -217,7 +217,7 @@ func TestPatchUserProfile(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("Conflicting email", func(t *testing.T) {
+	t.Run("ConflictingEmail", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -236,7 +236,7 @@ func TestPatchUserProfile(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("Conflicting username", func(t *testing.T) {
+	t.Run("ConflictingUsername", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -255,7 +255,7 @@ func TestPatchUserProfile(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("Full Patch", func(t *testing.T) {
+	t.Run("UpdateUsernameAndEmail", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
@@ -268,7 +268,7 @@ func TestPatchUserProfile(t *testing.T) {
 		require.Equal(t, userProfile.Email, "newemail@coder.com")
 	})
 
-	t.Run("Partial Patch", func(t *testing.T) {
+	t.Run("UpdateUsername", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
@@ -280,6 +280,28 @@ func TestPatchUserProfile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, me.Username)
 		require.Equal(t, userProfile.Email, "newemail@coder.com")
+	})
+
+	t.Run("KeepUserName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		me, _ := client.User(context.Background(), codersdk.Me)
+		newName := "New Name"
+		firstProfile, _ := client.PatchUserProfile(context.Background(), codersdk.Me, codersdk.PatchUserProfileRequest{
+			Username: me.Username,
+			Email:    me.Email,
+			Name:     &newName,
+		})
+		t.Log(firstProfile)
+		userProfile, err := client.PatchUserProfile(context.Background(), codersdk.Me, codersdk.PatchUserProfileRequest{
+			Username: "newusername",
+			Email:    "newemail@coder.com",
+		})
+		require.NoError(t, err)
+		require.Equal(t, userProfile.Username, "newusername")
+		require.Equal(t, userProfile.Email, "newemail@coder.com")
+		require.Equal(t, userProfile.Name, newName)
 	})
 }
 
