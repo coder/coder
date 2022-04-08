@@ -27,8 +27,8 @@ export interface UserDropdownProps {
 
 export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: UserDropdownProps) => {
   const styles = useStyles()
-
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
+
   const handleDropdownClick = (ev: React.MouseEvent<HTMLLIElement>): void => {
     setAnchorEl(ev.currentTarget)
   }
@@ -38,16 +38,14 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
 
   return (
     <>
-      <div>
-        <MenuItem onClick={handleDropdownClick} data-testid="user-dropdown-trigger">
-          <div className={styles.inner}>
-            <Badge overlap="circle">
-              <UserAvatar username={user.username} />
-            </Badge>
-            {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
-          </div>
-        </MenuItem>
-      </div>
+      <MenuItem onClick={handleDropdownClick} data-testid="user-dropdown-trigger">
+        <div className={styles.inner}>
+          <Badge overlap="circle">
+            <UserAvatar username={user.username} />
+          </Badge>
+          {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
+        </div>
+      </MenuItem>
 
       <BorderedMenu
         anchorEl={anchorEl}
@@ -70,8 +68,8 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
 
           <Divider />
 
-          <Link to="/preferences" className={styles.link}>
-            <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
+          <Link to="/preferences/account" className={styles.link}>
+            <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
               <ListItemIcon className={styles.icon}>
                 <AccountIcon />
               </ListItemIcon>
@@ -80,7 +78,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
           </Link>
 
           <a href="https://coder.com/docs" target="_blank" rel="noreferrer" className={styles.link}>
-            <MenuItem className={styles.menuItem} onClick={handleDropdownClick}>
+            <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
               <ListItemIcon className={styles.icon}>
                 <DocsIcon />
               </ListItemIcon>

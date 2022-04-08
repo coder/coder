@@ -1,6 +1,8 @@
 package coderd
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
@@ -56,6 +58,7 @@ func New(options *Options) (http.Handler, func()) {
 			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(512),
+			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(w, http.StatusOK, httpapi.Response{
@@ -230,4 +233,13 @@ type api struct {
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
+}
+
+func debugLogRequest(log slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			log.Debug(context.Background(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+			next.ServeHTTP(rw, r)
+		})
+	}
 }

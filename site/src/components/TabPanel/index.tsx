@@ -31,8 +31,6 @@ const useStyles = makeStyles((theme) => ({
   root: {
     minHeight: 400,
     marginBottom: theme.spacing(2),
-    // Prevents scrollbar jitter from long content
-    marginRight: "calc(-1 * (100vw - 100%))",
   },
 
   inner: {
