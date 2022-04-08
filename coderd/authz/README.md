@@ -43,8 +43,8 @@ This can be represented by the following truth table, where Y represents *positi
 
 **Permissions** are represented in string format as `<sign>?<level>.<object>.<id>.<action>`, where:
 
-- `sign` can be either `+` or `-`. If it is omitted, sign is assumed to be `+`.
-- `level` is either `*`, `site`, `org`, or `user`.
+- `negated` can be either `+` or `-`. If it is omitted, sign is assumed to be `+`.
+- `level` is either `site`, `org`, or `user`.
 - `object` is any valid resource type.
 - `id` is any valid UUID v4.
 - `action` is `create`, `read`, `modify`, or `delete`.

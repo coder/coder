@@ -3,9 +3,8 @@ package authz_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/coder/coder/coderd/authz"
+	"github.com/stretchr/testify/require"
 )
 
 // TestExample gives some examples on how to use the authz library.

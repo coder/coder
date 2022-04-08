@@ -4,7 +4,7 @@ import "golang.org/x/xerrors"
 
 var ErrUnauthorized = xerrors.New("unauthorized")
 
-// TODO: Implement Authorize
+// TODO: Implement Authorize. This will be implmented in mainly rego.
 func Authorize(subj Subject, obj Resource, action Action) error {
 	// TODO: Expand subject roles into their permissions as appropriate. Apply scopes.
 	var _, _, _ = subj, obj, action
@@ -22,6 +22,9 @@ func Authorize(subj Subject, obj Resource, action Action) error {
 	//		1 by 1.
 	var merged Role
 	for _, r := range roles {
+		// Site, Org, and User permissions exist on every role. Pull out only the permissions that
+		// are relevant to the object.
+
 		merged.Site = append(merged.Site, r.Site...)
 		// Only grab user roles if the resource is owned by a user.
 		// These roles only apply if the subject is said owner.
