@@ -22,16 +22,14 @@ func TestAgent(t *testing.T) {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "example",
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceResource, error) {
-					resource := codersdk.WorkspaceResource{
-						Agent: &codersdk.WorkspaceAgent{
-							Status: codersdk.WorkspaceAgentDisconnected,
-						},
+				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
+					agent := codersdk.WorkspaceAgent{
+						Status: codersdk.WorkspaceAgentDisconnected,
 					}
 					if disconnected.Load() {
-						resource.Agent.Status = codersdk.WorkspaceAgentConnected
+						agent.Status = codersdk.WorkspaceAgentConnected
 					}
-					return resource, nil
+					return agent, nil
 				},
 				FetchInterval: time.Millisecond,
 				WarnInterval:  10 * time.Millisecond,

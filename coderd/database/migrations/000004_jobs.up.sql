@@ -69,7 +69,6 @@ CREATE TABLE workspace_resources (
     address varchar(256) NOT NULL,
     type varchar(192) NOT NULL,
     name varchar(64) NOT NULL,
-    agent_id uuid,
     PRIMARY KEY (id)
 );
 
@@ -77,13 +76,16 @@ CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
+    name varchar(64) NOT NULL,
     first_connected_at timestamptz,
     last_connected_at timestamptz,
     disconnected_at timestamptz,
     resource_id uuid NOT NULL REFERENCES workspace_resources (id) ON DELETE CASCADE,
     auth_token uuid NOT NULL UNIQUE,
     auth_instance_id varchar(64),
+    architecture varchar(64) NOT NULL,
     environment_variables jsonb,
+    operating_system varchar(64) NOT NULL,
     startup_script varchar(65534),
     instance_metadata jsonb,
     resource_metadata jsonb,
