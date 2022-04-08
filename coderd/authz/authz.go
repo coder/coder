@@ -2,7 +2,7 @@ package authz
 
 import "errors"
 
-var ErrUnauthorized = errors.New("unauthorized")
+var ErrUnauthorized = xerrors.New("unauthorized")
 
 // TODO: Implement Authorize
 func Authorize(subj Subject, obj Resource, action Action) error {

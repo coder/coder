@@ -11,13 +11,14 @@ import (
 // TestExample gives some examples on how to use the authz library.
 // This serves to test syntax more than functionality.
 func TestExample(t *testing.T) {
+	t.Skip("TODO: unskip when rego is done")
 	t.Parallel()
 
 	// user will become an authn object, and can even be a database.User if it
 	// fulfills the interface. Until then, use a placeholder.
 	user := authz.SubjectTODO{
 		UserID: "alice",
-		Site:   []authz.Role{authz.RoleReadOnly},
+		Roles:  []authz.Role{authz.RoleSiteAdmin},
 	}
 
 	// TODO: Uncomment all assertions when implementation is done.
