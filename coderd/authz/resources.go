@@ -22,27 +22,27 @@ func (t ResourceType) ResourceType() ResourceType {
 func (ResourceType) OwnerID() string    { return "" }
 func (ResourceType) OrgOwnerID() string { return "" }
 
-// Org adds an org OwnerID to the resource
+// SetOrg adds an org OwnerID to the resource
 //nolint:revive
-func (r ResourceType) Org(orgID string) zObject {
+func (r ResourceType) SetOrg(orgID string) zObject {
 	return zObject{
 		orgOwner:   orgID,
 		objectType: r,
 	}
 }
 
-// Owner adds an OwnerID to the resource
+// SetOwner adds an OwnerID to the resource
 //nolint:revive
-func (r ResourceType) Owner(id string) zObject {
+func (r ResourceType) SetOwner(id string) zObject {
 	return zObject{
 		owner:      id,
 		objectType: r,
 	}
 }
 
-// AsID adds a resource ID to the resource
+// SetID adds a resource ID to the resource
 //nolint:revive
-func (r ResourceType) AsID(id string) zObject {
+func (r ResourceType) SetID(id string) zObject {
 	return zObject{
 		id:         id,
 		objectType: r,

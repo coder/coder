@@ -37,17 +37,17 @@ func TestExample(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("ReadOrgWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the org 'default'
-		err := authz.Authorize(user, authz.ResourceWorkspace.Org("default"), authz.ActionRead)
+		err := authz.Authorize(user, authz.ResourceWorkspace.SetOrg("default"), authz.ActionRead)
 		require.NoError(t, err, "this user can read all org workspaces in 'default'")
 	})
 
 	//nolint:paralleltest
 	t.Run("ReadMyWorkspace", func(t *testing.T) {
 		// Note 'database.Workspace' could fulfill the object interface and be passed in directly
-		err := authz.Authorize(user, authz.ResourceWorkspace.Org("default").Owner(user.UserID), authz.ActionRead)
+		err := authz.Authorize(user, authz.ResourceWorkspace.SetOrg("default").SetOwner(user.UserID), authz.ActionRead)
 		require.NoError(t, err, "this user can their workspace")
 
-		err = authz.Authorize(user, authz.ResourceWorkspace.Org("default").Owner(user.UserID).AsID("1234"), authz.ActionRead)
+		err = authz.Authorize(user, authz.ResourceWorkspace.SetOrg("default").SetOwner(user.UserID).SetID("1234"), authz.ActionRead)
 		require.NoError(t, err, "this user can read workspace '1234'")
 	})
 

@@ -2,7 +2,7 @@ package authz
 
 import "fmt"
 
-const wildcard = "*"
+const Wildcard = "*"
 
 // Role is a set of permissions at multiple levels:
 // - Site level permissions apply EVERYWHERE
@@ -24,7 +24,7 @@ var (
 	RoleSiteAdmin = Role{
 		Name: "site-admin",
 		Site: permissions(map[ResourceType][]Action{
-			wildcard: {wildcard},
+			Wildcard: {Wildcard},
 		}),
 	}
 
@@ -32,7 +32,7 @@ var (
 	RoleSiteMember = Role{
 		Name: "site-member",
 		User: permissions(map[ResourceType][]Action{
-			wildcard: {wildcard},
+			Wildcard: {Wildcard},
 		}),
 	}
 
@@ -54,13 +54,29 @@ var (
 		Site: []Permission{
 			{
 				Negate:       true,
-				ResourceType: wildcard,
-				ResourceID:   wildcard,
-				Action:       wildcard,
+				ResourceType: Wildcard,
+				ResourceID:   Wildcard,
+				Action:       Wildcard,
 			},
 		},
 	}
 )
+
+func RoleOrgDenyAll(orgID string) Role {
+	return Role{
+		Name: "org-deny-" + orgID,
+		Org: map[string][]Permission{
+			orgID: {
+				{
+					Negate:       true,
+					ResourceType: "*",
+					ResourceID:   "*",
+					Action:       "*",
+				},
+			},
+		},
+	}
+}
 
 // RoleOrgAdmin returns a role with all actions allows in a given
 // organization scope.
@@ -115,7 +131,7 @@ func permissions(perms map[ResourceType][]Action) []Permission {
 			list = append(list, Permission{
 				Negate:       false,
 				ResourceType: k,
-				ResourceID:   wildcard,
+				ResourceID:   Wildcard,
 				Action:       act,
 			})
 		}

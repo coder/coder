@@ -41,22 +41,22 @@ func (z zObject) OrgOwnerID() string {
 	return z.orgOwner
 }
 
-// Org adds an org OwnerID to the resource
+// SetOrg adds an org OwnerID to the resource
 //nolint:revive
-func (z zObject) Org(orgID string) zObject {
+func (z zObject) SetOrg(orgID string) zObject {
 	z.orgOwner = orgID
 	return z
 }
 
-// Owner adds an OwnerID to the resource
+// SetOwner adds an OwnerID to the resource
 //nolint:revive
-func (z zObject) Owner(id string) zObject {
+func (z zObject) SetOwner(id string) zObject {
 	z.owner = id
 	return z
 }
 
 //nolint:revive
-func (z zObject) AsID(id string) zObject {
+func (z zObject) SetID(id string) zObject {
 	z.id = id
 	return z
 }
