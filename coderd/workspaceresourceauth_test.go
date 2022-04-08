@@ -32,11 +32,11 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
-							},
+							}},
 						}},
 					},
 				},
@@ -98,11 +98,11 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
-							},
+							}},
 						}},
 					},
 				},

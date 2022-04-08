@@ -235,13 +235,16 @@ CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
     first_connected_at timestamp with time zone,
     last_connected_at timestamp with time zone,
     disconnected_at timestamp with time zone,
     resource_id uuid NOT NULL,
     auth_token uuid NOT NULL,
     auth_instance_id character varying(64),
+    architecture character varying(64) NOT NULL,
     environment_variables jsonb,
+    operating_system character varying(64) NOT NULL,
     startup_script character varying(65534),
     instance_metadata jsonb,
     resource_metadata jsonb
@@ -269,8 +272,7 @@ CREATE TABLE workspace_resources (
     transition workspace_transition NOT NULL,
     address character varying(256) NOT NULL,
     type character varying(192) NOT NULL,
-    name character varying(64) NOT NULL,
-    agent_id uuid
+    name character varying(64) NOT NULL
 );
 
 CREATE TABLE workspaces (

@@ -62,7 +62,7 @@
   "emeraldwalk.runonsave": {
     "commands": [
       {
-        "match": "database/query.sql",
+        "match": "database/queries/*.sql",
         "cmd": "make gen"
       }
     ]
