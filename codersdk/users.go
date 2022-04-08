@@ -121,7 +121,7 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// Patch User
+// PatchUserProfile enables callers to update profile information
 func (c *Client) PatchUserProfile(ctx context.Context, userID uuid.UUID, req PatchUserProfileRequest) (User, error) {
 	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/users/%s", uuidOrMe(userID)), req)
 	if err != nil {

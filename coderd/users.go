@@ -279,10 +279,11 @@ func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
-		ID:       user.ID,
-		Name:     patchUserProfile.Name,
-		Email:    patchUserProfile.Email,
-		Username: patchUserProfile.Username,
+		ID:        user.ID,
+		Name:      patchUserProfile.Name,
+		Email:     patchUserProfile.Email,
+		Username:  patchUserProfile.Username,
+		UpdatedAt: database.Now(),
 	})
 
 	if err != nil {

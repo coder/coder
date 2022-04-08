@@ -48,6 +48,6 @@ SET
 	email = $2,
 	"name" = $3,
 	username = $4,
-	updated_at = CURRENT_TIMESTAMP
+	updated_at = $5
 WHERE
 	id = $1 RETURNING *;
