@@ -8,12 +8,12 @@ import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
 import { UserResponse } from "../../../api/types"
-import { BorderedMenu } from "../../BorderedMenu"
+import { BorderedMenu } from "../../BorderedMenu/BorderedMenu"
+import { CloseDropdown, OpenDropdown } from "../../DropdownArrows/DropdownArrows"
 import { LogoutIcon } from "../../Icons"
 import { DocsIcon } from "../../Icons/DocsIcon"
 import { UserAvatar } from "../../User"
 import { UserProfileCard } from "../../User/UserProfileCard"
-import { CloseDropdown, OpenDropdown } from "../Arrows"
 
 export const Language = {
   accountLabel: "Account",

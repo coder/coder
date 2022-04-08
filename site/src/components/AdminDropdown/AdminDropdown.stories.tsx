@@ -1,10 +1,10 @@
 import Box from "@material-ui/core/Box"
 import { Story } from "@storybook/react"
 import React from "react"
-import { AdminDropdown } from "."
+import { AdminDropdown } from "./AdminDropdown"
 
 export default {
-  title: "Navbar/AdminDropdown",
+  title: "components/AdminDropdown",
   component: AdminDropdown,
 }
 

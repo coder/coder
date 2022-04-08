@@ -1,9 +1,9 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { Typography, TypographyProps } from "."
+import { Typography, TypographyProps } from "./Typography"
 
 export default {
-  title: "Text/Typography",
+  title: "components/Typography",
   component: Typography,
 }
 

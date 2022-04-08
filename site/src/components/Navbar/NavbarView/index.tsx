@@ -5,8 +5,8 @@ import React from "react"
 import { NavLink } from "react-router-dom"
 import { UserResponse } from "../../../api/types"
 import { navHeight } from "../../../theme/constants"
+import { AdminDropdown } from "../../AdminDropdown/AdminDropdown"
 import { Logo } from "../../Icons"
-import { AdminDropdown } from "../AdminDropdown"
 import { UserDropdown } from "../UserDropdown"
 
 export interface NavbarViewProps {

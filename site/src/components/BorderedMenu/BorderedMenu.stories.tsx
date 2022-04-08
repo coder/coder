@@ -1,12 +1,12 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { BorderedMenu, BorderedMenuProps } from "."
+import { BorderedMenuRow } from "../BorderedMenuRow/BorderedMenuRow"
 import { BuildingIcon } from "../Icons/BuildingIcon"
 import { UsersOutlinedIcon } from "../Icons/UsersOutlinedIcon"
-import { BorderedMenuRow } from "./BorderedMenuRow"
+import { BorderedMenu, BorderedMenuProps } from "./BorderedMenu"
 
 export default {
-  title: "Navbar/BorderedMenu",
+  title: "components/BorderedMenu",
   component: BorderedMenu,
 }
 

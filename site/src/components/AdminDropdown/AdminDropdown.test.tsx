@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { AdminDropdown, Language } from "."
-import { history, render } from "../../../test_helpers"
+import { history, render } from "../../test_helpers"
+import { AdminDropdown, Language } from "./AdminDropdown"
 
 const renderAndClick = async () => {
   render(<AdminDropdown />)

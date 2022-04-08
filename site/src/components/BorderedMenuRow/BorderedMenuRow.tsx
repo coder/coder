@@ -5,7 +5,7 @@ import CheckIcon from "@material-ui/icons/Check"
 import React from "react"
 import { NavLink } from "react-router-dom"
 import { ellipsizeText } from "../../util/ellipsizeText"
-import { Typography } from "../Typography"
+import { Typography } from "../Typography/Typography"
 
 type BorderedMenuRowVariant = "narrow" | "wide"
 

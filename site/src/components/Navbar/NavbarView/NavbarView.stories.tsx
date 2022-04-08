@@ -3,7 +3,7 @@ import React from "react"
 import { NavbarView, NavbarViewProps } from "."
 
 export default {
-  title: "Navbar/NavbarView",
+  title: "components/NavbarView",
   component: NavbarView,
   argTypes: {
     onSignOut: { action: "Sign Out" },
