@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -286,15 +285,22 @@ func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
-		invalidFields := []string{}
+		errors := []httpapi.Error{}
 		if existentUser.Email == patchUserProfile.Email {
-			invalidFields = append(invalidFields, "email")
+			errors = append(errors, httpapi.Error{
+				Field: "email",
+				Code:  "exists",
+			})
 		}
 		if existentUser.Username == patchUserProfile.Username {
-			invalidFields = append(invalidFields, "username")
+			errors = append(errors, httpapi.Error{
+				Field: "username",
+				Code:  "exists",
+			})
 		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("user already exists using %s", strings.Join(invalidFields, " or ")),
+			Message: fmt.Sprintf("user already exists"),
+			Errors:  errors,
 		})
 		return
 	}
