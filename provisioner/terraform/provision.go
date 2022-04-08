@@ -88,9 +88,9 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			})
 		}
 	}()
-	// Windows doesn't work with a plugin cache directory.
-	// The cause is unknown, but it should work.
-	if t.cachePath != "" && runtime.GOOS != "windows" {
+	// Only Linux reliably works with the Terraform plugin
+	// cache directory. It's unknown why this is.
+	if t.cachePath != "" && runtime.GOOS == "linux" {
 		err = terraform.SetEnv(map[string]string{
 			"TF_PLUGIN_CACHE_DIR": t.cachePath,
 		})
