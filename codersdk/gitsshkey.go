@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
@@ -34,8 +35,16 @@ func (c *Client) GitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, er
 		return GitSSHKey{}, readBodyAsError(res)
 	}
 
-	var gitsshkey GitSSHKey
-	return gitsshkey, json.NewDecoder(res.Body).Decode(&gitsshkey)
+	data := GitSSHKey{}
+	response := httpapi.Response{
+		Data: &data,
+	}
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return GitSSHKey{}, xerrors.Errorf("decode json response: %w", err)
+	}
+
+	return data, nil
 }
 
 // RegenerateGitSSHKey will create a new SSH key pair for the user and return it.
@@ -50,8 +59,16 @@ func (c *Client) RegenerateGitSSHKey(ctx context.Context, userID uuid.UUID) (Git
 		return GitSSHKey{}, readBodyAsError(res)
 	}
 
-	var gitsshkey GitSSHKey
-	return gitsshkey, json.NewDecoder(res.Body).Decode(&gitsshkey)
+	data := GitSSHKey{}
+	response := httpapi.Response{
+		Data: &data,
+	}
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return GitSSHKey{}, xerrors.Errorf("decode json response: %w", err)
+	}
+
+	return data, nil
 }
 
 // AgentGitSSHKey will return the user's SSH key pair for the workspace.
@@ -66,6 +83,14 @@ func (c *Client) AgentGitSSHKey(ctx context.Context) (AgentGitSSHKey, error) {
 		return AgentGitSSHKey{}, readBodyAsError(res)
 	}
 
-	var agentgitsshkey AgentGitSSHKey
-	return agentgitsshkey, json.NewDecoder(res.Body).Decode(&agentgitsshkey)
+	data := AgentGitSSHKey{}
+	response := httpapi.Response{
+		Data: &data,
+	}
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return AgentGitSSHKey{}, xerrors.Errorf("decode json response: %w", err)
+	}
+
+	return data, nil
 }
