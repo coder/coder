@@ -1,5 +1,5 @@
 import React from "react"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { Route, Routes } from "react-router-dom"
 import { AuthAndNav, RequireAuth } from "./components"
 import { PreferencesLayout } from "./components/Preferences/Layout"
 import { IndexPage } from "./pages"
@@ -73,7 +73,6 @@ export const AppRouter: React.FC = () => (
       </Route>
 
       <Route path="preferences" element={<PreferencesLayout />}>
-        <Route index element={<Navigate to="account" />} />
         <Route path="account" element={<PreferencesAccountPage />} />
         <Route path="security" element={<PreferencesSecurityPage />} />
         <Route path="ssh-keys" element={<PreferencesSSHKeysPage />} />
