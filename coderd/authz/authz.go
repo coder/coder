@@ -15,7 +15,7 @@ func Authorize(subj Subject, obj Resource, action Action) error {
 
 	// Merge before we send to rego to optimize the json payload.
 	// TODO: Benchmark the rego, it might be ok to just send everything and let
-	//		rego do the merges. The number of roles will be small, so it might not
+	//		rego handle it. The number of roles will be small, so it might not
 	//		matter. This code exists just to show how you can merge the roles
 	//		into a single one for evaluation if need be.
 	//		If done in rego, the roles will not be merged, and just walked over
