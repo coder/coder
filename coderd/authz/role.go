@@ -23,44 +23,34 @@ var (
 	// RoleSiteAdmin is a role that allows everything everywhere.
 	RoleSiteAdmin = Role{
 		Name: "site-admin",
-		Site: []Permission{
-			{
-				Negate:       false,
-				ResourceType: wildcard,
-				ResourceID:   wildcard,
-				Action:       wildcard,
-			},
-		},
+		Site: permissions(map[ResourceType][]Action{
+			wildcard: {wildcard},
+		}),
 	}
 
 	// RoleSiteMember is a role that allows access to user-level resources.
 	RoleSiteMember = Role{
 		Name: "site-member",
-		User: []Permission{
-			{
-				Negate:       false,
-				ResourceType: wildcard,
-				ResourceID:   wildcard,
-				Action:       wildcard,
-			},
-		},
+		User: permissions(map[ResourceType][]Action{
+			wildcard: {wildcard},
+		}),
 	}
 
+	// RoleSiteAuditor is an example on how to give more precise permissions
 	RoleSiteAuditor = Role{
 		Name: "site-auditor",
-		Site: []Permission{
-			{
-				Negate:       false,
-				ResourceType: ResourceAuditLogs,
-				ResourceID:   wildcard,
-				Action:       ActionRead,
-			},
-		},
+		Site: permissions(map[ResourceType][]Action{
+			ResourceAuditLogs: {ActionRead},
+			// Should be able to read user details to associate with logs.
+			// Without this the user-id in logs is not very helpful
+			ResourceUser: {ActionRead},
+		}),
 	}
 
 	// RoleDenyAll is a role that denies everything everywhere.
 	RoleDenyAll = Role{
 		Name: "deny-all",
+		// List out deny permissions explicitly
 		Site: []Permission{
 			{
 				Negate:       true,
@@ -115,4 +105,20 @@ func RoleWorkspaceAgent(workspaceID string) Role {
 			},
 		},
 	}
+}
+
+func permissions(perms map[ResourceType][]Action) []Permission {
+	list := make([]Permission, 0, len(perms))
+	for k, actions := range perms {
+		for _, act := range actions {
+			act := act
+			list = append(list, Permission{
+				Negate:       false,
+				ResourceType: k,
+				ResourceID:   wildcard,
+				Action:       act,
+			})
+		}
+	}
+	return list
 }
