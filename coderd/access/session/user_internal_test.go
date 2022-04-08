@@ -177,7 +177,7 @@ func TestUserActor(t *testing.T) {
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), apiKey.ID)
 		require.NoError(t, err)
 
-		assertTimesEqual(t, apiKey.LastUsed, gotAPIKey.LastUsed)
+		require.WithinDuration(t, apiKey.LastUsed, gotAPIKey.LastUsed, time.Second)
 		assertTimesNotEqual(t, apiKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
@@ -204,7 +204,7 @@ func TestUserActor(t *testing.T) {
 		require.NoError(t, err)
 
 		assertTimesNotEqual(t, apiKey.LastUsed, gotAPIKey.LastUsed)
-		assertTimesEqual(t, apiKey.ExpiresAt, gotAPIKey.ExpiresAt)
+		require.WithinDuration(t, apiKey.ExpiresAt, gotAPIKey.ExpiresAt, time.Second)
 	})
 
 	t.Run("ValidUpdateExpiry", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestUserActor(t *testing.T) {
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), apiKey.ID)
 		require.NoError(t, err)
 
-		assertTimesEqual(t, apiKey.LastUsed, gotAPIKey.LastUsed)
+		require.WithinDuration(t, apiKey.LastUsed, gotAPIKey.LastUsed, time.Second)
 		assertTimesNotEqual(t, apiKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 }
@@ -297,11 +297,6 @@ func newAPIKey(t *testing.T, db database.Store, user database.User, lastUsed, ex
 	require.NoError(t, err, "insert API key")
 
 	return apiKey, fmt.Sprintf("%v-%v", id, secret)
-}
-
-func assertTimesEqual(t *testing.T, a, b time.Time) {
-	t.Helper()
-	require.Equal(t, a.Truncate(time.Second), b.Truncate(time.Second))
 }
 
 func assertTimesNotEqual(t *testing.T, a, b time.Time) {

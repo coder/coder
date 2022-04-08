@@ -73,29 +73,20 @@ func UserActorFromRequest(ctx context.Context, db database.Store, rw http.Respon
 		return nil, true
 	}
 
-	// APIKeys are formatted: ${id}-${secret}. The ID is 10 characters and the
-	// secret is 22.
-	parts := strings.Split(cookie.Value, "-")
 	// TODO: Dean - workspace agent token auth should not share the same cookie
 	// name as regular auth
-	if len(parts) == 5 {
+	if strings.Count(cookie.Value, "-") == 4 {
 		// Skip anything that looks like a UUID for now.
 		return nil, true
 	}
-	if len(parts) != 2 || len(parts[0]) != 10 || len(parts[1]) != 22 {
+
+	keyID, _, hashedSecret, err := parseAPIKey(cookie.Value)
+	if err != nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("invalid API key cookie %q format", AuthCookie),
+			Message: fmt.Sprintf("invalid API key cookie %q: %v", AuthCookie, err),
 		})
 		return nil, false
 	}
-
-	// We hash the secret before getting the key from the database to ensure we
-	// keep this function fixed time.
-	var (
-		keyID        = parts[0]
-		keySecret    = parts[1]
-		hashedSecret = sha256.Sum256([]byte(keySecret))
-	)
 
 	// Get the API key from the database.
 	key, err := db.GetAPIKeyByID(ctx, keyID)
@@ -104,7 +95,8 @@ func UserActorFromRequest(ctx context.Context, db database.Store, rw http.Respon
 			Message: apiKeyInvalidMessage,
 		})
 		return nil, false
-	} else if err != nil {
+	}
+	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get API key by id: %s", err.Error()),
 		})
@@ -160,4 +152,23 @@ func UserActorFromRequest(ctx context.Context, db database.Store, rw http.Respon
 	}
 
 	return NewUserActor(u, key), true
+}
+
+func parseAPIKey(apiKey string) (id, secret string, hashed []byte, err error) {
+	// APIKeys are formatted: ${id}-${secret}. The ID is 10 characters and the
+	// secret is 22.
+	parts := strings.Split(apiKey, "-")
+	if len(parts) != 2 || len(parts[0]) != 10 || len(parts[1]) != 22 {
+		return "", "", nil, xerrors.New("invalid API key format")
+	}
+
+	// We hash the secret before getting the key from the database to ensure we
+	// keep this function fixed time.
+	var (
+		keyID        = parts[0]
+		keySecret    = parts[1]
+		hashedSecret = sha256.Sum256([]byte(keySecret))
+	)
+
+	return keyID, keySecret, hashedSecret[:], nil
 }
