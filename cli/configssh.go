@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -70,29 +71,30 @@ func configSSH() *cobra.Command {
 			for _, workspace := range workspaces {
 				workspace := workspace
 				errGroup.Go(func() error {
-					resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
+					resources, err := client.TemplateVersionResources(cmd.Context(), workspace.LatestBuild.TemplateVersionID)
 					if err != nil {
 						return err
 					}
-					resourcesWithAgents := make([]codersdk.WorkspaceResource, 0)
 					for _, resource := range resources {
-						if resource.Agent == nil {
+						if resource.Transition != database.WorkspaceTransitionStart {
 							continue
 						}
-						resourcesWithAgents = append(resourcesWithAgents, resource)
+						for _, agent := range resource.Agents {
+							sshConfigContentMutex.Lock()
+							hostname := workspace.Name
+							if len(resource.Agents) > 1 {
+								hostname += "." + agent.Name
+							}
+							sshConfigContent += strings.Join([]string{
+								"Host coder." + hostname,
+								"\tHostName coder." + hostname,
+								fmt.Sprintf("\tProxyCommand %q ssh --stdio %s", binPath, hostname),
+								"\tConnectTimeout=0",
+								"\tStrictHostKeyChecking=no",
+							}, "\n") + "\n"
+							sshConfigContentMutex.Unlock()
+						}
 					}
-					sshConfigContentMutex.Lock()
-					defer sshConfigContentMutex.Unlock()
-					if len(resourcesWithAgents) == 1 {
-						sshConfigContent += strings.Join([]string{
-							"Host coder." + workspace.Name,
-							"\tHostName coder." + workspace.Name,
-							fmt.Sprintf("\tProxyCommand %q ssh --stdio %s", binPath, workspace.Name),
-							"\tConnectTimeout=0",
-							"\tStrictHostKeyChecking=no",
-						}, "\n") + "\n"
-					}
-
 					return nil
 				})
 			}

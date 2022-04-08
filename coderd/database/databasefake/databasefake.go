@@ -634,6 +634,20 @@ func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken 
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentByID(_ context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// The schema sorts this by created at, so we iterate the array backwards.
+	for i := len(q.provisionerJobAgent) - 1; i >= 0; i-- {
+		agent := q.provisionerJobAgent[i]
+		if agent.ID.String() == id.String() {
+			return agent, nil
+		}
+	}
+	return database.WorkspaceAgent{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceID string) (database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -648,16 +662,23 @@ func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentByResourceID(_ context.Context, resourceID uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(_ context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.provisionerJobAgent {
-		if agent.ResourceID.String() == resourceID.String() {
-			return agent, nil
+		for _, resourceID := range resourceIDs {
+			if agent.ResourceID.String() != resourceID.String() {
+				continue
+			}
+			workspaceAgents = append(workspaceAgents, agent)
 		}
 	}
-	return database.WorkspaceAgent{}, sql.ErrNoRows
+	if len(workspaceAgents) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaceAgents, nil
 }
 
 func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
@@ -982,6 +1003,9 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		AuthToken:            arg.AuthToken,
 		AuthInstanceID:       arg.AuthInstanceID,
 		EnvironmentVariables: arg.EnvironmentVariables,
+		Name:                 arg.Name,
+		Architecture:         arg.Architecture,
+		OperatingSystem:      arg.OperatingSystem,
 		StartupScript:        arg.StartupScript,
 		InstanceMetadata:     arg.InstanceMetadata,
 		ResourceMetadata:     arg.ResourceMetadata,
@@ -1003,7 +1027,6 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Address:    arg.Address,
 		Type:       arg.Type,
 		Name:       arg.Name,
-		AgentID:    arg.AgentID,
 	}
 	q.provisionerJobResource = append(q.provisionerJobResource, resource)
 	return resource, nil

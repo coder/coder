@@ -40,12 +40,12 @@ func TestSSH(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "dev",
 							Type: "google_compute_instance",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Id: uuid.NewString(),
 								Auth: &proto.Agent_Token{
 									Token: agentToken,
 								},
-							},
+							}},
 						}},
 					},
 				},
@@ -98,12 +98,12 @@ func TestSSH(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "dev",
 							Type: "google_compute_instance",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Id: uuid.NewString(),
 								Auth: &proto.Agent_Token{
 									Token: agentToken,
 								},
-							},
+							}},
 						}},
 					},
 				},

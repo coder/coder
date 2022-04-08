@@ -106,7 +106,7 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.
 	}
 }
 
-func convertWorkspaceResource(resource database.WorkspaceResource, agent *codersdk.WorkspaceAgent) codersdk.WorkspaceResource {
+func convertWorkspaceResource(resource database.WorkspaceResource, agents []codersdk.WorkspaceAgent) codersdk.WorkspaceResource {
 	return codersdk.WorkspaceResource{
 		ID:         resource.ID,
 		CreatedAt:  resource.CreatedAt,
@@ -115,6 +115,6 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agent *coders
 		Address:    resource.Address,
 		Type:       resource.Type,
 		Name:       resource.Name,
-		Agent:      agent,
+		Agents:     agents,
 	}
 }
