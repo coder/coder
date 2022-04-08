@@ -1907,7 +1907,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
 FROM
 	workspace_agents
 WHERE
@@ -1923,13 +1923,49 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Name,
 		&i.FirstConnectedAt,
 		&i.LastConnectedAt,
 		&i.DisconnectedAt,
 		&i.ResourceID,
 		&i.AuthToken,
 		&i.AuthInstanceID,
+		&i.Architecture,
 		&i.EnvironmentVariables,
+		&i.OperatingSystem,
+		&i.StartupScript,
+		&i.InstanceMetadata,
+		&i.ResourceMetadata,
+	)
+	return i, err
+}
+
+const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
+SELECT
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
+FROM
+	workspace_agents
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByID, id)
+	var i WorkspaceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.FirstConnectedAt,
+		&i.LastConnectedAt,
+		&i.DisconnectedAt,
+		&i.ResourceID,
+		&i.AuthToken,
+		&i.AuthInstanceID,
+		&i.Architecture,
+		&i.EnvironmentVariables,
+		&i.OperatingSystem,
 		&i.StartupScript,
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
@@ -1939,7 +1975,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
 FROM
 	workspace_agents
 WHERE
@@ -1955,13 +1991,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Name,
 		&i.FirstConnectedAt,
 		&i.LastConnectedAt,
 		&i.DisconnectedAt,
 		&i.ResourceID,
 		&i.AuthToken,
 		&i.AuthInstanceID,
+		&i.Architecture,
 		&i.EnvironmentVariables,
+		&i.OperatingSystem,
 		&i.StartupScript,
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
@@ -1969,34 +2008,53 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 	return i, err
 }
 
-const getWorkspaceAgentByResourceID = `-- name: GetWorkspaceAgentByResourceID :one
+const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
 FROM
 	workspace_agents
 WHERE
-	resource_id = $1
+	resource_id = ANY($1 :: uuid [ ])
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentByResourceID(ctx context.Context, resourceID uuid.UUID) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByResourceID, resourceID)
-	var i WorkspaceAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.FirstConnectedAt,
-		&i.LastConnectedAt,
-		&i.DisconnectedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.EnvironmentVariables,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-	)
-	return i, err
+func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByResourceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgent
+	for rows.Next() {
+		var i WorkspaceAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.FirstConnectedAt,
+			&i.LastConnectedAt,
+			&i.DisconnectedAt,
+			&i.ResourceID,
+			&i.AuthToken,
+			&i.AuthInstanceID,
+			&i.Architecture,
+			&i.EnvironmentVariables,
+			&i.OperatingSystem,
+			&i.StartupScript,
+			&i.InstanceMetadata,
+			&i.ResourceMetadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertWorkspaceAgent = `-- name: InsertWorkspaceAgent :one
@@ -2005,26 +2063,32 @@ INSERT INTO
 		id,
 		created_at,
 		updated_at,
+		name,
 		resource_id,
 		auth_token,
 		auth_instance_id,
+		architecture,
 		environment_variables,
+		operating_system,
 		startup_script,
 		instance_metadata,
 		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, environment_variables, startup_script, instance_metadata, resource_metadata
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
 `
 
 type InsertWorkspaceAgentParams struct {
 	ID                   uuid.UUID             `db:"id" json:"id"`
 	CreatedAt            time.Time             `db:"created_at" json:"created_at"`
 	UpdatedAt            time.Time             `db:"updated_at" json:"updated_at"`
+	Name                 string                `db:"name" json:"name"`
 	ResourceID           uuid.UUID             `db:"resource_id" json:"resource_id"`
 	AuthToken            uuid.UUID             `db:"auth_token" json:"auth_token"`
 	AuthInstanceID       sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture         string                `db:"architecture" json:"architecture"`
 	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
 	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
@@ -2035,10 +2099,13 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.Name,
 		arg.ResourceID,
 		arg.AuthToken,
 		arg.AuthInstanceID,
+		arg.Architecture,
 		arg.EnvironmentVariables,
+		arg.OperatingSystem,
 		arg.StartupScript,
 		arg.InstanceMetadata,
 		arg.ResourceMetadata,
@@ -2048,13 +2115,16 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Name,
 		&i.FirstConnectedAt,
 		&i.LastConnectedAt,
 		&i.DisconnectedAt,
 		&i.ResourceID,
 		&i.AuthToken,
 		&i.AuthInstanceID,
+		&i.Architecture,
 		&i.EnvironmentVariables,
+		&i.OperatingSystem,
 		&i.StartupScript,
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
@@ -2405,7 +2475,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, address, type, name, agent_id
+	id, created_at, job_id, transition, address, type, name
 FROM
 	workspace_resources
 WHERE
@@ -2423,14 +2493,13 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.Address,
 		&i.Type,
 		&i.Name,
-		&i.AgentID,
 	)
 	return i, err
 }
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, address, type, name, agent_id
+	id, created_at, job_id, transition, address, type, name
 FROM
 	workspace_resources
 WHERE
@@ -2454,7 +2523,6 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Address,
 			&i.Type,
 			&i.Name,
-			&i.AgentID,
 		); err != nil {
 			return nil, err
 		}
@@ -2478,11 +2546,10 @@ INSERT INTO
 		transition,
 		address,
 		type,
-		name,
-		agent_id
+		name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, job_id, transition, address, type, name, agent_id
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, job_id, transition, address, type, name
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -2493,7 +2560,6 @@ type InsertWorkspaceResourceParams struct {
 	Address    string              `db:"address" json:"address"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
-	AgentID    uuid.NullUUID       `db:"agent_id" json:"agent_id"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
@@ -2505,7 +2571,6 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.Address,
 		arg.Type,
 		arg.Name,
-		arg.AgentID,
 	)
 	var i WorkspaceResource
 	err := row.Scan(
@@ -2516,7 +2581,6 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Address,
 		&i.Type,
 		&i.Name,
-		&i.AgentID,
 	)
 	return i, err
 }

@@ -56,7 +56,7 @@ func (c *Client) RegenerateGitSSHKey(ctx context.Context, userID uuid.UUID) (Git
 
 // AgentGitSSHKey will return the user's SSH key pair for the workspace.
 func (c *Client) AgentGitSSHKey(ctx context.Context) (AgentGitSSHKey, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/workspaceresources/agent/gitsshkey", nil)
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/gitsshkey", nil)
 	if err != nil {
 		return AgentGitSSHKey{}, xerrors.Errorf("execute request: %w", err)
 	}
