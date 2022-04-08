@@ -278,6 +278,29 @@ func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existentUser, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+		Email:    patchUserProfile.Email,
+		Username: patchUserProfile.Username,
+	})
+	isDifferentUser := existentUser.ID != user.ID
+
+	if err == nil && isDifferentUser {
+		message := "Email is already on use"
+		if existentUser.Username == patchUserProfile.Username {
+			message = "Username is already on use"
+		}
+		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+			Message: message,
+		})
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) && isDifferentUser {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user: %s", err),
+		})
+		return
+	}
+
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Name:      patchUserProfile.Name,

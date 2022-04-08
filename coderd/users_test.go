@@ -217,7 +217,45 @@ func TestPatchUserProfile(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("Patch", func(t *testing.T) {
+	t.Run("Conflicting email", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		existentUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "bruno@coder.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		_, err = client.PatchUserProfile(context.Background(), codersdk.Me, codersdk.PatchUserProfileRequest{
+			Username: "newusername",
+			Email:    existentUser.Email,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("Conflicting username", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		existentUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "bruno@coder.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		_, err = client.PatchUserProfile(context.Background(), codersdk.Me, codersdk.PatchUserProfileRequest{
+			Username: existentUser.Username,
+			Email:    "newemail@coder.com",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("Full Patch", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
@@ -227,6 +265,20 @@ func TestPatchUserProfile(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, "newusername")
+		require.Equal(t, userProfile.Email, "newemail@coder.com")
+	})
+
+	t.Run("Partial Patch", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		me, err := client.User(context.Background(), codersdk.Me)
+		userProfile, err := client.PatchUserProfile(context.Background(), codersdk.Me, codersdk.PatchUserProfileRequest{
+			Username: me.Username,
+			Email:    "newemail@coder.com",
+		})
+		require.NoError(t, err)
+		require.Equal(t, userProfile.Username, me.Username)
 		require.Equal(t, userProfile.Email, "newemail@coder.com")
 	})
 }
