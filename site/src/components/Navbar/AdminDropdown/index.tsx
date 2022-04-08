@@ -84,7 +84,6 @@ export const AdminDropdown: React.FC = () => {
             variant="narrow"
             onClick={() => {
               onClose()
-              navigate(entry.path)
             }}
           />
         ))}
