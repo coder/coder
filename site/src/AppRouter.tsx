@@ -75,9 +75,30 @@ export const AppRouter: React.FC = () => (
         />
       </Route>
 
-      <Route path="users" element={<UsersPage />} />
-      <Route path="orgs" element={<OrganizationsPage />} />
-      <Route path="settings" element={<SettingsPage />} />
+      <Route
+        path="users"
+        element={
+          <AuthAndNav>
+            <UsersPage />
+          </AuthAndNav>
+        }
+      />
+      <Route
+        path="orgs"
+        element={
+          <AuthAndNav>
+            <OrganizationsPage />
+          </AuthAndNav>
+        }
+      />
+      <Route
+        path="settings"
+        element={
+          <AuthAndNav>
+            <SettingsPage />
+          </AuthAndNav>
+        }
+      />
 
       <Route path="preferences" element={<PreferencesLayout />}>
         <Route index element={<Navigate to="account" />} />
