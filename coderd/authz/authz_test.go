@@ -503,6 +503,7 @@ func TestAuthorizeLevels(t *testing.T) {
 		}))
 }
 
+// cases applies a given function to all test cases. This makes generalities easier to create.
 func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTestCase {
 	if opt == nil {
 		return cases
