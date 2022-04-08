@@ -5,16 +5,15 @@ import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
 import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
-import KeyboardArrowDown from "@material-ui/icons/KeyboardArrowDown"
-import KeyboardArrowUp from "@material-ui/icons/KeyboardArrowUp"
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
-import { UserResponse } from "../../api/types"
-import { LogoutIcon } from "../Icons"
-import { DocsIcon } from "../Icons/DocsIcon"
-import { UserAvatar } from "../User"
-import { UserProfileCard } from "../User/UserProfileCard"
-import { BorderedMenu } from "./BorderedMenu"
+import { UserResponse } from "../../../api/types"
+import { BorderedMenu } from "../../BorderedMenu/BorderedMenu"
+import { CloseDropdown, OpenDropdown } from "../../DropdownArrows/DropdownArrows"
+import { LogoutIcon } from "../../Icons"
+import { DocsIcon } from "../../Icons/DocsIcon"
+import { UserAvatar } from "../../User"
+import { UserProfileCard } from "../../User/UserProfileCard"
 
 export const Language = {
   accountLabel: "Account",
@@ -44,11 +43,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
           <Badge overlap="circle">
             <UserAvatar username={user.username} />
           </Badge>
-          {anchorEl ? (
-            <KeyboardArrowUp className={`${styles.arrowIcon} ${styles.arrowIconUp}`} />
-          ) : (
-            <KeyboardArrowDown className={styles.arrowIcon} />
-          )}
+          {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
         </div>
       </MenuItem>
 
@@ -118,17 +113,6 @@ export const useStyles = makeStyles((theme) => ({
 
   userInfo: {
     marginBottom: theme.spacing(1),
-  },
-
-  arrowIcon: {
-    color: fade(theme.palette.primary.contrastText, 0.7),
-    marginLeft: theme.spacing(1),
-    width: 16,
-    height: 16,
-  },
-
-  arrowIconUp: {
-    color: theme.palette.primary.contrastText,
   },
 
   menuItem: {

@@ -2,9 +2,9 @@ import Popover, { PopoverProps } from "@material-ui/core/Popover"
 import { fade, makeStyles } from "@material-ui/core/styles"
 import React from "react"
 
-type BorderedMenuVariant = "manage-dropdown" | "user-dropdown"
+type BorderedMenuVariant = "admin-dropdown" | "user-dropdown"
 
-type BorderedMenuProps = Omit<PopoverProps, "variant"> & {
+export type BorderedMenuProps = Omit<PopoverProps, "variant"> & {
   variant?: BorderedMenuVariant
 }
 
@@ -20,7 +20,14 @@ export const BorderedMenu: React.FC<BorderedMenuProps> = ({ children, variant, .
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    paddingBottom: theme.spacing(1),
+    "&[data-variant='admin-dropdown'] $paperRoot": {
+      padding: `${theme.spacing(3)}px 0`,
+    },
+
+    "&[data-variant='user-dropdown'] $paperRoot": {
+      paddingBottom: theme.spacing(1),
+      width: 292,
+    },
   },
   paperRoot: {
     width: "292px",

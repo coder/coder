@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { render } from "../../test_helpers"
-import { MockUser } from "../../test_helpers/entities"
-import { Language, UserDropdown, UserDropdownProps } from "./UserDropdown"
+import { Language, UserDropdown, UserDropdownProps } from "."
+import { render } from "../../../test_helpers"
+import { MockUser } from "../../../test_helpers/entities"
 
 const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {
   render(<UserDropdown user={props.user ?? MockUser} onSignOut={props.onSignOut ?? jest.fn()} />)

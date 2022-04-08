@@ -7,13 +7,16 @@ import { NotFoundPage } from "./pages/404"
 import { CliAuthenticationPage } from "./pages/cli-auth"
 import { HealthzPage } from "./pages/healthz"
 import { SignInPage } from "./pages/login"
+import { OrganizationsPage } from "./pages/orgs"
 import { PreferencesAccountPage } from "./pages/preferences/account"
 import { PreferencesLinkedAccountsPage } from "./pages/preferences/linked-accounts"
 import { PreferencesSecurityPage } from "./pages/preferences/security"
 import { PreferencesSSHKeysPage } from "./pages/preferences/ssh-keys"
+import { SettingsPage } from "./pages/settings"
 import { TemplatesPage } from "./pages/templates"
 import { TemplatePage } from "./pages/templates/[organization]/[template]"
 import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
+import { UsersPage } from "./pages/users"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 
 export const AppRouter: React.FC = () => (
@@ -71,6 +74,31 @@ export const AppRouter: React.FC = () => (
           }
         />
       </Route>
+
+      <Route
+        path="users"
+        element={
+          <AuthAndNav>
+            <UsersPage />
+          </AuthAndNav>
+        }
+      />
+      <Route
+        path="orgs"
+        element={
+          <AuthAndNav>
+            <OrganizationsPage />
+          </AuthAndNav>
+        }
+      />
+      <Route
+        path="settings"
+        element={
+          <AuthAndNav>
+            <SettingsPage />
+          </AuthAndNav>
+        }
+      />
 
       <Route path="preferences" element={<PreferencesLayout />}>
         <Route path="account" element={<PreferencesAccountPage />} />
