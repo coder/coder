@@ -14,7 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
-  "github.com/coder/coder/coderd/access/session"
+	"github.com/coder/coder/coderd/access/session"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -75,6 +75,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
+				httpmw.RequireAuthentication(),
 				httpmw.ExtractAPIKey(options.Database, nil),
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
@@ -85,6 +86,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
+				httpmw.RequireAuthentication(),
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
@@ -98,7 +100,10 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Use(
+				httpmw.RequireAuthentication(),
+				httpmw.ExtractAPIKey(options.Database, nil),
+			)
 			r.Post("/", api.postParameter)
 			r.Get("/", api.parameters)
 			r.Route("/{name}", func(r chi.Router) {
@@ -107,6 +112,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
+				httpmw.RequireAuthentication(),
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractTemplateParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
@@ -121,6 +127,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
+				httpmw.RequireAuthentication(),
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractTemplateVersionParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
@@ -144,7 +151,10 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/login", api.postLogin)
 			r.Post("/logout", api.postLogout)
 			r.Group(func(r chi.Router) {
-				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+				r.Use(
+					httpmw.RequireAuthentication(),
+					httpmw.ExtractAPIKey(options.Database, nil),
+				)
 				r.Post("/", api.postUsers)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
@@ -179,6 +189,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 			r.Route("/{workspaceresource}", func(r chi.Router) {
 				r.Use(
+					httpmw.RequireAuthentication(),
 					httpmw.ExtractAPIKey(options.Database, nil),
 					httpmw.ExtractWorkspaceResourceParam(options.Database),
 					httpmw.ExtractWorkspaceParam(options.Database),
@@ -189,6 +200,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspaces/{workspace}", func(r chi.Router) {
 			r.Use(
+				httpmw.RequireAuthentication(),
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -207,6 +219,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
+				httpmw.RequireAuthentication(),
 				httpmw.ExtractAPIKey(options.Database, nil),
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),

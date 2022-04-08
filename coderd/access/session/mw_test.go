@@ -24,15 +24,6 @@ func TestMiddleware(t *testing.T) {
 		})
 	})
 
-	t.Run("NoMiddleware", func(t *testing.T) {
-		t.Parallel()
-
-		require.Panics(t, func() {
-			r := httptest.NewRequest("GET", "/", nil)
-			_ = session.RequestActor(r)
-		})
-	})
-
 	t.Run("UserActor", func(t *testing.T) {
 		t.Parallel()
 
@@ -113,16 +104,9 @@ func TestMiddleware(t *testing.T) {
 			handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				atomic.AddInt64(&called, 1)
 
-				// Double check the UserActor.
+				// Actor should be nil.
 				act := session.RequestActor(r)
-				require.NotNil(t, act)
-				require.Equal(t, session.ActorTypeAnonymous, act.Type())
-				require.Equal(t, session.AnonymousUserID, act.ID())
-				require.Equal(t, session.AnonymousUserID, act.Name())
-
-				anonActor, ok := act.(session.AnonymousActor)
-				require.True(t, ok)
-				anonActor.Anonymous()
+				require.Nil(t, act)
 
 				httpapi.Write(rw, http.StatusOK, httpapi.Response{
 					Message: "success",

@@ -9,11 +9,14 @@ import (
 
 type actorContextKey struct{}
 
-// APIKey returns the API key from the ExtractAPIKey handler.
+// APIKey returns the API key from the ExtractAPIKey handler. The returned Actor
+// may be nil if the request was unauthenticated.
+//
+// Depends on ExtractActor middleware.
 func RequestActor(r *http.Request) Actor {
 	actor, ok := r.Context().Value(actorContextKey{}).(Actor)
 	if !ok {
-		panic("developer error: ExtractActor middleware not provided")
+		return nil
 	}
 	return actor
 }
@@ -37,11 +40,6 @@ func ExtractActor(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			// TODO: Dean - WorkspaceActor, SatelliteActor etc.
-
-			// Fallback to an AnonymousActor.
-			if act == nil {
-				act = Anon
-			}
 
 			ctx = context.WithValue(ctx, actorContextKey{}, act)
 			next.ServeHTTP(rw, r.WithContext(ctx))

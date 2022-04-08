@@ -26,14 +26,16 @@ const (
 )
 
 type userActor struct {
-	user database.User
+	user   database.User
+	apiKey database.APIKey
 }
 
 var _ UserActor = &userActor{}
 
-func NewUserActor(u database.User) UserActor {
+func NewUserActor(u database.User, apiKey database.APIKey) UserActor {
 	return &userActor{
-		user: u,
+		user:   u,
+		apiKey: apiKey,
 	}
 }
 
@@ -51,6 +53,10 @@ func (ua *userActor) Name() string {
 
 func (ua *userActor) User() *database.User {
 	return &ua.user
+}
+
+func (ua *userActor) APIKey() *database.APIKey {
+	return &ua.apiKey
 }
 
 // UserActorFromRequest tries to get a UserActor from the API key supplied in
@@ -153,5 +159,5 @@ func UserActorFromRequest(ctx context.Context, db database.Store, rw http.Respon
 		return nil, false
 	}
 
-	return NewUserActor(u), true
+	return NewUserActor(u, key), true
 }

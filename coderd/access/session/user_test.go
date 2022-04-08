@@ -173,6 +173,7 @@ func TestUserActor(t *testing.T) {
 		require.Equal(t, u.ID.String(), act.ID())
 		require.Equal(t, u.Username, act.Name())
 		require.Equal(t, u, *act.User())
+		require.Equal(t, apiKey, *act.APIKey())
 
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), apiKey.ID)
 		require.NoError(t, err)
