@@ -3,7 +3,6 @@ import ListItemText from "@material-ui/core/ListItemText"
 import { fade, makeStyles, Theme } from "@material-ui/core/styles"
 import AdminIcon from "@material-ui/icons/SettingsOutlined"
 import React, { useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { navHeight } from "../../../theme/constants"
 import { BorderedMenu } from "../../BorderedMenu"
 import { BorderedMenuRow } from "../../BorderedMenu/BorderedMenuRow"
@@ -44,7 +43,6 @@ const entries = [
 
 export const AdminDropdown: React.FC = () => {
   const styles = useStyles()
-  const navigate = useNavigate()
   const [anchorEl, setAnchorEl] = useState<HTMLElement>()
   const onClose = () => setAnchorEl(undefined)
   const onOpenAdminMenu = (ev: React.MouseEvent<HTMLDivElement>) => setAnchorEl(ev.currentTarget)
