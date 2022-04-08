@@ -1,4 +1,4 @@
-package session_test
+package session
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/access/session"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/cryptorand"
@@ -32,7 +31,7 @@ func TestUserActor(t *testing.T) {
 		// If there's no cookie, the user actor function should return nil and
 		// true (i.e. it shouldn't respond) so that other handlers can run
 		// afterwards.
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.True(t, ok)
 		require.Nil(t, act)
 	})
@@ -45,11 +44,11 @@ func TestUserActor(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: "test-wow-hello",
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.False(t, ok)
 		require.Nil(t, act)
 	})
@@ -62,11 +61,11 @@ func TestUserActor(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: "test-wow",
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.False(t, ok)
 		require.Nil(t, act)
 	})
@@ -79,11 +78,11 @@ func TestUserActor(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: "testtestid-wow",
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.False(t, ok)
 		require.Nil(t, act)
 	})
@@ -99,11 +98,11 @@ func TestUserActor(t *testing.T) {
 		// Use a random API key.
 		id, secret, _ := randomAPIKey(t)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.False(t, ok)
 		require.Nil(t, act)
 	})
@@ -121,11 +120,11 @@ func TestUserActor(t *testing.T) {
 		// Use a random secret in the request so they don't match.
 		_, secret, _ := randomAPIKey(t)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: fmt.Sprintf("%s-%s", apiKey.ID, secret),
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.False(t, ok)
 		require.Nil(t, act)
 	})
@@ -141,11 +140,11 @@ func TestUserActor(t *testing.T) {
 			rw       = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: token,
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.False(t, ok)
 		require.Nil(t, act)
 	})
@@ -161,15 +160,15 @@ func TestUserActor(t *testing.T) {
 			rw            = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: token,
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.True(t, ok)
 
 		require.NotNil(t, act)
-		require.Equal(t, session.ActorTypeUser, act.Type())
+		require.Equal(t, ActorTypeUser, act.Type())
 		require.Equal(t, u.ID.String(), act.ID())
 		require.Equal(t, u.Username, act.Name())
 		require.Equal(t, u, *act.User())
@@ -193,11 +192,11 @@ func TestUserActor(t *testing.T) {
 			rw            = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: token,
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.True(t, ok)
 		require.NotNil(t, act)
 
@@ -219,11 +218,11 @@ func TestUserActor(t *testing.T) {
 			rw            = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  session.AuthCookie,
+			Name:  AuthCookie,
 			Value: token,
 		})
 
-		act, ok := session.UserActorFromRequest(context.Background(), db, rw, r)
+		act, ok := UserActorFromRequest(context.Background(), db, rw, r)
 		require.True(t, ok)
 		require.NotNil(t, act)
 

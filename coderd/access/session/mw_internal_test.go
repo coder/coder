@@ -1,4 +1,4 @@
-package session_test
+package session
 
 import (
 	"net/http"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/access/session"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpapi"
 )
@@ -35,11 +34,11 @@ func TestMiddleware(t *testing.T) {
 				rw = httptest.NewRecorder()
 			)
 			r.AddCookie(&http.Cookie{
-				Name:  session.AuthCookie,
+				Name:  AuthCookie,
 				Value: "invalid-api-key",
 			})
 
-			session.ExtractActor(db)(successHandler).ServeHTTP(rw, r)
+			ExtractActor(db)(successHandler).ServeHTTP(rw, r)
 			res := rw.Result()
 			defer res.Body.Close()
 			require.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -55,7 +54,7 @@ func TestMiddleware(t *testing.T) {
 				rw       = httptest.NewRecorder()
 			)
 			r.AddCookie(&http.Cookie{
-				Name:  session.AuthCookie,
+				Name:  AuthCookie,
 				Value: token,
 			})
 
@@ -65,13 +64,13 @@ func TestMiddleware(t *testing.T) {
 					atomic.AddInt64(&called, 1)
 
 					// Double check the UserActor.
-					act := session.RequestActor(r)
+					act := RequestActor(r)
 					require.NotNil(t, act)
-					require.Equal(t, session.ActorTypeUser, act.Type())
+					require.Equal(t, ActorTypeUser, act.Type())
 					require.Equal(t, u.ID.String(), act.ID())
 					require.Equal(t, u.Username, act.Name())
 
-					userActor, ok := act.(session.UserActor)
+					userActor, ok := act.(UserActor)
 					require.True(t, ok)
 					require.Equal(t, u, *userActor.User())
 
@@ -81,7 +80,7 @@ func TestMiddleware(t *testing.T) {
 				})
 			)
 
-			session.ExtractActor(db)(handler).ServeHTTP(rw, r)
+			ExtractActor(db)(handler).ServeHTTP(rw, r)
 			res := rw.Result()
 			defer res.Body.Close()
 			require.Equal(t, http.StatusOK, res.StatusCode)
@@ -105,7 +104,7 @@ func TestMiddleware(t *testing.T) {
 				atomic.AddInt64(&called, 1)
 
 				// Actor should be nil.
-				act := session.RequestActor(r)
+				act := RequestActor(r)
 				require.Nil(t, act)
 
 				httpapi.Write(rw, http.StatusOK, httpapi.Response{
@@ -115,7 +114,7 @@ func TestMiddleware(t *testing.T) {
 		)
 
 		// No auth provided.
-		session.ExtractActor(db)(handler).ServeHTTP(rw, r)
+		ExtractActor(db)(handler).ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
