@@ -192,8 +192,6 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		return nil, nil, xerrors.New(version.Job.Error)
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Checkmark.String()+" Successfully imported template source!\n")
-
 	resources, err := client.TemplateVersionResources(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err

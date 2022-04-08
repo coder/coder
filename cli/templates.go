@@ -43,6 +43,8 @@ func templates() *cobra.Command {
 }
 
 func displayTemplateVersionInfo(cmd *cobra.Command, resources []codersdk.WorkspaceResource) error {
+	fmt.Printf("Previewing template!\n")
+
 	sort.Slice(resources, func(i, j int) bool {
 		return fmt.Sprintf("%s.%s", resources[i].Type, resources[i].Name) < fmt.Sprintf("%s.%s", resources[j].Type, resources[j].Name)
 	})

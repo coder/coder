@@ -213,11 +213,10 @@ func start() *cobra.Command {
 					return xerrors.Errorf("create first user: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Started in `+
-					cliui.Styles.Field.Render("dev")+` mode. All data is in-memory! Do not use in production. Press `+cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`))+
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Wrap.Copy().Margin(0, 0, 0, 2).Render(cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`))+
 					`
 `+
-					cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Run `+cliui.Styles.Code.Render("coder templates init")+" in a new terminal to get started.\n"))+`
+					cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(`Run `+cliui.Styles.Code.Render("coder templates init")+" in a new terminal to start creating development workspaces.\n"))+`
 `)
 			} else {
 				// This is helpful for tests, but can be silently ignored.

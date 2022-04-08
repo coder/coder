@@ -187,6 +187,23 @@ func main() {
 		},
 	})
 
+	root.AddCommand(&cobra.Command{
+		Use: "resources",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cliui.WorkspaceResources(cmd, []codersdk.WorkspaceResource{{
+				Address:    "another",
+				Transition: database.WorkspaceTransitionStart,
+				Type:       "google_compute_instance",
+				Name:       "dev",
+			}, {
+				Address:    "something",
+				Transition: database.WorkspaceTransitionStart,
+				Type:       "google_compute_instance",
+				Name:       "something",
+			}})
+		},
+	})
+
 	err := root.Execute()
 	if err != nil {
 		_, _ = fmt.Println(err.Error())

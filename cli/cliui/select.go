@@ -1,11 +1,13 @@
 package cliui
 
 import (
+	"errors"
 	"flag"
 	"io"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
 )
 
@@ -63,6 +65,9 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 	}, fileReadWriter{
 		Writer: cmd.OutOrStdout(),
 	}, cmd.OutOrStdout()))
+	if errors.Is(err, terminal.InterruptErr) {
+		return value, Canceled
+	}
 	return value, err
 }
 
