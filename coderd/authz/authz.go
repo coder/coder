@@ -1,6 +1,6 @@
 package authz
 
-import "errors"
+import "golang.org/x/xerrors"
 
 var ErrUnauthorized = xerrors.New("unauthorized")
 
