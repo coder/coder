@@ -1027,7 +1027,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
-func (q *fakeQuerier) UpdateUser(_ context.Context, arg database.UpdateUserParams) (database.User, error) {
+func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

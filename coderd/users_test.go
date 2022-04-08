@@ -200,17 +200,35 @@ func TestPostUsers(t *testing.T) {
 	})
 }
 
-func TestPatchUser(t *testing.T) {
+func TestPatchUserProfile(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
-	user, err := client.PatchUser(context.Background(), codersdk.Me, codersdk.PatchUserRequest{
-		Username: "newusername",
-		Email:    "newemail@coder.com",
+	t.Run("UserNotFound", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		_, err := client.PatchUserProfile(context.Background(), uuid.New(), codersdk.PatchUserProfileRequest{
+			Username: "newusername",
+			Email:    "newemail@coder.com",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		// Right now, we are raising a BAD request error because we don't support a
+		// user accessing other users info
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
-	require.NoError(t, err)
-	require.Equal(t, user.Username, "newusername")
-	require.Equal(t, user.Email, "newemail@coder.com")
+
+	t.Run("Patch", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		userProfile, err := client.PatchUserProfile(context.Background(), codersdk.Me, codersdk.PatchUserProfileRequest{
+			Username: "newusername",
+			Email:    "newemail@coder.com",
+		})
+		require.NoError(t, err)
+		require.Equal(t, userProfile.Username, "newusername")
+		require.Equal(t, userProfile.Email, "newemail@coder.com")
+	})
 }
 
 func TestUserByName(t *testing.T) {

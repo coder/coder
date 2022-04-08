@@ -1905,7 +1905,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
-const updateUser = `-- name: UpdateUser :one
+const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE
 	users
 SET
@@ -1914,19 +1914,18 @@ SET
 	username = $4,
 	updated_at = CURRENT_TIMESTAMP
 WHERE
-	id = $1
-RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+	id = $1 RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
 `
 
-type UpdateUserParams struct {
+type UpdateUserProfileParams struct {
 	ID       uuid.UUID `db:"id" json:"id"`
 	Email    string    `db:"email" json:"email"`
 	Name     string    `db:"name" json:"name"`
 	Username string    `db:"username" json:"username"`
 }
 
-func (q *sqlQuerier) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUser,
+func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserProfile,
 		arg.ID,
 		arg.Email,
 		arg.Name,

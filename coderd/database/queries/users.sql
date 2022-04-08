@@ -41,7 +41,7 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, FALSE, $5, $6, $7, $8) RETURNING *;
 
--- name: UpdateUser :one
+-- name: UpdateUserProfile :one
 UPDATE
 	users
 SET

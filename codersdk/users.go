@@ -41,7 +41,7 @@ type CreateUserRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" validate:"required"`
 }
 
-type PatchUserRequest struct {
+type PatchUserProfileRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name"`
@@ -122,7 +122,7 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 }
 
 // Patch User
-func (c *Client) PatchUser(ctx context.Context, userID uuid.UUID, req PatchUserRequest) (User, error) {
+func (c *Client) PatchUserProfile(ctx context.Context, userID uuid.UUID, req PatchUserProfileRequest) (User, error) {
 	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/users/%s", uuidOrMe(userID)), req)
 	if err != nil {
 		return User{}, err

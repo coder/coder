@@ -270,19 +270,19 @@ func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertUser(user))
 }
 
-func (api *api) patchUser(rw http.ResponseWriter, r *http.Request) {
+func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	var patchUser codersdk.PatchUserRequest
-	if !httpapi.Read(rw, r, &patchUser) {
+	var patchUserProfile codersdk.PatchUserProfileRequest
+	if !httpapi.Read(rw, r, &patchUserProfile) {
 		return
 	}
 
-	updatedUser, err := api.Database.UpdateUser(r.Context(), database.UpdateUserParams{
+	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:       user.ID,
-		Name:     patchUser.Name,
-		Email:    patchUser.Email,
-		Username: patchUser.Username,
+		Name:     patchUserProfile.Name,
+		Email:    patchUserProfile.Email,
+		Username: patchUserProfile.Username,
 	})
 
 	if err != nil {
@@ -293,7 +293,7 @@ func (api *api) patchUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUser(updatedUser))
+	render.JSON(rw, r, convertUser(updatedUserProfile))
 }
 
 // Returns organizations the parameterized user has access to.
