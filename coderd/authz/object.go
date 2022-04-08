@@ -3,21 +3,12 @@ package authz
 type Resource interface {
 	ID() string
 	ResourceType() ResourceType
-}
 
-type UserResource interface {
-	Resource
 	OwnerID() string
-}
-
-type OrgResource interface {
-	Resource
 	OrgOwnerID() string
 }
 
 var _ Resource = (*zObject)(nil)
-var _ UserResource = (*zObject)(nil)
-var _ OrgResource = (*zObject)(nil)
 
 // zObject is used to create objects for authz checks when you have none in
 // hand to run the check on.

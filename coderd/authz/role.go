@@ -2,6 +2,8 @@ package authz
 
 import "fmt"
 
+const wildcard = "*"
+
 // Role is a set of permissions at multiple levels:
 // - Site level permissions apply EVERYWHERE
 // - Org level permissions apply to EVERYTHING in a given ORG
@@ -15,6 +17,8 @@ type Role struct {
 	User []Permission
 }
 
+// Roles are stored as structs, so they can be serialized and stored. Until we store them elsewhere,
+// const's will do just fine.
 var (
 	// RoleSiteAdmin is a role that allows everything everywhere.
 	RoleSiteAdmin = Role{
@@ -22,22 +26,9 @@ var (
 		Site: []Permission{
 			{
 				Negate:       false,
-				ResourceType: "*",
-				ResourceID:   "*",
-				Action:       "*",
-			},
-		},
-	}
-
-	// RoleDenyAll is a role that denies everything everywhere.
-	RoleDenyAll = Role{
-		Name: "deny-all",
-		Site: []Permission{
-			{
-				Negate:       true,
-				ResourceType: "*",
-				ResourceID:   "*",
-				Action:       "*",
+				ResourceType: wildcard,
+				ResourceID:   wildcard,
+				Action:       wildcard,
 			},
 		},
 	}
@@ -48,9 +39,34 @@ var (
 		User: []Permission{
 			{
 				Negate:       false,
-				ResourceType: "*",
-				ResourceID:   "*",
-				Action:       "*",
+				ResourceType: wildcard,
+				ResourceID:   wildcard,
+				Action:       wildcard,
+			},
+		},
+	}
+
+	RoleSiteAuditor = Role{
+		Name: "site-auditor",
+		Site: []Permission{
+			{
+				Negate:       false,
+				ResourceType: ResourceAuditLogs,
+				ResourceID:   wildcard,
+				Action:       ActionRead,
+			},
+		},
+	}
+
+	// RoleDenyAll is a role that denies everything everywhere.
+	RoleDenyAll = Role{
+		Name: "deny-all",
+		Site: []Permission{
+			{
+				Negate:       true,
+				ResourceType: wildcard,
+				ResourceID:   wildcard,
+				Action:       wildcard,
 			},
 		},
 	}

@@ -18,7 +18,10 @@ func TestExample(t *testing.T) {
 	// fulfills the interface. Until then, use a placeholder.
 	user := authz.SubjectTODO{
 		UserID: "alice",
-		Roles:  []authz.Role{authz.RoleSiteAdmin},
+		Roles: []authz.Role{
+			authz.RoleOrgAdmin("default"),
+			authz.RoleSiteMember,
+		},
 	}
 
 	// TODO: Uncomment all assertions when implementation is done.

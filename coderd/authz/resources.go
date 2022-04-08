@@ -8,6 +8,7 @@ const (
 	ResourceProject   ResourceType = "project"
 	ResourceDevURL    ResourceType = "devurl"
 	ResourceUser      ResourceType = "user"
+	ResourceAuditLogs ResourceType = "audit-logs"
 )
 
 func (ResourceType) ID() string {
@@ -17,6 +18,9 @@ func (ResourceType) ID() string {
 func (t ResourceType) ResourceType() ResourceType {
 	return t
 }
+
+func (ResourceType) OwnerID() string    { return "" }
+func (ResourceType) OrgOwnerID() string { return "" }
 
 // Org adds an org OwnerID to the resource
 //nolint:revive
@@ -36,6 +40,7 @@ func (r ResourceType) Owner(id string) zObject {
 	}
 }
 
+// AsID adds a resource ID to the resource
 //nolint:revive
 func (r ResourceType) AsID(id string) zObject {
 	return zObject{
