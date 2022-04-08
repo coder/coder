@@ -9,7 +9,6 @@ type ActorType string
 
 // ActorTypes.
 const (
-	ActorTypeSystem    ActorType = "system"
 	ActorTypeAnonymous ActorType = "anonymous"
 	ActorTypeUser      ActorType = "user"
 )
@@ -26,14 +25,6 @@ type Actor interface {
 	Name() string
 
 	// TODO: Steven - RBAC methods
-}
-
-// ActorTypeSystem represents the system making an authenticated request against
-// itself. This should be used if a function requires an Actor but you need to
-// skip authorization.
-type SystemActor interface {
-	Actor
-	System()
 }
 
 // AnonymousActor represents an unauthenticated API client.
