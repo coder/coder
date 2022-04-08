@@ -10,9 +10,22 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const autostartDescriptionLong = `To have your workspace build automatically at a regular time you can enable autostart.
+When enabling autostart, provide a schedule. This schedule is in cron format except only
+the following fields are allowed:
+- minute
+- hour
+- day of week
+
+For example, to start your workspace every weekday at 9.30 am, provide the schedule '30 9 1-5'.`
+
 func workspaceAutostart() *cobra.Command {
 	autostartCmd := &cobra.Command{
-		Use: "autostart",
+		Use:     "autostart enable <workspace> <schedule>",
+		Short:   "schedule a workspace to automatically start at a regular time",
+		Long:    autostartDescriptionLong,
+		Example: "coder workspaces autostart enable my-workspace '30 9 1-5'",
+		Hidden:  true, // TODO(cian): un-hide when autostart scheduling implemented
 	}
 
 	autostartCmd.AddCommand(workspaceAutostartEnable())

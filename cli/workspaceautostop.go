@@ -10,9 +10,22 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const autostopDescriptionLong = `To have your workspace stop automatically at a regular time you can enable autostop.
+When enabling autostop, provide a schedule. This schedule is in cron format except only
+the following fields are allowed:
+- minute
+- hour
+- day of week
+
+For example, to stop your workspace every weekday at 5.30 pm, provide the schedule '30 17 1-5'.`
+
 func workspaceAutostop() *cobra.Command {
 	autostopCmd := &cobra.Command{
-		Use: "autostop",
+		Use:     "autostop enable <workspace> <schedule>",
+		Short:   "schedule a workspace to automatically start at a regular time",
+		Long:    autostopDescriptionLong,
+		Example: "coder workspaces autostop enable my-workspace '30 17 1-5'",
+		Hidden:  true, // TODO(cian): un-hide when autostop scheduling implemented
 	}
 
 	autostopCmd.AddCommand(workspaceAutostopEnable())
