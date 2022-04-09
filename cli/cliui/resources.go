@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
+	"github.com/xlab/treeprint"
 )
 
 func WorkspaceResources(cmd *cobra.Command, resources []codersdk.WorkspaceResource) error {
@@ -37,7 +38,7 @@ func WorkspaceResources(cmd *cobra.Command, resources []codersdk.WorkspaceResour
 		}
 		displayed[resource.Address] = struct{}{}
 
-		_, _ = fmt.Fprintf(writer, "%s\t%s\tMacOS\n", resource.Type, resource.Name)
+		tree := treeprint.NewWithRoot(resource.Type + "." + resource.Name)
 
 		// _, _ = fmt.Fprintln(cmd.OutOrStdout(), resource.Type+"."+resource.Name)
 		_, existsOnStop := addressOnStop[resource.Address]
@@ -46,9 +47,16 @@ func WorkspaceResources(cmd *cobra.Command, resources []codersdk.WorkspaceResour
 		} else {
 			// _, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Keyword.Render("+ start")+Styles.Placeholder.Render(" (deletes on stop)"))
 		}
-		if resource.Agent != nil {
-			// _, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Fuschia.Render("▲ allows ssh"))
+
+		for _, agent := range resource.Agents {
+			tree.AddNode(agent.Name + " " + agent.OperatingSystem)
 		}
+
+		fmt.Fprintln(cmd.OutOrStdout(), tree.String())
+
+		// if resource.Agent != nil {
+		// _, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Fuschia.Render("▲ allows ssh"))
+		// }
 		// _, _ = fmt.Fprintln(cmd.OutOrStdout())
 	}
 	return writer.Flush()

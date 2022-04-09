@@ -191,6 +191,11 @@ func main() {
 				Transition: database.WorkspaceTransitionStart,
 				Type:       "google_compute_instance",
 				Name:       "dev",
+				Agents: []codersdk.WorkspaceAgent{{
+					Name:            "dev",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+				}},
 			}, {
 				Address:    "something",
 				Transition: database.WorkspaceTransitionStart,
