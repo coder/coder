@@ -623,6 +623,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			CreatedAt:            database.Now(),
 			UpdatedAt:            database.Now(),
 			ResourceID:           resource.ID,
+			Name:                 agent.Name,
 			AuthToken:            authToken,
 			AuthInstanceID:       instanceID,
 			Architecture:         agent.Architecture,
