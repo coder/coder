@@ -52,9 +52,8 @@ func init() {
 
 // Response represents a generic HTTP response.
 type Response struct {
-	Message string      `json:"message,omitempty"`
-	Errors  []Error     `json:"errors,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
+	Message string  `json:"message,omitempty"`
+	Errors  []Error `json:"errors,omitempty"`
 }
 
 // Error represents a scoped error to a user input.
@@ -64,7 +63,7 @@ type Error struct {
 }
 
 // Write outputs a standardized format to an HTTP response body.
-func Write(rw http.ResponseWriter, status int, response Response) {
+func Write(rw http.ResponseWriter, status int, response interface{}) {
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)
