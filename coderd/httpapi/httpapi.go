@@ -52,7 +52,7 @@ func init() {
 
 // Response represents a generic HTTP response.
 type Response struct {
-	Message string  `json:"message," validate:"required"`
+	Message string  `json:"message" validate:"required"`
 	Errors  []Error `json:"errors,omitempty" validate:"required"`
 }
 
