@@ -28,20 +28,20 @@ import (
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get user count: %s", err.Error()),
 		})
 		return
 	}
 
 	if userCount == 0 {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: "The initial user has not been created!",
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+	httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
 		Message: "The initial user has already been created!",
 	})
 }
@@ -56,7 +56,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// This should only function for the first user.
 	userCount, err := api.Database.GetUserCount(r.Context())
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get user count: %s", err.Error()),
 		})
 		return
@@ -64,7 +64,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	// If a user already exists, the initial admin user no longer can be created.
 	if userCount != 0 {
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusConflict, httpapi.Response{
 			Message: "the initial user has already been created",
 		})
 		return
@@ -72,7 +72,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	hashedPassword, err := userpassword.Hash(createUser.Password)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("hash password: %s", err.Error()),
 		})
 		return
@@ -132,7 +132,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
 		})
 		return
@@ -158,13 +158,13 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		Email:    createUser.Email,
 	})
 	if err == nil {
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusConflict, httpapi.Response{
 			Message: "user already exists",
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get user: %s", err),
 		})
 		return
@@ -172,13 +172,13 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 
 	organization, err := api.Database.GetOrganizationByID(r.Context(), createUser.OrganizationID)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: "organization does not exist with the provided id",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization: %s", err),
 		})
 		return
@@ -189,13 +189,13 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		UserID:         apiKey.UserID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
 			Message: "you are not authorized to add members to that organization",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization member: %s", err),
 		})
 		return
@@ -203,7 +203,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 
 	hashedPassword, err := userpassword.Hash(createUser.Password)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("hash password: %s", err.Error()),
 		})
 		return
@@ -252,7 +252,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
 		})
 		return
@@ -280,7 +280,7 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		organizations = []database.Organization{}
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organizations: %s", err.Error()),
 		})
 		return
@@ -300,13 +300,13 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no organization found by name %q", organizationName),
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization by name: %s", err),
 		})
 		return
@@ -316,13 +316,13 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		UserID:         user.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
 			Message: "you are not a member of that organization",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization member: %s", err),
 		})
 		return
@@ -340,13 +340,13 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 	}
 	_, err := api.Database.GetOrganizationByName(r.Context(), req.Name)
 	if err == nil {
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusConflict, httpapi.Response{
 			Message: "organization already exists with that name",
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization: %s", err.Error()),
 		})
 		return
@@ -376,7 +376,7 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
 		})
 		return
@@ -396,27 +396,27 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 		Email: loginWithPassword.Email,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
 			Message: "invalid email or password",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get user: %s", err.Error()),
 		})
 		return
 	}
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("compare: %s", err.Error()),
 		})
 	}
 	if !equal {
 		// This message is the same as above to remove ease in detecting whether
 		// users are registered or not. Attackers still could with a timing attack.
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
 			Message: "invalid email or password",
 		})
 		return
@@ -424,7 +424,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("generate api key parts: %s", err.Error()),
 		})
 		return
@@ -441,7 +441,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 		LoginType:    database.LoginTypeBuiltIn,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("insert api key: %s", err.Error()),
 		})
 		return
@@ -470,7 +470,7 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	if user.ID != apiKey.UserID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
 			Message: "Keys can only be generated for the authenticated user",
 		})
 		return
@@ -478,7 +478,7 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("generate api key parts: %s", err.Error()),
 		})
 		return
@@ -495,7 +495,7 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		LoginType:    database.LoginTypeBuiltIn,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("insert api key: %s", err.Error()),
 		})
 		return
@@ -531,7 +531,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("template %q doesn't exist", createWorkspace.TemplateID.String()),
 			Errors: []httpapi.Error{{
 				Field: "template_id",
@@ -541,7 +541,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
@@ -551,13 +551,13 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		UserID:         apiKey.UserID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
 			Message: "you aren't allowed to access templates in that organization",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization member: %s", err),
 		})
 		return
@@ -571,13 +571,13 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		// If the workspace already exists, don't allow creation.
 		template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("find template for conflicting workspace name %q: %s", createWorkspace.Name, err),
 			})
 			return
 		}
 		// The template is fetched for clarity to the user on where the conflicting name may be.
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
 			Errors: []httpapi.Error{{
 				Field: "name",
@@ -587,7 +587,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace by name: %s", err.Error()),
 		})
 		return
@@ -595,14 +595,14 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), template.ActiveVersionID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template version: %s", err),
 		})
 		return
 	}
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template version job: %s", err),
 		})
 		return
@@ -610,17 +610,17 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
 	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
-		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotAcceptable, httpapi.Response{
 			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
 		})
 		return
 	case codersdk.ProvisionerJobFailed:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: fmt.Sprintf("The provided template version %q has failed to import. You cannot create workspaces using it!", templateVersion.Name),
 		})
 		return
 	case codersdk.ProvisionerJobCanceled:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "The provided template version was canceled during import. You cannot create workspaces using it!",
 		})
 		return
@@ -697,7 +697,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("create workspace: %s", err),
 		})
 		return
@@ -717,7 +717,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspaces: %s", err),
 		})
 		return
@@ -733,7 +733,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace builds: %s", err),
 		})
 		return
@@ -743,7 +743,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get templates: %s", err),
 		})
 		return
@@ -757,7 +757,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner jobs: %s", err),
 		})
 		return
@@ -779,21 +779,21 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	for _, workspace := range workspaces {
 		build, exists := buildByWorkspaceID[workspace.ID]
 		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("build not found for workspace %q", workspace.Name),
 			})
 			return
 		}
 		template, exists := templateByID[workspace.TemplateID]
 		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("template not found for workspace %q", workspace.Name),
 			})
 			return
 		}
 		job, exists := jobByID[build.JobID]
 		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("build job not found for workspace %q", workspace.Name),
 			})
 			return
@@ -813,34 +813,34 @@ func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) 
 		Name:    workspaceName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no workspace found by name %q", workspaceName),
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace by name: %s", err),
 		})
 		return
 	}
 	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build: %s", err),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return

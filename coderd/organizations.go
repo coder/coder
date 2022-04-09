@@ -30,7 +30,7 @@ func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner daemons: %s", err),
 		})
 		return
@@ -53,13 +53,13 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	if req.TemplateID != uuid.Nil {
 		_, err := api.Database.GetTemplateByID(r.Context(), req.TemplateID)
 		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 				Message: "template does not exist",
 			})
 			return
 		}
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get template: %s", err),
 			})
 			return
@@ -68,13 +68,13 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	file, err := api.Database.GetFileByHash(r.Context(), req.StorageSource)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: "file not found",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get file: %s", err),
 		})
 		return
@@ -141,7 +141,7 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
 		})
 		return
@@ -163,7 +163,7 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 		Name:           createTemplate.Name,
 	})
 	if err == nil {
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("template %q already exists", createTemplate.Name),
 			Errors: []httpapi.Error{{
 				Field: "name",
@@ -173,26 +173,26 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template by name: %s", err),
 		})
 		return
 	}
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createTemplate.VersionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: "template version does not exist",
 		})
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template version by id: %s", err),
 		})
 		return
 	}
 	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get import job by id: %s", err),
 		})
 		return
@@ -246,7 +246,7 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
 		})
 		return
@@ -265,7 +265,7 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get templates: %s", err.Error()),
 		})
 		return
@@ -279,7 +279,7 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
 		})
 		return
@@ -297,13 +297,13 @@ func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 				Message: fmt.Sprintf("no template found by name %q in the %q organization", templateName, organization.Name),
 			})
 			return
 		}
 
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template by organization and name: %s", err),
 		})
 		return
@@ -314,7 +314,7 @@ func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
 		})
 		return

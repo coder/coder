@@ -43,7 +43,7 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("accept websocket: %s", err),
 		})
 		return

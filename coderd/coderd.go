@@ -61,7 +61,7 @@ func New(options *Options) (http.Handler, func()) {
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(w, http.StatusOK, httpapi.Response{
+			httpapi.Write(w, r, http.StatusOK, httpapi.Response{
 				Message: "👋",
 			})
 		})

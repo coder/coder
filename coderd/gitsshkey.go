@@ -15,7 +15,7 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("regenerate key pair: %s", err),
 		})
 		return
@@ -28,7 +28,7 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		PublicKey:  publicKey,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update git SSH key: %s", err),
 		})
 		return
@@ -36,13 +36,13 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 	newKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get git SSH key: %s", err),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.GitSSHKey{
+	httpapi.Write(rw, r, http.StatusOK, codersdk.GitSSHKey{
 		UserID:    newKey.UserID,
 		CreatedAt: newKey.CreatedAt,
 		UpdatedAt: newKey.UpdatedAt,
@@ -55,13 +55,13 @@ func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update git SSH key: %s", err),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.GitSSHKey{
+	httpapi.Write(rw, r, http.StatusOK, codersdk.GitSSHKey{
 		UserID:    gitSSHKey.UserID,
 		CreatedAt: gitSSHKey.CreatedAt,
 		UpdatedAt: gitSSHKey.UpdatedAt,
@@ -74,7 +74,7 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	agent := httpmw.WorkspaceAgent(r)
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("getting workspace resources: %s", err),
 		})
 		return
@@ -82,7 +82,7 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 	job, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("getting workspace build: %s", err),
 		})
 		return
@@ -90,7 +90,7 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 	workspace, err := api.Database.GetWorkspaceByID(r.Context(), job.WorkspaceID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("getting workspace: %s", err),
 		})
 		return
@@ -98,13 +98,13 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), workspace.OwnerID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("getting git SSH key: %s", err),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.AgentGitSSHKey{
+	httpapi.Write(rw, r, http.StatusOK, codersdk.AgentGitSSHKey{
 		PrivateKey: gitSSHKey.PrivateKey,
 	})
 }

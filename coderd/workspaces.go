@@ -26,21 +26,21 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 
 	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build: %s", err),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build job: %s", err),
 		})
 		return
 	}
 	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
@@ -56,7 +56,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace builds: %s", err),
 		})
 		return
@@ -70,7 +70,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get jobs: %s", err),
 		})
 		return
@@ -84,7 +84,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	for _, build := range builds {
 		job, exists := jobByID[build.JobID.String()]
 		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("job %q doesn't exist for build %q", build.JobID, build.ID),
 			})
 			return
@@ -106,7 +106,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if createBuild.TemplateVersionID == uuid.Nil {
 		latestBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get latest workspace build: %s", err),
 			})
 			return
@@ -115,7 +115,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createBuild.TemplateVersionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
 			Message: "template version not found",
 			Errors: []httpapi.Error{{
 				Field: "template_version_id",
@@ -125,14 +125,14 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template version: %s", err),
 		})
 		return
 	}
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
@@ -140,17 +140,17 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
 	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
-		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotAcceptable, httpapi.Response{
 			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
 		})
 		return
 	case codersdk.ProvisionerJobFailed:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String),
 		})
 		return
 	case codersdk.ProvisionerJobCanceled:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "The provided template version was canceled during import. You cannot builds workspaces with it!",
 		})
 		return
@@ -158,7 +158,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	template, err := api.Database.GetTemplateByID(r.Context(), templateVersion.TemplateID.UUID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
@@ -170,7 +170,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.JobID)
 		if err == nil && !priorJob.CompletedAt.Valid {
-			httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusConflict, httpapi.Response{
 				Message: "a workspace build is already active",
 			})
 			return
@@ -181,7 +181,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Valid: true,
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get prior workspace build: %s", err),
 		})
 		return
@@ -250,7 +250,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
 		})
 		return
@@ -268,20 +268,20 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 		Name:        workspaceBuildName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no workspace build found by name %q", workspaceBuildName),
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build by name: %s", err),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
@@ -301,7 +301,7 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	if req.Schedule != "" {
 		validSched, err := schedule.Weekly(req.Schedule)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("invalid autostart schedule: %s", err),
 			})
 			return
@@ -316,7 +316,7 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		AutostartSchedule: dbSched,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update workspace autostart schedule: %s", err),
 		})
 		return
@@ -333,7 +333,7 @@ func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
 	if req.Schedule != "" {
 		validSched, err := schedule.Weekly(req.Schedule)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("invalid autostop schedule: %s", err),
 			})
 			return
@@ -348,7 +348,7 @@ func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
 		AutostopSchedule: dbSched,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update workspace autostop schedule: %s", err),
 		})
 		return

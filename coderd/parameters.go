@@ -30,13 +30,13 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		Name:    createRequest.Name,
 	})
 	if err == nil {
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("a parameter already exists in scope %q with name %q", scope, createRequest.Name),
 		})
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get parameter value: %s", err),
 		})
 		return
@@ -53,7 +53,7 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		DestinationScheme: createRequest.DestinationScheme,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("insert parameter value: %s", err),
 		})
 		return
@@ -76,7 +76,7 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get parameter values by scope: %s", err),
 		})
 		return
@@ -102,25 +102,25 @@ func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 		Name:    name,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("parameter doesn't exist in the provided scope with name %q", name),
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get parameter value: %s", err),
 		})
 		return
 	}
 	err = api.Database.DeleteParameterValueByID(r.Context(), parameterValue.ID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("delete parameter: %s", err),
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+	httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
 		Message: "parameter deleted",
 	})
 }
@@ -150,7 +150,7 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	case string(codersdk.ParameterWorkspace):
 		scope = database.ParameterScopeWorkspace
 	default:
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("invalid scope %q", scope),
 		})
 		return scope, uuid.Nil, false
@@ -159,7 +159,7 @@ func readScopeAndID(rw http.ResponseWriter, r *http.Request) (database.Parameter
 	id := chi.URLParam(r, "id")
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("invalid uuid %q: %s", id, err),
 		})
 		return scope, uuid.Nil, false

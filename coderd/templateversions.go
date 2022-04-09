@@ -19,7 +19,7 @@ func (api *api) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
@@ -32,19 +32,19 @@ func (api *api) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	templateVersion := httpmw.TemplateVersionParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 	if job.CompletedAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job has already completed!",
 		})
 		return
 	}
 	if job.CanceledAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job has already been marked as canceled!",
 		})
 		return
@@ -57,12 +57,12 @@ func (api *api) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		},
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update provisioner job: %s", err),
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+	httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
 		Message: "Job has been marked as canceled...",
 	})
 }
@@ -71,13 +71,13 @@ func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Template version job hasn't completed!",
 		})
 		return
@@ -87,7 +87,7 @@ func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("list parameter schemas: %s", err),
 		})
 		return
@@ -104,13 +104,13 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	templateVersion := httpmw.TemplateVersionParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -124,7 +124,7 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 		HideRedisplayValues: true,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("compute values: %s", err),
 		})
 		return
@@ -140,7 +140,7 @@ func (api *api) templateVersionResources(rw http.ResponseWriter, r *http.Request
 	templateVersion := httpmw.TemplateVersionParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
@@ -152,7 +152,7 @@ func (api *api) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	templateVersion := httpmw.TemplateVersionParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return

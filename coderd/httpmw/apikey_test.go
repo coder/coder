@@ -30,7 +30,7 @@ func TestAPIKey(t *testing.T) {
 
 	successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Only called if the API key passes through the handler.
-		httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
 			Message: "it worked!",
 		})
 	})
@@ -196,7 +196,7 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
-			httpapi.Write(rw, http.StatusOK, httpapi.Response{
+			httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
 				Message: "it worked!",
 			})
 		})).ServeHTTP(rw, r)

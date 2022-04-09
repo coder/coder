@@ -33,7 +33,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 
 			apiKey := APIKey(r)
 			if apiKey.UserID != userID {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
 					Message: "getting non-personal users isn't supported yet",
 				})
 				return
@@ -41,7 +41,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 
 			user, err := db.GetUserByID(r.Context(), userID)
 			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get user: %s", err.Error()),
 				})
 			}

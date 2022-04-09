@@ -17,7 +17,7 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
@@ -30,19 +30,19 @@ func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 	if job.CompletedAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job has already completed!",
 		})
 		return
 	}
 	if job.CanceledAt.Valid {
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job has already been marked as canceled!",
 		})
 		return
@@ -55,12 +55,12 @@ func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		},
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update provisioner job: %s", err),
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+	httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
 		Message: "Job has been marked as canceled...",
 	})
 }
@@ -69,7 +69,7 @@ func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
@@ -81,7 +81,7 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
