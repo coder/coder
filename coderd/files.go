@@ -62,7 +62,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, codersdk.UploadResponse{
+	httpapi.Write(rw, http.StatusCreated, codersdk.UploadResponse{
 		Hash: file.Hash,
 	})
 }
