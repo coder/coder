@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/render"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -22,8 +20,8 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
+
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
 func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
