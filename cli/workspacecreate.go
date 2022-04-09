@@ -119,7 +119,11 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = displayTemplateVersionInfo(cmd, resources)
+			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+				WorkspaceName: workspaceName,
+				// Since agent's haven't connected yet, hiding this makes more sense.
+				HideAgentState: true,
+			})
 			if err != nil {
 				return err
 			}

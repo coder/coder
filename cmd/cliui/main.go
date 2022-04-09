@@ -186,22 +186,51 @@ func main() {
 	root.AddCommand(&cobra.Command{
 		Use: "resources",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cliui.WorkspaceResources(cmd, []codersdk.WorkspaceResource{{
+			disconnected := database.Now().Add(-4 * time.Second)
+			cliui.WorkspaceResources(cmd.OutOrStdout(), []codersdk.WorkspaceResource{{
+				Address:    "disk",
+				Transition: database.WorkspaceTransitionStart,
+				Type:       "google_compute_disk",
+				Name:       "root",
+			}, {
+				Address:    "disk",
+				Transition: database.WorkspaceTransitionStop,
+				Type:       "google_compute_disk",
+				Name:       "root",
+			}, {
 				Address:    "another",
 				Transition: database.WorkspaceTransitionStart,
 				Type:       "google_compute_instance",
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
+					CreatedAt:       database.Now().Add(-10 * time.Second),
+					Status:          codersdk.WorkspaceAgentConnecting,
 					Name:            "dev",
 					OperatingSystem: "linux",
 					Architecture:    "amd64",
 				}},
 			}, {
-				Address:    "something",
 				Transition: database.WorkspaceTransitionStart,
-				Type:       "google_compute_instance",
-				Name:       "something",
-			}})
+				Type:       "kubernetes_pod",
+				Name:       "dev",
+				Agents: []codersdk.WorkspaceAgent{{
+					Status:          codersdk.WorkspaceAgentConnected,
+					Name:            "go",
+					Architecture:    "amd64",
+					OperatingSystem: "linux",
+				}, {
+					DisconnectedAt:  &disconnected,
+					Status:          codersdk.WorkspaceAgentDisconnected,
+					Name:            "postgres",
+					Architecture:    "amd64",
+					OperatingSystem: "linux",
+				}},
+			}}, cliui.WorkspaceResourcesOptions{
+				WorkspaceName:  "dev",
+				HideAgentState: false,
+				HideAccess:     false,
+			})
+			return nil
 		},
 	})
 

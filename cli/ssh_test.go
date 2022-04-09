@@ -54,31 +54,28 @@ func TestSSH(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
-		go func() {
-			// Run this async so the SSH command has to wait for
-			// the build and agent to connect!
-			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-			agentClient := codersdk.New(client.URL)
-			agentClient.SessionToken = agentToken
-			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &peer.ConnOptions{
-				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-			})
-			t.Cleanup(func() {
-				_ = agentCloser.Close()
-			})
-		}()
-
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
+		cmd.SetErr(pty.Output())
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
 			require.NoError(t, err)
 		}()
+		pty.ExpectMatch("Waiting")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		agentClient := codersdk.New(client.URL)
+		agentClient.SessionToken = agentToken
+		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &peer.ConnOptions{
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		})
+		t.Cleanup(func() {
+			_ = agentCloser.Close()
+		})
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
 		<-doneChan

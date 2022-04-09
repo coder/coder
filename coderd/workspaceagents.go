@@ -239,7 +239,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 	case !dbAgent.FirstConnectedAt.Valid:
 		// If the agent never connected, it's waiting for the compute
 		// to start up.
-		agent.Status = codersdk.WorkspaceAgentWaiting
+		agent.Status = codersdk.WorkspaceAgentConnecting
 	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.

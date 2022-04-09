@@ -196,5 +196,8 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 	if err != nil {
 		return nil, nil, err
 	}
-	return &version, parameters, displayTemplateVersionInfo(cmd, resources)
+	return &version, parameters, cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+		HideAgentState: true,
+		HideAccess:     true,
+	})
 }

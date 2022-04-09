@@ -96,7 +96,7 @@ require (
 
 require github.com/go-chi/httprate v0.5.3
 
-require github.com/xlab/treeprint v1.1.0
+require github.com/jedib0t/go-pretty/v6 v6.3.0
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect

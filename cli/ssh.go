@@ -125,7 +125,8 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			if isatty.IsTerminal(os.Stdout.Fd()) {
+			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
+			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
 				state, err := term.MakeRaw(int(os.Stdin.Fd()))
 				if err != nil {
 					return err
