@@ -52,8 +52,8 @@ func init() {
 
 // Response represents a generic HTTP response.
 type Response struct {
-	Message string  `json:"message,omitempty"`
-	Errors  []Error `json:"errors,omitempty"`
+	Message string  `json:"message," validate:"required"`
+	Errors  []Error `json:"errors,omitempty" validate:"required"`
 }
 
 // Error represents a scoped error to a user input.
