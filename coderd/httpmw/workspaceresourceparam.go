@@ -34,13 +34,13 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 			}
 			resource, err := db.GetWorkspaceResourceByID(r.Context(), resourceUUID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
+				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: "resource doesn't exist with that id",
 				})
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get provisioner resource: %s", err),
 				})
 				return
@@ -48,20 +48,20 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 
 			job, err := db.GetProvisionerJobByID(r.Context(), resource.JobID)
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get provisioner job: %s", err),
 				})
 				return
 			}
 			if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-				httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 					Message: "Workspace resources can only be fetched for builds.",
 				})
 				return
 			}
 			build, err := db.GetWorkspaceBuildByJobID(r.Context(), job.ID)
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get workspace build: %s", err),
 				})
 				return

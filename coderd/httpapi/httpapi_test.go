@@ -19,7 +19,7 @@ func TestWrite(t *testing.T) {
 	t.Run("NoErrors", func(t *testing.T) {
 		t.Parallel()
 		rw := httptest.NewRecorder()
-		httpapi.Write(rw, nil, http.StatusOK, httpapi.Response{
+		httpapi.Write(rw, http.StatusOK, httpapi.Response{
 			Message: "wow",
 		})
 		var m map[string]interface{}

@@ -19,13 +19,13 @@ func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 	workspaceResource := httpmw.WorkspaceResourceParam(r)
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
 		})
 		return

@@ -25,7 +25,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	switch contentType {
 	case "application/x-tar":
 	default:
-		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("unsupported content type: %s", contentType),
 		})
 		return
@@ -34,7 +34,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(rw, r.Body, 10*(10<<20))
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("read file: %s", err),
 		})
 		return
@@ -58,7 +58,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 		Data:      data,
 	})
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("insert file: %s", err),
 		})
 		return
@@ -72,20 +72,20 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 func (api *api) fileByHash(rw http.ResponseWriter, r *http.Request) {
 	hash := chi.URLParam(r, "hash")
 	if hash == "" {
-		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "hash must be provided",
 		})
 		return
 	}
 	file, err := api.Database.GetFileByHash(r.Context(), hash)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "no file exists with that hash",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get file: %s", err),
 		})
 		return

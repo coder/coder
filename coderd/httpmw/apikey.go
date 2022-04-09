@@ -45,7 +45,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookie)
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("%q cookie must be provided", AuthCookie),
 				})
 				return
@@ -53,7 +53,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 			parts := strings.Split(cookie.Value, "-")
 			// APIKeys are formatted: ID-SECRET
 			if len(parts) != 2 {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("invalid %q cookie api key format", AuthCookie),
 				})
 				return
@@ -62,13 +62,13 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 			keySecret := parts[1]
 			// Ensuring key lengths are valid.
 			if len(keyID) != 10 {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("invalid %q cookie api key id", AuthCookie),
 				})
 				return
 			}
 			if len(keySecret) != 22 {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("invalid %q cookie api key secret", AuthCookie),
 				})
 				return
@@ -76,12 +76,12 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 			key, err := db.GetAPIKeyByID(r.Context(), keyID)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 						Message: "api key is invalid",
 					})
 					return
 				}
-				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get api key by id: %s", err.Error()),
 				})
 				return
@@ -90,7 +90,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 
 			// Checking to see if the secret is valid.
 			if subtle.ConstantTimeCompare(key.HashedSecret, hashed[:]) != 1 {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: "api key secret is invalid",
 				})
 				return
@@ -109,7 +109,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 						Expiry:       key.OIDCExpiry,
 					}).Token()
 					if err != nil {
-						httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+						httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 							Message: fmt.Sprintf("couldn't refresh expired oauth token: %s", err.Error()),
 						})
 						return
@@ -124,7 +124,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 
 			// Checking if the key is expired.
 			if key.ExpiresAt.Before(now) {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("api key expired at %q", key.ExpiresAt.String()),
 				})
 				return
@@ -153,7 +153,7 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 					OIDCExpiry:       key.OIDCExpiry,
 				})
 				if err != nil {
-					httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 						Message: fmt.Sprintf("api key couldn't update: %s", err.Error()),
 					})
 					return

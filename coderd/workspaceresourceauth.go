@@ -27,7 +27,7 @@ func (api *api) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 	}
 	identity, err := awsidentity.Validate(req.Signature, req.Document, api.AWSCertificates)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("validate: %s", err),
 		})
 		return
@@ -47,7 +47,7 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	// We leave the audience blank. It's not important we validate who made the token.
 	payload, err := api.GoogleTokenValidator.Validate(r.Context(), req.JSONWebToken, "")
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("validate: %s", err),
 		})
 		return
@@ -61,7 +61,7 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 	}{}
 	err = mapstructure.Decode(payload.Claims, &claims)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("decode jwt claims: %s", err),
 		})
 		return
@@ -72,33 +72,33 @@ func (api *api) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
 	agent, err := api.Database.GetWorkspaceAgentByInstanceID(r.Context(), instanceID)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("instance with id %q not found", instanceID),
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job agent: %s", err),
 		})
 		return
 	}
 	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job resource: %s", err),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), resource.JobID)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
 	}
 	if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("%q jobs cannot be authenticated", job.Type),
 		})
 		return
@@ -106,14 +106,14 @@ func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	var jobData workspaceProvisionJob
 	err = json.Unmarshal(job.Input, &jobData)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("extract job data: %s", err),
 		})
 		return
 	}
 	resourceHistory, err := api.Database.GetWorkspaceBuildByID(r.Context(), jobData.WorkspaceBuildID)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build: %s", err),
 		})
 		return
@@ -123,13 +123,13 @@ func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	// we'd hate to leak access to a user's workspace.
 	latestHistory, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), resourceHistory.WorkspaceID)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get latest workspace build: %s", err),
 		})
 		return
 	}
 	if latestHistory.ID.String() != resourceHistory.ID.String() {
-		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("resource found for id %q, but isn't registered on the latest history", instanceID),
 		})
 		return

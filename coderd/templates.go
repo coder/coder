@@ -24,7 +24,7 @@ func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
 		})
 		return
@@ -48,13 +48,13 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspaces by template id: %s", err),
 		})
 		return
 	}
 	if len(workspaces) > 0 {
-		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "All workspaces must be deleted before a template can be removed.",
 		})
 		return
@@ -64,12 +64,12 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		Deleted: true,
 	})
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update template deleted by id: %s", err),
 		})
 		return
 	}
-	httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
 		Message: "Template has been deleted!",
 	})
 }
@@ -82,7 +82,7 @@ func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template version: %s", err),
 		})
 		return
@@ -93,7 +93,7 @@ func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get jobs: %s", err),
 		})
 		return
@@ -107,7 +107,7 @@ func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	for _, version := range versions {
 		job, exists := jobByID[version.JobID.String()]
 		if !exists {
-			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("job %q doesn't exist for version %q", version.JobID, version.ID),
 			})
 			return
@@ -129,20 +129,20 @@ func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		Name: templateVersionName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: fmt.Sprintf("no template version found by name %q", templateVersionName),
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template version by name: %s", err),
 		})
 		return
 	}
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
 		})
 		return
@@ -160,19 +160,19 @@ func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	template := httpmw.TemplateParam(r)
 	version, err := api.Database.GetTemplateVersionByID(r.Context(), req.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "template version not found",
 		})
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template version: %s", err),
 		})
 		return
 	}
 	if version.TemplateID.UUID.String() != template.ID.String() {
-		httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: "The provided template version doesn't belong to the specified template.",
 		})
 		return
@@ -182,12 +182,12 @@ func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		ActiveVersionID: req.ID,
 	})
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("update active template version: %s", err),
 		})
 		return
 	}
-	httpapi.Write(rw, r, http.StatusOK, httpapi.Response{
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
 		Message: "Updated the active template version!",
 	})
 }

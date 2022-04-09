@@ -34,13 +34,13 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 			}
 			templateVersion, err := db.GetTemplateVersionByID(r.Context(), templateVersionID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
+				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("template version %q does not exist", templateVersionID),
 				})
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get template version: %s", err.Error()),
 				})
 				return

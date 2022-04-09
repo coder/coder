@@ -32,13 +32,13 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 			}
 			workspace, err := db.GetWorkspaceByID(r.Context(), workspaceID)
 			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(rw, r, http.StatusNotFound, httpapi.Response{
+				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("workspace %q does not exist", workspaceID),
 				})
 				return
 			}
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get workspace: %s", err.Error()),
 				})
 				return
@@ -46,7 +46,7 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 
 			apiKey := APIKey(r)
 			if apiKey.UserID != workspace.OwnerID {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: "getting non-personal workspaces isn't supported",
 				})
 				return

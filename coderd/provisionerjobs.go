@@ -32,7 +32,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	afterRaw := r.URL.Query().Get("after")
 	beforeRaw := r.URL.Query().Get("before")
 	if beforeRaw != "" && follow {
-		httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "before cannot be used with follow",
 		})
 		return
@@ -43,7 +43,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	if afterRaw != "" {
 		afterMS, err := strconv.ParseInt(afterRaw, 10, 64)
 		if err != nil {
-			httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: fmt.Sprintf("unable to parse after %q: %s", afterRaw, err),
 			})
 			return
@@ -59,7 +59,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	if beforeRaw != "" {
 		beforeMS, err := strconv.ParseInt(beforeRaw, 10, 64)
 		if err != nil {
-			httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: fmt.Sprintf("unable to parse before %q: %s", beforeRaw, err),
 			})
 			return
@@ -79,7 +79,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			err = nil
 		}
 		if err != nil {
-			httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get provisioner logs: %s", err),
 			})
 			return
@@ -112,7 +112,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 	})
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("subscribe to provisioner job logs: %s", err),
 		})
 		return
@@ -128,7 +128,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprint("get provisioner job logs: %w", err),
 		})
 		return
@@ -181,7 +181,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 
 func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	if !job.CompletedAt.Valid {
-		httpapi.Write(rw, r, http.StatusPreconditionFailed, httpapi.Response{
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -191,7 +191,7 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job resources: %s", err),
 		})
 		return

@@ -30,14 +30,14 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookie)
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 					Message: fmt.Sprintf("%q cookie must be provided", AuthCookie),
 				})
 				return
 			}
 			token, err := uuid.Parse(cookie.Value)
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusBadRequest, httpapi.Response{
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 					Message: fmt.Sprintf("parse token: %s", err),
 				})
 				return
@@ -45,14 +45,14 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			agent, err := db.GetWorkspaceAgentByAuthToken(r.Context(), token)
 			if errors.Is(err, sql.ErrNoRows) {
 				if errors.Is(err, sql.ErrNoRows) {
-					httpapi.Write(rw, r, http.StatusUnauthorized, httpapi.Response{
+					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 						Message: "agent token is invalid",
 					})
 					return
 				}
 			}
 			if err != nil {
-				httpapi.Write(rw, r, http.StatusInternalServerError, httpapi.Response{
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("get workspace agent: %s", err),
 				})
 				return
