@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -63,22 +63,9 @@ type Error struct {
 }
 
 // Write outputs a standardized format to an HTTP response body.
-func Write(rw http.ResponseWriter, status int, response interface{}) {
-	buf := &bytes.Buffer{}
-	enc := json.NewEncoder(buf)
-	enc.SetEscapeHTML(true)
-	err := enc.Encode(response)
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
-	rw.WriteHeader(status)
-	_, err = rw.Write(buf.Bytes())
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return
-	}
+func Write(rw http.ResponseWriter, r *http.Request, status int, response interface{}) {
+	render.Status(r, status)
+	render.JSON(rw, r, response)
 }
 
 // Read decodes JSON from the HTTP request into the value provided.
@@ -86,7 +73,7 @@ func Write(rw http.ResponseWriter, status int, response interface{}) {
 func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
-		Write(rw, http.StatusBadRequest, Response{
+		Write(rw, r, http.StatusBadRequest, Response{
 			Message: fmt.Sprintf("read body: %s", err.Error()),
 		})
 		return false
@@ -101,14 +88,14 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 				Code:  validationError.Tag(),
 			})
 		}
-		Write(rw, http.StatusBadRequest, Response{
+		Write(rw, r, http.StatusBadRequest, Response{
 			Message: "Validation failed",
 			Errors:  apiErrors,
 		})
 		return false
 	}
 	if err != nil {
-		Write(rw, http.StatusInternalServerError, Response{
+		Write(rw, r, http.StatusInternalServerError, Response{
 			Message: fmt.Sprintf("validation: %s", err.Error()),
 		})
 		return false
