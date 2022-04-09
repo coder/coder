@@ -1,8 +1,21 @@
-import { Organization, Provisioner, Template, UserAgent, UserResponse, Workspace } from "../api/types"
+import {
+  BuildInfoResponse,
+  Organization,
+  Provisioner,
+  Template,
+  UserAgent,
+  UserResponse,
+  Workspace,
+} from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
 export const MockAPIKey = { key: "my-api-key" }
+
+export const MockBuildInfo: BuildInfoResponse = {
+  external_url: "file:///mock-url",
+  version: "v99.999.9999+c9cdf14",
+}
 
 export const MockUser: UserResponse = {
   id: "test-user",

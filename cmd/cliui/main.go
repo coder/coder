@@ -161,21 +161,17 @@ func main() {
 	root.AddCommand(&cobra.Command{
 		Use: "agent",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resource := codersdk.WorkspaceResource{
-				Type: "google_compute_instance",
-				Name: "dev",
-				Agent: &codersdk.WorkspaceAgent{
-					Status: codersdk.WorkspaceAgentDisconnected,
-				},
+			agent := codersdk.WorkspaceAgent{
+				Status: codersdk.WorkspaceAgentDisconnected,
 			}
 			go func() {
 				time.Sleep(3 * time.Second)
-				resource.Agent.Status = codersdk.WorkspaceAgentConnected
+				agent.Status = codersdk.WorkspaceAgentConnected
 			}()
 			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "dev",
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceResource, error) {
-					return resource, nil
+				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
+					return agent, nil
 				},
 				WarnInterval: 2 * time.Second,
 			})

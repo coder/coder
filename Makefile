@@ -42,7 +42,10 @@ fmt/sql: $(wildcard coderd/database/queries/*.sql)
 
 	sed -i 's/@ /@/g' ./coderd/database/queries/*.sql
 
-fmt: fmt/prettier fmt/sql
+fmt/terraform: $(wildcard *.tf)
+	terraform fmt -recursive
+
+fmt: fmt/prettier fmt/sql fmt/terraform
 .PHONY: fmt
 
 gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto

@@ -1,11 +1,16 @@
 import React from "react"
-import { Route, Routes } from "react-router-dom"
+import { Navigate, Route, Routes } from "react-router-dom"
 import { AuthAndNav, RequireAuth } from "./components"
+import { PreferencesLayout } from "./components/Preferences/Layout"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404"
 import { CliAuthenticationPage } from "./pages/cli-auth"
 import { HealthzPage } from "./pages/healthz"
 import { SignInPage } from "./pages/login"
+import { PreferencesAccountPage } from "./pages/preferences/account"
+import { PreferencesLinkedAccountsPage } from "./pages/preferences/linked-accounts"
+import { PreferencesSecurityPage } from "./pages/preferences/security"
+import { PreferencesSSHKeysPage } from "./pages/preferences/ssh-keys"
 import { TemplatesPage } from "./pages/templates"
 import { TemplatePage } from "./pages/templates/[organization]/[template]"
 import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
@@ -65,6 +70,14 @@ export const AppRouter: React.FC = () => (
             </AuthAndNav>
           }
         />
+      </Route>
+
+      <Route path="preferences" element={<PreferencesLayout />}>
+        <Route index element={<Navigate to="account" />} />
+        <Route path="account" element={<PreferencesAccountPage />} />
+        <Route path="security" element={<PreferencesSecurityPage />} />
+        <Route path="ssh-keys" element={<PreferencesSSHKeysPage />} />
+        <Route path="linked-accounts" element={<PreferencesLinkedAccountsPage />} />
       </Route>
 
       {/* Using path="*"" means "match anything", so this route

@@ -230,6 +230,11 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 
 	cmd := exec.CommandContext(session.Context(), command, args...)
 	cmd.Env = append(os.Environ(), session.Environ()...)
+	executablePath, err := os.Executable()
+	if err != nil {
+		return xerrors.Errorf("getting os executable: %w", err)
+	}
+	cmd.Env = append(session.Environ(), fmt.Sprintf(`GIT_SSH_COMMAND="%s gitssh --"`, executablePath))
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {

@@ -15,7 +15,7 @@ import (
 
 type AgentOptions struct {
 	WorkspaceName string
-	Fetch         func(context.Context) (codersdk.WorkspaceResource, error)
+	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
 	FetchInterval time.Duration
 	WarnInterval  time.Duration
 }
@@ -29,20 +29,20 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		opts.WarnInterval = 30 * time.Second
 	}
 	var resourceMutex sync.Mutex
-	resource, err := opts.Fetch(ctx)
+	agent, err := opts.Fetch(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
 	}
-	if resource.Agent.Status == codersdk.WorkspaceAgentConnected {
+	if agent.Status == codersdk.WorkspaceAgentConnected {
 		return nil
 	}
-	if resource.Agent.Status == codersdk.WorkspaceAgentDisconnected {
+	if agent.Status == codersdk.WorkspaceAgentDisconnected {
 		opts.WarnInterval = 0
 	}
 	spin := spinner.New(spinner.CharSets[78], 100*time.Millisecond, spinner.WithColor("fgHiGreen"))
 	spin.Writer = writer
 	spin.ForceOutput = true
-	spin.Suffix = " Waiting for connection from " + Styles.Field.Render(resource.Type+"."+resource.Name) + "..."
+	spin.Suffix = " Waiting for connection from " + Styles.Field.Render(agent.Name) + "..."
 	spin.Start()
 	defer spin.Stop()
 
@@ -59,7 +59,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
 		message := "Don't panic, your workspace is booting up!"
-		if resource.Agent.Status == codersdk.WorkspaceAgentDisconnected {
+		if agent.Status == codersdk.WorkspaceAgentDisconnected {
 			message = "The workspace agent lost connection! Wait for it to reconnect or run: " + Styles.Code.Render("coder workspaces rebuild "+opts.WorkspaceName)
 		}
 		// This saves the cursor position, then defers clearing from the cursor
@@ -74,11 +74,11 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		case <-ticker.C:
 		}
 		resourceMutex.Lock()
-		resource, err = opts.Fetch(ctx)
+		agent, err = opts.Fetch(ctx)
 		if err != nil {
 			return xerrors.Errorf("fetch: %w", err)
 		}
-		if resource.Agent.Status != codersdk.WorkspaceAgentConnected {
+		if agent.Status != codersdk.WorkspaceAgentConnected {
 			resourceMutex.Unlock()
 			continue
 		}

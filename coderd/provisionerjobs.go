@@ -196,27 +196,38 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
+	resourceIDs := make([]uuid.UUID, 0)
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourceIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace agents by resources: %s", err),
+		})
+		return
+	}
+
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
-		if !resource.AgentID.Valid {
-			apiResources = append(apiResources, convertWorkspaceResource(resource, nil))
-			continue
+		agents := make([]codersdk.WorkspaceAgent, 0)
+		for _, agent := range resourceAgents {
+			if agent.ResourceID != resource.ID {
+				continue
+			}
+			apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+			if err != nil {
+				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+					Message: fmt.Sprintf("convert provisioner job agent: %s", err),
+				})
+				return
+			}
+			agents = append(agents, apiAgent)
 		}
-		agent, err := api.Database.GetWorkspaceAgentByResourceID(r.Context(), resource.ID)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("get provisioner job agent: %s", err),
-			})
-			return
-		}
-		apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("convert provisioner job agent: %s", err),
-			})
-			return
-		}
-		apiResources = append(apiResources, convertWorkspaceResource(resource, &apiAgent))
+		apiResources = append(apiResources, convertWorkspaceResource(resource, agents))
 	}
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, apiResources)

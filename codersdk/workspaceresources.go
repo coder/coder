@@ -4,24 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
-	"github.com/pion/webrtc/v3"
-	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
-	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/peer"
-	"github.com/coder/coder/peerbroker"
-	"github.com/coder/coder/peerbroker/proto"
-	"github.com/coder/coder/provisionersdk"
 )
 
 type WorkspaceAgentStatus string
@@ -40,7 +28,7 @@ type WorkspaceResource struct {
 	Address    string                       `json:"address"`
 	Type       string                       `json:"type"`
 	Name       string                       `json:"name"`
-	Agent      *WorkspaceAgent              `json:"agent,omitempty"`
+	Agents     []WorkspaceAgent             `json:"agents,omitempty"`
 }
 
 type WorkspaceAgent struct {
@@ -51,9 +39,12 @@ type WorkspaceAgent struct {
 	LastConnectedAt      *time.Time           `json:"last_connected_at,omitempty"`
 	DisconnectedAt       *time.Time           `json:"disconnected_at,omitempty"`
 	Status               WorkspaceAgentStatus `json:"status"`
+	Name                 string               `json:"name"`
 	ResourceID           uuid.UUID            `json:"resource_id"`
 	InstanceID           string               `json:"instance_id,omitempty"`
+	Architecture         string               `json:"architecture"`
 	EnvironmentVariables map[string]string    `json:"environment_variables"`
+	OperatingSystem      string               `json:"operating_system"`
 	StartupScript        string               `json:"startup_script,omitempty"`
 }
 
@@ -88,95 +79,4 @@ func (c *Client) WorkspaceResource(ctx context.Context, id uuid.UUID) (Workspace
 	}
 	var resource WorkspaceResource
 	return resource, json.NewDecoder(res.Body).Decode(&resource)
-}
-
-// DialWorkspaceAgent creates a connection to the specified resource.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, resource uuid.UUID, iceServers []webrtc.ICEServer, opts *peer.ConnOptions) (*agent.Conn, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceresources/%s/dial", resource.String()))
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
-		Value: c.SessionToken,
-	}})
-	httpClient := &http.Client{
-		Jar: jar,
-	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, err
-		}
-		return nil, readBodyAsError(res)
-	}
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
-	if err != nil {
-		return nil, xerrors.Errorf("multiplex client: %w", err)
-	}
-	client := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session))
-	stream, err := client.NegotiateConnection(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("negotiate connection: %w", err)
-	}
-	peerConn, err := peerbroker.Dial(stream, iceServers, opts)
-	if err != nil {
-		return nil, xerrors.Errorf("dial peer: %w", err)
-	}
-	return &agent.Conn{
-		Negotiator: client,
-		Conn:       peerConn,
-	}, nil
-}
-
-// ListenWorkspaceAgent connects as a workspace agent.
-// It obtains the agent ID based off the session token.
-func (c *Client) ListenWorkspaceAgent(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
-	serverURL, err := c.URL.Parse("/api/v2/workspaceresources/agent")
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
-		Value: c.SessionToken,
-	}})
-	httpClient := &http.Client{
-		Jar: jar,
-	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, err
-		}
-		return nil, readBodyAsError(res)
-	}
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
-	if err != nil {
-		return nil, xerrors.Errorf("multiplex client: %w", err)
-	}
-	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, error) {
-		return []webrtc.ICEServer{{
-			URLs: []string{"stun:stun.l.google.com:19302"},
-		}}, nil
-	}, opts)
 }

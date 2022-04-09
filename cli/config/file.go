@@ -21,6 +21,10 @@ func (r Root) Organization() File {
 	return File(filepath.Join(string(r), "organization"))
 }
 
+func (r Root) AgentSession() File {
+	return File(filepath.Join(string(r), "agentsession"))
+}
+
 // File provides convenience methods for interacting with *os.File.
 type File string
 
