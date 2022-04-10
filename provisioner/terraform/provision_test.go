@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ terraform {
 	required_providers {
 		coder = {
 			source = "coder/coder"
-			version = "0.3"
+			version = "0.3.1"
 		}
 	}
 }
@@ -390,6 +391,10 @@ provider "coder" {
 
 				// Remove randomly generated data.
 				for _, resource := range msg.GetComplete().Resources {
+					sort.Slice(resource.Agents, func(i, j int) bool {
+						return resource.Agents[i].Name < resource.Agents[j].Name
+					})
+
 					for _, agent := range resource.Agents {
 						agent.Id = ""
 						if agent.GetToken() == "" {
