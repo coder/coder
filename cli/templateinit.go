@@ -66,7 +66,8 @@ func templateInit() *cobra.Command {
 				return err
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Create your template by running:")
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("cd "+relPath+"\ncoder templates create"))+"\n")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Examples provide a starting point, are expected to be edited! 🎨"))
 			return nil
 		},
 	}

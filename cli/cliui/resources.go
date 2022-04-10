@@ -20,7 +20,7 @@ type WorkspaceResourcesOptions struct {
 
 // WorkspaceResources displays the connection status and tree-view of provided resources.
 // ┌────────────────────────────────────────────────────────────────────────────┐
-// │ RESOURCE                                          ACCESS                   │
+// │ RESOURCE                     STATUS               ACCESS                   │
 // ├────────────────────────────────────────────────────────────────────────────┤
 // │ google_compute_disk.root     persistent                                    │
 // ├────────────────────────────────────────────────────────────────────────────┤
@@ -53,7 +53,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 	tableWriter := table.NewWriter()
 	tableWriter.SetStyle(table.StyleLight)
 	tableWriter.Style().Options.SeparateColumns = false
-	row := table.Row{"Resource", ""}
+	row := table.Row{"Resource", "Status"}
 	if !options.HideAccess {
 		row = append(row, "Access")
 	}
