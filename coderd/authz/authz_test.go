@@ -31,7 +31,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace, actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
 		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
@@ -75,7 +75,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace, actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
 		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
@@ -122,7 +122,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace, actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
 		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
@@ -169,7 +169,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace, actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: true},
 
 		// Other org + me + id
 		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
@@ -216,7 +216,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace, actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
 		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
@@ -286,7 +286,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 			{resource: authz.ResourceWorkspace.SetID(wrkID), allow: false},
 
-			{resource: authz.ResourceWorkspace, allow: false},
+			{resource: authz.ResourceWorkspace.All(), allow: false},
 
 			// Other org + me + id
 			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), allow: false},
@@ -331,7 +331,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 			{resource: authz.ResourceWorkspace.SetID(wrkID)},
 
-			{resource: authz.ResourceWorkspace},
+			{resource: authz.ResourceWorkspace.All()},
 
 			// Other org + me + id
 			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID)},
@@ -401,7 +401,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 			{resource: authz.ResourceWorkspace.SetID(wrkID)},
 
-			{resource: authz.ResourceWorkspace},
+			{resource: authz.ResourceWorkspace.All()},
 
 			// Other org + me + id
 			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID)},
@@ -474,7 +474,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 			{resource: authz.ResourceWorkspace.SetID(wrkID), allow: false},
 
-			{resource: authz.ResourceWorkspace, allow: false},
+			{resource: authz.ResourceWorkspace.All(), allow: false},
 
 			// Other org + me + id
 			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), allow: false},
@@ -514,7 +514,7 @@ func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTe
 }
 
 type authTestCase struct {
-	resource authz.Resource
+	resource authz.Object
 	actions  []authz.Action
 	allow    bool
 }

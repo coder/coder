@@ -28,7 +28,7 @@ func TestExample(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("ReadAllWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the site
-		err := authz.Authorize(user, authz.ResourceWorkspace, authz.ActionRead)
+		err := authz.Authorize(user, authz.ResourceWorkspace.All(), authz.ActionRead)
 		var _ = err
 		// require.Error(t, err, "this user cannot read all workspaces")
 	})
@@ -52,7 +52,7 @@ func TestExample(t *testing.T) {
 
 	//nolint:paralleltest
 	t.Run("CreateNewSiteUser", func(t *testing.T) {
-		err := authz.Authorize(user, authz.ResourceUser, authz.ActionCreate)
+		err := authz.Authorize(user, authz.ResourceUser.All(), authz.ActionCreate)
 		var _ = err
 		// require.Error(t, err, "this user cannot create new users")
 	})

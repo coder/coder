@@ -4,6 +4,14 @@ import "fmt"
 
 const Wildcard = "*"
 
+type Permission struct {
+	// Negate makes this a negative permission
+	Negate       bool
+	ResourceType ResourceType
+	ResourceID   string
+	Action       Action
+}
+
 // Role is a set of permissions at multiple levels:
 // - Site level permissions apply EVERYWHERE
 // - Org level permissions apply to EVERYTHING in a given ORG
@@ -13,6 +21,9 @@ const Wildcard = "*"
 type Role struct {
 	Name string
 	Site []Permission
+	// Org is a map of orgid to permissions. We represent orgid as a string.
+	// TODO: Maybe switch to uuid, but tokens might need to support a "wildcard" org
+	//		which could be a special uuid (like all 0s?)
 	Org  map[string][]Permission
 	User []Permission
 }
@@ -22,7 +33,7 @@ type Role struct {
 var (
 	// RoleSiteAdmin is a role that allows everything everywhere.
 	RoleSiteAdmin = Role{
-		Name: "site-admin",
+		Name: "admin",
 		Site: permissions(map[ResourceType][]Action{
 			Wildcard: {Wildcard},
 		}),
@@ -30,7 +41,7 @@ var (
 
 	// RoleSiteMember is a role that allows access to user-level resources.
 	RoleSiteMember = Role{
-		Name: "site-member",
+		Name: "member",
 		User: permissions(map[ResourceType][]Action{
 			Wildcard: {Wildcard},
 		}),
@@ -38,7 +49,7 @@ var (
 
 	// RoleSiteAuditor is an example on how to give more precise permissions
 	RoleSiteAuditor = Role{
-		Name: "site-auditor",
+		Name: "auditor",
 		Site: permissions(map[ResourceType][]Action{
 			ResourceAuditLogs: {ActionRead},
 			// Should be able to read user details to associate with logs.

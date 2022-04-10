@@ -5,7 +5,7 @@ import "golang.org/x/xerrors"
 var ErrUnauthorized = xerrors.New("unauthorized")
 
 // TODO: Implement Authorize. This will be implmented in mainly rego.
-func Authorize(subj Subject, obj Resource, action Action) error {
+func Authorize(subj Subject, obj Object, action Action) error {
 	// TODO: Expand subject roles into their permissions as appropriate. Apply scopes.
 	var _, _, _ = subj, obj, action
 	roles, err := subj.GetRoles()
@@ -28,13 +28,13 @@ func Authorize(subj Subject, obj Resource, action Action) error {
 		merged.Site = append(merged.Site, r.Site...)
 		// Only grab user roles if the resource is owned by a user.
 		// These roles only apply if the subject is said owner.
-		if obj.OwnerID() != "" && obj.OwnerID() == subj.ID() {
+		if obj.Owner != "" && obj.Owner == subj.ID() {
 			merged.User = append(merged.User, r.User...)
 		}
 
 		// Grab org roles if the resource is owned by a given organization.
-		if obj.OrgOwnerID() != "" {
-			orgID := obj.OrgOwnerID()
+		if obj.OrgOwner != "" {
+			orgID := obj.OrgOwner
 			if v, ok := r.Org[orgID]; ok {
 				merged.Org[orgID] = append(merged.Org[orgID], v...)
 			}
