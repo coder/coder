@@ -1,10 +1,11 @@
 package cli
 
 import (
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func workspaceShow() *cobra.Command {

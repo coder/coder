@@ -20,16 +20,16 @@ type WorkspaceResourcesOptions struct {
 
 // WorkspaceResources displays the connection status and tree-view of provided resources.
 // ┌────────────────────────────────────────────────────────────────────────────┐
-// │ RESOURCE                     STATE                ACCESS                   │
+// │ RESOURCE                                          ACCESS                   │
 // ├────────────────────────────────────────────────────────────────────────────┤
-// │ google_compute_disk.root     persists on stop                              │
+// │ google_compute_disk.root     persistent                                    │
 // ├────────────────────────────────────────────────────────────────────────────┤
-// │ google_compute_instance.dev                                                │
-// │ └─ dev (linux, amd64)        ⦾ connecting [10s]    coder ssh wow.dev       │
+// │ google_compute_instance.dev  ephemeral                                     │
+// │ └─ dev (linux, amd64)        ⦾ connecting [10s]    coder ssh dev.dev       │
 // ├────────────────────────────────────────────────────────────────────────────┤
-// │ kubernetes_pod.dev                                                         │
-// │ ├─ go (linux, amd64)         ⦿ connected           coder ssh wow.go        │
-// │ └─ postgres (linux, amd64)   ⦾ disconnected [4s]   coder ssh wow.postgres  │
+// │ kubernetes_pod.dev           ephemeral                                     │
+// │ ├─ go (linux, amd64)         ⦿ connected           coder ssh dev.go        │
+// │ └─ postgres (linux, amd64)   ⦾ disconnected [4s]   coder ssh dev.postgres  │
 // └────────────────────────────────────────────────────────────────────────────┘
 func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource, options WorkspaceResourcesOptions) error {
 	// Sort resources by type for consistent output.
@@ -53,7 +53,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 	tableWriter := table.NewWriter()
 	tableWriter.SetStyle(table.StyleLight)
 	tableWriter.Style().Options.SeparateColumns = false
-	row := table.Row{"Resource", "State"}
+	row := table.Row{"Resource", ""}
 	if !options.HideAccess {
 		row = append(row, "Access")
 	}
@@ -82,14 +82,14 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 			return resource.Agents[i].Name < resource.Agents[j].Name
 		})
 		_, existsOnStop := addressOnStop[resource.Address]
-		resourceState := ""
+		resourceState := "ephemeral"
 		if existsOnStop {
-			resourceState = Styles.Placeholder.Render("persists on rebuild")
+			resourceState = "persistent"
 		}
 		// Display a line for the resource.
 		tableWriter.AppendRow(table.Row{
 			Styles.Bold.Render(resource.Type + "." + resource.Name),
-			resourceState,
+			Styles.Placeholder.Render(resourceState),
 			"",
 		})
 		// Display all agents associated with the resource.

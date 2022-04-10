@@ -15,7 +15,7 @@ func main() {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stderr, cliui.Styles.Error.Render(err.Error()))
+		_, _ = fmt.Fprintln(os.Stderr, cliui.Styles.Error.Render(err.Error()))
 		os.Exit(1)
 	}
 }

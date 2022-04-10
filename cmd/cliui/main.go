@@ -187,7 +187,7 @@ func main() {
 		Use: "resources",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			disconnected := database.Now().Add(-4 * time.Second)
-			cliui.WorkspaceResources(cmd.OutOrStdout(), []codersdk.WorkspaceResource{{
+			return cliui.WorkspaceResources(cmd.OutOrStdout(), []codersdk.WorkspaceResource{{
 				Address:    "disk",
 				Transition: database.WorkspaceTransitionStart,
 				Type:       "google_compute_disk",
@@ -230,7 +230,6 @@ func main() {
 				HideAgentState: false,
 				HideAccess:     false,
 			})
-			return nil
 		},
 	})
 
