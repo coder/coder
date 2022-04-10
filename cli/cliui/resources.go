@@ -16,6 +16,7 @@ type WorkspaceResourcesOptions struct {
 	WorkspaceName  string
 	HideAgentState bool
 	HideAccess     bool
+	Title          string
 }
 
 // WorkspaceResources displays the connection status and tree-view of provided resources.
@@ -51,6 +52,9 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 	displayed := map[string]struct{}{}
 
 	tableWriter := table.NewWriter()
+	if options.Title != "" {
+		tableWriter.SetTitle(options.Title)
+	}
 	tableWriter.SetStyle(table.StyleLight)
 	tableWriter.Style().Options.SeparateColumns = false
 	row := table.Row{"Resource", "Status"}

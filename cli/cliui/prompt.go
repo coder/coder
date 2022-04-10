@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"runtime"
@@ -44,11 +43,11 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		var line string
 		var err error
 
-		inFile, valid := cmd.InOrStdin().(*os.File)
-		if opts.Secret && valid && isatty.IsTerminal(inFile.Fd()) {
+		inFile, isInputFile := cmd.InOrStdin().(*os.File)
+		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
 			line, err = speakeasy.Ask("")
 		} else {
-			if runtime.GOOS == "darwin" && valid {
+			if runtime.GOOS == "darwin" && isInputFile {
 				var restore func()
 				restore, err = removeLineLengthLimit(int(inFile.Fd()))
 				if err != nil {
@@ -65,21 +64,24 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 			// This enables multiline JSON to be pasted into an input, and have
 			// it parse properly.
 			if err == nil && (strings.HasPrefix(line, "{") || strings.HasPrefix(line, "[")) {
-				pipeReader, pipeWriter := io.Pipe()
-				defer pipeWriter.Close()
-				defer pipeReader.Close()
-				go func() {
-					_, _ = pipeWriter.Write([]byte(line))
-					_, _ = reader.WriteTo(pipeWriter)
-				}()
-				var rawMessage json.RawMessage
-				err := json.NewDecoder(pipeReader).Decode(&rawMessage)
-				if err == nil {
-					var buf bytes.Buffer
-					err = json.Compact(&buf, rawMessage)
-					if err == nil {
-						line = buf.String()
+				var data bytes.Buffer
+				_, _ = data.WriteString(line)
+				for {
+					// Read line-by-line. We can't use a JSON decoder
+					// here because it doesn't work by newline, so
+					// reads will block.
+					line, err = reader.ReadString('\n')
+					if err != nil {
+						break
 					}
+					_, _ = data.WriteString(line)
+					var rawMessage json.RawMessage
+					err = json.Unmarshal(data.Bytes(), &rawMessage)
+					if err != nil {
+						continue
+					}
+					line = data.String()
+					break
 				}
 			}
 		}
