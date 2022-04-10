@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -98,9 +96,6 @@ func templateCreate() *cobra.Command {
 					IsConfirm: true,
 				})
 				if err != nil {
-					if errors.Is(err, promptui.ErrAbort) {
-						return nil
-					}
 					return err
 				}
 			}

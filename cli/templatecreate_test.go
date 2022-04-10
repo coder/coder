@@ -35,7 +35,8 @@ func TestTemplateCreate(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		matches := []string{
-			"Create template?", "yes",
+			"Create and upload", "yes",
+			"Confirm create?", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]

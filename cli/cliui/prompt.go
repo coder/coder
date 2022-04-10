@@ -65,20 +65,32 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 			// it parse properly.
 			if err == nil && (strings.HasPrefix(line, "{") || strings.HasPrefix(line, "[")) {
 				var data bytes.Buffer
-				_, _ = data.WriteString(line)
 				for {
-					// Read line-by-line. We can't use a JSON decoder
-					// here because it doesn't work by newline, so
-					// reads will block.
-					line, err = reader.ReadString('\n')
-					if err != nil {
-						break
-					}
 					_, _ = data.WriteString(line)
 					var rawMessage json.RawMessage
 					err = json.Unmarshal(data.Bytes(), &rawMessage)
 					if err != nil {
+						if err.Error() != "unexpected end of JSON input" {
+							err = nil
+							line = data.String()
+							break
+						}
+
+						// Read line-by-line. We can't use a JSON decoder
+						// here because it doesn't work by newline, so
+						// reads will block.
+						line, err = reader.ReadString('\n')
+						if err != nil {
+							break
+						}
 						continue
+					}
+					// Compacting the JSON makes it easier for parsing and testing.
+					bytes := data.Bytes()
+					data.Reset()
+					err = json.Compact(&data, bytes)
+					if err != nil {
+						break
 					}
 					line = data.String()
 					break

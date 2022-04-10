@@ -423,8 +423,8 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 
 	return provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
-		PollInterval:   50 * time.Millisecond,
-		UpdateInterval: 50 * time.Millisecond,
+		PollInterval:   500 * time.Millisecond,
+		UpdateInterval: 500 * time.Millisecond,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
 		},

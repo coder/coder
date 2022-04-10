@@ -28,7 +28,9 @@ func templateInit() *cobra.Command {
 				exampleByName[example.Name] = example
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("A template defines infrastructure as code to be provisioned for individual developer workspaces. Select an example to get started:\n"))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render(
+				"A template defines infrastructure as code to be provisioned "+
+					"for individual developer workspaces. Select an example to get started:\n"))
 			option, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: exampleNames,
 			})
@@ -67,7 +69,7 @@ func templateInit() *cobra.Command {
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Create your template by running:")
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Examples provide a starting point, are expected to be edited! 🎨"))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Examples provide a starting point and are expected to be edited! 🎨"))
 			return nil
 		},
 	}

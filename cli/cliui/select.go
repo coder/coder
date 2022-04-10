@@ -50,7 +50,6 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 	if flag.Lookup("test.v") != nil {
 		return opts.Options[0], nil
 	}
-	opts.HideSearch = false
 	var value string
 	err := survey.AskOne(&survey.Select{
 		Options:  opts.Options,
