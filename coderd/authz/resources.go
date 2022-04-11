@@ -15,27 +15,27 @@ func (z ResourceType) All() Object {
 	}
 }
 
-// SetOrg adds an org OwnerID to the resource
+// InOrg adds an org OwnerID to the resource
 //nolint:revive
-func (r ResourceType) SetOrg(orgID string) Object {
+func (r ResourceType) InOrg(orgID string) Object {
 	return Object{
 		OrgOwner:   orgID,
 		ObjectType: r,
 	}
 }
 
-// SetOwner adds an OwnerID to the resource
+// WithOwner adds an OwnerID to the resource
 //nolint:revive
-func (r ResourceType) SetOwner(id string) Object {
+func (r ResourceType) WithOwner(id string) Object {
 	return Object{
 		Owner:      id,
 		ObjectType: r,
 	}
 }
 
-// SetID adds a resource ID to the resource
+// WithID adds a resource ID to the resource
 //nolint:revive
-func (r ResourceType) SetID(id string) Object {
+func (r ResourceType) WithID(id string) Object {
 	return Object{
 		ID:         id,
 		ObjectType: r,

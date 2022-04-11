@@ -21,41 +21,41 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "Member", user, []authTestCase{
 		// Org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithID(wrkID), actions: allActions(), allow: false},
 
 		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
 		// Other org + other user + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Other org + other use + other id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithID("not-id"), actions: allActions(), allow: false},
 	})
 
 	user = authz.SubjectTODO{
@@ -76,41 +76,41 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "DeletedMember", user, []authTestCase{
 		// Org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithID(wrkID), actions: allActions(), allow: false},
 
 		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
 		// Other org + other user + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Other org + other use + other id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithID("not-id"), actions: allActions(), allow: false},
 	})
 
 	user = authz.SubjectTODO{
@@ -123,41 +123,41 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "OrgAdmin", user, []authTestCase{
 		// Org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithID(wrkID), actions: allActions(), allow: false},
 
 		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
 		// Other org + other user + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Other org + other use + other id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithID("not-id"), actions: allActions(), allow: false},
 	})
 
 	user = authz.SubjectTODO{
@@ -170,41 +170,41 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "SiteAdmin", user, []authTestCase{
 		// Org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithID(wrkID), actions: allActions(), allow: true},
 
 		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: true},
 
 		// Other org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: true},
 
 		// Other org + other user + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: true},
 
 		// Other org + other use + other id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me"), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id"), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: true},
 
-		{resource: authz.ResourceWorkspace.SetID("not-id"), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithID("not-id"), actions: allActions(), allow: true},
 	})
 
 	// In practice this is a token scope on a regular subject
@@ -217,41 +217,41 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "WorkspaceAgentToken", user, []authTestCase{
 		// Org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner(user.ID()), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithID(wrkID), actions: allActions(), allow: true},
 
 		{resource: authz.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
 		// Other org + other user + id
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID), actions: allActions(), allow: true},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: true},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Other org + other use + other id
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOrg("other"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id"), actions: allActions(), allow: false},
-		{resource: authz.ResourceWorkspace.SetOwner("not-me"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
-		{resource: authz.ResourceWorkspace.SetID("not-id"), actions: allActions(), allow: false},
+		{resource: authz.ResourceWorkspace.WithID("not-id"), actions: allActions(), allow: false},
 	})
 
 	// In practice this is a token scope on a regular subject
@@ -287,41 +287,41 @@ func TestAuthorizeDomain(t *testing.T) {
 		}, []authTestCase{
 			// Read
 			// Org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID), allow: true},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()), allow: true},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg), allow: true},
 
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID), allow: true},
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID()), allow: true},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID), allow: true},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID()), allow: true},
 
-			{resource: authz.ResourceWorkspace.SetID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.WithID(wrkID), allow: false},
 
 			{resource: authz.ResourceWorkspace.All(), allow: false},
 
 			// Other org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other"), allow: false},
 
 			// Other org + other user + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID), allow: true},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me"), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: true},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me"), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me"), allow: false},
 
 			// Other org + other use + other id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other"), allow: false},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me"), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me"), allow: false},
 
-			{resource: authz.ResourceWorkspace.SetID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.WithID("not-id"), allow: false},
 		}),
 
 		// Pass non-read actions
@@ -332,41 +332,41 @@ func TestAuthorizeDomain(t *testing.T) {
 		}, []authTestCase{
 			// Read
 			// Org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID())},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID())},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg)},
 
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID())},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID())},
 
-			{resource: authz.ResourceWorkspace.SetID(wrkID)},
+			{resource: authz.ResourceWorkspace.WithID(wrkID)},
 
 			{resource: authz.ResourceWorkspace.All()},
 
 			// Other org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID())},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg("other")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID())},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg("other")},
 
 			// Other org + other user + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me")},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me")},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me")},
 
 			// Other org + other use + other id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id")},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me")},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id")},
-			{resource: authz.ResourceWorkspace.SetOrg("other")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id")},
+			{resource: authz.ResourceWorkspace.InOrg("other")},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id")},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me")},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id")},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me")},
 
-			{resource: authz.ResourceWorkspace.SetID("not-id")},
+			{resource: authz.ResourceWorkspace.WithID("not-id")},
 		}))
 }
 
@@ -402,41 +402,41 @@ func TestAuthorizeLevels(t *testing.T) {
 			return c
 		}, []authTestCase{
 			// Org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID())},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID())},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg)},
 
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID())},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID())},
 
-			{resource: authz.ResourceWorkspace.SetID(wrkID)},
+			{resource: authz.ResourceWorkspace.WithID(wrkID)},
 
 			{resource: authz.ResourceWorkspace.All()},
 
 			// Other org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID())},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg("other")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID())},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg("other")},
 
 			// Other org + other user + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me")},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID)},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me")},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID)},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me")},
 
 			// Other org + other use + other id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id")},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me")},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id")},
-			{resource: authz.ResourceWorkspace.SetOrg("other")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me")},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id")},
+			{resource: authz.ResourceWorkspace.InOrg("other")},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id")},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me")},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id")},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me")},
 
-			{resource: authz.ResourceWorkspace.SetID("not-id")},
+			{resource: authz.ResourceWorkspace.WithID("not-id")},
 		}))
 
 	user = authz.SubjectTODO{
@@ -475,41 +475,41 @@ func TestAuthorizeLevels(t *testing.T) {
 			return c
 		}, []authTestCase{
 			// Org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()).SetID(wrkID), allow: true},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner(user.ID()), allow: true},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetID(wrkID), allow: true},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()).WithID(wrkID), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID()), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithID(wrkID), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg), allow: true},
 
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID()).SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOwner(user.ID()), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID()).WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner(user.ID()), allow: false},
 
-			{resource: authz.ResourceWorkspace.SetID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.WithID(wrkID), allow: false},
 
 			{resource: authz.ResourceWorkspace.All(), allow: false},
 
 			// Other org + me + id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()).SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner(user.ID()), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()).WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner(user.ID()), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other"), allow: false},
 
 			// Other org + other user + id
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me").SetID(wrkID), allow: true},
-			{resource: authz.ResourceWorkspace.SetOrg(defOrg).SetOwner("not-me"), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), allow: true},
+			{resource: authz.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: true},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID(wrkID), allow: false},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me"), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID(wrkID), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me"), allow: false},
 
 			// Other org + other use + other id
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me").SetID("not-id"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetOwner("not-me"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other").SetID("not-id"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOrg("other"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithOwner("not-me"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other").WithID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.InOrg("other"), allow: false},
 
-			{resource: authz.ResourceWorkspace.SetOwner("not-me").SetID("not-id"), allow: false},
-			{resource: authz.ResourceWorkspace.SetOwner("not-me"), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.WithOwner("not-me"), allow: false},
 
-			{resource: authz.ResourceWorkspace.SetID("not-id"), allow: false},
+			{resource: authz.ResourceWorkspace.WithID("not-id"), allow: false},
 		}))
 }
 

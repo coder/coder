@@ -25,22 +25,22 @@ type Object struct {
 	// TODO: SharedUsers?
 }
 
-// SetOrg adds an org OwnerID to the resource
+// InOrg adds an org OwnerID to the resource
 //nolint:revive
-func (z Object) SetOrg(orgID string) Object {
+func (z Object) InOrg(orgID string) Object {
 	z.OrgOwner = orgID
 	return z
 }
 
-// SetOwner adds an OwnerID to the resource
+// WithOwner adds an OwnerID to the resource
 //nolint:revive
-func (z Object) SetOwner(id string) Object {
+func (z Object) WithOwner(id string) Object {
 	z.Owner = id
 	return z
 }
 
 //nolint:revive
-func (z Object) SetID(id string) Object {
+func (z Object) WithID(id string) Object {
 	z.ID = id
 	return z
 }
