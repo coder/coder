@@ -108,7 +108,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
-		AgentConnectionUpdateFrequency: 25 * time.Millisecond,
+		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database:                       db,
