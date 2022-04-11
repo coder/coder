@@ -4,8 +4,8 @@ import * as Types from "../../api/types"
 
 export interface UsersContext {
   users: Types.UserResponse[]
-  pager: Types.Pager
-  getUsersError: Error | unknown
+  pager?: Types.Pager
+  getUsersError?: Error | unknown
 }
 
 export type UsersEvent = { type: 'GET_USERS' }
@@ -24,6 +24,9 @@ export const usersMachine =
         },
       },
       id: "usersState",
+      context: {
+        users: [],
+      },
       initial: "gettingUsers",
       states: {
         gettingUsers: {
