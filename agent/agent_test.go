@@ -97,6 +97,7 @@ func TestAgent(t *testing.T) {
 
 		local, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
+		defer local.Close()
 		tcpAddr, valid = local.Addr().(*net.TCPAddr)
 		require.True(t, valid)
 		localPort := tcpAddr.Port
