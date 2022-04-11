@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
@@ -114,13 +116,36 @@ func TestAgent(t *testing.T) {
 		conn.Close()
 		<-done
 	})
+
+	t.Run("SFTP", func(t *testing.T) {
+		t.Parallel()
+		sshClient, err := setupAgent(t).SSHClient()
+		require.NoError(t, err)
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		tempFile := filepath.Join(t.TempDir(), "sftp")
+		file, err := client.Create(tempFile)
+		require.NoError(t, err)
+		err = file.Close()
+		require.NoError(t, err)
+		_, err = os.Stat(tempFile)
+		require.NoError(t, err)
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
+	_, err := exec.LookPath("socat")
+	if err != nil {
+		t.Skip("You must have socat installed to run this test!")
+	}
+
 	agentConn := setupAgent(t)
-	socket := filepath.Join(t.TempDir(), "ssh")
-	listener, err := net.Listen("unix", socket)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = listener.Close()
+	})
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -136,7 +161,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	t.Cleanup(func() {
 		_ = listener.Close()
 	})
-	args := append(beforeArgs, "-o", "ProxyCommand socat - UNIX-CLIENT:"+socket, "-o", "StrictHostKeyChecking=no", "host")
+	args := append(beforeArgs, "-o", "ProxyCommand socat - TCP4:"+listener.Addr().String(), "-o", "StrictHostKeyChecking=no", "host")
 	args = append(args, afterArgs...)
 	return exec.Command("ssh", args...)
 }
