@@ -33,8 +33,8 @@ func Authorize(subj Subject, obj Object, action Action) error {
 		}
 
 		// Grab org roles if the resource is owned by a given organization.
-		if obj.OrgOwner != "" {
-			orgID := obj.OrgOwner
+		if obj.OrgID != "" {
+			orgID := obj.OrgID
 			if v, ok := r.Org[orgID]; ok {
 				merged.Org[orgID] = append(merged.Org[orgID], v...)
 			}

@@ -31,24 +31,24 @@ type Role struct {
 // Roles are stored as structs, so they can be serialized and stored. Until we store them elsewhere,
 // const's will do just fine.
 var (
-	// RoleSiteAdmin is a role that allows everything everywhere.
-	RoleSiteAdmin = Role{
+	// RoleAdmin is a role that allows everything everywhere.
+	RoleAdmin = Role{
 		Name: "admin",
 		Site: permissions(map[ResourceType][]Action{
 			Wildcard: {Wildcard},
 		}),
 	}
 
-	// RoleSiteMember is a role that allows access to user-level resources.
-	RoleSiteMember = Role{
+	// RoleMember is a role that allows access to user-level resources.
+	RoleMember = Role{
 		Name: "member",
 		User: permissions(map[ResourceType][]Action{
 			Wildcard: {Wildcard},
 		}),
 	}
 
-	// RoleSiteAuditor is an example on how to give more precise permissions
-	RoleSiteAuditor = Role{
+	// RoleAuditor is an example on how to give more precise permissions
+	RoleAuditor = Role{
 		Name: "auditor",
 		Site: permissions(map[ResourceType][]Action{
 			// TODO: @emyrk when audit logs are added, add back a read perm

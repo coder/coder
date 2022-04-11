@@ -16,19 +16,20 @@ package authz
 // that represents the set of workspaces you are trying to get access too.
 // Do not export this type, as it can be created from a resource type constant.
 type Object struct {
-	ID       string
-	Owner    string
-	OrgOwner string
+	ID    string `json:"id"`
+	Owner string `json:"owner"`
+	// OrgID specifies which org the object is a part of.
+	OrgID string `json:"org_owner"`
 
 	// ObjectType is "workspace", "project", "devurl", etc
-	ObjectType ResourceType
+	ObjectType ResourceType `json:"object_type"`
 	// TODO: SharedUsers?
 }
 
 // InOrg adds an org OwnerID to the resource
 //nolint:revive
 func (z Object) InOrg(orgID string) Object {
-	z.OrgOwner = orgID
+	z.OrgID = orgID
 	return z
 }
 

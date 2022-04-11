@@ -16,7 +16,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user := authz.SubjectTODO{
 		UserID: "me",
-		Roles:  []authz.Role{authz.RoleSiteMember, authz.RoleOrgMember(defOrg)},
+		Roles:  []authz.Role{authz.RoleMember, authz.RoleOrgMember(defOrg)},
 	}
 
 	testAuthorize(t, "Member", user, []authTestCase{
@@ -117,7 +117,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		UserID: "me",
 		Roles: []authz.Role{
 			authz.RoleOrgAdmin(defOrg),
-			authz.RoleSiteMember,
+			authz.RoleMember,
 		},
 	}
 
@@ -163,8 +163,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	user = authz.SubjectTODO{
 		UserID: "me",
 		Roles: []authz.Role{
-			authz.RoleSiteAdmin,
-			authz.RoleSiteMember,
+			authz.RoleAdmin,
+			authz.RoleMember,
 		},
 	}
 
@@ -378,7 +378,7 @@ func TestAuthorizeLevels(t *testing.T) {
 	user := authz.SubjectTODO{
 		UserID: "me",
 		Roles: []authz.Role{
-			authz.RoleSiteAdmin,
+			authz.RoleAdmin,
 			authz.RoleOrgDenyAll(defOrg),
 			{
 				Name: "user-deny-all",

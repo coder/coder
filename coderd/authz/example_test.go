@@ -19,7 +19,7 @@ func TestExample(t *testing.T) {
 		UserID: "alice",
 		Roles: []authz.Role{
 			authz.RoleOrgAdmin("default"),
-			authz.RoleSiteMember,
+			authz.RoleMember,
 		},
 	}
 

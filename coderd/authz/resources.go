@@ -19,7 +19,7 @@ func (z ResourceType) All() Object {
 //nolint:revive
 func (r ResourceType) InOrg(orgID string) Object {
 	return Object{
-		OrgOwner:   orgID,
+		OrgID:      orgID,
 		ObjectType: r,
 	}
 }

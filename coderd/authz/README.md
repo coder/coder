@@ -4,7 +4,7 @@ Package `authz` implements AuthoriZation for Coder.
 
 ## Overview
 
-Authorization defines what **permission** an **subject** has to perform **actions** to **objects**:
+Authorization defines what **permission** a **subject** has to perform **actions** to **objects**:
 - **Permission** is binary: *yes* (allowed) or *no* (denied).
 - **Subject** in this case is anything that implements interface `authz.Subject`.
 - **Action** here is an enumerated list of actions, but we stick to `Create`, `Read`, `Update`, and `Delete` here.
