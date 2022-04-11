@@ -1,5 +1,3 @@
-import internal from "stream";
-
 /**
  * `BuildInfoResponse` must be kept in sync with the go struct in buildinfo.go.
  */
@@ -77,16 +75,10 @@ export interface UserAgent {
   readonly os: string
 }
 
-export interface Cursor {
+export interface Pager {
   after: string
   before: string
   limit: number
-  total: number
-}
-export interface Pager {
-  cursor: Cursor
-  next: string
-  previous: string
   total: number
 }
 

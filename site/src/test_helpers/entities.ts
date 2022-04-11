@@ -8,6 +8,7 @@ import {
   Workspace,
   Pager
 } from "../api/types"
+import { v4 as uuidv4 } from 'uuid';
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
@@ -33,15 +34,10 @@ export const MockUser2: UserResponse = {
 }
 
 export const MockPager: Pager = {
-  cursor: {
-    after: "",
-    before: "",
-    limit: 10,
-    total: 25 
-  },
-  next: "",
-  previous: "",
-  total: 25
+  after: uuidv4(),
+  before: uuidv4(),
+  limit: 10,
+  total: 25 
 }
 
 export const MockOrganization: Organization = {
