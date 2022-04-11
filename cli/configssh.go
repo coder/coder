@@ -31,8 +31,8 @@ const sshEndToken = "# ------------END-CODER------------"
 
 func configSSH() *cobra.Command {
 	var (
-		binaryFile    string
 		sshConfigFile string
+		sshOptions    []string
 	)
 	cmd := &cobra.Command{
 		Use: "config-ssh",
@@ -62,11 +62,9 @@ func configSSH() *cobra.Command {
 				return xerrors.New("You don't have any workspaces!")
 			}
 
-			if binaryFile == "" {
-				binaryFile, err = currentBinPath(cmd)
-				if err != nil {
-					return err
-				}
+			binaryFile, err := currentBinPath(cmd)
+			if err != nil {
+				return err
 			}
 
 			root := createConfig(cmd)
@@ -90,13 +88,19 @@ func configSSH() *cobra.Command {
 							if len(resource.Agents) > 1 {
 								hostname += "." + agent.Name
 							}
-							sshConfigContent += strings.Join([]string{
+							configOptions := []string{
 								"Host coder." + hostname,
 								"\tHostName coder." + hostname,
+							}
+							for _, option := range sshOptions {
+								configOptions = append(configOptions, "\t"+option)
+							}
+							configOptions = append(configOptions,
 								fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname),
 								"\tConnectTimeout=0",
 								"\tStrictHostKeyChecking=no",
-							}, "\n") + "\n"
+							)
+							sshConfigContent += strings.Join(configOptions, "\n") + "\n"
 							sshConfigContentMutex.Unlock()
 						}
 					}
@@ -122,9 +126,8 @@ func configSSH() *cobra.Command {
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &binaryFile, "binary-file", "", "CODER_BINARY_PATH", "", "Specifies the path to a Coder binary.")
-	_ = cmd.Flags().MarkHidden("binary-file")
 	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", "~/.ssh/config", "Specifies the path to an SSH config.")
+	cmd.Flags().StringArrayVarP(&sshOptions, "ssh-option", "o", []string{}, "Specifies additional options embedded in each host.")
 
 	return cmd
 }

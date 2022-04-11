@@ -3,10 +3,11 @@ package cli
 import (
 	"fmt"
 
-	"github.com/coder/coder/cli/cliui"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func templateList() *cobra.Command {

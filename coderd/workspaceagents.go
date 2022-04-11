@@ -43,6 +43,20 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	agent := httpmw.WorkspaceAgentParam(r)
+	apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspace agent: %s", err),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "Agent isn't connected!",
+		})
+		return
+	}
+
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})
