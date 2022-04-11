@@ -162,6 +162,10 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get install -y socat
 
+      - name: Install socat
+        if: runner.os == 'macOS'
+        run: brew install socat
+
       - name: Test with Mock Database
         shell: bash
         env:
