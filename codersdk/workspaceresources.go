@@ -15,7 +15,7 @@ import (
 type WorkspaceAgentStatus string
 
 const (
-	WorkspaceAgentWaiting      WorkspaceAgentStatus = "waiting"
+	WorkspaceAgentConnecting   WorkspaceAgentStatus = "connecting"
 	WorkspaceAgentConnected    WorkspaceAgentStatus = "connected"
 	WorkspaceAgentDisconnected WorkspaceAgentStatus = "disconnected"
 )

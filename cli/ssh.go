@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,14 +27,16 @@ func ssh() *cobra.Command {
 		stdio bool
 	)
 	cmd := &cobra.Command{
-		Use: "ssh <workspace> [agent]",
+		Use:  "ssh <workspace>",
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
+			workspaceParts := strings.Split(args[0], ".")
+			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceParts[0])
 			if err != nil {
 				return err
 			}
@@ -66,16 +69,16 @@ func ssh() *cobra.Command {
 				return xerrors.New("workspace has no agents")
 			}
 			var agent codersdk.WorkspaceAgent
-			if len(args) >= 2 {
+			if len(workspaceParts) >= 2 {
 				for _, otherAgent := range agents {
-					if otherAgent.Name != args[1] {
+					if otherAgent.Name != workspaceParts[1] {
 						continue
 					}
 					agent = otherAgent
 					break
 				}
 				if agent.ID == uuid.Nil {
-					return xerrors.Errorf("agent not found by name %q", args[1])
+					return xerrors.Errorf("agent not found by name %q", workspaceParts[1])
 				}
 			}
 			if agent.ID == uuid.Nil {
@@ -125,7 +128,8 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			if isatty.IsTerminal(os.Stdout.Fd()) {
+			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
+			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
 				state, err := term.MakeRaw(int(os.Stdin.Fd()))
 				if err != nil {
 					return err

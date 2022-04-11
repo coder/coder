@@ -2,13 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"text/tabwriter"
-	"time"
 
-	"github.com/fatih/color"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -21,7 +20,6 @@ func workspaceList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			start := time.Now()
 			workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return err
@@ -34,27 +32,47 @@ func workspaceList() *cobra.Command {
 				return nil
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Workspaces found %s\n\n",
-				caret,
-				color.HiBlackString("[%dms]",
-					time.Since(start).Milliseconds()))
+			tableWriter := table.NewWriter()
+			tableWriter.SetStyle(table.StyleLight)
+			tableWriter.Style().Options.SeparateColumns = false
+			tableWriter.AppendHeader(table.Row{"Workspace", "Template", "Status", "Last Built", "Outdated"})
 
-			writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 4, ' ', 0)
-			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n",
-				color.HiBlackString("Workspace"),
-				color.HiBlackString("Template"),
-				color.HiBlackString("Status"),
-				color.HiBlackString("Last Built"),
-				color.HiBlackString("Outdated"))
 			for _, workspace := range workspaces {
-				_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%+v\n",
-					color.New(color.FgHiCyan).Sprint(workspace.Name),
-					color.WhiteString(workspace.TemplateName),
-					color.WhiteString(string(workspace.LatestBuild.Transition)),
-					color.WhiteString(workspace.LatestBuild.Job.CompletedAt.Format("January 2, 2006")),
-					workspace.Outdated)
+				status := ""
+				inProgress := false
+				if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning ||
+					workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobCanceling {
+					inProgress = true
+				}
+
+				switch workspace.LatestBuild.Transition {
+				case database.WorkspaceTransitionStart:
+					status = "start"
+					if inProgress {
+						status = "starting"
+					}
+				case database.WorkspaceTransitionStop:
+					status = "stop"
+					if inProgress {
+						status = "stopping"
+					}
+				case database.WorkspaceTransitionDelete:
+					status = "delete"
+					if inProgress {
+						status = "deleting"
+					}
+				}
+
+				tableWriter.AppendRow(table.Row{
+					cliui.Styles.Bold.Render(workspace.Name),
+					workspace.TemplateName,
+					status,
+					workspace.LatestBuild.Job.CreatedAt.Format("January 2, 2006"),
+					workspace.Outdated,
+				})
 			}
-			return writer.Flush()
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), tableWriter.Render())
+			return err
 		},
 	}
 }

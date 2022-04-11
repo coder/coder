@@ -43,6 +43,20 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	agent := httpmw.WorkspaceAgentParam(r)
+	apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspace agent: %s", err),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("Agent isn't connected! Status: %s", apiAgent.Status),
+		})
+		return
+	}
+
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})
@@ -167,14 +181,14 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		_ = updateConnectionTimes()
 	}()
 
-	err = updateConnectionTimes()
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
 	err = ensureLatestBuild()
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, "")
+		return
+	}
+	err = updateConnectionTimes()
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
 
@@ -239,7 +253,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 	case !dbAgent.FirstConnectedAt.Valid:
 		// If the agent never connected, it's waiting for the compute
 		// to start up.
-		agent.Status = codersdk.WorkspaceAgentWaiting
+		agent.Status = codersdk.WorkspaceAgentConnecting
 	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.

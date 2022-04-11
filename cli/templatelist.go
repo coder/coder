@@ -2,11 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"text/tabwriter"
-	"time"
 
 	"github.com/fatih/color"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func templateList() *cobra.Command {
@@ -18,7 +19,6 @@ func templateList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			start := time.Now()
 			organization, err := currentOrganization(cmd, client)
 			if err != nil {
 				return err
@@ -34,30 +34,25 @@ func templateList() *cobra.Command {
 				return nil
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s Templates found in %s %s\n\n",
-				caret,
-				color.HiWhiteString(organization.Name),
-				color.HiBlackString("[%dms]",
-					time.Since(start).Milliseconds()))
+			tableWriter := table.NewWriter()
+			tableWriter.SetStyle(table.StyleLight)
+			tableWriter.Style().Options.SeparateColumns = false
+			tableWriter.AppendHeader(table.Row{"Name", "Source", "Last Updated", "Used By"})
 
-			writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 4, ' ', 0)
-			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n",
-				color.HiBlackString("Template"),
-				color.HiBlackString("Source"),
-				color.HiBlackString("Last Updated"),
-				color.HiBlackString("Used By"))
 			for _, template := range templates {
 				suffix := ""
 				if template.WorkspaceOwnerCount != 1 {
 					suffix = "s"
 				}
-				_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n",
-					color.New(color.FgHiCyan).Sprint(template.Name),
-					color.WhiteString("Archive"),
-					color.WhiteString(template.UpdatedAt.Format("January 2, 2006")),
-					color.New(color.FgHiWhite).Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix))
+				tableWriter.AppendRow(table.Row{
+					cliui.Styles.Bold.Render(template.Name),
+					"Archive",
+					template.UpdatedAt.Format("January 2, 2006"),
+					cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
+				})
 			}
-			return writer.Flush()
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())
+			return err
 		},
 	}
 }

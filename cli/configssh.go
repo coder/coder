@@ -31,7 +31,9 @@ const sshEndToken = "# ------------END-CODER------------"
 
 func configSSH() *cobra.Command {
 	var (
-		sshConfigFile string
+		sshConfigFile    string
+		sshOptions       []string
+		skipProxyCommand bool
 	)
 	cmd := &cobra.Command{
 		Use: "config-ssh",
@@ -60,11 +62,13 @@ func configSSH() *cobra.Command {
 			if len(workspaces) == 0 {
 				return xerrors.New("You don't have any workspaces!")
 			}
-			binPath, err := currentBinPath(cmd)
+
+			binaryFile, err := currentBinPath(cmd)
 			if err != nil {
 				return err
 			}
 
+			root := createConfig(cmd)
 			sshConfigContent += "\n" + sshStartToken + "\n" + sshStartMessage + "\n\n"
 			sshConfigContentMutex := sync.Mutex{}
 			var errGroup errgroup.Group
@@ -85,13 +89,21 @@ func configSSH() *cobra.Command {
 							if len(resource.Agents) > 1 {
 								hostname += "." + agent.Name
 							}
-							sshConfigContent += strings.Join([]string{
+							configOptions := []string{
 								"Host coder." + hostname,
-								"\tHostName coder." + hostname,
-								fmt.Sprintf("\tProxyCommand %q ssh --stdio %s", binPath, hostname),
+							}
+							for _, option := range sshOptions {
+								configOptions = append(configOptions, "\t"+option)
+							}
+							configOptions = append(configOptions,
+								"\tHostName coder."+hostname,
 								"\tConnectTimeout=0",
 								"\tStrictHostKeyChecking=no",
-							}, "\n") + "\n"
+							)
+							if !skipProxyCommand {
+								configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
+							}
+							sshConfigContent += strings.Join(configOptions, "\n") + "\n"
 							sshConfigContentMutex.Unlock()
 						}
 					}
@@ -118,6 +130,9 @@ func configSSH() *cobra.Command {
 		},
 	}
 	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", "~/.ssh/config", "Specifies the path to an SSH config.")
+	cmd.Flags().StringArrayVarP(&sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
+	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
+	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 
 	return cmd
 }

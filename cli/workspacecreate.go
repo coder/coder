@@ -1,16 +1,14 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"time"
 
-	"github.com/fatih/color"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -18,11 +16,10 @@ import (
 
 func workspaceCreate() *cobra.Command {
 	var (
-		templateName string
+		workspaceName string
 	)
 	cmd := &cobra.Command{
-		Use:   "create <name>",
-		Args:  cobra.ExactArgs(1),
+		Use:   "create [template]",
 		Short: "Create a workspace from a template",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -34,9 +31,14 @@ func workspaceCreate() *cobra.Command {
 				return err
 			}
 
+			templateName := ""
+			if len(args) >= 1 {
+				templateName = args[0]
+			}
+
 			var template codersdk.Template
 			if templateName == "" {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a template:"))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
 
 				templateNames := []string{}
 				templateByName := map[string]codersdk.Template{}
@@ -45,8 +47,16 @@ func workspaceCreate() *cobra.Command {
 					return err
 				}
 				for _, template := range templates {
-					templateNames = append(templateNames, template.Name)
-					templateByName[template.Name] = template
+					templateName := template.Name
+					if template.WorkspaceOwnerCount > 0 {
+						developerText := "developer"
+						if template.WorkspaceOwnerCount != 1 {
+							developerText = "developers"
+						}
+						templateName += cliui.Styles.Placeholder.Render(fmt.Sprintf(" (used by %d %s)", template.WorkspaceOwnerCount, developerText))
+					}
+					templateNames = append(templateNames, templateName)
+					templateByName[templateName] = template
 				}
 				sort.Slice(templateNames, func(i, j int) bool {
 					return templateByName[templateNames[i]].WorkspaceOwnerCount > templateByName[templateNames[j]].WorkspaceOwnerCount
@@ -70,10 +80,22 @@ func workspaceCreate() *cobra.Command {
 				}
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Creating with the "+cliui.Styles.Field.Render(template.Name)+" template...")
+			if workspaceName == "" {
+				workspaceName, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text: "Specify a name for your workspace:",
+					Validate: func(workspaceName string) error {
+						_, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceName)
+						if err == nil {
+							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
+						}
+						return nil
+					},
+				})
+				if err != nil {
+					return err
+				}
+			}
 
-			workspaceName := args[0]
 			_, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceName)
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
@@ -95,10 +117,9 @@ func workspaceCreate() *cobra.Command {
 					continue
 				}
 				if !printed {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters! These can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 					printed = true
 				}
-
 				value, err := cliui.ParameterSchema(cmd, parameterSchema)
 				if err != nil {
 					return err
@@ -110,29 +131,27 @@ func workspaceCreate() *cobra.Command {
 					DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				})
 			}
-			if printed {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout())
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.FocusedPrompt.String()+"Previewing resources...")
-				_, _ = fmt.Fprintln(cmd.OutOrStdout())
-			}
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+
 			resources, err := client.TemplateVersionResources(cmd.Context(), templateVersion.ID)
 			if err != nil {
 				return err
 			}
-			err = displayTemplateVersionInfo(cmd, resources)
+			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+				WorkspaceName: workspaceName,
+				// Since agent's haven't connected yet, hiding this makes more sense.
+				HideAgentState: true,
+				Title:          "Workspace Preview",
+			})
 			if err != nil {
 				return err
 			}
 
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Create workspace %s?", color.HiCyanString(workspaceName)),
-				Default:   "yes",
+				Text:      "Confirm create?",
 				IsConfirm: true,
 			})
 			if err != nil {
-				if errors.Is(err, promptui.ErrAbort) {
-					return nil
-				}
 				return err
 			}
 
@@ -145,29 +164,26 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
-				Fetch: func() (codersdk.ProvisionerJob, error) {
-					build, err := client.WorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
-					return build.Job, err
-				},
-				Cancel: func() error {
-					return client.CancelWorkspaceBuild(cmd.Context(), workspace.LatestBuild.ID)
-				},
-				Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
-					return client.WorkspaceBuildLogsAfter(cmd.Context(), workspace.LatestBuild.ID, before)
-				},
+			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, before)
+			if err != nil {
+				return err
+			}
+			resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
+			if err != nil {
+				return err
+			}
+
+			err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+				WorkspaceName: workspaceName,
 			})
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created!\n\n", cliui.Styles.Keyword.Render(workspace.Name))
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder ssh "+workspace.Name))
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
-
-			return err
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "The %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
+			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&templateName, "template", "p", "", "Specify a template name.")
+	cliflag.StringVarP(cmd.Flags(), &workspaceName, "name", "n", "CODER_WORKSPACE_NAME", "", "Specify a workspace name.")
 
 	return cmd
 }

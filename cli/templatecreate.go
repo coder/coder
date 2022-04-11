@@ -1,15 +1,14 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -27,7 +26,7 @@ func templateCreate() *cobra.Command {
 		provisioner string
 	)
 	cmd := &cobra.Command{
-		Use:   "create [name]",
+		Use:   "create <directory> [name]",
 		Short: "Create a template from the current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -50,12 +49,32 @@ func templateCreate() *cobra.Command {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
 			}
 
+			// Confirm upload of the users current directory.
+			// Truncate if in the home directory, because a shorter path looks nicer.
+			displayDirectory := directory
+			userHomeDir, err := os.UserHomeDir()
+			if err != nil {
+				return xerrors.Errorf("get home dir: %w", err)
+			}
+			if strings.HasPrefix(displayDirectory, userHomeDir) {
+				displayDirectory = strings.TrimPrefix(displayDirectory, userHomeDir)
+				displayDirectory = "~" + displayDirectory
+			}
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Create and upload %q?", displayDirectory),
+				IsConfirm: true,
+				Default:   "yes",
+			})
+			if err != nil {
+				return err
+			}
+
 			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 			spin.Writer = cmd.OutOrStdout()
 			spin.Suffix = cliui.Styles.Keyword.Render(" Uploading current directory...")
 			spin.Start()
 			defer spin.Stop()
-			archive, err := provisionersdk.Tar(directory)
+			archive, err := provisionersdk.Tar(directory, provisionersdk.TemplateArchiveLimit)
 			if err != nil {
 				return err
 			}
@@ -66,9 +85,6 @@ func templateCreate() *cobra.Command {
 			}
 			spin.Stop()
 
-			spin = spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-			spin.Writer = cmd.OutOrStdout()
-			spin.Suffix = cliui.Styles.Keyword.Render("Something")
 			job, parameters, err := createValidTemplateVersion(cmd, client, organization, database.ProvisionerType(provisioner), resp.Hash)
 			if err != nil {
 				return err
@@ -76,14 +92,10 @@ func templateCreate() *cobra.Command {
 
 			if !yes {
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Create template?",
+					Text:      "Confirm create?",
 					IsConfirm: true,
-					Default:   "yes",
 				})
 				if err != nil {
-					if errors.Is(err, promptui.ErrAbort) {
-						return nil
-					}
 					return err
 				}
 			}
@@ -97,7 +109,13 @@ func templateCreate() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "The %s template has been created!\n", templateName)
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n"+cliui.Styles.Wrap.Render(
+				"The "+cliui.Styles.Keyword.Render(templateName)+" template has been created! "+
+					"Developers can provision a workspace with this template using:")+"\n")
+
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder workspace create "+templateName))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+
 			return nil
 		},
 	}
@@ -192,11 +210,13 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		return nil, nil, xerrors.New(version.Job.Error)
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Checkmark.String()+" Successfully imported template source!\n")
-
 	resources, err := client.TemplateVersionResources(cmd.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	return &version, parameters, displayTemplateVersionInfo(cmd, resources)
+	return &version, parameters, cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+		HideAgentState: true,
+		HideAccess:     true,
+		Title:          "Template Preview",
+	})
 }

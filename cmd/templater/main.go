@@ -120,7 +120,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	if err != nil {
 		return err
 	}
-	content, err := provisionersdk.Tar(dir)
+	content, err := provisionersdk.Tar(dir, provisionersdk.TemplateArchiveLimit)
 	if err != nil {
 		return err
 	}

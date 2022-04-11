@@ -29,9 +29,10 @@ const (
 
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "coder",
-		Version:      buildinfo.Version(),
-		SilenceUsage: true,
+		Use:           "coder",
+		Version:       buildinfo.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		Long: `    ▄█▀    ▀█▄
      ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
