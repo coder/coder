@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
       - name: golangci-lint
@@ -71,7 +71,7 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           version: "3.19.4"
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
       - run: curl -sSL
@@ -123,7 +123,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -191,7 +191,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -289,7 +289,7 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -363,7 +363,7 @@ jobs:
             js-${{ runner.os }}-
 
       # Go is required for uploading the test results to datadog
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -419,7 +419,7 @@ jobs:
             js-${{ runner.os }}-
 
       # Go is required for uploading the test results to datadog
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
