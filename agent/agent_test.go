@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -118,8 +117,7 @@ func TestAgent(t *testing.T) {
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
 	agentConn := setupAgent(t)
-	socket := filepath.Join(t.TempDir(), "ssh")
-	listener, err := net.Listen("unix", socket)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	go func() {
 		for {
@@ -136,7 +134,12 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	t.Cleanup(func() {
 		_ = listener.Close()
 	})
-	args := append(beforeArgs, "-o", "ProxyCommand socat - UNIX-CLIENT:"+socket, "-o", "StrictHostKeyChecking=no", "host")
+	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	args := append(beforeArgs,
+		"-o", "HostName "+tcpAddr.IP.String(),
+		"-o", "Port "+strconv.Itoa(tcpAddr.Port),
+		"-o", "StrictHostKeyChecking=no", "host")
 	args = append(args, afterArgs...)
 	return exec.Command("ssh", args...)
 }

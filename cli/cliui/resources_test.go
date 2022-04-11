@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWorkspaceResources(t *testing.T) {
@@ -15,7 +16,7 @@ func TestWorkspaceResources(t *testing.T) {
 	t.Run("SingleAgentSSH", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
-		cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
+		err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
 			Type:       "google_compute_instance",
 			Name:       "dev",
 			Transition: database.WorkspaceTransitionStart,
@@ -28,6 +29,7 @@ func TestWorkspaceResources(t *testing.T) {
 		}}, cliui.WorkspaceResourcesOptions{
 			WorkspaceName: "example",
 		})
+		require.NoError(t, err)
 		ptty.ExpectMatch("coder ssh example")
 	})
 
@@ -35,7 +37,7 @@ func TestWorkspaceResources(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
 		disconnected := database.Now().Add(-4 * time.Second)
-		cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
+		err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
 			Address:    "disk",
 			Transition: database.WorkspaceTransitionStart,
 			Type:       "google_compute_disk",
@@ -78,6 +80,7 @@ func TestWorkspaceResources(t *testing.T) {
 			HideAgentState: false,
 			HideAccess:     false,
 		})
+		require.NoError(t, err)
 		ptty.ExpectMatch("google_compute_disk.root")
 		ptty.ExpectMatch("google_compute_instance.dev")
 		ptty.ExpectMatch("coder ssh dev.postgres")

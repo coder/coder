@@ -264,7 +264,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 		require.NoError(t, err)
 		for _, resource := range resources {
 			for _, agent := range resource.Agents {
-				if agent.FirstConnectedAt == nil {
+				if agent.Status != codersdk.WorkspaceAgentConnected {
 					return false
 				}
 			}

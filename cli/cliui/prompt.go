@@ -128,9 +128,9 @@ func promptJSON(reader *bufio.Reader, line string) (string, error) {
 			continue
 		}
 		// Compacting the JSON makes it easier for parsing and testing.
-		bytes := data.Bytes()
+		rawJSON := data.Bytes()
 		data.Reset()
-		err = json.Compact(&data, bytes)
+		err = json.Compact(&data, rawJSON)
 		if err != nil {
 			return line, xerrors.Errorf("compact json: %w", err)
 		}

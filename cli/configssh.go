@@ -31,8 +31,9 @@ const sshEndToken = "# ------------END-CODER------------"
 
 func configSSH() *cobra.Command {
 	var (
-		sshConfigFile string
-		sshOptions    []string
+		sshConfigFile    string
+		sshOptions       []string
+		skipProxyCommand bool
 	)
 	cmd := &cobra.Command{
 		Use: "config-ssh",
@@ -90,16 +91,18 @@ func configSSH() *cobra.Command {
 							}
 							configOptions := []string{
 								"Host coder." + hostname,
-								"\tHostName coder." + hostname,
 							}
 							for _, option := range sshOptions {
 								configOptions = append(configOptions, "\t"+option)
 							}
 							configOptions = append(configOptions,
-								fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname),
+								"\tHostName coder."+hostname,
 								"\tConnectTimeout=0",
 								"\tStrictHostKeyChecking=no",
 							)
+							if !skipProxyCommand {
+								configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
+							}
 							sshConfigContent += strings.Join(configOptions, "\n") + "\n"
 							sshConfigContentMutex.Unlock()
 						}
@@ -128,6 +131,8 @@ func configSSH() *cobra.Command {
 	}
 	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", "~/.ssh/config", "Specifies the path to an SSH config.")
 	cmd.Flags().StringArrayVarP(&sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
+	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
+	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 
 	return cmd
 }
