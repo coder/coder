@@ -24,6 +24,13 @@ export const MockUser: UserResponse = {
   created_at: "",
 }
 
+export const MockUser2: UserResponse = {
+  id: "test-user-2",
+  username: "TestUser2",
+  email: "test2@coder.com",
+  created_at: "",
+}
+
 export const MockOrganization: Organization = {
   id: "test-org",
   name: "Test Organization",
