@@ -46,7 +46,7 @@
     "@pmmmwh/react-refresh-webpack-plugin": "0.5.5",
     "@react-theming/storybook-addon": "1.1.5",
     "@storybook/addon-actions": "6.4.20",
-    "@storybook/addon-essentials": "6.4.19",
+    "@storybook/addon-essentials": "6.4.21",
     "@storybook/addon-links": "6.4.20",
     "@storybook/react": "6.4.20",
     "@testing-library/react": "12.1.4",
