@@ -13,6 +13,7 @@ import (
 	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 )
 
 // PromptOptions supply a set of options to the prompt.
@@ -47,7 +48,7 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
 			line, err = speakeasy.Ask("")
 		} else {
-			if runtime.GOOS == "darwin" && isInputFile {
+			if !opts.IsConfirm && runtime.GOOS == "darwin" && isInputFile {
 				var restore func()
 				restore, err = removeLineLengthLimit(int(inFile.Fd()))
 				if err != nil {
@@ -113,7 +114,7 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		return "", err
 	case line := <-lineCh:
 		if opts.IsConfirm && line != "yes" && line != "y" {
-			return line, Canceled
+			return line, xerrors.Errorf("got %q: %w", line, Canceled)
 		}
 		if opts.Validate != nil {
 			err := opts.Validate(line)
