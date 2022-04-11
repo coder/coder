@@ -60,7 +60,7 @@
     "@typescript-eslint/eslint-plugin": "5.18.0",
     "@typescript-eslint/parser": "5.18.0",
     "@xstate/cli": "0.1.6",
-    "chromatic": "6.5.3",
+    "chromatic": "6.5.4",
     "copy-webpack-plugin": "10.2.4",
     "css-loader": "6.7.1",
     "css-minimizer-webpack-plugin": "3.4.1",
