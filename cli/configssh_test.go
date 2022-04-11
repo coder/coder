@@ -123,7 +123,9 @@ func TestConfigSSH(t *testing.T) {
 
 	t.Log(tempFile.Name())
 	// #nosec
-	data, err := exec.Command("ssh", "-F", tempFile.Name(), "coder."+workspace.Name, "echo", "test").Output()
+	sshCmd := exec.Command("ssh", "-F", tempFile.Name(), "coder."+workspace.Name, "echo", "test")
+	sshCmd.Stderr = os.Stderr
+	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
 }
