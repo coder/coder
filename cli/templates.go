@@ -74,7 +74,7 @@ func displayTemplateVersionInfo(cmd *cobra.Command, resources []codersdk.Workspa
 		} else {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Keyword.Render("+ start")+cliui.Styles.Placeholder.Render(" (deletes on stop)"))
 		}
-		if resource.Agent != nil {
+		if len(resource.Agents) > 0 {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Fuschia.Render("▲ allows ssh"))
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout())

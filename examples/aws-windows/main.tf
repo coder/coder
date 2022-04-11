@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.2.1"
+      version = "~> 0.3.1"
     }
   }
 }
@@ -42,12 +42,6 @@ provider "aws" {
 data "coder_workspace" "me" {
 }
 
-data "coder_agent_script" "dev" {
-  arch = "amd64"
-  auth = "aws-instance-identity"
-  os   = "windows"
-}
-
 data "aws_ami" "windows" {
   most_recent = true
   owners      = ["amazon"]
@@ -59,8 +53,9 @@ data "aws_ami" "windows" {
 }
 
 resource "coder_agent" "dev" {
-  count       = data.coder_workspace.me.transition == "start" ? 1 : 0
-  instance_id = aws_instance.dev[0].id
+  arch = "amd64"
+  auth = "aws-instance-identity"
+  os   = "windows"
 }
 
 locals {
@@ -71,7 +66,7 @@ locals {
   user_data_start = <<EOT
 <powershell>
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-${data.coder_agent_script.dev.value}
+${coder_agent.dev.init_script}
 </powershell>
 <persist>true</persist>
 EOT
