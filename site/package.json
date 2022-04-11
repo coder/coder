@@ -37,7 +37,7 @@
     "react": "17.0.2",
     "react-dom": "17.0.2",
     "react-router-dom": "6.3.0",
-    "swr": "1.2.2",
+    "swr": "1.3.0",
     "xstate": "4.30.6",
     "yup": "0.32.11"
   },
@@ -57,7 +57,7 @@
     "@types/react": "17.0.43",
     "@types/react-dom": "17.0.14",
     "@types/superagent": "4.1.15",
-    "@typescript-eslint/eslint-plugin": "5.18.0",
+    "@typescript-eslint/eslint-plugin": "5.19.0",
     "@typescript-eslint/parser": "5.18.0",
     "@xstate/cli": "0.1.6",
     "chromatic": "6.5.4",
