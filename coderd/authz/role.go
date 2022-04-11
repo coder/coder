@@ -51,25 +51,12 @@ var (
 	RoleSiteAuditor = Role{
 		Name: "auditor",
 		Site: permissions(map[ResourceType][]Action{
-			ResourceAuditLogs: {ActionRead},
+			// TODO: @emyrk when audit logs are added, add back a read perm
+			//ResourceAuditLogs: {ActionRead},
 			// Should be able to read user details to associate with logs.
 			// Without this the user-id in logs is not very helpful
 			ResourceUser: {ActionRead},
 		}),
-	}
-
-	// RoleDenyAll is a role that denies everything everywhere.
-	RoleDenyAll = Role{
-		Name: "deny-all",
-		// List out deny permissions explicitly
-		Site: []Permission{
-			{
-				Negate:       true,
-				ResourceType: Wildcard,
-				ResourceID:   Wildcard,
-				Action:       Wildcard,
-			},
-		},
 	}
 )
 

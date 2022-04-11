@@ -6,9 +6,7 @@ type ResourceType string
 const (
 	ResourceWorkspace ResourceType = "workspace"
 	ResourceTemplate  ResourceType = "template"
-	ResourceDevURL    ResourceType = "devurl"
 	ResourceUser      ResourceType = "user"
-	ResourceAuditLogs ResourceType = "audit-logs"
 )
 
 func (z ResourceType) All() Object {

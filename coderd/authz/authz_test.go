@@ -60,7 +60,18 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = authz.SubjectTODO{
 		UserID: "me",
-		Roles:  []authz.Role{authz.RoleDenyAll},
+		Roles: []authz.Role{{
+			Name: "deny-all",
+			// List out deny permissions explicitly
+			Site: []authz.Permission{
+				{
+					Negate:       true,
+					ResourceType: authz.Wildcard,
+					ResourceID:   authz.Wildcard,
+					Action:       authz.Wildcard,
+				},
+			},
+		}},
 	}
 
 	testAuthorize(t, "DeletedMember", user, []authTestCase{
