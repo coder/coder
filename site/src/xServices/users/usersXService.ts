@@ -3,6 +3,9 @@ import * as API from "../../api"
 import * as Types from "../../api/types"
 
 export interface UsersContext {
+  users: Types.UserResponse[]
+  pager: Types.Pager
+  getUsersError: Error | unknown
 }
 
 export type UsersEvent = { type: 'GET_USERS' }
@@ -16,11 +19,9 @@ export const usersMachine =
         events: {} as UsersEvent,
         services: {} as {
           getUsers: {
-            data: Types.UserResponse[]
+            data: Types.PagedUsers
           }
         },
-      },
-      context: {
       },
       id: "usersState",
       initial: "gettingUsers",
@@ -62,7 +63,8 @@ export const usersMachine =
       },
       actions: {
         assignUsers: assign({
-          me: (_, event) => event.data,
+          users: (_, event) => event.data.page,
+          pager: (_, event) => event.data.pager
         }),
         assignGetUsersError: assign({
           getUsersError: (_, event) => event.data,

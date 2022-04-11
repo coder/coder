@@ -6,6 +6,7 @@ import {
   UserAgent,
   UserResponse,
   Workspace,
+  Pager
 } from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
@@ -29,6 +30,18 @@ export const MockUser2: UserResponse = {
   username: "TestUser2",
   email: "test2@coder.com",
   created_at: "",
+}
+
+export const MockPager: Pager = {
+  cursor: {
+    after: "",
+    before: "",
+    limit: 10,
+    total: 25 
+  },
+  next: "",
+  previous: "",
+  total: 25
 }
 
 export const MockOrganization: Organization = {
