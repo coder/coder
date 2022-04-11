@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/httpapi"
@@ -52,6 +51,5 @@ func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		apiAgents = append(apiAgents, convertedAgent)
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceResource(workspaceResource, apiAgents))
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceResource(workspaceResource, apiAgents))
 }
