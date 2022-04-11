@@ -501,7 +501,7 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Clear the user's session cookie
-func (*api) postLogout(rw http.ResponseWriter, r *http.Request) {
+func (*api) postLogout(rw http.ResponseWriter, _ *http.Request) {
 	// Get a blank token cookie
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now
