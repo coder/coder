@@ -42,7 +42,7 @@ type CreateUserRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" validate:"required"`
 }
 
-type PatchUserProfileRequest struct {
+type UpdateUserProfileRequest struct {
 	Email    string  `json:"email" validate:"required,email"`
 	Username string  `json:"username" validate:"required,username"`
 	Name     *string `json:"name"`
@@ -122,9 +122,9 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// PatchUserProfile enables callers to update profile information
-func (c *Client) PatchUserProfile(ctx context.Context, userID uuid.UUID, req PatchUserProfileRequest) (User, error) {
-	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/users/%s", uuidOrMe(userID)), req)
+// UpdateUserProfile enables callers to update profile information
+func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req UpdateUserProfileRequest) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", uuidOrMe(userID)), req)
 	if err != nil {
 		return User{}, err
 	}

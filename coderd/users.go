@@ -270,33 +270,34 @@ func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertUser(user))
 }
 
-func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
+func (api *api) updateUserProfile(rw http.ResponseWriter, r *http.Request) {
+
 	user := httpmw.UserParam(r)
 
-	var patchUserProfile codersdk.PatchUserProfileRequest
-	if !httpapi.Read(rw, r, &patchUserProfile) {
+	var params codersdk.UpdateUserProfileRequest
+	if !httpapi.Read(rw, r, &params) {
 		return
 	}
 
-	if patchUserProfile.Name == nil {
-		patchUserProfile.Name = &user.Name
+	if params.Name == nil {
+		params.Name = &user.Name
 	}
 
 	existentUser, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
-		Email:    patchUserProfile.Email,
-		Username: patchUserProfile.Username,
+		Email:    params.Email,
+		Username: params.Username,
 	})
 	isDifferentUser := existentUser.ID != user.ID
 
 	if err == nil && isDifferentUser {
 		responseErrors := []httpapi.Error{}
-		if existentUser.Email == patchUserProfile.Email {
+		if existentUser.Email == params.Email {
 			responseErrors = append(responseErrors, httpapi.Error{
 				Field: "email",
 				Code:  "exists",
 			})
 		}
-		if existentUser.Username == patchUserProfile.Username {
+		if existentUser.Username == params.Username {
 			responseErrors = append(responseErrors, httpapi.Error{
 				Field: "username",
 				Code:  "exists",
@@ -317,9 +318,9 @@ func (api *api) patchUserProfile(rw http.ResponseWriter, r *http.Request) {
 
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:        user.ID,
-		Name:      *patchUserProfile.Name,
-		Email:     patchUserProfile.Email,
-		Username:  patchUserProfile.Username,
+		Name:      *params.Name,
+		Email:     params.Email,
+		Username:  params.Username,
 		UpdatedAt: database.Now(),
 	})
 

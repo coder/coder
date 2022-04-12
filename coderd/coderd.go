@@ -135,7 +135,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
-					r.Patch("/", api.patchUserProfile)
+					r.Put("/profile", api.updateUserProfile)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					r.Post("/keys", api.postAPIKey)
