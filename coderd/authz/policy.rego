@@ -2,8 +2,10 @@ package authz
 import future.keywords.in
 import future.keywords.every
 
-# https://play.openpolicyagent.org/p/Jlzq5gIjkd
-# grant_allow: https://play.openpolicyagent.org/p/9wpE9x6Tg2
+# A great playground: https://play.openpolicyagent.org/
+# TODO: Add debug instructions to do in the cli. Running really short on time, the
+#   playground is sufficient for now imo. In the future we can provide a tidy bash
+#   script for running this against predefined input.
 
 # bool_flip lets you assign a value to an inverted bool.
 # You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
@@ -38,8 +40,10 @@ perms_grant(permissions) = grants {
 # result is the default value.
 default site = {}
 site = grant {
-	# Boolean set for all site wide permissions
-    grant = { v |
+	# Boolean set for all site wide permissions.
+    grant = { v | # Use set comprehension to remove dulpicate values
+        # For each role, grab the site permission.
+        # Find the grants on this permission list.
     	v = perms_grant(input.subject.roles[_].site)[_]
     }
 }
@@ -49,13 +53,16 @@ user = grant {
 	# Only apply user permissions if the user owns the resource
     input.object.owner != ""
  	input.object.owner == input.subject.id
-    grant = { v |
+    grant = { v | # Use set comprehension to remove dulpicate values
+        # For each role, grab the user permissions.
+        # Find the grants on this permission list.
     	v = perms_grant(input.subject.roles[_].user)[_]
     }
 }
 
 # Organizations are more complex. If the user has no roles that specifically indicate the org_id of the object,
 # then we want to block the action. This is because that means the user is not a member of the org.
+# A non-member cannot access any org resources.
 
 # org_member returns the set of permissions associated with a user if the user is a member of the
 # organization
@@ -94,6 +101,8 @@ org = set {
 
 # The allow block is quite simple. Any set with `false` cascades down in levels.
 # Authorization looks for any `allow` statement that is true. Multiple can be true!
+# Note that the absense of `allow` means "unauthorized".
+# An explicit `"allow": true` is required.
 
 # site allow
 allow {
