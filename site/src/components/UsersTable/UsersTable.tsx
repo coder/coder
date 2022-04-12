@@ -11,18 +11,14 @@ const Language = {
   usernameLabel: "User",
 }
 
-const emptyState = (
-  <EmptyState
-    message={Language.emptyMessage}
-  />
-)
+const emptyState = <EmptyState message={Language.emptyMessage} />
 
 const columns: Column<UserResponse>[] = [
   {
-    key: "email",
+    key: "username",
     name: Language.usernameLabel,
     renderer: (field, data) => {
-      return <UserCell Avatar={{ username: data.email }} primaryText={data.email} />
+      return <UserCell Avatar={{ username: data.username }} primaryText={data.username} caption={data.email} />
     },
   },
 ]
@@ -32,12 +28,5 @@ export interface UsersTableProps {
 }
 
 export const UsersTable: React.FC<UsersTableProps> = ({ users }) => {
-  return (
-    <Table
-      columns={columns}
-      data={users}
-      title={Language.usersTitle}
-      emptyState={emptyState}
-    />
-  )
+  return <Table columns={columns} data={users} title={Language.usersTitle} emptyState={emptyState} />
 }

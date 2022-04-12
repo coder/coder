@@ -12,19 +12,15 @@ const Template: Story<UsersPageViewProps> = (args) => <UsersPageView {...args} /
 
 export const Ready = Template.bind({})
 Ready.args = {
-  users: [
-    MockUser,
-    MockUser2
-  ],
+  users: [MockUser, MockUser2],
   pager: {
     total: 2,
     after: "123",
     before: "456",
-    limit: 10
-  }
+    limit: 10,
+  },
 }
 export const Loading = Template.bind({})
 Loading.args = {
-  users: [
-  ]
+  users: [],
 }

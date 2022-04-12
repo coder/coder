@@ -1,7 +1,6 @@
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { ErrorSummary } from "../../components/ErrorSummary"
-import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
 

@@ -1,6 +1,6 @@
-import { makeStyles } from "@material-ui/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
-import { UserResponse, Pager } from "../../api/types"
+import { Pager, UserResponse } from "../../api/types"
 import { Header } from "../../components/Header"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 
@@ -17,10 +17,7 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({ users, pager }) =>
   const styles = useStyles()
   return (
     <div className={styles.flexColumn}>
-      <Header
-        title={Language.pageTitle}
-        subTitle={pager ? `${pager.total} total`: ''}
-      />
+      <Header title={Language.pageTitle} subTitle={pager ? `${pager.total} total` : ""} />
       <UsersTable users={users} />
     </div>
   )
@@ -29,6 +26,6 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({ users, pager }) =>
 const useStyles = makeStyles(() => ({
   flexColumn: {
     display: "flex",
-    flexDirection: "column"
-  }
+    flexDirection: "column",
+  },
 }))

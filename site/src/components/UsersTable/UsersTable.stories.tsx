@@ -12,8 +12,5 @@ const Template: Story<UsersTableProps> = (args) => <UsersTable {...args} />
 
 export const Example = Template.bind({})
 Example.args = {
-  users: [
-    MockUser,
-    MockUser2
-  ]
+  users: [MockUser, MockUser2],
 }

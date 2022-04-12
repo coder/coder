@@ -75,7 +75,7 @@ export const getUsers = async (): Promise<Types.PagedUsers> => {
   // return response.data
   return Promise.resolve({
     page: [MockUser, MockUser2],
-    pager: MockPager
+    pager: MockPager,
   })
 }
 
