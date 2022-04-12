@@ -42,17 +42,14 @@ func TestWorkspaceResources(t *testing.T) {
 		disconnected := database.Now().Add(-4 * time.Second)
 		go func() {
 			err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
-				Address:    "disk",
 				Transition: database.WorkspaceTransitionStart,
 				Type:       "google_compute_disk",
 				Name:       "root",
 			}, {
-				Address:    "disk",
 				Transition: database.WorkspaceTransitionStop,
 				Type:       "google_compute_disk",
 				Name:       "root",
 			}, {
-				Address:    "another",
 				Transition: database.WorkspaceTransitionStart,
 				Type:       "google_compute_instance",
 				Name:       "dev",

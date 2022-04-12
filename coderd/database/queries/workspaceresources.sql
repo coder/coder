@@ -16,14 +16,6 @@ WHERE
 
 -- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (
-		id,
-		created_at,
-		job_id,
-		transition,
-		address,
-		type,
-		name
-	)
+	workspace_resources (id, created_at, job_id, transition, type, name)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
