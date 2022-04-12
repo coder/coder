@@ -590,11 +590,13 @@ type authTestCase struct {
 }
 
 func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTestCase) {
+	authorizer, err := authz.NewAuthorizer()
+	require.NoError(t, err)
 	for _, cases := range sets {
 		for _, c := range cases {
 			t.Run(name, func(t *testing.T) {
 				for _, a := range c.actions {
-					err := authz.Authorize(context.Background(), subject.UserID, subject.Roles, c.resource, a)
+					err := authorizer.Authorize(context.Background(), subject.UserID, subject.Roles, c.resource, a)
 					if c.allow {
 						if err != nil {
 							var uerr *authz.Unauthorized

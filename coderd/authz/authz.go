@@ -2,18 +2,67 @@ package authz
 
 import (
 	"context"
+	_ "embed"
+
 	"golang.org/x/xerrors"
+
+	"github.com/open-policy-agent/opa/rego"
 )
 
-var ErrUnauthorized = xerrors.New("unauthorized")
+// RegoAuthorizer will use a prepared rego query for performing authorize()
+type RegoAuthorizer struct {
+	query rego.PreparedEvalQuery
+}
 
-// TODO: Implement Authorize. This will be implmented in mainly rego.
-func Authorize(ctx context.Context, subjID string, roles []Role, obj Object, action Action) error {
-	// TODO: Cache authorizer
-	authorizer, err := newAuthorizer()
+// Load the policy from policy.rego in this directory.
+//go:embed policy.rego
+var policy string
+
+func NewAuthorizer() (*RegoAuthorizer, error) {
+	ctx := context.Background()
+	query, err := rego.New(
+		// allowed is the `allow` field from the prepared query. This is the field to check if authorization is
+		// granted.
+		rego.Query("allowed = data.authz.allow"),
+		rego.Module("policy.rego", policy),
+	).PrepareForEval(ctx)
+
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("new authorizer: %w", err), nil)
+		return nil, xerrors.Errorf("prepare query: %w", err)
+	}
+	return &RegoAuthorizer{query: query}, nil
+}
+
+type authSubject struct {
+	ID    string `json:"id"`
+	Roles []Role `json:"roles"`
+
+	SitePermissions []Permission `json:"site_permissions"`
+	OrgPermissions  []Permission `json:"org_permissions"`
+	UserPermissions []Permission `json:"user_permissions"`
+}
+
+func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, object Object, action Action) error {
+	input := map[string]interface{}{
+		"subject": authSubject{
+			ID:    subjectID,
+			Roles: roles,
+		},
+		"object": object,
+		"action": action,
 	}
 
-	return authorizer.Authorize(ctx, subjID, roles, obj, action)
+	results, err := a.query.Eval(ctx, rego.EvalInput(input))
+	if err != nil {
+		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w, err"), input)
+	}
+
+	if len(results) != 1 {
+		return ForbiddenWithInternal(xerrors.Errorf("expect only 1 result, got %d", len(results)), input)
+	}
+
+	if results[0].Bindings["allowed"] != true {
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input)
+	}
+	return nil
 }
