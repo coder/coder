@@ -10,13 +10,13 @@ import future.keywords.every
 # bool_flip lets you assign a value to an inverted bool.
 # You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
 bool_flip(b) = flipped {
-	b
-	flipped = false
+    b
+    flipped = false
 }
 
 bool_flip(b) = flipped {
-	not b
-	flipped = true
+    not b
+    flipped = true
 }
 
 # perms_grant returns a set of boolean values (true, false).
@@ -24,12 +24,12 @@ bool_flip(b) = flipped {
 # resource_type, resource_id, and action.
 # The empty set is returned if no relevant permissions are found.
 perms_grant(permissions) = grants {
-	# If there are no permissions, this value is the empty set {}.
-	grants := { x |
-		# All permissions ...
-    	perm := permissions[_]
-		# Such that the permission action, type, and resource_id matches
-    	perm.action in [input.action, "*"]
+    # If there are no permissions, this value is the empty set {}.
+    grants := { x |
+        # All permissions ...
+        perm := permissions[_]
+        # Such that the permission action, type, and resource_id matches
+        perm.action in [input.action, "*"]
         perm.resource_type in [input.object.type, "*"]
         perm.resource_id in [input.object.id, "*"]
         x := bool_flip(perm.negate)
@@ -40,23 +40,23 @@ perms_grant(permissions) = grants {
 # result is the default value.
 default site = {}
 site = grant {
-	# Boolean set for all site wide permissions.
+    # Boolean set for all site wide permissions.
     grant = { v | # Use set comprehension to remove dulpicate values
         # For each role, grab the site permission.
         # Find the grants on this permission list.
-    	v = perms_grant(input.subject.roles[_].site)[_]
+        v = perms_grant(input.subject.roles[_].site)[_]
     }
 }
 
 default user = {}
 user = grant {
-	# Only apply user permissions if the user owns the resource
+    # Only apply user permissions if the user owns the resource
     input.object.owner != ""
- 	input.object.owner == input.subject.id
+    input.object.owner == input.subject.id
     grant = { v | # Use set comprehension to remove dulpicate values
         # For each role, grab the user permissions.
         # Find the grants on this permission list.
-    	v = perms_grant(input.subject.roles[_].user)[_]
+        v = perms_grant(input.subject.roles[_].user)[_]
     }
 }
 
@@ -67,19 +67,19 @@ user = grant {
 # org_member returns the set of permissions associated with a user if the user is a member of the
 # organization
 org_member = grant {
-	input.object.org_owner != ""
+    input.object.org_owner != ""
     grant = { v |
-    	v = perms_grant(input.subject.roles[_].org[input.object.org_owner])[_]
+        v = perms_grant(input.subject.roles[_].org[input.object.org_owner])[_]
     }
 }
 
 # If a user is not part of an organization, 'org_non_member' is set to true
 org_non_member {
-	input.object.org_owner != ""
- 	# Identify if the user is in the org
+    input.object.org_owner != ""
+    # Identify if the user is in the org
     roles := input.subject.roles
     every role in roles {
-    	not role.org[input.object.org_owner]
+        not role.org[input.object.org_owner]
     }
 }
 
@@ -90,12 +90,12 @@ org_non_member {
 # It is important both rules cannot be true, as the `org` rules cannot produce multiple outputs.
 default org = []
 org = set {
-	not org_non_member
-	set = org_member
+    not org_non_member
+    set = org_member
 }
 
 org = set {
-	org_non_member
+    org_non_member
     set = {false}
 }
 
@@ -106,7 +106,7 @@ org = set {
 
 # site allow
 allow {
-	# No site wide deny
+    # No site wide deny
     not false in site
     # And all permissions are positive
     site[_]
@@ -114,9 +114,9 @@ allow {
 
 # org allow
 allow {
-	# No site or org deny
+    # No site or org deny
     not false in site
-	not false in org
+    not false in org
     # And all permissions are positive
     org[_]
 }
@@ -125,7 +125,7 @@ allow {
 allow {
     # No site, org, or user deny
     not false in site
-	not false in org
+    not false in org
     not false in user
     # And all permissions are positive
     user[_]
