@@ -12,7 +12,6 @@ import (
 // TestExample gives some examples on how to use the authz library.
 // This serves to test syntax more than functionality.
 func TestExample(t *testing.T) {
-	t.Skip("TODO: unskip when rego is done")
 	t.Parallel()
 	ctx := context.Background()
 	authorizer, err := rbac.NewAuthorizer()
@@ -28,14 +27,12 @@ func TestExample(t *testing.T) {
 		},
 	}
 
-	// TODO: Uncomment all assertions when implementation is done.
-
 	//nolint:paralleltest
 	t.Run("ReadAllWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the site
 		err := authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ResourceWorkspace.All(), rbac.ActionRead)
 		var _ = err
-		// require.Error(t, err, "this user cannot read all workspaces")
+		require.Error(t, err, "this user cannot read all workspaces")
 	})
 
 	//nolint:paralleltest
