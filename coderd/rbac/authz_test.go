@@ -598,7 +598,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 		for _, c := range cases {
 			t.Run(name, func(t *testing.T) {
 				for _, a := range c.actions {
-					err := authorizer.Authorize(context.Background(), subject.UserID, subject.Roles, c.resource, a)
+					err := authorizer.Authorize(context.Background(), subject.UserID, subject.Roles, a, c.resource)
 					if c.allow {
 						if err != nil {
 							var uerr *rbac.UnauthorizedError

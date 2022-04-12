@@ -38,7 +38,7 @@ type authSubject struct {
 	Roles []Role `json:"roles"`
 }
 
-func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, object Object, action Action) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, action Action, object Object) error {
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:    subjectID,
