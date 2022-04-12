@@ -17,9 +17,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/render"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/provisionersdk"
 )
 
@@ -32,7 +32,8 @@ func TestAgentScript(t *testing.T) {
 			require.NoError(t, err)
 			content, err := os.ReadFile(echoPath)
 			require.NoError(t, err)
-			httpapi.Write(rw, http.StatusOK, content)
+			render.Status(r, http.StatusOK)
+			render.Data(rw, r, content)
 		}))
 		t.Cleanup(srv.Close)
 		srvURL, err := url.Parse(srv.URL)
