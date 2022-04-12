@@ -604,7 +604,8 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 							var uerr *rbac.UnauthorizedError
 							xerrors.As(err, &uerr)
 							d, _ := json.Marshal(uerr.Input())
-							t.Log(string(d))
+							t.Logf("input: %s", string(d))
+							t.Logf("internal error: %+v", uerr.Internal().Error())
 						}
 						require.NoError(t, err, "expected no error for testcase action %s", a)
 						continue
