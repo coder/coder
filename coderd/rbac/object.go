@@ -1,5 +1,24 @@
 package rbac
 
+const WildcardSymbol = "*"
+
+// Resources are just typed objects. Making resources this way allows directly
+// passing them into an Authorize function and use the chaining api.
+var (
+	ResourceWorkspace = Object{
+		Type: "workspace",
+	}
+
+	ResourceTemplate = Object{
+		Type: "template",
+	}
+
+	// ResourceWildcard represents all resource types
+	ResourceWildcard = Object{
+		Type: WildcardSymbol,
+	}
+)
+
 // Object is used to create objects for authz checks when you have none in
 // hand to run the check on.
 // An example is if you want to list all workspaces, you can create a Object
