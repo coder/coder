@@ -442,7 +442,7 @@ func TestAuthorizeLevels(t *testing.T) {
 			{
 				Name: "user-deny-all",
 				// List out deny permissions explicitly
-				Site: []authz.Permission{
+				User: []authz.Permission{
 					{
 						Negate:       true,
 						ResourceType: authz.WildcardSymbol,
@@ -516,7 +516,7 @@ func TestAuthorizeLevels(t *testing.T) {
 			{
 				Name: "user-deny-all",
 				// List out deny permissions explicitly
-				Site: []authz.Permission{
+				User: []authz.Permission{
 					{
 						Negate:       true,
 						ResourceType: authz.WildcardSymbol,
