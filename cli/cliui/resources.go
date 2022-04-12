@@ -44,7 +44,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 		if resource.Transition != database.WorkspaceTransitionStop {
 			continue
 		}
-		addressOnStop[resource.Address] = resource
+		addressOnStop[resource.Type+"."+resource.Name] = resource
 	}
 	// Displayed stores whether a resource has already been shown.
 	// Resources can be stored with numerous states, which we
@@ -75,24 +75,25 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 			// callers to hide resources eventually.
 			continue
 		}
-		if _, shown := displayed[resource.Address]; shown {
+		resourceAddress := resource.Type + "." + resource.Name
+		if _, shown := displayed[resourceAddress]; shown {
 			// The same resource can have multiple transitions.
 			continue
 		}
-		displayed[resource.Address] = struct{}{}
+		displayed[resourceAddress] = struct{}{}
 
 		// Sort agents by name for consistent output.
 		sort.Slice(resource.Agents, func(i, j int) bool {
 			return resource.Agents[i].Name < resource.Agents[j].Name
 		})
-		_, existsOnStop := addressOnStop[resource.Address]
+		_, existsOnStop := addressOnStop[resourceAddress]
 		resourceState := "ephemeral"
 		if existsOnStop {
 			resourceState = "persistent"
 		}
 		// Display a line for the resource.
 		tableWriter.AppendRow(table.Row{
-			Styles.Bold.Render(resource.Type + "." + resource.Name),
+			Styles.Bold.Render(resourceAddress),
 			Styles.Placeholder.Render(resourceState),
 			"",
 		})

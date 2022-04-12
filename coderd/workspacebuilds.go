@@ -110,7 +110,6 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		CreatedAt:  resource.CreatedAt,
 		JobID:      resource.JobID,
 		Transition: resource.Transition,
-		Address:    resource.Address,
 		Type:       resource.Type,
 		Name:       resource.Name,
 		Agents:     agents,
