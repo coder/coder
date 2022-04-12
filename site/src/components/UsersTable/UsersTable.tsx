@@ -1,7 +1,9 @@
+import { makeStyles } from "@material-ui/styles"
 import React from "react"
 import { Pager, UserResponse } from "../../api/types"
 import { Column, Table } from "../../components/Table"
 import { EmptyState } from "../EmptyState"
+import { Header } from "../Header"
 import { UserCell } from "../Table/Cells/UserCell"
 
 const Language = {
@@ -37,12 +39,23 @@ export interface UsersTableProps {
 }
 
 export const UsersTable: React.FC<UsersTableProps> = ({ users, pager }) => {
+  const styles = useStyles()
   return (
-    <Table
-      columns={columns}
-      data={users}
-      title={Language.usersTitle}
-      emptyState={emptyState}
-    />
+    <div className={styles.flexColumn}>
+      <Header title="Users" />
+      <Table
+        columns={columns}
+        data={users}
+        title={Language.usersTitle}
+        emptyState={emptyState}
+      />
+    </div>
   )
 }
+
+const useStyles = makeStyles(() => ({
+  flexColumn: {
+    display: "flex",
+    flexDirection: "column"
+  }
+}))
