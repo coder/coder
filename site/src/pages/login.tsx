@@ -24,16 +24,16 @@ export const SignInPage: React.FC = () => {
   const styles = useStyles()
   const location = useLocation()
   const xServices = useContext(XServiceContext)
-  const [userState, userSend] = useActor(xServices.userXService)
-  const isLoading = userState.hasTag("loading")
+  const [authState, authSend] = useActor(xServices.authXService)
+  const isLoading = authState.hasTag("loading")
   const redirectTo = retrieveRedirect(location.search)
-  const authErrorMessage = userState.context.authError ? (userState.context.authError as Error).message : undefined
+  const authErrorMessage = authState.context.authError ? (authState.context.authError as Error).message : undefined
 
   const onSubmit = async ({ email, password }: { email: string; password: string }) => {
-    userSend({ type: "SIGN_IN", email, password })
+    authSend({ type: "SIGN_IN", email, password })
   }
 
-  if (userState.matches("signedIn")) {
+  if (authState.matches("signedIn")) {
     return <Navigate to={redirectTo} replace />
   } else {
     return (

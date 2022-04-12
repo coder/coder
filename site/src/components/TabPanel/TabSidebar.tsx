@@ -3,7 +3,7 @@ import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { NavLink } from "react-router-dom"
-import { combineClasses } from "../../util/combine-classes"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface TabSidebarItem {
   path: string

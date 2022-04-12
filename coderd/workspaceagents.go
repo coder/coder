@@ -52,7 +52,7 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
 		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "Agent isn't connected!",
+			Message: fmt.Sprintf("Agent isn't connected! Status: %s", apiAgent.Status),
 		})
 		return
 	}
@@ -181,14 +181,14 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		_ = updateConnectionTimes()
 	}()
 
-	err = updateConnectionTimes()
-	if err != nil {
-		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
-		return
-	}
 	err = ensureLatestBuild()
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, "")
+		return
+	}
+	err = updateConnectionTimes()
+	if err != nil {
+		_ = conn.Close(websocket.StatusAbnormalClosure, err.Error())
 		return
 	}
 

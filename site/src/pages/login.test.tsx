@@ -23,31 +23,30 @@ describe("SignInPage", () => {
     render(<SignInPage />)
 
     // Then
-    await screen.findByText(Language.signIn, { exact: false })
+    await screen.findByText(Language.signIn)
   })
 
   it("shows an error message if SignIn fails", async () => {
     // Given
-    render(<SignInPage />)
-    // Make login fail
     server.use(
+      // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
         return res(ctx.status(500), ctx.json({ message: "nope" }))
       }),
     )
 
     // When
-    // Set email / password
+    render(<SignInPage />)
     const email = screen.getByLabelText(Language.emailLabel)
     const password = screen.getByLabelText(Language.passwordLabel)
-    userEvent.type(email, "test@coder.com")
-    userEvent.type(password, "password")
+    await userEvent.type(email, "test@coder.com")
+    await userEvent.type(password, "password")
+
     // Click sign-in
     const signInButton = await screen.findByText(Language.signIn)
     act(() => signInButton.click())
 
     // Then
-    // Finding error by test id because it comes from the backend
     const errorMessage = await screen.findByText(Language.authErrorMessage)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")

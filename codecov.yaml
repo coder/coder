@@ -4,6 +4,9 @@ codecov:
 comment:
   show_carryforward_flags: yes
 
+github_checks:
+  annotations: false
+
 coverage:
   notify:
     flags:

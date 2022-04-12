@@ -8,8 +8,8 @@ import { XServiceContext } from "../xServices/StateContext"
 
 export const CliAuthenticationPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
-  const [userState] = useActor(xServices.userXService)
-  const { me } = userState.context
+  const [authState] = useActor(xServices.authXService)
+  const { me } = authState.context
 
   const styles = useStyles()
 

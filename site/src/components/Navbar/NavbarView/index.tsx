@@ -3,9 +3,11 @@ import ListItem from "@material-ui/core/ListItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { NavLink } from "react-router-dom"
-import { UserResponse } from "../../api/types"
-import { Logo } from "../Icons"
-import { UserDropdown } from "./UserDropdown"
+import { UserResponse } from "../../../api/types"
+import { navHeight } from "../../../theme/constants"
+import { AdminDropdown } from "../../AdminDropdown/AdminDropdown"
+import { Logo } from "../../Icons"
+import { UserDropdown } from "../UserDropdown"
 
 export interface NavbarViewProps {
   user?: UserResponse
@@ -29,6 +31,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         </ListItem>
       </List>
       <div className={styles.fullWidth} />
+      {user && user.email === "admin@coder.com" && <AdminDropdown />}
       <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
     </nav>
   )
@@ -42,7 +45,7 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    height: 56,
+    height: navHeight,
     background: theme.palette.navbar.main,
     marginTop: 0,
     transition: "margin 150ms ease",
@@ -62,7 +65,7 @@ const useStyles = makeStyles((theme) => ({
   logo: {
     alignItems: "center",
     display: "flex",
-    height: 56,
+    height: navHeight,
     paddingLeft: theme.spacing(4),
     paddingRight: theme.spacing(2),
     "& svg": {
@@ -81,7 +84,7 @@ const useStyles = makeStyles((theme) => ({
     color: "#A7A7A7",
     display: "flex",
     fontSize: 16,
-    height: 56,
+    height: navHeight,
     padding: `0 ${theme.spacing(3)}px`,
     textDecoration: "none",
     transition: "background-color 0.3s ease",

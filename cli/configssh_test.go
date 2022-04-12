@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -26,10 +27,6 @@ import (
 
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
-	_, err := exec.LookPath("socat")
-	if err != nil {
-		t.Skip("You must have socat installed to run this test!")
-	}
 
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
@@ -89,10 +86,6 @@ func TestConfigSSH(t *testing.T) {
 	require.NoError(t, err)
 	defer agentConn.Close()
 
-	// Using socat we can force SSH to use a TCP port
-	// created in this test. That way we still validate
-	// our configuration, but use the native SSH command
-	// line to interface.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -114,7 +107,13 @@ func TestConfigSSH(t *testing.T) {
 		_ = listener.Close()
 	})
 
-	cmd, root := clitest.New(t, "config-ssh", "--ssh-option", "ProxyCommand socat - TCP4:"+listener.Addr().String(), "--ssh-config-file", tempFile.Name())
+	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	cmd, root := clitest.New(t, "config-ssh",
+		"--ssh-option", "HostName "+tcpAddr.IP.String(),
+		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
+		"--ssh-config-file", tempFile.Name(),
+		"--skip-proxy-command")
 	clitest.SetupConfig(t, client, root)
 	doneChan := make(chan struct{})
 	pty := ptytest.New(t)

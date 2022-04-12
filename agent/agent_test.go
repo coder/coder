@@ -135,18 +135,9 @@ func TestAgent(t *testing.T) {
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
-	_, err := exec.LookPath("socat")
-	if err != nil {
-		t.Skip("You must have socat installed to run this test!")
-	}
-
 	agentConn := setupAgent(t)
-
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = listener.Close()
-	})
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -162,7 +153,12 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	t.Cleanup(func() {
 		_ = listener.Close()
 	})
-	args := append(beforeArgs, "-o", "ProxyCommand socat - TCP4:"+listener.Addr().String(), "-o", "StrictHostKeyChecking=no", "host")
+	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	args := append(beforeArgs,
+		"-o", "HostName "+tcpAddr.IP.String(),
+		"-o", "Port "+strconv.Itoa(tcpAddr.Port),
+		"-o", "StrictHostKeyChecking=no", "host")
 	args = append(args, afterArgs...)
 	return exec.Command("ssh", args...)
 }

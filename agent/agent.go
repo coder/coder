@@ -103,10 +103,11 @@ func (a *agent) run(ctx context.Context) {
 
 func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	go func() {
-		<-a.closed
-		_ = conn.Close()
-	}()
-	go func() {
+		select {
+		case <-a.closed:
+			_ = conn.Close()
+		case <-conn.Closed():
+		}
 		<-conn.Closed()
 		a.connCloseWait.Done()
 	}()
