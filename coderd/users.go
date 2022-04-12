@@ -327,8 +327,7 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUser(updatedUserProfile))
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile))
 }
 
 // Returns organizations the parameterized user has access to.
