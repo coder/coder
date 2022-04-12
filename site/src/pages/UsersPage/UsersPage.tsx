@@ -3,6 +3,7 @@ import React, { useContext } from "react"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { XServiceContext } from "../../xServices/StateContext"
+import { UsersPageView } from "./UsersPageView"
 
 export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
@@ -12,6 +13,6 @@ export const UsersPage: React.FC = () => {
   if (usersState.matches("error")) {
     return <ErrorSummary error={getUsersError} />
   } else {
-    return <UsersTable users={users} pager={pager} />
+    return <UsersPageView users={users} pager={pager} />
   }
 }
