@@ -1,14 +1,14 @@
+import { v4 as uuidv4 } from "uuid"
 import {
   BuildInfoResponse,
   Organization,
+  Pager,
   Provisioner,
   Template,
   UserAgent,
   UserResponse,
   Workspace,
-  Pager
 } from "../api/types"
-import { v4 as uuidv4 } from 'uuid';
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
@@ -37,7 +37,7 @@ export const MockPager: Pager = {
   after: uuidv4(),
   before: uuidv4(),
   limit: 10,
-  total: 25 
+  total: 2,
 }
 
 export const MockOrganization: Organization = {
