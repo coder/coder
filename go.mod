@@ -94,12 +94,15 @@ require (
 
 require github.com/go-chi/httprate v0.5.3
 
-require github.com/jedib0t/go-pretty/v6 v6.3.0
+require (
+	github.com/cloudflare/cloudflared v0.0.0-00010101000000-000000000000
+	github.com/jedib0t/go-pretty/v6 v6.3.0
+	github.com/open-policy-agent/opa v0.39.0
+)
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/open-policy-agent/opa v0.39.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
 )
