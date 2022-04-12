@@ -5,7 +5,6 @@
 import ReactRefreshWebpackPlugin from "@pmmmwh/react-refresh-webpack-plugin"
 import { Configuration } from "webpack"
 import "webpack-dev-server"
-
 import { commonWebpackConfig } from "./webpack.common"
 
 const commonPlugins = commonWebpackConfig.plugins || []

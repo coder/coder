@@ -28,6 +28,10 @@ for fi in queries/*.sql.go; do
     tail -n "+$cut" < "$fi" >> queries.sql.go
 done
 
+# Move the files we want.
+mv queries/querier.go .
+mv queries/models.go .
+
 # Remove temporary go files.
 rm -f queries/*.go
 

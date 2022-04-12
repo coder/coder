@@ -11,13 +11,13 @@ export interface RequireAuthProps {
 
 export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
   const xServices = useContext(XServiceContext)
-  const [userState] = useActor(xServices.userXService)
+  const [authState] = useActor(xServices.authXService)
   const location = useLocation()
   const redirectTo = embedRedirect(location.pathname)
 
-  if (userState.matches("signedOut") || !userState.context.me) {
+  if (authState.matches("signedOut") || !authState.context.me) {
     return <Navigate to={redirectTo} />
-  } else if (userState.hasTag("loading")) {
+  } else if (authState.hasTag("loading")) {
     return <FullScreenLoader />
   } else {
     return children

@@ -32,11 +32,11 @@ export namespace Workspace {
       throw new Error(body.message)
     }
 
-    // Let SWR know that both the /api/v2/workspaces/* and /api/v2/projects/*
+    // Let SWR know that both the /api/v2/workspaces/* and /api/v2/templates/*
     // endpoints will need to fetch new data.
     const mutateWorkspacesPromise = mutate("/api/v2/workspaces")
-    const mutateProjectsPromise = mutate("/api/v2/projects")
-    await Promise.all([mutateWorkspacesPromise, mutateProjectsPromise])
+    const mutateTemplatesPromise = mutate("/api/v2/templates")
+    await Promise.all([mutateWorkspacesPromise, mutateTemplatesPromise])
 
     return body
   }
@@ -66,5 +66,10 @@ export const getUser = async (): Promise<Types.UserResponse> => {
 
 export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
   const response = await axios.post<Types.APIKeyResponse>("/api/v2/users/me/keys")
+  return response.data
+}
+
+export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
+  const response = await axios.get("/api/v2/buildinfo")
   return response.data
 }

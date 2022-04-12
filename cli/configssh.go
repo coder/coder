@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -30,7 +31,9 @@ const sshEndToken = "# ------------END-CODER------------"
 
 func configSSH() *cobra.Command {
 	var (
-		sshConfigFile string
+		sshConfigFile    string
+		sshOptions       []string
+		skipProxyCommand bool
 	)
 	cmd := &cobra.Command{
 		Use: "config-ssh",
@@ -59,40 +62,51 @@ func configSSH() *cobra.Command {
 			if len(workspaces) == 0 {
 				return xerrors.New("You don't have any workspaces!")
 			}
-			binPath, err := currentBinPath(cmd)
+
+			binaryFile, err := currentBinPath(cmd)
 			if err != nil {
 				return err
 			}
 
+			root := createConfig(cmd)
 			sshConfigContent += "\n" + sshStartToken + "\n" + sshStartMessage + "\n\n"
 			sshConfigContentMutex := sync.Mutex{}
 			var errGroup errgroup.Group
 			for _, workspace := range workspaces {
 				workspace := workspace
 				errGroup.Go(func() error {
-					resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
+					resources, err := client.TemplateVersionResources(cmd.Context(), workspace.LatestBuild.TemplateVersionID)
 					if err != nil {
 						return err
 					}
-					resourcesWithAgents := make([]codersdk.WorkspaceResource, 0)
 					for _, resource := range resources {
-						if resource.Agent == nil {
+						if resource.Transition != database.WorkspaceTransitionStart {
 							continue
 						}
-						resourcesWithAgents = append(resourcesWithAgents, resource)
+						for _, agent := range resource.Agents {
+							sshConfigContentMutex.Lock()
+							hostname := workspace.Name
+							if len(resource.Agents) > 1 {
+								hostname += "." + agent.Name
+							}
+							configOptions := []string{
+								"Host coder." + hostname,
+							}
+							for _, option := range sshOptions {
+								configOptions = append(configOptions, "\t"+option)
+							}
+							configOptions = append(configOptions,
+								"\tHostName coder."+hostname,
+								"\tConnectTimeout=0",
+								"\tStrictHostKeyChecking=no",
+							)
+							if !skipProxyCommand {
+								configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
+							}
+							sshConfigContent += strings.Join(configOptions, "\n") + "\n"
+							sshConfigContentMutex.Unlock()
+						}
 					}
-					sshConfigContentMutex.Lock()
-					defer sshConfigContentMutex.Unlock()
-					if len(resourcesWithAgents) == 1 {
-						sshConfigContent += strings.Join([]string{
-							"Host coder." + workspace.Name,
-							"\tHostName coder." + workspace.Name,
-							fmt.Sprintf("\tProxyCommand %q ssh --stdio %s", binPath, workspace.Name),
-							"\tConnectTimeout=0",
-							"\tStrictHostKeyChecking=no",
-						}, "\n") + "\n"
-					}
-
 					return nil
 				})
 			}
@@ -116,6 +130,9 @@ func configSSH() *cobra.Command {
 		},
 	}
 	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", "~/.ssh/config", "Specifies the path to an SSH config.")
+	cmd.Flags().StringArrayVarP(&sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
+	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
+	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 
 	return cmd
 }

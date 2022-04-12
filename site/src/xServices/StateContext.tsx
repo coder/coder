@@ -1,10 +1,12 @@
-import React, { createContext } from "react"
 import { useInterpret } from "@xstate/react"
+import React, { createContext } from "react"
 import { ActorRefFrom } from "xstate"
-import { userMachine } from "./user/userXService"
+import { authMachine } from "./auth/authXService"
+import { buildInfoMachine } from "./buildInfo/buildInfoXService"
 
 interface XServiceContextType {
-  userXService: ActorRefFrom<typeof userMachine>
+  buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
+  authXService: ActorRefFrom<typeof authMachine>
 }
 
 /**
@@ -18,7 +20,14 @@ interface XServiceContextType {
 export const XServiceContext = createContext({} as XServiceContextType)
 
 export const XServiceProvider: React.FC = ({ children }) => {
-  const userXService = useInterpret(userMachine, { devTools: true })
-
-  return <XServiceContext.Provider value={{ userXService }}>{children}</XServiceContext.Provider>
+  return (
+    <XServiceContext.Provider
+      value={{
+        buildInfoXService: useInterpret(buildInfoMachine),
+        authXService: useInterpret(authMachine),
+      }}
+    >
+      {children}
+    </XServiceContext.Provider>
+  )
 }

@@ -1,10 +1,9 @@
-import { render as wrappedRender, RenderResult } from "@testing-library/react"
-import React from "react"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-
-import { dark } from "../theme"
+import { render as wrappedRender, RenderResult } from "@testing-library/react"
 import { createMemoryHistory } from "history"
+import React from "react"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
+import { dark } from "../theme"
 import { XServiceProvider } from "../xServices/StateContext"
 
 export const history = createMemoryHistory()

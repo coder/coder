@@ -1,7 +1,7 @@
 import { Story } from "@storybook/react"
 import React from "react"
+import { MockOrganization, MockTemplate, MockWorkspace } from "../../test_helpers"
 import { Workspace, WorkspaceProps } from "./Workspace"
-import { MockOrganization, MockProject, MockWorkspace } from "../../test_helpers"
 
 export default {
   title: "Workspaces/Workspace",
@@ -14,6 +14,6 @@ const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />
 export const Example = Template.bind({})
 Example.args = {
   organization: MockOrganization,
-  project: MockProject,
+  template: MockTemplate,
   workspace: MockWorkspace,
 }

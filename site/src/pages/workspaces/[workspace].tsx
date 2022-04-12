@@ -1,14 +1,14 @@
-import React from "react"
-import useSWR from "swr"
 import { makeStyles } from "@material-ui/core/styles"
+import React from "react"
 import { useParams } from "react-router-dom"
-import { Footer } from "../../components/Page"
-import { firstOrItem } from "../../util/array"
+import useSWR from "swr"
+import * as Types from "../../api/types"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+import { Footer } from "../../components/Page"
 import { Workspace } from "../../components/Workspace"
 import { unsafeSWRArgument } from "../../util"
-import * as Types from "../../api/types"
+import { firstOrItem } from "../../util/array"
 
 export const WorkspacePage: React.FC = () => {
   const styles = useStyles()
@@ -20,35 +20,35 @@ export const WorkspacePage: React.FC = () => {
     return `/api/v2/workspaces/${workspaceParam}`
   })
 
-  // Fetch parent project
-  const { data: project, error: projectError } = useSWR<Types.Project, Error>(() => {
-    return `/api/v2/projects/${unsafeSWRArgument(workspace).project_id}`
+  // Fetch parent template
+  const { data: template, error: templateError } = useSWR<Types.Template, Error>(() => {
+    return `/api/v2/templates/${unsafeSWRArgument(workspace).template_id}`
   })
 
-  const { data: organization, error: organizationError } = useSWR<Types.Project, Error>(() => {
-    return `/api/v2/organizations/${unsafeSWRArgument(project).organization_id}`
+  const { data: organization, error: organizationError } = useSWR<Types.Template, Error>(() => {
+    return `/api/v2/organizations/${unsafeSWRArgument(template).organization_id}`
   })
 
   if (workspaceError) {
     return <ErrorSummary error={workspaceError} />
   }
 
-  if (projectError) {
-    return <ErrorSummary error={projectError} />
+  if (templateError) {
+    return <ErrorSummary error={templateError} />
   }
 
   if (organizationError) {
     return <ErrorSummary error={organizationError} />
   }
 
-  if (!workspace || !project || !organization) {
+  if (!workspace || !template || !organization) {
     return <FullScreenLoader />
   }
 
   return (
     <div className={styles.root}>
       <div className={styles.inner}>
-        <Workspace organization={organization} project={project} workspace={workspace} />
+        <Workspace organization={organization} template={template} workspace={workspace} />
       </div>
 
       <Footer />

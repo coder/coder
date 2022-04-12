@@ -25,6 +25,7 @@ site/test-results/
 site/yarn-error.log
 coverage/
 site/**/*.typegen.ts
+site/build-storybook.log
 
 # Build
 dist/

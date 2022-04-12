@@ -67,18 +67,21 @@ message Log {
     string output = 2;
 }
 
-message GoogleInstanceIdentityAuth {
+message InstanceIdentityAuth {
     string instance_id = 1;
 }
 
 // Agent represents a running agent on the workspace.
 message Agent {
     string id = 1;
-    map<string, string> env = 2;
-    string startup_script = 3;
+    string name = 2;
+    map<string, string> env = 3;
+    string startup_script = 4;
+    string operating_system = 5;
+    string architecture = 6;
     oneof auth {
-        string token = 4;
-        string instance_id = 5;
+        string token = 7;
+        string instance_id = 8;
     }
 }
 
@@ -86,7 +89,7 @@ message Agent {
 message Resource {
     string name = 1;
     string type = 2;
-    Agent agent = 3;
+    repeated Agent agents = 3;
 }
 
 // Parse consumes source-code from a directory to produce inputs.

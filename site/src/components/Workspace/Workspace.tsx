@@ -1,30 +1,30 @@
 import Box from "@material-ui/core/Box"
 import Paper from "@material-ui/core/Paper"
-import Typography from "@material-ui/core/Typography"
 import { makeStyles } from "@material-ui/core/styles"
+import Typography from "@material-ui/core/Typography"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
-import { Link } from "react-router-dom"
 import React from "react"
-import * as Constants from "./constants"
+import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
+import * as Constants from "./constants"
 import { WorkspaceSection } from "./WorkspaceSection"
 
 export interface WorkspaceProps {
   organization: Types.Organization
   workspace: Types.Workspace
-  project: Types.Project
+  template: Types.Template
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({ organization, project, workspace }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, workspace }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
       <div className={styles.vertical}>
-        <WorkspaceHeader organization={organization} project={project} workspace={workspace} />
+        <WorkspaceHeader organization={organization} template={template} workspace={workspace} />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
             <WorkspaceSection title="Applications">
@@ -56,10 +56,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ organization, project, wor
 /**
  * Component for the header at the top of the workspace page
  */
-export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ organization, project, workspace }) => {
+export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ organization, template, workspace }) => {
   const styles = useStyles()
 
-  const projectLink = `/projects/${organization.name}/${project.name}`
+  const templateLink = `/templates/${organization.name}/${template.name}`
 
   return (
     <Paper elevation={0} className={styles.section}>
@@ -68,7 +68,7 @@ export const WorkspaceHeader: React.FC<WorkspaceProps> = ({ organization, projec
         <div className={styles.vertical}>
           <Typography variant="h4">{workspace.name}</Typography>
           <Typography variant="body2" color="textSecondary">
-            <Link to={projectLink}>{project.name}</Link>
+            <Link to={templateLink}>{template.name}</Link>
           </Typography>
         </div>
       </div>

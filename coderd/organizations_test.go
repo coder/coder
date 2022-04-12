@@ -32,15 +32,15 @@ func TestProvisionerDaemonsByOrganization(t *testing.T) {
 	})
 }
 
-func TestPostProjectVersionsByOrganization(t *testing.T) {
+func TestPostTemplateVersionsByOrganization(t *testing.T) {
 	t.Parallel()
-	t.Run("InvalidProject", func(t *testing.T) {
+	t.Run("InvalidTemplate", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		projectID := uuid.New()
-		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, codersdk.CreateProjectVersionRequest{
-			ProjectID:     projectID,
+		templateID := uuid.New()
+		_, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			TemplateID:    templateID,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -54,7 +54,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateProjectVersion(context.Background(), user.OrganizationID, codersdk.CreateProjectVersionRequest{
+		_, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: "hash",
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -76,7 +76,7 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
-		_, err = client.CreateProjectVersion(context.Background(), user.OrganizationID, codersdk.CreateProjectVersionRequest{
+		_, err = client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: file.Hash,
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -91,24 +91,24 @@ func TestPostProjectVersionsByOrganization(t *testing.T) {
 	})
 }
 
-func TestPostProjectsByOrganization(t *testing.T) {
+func TestPostTemplatesByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		_, err := client.CreateProject(context.Background(), user.OrganizationID, codersdk.CreateProjectRequest{
-			Name:      project.Name,
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_, err := client.CreateTemplate(context.Background(), user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:      template.Name,
 			VersionID: version.ID,
 		})
 		var apiErr *codersdk.Error
@@ -120,7 +120,7 @@ func TestPostProjectsByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateProject(context.Background(), user.OrganizationID, codersdk.CreateProjectRequest{
+		_, err := client.CreateTemplate(context.Background(), user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:      "test",
 			VersionID: uuid.New(),
 		})
@@ -130,48 +130,48 @@ func TestPostProjectsByOrganization(t *testing.T) {
 	})
 }
 
-func TestProjectsByOrganization(t *testing.T) {
+func TestTemplatesByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		projects, err := client.ProjectsByOrganization(context.Background(), user.OrganizationID)
+		templates, err := client.TemplatesByOrganization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
-		require.NotNil(t, projects)
-		require.Len(t, projects, 0)
+		require.NotNil(t, templates)
+		require.Len(t, templates, 0)
 	})
 
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		projects, err := client.ProjectsByOrganization(context.Background(), user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		templates, err := client.TemplatesByOrganization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, projects, 1)
+		require.Len(t, templates, 1)
 	})
 	t.Run("ListMultiple", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		projects, err := client.ProjectsByOrganization(context.Background(), user.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		templates, err := client.TemplatesByOrganization(context.Background(), user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, projects, 2)
+		require.Len(t, templates, 2)
 	})
 }
 
-func TestProjectByOrganizationAndName(t *testing.T) {
+func TestTemplateByOrganizationAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.ProjectByName(context.Background(), user.OrganizationID, "something")
+		_, err := client.TemplateByName(context.Background(), user.OrganizationID, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -181,9 +181,9 @@ func TestProjectByOrganizationAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateProjectVersion(t, client, user.OrganizationID, nil)
-		project := coderdtest.CreateProject(t, client, user.OrganizationID, version.ID)
-		_, err := client.ProjectByName(context.Background(), user.OrganizationID, project.Name)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_, err := client.TemplateByName(context.Background(), user.OrganizationID, template.Name)
 		require.NoError(t, err)
 	})
 }

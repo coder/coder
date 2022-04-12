@@ -1,8 +1,21 @@
-import { Provisioner, Organization, Project, Workspace, UserResponse, UserAgent } from "../api/types"
+import {
+  BuildInfoResponse,
+  Organization,
+  Provisioner,
+  Template,
+  UserAgent,
+  UserResponse,
+  Workspace,
+} from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
 export const MockAPIKey = { key: "my-api-key" }
+
+export const MockBuildInfo: BuildInfoResponse = {
+  external_url: "file:///mock-url",
+  version: "v99.999.9999+c9cdf14",
+}
 
 export const MockUser: UserResponse = {
   id: "test-user",
@@ -23,12 +36,12 @@ export const MockProvisioner: Provisioner = {
   name: "Test Provisioner",
 }
 
-export const MockProject: Project = {
-  id: "test-project",
+export const MockTemplate: Template = {
+  id: "test-template",
   created_at: "",
   updated_at: "",
   organization_id: MockOrganization.id,
-  name: "Test Project",
+  name: "Test Template",
   provisioner: MockProvisioner.id,
   active_version_id: "",
 }
@@ -38,7 +51,7 @@ export const MockWorkspace: Workspace = {
   name: "Test-Workspace",
   created_at: "",
   updated_at: "",
-  project_id: MockProject.id,
+  template_id: MockTemplate.id,
   owner_id: MockUser.id,
 }
 

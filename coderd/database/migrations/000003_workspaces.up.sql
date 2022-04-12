@@ -5,7 +5,7 @@ CREATE TABLE workspaces (
     -- Use ON DELETE RESTRICT so that we can cleanup external workspace
     -- resources first.
     owner_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
-    project_id uuid NOT NULL REFERENCES projects (id) ON DELETE RESTRICT,
+    template_id uuid NOT NULL REFERENCES templates (id) ON DELETE RESTRICT,
     deleted boolean NOT NULL DEFAULT FALSE,
     name varchar(64) NOT NULL,
     PRIMARY KEY (id)

@@ -104,6 +104,12 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 
+			cfg := createConfig(cmd)
+			err = cfg.AgentSession().Write(client.SessionToken)
+			if err != nil {
+				return xerrors.Errorf("writing agent session token to config: %w", err)
+			}
+
 			closer := agent.New(client.ListenWorkspaceAgent, &peer.ConnOptions{
 				Logger: logger,
 			})

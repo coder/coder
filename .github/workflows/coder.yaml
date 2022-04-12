@@ -2,15 +2,6 @@ name: coder
 
 on:
   push:
-    branches:
-      - main
-      - "release/*"
-    tags:
-      - "*"
-
-  pull_request:
-    branches:
-      - "*"
 
   workflow_dispatch:
 
@@ -38,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
       - name: golangci-lint
@@ -80,7 +71,7 @@ jobs:
         uses: arduino/setup-protoc@v1
         with:
           version: "3.19.4"
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
       - run: curl -sSL
@@ -132,7 +123,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -178,7 +169,7 @@ jobs:
           -timeout=3m -count=$GOCOUNT -short -failfast
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: fake
@@ -186,8 +177,8 @@ jobs:
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
-      - uses: codecov/codecov-action@v2
-        if: github.actor != 'dependabot[bot]'
+      - uses: codecov/codecov-action@v3
+        if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
@@ -200,7 +191,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -264,25 +255,25 @@ jobs:
           -count=1 -parallel=2 -race -failfast
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_DATABASE: postgresql
           GIT_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: go run scripts/datadog-cireport/main.go gotests.xml
 
-      - uses: codecov/codecov-action@v2
-        if: github.actor != 'dependabot[bot]'
+      - uses: codecov/codecov-action@v3
+        if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
-          flags: unittest-go-${{ matrix.os }}
+          flags: unittest-go-postgres-${{ matrix.os }}
           fail_ci_if_error: true
 
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
     permissions:
       contents: read
       id-token: write
@@ -298,7 +289,7 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -372,7 +363,7 @@ jobs:
             js-${{ runner.os }}-
 
       # Go is required for uploading the test results to datadog
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -387,15 +378,11 @@ jobs:
         run: yarn build
         working-directory: site
 
-      - name: Build Storybook
-        run: yarn storybook:build
-        working-directory: site
-
       - run: yarn test:coverage
         working-directory: site
 
-      - uses: codecov/codecov-action@v2
-        if: github.actor != 'dependabot[bot]'
+      - uses: codecov/codecov-action@v3
+        if: github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./site/coverage/lcov.info
@@ -403,7 +390,7 @@ jobs:
           fail_ci_if_error: true
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_CATEGORY: unit
@@ -417,10 +404,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
-          # TODO: Get `make build` running on Windows 2022
-          # https://github.com/coder/coder/issues/384
-          # - windows-2022
     steps:
       - uses: actions/checkout@v3
 
@@ -436,7 +419,7 @@ jobs:
             js-${{ runner.os }}-
 
       # Go is required for uploading the test results to datadog
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
 
@@ -487,7 +470,7 @@ jobs:
         working-directory: site
 
       - name: Upload DataDog Trace
-        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux'
+        if: (success() || failure()) && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && github.repository_owner == 'coder'
         env:
           DATADOG_API_KEY: ${{ secrets.DATADOG_API_KEY }}
           DD_CATEGORY: e2e

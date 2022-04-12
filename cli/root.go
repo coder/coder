@@ -4,12 +4,14 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
@@ -27,8 +29,10 @@ const (
 
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "coder",
-		SilenceUsage: true,
+		Use:           "coder",
+		Version:       buildinfo.Version(),
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		Long: `    ▄█▀    ▀█▄
      ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
@@ -40,9 +44,9 @@ func Root() *cobra.Command {
 		Example: cliui.Styles.Paragraph.Render(`Start Coder in "dev" mode. This dev-mode requires no further setup, and your local `+cliui.Styles.Code.Render("coder")+` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.`) + `
 
     ` + cliui.Styles.Code.Render("$ coder start --dev") + `
-	` + cliui.Styles.Paragraph.Render("Get started by creating a project from an example.") + `
+	` + cliui.Styles.Paragraph.Render("Get started by creating a template from an example.") + `
 
-    ` + cliui.Styles.Code.Render("$ coder projects init"),
+    ` + cliui.Styles.Code.Render("$ coder templates init"),
 	}
 	// Customizes the color of headings to make subcommands
 	// more visually appealing.
@@ -55,17 +59,20 @@ func Root() *cobra.Command {
 		`Flags:`, header.Render("Flags:"),
 		`Additional help topics:`, header.Render("Additional help:"),
 	).Replace(cmd.UsageTemplate()))
+	cmd.SetVersionTemplate(versionTemplate())
 
 	cmd.AddCommand(
 		configSSH(),
 		start(),
 		login(),
 		parameters(),
-		projects(),
+		templates(),
 		users(),
 		workspaces(),
 		ssh(),
 		workspaceTunnel(),
+		gitssh(),
+		publickey(),
 	)
 
 	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
@@ -141,4 +148,15 @@ func isTTY(cmd *cobra.Command) bool {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
+}
+
+func versionTemplate() string {
+	template := `Coder {{printf "%s" .Version}}`
+	buildTime, valid := buildinfo.Time()
+	if valid {
+		template += " " + buildTime.Format(time.UnixDate)
+	}
+	template += "\r\n" + buildinfo.ExternalURL()
+	template += "\r\n"
+	return template
 }

@@ -1,13 +1,12 @@
-import React from "react"
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-import { SWRConfig } from "swr"
-import { light } from "./theme"
+import React from "react"
 import { BrowserRouter as Router } from "react-router-dom"
-
-import { XServiceProvider } from "./xServices/StateContext"
+import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
+import { light } from "./theme"
 import "./theme/global-fonts"
+import { XServiceProvider } from "./xServices/StateContext"
 
 export const App: React.FC = () => {
   return (

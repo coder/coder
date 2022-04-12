@@ -25,14 +25,14 @@ func workspaceUpdate() *cobra.Command {
 				_, _ = fmt.Printf("Workspace isn't outdated!\n")
 				return nil
 			}
-			project, err := client.Project(cmd.Context(), workspace.ProjectID)
+			template, err := client.Template(cmd.Context(), workspace.TemplateID)
 			if err != nil {
 				return nil
 			}
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				ProjectVersionID: project.ActiveVersionID,
-				Transition:       workspace.LatestBuild.Transition,
+				TemplateVersionID: template.ActiveVersionID,
+				Transition:        workspace.LatestBuild.Transition,
 			})
 			if err != nil {
 				return err

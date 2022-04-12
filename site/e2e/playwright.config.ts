@@ -1,5 +1,5 @@
-import * as path from "path"
 import { PlaywrightTestConfig } from "@playwright/test"
+import * as path from "path"
 
 const config: PlaywrightTestConfig = {
   testDir: "tests",
@@ -17,7 +17,7 @@ const config: PlaywrightTestConfig = {
   // https://playwright.dev/docs/test-advanced#launching-a-development-web-server-during-the-tests
   webServer: {
     // Run the coder daemon directly.
-    command: `go run -tags embed ${path.join(__dirname, "../../cmd/coder/main.go")} start --dev --tunnel=false`,
+    command: `go run -tags embed ${path.join(__dirname, "../../cmd/coder/main.go")} start --dev --skip-tunnel`,
     port: 3000,
     timeout: 120 * 10000,
     reuseExistingServer: false,

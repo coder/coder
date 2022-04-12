@@ -16,7 +16,7 @@ func TestTar(t *testing.T) {
 	file, err := os.CreateTemp(dir, "")
 	require.NoError(t, err)
 	_ = file.Close()
-	_, err = provisionersdk.Tar(dir)
+	_, err = provisionersdk.Tar(dir, 1024)
 	require.NoError(t, err)
 }
 
@@ -26,7 +26,7 @@ func TestUntar(t *testing.T) {
 	file, err := os.CreateTemp(dir, "")
 	require.NoError(t, err)
 	_ = file.Close()
-	archive, err := provisionersdk.Tar(dir)
+	archive, err := provisionersdk.Tar(dir, 1024)
 	require.NoError(t, err)
 	dir = t.TempDir()
 	err = provisionersdk.Untar(dir, archive)

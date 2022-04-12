@@ -120,7 +120,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	if err != nil {
 		return err
 	}
-	content, err := provisionersdk.Tar(dir)
+	content, err := provisionersdk.Tar(dir, provisionersdk.TemplateArchiveLimit)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	}
 
 	before := time.Now()
-	version, err := client.CreateProjectVersion(cmd.Context(), created.OrganizationID, codersdk.CreateProjectVersionRequest{
+	version, err := client.CreateTemplateVersion(cmd.Context(), created.OrganizationID, codersdk.CreateTemplateVersionRequest{
 		StorageMethod:   database.ProvisionerStorageMethodFile,
 		StorageSource:   resp.Hash,
 		Provisioner:     database.ProvisionerTypeTerraform,
@@ -139,7 +139,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	if err != nil {
 		return err
 	}
-	logs, err := client.ProjectVersionLogsAfter(cmd.Context(), version.ID, before)
+	logs, err := client.TemplateVersionLogsAfter(cmd.Context(), version.ID, before)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		}
 		_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
 	}
-	version, err = client.ProjectVersion(cmd.Context(), version.ID)
+	version, err = client.TemplateVersion(cmd.Context(), version.ID)
 	if err != nil {
 		return err
 	}
@@ -158,12 +158,12 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		return xerrors.Errorf("Job wasn't successful, it was %q. Check the logs!", version.Job.Status)
 	}
 
-	_, err = client.ProjectVersionResources(cmd.Context(), version.ID)
+	_, err = client.TemplateVersionResources(cmd.Context(), version.ID)
 	if err != nil {
 		return err
 	}
 
-	project, err := client.CreateProject(cmd.Context(), created.OrganizationID, codersdk.CreateProjectRequest{
+	template, err := client.CreateTemplate(cmd.Context(), created.OrganizationID, codersdk.CreateTemplateRequest{
 		Name:      "test",
 		VersionID: version.ID,
 	})
@@ -172,8 +172,8 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	}
 
 	workspace, err := client.CreateWorkspace(cmd.Context(), created.UserID, codersdk.CreateWorkspaceRequest{
-		ProjectID: project.ID,
-		Name:      "example",
+		TemplateID: template.ID,
+		Name:       "example",
 	})
 	if err != nil {
 		return err
@@ -195,18 +195,17 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		return err
 	}
 	for _, resource := range resources {
-		if resource.Agent == nil {
-			continue
-		}
-		err = awaitAgent(cmd.Context(), client, resource)
-		if err != nil {
-			return err
+		for _, agent := range resource.Agents {
+			err = awaitAgent(cmd.Context(), client, agent)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
 	build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-		ProjectVersionID: version.ID,
-		Transition:       database.WorkspaceTransitionDelete,
+		TemplateVersionID: version.ID,
+		Transition:        database.WorkspaceTransitionDelete,
 	})
 	if err != nil {
 		return err
@@ -229,7 +228,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 	return nil
 }
 
-func awaitAgent(ctx context.Context, client *codersdk.Client, resource codersdk.WorkspaceResource) error {
+func awaitAgent(ctx context.Context, client *codersdk.Client, agent codersdk.WorkspaceAgent) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
@@ -237,11 +236,11 @@ func awaitAgent(ctx context.Context, client *codersdk.Client, resource codersdk.
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			resource, err := client.WorkspaceResource(ctx, resource.ID)
+			agent, err := client.WorkspaceAgent(ctx, agent.ID)
 			if err != nil {
 				return err
 			}
-			if resource.Agent.FirstConnectedAt == nil {
+			if agent.FirstConnectedAt == nil {
 				continue
 			}
 			return nil

@@ -5,8 +5,10 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
@@ -25,14 +27,16 @@ func ssh() *cobra.Command {
 		stdio bool
 	)
 	cmd := &cobra.Command{
-		Use: "ssh <workspace> [resource]",
+		Use:  "ssh <workspace>",
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
+			workspaceParts := strings.Split(args[0], ".")
+			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceParts[0])
 			if err != nil {
 				return err
 			}
@@ -57,50 +61,45 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			resourceByAddress := make(map[string]codersdk.WorkspaceResource)
+			agents := make([]codersdk.WorkspaceAgent, 0)
 			for _, resource := range resources {
-				if resource.Agent == nil {
-					continue
-				}
-				resourceByAddress[resource.Address] = resource
+				agents = append(agents, resource.Agents...)
 			}
-
-			var resourceAddress string
-			if len(args) >= 2 {
-				resourceAddress = args[1]
-			} else {
-				// No resource name was provided!
-				if len(resourceByAddress) > 1 {
-					// List available resources to connect into?
-					return xerrors.Errorf("multiple agents")
-				}
-				for _, resource := range resourceByAddress {
-					resourceAddress = resource.Address
+			if len(agents) == 0 {
+				return xerrors.New("workspace has no agents")
+			}
+			var agent codersdk.WorkspaceAgent
+			if len(workspaceParts) >= 2 {
+				for _, otherAgent := range agents {
+					if otherAgent.Name != workspaceParts[1] {
+						continue
+					}
+					agent = otherAgent
 					break
 				}
-			}
-
-			resource, exists := resourceByAddress[resourceAddress]
-			if !exists {
-				resourceKeys := make([]string, 0)
-				for resourceKey := range resourceByAddress {
-					resourceKeys = append(resourceKeys, resourceKey)
+				if agent.ID == uuid.Nil {
+					return xerrors.Errorf("agent not found by name %q", workspaceParts[1])
 				}
-				return xerrors.Errorf("no sshable agent with address %q: %+v", resourceAddress, resourceKeys)
+			}
+			if agent.ID == uuid.Nil {
+				if len(agents) > 1 {
+					return xerrors.New("you must specify the name of an agent")
+				}
+				agent = agents[0]
 			}
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceResource, error) {
-					return client.WorkspaceResource(ctx, resource.ID)
+				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
+					return client.WorkspaceAgent(ctx, agent.ID)
 				},
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(cmd.Context(), resource.ID, []webrtc.ICEServer{{
+			conn, err := client.DialWorkspaceAgent(cmd.Context(), agent.ID, []webrtc.ICEServer{{
 				URLs: []string{"stun:stun.l.google.com:19302"},
 			}}, nil)
 			if err != nil {
@@ -129,7 +128,8 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			if isatty.IsTerminal(os.Stdout.Fd()) {
+			stdoutFile, valid := cmd.OutOrStdout().(*os.File)
+			if valid && isatty.IsTerminal(stdoutFile.Fd()) {
 				state, err := term.MakeRaw(int(os.Stdin.Fd()))
 				if err != nil {
 					return err

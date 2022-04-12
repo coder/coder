@@ -18,17 +18,17 @@ message AcquiredJob {
         provisioner.Provision.Metadata metadata = 4;
         bytes state = 5;
     }
-    message ProjectImport {
+    message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;
     }
     string job_id = 1;
     int64 created_at = 2;
     string provisioner = 3;
     string user_name = 4;
-    bytes project_source_archive = 5;
+    bytes template_source_archive = 5;
     oneof type {
         WorkspaceBuild workspace_build = 6;
-        ProjectImport project_import = 7;
+        TemplateImport template_import = 7;
     }
 }
 
@@ -36,13 +36,13 @@ message FailedJob {
     message WorkspaceBuild {
         bytes state = 1;
     }
-    message ProjectImport{
+    message TemplateImport{
     }
     string job_id = 1;
     string error = 2;
     oneof type {
         WorkspaceBuild workspace_build = 3;
-        ProjectImport project_import = 4;
+        TemplateImport template_import = 4;
     }
 }
 
@@ -52,14 +52,14 @@ message CompletedJob {
         bytes state = 1;
         repeated provisioner.Resource resources = 2;
     }
-    message ProjectImport {
+    message TemplateImport {
         repeated provisioner.Resource start_resources = 1;
         repeated provisioner.Resource stop_resources = 2;
     }
     string job_id = 1;
     oneof type {
         WorkspaceBuild workspace_build = 2;
-        ProjectImport project_import = 3;
+        TemplateImport template_import = 3;
     }
 }
 
