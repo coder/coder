@@ -1,4 +1,4 @@
-package authz
+package rbac
 
 // Object is used to create objects for authz checks when you have none in
 // hand to run the check on.

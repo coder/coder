@@ -1,10 +1,10 @@
-package authz_test
+package rbac_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/coderd/authz"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,16 +14,16 @@ func TestExample(t *testing.T) {
 	t.Skip("TODO: unskip when rego is done")
 	t.Parallel()
 	ctx := context.Background()
-	authorizer, err := authz.NewAuthorizer()
+	authorizer, err := rbac.NewAuthorizer()
 	require.NoError(t, err)
 
 	// user will become an authn object, and can even be a database.User if it
 	// fulfills the interface. Until then, use a placeholder.
 	user := subject{
 		UserID: "alice",
-		Roles: []authz.Role{
-			authz.RoleOrgAdmin("default"),
-			authz.RoleMember,
+		Roles: []rbac.Role{
+			rbac.RoleOrgAdmin("default"),
+			rbac.RoleMember,
 		},
 	}
 
@@ -32,7 +32,7 @@ func TestExample(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("ReadAllWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the site
-		err := authorizer.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.All(), authz.ActionRead)
+		err := authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ResourceWorkspace.All(), rbac.ActionRead)
 		var _ = err
 		// require.Error(t, err, "this user cannot read all workspaces")
 	})
@@ -40,17 +40,17 @@ func TestExample(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("ReadOrgWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the org 'default'
-		err := authorizer.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.InOrg("default"), authz.ActionRead)
+		err := authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ResourceWorkspace.InOrg("default"), rbac.ActionRead)
 		require.NoError(t, err, "this user can read all org workspaces in 'default'")
 	})
 
 	//nolint:paralleltest
 	t.Run("ReadMyWorkspace", func(t *testing.T) {
 		// Note 'database.Workspace' could fulfill the object interface and be passed in directly
-		err := authorizer.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.InOrg("default").WithOwner(user.UserID), authz.ActionRead)
+		err := authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ResourceWorkspace.InOrg("default").WithOwner(user.UserID), rbac.ActionRead)
 		require.NoError(t, err, "this user can their workspace")
 
-		err = authorizer.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.InOrg("default").WithOwner(user.UserID).WithID("1234"), authz.ActionRead)
+		err = authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ResourceWorkspace.InOrg("default").WithOwner(user.UserID).WithID("1234"), rbac.ActionRead)
 		require.NoError(t, err, "this user can read workspace '1234'")
 	})
 }

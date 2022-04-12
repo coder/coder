@@ -1,4 +1,4 @@
-package authz
+package rbac
 
 const (
 	// UnauthorizedErrorMessage is the error message that should be returned to
