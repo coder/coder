@@ -12,7 +12,7 @@ type LoginType struct {
 	Type string `json:"type"`
 }
 
-// GitSSHKey returns the user's git SSH public key.
+// LoginTypes returns an array of available LoginTypes.
 func (c *Client) LoginTypes(ctx context.Context) ([]LoginType, error) {
 	res, err := c.request(ctx, http.MethodGet, "/api/v2/auth/login-types", nil)
 	if err != nil {
