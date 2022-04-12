@@ -64,6 +64,7 @@ func New(options *Options) (http.Handler, func()) {
 				Message: "👋",
 			})
 		})
+		r.Get("/auth/login-types", loginTypes())
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
