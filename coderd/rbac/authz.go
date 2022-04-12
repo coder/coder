@@ -54,20 +54,20 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 
 	results, err := a.query.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w, err"), input)
+		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w, err"), input, results)
 	}
 
 	if len(results) != 1 {
-		return ForbiddenWithInternal(xerrors.Errorf("expect only 1 result, got %d", len(results)), input)
+		return ForbiddenWithInternal(xerrors.Errorf("expect only 1 result, got %d", len(results)), input, results)
 	}
 
 	allowedResult, ok := (results[0].Bindings["allowed"]).(bool)
 	if !ok {
-		return ForbiddenWithInternal(xerrors.Errorf("expected allowed to be a bool but got %T", allowedResult), input)
+		return ForbiddenWithInternal(xerrors.Errorf("expected allowed to be a bool but got %T", allowedResult), input, results)
 	}
 
-	if allowedResult {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input)
+	if !allowedResult {
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
 	}
 
 	return nil

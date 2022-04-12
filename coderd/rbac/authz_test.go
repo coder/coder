@@ -606,6 +606,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 							d, _ := json.Marshal(uerr.Input())
 							t.Logf("input: %s", string(d))
 							t.Logf("internal error: %+v", uerr.Internal().Error())
+							t.Logf("output: %+v", uerr.Output())
 						}
 						require.NoError(t, err, "expected no error for testcase action %s", a)
 						continue
