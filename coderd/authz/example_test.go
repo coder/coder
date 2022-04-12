@@ -1,6 +1,7 @@
 package authz_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/coder/coder/coderd/authz"
@@ -12,10 +13,11 @@ import (
 func TestExample(t *testing.T) {
 	t.Skip("TODO: unskip when rego is done")
 	t.Parallel()
+	ctx := context.Background()
 
 	// user will become an authn object, and can even be a database.User if it
 	// fulfills the interface. Until then, use a placeholder.
-	user := authz.SubjectTODO{
+	user := subject{
 		UserID: "alice",
 		Roles: []authz.Role{
 			authz.RoleOrgAdmin("default"),
@@ -28,7 +30,7 @@ func TestExample(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("ReadAllWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the site
-		err := authz.Authorize(user, authz.ResourceWorkspace.All(), authz.ActionRead)
+		err := authz.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.All(), authz.ActionRead)
 		var _ = err
 		// require.Error(t, err, "this user cannot read all workspaces")
 	})
@@ -36,24 +38,17 @@ func TestExample(t *testing.T) {
 	//nolint:paralleltest
 	t.Run("ReadOrgWorkspaces", func(t *testing.T) {
 		// To read all workspaces on the org 'default'
-		err := authz.Authorize(user, authz.ResourceWorkspace.InOrg("default"), authz.ActionRead)
+		err := authz.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.InOrg("default"), authz.ActionRead)
 		require.NoError(t, err, "this user can read all org workspaces in 'default'")
 	})
 
 	//nolint:paralleltest
 	t.Run("ReadMyWorkspace", func(t *testing.T) {
 		// Note 'database.Workspace' could fulfill the object interface and be passed in directly
-		err := authz.Authorize(user, authz.ResourceWorkspace.InOrg("default").WithOwner(user.UserID), authz.ActionRead)
+		err := authz.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.InOrg("default").WithOwner(user.UserID), authz.ActionRead)
 		require.NoError(t, err, "this user can their workspace")
 
-		err = authz.Authorize(user, authz.ResourceWorkspace.InOrg("default").WithOwner(user.UserID).WithID("1234"), authz.ActionRead)
+		err = authz.Authorize(ctx, user.UserID, user.Roles, authz.ResourceWorkspace.InOrg("default").WithOwner(user.UserID).WithID("1234"), authz.ActionRead)
 		require.NoError(t, err, "this user can read workspace '1234'")
-	})
-
-	//nolint:paralleltest
-	t.Run("CreateNewSiteUser", func(t *testing.T) {
-		err := authz.Authorize(user, authz.ResourceUser.All(), authz.ActionCreate)
-		var _ = err
-		// require.Error(t, err, "this user cannot create new users")
 	})
 }

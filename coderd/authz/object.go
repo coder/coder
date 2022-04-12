@@ -1,29 +1,26 @@
 package authz
 
-//type Resource interface {
-//	ID() string
-//	ResourceType() ResourceType
-//
-//	OwnerID() string
-//	OrgOwnerID() string
-//}
-
-//var _ Resource = (*Object)(nil)
-
 // Object is used to create objects for authz checks when you have none in
 // hand to run the check on.
 // An example is if you want to list all workspaces, you can create a Object
 // that represents the set of workspaces you are trying to get access too.
 // Do not export this type, as it can be created from a resource type constant.
 type Object struct {
-	ID    string `json:"id"`
-	Owner string `json:"owner"`
+	ResourceID string `json:"id"`
+	Owner      string `json:"owner"`
 	// OrgID specifies which org the object is a part of.
 	OrgID string `json:"org_owner"`
 
-	// ObjectType is "workspace", "project", "devurl", etc
-	ObjectType ResourceType `json:"object_type"`
+	// Type is "workspace", "project", "devurl", etc
+	Type string `json:"type"`
 	// TODO: SharedUsers?
+}
+
+func (z Object) All() Object {
+	z.OrgID = ""
+	z.Owner = ""
+	z.ResourceID = ""
+	return z
 }
 
 // InOrg adds an org OwnerID to the resource
@@ -42,6 +39,6 @@ func (z Object) WithOwner(id string) Object {
 
 //nolint:revive
 func (z Object) WithID(id string) Object {
-	z.ID = id
+	z.ResourceID = id
 	return z
 }
