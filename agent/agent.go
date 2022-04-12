@@ -21,6 +21,8 @@ import (
 	"github.com/coder/coder/pty"
 	"github.com/coder/retry"
 
+	"github.com/pkg/sftp"
+
 	"github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -121,7 +123,7 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 
 		switch channel.Protocol() {
 		case "ssh":
-			a.sshServer.HandleConn(channel.NetConn())
+			go a.sshServer.HandleConn(channel.NetConn())
 		default:
 			a.options.Logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
@@ -146,7 +148,10 @@ func (a *agent) init(ctx context.Context) {
 	sshLogger := a.options.Logger.Named("ssh-server")
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	a.sshServer = &ssh.Server{
-		ChannelHandlers: ssh.DefaultChannelHandlers,
+		ChannelHandlers: map[string]ssh.ChannelHandler{
+			"direct-tcpip": ssh.DirectTCPIPHandler,
+			"session":      ssh.DefaultSessionHandler,
+		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
 			sshLogger.Info(ctx, "ssh connection ended", slog.Error(err))
 		},
@@ -185,61 +190,54 @@ func (a *agent) init(ctx context.Context) {
 				NoClientAuth: true,
 			}
 		},
+		SubsystemHandlers: map[string]ssh.SubsystemHandler{
+			"sftp": func(session ssh.Session) {
+				server, err := sftp.NewServer(session)
+				if err != nil {
+					a.options.Logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
+					return
+				}
+				defer server.Close()
+				err = server.Serve()
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				a.options.Logger.Debug(session.Context(), "sftp server exited with error", slog.Error(err))
+			},
+		},
 	}
 
 	go a.run(ctx)
 }
 
 func (a *agent) handleSSHSession(session ssh.Session) error {
-	var (
-		command string
-		args    = []string{}
-		err     error
-	)
-
 	currentUser, err := user.Current()
 	if err != nil {
 		return xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
-	// gliderlabs/ssh returns a command slice of zero
-	// when a shell is requested.
-	if len(session.Command()) == 0 {
-		command, err = usershell.Get(username)
-		if err != nil {
-			return xerrors.Errorf("get user shell: %w", err)
-		}
-	} else {
-		command = session.Command()[0]
-		if len(session.Command()) > 1 {
-			args = session.Command()[1:]
-		}
+	shell, err := usershell.Get(username)
+	if err != nil {
+		return xerrors.Errorf("get user shell: %w", err)
 	}
 
-	signals := make(chan ssh.Signal)
-	breaks := make(chan bool)
-	defer close(signals)
-	defer close(breaks)
-	go func() {
-		for {
-			select {
-			case <-session.Context().Done():
-				return
-			// Ignore signals and breaks for now!
-			case <-signals:
-			case <-breaks:
-			}
-		}
-	}()
+	// gliderlabs/ssh returns a command slice of zero
+	// when a shell is requested.
+	command := session.RawCommand()
+	if len(session.Command()) == 0 {
+		command = shell
+	}
 
-	cmd := exec.CommandContext(session.Context(), command, args...)
+	// OpenSSH executes all commands with the users current shell.
+	// We replicate that behavior for IDE support.
+	cmd := exec.CommandContext(session.Context(), shell, "-c", command)
 	cmd.Env = append(os.Environ(), session.Environ()...)
 	executablePath, err := os.Executable()
 	if err != nil {
 		return xerrors.Errorf("getting os executable: %w", err)
 	}
-	cmd.Env = append(session.Environ(), fmt.Sprintf(`GIT_SSH_COMMAND="%s gitssh --"`, executablePath))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND="%s gitssh --"`, executablePath))
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
@@ -268,7 +266,7 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	}
 
 	cmd.Stdout = session
-	cmd.Stderr = session
+	cmd.Stderr = session.Stderr()
 	// This blocks forever until stdin is received if we don't
 	// use StdinPipe. It's unknown what causes this.
 	stdinPipe, err := cmd.StdinPipe()
@@ -282,8 +280,7 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	if err != nil {
 		return xerrors.Errorf("start: %w", err)
 	}
-	_ = cmd.Wait()
-	return nil
+	return cmd.Wait()
 }
 
 // isClosed returns whether the API is closed or not.
