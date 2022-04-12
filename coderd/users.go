@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
@@ -138,8 +137,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, codersdk.CreateFirstUserResponse{
+	httpapi.Write(rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
 		OrganizationID: organization.ID,
 	})
@@ -258,8 +256,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertUser(user))
+	httpapi.Write(rw, http.StatusCreated, convertUser(user))
 }
 
 // Returns the parameterized user requested. All validation
@@ -267,7 +264,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	render.JSON(rw, r, convertUser(user))
+	httpapi.Write(rw, http.StatusOK, convertUser(user))
 }
 
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
@@ -355,8 +352,7 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, publicOrganizations)
+	httpapi.Write(rw, http.StatusOK, publicOrganizations)
 }
 
 func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
@@ -392,8 +388,7 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertOrganization(organization))
+	httpapi.Write(rw, http.StatusOK, convertOrganization(organization))
 }
 
 func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request) {
@@ -446,8 +441,7 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertOrganization(organization))
+	httpapi.Write(rw, http.StatusCreated, convertOrganization(organization))
 }
 
 // Authenticates the user with an email and password.
@@ -522,8 +516,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 		Secure:   api.SecureAuthCookie,
 	})
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, codersdk.LoginWithPasswordResponse{
+	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: sessionToken,
 	})
 }
@@ -568,12 +561,11 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	// This format is consumed by the APIKey middleware.
 	generatedAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, codersdk.GenerateAPIKeyResponse{Key: generatedAPIKey})
+	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: generatedAPIKey})
 }
 
 // Clear the user's session cookie
-func (*api) postLogout(rw http.ResponseWriter, r *http.Request) {
+func (*api) postLogout(rw http.ResponseWriter, _ *http.Request) {
 	// Get a blank token cookie
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now
@@ -583,7 +575,9 @@ func (*api) postLogout(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, cookie)
-	render.Status(r, http.StatusOK)
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Logged out!",
+	})
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -767,8 +761,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertWorkspace(workspace,
+	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace,
 		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template))
 }
 
@@ -865,8 +858,8 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		apiWorkspaces = append(apiWorkspaces,
 			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiWorkspaces)
+
+	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
 func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) {
@@ -910,8 +903,7 @@ func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspace(workspace,
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace,
 		convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 }
 

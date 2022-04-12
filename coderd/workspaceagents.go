@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/render"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -32,8 +31,8 @@ func (api *api) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiAgent)
+
+	httpapi.Write(rw, http.StatusOK, apiAgent)
 }
 
 func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
