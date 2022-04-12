@@ -7,13 +7,16 @@ var (
 	// to agent install and run script. ${DOWNLOAD_URL} is replaced
 	// with strings.ReplaceAll() when being consumed.
 	agentScripts = map[string]map[string]string{
+		// On Windows, VS Code Remote requires a parent process of the
+		// executing shell to be named "sshd", otherwise it fails. See:
+		// https://github.com/microsoft/vscode-remote-release/issues/5699
 		"windows": {
 			"amd64": `
 $ProgressPreference = "SilentlyContinue"
-Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-amd64.exe -OutFile $env:TEMP\coder.exe
+Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-amd64.exe -OutFile $env:TEMP\sshd.exe
 $env:CODER_AUTH = "${AUTH_TYPE}"
 $env:CODER_URL = "${ACCESS_URL}"
-Start-Process -FilePath $env:TEMP\coder.exe -ArgumentList "workspaces","agent" -PassThru
+Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "workspaces","agent" -PassThru
 `,
 		},
 		"linux": {

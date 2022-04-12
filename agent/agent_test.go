@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
@@ -94,6 +97,7 @@ func TestAgent(t *testing.T) {
 
 		local, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
+		defer local.Close()
 		tcpAddr, valid = local.Addr().(*net.TCPAddr)
 		require.True(t, valid)
 		localPort := tcpAddr.Port
@@ -112,6 +116,21 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 		conn.Close()
 		<-done
+	})
+
+	t.Run("SFTP", func(t *testing.T) {
+		t.Parallel()
+		sshClient, err := setupAgent(t).SSHClient()
+		require.NoError(t, err)
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		tempFile := filepath.Join(t.TempDir(), "sftp")
+		file, err := client.Create(tempFile)
+		require.NoError(t, err)
+		err = file.Close()
+		require.NoError(t, err)
+		_, err = os.Stat(tempFile)
+		require.NoError(t, err)
 	})
 }
 
