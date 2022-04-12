@@ -51,3 +51,26 @@ SET
 	updated_at = $5
 WHERE
 	id = $1 RETURNING *;
+
+
+-- name: PaginatedUsers :many
+SELECT
+	*
+FROM
+	users
+WHERE
+	CASE
+		WHEN @after::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			created_at > (SELECT created_at FROM users WHERE id = @after)
+		WHEN @before::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			created_at < (SELECT created_at FROM users WHERE id = @before)
+	    ELSE true
+	END
+ORDER BY
+    -- TODO: When doing 'before', we need to flip this to DESC.
+	-- You cannot put 'ASC' or 'DESC' in a CASE statement. :'(
+	-- Until we figure this out, before is broken.
+	-- Another option is to do a subquery above
+	created_at ASC
+LIMIT
+	@limit_opt;

@@ -140,6 +140,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/users", func(r chi.Router) {
+			r.Get("/", api.getPaginatedUsers)
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,16 @@ import (
 
 // Me is used as a replacement for your own ID.
 var Me = uuid.Nil
+
+type PaginatedUsersRequest struct {
+	After  uuid.UUID
+	Before uuid.UUID
+	Limit  int
+}
+
+type PaginatedUsers struct {
+	Page []User `json:"page"`
+}
 
 // User represents a user in Coder.
 type User struct {
@@ -195,6 +206,27 @@ func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
 	}
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+func (c *Client) PaginatedUsers(ctx context.Context, req PaginatedUsersRequest) (PaginatedUsers, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil, func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("before", req.Before.String())
+		q.Set("after", req.After.String())
+		q.Set("limit", strconv.Itoa(req.Limit))
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return PaginatedUsers{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return PaginatedUsers{}, readBodyAsError(res)
+	}
+
+	var users PaginatedUsers
+	return users, json.NewDecoder(res.Body).Decode(&users)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.

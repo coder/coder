@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -142,6 +143,67 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
 		OrganizationID: organization.ID,
+	})
+}
+
+func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		beforeArg = r.URL.Query().Get("before")
+		afterArg  = r.URL.Query().Get("after")
+		limitArg  = r.URL.Query().Get("limit")
+	)
+
+	limit, err := strconv.Atoi(limitArg)
+	if limitArg != "" && err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("limit must be an integer: %s", err.Error()),
+		})
+		return
+	}
+	if limit <= 0 {
+		// Default
+		limit = 10
+	}
+
+	var before uuid.UUID
+	var after uuid.UUID
+	if beforeArg != "" {
+		before, err = uuid.Parse(beforeArg)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("before must be a uuid: %s", err.Error()),
+			})
+			return
+		}
+	}
+
+	if afterArg != "" {
+		after, err = uuid.Parse(afterArg)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("after must be a uuid: %s", err.Error()),
+			})
+			return
+		}
+	}
+
+	var _, _ = before, after
+	users, err := api.Database.PaginatedUsers(r.Context(), database.PaginatedUsersParams{
+		Before:   before,
+		After:    after,
+		LimitOpt: int32(limit),
+	})
+	//users, err := api.Database.PaginatedUsers(r.Context(), int32(limit))
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, codersdk.PaginatedUsers{
+		Page: convertUsers(users),
 	})
 }
 
@@ -938,4 +1000,18 @@ func convertUser(user database.User) codersdk.User {
 		Username:  user.Username,
 		Name:      user.Name,
 	}
+}
+
+func convertUsers(users []database.User) []codersdk.User {
+	converted := make([]codersdk.User, 0, len(users))
+	for _, u := range users {
+		converted = append(converted, codersdk.User{
+			ID:        u.ID,
+			Email:     u.Email,
+			CreatedAt: u.CreatedAt,
+			Username:  u.Username,
+			Name:      u.Name,
+		})
+	}
+	return converted
 }

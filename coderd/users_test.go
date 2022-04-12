@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -530,4 +531,45 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 		_, err := client.WorkspaceByName(context.Background(), codersdk.Me, workspace.Name)
 		require.NoError(t, err)
 	})
+}
+
+func TestPaginatedUsers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	me, err := client.User(context.Background(), codersdk.Me)
+	require.NoError(t, err)
+
+	allUsers := make([]codersdk.User, 0)
+	allUsers = append(allUsers, me)
+
+	org, err := client.CreateOrganization(ctx, me.ID, codersdk.CreateOrganizationRequest{
+		Name: "default",
+	})
+	require.NoError(t, err)
+
+	total := 100
+	// Create users
+	for i := 0; i < total; i++ {
+		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          fmt.Sprintf("%d@coder.com", i),
+			Username:       fmt.Sprintf("user%d", i),
+			Password:       "password",
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		allUsers = append(allUsers, newUser)
+	}
+
+	limit := 10
+	users, err := client.PaginatedUsers(ctx, codersdk.PaginatedUsersRequest{
+		Limit: limit,
+	})
+	require.NoError(t, err)
+	require.Equal(t, users.Page, allUsers[:limit])
+
+	users, err = client.PaginatedUsers(ctx, codersdk.PaginatedUsersRequest{After: users.Page[len(users.Page)-1].ID})
+	require.NoError(t, err)
+	require.Equal(t, users.Page, allUsers[limit:limit*2])
 }

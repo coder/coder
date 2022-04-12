@@ -3,6 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
+	"golang.org/x/xerrors"
 	"strings"
 	"sync"
 
@@ -1372,4 +1373,8 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) PaginatedUsers(ctx context.Context, arg database.PaginatedUsersParams) ([]database.User, error) {
+	return nil, xerrors.Errorf("not implemented")
 }
