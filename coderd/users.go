@@ -270,7 +270,7 @@ func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertUser(user))
 }
 
-func (api *api) updateUserProfile(rw http.ResponseWriter, r *http.Request) {
+func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	var params codersdk.UpdateUserProfileRequest
