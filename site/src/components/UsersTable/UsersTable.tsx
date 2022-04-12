@@ -7,6 +7,7 @@ import { Header } from "../Header"
 import { UserCell } from "../Table/Cells/UserCell"
 
 const Language = {
+  pageTitle: "Users",
   usersTitle: "All users",
   emptyMessage: "No users found",
   usernameLabel: "User",
@@ -42,7 +43,10 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, pager }) => {
   const styles = useStyles()
   return (
     <div className={styles.flexColumn}>
-      <Header title="Users" />
+      <Header
+        title={Language.pageTitle}
+        subTitle={`${pager?.total} total`}
+      />
       <Table
         columns={columns}
         data={users}
