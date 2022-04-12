@@ -36,10 +36,6 @@ func NewAuthorizer() (*RegoAuthorizer, error) {
 type authSubject struct {
 	ID    string `json:"id"`
 	Roles []Role `json:"roles"`
-
-	SitePermissions []Permission `json:"site_permissions"`
-	OrgPermissions  []Permission `json:"org_permissions"`
-	UserPermissions []Permission `json:"user_permissions"`
 }
 
 func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, object Object, action Action) error {
