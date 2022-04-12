@@ -271,7 +271,6 @@ func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) updateUserProfile(rw http.ResponseWriter, r *http.Request) {
-
 	user := httpmw.UserParam(r)
 
 	var params codersdk.UpdateUserProfileRequest

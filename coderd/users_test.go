@@ -221,13 +221,13 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		existentUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		existentUser, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@coder.com",
 			Username:       "bruno",
 			Password:       "password",
 			OrganizationID: user.OrganizationID,
 		})
-		_, err = client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
+		_, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
 			Email:    existentUser.Email,
 		})
@@ -240,13 +240,13 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		existentUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		existentUser, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@coder.com",
 			Username:       "bruno",
 			Password:       "password",
 			OrganizationID: user.OrganizationID,
 		})
-		_, err = client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
+		_, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: existentUser.Username,
 			Email:    "newemail@coder.com",
 		})
@@ -272,7 +272,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		me, err := client.User(context.Background(), codersdk.Me)
+		me, _ := client.User(context.Background(), codersdk.Me)
 		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: me.Username,
 			Email:    "newemail@coder.com",
