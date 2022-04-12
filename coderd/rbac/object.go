@@ -16,29 +16,42 @@ type Object struct {
 	// TODO: SharedUsers?
 }
 
+// All returns an object matching all resources of the same type.
 func (z Object) All() Object {
-	z.OrgID = ""
-	z.Owner = ""
-	z.ResourceID = ""
-	return z
+	return Object{
+		ResourceID: "",
+		Owner:      "",
+		OrgID:      "",
+		Type:       z.Type,
+	}
 }
 
 // InOrg adds an org OwnerID to the resource
-//nolint:revive
 func (z Object) InOrg(orgID string) Object {
-	z.OrgID = orgID
-	return z
+	return Object{
+		ResourceID: z.ResourceID,
+		Owner:      z.Owner,
+		OrgID:      orgID,
+		Type:       z.Type,
+	}
 }
 
 // WithOwner adds an OwnerID to the resource
-//nolint:revive
-func (z Object) WithOwner(id string) Object {
-	z.Owner = id
-	return z
+func (z Object) WithOwner(ownerID string) Object {
+	return Object{
+		ResourceID: z.ResourceID,
+		Owner:      ownerID,
+		OrgID:      z.OrgID,
+		Type:       z.Type,
+	}
 }
 
-//nolint:revive
-func (z Object) WithID(id string) Object {
-	z.ResourceID = id
-	return z
+// WithID adds a ResourceID to the resource
+func (z Object) WithID(resourceID string) Object {
+	return Object{
+		ResourceID: resourceID,
+		Owner:      z.Owner,
+		OrgID:      z.OrgID,
+		Type:       z.Type,
+	}
 }

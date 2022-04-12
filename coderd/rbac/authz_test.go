@@ -3,11 +3,13 @@ package rbac_test
 import (
 	"context"
 	"encoding/json"
-	"golang.org/x/xerrors"
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac"
+	"golang.org/x/xerrors"
+
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // subject is required because rego needs
@@ -429,6 +431,7 @@ func TestAuthorizeDomain(t *testing.T) {
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately
+//nolint:paralleltest
 func TestAuthorizeLevels(t *testing.T) {
 	defOrg := "default"
 	wrkID := "1234"
@@ -598,7 +601,7 @@ func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTes
 					err := authorizer.Authorize(context.Background(), subject.UserID, subject.Roles, c.resource, a)
 					if c.allow {
 						if err != nil {
-							var uerr *rbac.Unauthorized
+							var uerr *rbac.UnauthorizedError
 							xerrors.As(err, &uerr)
 							d, _ := json.Marshal(uerr.Input())
 							t.Log(string(d))

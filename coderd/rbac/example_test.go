@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // TestExample gives some examples on how to use the authz library.

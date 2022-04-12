@@ -61,8 +61,14 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 		return ForbiddenWithInternal(xerrors.Errorf("expect only 1 result, got %d", len(results)), input)
 	}
 
-	if results[0].Bindings["allowed"] != true {
+	allowedResult, ok := (results[0].Bindings["allowed"]).(bool)
+	if !ok {
+		return ForbiddenWithInternal(xerrors.Errorf("expected allowed to be a bool but got %T", allowedResult), input)
+	}
+
+	if allowedResult {
 		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input)
 	}
+
 	return nil
 }
