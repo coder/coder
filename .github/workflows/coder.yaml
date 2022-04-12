@@ -26,6 +26,7 @@ concurrency:
 jobs:
   style-lint-golangci:
     name: style/lint/golangci
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -39,6 +40,7 @@ jobs:
 
   style-lint-typescript:
     name: "style/lint/typescript"
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -64,6 +66,7 @@ jobs:
 
   gen:
     name: "style/gen"
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -87,6 +90,7 @@ jobs:
   style-fmt:
     name: "style/fmt"
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -114,6 +118,7 @@ jobs:
   test-go:
     name: "test/go"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       matrix:
         os:
@@ -192,6 +197,7 @@ jobs:
   test-go-postgres:
     name: "test/go/postgres"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
 
@@ -277,6 +283,7 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
     permissions:
       contents: read
@@ -352,6 +359,7 @@ jobs:
   test-js:
     name: "test/js"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
 
@@ -404,6 +412,7 @@ jobs:
   test-e2e:
     name: "test/e2e/${{ matrix.os }}"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       matrix:
         os:

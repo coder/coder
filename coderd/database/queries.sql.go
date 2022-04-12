@@ -1905,6 +1905,49 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE
+	users
+SET
+	email = $2,
+	"name" = $3,
+	username = $4,
+	updated_at = $5
+WHERE
+	id = $1 RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+`
+
+type UpdateUserProfileParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	Email     string    `db:"email" json:"email"`
+	Name      string    `db:"name" json:"name"`
+	Username  string    `db:"username" json:"username"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserProfile,
+		arg.ID,
+		arg.Email,
+		arg.Name,
+		arg.Username,
+		arg.UpdatedAt,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Revoked,
+		&i.LoginType,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Username,
+	)
+	return i, err
+}
+
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata

@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
@@ -22,7 +21,6 @@ import (
 
 func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	render.Status(r, http.StatusOK)
 
 	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err != nil {
@@ -45,7 +43,7 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	render.JSON(rw, r, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 }
 
 func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -92,8 +90,7 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		apiBuilds = append(apiBuilds, convertWorkspaceBuild(build, convertProvisionerJob(job)))
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiBuilds)
+	httpapi.Write(rw, http.StatusOK, apiBuilds)
 }
 
 func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -256,8 +253,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(provisionerJob)))
+	httpapi.Write(rw, http.StatusCreated, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(provisionerJob)))
 }
 
 func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
@@ -287,8 +283,7 @@ func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
+	httpapi.Write(rw, http.StatusOK, convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(job)))
 }
 
 func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {

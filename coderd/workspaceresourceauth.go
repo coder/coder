@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/render"
-
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -134,8 +132,8 @@ func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, codersdk.WorkspaceAgentAuthenticateResponse{
+
+	httpapi.Write(rw, http.StatusOK, codersdk.WorkspaceAgentAuthenticateResponse{
 		SessionToken: agent.AuthToken.String(),
 	})
 }

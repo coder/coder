@@ -10,7 +10,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -44,8 +43,7 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	file, err := api.Database.GetFileByHash(r.Context(), hash)
 	if err == nil {
 		// The file already exists!
-		render.Status(r, http.StatusOK)
-		render.JSON(rw, r, codersdk.UploadResponse{
+		httpapi.Write(rw, http.StatusOK, codersdk.UploadResponse{
 			Hash: file.Hash,
 		})
 		return
@@ -63,8 +61,8 @@ func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, codersdk.UploadResponse{
+
+	httpapi.Write(rw, http.StatusCreated, codersdk.UploadResponse{
 		Hash: file.Hash,
 	})
 }

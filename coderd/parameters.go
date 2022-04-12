@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
@@ -59,8 +58,7 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertParameterValue(parameterValue))
+	httpapi.Write(rw, http.StatusCreated, convertParameterValue(parameterValue))
 }
 
 func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
@@ -86,8 +84,7 @@ func (api *api) parameters(rw http.ResponseWriter, r *http.Request) {
 		apiParameterValues = append(apiParameterValues, convertParameterValue(parameterValue))
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiParameterValues)
+	httpapi.Write(rw, http.StatusOK, apiParameterValues)
 }
 
 func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
