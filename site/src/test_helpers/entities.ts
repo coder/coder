@@ -24,7 +24,6 @@ export const MockUser: UserResponse = {
   username: "TestUser",
   email: "test@coder.com",
   created_at: "",
-  siteRole: "Admin"
 }
 
 export const MockUser2: UserResponse = {
@@ -32,7 +31,6 @@ export const MockUser2: UserResponse = {
   username: "TestUser2",
   email: "test2@coder.com",
   created_at: "",
-  siteRole: "Member"
 }
 
 export const MockPager: Pager = {

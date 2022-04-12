@@ -15,7 +15,6 @@ export interface UserResponse {
   readonly username: string
   readonly email: string
   readonly created_at: string
-  siteRole?: "Admin" | "Member"
 }
 
 /**
