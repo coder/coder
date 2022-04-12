@@ -19,7 +19,8 @@ bool_flip(b) = flipped {
     flipped = true
 }
 
-# perms_grant returns a set of boolean values (true, false).
+# perms_grant returns a set of boolean values {true, false}.
+# True means a positive permission in the set, false is a negative permission.
 # It will only return `bool_flip(perm.negate)` for permissions that affect a given
 # resource_type, resource_id, and action.
 # The empty set is returned if no relevant permissions are found.
@@ -41,7 +42,7 @@ perms_grant(permissions) = grants {
 default site = {}
 site = grant {
     # Boolean set for all site wide permissions.
-    grant = { v | # Use set comprehension to remove dulpicate values
+    grant = { v | # Use set comprehension to remove duplicate values
         # For each role, grab the site permission.
         # Find the grants on this permission list.
         v = perms_grant(input.subject.roles[_].site)[_]
@@ -53,7 +54,7 @@ user = grant {
     # Only apply user permissions if the user owns the resource
     input.object.owner != ""
     input.object.owner == input.subject.id
-    grant = { v | # Use set comprehension to remove dulpicate values
+    grant = { v |
         # For each role, grab the user permissions.
         # Find the grants on this permission list.
         v = perms_grant(input.subject.roles[_].user)[_]
@@ -84,12 +85,15 @@ org_non_member {
 }
 
 # org is two rules that equate to the following
-#	if !org_non_member { return org_member }
-#	else {false}
+#	if org_non_member { return {false} }
+#	else { org_member }
 #
 # It is important both rules cannot be true, as the `org` rules cannot produce multiple outputs.
-default org = []
+default org = {}
 org = set {
+    # We have to do !org_non_member because rego rules must evaluate to 'true'
+    # to have a value set.
+    # So we do "not not-org-member" which means "subject is in org"
     not org_non_member
     set = org_member
 }
@@ -112,6 +116,8 @@ allow {
     site[_]
 }
 
+# OR
+
 # org allow
 allow {
     # No site or org deny
@@ -120,6 +126,8 @@ allow {
     # And all permissions are positive
     org[_]
 }
+
+# OR
 
 # user allow
 allow {
