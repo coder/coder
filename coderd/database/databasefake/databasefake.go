@@ -626,7 +626,9 @@ func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, agent := range q.provisionerJobAgent {
+	// The schema sorts this by created at, so we iterate the array backwards.
+	for i := len(q.provisionerJobAgent) - 1; i >= 0; i-- {
+		agent := q.provisionerJobAgent[i]
 		if agent.AuthToken.String() == authToken.String() {
 			return agent, nil
 		}
