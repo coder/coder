@@ -42,42 +42,25 @@ import (
 )
 
 func start() *cobra.Command {
-	var (
-		accessURL   string
-		address     string
-		cacheDir    string
-		dev         bool
-		postgresURL string
-		// provisionerDaemonCount is a uint8 to ensure a number > 0.
-		provisionerDaemonCount uint8
-		tlsCertFile            string
-		tlsClientCAFile        string
-		tlsClientAuth          string
-		tlsEnable              bool
-		tlsKeyFile             string
-		tlsMinVersion          string
-		skipTunnel             bool
-		traceDatadog           bool
-		secureAuthCookie       bool
-		sshKeygenAlgorithmRaw  string
-	)
+	var cfg = parseStartConfig(filepath.Join(varGlobalConfig, "coderd.yaml"))
+
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if traceDatadog {
+			if cfg.TraceDatadog {
 				tracer.Start()
 				defer tracer.Stop()
 			}
 
 			printLogo(cmd)
-			listener, err := net.Listen("tcp", address)
+			listener, err := net.Listen("tcp", cfg.Address)
 			if err != nil {
-				return xerrors.Errorf("listen %q: %w", address, err)
+				return xerrors.Errorf("listen %q: %w", cfg.Address, err)
 			}
 			defer listener.Close()
 
-			if tlsEnable {
-				listener, err = configureTLS(listener, tlsMinVersion, tlsClientAuth, tlsCertFile, tlsKeyFile, tlsClientCAFile)
+			if cfg.TLSEnable {
+				listener, err = configureTLS(listener, cfg.TLSMinVersion, cfg.TLSClientAuth, cfg.TLSCertFile, cfg.TLSKeyFile, cfg.TLSClientCAFile)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
@@ -96,14 +79,15 @@ func start() *cobra.Command {
 				Scheme: "http",
 				Host:   tcpAddr.String(),
 			}
-			if tlsEnable {
+			if cfg.TLSEnable {
 				localURL.Scheme = "https"
 			}
-			if accessURL == "" {
-				accessURL = localURL.String()
+
+			if cfg.AccessURL == "" {
+				cfg.AccessURL = localURL.String()
 			} else {
 				// If an access URL is specified, always skip tunneling.
-				skipTunnel = true
+				cfg.SkipTunnel = true
 			}
 
 			var (
@@ -114,7 +98,7 @@ func start() *cobra.Command {
 
 			// If we're attempting to tunnel in dev-mode, the access URL
 			// needs to be changed to use the tunnel.
-			if dev && !skipTunnel {
+			if cfg.Dev && !cfg.SkipTunnel {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
 					"Coder requires a URL accessible by workspaces you provision. "+
 						"A free tunnel can be created for simple setup. This will "+
@@ -130,7 +114,7 @@ func start() *cobra.Command {
 					return err
 				}
 				if err == nil {
-					accessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
+					cfg.AccessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
@@ -143,14 +127,14 @@ func start() *cobra.Command {
 				return err
 			}
 
-			accessURLParsed, err := url.Parse(accessURL)
+			accessURLParsed, err := url.Parse(cfg.AccessURL)
 			if err != nil {
-				return xerrors.Errorf("parse access url %q: %w", accessURL, err)
+				return xerrors.Errorf("parse access url %q: %w", cfg.AccessURL, err)
 			}
 
-			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(sshKeygenAlgorithmRaw)
+			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(cfg.SSHKeygenAlgorithmRaw)
 			if err != nil {
-				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
+				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithmRaw, err)
 			}
 
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
@@ -160,16 +144,16 @@ func start() *cobra.Command {
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
-				SecureAuthCookie:     secureAuthCookie,
+				SecureAuthCookie:     cfg.SecureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 			}
 
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", accessURL)
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "provisioner-daemons: %d\n", provisionerDaemonCount)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", cfg.AccessURL)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "provisioner-daemons: %d\n", cfg.ProvisionerDaemonCount)
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
-			if !dev {
-				sqlDB, err := sql.Open("postgres", postgresURL)
+			if !cfg.Dev {
+				sqlDB, err := sql.Open("postgres", cfg.PostgresURL)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
@@ -182,7 +166,7 @@ func start() *cobra.Command {
 					return xerrors.Errorf("migrate up: %w", err)
 				}
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = database.NewPubsub(cmd.Context(), sqlDB, postgresURL)
+				options.Pubsub, err = database.NewPubsub(cmd.Context(), sqlDB, cfg.PostgresURL)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
@@ -190,7 +174,7 @@ func start() *cobra.Command {
 
 			handler, closeCoderd := coderd.New(options)
 			client := codersdk.New(localURL)
-			if tlsEnable {
+			if cfg.TLSEnable {
 				// Secure transport isn't needed for locally communicating!
 				client.HTTPClient.Transport = &http.Transport{
 					TLSClientConfig: &tls.Config{
@@ -201,8 +185,8 @@ func start() *cobra.Command {
 			}
 
 			provisionerDaemons := make([]*provisionerd.Server, 0)
-			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir)
+			for i := 0; uint8(i) < cfg.ProvisionerDaemonCount; i++ {
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cfg.CacheDir)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -230,7 +214,7 @@ func start() *cobra.Command {
 
 			config := createConfig(cmd)
 
-			if dev {
+			if cfg.Dev {
 				err = createFirstUser(cmd, client, config)
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
@@ -286,7 +270,7 @@ func start() *cobra.Command {
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+cliui.Styles.Bold.Render("Interrupt caught. Gracefully exiting..."))
 
-			if dev {
+			if cfg.Dev {
 				workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("get workspaces: %w", err)
@@ -350,32 +334,32 @@ func start() *cobra.Command {
 		},
 	}
 
-	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
-	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
+	cliflag.StringVarP(root.Flags(), &cfg.AccessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
+	cliflag.StringVarP(root.Flags(), &cfg.Address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
 	// systemd uses the CACHE_DIRECTORY environment variable!
-	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
-	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
-	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
-	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
-	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
-	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
+	cliflag.StringVarP(root.Flags(), &cfg.CacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
+	cliflag.BoolVarP(root.Flags(), &cfg.Dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
+	cliflag.StringVarP(root.Flags(), &cfg.PostgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
+	cliflag.Uint8VarP(root.Flags(), &cfg.ProvisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
+	cliflag.BoolVarP(root.Flags(), &cfg.TLSEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
+	cliflag.StringVarP(root.Flags(), &cfg.TLSCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
 			"and the CA certificate together. The primary certificate should appear first in the combined file")
-	cliflag.StringVarP(root.Flags(), &tlsClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
+	cliflag.StringVarP(root.Flags(), &cfg.TLSClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
 		"PEM-encoded Certificate Authority file used for checking the authenticity of client")
-	cliflag.StringVarP(root.Flags(), &tlsClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
+	cliflag.StringVarP(root.Flags(), &cfg.TLSClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
 		`Specifies the policy the server will follow for TLS Client Authentication. `+
 			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`)
-	cliflag.StringVarP(root.Flags(), &tlsKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
+	cliflag.StringVarP(root.Flags(), &cfg.TLSKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
 		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
-	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
+	cliflag.StringVarP(root.Flags(), &cfg.TLSMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflag.BoolVarP(root.Flags(), &skipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
+	cliflag.BoolVarP(root.Flags(), &cfg.SkipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
 	_ = root.Flags().MarkHidden("skip-tunnel")
-	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
-	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
-	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
+	cliflag.BoolVarP(root.Flags(), &cfg.TraceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &cfg.SecureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
+	cliflag.StringVarP(root.Flags(), &cfg.SSHKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
 
 	return root
