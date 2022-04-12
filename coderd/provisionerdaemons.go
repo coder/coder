@@ -587,25 +587,21 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		Address:    address,
 		Type:       protoResource.Type,
 		Name:       protoResource.Name,
-		AgentID: uuid.NullUUID{
-			UUID:  uuid.New(),
-			Valid: protoResource.Agent != nil,
-		},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
 	}
-	if resource.AgentID.Valid {
+	for _, agent := range protoResource.Agents {
 		var instanceID sql.NullString
-		if protoResource.Agent.GetInstanceId() != "" {
+		if agent.GetInstanceId() != "" {
 			instanceID = sql.NullString{
-				String: protoResource.Agent.GetInstanceId(),
+				String: agent.GetInstanceId(),
 				Valid:  true,
 			}
 		}
 		var env pqtype.NullRawMessage
-		if protoResource.Agent.Env != nil {
-			data, err := json.Marshal(protoResource.Agent.Env)
+		if agent.Env != nil {
+			data, err := json.Marshal(agent.Env)
 			if err != nil {
 				return xerrors.Errorf("marshal env: %w", err)
 			}
@@ -615,24 +611,27 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 		authToken := uuid.New()
-		if protoResource.Agent.GetToken() != "" {
-			authToken, err = uuid.Parse(protoResource.Agent.GetToken())
+		if agent.GetToken() != "" {
+			authToken, err = uuid.Parse(agent.GetToken())
 			if err != nil {
 				return xerrors.Errorf("invalid auth token format; must be uuid: %w", err)
 			}
 		}
 
 		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:                   resource.AgentID.UUID,
+			ID:                   uuid.New(),
 			CreatedAt:            database.Now(),
 			UpdatedAt:            database.Now(),
 			ResourceID:           resource.ID,
+			Name:                 agent.Name,
 			AuthToken:            authToken,
 			AuthInstanceID:       instanceID,
+			Architecture:         agent.Architecture,
 			EnvironmentVariables: env,
+			OperatingSystem:      agent.OperatingSystem,
 			StartupScript: sql.NullString{
-				String: protoResource.Agent.StartupScript,
-				Valid:  protoResource.Agent.StartupScript != "",
+				String: agent.StartupScript,
+				Valid:  agent.StartupScript != "",
 			},
 		})
 		if err != nil {

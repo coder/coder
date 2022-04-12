@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ terraform {
 	required_providers {
 		coder = {
 			source = "coder/coder"
-			version = "0.2.1"
+			version = "0.3.1"
 		}
 	}
 }
@@ -156,7 +157,10 @@ provider "coder" {
 		Name: "resource-associated-with-agent",
 		Files: map[string]string{
 			"main.tf": provider + `
-			resource "coder_agent" "A" {}
+			resource "coder_agent" "A" {
+				os = "windows"
+				arch = "arm64"
+			}
 			resource "null_resource" "A" {
 				depends_on = [
 					coder_agent.A
@@ -176,45 +180,14 @@ provider "coder" {
 					Resources: []*proto.Resource{{
 						Name: "A",
 						Type: "null_resource",
-						Agent: &proto.Agent{
+						Agents: []*proto.Agent{{
+							Name:            "A",
+							OperatingSystem: "windows",
+							Architecture:    "arm64",
 							Auth: &proto.Agent_Token{
 								Token: "",
 							},
-						},
-					}},
-				},
-			},
-		},
-	}, {
-		Name: "agent-associated-with-resource",
-		Files: map[string]string{
-			"main.tf": provider + `
-			resource "coder_agent" "A" {
-				depends_on = [
-					null_resource.A
-				]
-				instance_id = "example"
-			}
-			resource "null_resource" "A" {}`,
-		},
-		Request: &proto.Provision_Request{
-			Type: &proto.Provision_Request_Start{
-				Start: &proto.Provision_Start{
-					Metadata: &proto.Provision_Metadata{},
-				},
-			},
-		},
-		Response: &proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "A",
-						Type: "null_resource",
-						Agent: &proto.Agent{
-							Auth: &proto.Agent_InstanceId{
-								InstanceId: "example",
-							},
-						},
+						}},
 					}},
 				},
 			},
@@ -225,6 +198,12 @@ provider "coder" {
 			"main.tf": provider + `
 			resource "coder_agent" "A" {
 				count = 1
+				os = "linux"
+				arch = "amd64"
+				env = {
+					test: "example"
+				}
+				startup_script = "code-server"
 			}
 			resource "null_resource" "A" {
 				count = length(coder_agent.A)
@@ -244,29 +223,42 @@ provider "coder" {
 					Resources: []*proto.Resource{{
 						Name: "A",
 						Type: "null_resource",
-						Agent: &proto.Agent{
-							Auth: &proto.Agent_Token{},
-						},
+						Agents: []*proto.Agent{{
+							Name:            "A",
+							OperatingSystem: "linux",
+							Architecture:    "amd64",
+							Auth:            &proto.Agent_Token{},
+							Env: map[string]string{
+								"test": "example",
+							},
+							StartupScript: "code-server",
+						}},
 					}},
 				},
 			},
 		},
 	}, {
-		Name: "dryrun-agent-associated-with-resource",
+		Name: "resource-manually-associated-with-agent",
 		Files: map[string]string{
 			"main.tf": provider + `
 			resource "coder_agent" "A" {
-				count = length(null_resource.A)
-				instance_id = "an-instance"
+				os = "darwin"
+				arch = "amd64"
 			}
 			resource "null_resource" "A" {
-				count = 1
-			}`,
+				depends_on = [
+					coder_agent.A
+				]
+			}
+			resource "coder_agent_instance" "A" {
+				agent_id = coder_agent.A.id
+				instance_id = "bananas"
+			}
+			`,
 		},
 		Request: &proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					DryRun:   true,
 					Metadata: &proto.Provision_Metadata{},
 				},
 			},
@@ -277,31 +269,45 @@ provider "coder" {
 					Resources: []*proto.Resource{{
 						Name: "A",
 						Type: "null_resource",
-						Agent: &proto.Agent{
+						Agents: []*proto.Agent{{
+							Name:            "A",
+							OperatingSystem: "darwin",
+							Architecture:    "amd64",
 							Auth: &proto.Agent_InstanceId{
-								InstanceId: "",
+								InstanceId: "bananas",
 							},
-						},
+						}},
 					}},
 				},
 			},
 		},
 	}, {
-		Name: "dryrun-agent-associated-with-resource-instance-id",
+		Name: "resource-manually-associated-with-multiple-agents",
 		Files: map[string]string{
 			"main.tf": provider + `
 			resource "coder_agent" "A" {
-				count = length(null_resource.A)
-				instance_id = length(null_resource.A)
+				os = "darwin"
+				arch = "amd64"
+			}
+			resource "coder_agent" "B" {
+				os = "linux"
+				arch = "amd64"
 			}
 			resource "null_resource" "A" {
-				count = 1
-			}`,
+				depends_on = [
+					coder_agent.A,
+					coder_agent.B
+				]
+			}
+			resource "coder_agent_instance" "A" {
+				agent_id = coder_agent.A.id
+				instance_id = "bananas"
+			}
+			`,
 		},
 		Request: &proto.Provision_Request{
 			Type: &proto.Provision_Request_Start{
 				Start: &proto.Provision_Start{
-					DryRun:   true,
 					Metadata: &proto.Provision_Metadata{},
 				},
 			},
@@ -312,11 +318,21 @@ provider "coder" {
 					Resources: []*proto.Resource{{
 						Name: "A",
 						Type: "null_resource",
-						Agent: &proto.Agent{
+						Agents: []*proto.Agent{{
+							Name:            "A",
+							OperatingSystem: "darwin",
+							Architecture:    "amd64",
 							Auth: &proto.Agent_InstanceId{
-								InstanceId: "",
+								InstanceId: "bananas",
 							},
-						},
+						}, {
+							Name:            "B",
+							OperatingSystem: "linux",
+							Architecture:    "amd64",
+							Auth: &proto.Agent_Token{
+								Token: "",
+							},
+						}},
 					}},
 				},
 			},
@@ -375,15 +391,16 @@ provider "coder" {
 
 				// Remove randomly generated data.
 				for _, resource := range msg.GetComplete().Resources {
-					if resource.Agent == nil {
-						continue
-					}
-					resource.Agent.Id = ""
-					if resource.Agent.GetToken() == "" {
-						continue
-					}
-					resource.Agent.Auth = &proto.Agent_Token{
-						Token: "",
+					sort.Slice(resource.Agents, func(i, j int) bool {
+						return resource.Agents[i].Name < resource.Agents[j].Name
+					})
+
+					for _, agent := range resource.Agents {
+						agent.Id = ""
+						if agent.GetToken() == "" {
+							continue
+						}
+						agent.Auth = &proto.Agent_Token{}
 					}
 				}
 

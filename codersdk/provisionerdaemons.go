@@ -70,6 +70,9 @@ func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisi
 		}
 		return nil, readBodyAsError(res)
 	}
+	// Allow _somewhat_ large payloads.
+	conn.SetReadLimit((1 << 20) * 2)
+
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)

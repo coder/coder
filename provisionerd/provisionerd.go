@@ -207,7 +207,6 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	if job.JobId == "" {
-		// p.opts.Logger.Debug(context.Background(), "no jobs available")
 		return
 	}
 	ctx, p.jobCancel = context.WithCancel(ctx)
@@ -456,7 +455,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
 			Level:     sdkproto.LogLevel_INFO,
-			Stage:     "Detecting resources when started",
+			Stage:     "Detecting persistent resources",
 			CreatedAt: time.Now().UTC().UnixMilli(),
 		}},
 	})
@@ -477,7 +476,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
 			Level:     sdkproto.LogLevel_INFO,
-			Stage:     "Detecting resources when stopped",
+			Stage:     "Detecting ephemeral resources",
 			CreatedAt: time.Now().UTC().UnixMilli(),
 		}},
 	})

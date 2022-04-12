@@ -41,6 +41,9 @@ updates:
       timezone: "America/Chicago"
     commit-message:
       prefix: "chore"
+    labels:
+      - "dependencies"
+      - "typescript/js"
     ignore:
       # Ignore major updates to Node.js types, because they need to
       # correspond to the Node.js engine version

@@ -28,7 +28,9 @@ func templateInit() *cobra.Command {
 				exampleByName[example.Name] = example
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Templates contain Infrastructure as Code that works with Coder to provision development workspaces. Get started by selecting an example:\n"))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render(
+				"A template defines infrastructure as code to be provisioned "+
+					"for individual developer workspaces. Select an example to get started:\n"))
 			option, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: exampleNames,
 			})
@@ -56,7 +58,7 @@ func templateInit() *cobra.Command {
 			} else {
 				relPath = "./" + relPath
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%sExtracting %s to %s...\n", cliui.Styles.Prompt, cliui.Styles.Field.Render(selectedTemplate.ID), cliui.Styles.Keyword.Render(relPath))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Extracting %s to %s...\n", cliui.Styles.Field.Render(selectedTemplate.ID), relPath)
 			err = os.MkdirAll(directory, 0700)
 			if err != nil {
 				return err
@@ -65,8 +67,9 @@ func templateInit() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Inside that directory, get started by running:")
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("coder templates create"))+"\n")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Create your template by running:")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Examples provide a starting point and are expected to be edited! 🎨"))
 			return nil
 		},
 	}

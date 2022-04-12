@@ -210,10 +210,10 @@ func TestTemplateVersionResources(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Id:   "something",
 								Auth: &proto.Agent_Token{},
-							},
+							}},
 						}, {
 							Name: "another",
 							Type: "example",
@@ -229,7 +229,7 @@ func TestTemplateVersionResources(t *testing.T) {
 		require.Len(t, resources, 4)
 		require.Equal(t, "some", resources[0].Name)
 		require.Equal(t, "example", resources[0].Type)
-		require.NotNil(t, resources[0].Agent)
+		require.Len(t, resources[0].Agents, 1)
 	})
 }
 
@@ -255,12 +255,12 @@ func TestTemplateVersionLogs(t *testing.T) {
 					Resources: []*proto.Resource{{
 						Name: "some",
 						Type: "example",
-						Agent: &proto.Agent{
+						Agents: []*proto.Agent{{
 							Id: "something",
 							Auth: &proto.Agent_Token{
 								Token: uuid.NewString(),
 							},
-						},
+						}},
 					}, {
 						Name: "another",
 						Type: "example",

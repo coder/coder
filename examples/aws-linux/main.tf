@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.2.1"
+      version = "~> 0.3.1"
     }
   }
 }
@@ -55,12 +55,6 @@ provider "aws" {
 data "coder_workspace" "me" {
 }
 
-data "coder_agent_script" "dev" {
-  arch = "amd64"
-  auth = "aws-instance-identity"
-  os   = "linux"
-}
-
 data "aws_ami" "ubuntu" {
   most_recent = true
   filter {
@@ -75,8 +69,9 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "coder_agent" "dev" {
-  count       = data.coder_workspace.me.transition == "start" ? 1 : 0
-  instance_id = aws_instance.dev[0].id
+  arch = "amd64"
+  auth = "aws-instance-identity"
+  os   = "linux"
 }
 
 locals {
@@ -105,7 +100,7 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -E -u ubuntu sh -c '${data.coder_agent_script.dev.value}'
+sudo -E -u ubuntu sh -c '${coder_agent.dev.init_script}'
 --//--
 EOT
 
@@ -139,11 +134,9 @@ resource "aws_instance" "dev" {
   ami               = data.aws_ami.ubuntu.id
   availability_zone = "${var.region}a"
   instance_type     = "t3.micro"
-  count             = 1
 
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
   }
-
 }

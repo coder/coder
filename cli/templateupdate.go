@@ -43,7 +43,7 @@ func templateUpdate() *cobra.Command {
 					return err
 				}
 			}
-			content, err := provisionersdk.Tar(directory)
+			content, err := provisionersdk.Tar(directory, provisionersdk.TemplateArchiveLimit)
 			if err != nil {
 				return err
 			}
