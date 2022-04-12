@@ -270,6 +270,70 @@ func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
 	render.JSON(rw, r, convertUser(user))
 }
 
+func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	var params codersdk.UpdateUserProfileRequest
+	if !httpapi.Read(rw, r, &params) {
+		return
+	}
+
+	if params.Name == nil {
+		params.Name = &user.Name
+	}
+
+	existentUser, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+		Email:    params.Email,
+		Username: params.Username,
+	})
+	isDifferentUser := existentUser.ID != user.ID
+
+	if err == nil && isDifferentUser {
+		responseErrors := []httpapi.Error{}
+		if existentUser.Email == params.Email {
+			responseErrors = append(responseErrors, httpapi.Error{
+				Field: "email",
+				Code:  "exists",
+			})
+		}
+		if existentUser.Username == params.Username {
+			responseErrors = append(responseErrors, httpapi.Error{
+				Field: "username",
+				Code:  "exists",
+			})
+		}
+		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+			Message: fmt.Sprintf("user already exists"),
+			Errors:  responseErrors,
+		})
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) && isDifferentUser {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user: %s", err),
+		})
+		return
+	}
+
+	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
+		ID:        user.ID,
+		Name:      *params.Name,
+		Email:     params.Email,
+		Username:  params.Username,
+		UpdatedAt: database.Now(),
+	})
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("patch user: %s", err.Error()),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertUser(updatedUserProfile))
+}
+
 // Returns organizations the parameterized user has access to.
 func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
@@ -872,5 +936,6 @@ func convertUser(user database.User) codersdk.User {
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		Username:  user.Username,
+		Name:      user.Name,
 	}
 }
