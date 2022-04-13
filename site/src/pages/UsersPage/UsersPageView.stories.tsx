@@ -13,7 +13,7 @@ const Template: Story<UsersPageViewProps> = (args) => <UsersPageView {...args} /
 export const Ready = Template.bind({})
 Ready.args = {
   users: [MockUser, MockUser2],
-  pager: MockPager
+  pager: MockPager,
 }
 export const Empty = Template.bind({})
 Empty.args = {

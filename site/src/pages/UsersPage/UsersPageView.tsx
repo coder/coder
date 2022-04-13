@@ -6,7 +6,7 @@ import { UsersTable } from "../../components/UsersTable/UsersTable"
 
 export const Language = {
   pageTitle: "Users",
-  pageSubtitle: (pager: Pager | undefined) => (pager ? `{pager.total} total` : ""),
+  pageSubtitle: (pager: Pager | undefined): string => (pager ? `{pager.total} total` : ""),
 }
 
 export interface UsersPageViewProps {

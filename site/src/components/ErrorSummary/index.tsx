@@ -1,7 +1,7 @@
 import React from "react"
 
 const Language = {
-  unknownErrorMessage: "Unknown error"
+  unknownErrorMessage: "Unknown error",
 }
 
 export interface ErrorSummaryProps {

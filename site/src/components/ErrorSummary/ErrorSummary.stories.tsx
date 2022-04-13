@@ -11,7 +11,7 @@ const Template: Story<ErrorSummaryProps> = (args) => <ErrorSummary {...args} />
 
 export const WithError = Template.bind({})
 WithError.args = {
-  error: new Error("Something went wrong!")
+  error: new Error("Something went wrong!"),
 }
 
 export const WithUndefined = Template.bind({})
