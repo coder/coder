@@ -1,6 +1,6 @@
 import TextField from "@material-ui/core/TextField"
-import { FormikContextType, useFormik } from "formik"
-import React from "react"
+import { FormikContextType, FormikErrors, useFormik } from "formik"
+import React, { useEffect } from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
 import { FormStack } from "../Form/FormStack"
@@ -27,18 +27,27 @@ const validationSchema = Yup.object({
   username: Yup.string().trim(),
 })
 
+export type AccountFormErrors = FormikErrors<AccountFormValues>
 export interface AccountFormProps {
   isLoading: boolean
   initialValues: AccountFormValues
   onSubmit: (values: AccountFormValues) => Promise<void>
+  errors?: AccountFormErrors
 }
 
-export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, initialValues }) => {
+export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, initialValues, errors }) => {
   const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
     initialValues,
     validationSchema,
     onSubmit,
   })
+
+  // Sync errors from parent
+  useEffect(() => {
+    if (errors) {
+      form.setErrors(errors)
+    }
+  }, [errors, form])
 
   return (
     <>
