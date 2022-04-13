@@ -10,28 +10,30 @@ import (
 	frpclient "github.com/fatedier/frp/client"
 	frpconfig "github.com/fatedier/frp/pkg/config"
 	frpconsts "github.com/fatedier/frp/pkg/consts"
+	frplog "github.com/fatedier/frp/pkg/util/log"
 	frpcrypto "github.com/fatedier/golib/crypto"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 )
 
-// New creates a new tunnel pointing at the URL provided.
-// Once created, it returns the external hostname that will resolve to it.
+// New creates a new tunnel pointing at the URL provided. Once created, it
+// returns the external hostname that will resolve to it.
 //
 // The tunnel will exit when the context provided is canceled.
 //
-// Upstream connection occurs async through Cloudflare, so the error channel
-// will only be executed if the tunnel has failed after numerous attempts.
+// Upstream connection occurs synchronously through a selfhosted
+// https://github.com/fatedier/frp instance. The error channel sends an error
+// when the frp client stops.
 func New(ctx context.Context, coderurl *url.URL) (string, <-chan error, error) {
 	frpcrypto.DefaultSalt = "frp"
 
 	cfg := frpconfig.GetDefaultClientConf()
 	cfg.ServerAddr = "frp-tunnel.coder.app"
 	cfg.ServerPort = 7000
-	cfg.LogWay = "file"
-	cfg.LogFile = "/dev/null"
-	cfg.LogLevel = "warn"
+
+	// Ignore all logs from frp.
+	frplog.InitLog("file", "/dev/null", "error", 0, false)
 
 	var (
 		id        = uuid.NewString()

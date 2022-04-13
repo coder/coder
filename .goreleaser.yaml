@@ -17,7 +17,6 @@ before:
 builds:
   - id: coder-slim
     dir: cmd/coder
-    flags: ["-tags=frp"]
     ldflags:
       ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
@@ -30,7 +29,7 @@ builds:
 
   - id: coder
     dir: cmd/coder
-    flags: ["-tags=embed,frp"]
+    flags: ["-tags=embed"]
     ldflags:
       ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
