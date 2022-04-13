@@ -27,7 +27,7 @@ func New(ctx context.Context, coderurl *url.URL) (string, <-chan error, error) {
 	frpcrypto.DefaultSalt = "frp"
 
 	cfg := frpconfig.GetDefaultClientConf()
-	cfg.ServerAddr = "34.133.27.233"
+	cfg.ServerAddr = "frp-tunnel.coder.app"
 	cfg.ServerPort = 7000
 	cfg.LogWay = "file"
 	cfg.LogFile = "/dev/null"
@@ -82,11 +82,9 @@ func New(ctx context.Context, coderurl *url.URL) (string, <-chan error, error) {
 		close(ch)
 	}()
 	go func() {
-		select {
-		case <-ctx.Done():
-			svc.Close()
-		}
+		<-ctx.Done()
+		svc.Close()
 	}()
 
-	return fmt.Sprintf("https://%s.tunnel.coder.app", subdomain), ch, nil
+	return fmt.Sprintf("https://%s.try.coder.app", subdomain), ch, nil
 }
