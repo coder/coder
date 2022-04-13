@@ -13,7 +13,6 @@ func workspaces() *cobra.Command {
 		Use:     "workspaces",
 		Aliases: []string{"ws"},
 	}
-	cmd.AddCommand(workspaceAgent())
 	cmd.AddCommand(workspaceCreate())
 	cmd.AddCommand(workspaceDelete())
 	cmd.AddCommand(workspaceList())
