@@ -34,9 +34,6 @@ export const MockUser2: UserResponse = {
 }
 
 export const MockPager: Pager = {
-  after: uuidv4(),
-  before: uuidv4(),
-  limit: 10,
   total: 2,
 }
 

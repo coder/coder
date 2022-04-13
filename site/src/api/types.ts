@@ -76,9 +76,6 @@ export interface UserAgent {
 }
 
 export interface Pager {
-  after: string
-  before: string
-  limit: number
   total: number
 }
 
