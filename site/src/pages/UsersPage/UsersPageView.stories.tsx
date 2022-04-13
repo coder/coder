@@ -15,7 +15,7 @@ Ready.args = {
   users: [MockUser, MockUser2],
   pager: MockPager
 }
-export const Loading = Template.bind({})
-Loading.args = {
+export const Empty = Template.bind({})
+Empty.args = {
   users: [],
 }

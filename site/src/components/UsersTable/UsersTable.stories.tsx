@@ -14,3 +14,8 @@ export const Example = Template.bind({})
 Example.args = {
   users: [MockUser, MockUser2],
 }
+
+export const Empty = Template.bind({})
+Empty.args = {
+  users: [],
+}
