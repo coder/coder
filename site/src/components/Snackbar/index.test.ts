@@ -1,4 +1,4 @@
-import { displayError, isNotificationTextPrefixed, MsgType, NotificationMsg } from "./index"
+import { displaySuccess, isNotificationTextPrefixed, MsgType, NotificationMsg } from "./index"
 
 describe("Snackbar", () => {
   describe("isNotificationTextPrefixed", () => {
@@ -15,7 +15,7 @@ describe("Snackbar", () => {
     })
   })
 
-  describe("displayError", () => {
+  describe("displaySuccess", () => {
     const originalWindowDispatchEvent = window.dispatchEvent
     let dispatchEventMock: jest.Mock
 
@@ -47,13 +47,13 @@ describe("Snackbar", () => {
     it("can be called with only a title", () => {
       // Given
       const expected: NotificationMsg = {
-        msgType: MsgType.Error,
+        msgType: MsgType.Success,
         msg: "Test",
         additionalMsgs: undefined,
       }
 
       // When
-      displayError("Test")
+      displaySuccess("Test")
 
       // Then
       expect(dispatchEventMock).toBeCalledTimes(1)
@@ -63,13 +63,13 @@ describe("Snackbar", () => {
     it("can be called with a title and additional message", () => {
       // Given
       const expected: NotificationMsg = {
-        msgType: MsgType.Error,
+        msgType: MsgType.Success,
         msg: "Test",
         additionalMsgs: ["additional message"],
       }
 
       // When
-      displayError("Test", "additional message")
+      displaySuccess("Test", "additional message")
 
       // Then
       expect(dispatchEventMock).toBeCalledTimes(1)
