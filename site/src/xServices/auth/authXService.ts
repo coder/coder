@@ -3,7 +3,7 @@ import * as API from "../../api"
 import * as Types from "../../api/types"
 import { displaySuccess } from "../../components/Snackbar"
 
-const Language = {
+export const Language = {
   successProfileUpdate: "Preferences updated with success!",
 }
 export interface AuthContext {
@@ -91,8 +91,10 @@ export const authMachine =
           type: "parallel",
           states: {
             profile: {
+              initial: "idle",
               states: {
                 idle: {
+                  initial: "noError",
                   states: {
                     noError: {},
                     error: {},
