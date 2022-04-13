@@ -32,7 +32,7 @@ describe("PreferencesAccountPage", () => {
       )
 
       // Wait for the form to load
-      await waitFor(() => screen.findByLabelText("Name"), { timeout: 50000 })
+      await waitFor(() => screen.findByLabelText("Name"))
       fireEvent.change(screen.getByLabelText("Name"), { target: { value: newUserProfile.name } })
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: newUserProfile.email } })
       fireEvent.change(screen.getByLabelText("Username"), { target: { value: newUserProfile.username } })
