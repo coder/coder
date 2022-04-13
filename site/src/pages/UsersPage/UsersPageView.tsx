@@ -4,8 +4,9 @@ import { Pager, UserResponse } from "../../api/types"
 import { Header } from "../../components/Header"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 
-const Language = {
+export const Language = {
   pageTitle: "Users",
+  pageSubtitle: (pager: Pager | undefined) => (pager ? `{pager.total} total` : ""),
 }
 
 export interface UsersPageViewProps {
@@ -17,7 +18,7 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({ users, pager }) =>
   const styles = useStyles()
   return (
     <div className={styles.flexColumn}>
-      <Header title={Language.pageTitle} subTitle={pager ? `${pager.total} total` : ""} />
+      <Header title={Language.pageTitle} subTitle={Language.pageSubtitle(pager)} />
       <UsersTable users={users} />
     </div>
   )
