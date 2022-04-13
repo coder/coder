@@ -23,7 +23,7 @@ module.exports = {
   // SEE: https://storybook.js.org/docs/react/configure/babel
   babel: async (options) => ({
     ...options,
-    plugins: ["@babel/plugin-proposal-class-properties"],
+    plugins: [["@babel/plugin-proposal-class-properties", { loose: true }]],
   }),
 
   // Static files loaded by storybook, relative to this file.
