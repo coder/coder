@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -23,9 +22,7 @@ import (
 
 func TestTunnel(t *testing.T) {
 	t.Parallel()
-	if testing.Short() || os.Getenv("CI") != "" {
-		// This test has extreme inconsistency in CI.
-		// It's something with the networking in CI that causes this test to flake.
+	if testing.Short() {
 		t.Skip()
 		return
 	}
