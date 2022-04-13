@@ -36,6 +36,10 @@ replace github.com/golang/glog => github.com/coder/glog v1.0.1-0.20220322161911-
 // https://github.com/coder/kcp-go/commit/83c0904cec69dcf21ec10c54ea666bda18ada831
 replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.20220409183554-83c0904cec69+incompatible
 
+// Fixes a data race when closing dev tunnels. Required until
+// https://github.com/fatedier/frp/pull/2891 is merged.
+replace github.com/fatedier/frp => github.com/coadler/frp v0.36.2-0.20220413215925-c89c1943e45b
+
 require (
 	cdr.dev/slog v1.4.1
 	cloud.google.com/go/compute v1.5.0
