@@ -1,9 +1,9 @@
-import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
+import { FormStack } from "../Form/FormStack"
 import { LoadingButton } from "./../Button"
 
 interface AccountFormValues {
@@ -23,23 +23,9 @@ export const Language = {
 
 const validationSchema = Yup.object({
   email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
-  name: Yup.string().trim().optional(),
+  name: Yup.string().optional(),
   username: Yup.string().trim(),
 })
-
-const useStyles = makeStyles((theme) => ({
-  loginBtnWrapper: {
-    marginTop: theme.spacing(6),
-    borderTop: `1px solid ${theme.palette.action.disabled}`,
-    paddingTop: theme.spacing(3),
-  },
-  loginTextField: {
-    marginTop: theme.spacing(2),
-  },
-  submitBtn: {
-    marginTop: theme.spacing(2),
-  },
-}))
 
 export interface AccountFormProps {
   isLoading: boolean
@@ -48,8 +34,6 @@ export interface AccountFormProps {
 }
 
 export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, initialValues }) => {
-  const styles = useStyles()
-
   const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
     initialValues,
     validationSchema,
@@ -59,40 +43,38 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
   return (
     <>
       <form onSubmit={form.handleSubmit}>
-        <TextField
-          {...getFormHelpers<AccountFormValues>(form, "name")}
-          onChange={onChangeTrimmed(form)}
-          autoFocus
-          autoComplete="name"
-          className={styles.loginTextField}
-          fullWidth
-          label={Language.nameLabel}
-          variant="outlined"
-        />
-        <TextField
-          {...getFormHelpers<AccountFormValues>(form, "email")}
-          onChange={onChangeTrimmed(form)}
-          autoComplete="email"
-          className={styles.loginTextField}
-          fullWidth
-          label={Language.emailLabel}
-          variant="outlined"
-        />
-        <TextField
-          {...getFormHelpers<AccountFormValues>(form, "username")}
-          onChange={onChangeTrimmed(form)}
-          autoComplete="username"
-          className={styles.loginTextField}
-          fullWidth
-          label={Language.usernameLabel}
-          variant="outlined"
-        />
+        <FormStack>
+          <TextField
+            {...getFormHelpers<AccountFormValues>(form, "name")}
+            autoFocus
+            autoComplete="name"
+            fullWidth
+            label={Language.nameLabel}
+            variant="outlined"
+          />
+          <TextField
+            {...getFormHelpers<AccountFormValues>(form, "email")}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="email"
+            fullWidth
+            label={Language.emailLabel}
+            variant="outlined"
+          />
+          <TextField
+            {...getFormHelpers<AccountFormValues>(form, "username")}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="username"
+            fullWidth
+            label={Language.usernameLabel}
+            variant="outlined"
+          />
 
-        <div className={styles.submitBtn}>
-          <LoadingButton color="primary" loading={isLoading} type="submit" variant="contained">
-            {isLoading ? "" : Language.updatePreferences}
-          </LoadingButton>
-        </div>
+          <div>
+            <LoadingButton color="primary" loading={isLoading} type="submit" variant="contained">
+              {isLoading ? "" : Language.updatePreferences}
+            </LoadingButton>
+          </div>
+        </FormStack>
       </form>
     </>
   )

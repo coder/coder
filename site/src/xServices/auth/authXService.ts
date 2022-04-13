@@ -1,7 +1,11 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
+import { displaySuccess } from "../../components/Snackbar"
 
+const Language = {
+  successProfileUpdate: "Preferences updated with success!",
+}
 export interface AuthContext {
   getUserError?: Error | unknown
   authError?: Error | unknown
@@ -99,7 +103,7 @@ export const authMachine =
                     src: "updateProfile",
                     onDone: [
                       {
-                        actions: "assignMe",
+                        actions: ["assignMe", "notifySuccessProfileUpdate"],
                         target: "#authState.signedIn.profile.idle.noError",
                       },
                     ],
@@ -186,6 +190,9 @@ export const authMachine =
         assignUpdateProfileError: assign({
           updateProfileError: (_, event) => event.data,
         }),
+        notifySuccessProfileUpdate: () => {
+          displaySuccess(Language.successProfileUpdate)
+        },
       },
     },
   )
