@@ -73,3 +73,23 @@ export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
   const response = await axios.get("/api/v2/buildinfo")
   return response.data
 }
+
+export const putWorkspaceAutostart = async (
+  workspaceID: string,
+  autostart: Types.WorkspaceAutostartRequest,
+): Promise<void> => {
+  const payload = JSON.stringify(autostart)
+  await axios.put(`/api/v2/workspaces/${workspaceID}/autostart`, payload, {
+    headers: { ...CONTENT_TYPE_JSON },
+  })
+}
+
+export const putWorkspaceAutostop = async (
+  workspaceID: string,
+  autostop: Types.WorkspaceAutostopRequest,
+): Promise<void> => {
+  const payload = JSON.stringify(autostop)
+  await axios.put(`/api/v2/workspaces/${workspaceID}/autostop`, payload, {
+    headers: { ...CONTENT_TYPE_JSON },
+  })
+}
