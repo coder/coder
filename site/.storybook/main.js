@@ -14,7 +14,7 @@ module.exports = {
   // addons are official and community plugins to extend Storybook.
   //
   // SEE: https://storybook.js.org/addons
-  addons: ["@storybook/addon-links", "@storybook/addon-essentials", "@react-theming/storybook-addon"],
+  addons: ["@storybook/addon-links", "@storybook/addon-essentials"],
 
   // Storybook uses babel under the hood, while we currently use ts-loader.
   // Sometimes, you may encounter an error in a Storybook that contains syntax
