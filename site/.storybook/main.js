@@ -26,6 +26,11 @@ module.exports = {
     plugins: ["@babel/plugin-proposal-class-properties"],
   }),
 
+  // Static files loaded by storybook, relative to this file.
+  //
+  // SEE: https://storybook.js.org/docs/react/configure/overview#using-storybook-api
+  staticDirs: ["../static"],
+
   // Storybook internally uses its own Webpack configuration instead of ours.
   //
   // SEE: https://storybook.js.org/docs/react/configure/webpack
