@@ -72,7 +72,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
         <TextField
           {...getFormHelpers<AccountFormValues>(form, "email")}
           onChange={onChangeTrimmed(form)}
-          autoFocus
           autoComplete="email"
           className={styles.loginTextField}
           fullWidth
@@ -82,7 +81,6 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
         <TextField
           {...getFormHelpers<AccountFormValues>(form, "username")}
           onChange={onChangeTrimmed(form)}
-          autoFocus
           autoComplete="username"
           className={styles.loginTextField}
           fullWidth
@@ -91,7 +89,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
         />
 
         <div className={styles.submitBtn}>
-          <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
+          <LoadingButton color="primary" loading={isLoading} type="submit" variant="contained">
             {isLoading ? "" : Language.updatePreferences}
           </LoadingButton>
         </div>

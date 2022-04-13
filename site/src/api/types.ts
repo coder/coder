@@ -15,6 +15,7 @@ export interface UserResponse {
   readonly username: string
   readonly email: string
   readonly created_at: string
+  readonly name?: string
 }
 
 /**
@@ -73,4 +74,10 @@ export interface UserAgent {
   readonly device: string
   readonly ip_address: string
   readonly os: string
+}
+
+export interface UpdateProfileRequest {
+  readonly username: string
+  readonly email: string
+  readonly name?: string
 }

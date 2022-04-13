@@ -73,3 +73,8 @@ export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
   const response = await axios.get("/api/v2/buildinfo")
   return response.data
 }
+
+export const updateProfile = async (userId: string, data: Types.UpdateProfileRequest): Promise<Types.UserResponse> => {
+  const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
+  return response.data
+}
