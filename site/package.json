@@ -16,7 +16,7 @@
     "playwright:install": "playwright install",
     "playwright:install-deps": "playwright install-deps",
     "playwright:test": "playwright test --config=e2e/playwright.config.ts",
-    "storybook": "start-storybook -p 6006 -s ./static",
+    "storybook": "start-storybook -p 6006",
     "storybook:build": "build-storybook",
     "test": "jest --selectProjects test",
     "test:coverage": "jest --selectProjects test --collectCoverage",
