@@ -94,6 +94,11 @@ export const authMachine =
               initial: "idle",
               states: {
                 idle: {
+                  on: {
+                    UPDATE_PROFILE: {
+                      target: "#authState.signedIn.profile.updatingProfile",
+                    },
+                  },
                   initial: "noError",
                   states: {
                     noError: {},
@@ -116,11 +121,6 @@ export const authMachine =
                       },
                     ],
                   },
-                },
-              },
-              on: {
-                UPDATE_PROFILE: {
-                  target: ".updatingProfile",
                 },
               },
             },
