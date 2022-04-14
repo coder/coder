@@ -32,8 +32,8 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/tunnel"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
@@ -105,7 +105,13 @@ func start() *cobra.Command {
 				// If an access URL is specified, always skip tunneling.
 				skipTunnel = true
 			}
-			var tunnelErr <-chan error
+
+			var (
+				tunnelErrChan          <-chan error
+				ctxTunnel, closeTunnel = context.WithCancel(cmd.Context())
+			)
+			defer closeTunnel()
+
 			// If we're attempting to tunnel in dev-mode, the access URL
 			// needs to be changed to use the tunnel.
 			if dev && !skipTunnel {
@@ -124,13 +130,14 @@ func start() *cobra.Command {
 					return err
 				}
 				if err == nil {
-					accessURL, tunnelErr, err = tunnel.New(cmd.Context(), localURL.String())
+					accessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
 				}
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
+
 			validator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
 			if err != nil {
 				return err
@@ -263,8 +270,10 @@ func start() *cobra.Command {
 			case <-cmd.Context().Done():
 				closeCoderd()
 				return cmd.Context().Err()
-			case err := <-tunnelErr:
-				return err
+			case err := <-tunnelErrChan:
+				if err != nil {
+					return err
+				}
 			case err := <-errCh:
 				closeCoderd()
 				return err
@@ -326,6 +335,12 @@ func start() *cobra.Command {
 				}
 				spin.FinalMSG = cliui.Styles.Prompt.String() + "Gracefully shut down provisioner daemon!\n"
 				spin.Stop()
+			}
+
+			if dev && !skipTunnel {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
+				closeTunnel()
+				<-tunnelErrChan
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
