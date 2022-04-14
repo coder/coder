@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/go-chi/httprate"
-	"github.com/go-chi/render"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -26,8 +25,7 @@ func RateLimitPerMinute(count int) func(http.Handler) http.Handler {
 			return httprate.KeyByIP(r)
 		}, httprate.KeyByEndpoint),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
-			render.Status(r, http.StatusTooManyRequests)
-			render.JSON(w, r, httpapi.Response{
+			httpapi.Write(w, http.StatusTooManyRequests, httpapi.Response{
 				Message: "You've been rate limited for sending too many requests!",
 			})
 		}),

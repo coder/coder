@@ -79,51 +79,40 @@ func TestGitSSHKey(t *testing.T) {
 func TestAgentGitSSHKey(t *testing.T) {
 	t.Parallel()
 
-	agentClient := func(algo gitsshkey.Algorithm) *codersdk.Client {
-		client := coderdtest.New(t, &coderdtest.Options{
-			SSHKeygenAlgorithm: algo,
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
-		authToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:           echo.ParseComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
-			Provision: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agent: &proto.Agent{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
 							},
 						}},
-					},
+					}},
 				},
-			}},
-		})
-		project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		daemonCloser.Close()
-
-		agentClient := codersdk.New(client.URL)
-		agentClient.SessionToken = authToken
-
-		return agentClient
-	}
-
-	t.Run("AgentKey", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		client := agentClient(gitsshkey.AlgorithmEd25519)
-		agentKey, err := client.AgentGitSSHKey(ctx)
-		require.NoError(t, err)
-		require.NotEmpty(t, agentKey.PrivateKey)
+			},
+		}},
 	})
+	project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	daemonCloser.Close()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+
+	agentKey, err := agentClient.AgentGitSSHKey(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, agentKey.PrivateKey)
 }

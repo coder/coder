@@ -8,6 +8,14 @@ WHERE
 ORDER BY
 	created_at DESC;
 
+-- name: GetWorkspaceAgentByID :one
+SELECT
+	*
+FROM
+	workspace_agents
+WHERE
+	id = $1;
+
 -- name: GetWorkspaceAgentByInstanceID :one
 SELECT
 	*
@@ -18,13 +26,13 @@ WHERE
 ORDER BY
 	created_at DESC;
 
--- name: GetWorkspaceAgentByResourceID :one
+-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	*
 FROM
 	workspace_agents
 WHERE
-	resource_id = $1;
+	resource_id = ANY(@ids :: uuid [ ]);
 
 -- name: InsertWorkspaceAgent :one
 INSERT INTO
@@ -32,16 +40,19 @@ INSERT INTO
 		id,
 		created_at,
 		updated_at,
+		name,
 		resource_id,
 		auth_token,
 		auth_instance_id,
+		architecture,
 		environment_variables,
+		operating_system,
 		startup_script,
 		instance_metadata,
 		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE

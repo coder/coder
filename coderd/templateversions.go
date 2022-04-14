@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/render"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -24,8 +22,8 @@ func (api *api) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
+
+	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
 func (api *api) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -95,8 +93,8 @@ func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	if schemas == nil {
 		schemas = []database.ParameterSchema{}
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, schemas)
+
+	httpapi.Write(rw, http.StatusOK, schemas)
 }
 
 func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
@@ -132,8 +130,8 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	if values == nil {
 		values = []parameter.ComputedValue{}
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, values)
+
+	httpapi.Write(rw, http.StatusOK, values)
 }
 
 func (api *api) templateVersionResources(rw http.ResponseWriter, r *http.Request) {

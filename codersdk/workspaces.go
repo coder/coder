@@ -92,7 +92,7 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
 type UpdateWorkspaceAutostartRequest struct {
-	Schedule string
+	Schedule string `json:"schedule"`
 }
 
 // UpdateWorkspaceAutostart sets the autostart schedule for workspace by id.
@@ -112,7 +112,7 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 
 // UpdateWorkspaceAutostopRequest is a request to update a workspace's autostop schedule.
 type UpdateWorkspaceAutostopRequest struct {
-	Schedule string
+	Schedule string `json:"schedule"`
 }
 
 // UpdateWorkspaceAutostop sets the autostop schedule for workspace by id.

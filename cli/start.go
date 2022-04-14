@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -55,7 +56,7 @@ func start() *cobra.Command {
 		tlsEnable              bool
 		tlsKeyFile             string
 		tlsMinVersion          string
-		useTunnel              bool
+		skipTunnel             bool
 		traceDatadog           bool
 		secureAuthCookie       bool
 		sshKeygenAlgorithmRaw  string
@@ -100,24 +101,35 @@ func start() *cobra.Command {
 			}
 			if accessURL == "" {
 				accessURL = localURL.String()
+			} else {
+				// If an access URL is specified, always skip tunneling.
+				skipTunnel = true
 			}
 			var tunnelErr <-chan error
 			// If we're attempting to tunnel in dev-mode, the access URL
 			// needs to be changed to use the tunnel.
-			if dev && useTunnel {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Coder requires a network endpoint that can be accessed by provisioned workspaces. In dev mode, a free tunnel can be created for you. This will expose your Coder deployment to the internet.")+"\n")
+			if dev && !skipTunnel {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
+					"Coder requires a URL accessible by workspaces you provision. "+
+						"A free tunnel can be created for simple setup. This will "+
+						"expose your Coder deployment to a publicly accessible URL. "+
+						cliui.Styles.Field.Render("--access-url")+" can be specified instead.\n",
+				))
 
 				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Would you like Coder to start a tunnel for simple setup?",
+					Text:      "Would you like to start a tunnel for simple setup?",
 					IsConfirm: true,
 				})
+				if errors.Is(err, cliui.Canceled) {
+					return err
+				}
 				if err == nil {
 					accessURL, tunnelErr, err = tunnel.New(cmd.Context(), localURL.String())
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Tunnel started. Your deployment is accessible at:`))+"\n  "+cliui.Styles.Field.Render(accessURL)+"\n")
 				}
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
 			validator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
 			if err != nil {
@@ -144,6 +156,10 @@ func start() *cobra.Command {
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 			}
+
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", accessURL)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "provisioner-daemons: %d\n", provisionerDaemonCount)
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 			if !dev {
 				sqlDB, err := sql.Open("postgres", postgresURL)
@@ -213,26 +229,24 @@ func start() *cobra.Command {
 					return xerrors.Errorf("create first user: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Started in `+
-					cliui.Styles.Field.Render("dev")+` mode. All data is in-memory! Do not use in production. Press `+cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`))+
-					`
-`+
-					cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Run `+cliui.Styles.Code.Render("coder templates init")+" in a new terminal to get started.\n"))+`
-`)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+
+					cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`)+"\n\n")
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Run `+cliui.Styles.Code.Render("coder templates init")+
+					" in a new terminal to start creating workspaces.")+"\n")
 			} else {
 				// This is helpful for tests, but can be silently ignored.
 				// Coder may be ran as users that don't have permission to write in the homedir,
 				// such as via the systemd service.
 				_ = config.URL().Write(client.URL.String())
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Started in `+
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.Prompt.String()+`Started in `+
 					cliui.Styles.Field.Render("production")+` mode. All data is stored in the PostgreSQL provided! Press `+cliui.Styles.Field.Render("ctrl+c")+` to gracefully shutdown.`))+"\n")
 
 				hasFirstUser, err := client.HasFirstUser(cmd.Context())
 				if !hasFirstUser && err == nil {
 					// This could fail for a variety of TLS-related reasons.
 					// This is a helpful starter message, and not critical for user interaction.
-					_, _ = fmt.Fprint(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+client.URL.String())+" in a new terminal to get started.\n")))
+					_, _ = fmt.Fprint(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+client.URL.String())+" in a new terminal to get started.\n")))
 				}
 			}
 
@@ -342,8 +356,8 @@ func start() *cobra.Command {
 		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflag.BoolVarP(root.Flags(), &useTunnel, "tunnel", "", "CODER_DEV_TUNNEL", true, "Serve dev mode through a Cloudflare Tunnel for easy setup")
-	_ = root.Flags().MarkHidden("tunnel")
+	cliflag.BoolVarP(root.Flags(), &skipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
+	_ = root.Flags().MarkHidden("skip-tunnel")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
@@ -409,8 +423,8 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 
 	return provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
-		PollInterval:   50 * time.Millisecond,
-		UpdateInterval: 50 * time.Millisecond,
+		PollInterval:   500 * time.Millisecond,
+		UpdateInterval: 500 * time.Millisecond,
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
 		},

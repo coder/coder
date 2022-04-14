@@ -72,7 +72,7 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0")
+		root, cfg := clitest.New(t, "start", "--dev", "--skip-tunnel", "--address", ":0")
 		go func() {
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
@@ -97,7 +97,7 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0",
+		root, _ := clitest.New(t, "start", "--dev", "--skip-tunnel", "--address", ":0",
 			"--tls-enable", "--tls-min-version", "tls9")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -106,7 +106,7 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0",
+		root, _ := clitest.New(t, "start", "--dev", "--skip-tunnel", "--address", ":0",
 			"--tls-enable", "--tls-client-auth", "something")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -115,7 +115,7 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0",
+		root, _ := clitest.New(t, "start", "--dev", "--skip-tunnel", "--address", ":0",
 			"--tls-enable")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -126,7 +126,7 @@ func TestStart(t *testing.T) {
 		defer cancelFunc()
 
 		certPath, keyPath := generateTLSCertificate(t)
-		root, cfg := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0",
+		root, cfg := clitest.New(t, "start", "--dev", "--skip-tunnel", "--address", ":0",
 			"--tls-enable", "--tls-cert-file", certPath, "--tls-key-file", keyPath)
 		go func() {
 			err := root.ExecuteContext(ctx)
@@ -162,7 +162,7 @@ func TestStart(t *testing.T) {
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "0")
+		root, cfg := clitest.New(t, "start", "--dev", "--skip-tunnel", "--address", ":0", "--provisioner-daemons", "0")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -204,7 +204,7 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "start", "--dev", "--tunnel=false", "--address", ":0", "--trace-datadog=true")
+		root, _ := clitest.New(t, "start", "--dev", "--skip-tunnel", "--address", ":0", "--trace-datadog=true")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)

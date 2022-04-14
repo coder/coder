@@ -32,11 +32,11 @@ func TestWorkspaceAgent(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
-							},
+							}},
 						}},
 					},
 				},
@@ -47,7 +47,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		cmd, _ := clitest.New(t, "workspaces", "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
+		cmd, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
@@ -61,7 +61,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].ID, nil, nil)
+		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()
@@ -86,11 +86,11 @@ func TestWorkspaceAgent(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
-							},
+							}},
 						}},
 					},
 				},
@@ -101,7 +101,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		cmd, _ := clitest.New(t, "workspaces", "agent", "--auth", "google-instance-identity", "--url", client.URL.String())
+		cmd, _ := clitest.New(t, "agent", "--auth", "google-instance-identity", "--url", client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
@@ -115,7 +115,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].ID, nil, nil)
+		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()

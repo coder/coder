@@ -21,7 +21,7 @@ const (
 	// For some reason messages larger just don't work...
 	// This shouldn't be a huge deal for real-world usage.
 	// See: https://github.com/pion/datachannel/issues/59
-	maxMessageLength = 32 * 1024 // 32 KB
+	maxMessageLength = 64 * 1024 // 64 KB
 )
 
 // newChannel creates a new channel and initializes it.
@@ -145,7 +145,9 @@ func (c *Channel) init() {
 		if c.opts.Unordered {
 			c.reader = c.rwc
 		} else {
-			c.reader = bufio.NewReader(c.rwc)
+			// This must be the max message length otherwise a short
+			// buffer error can occur.
+			c.reader = bufio.NewReaderSize(c.rwc, maxMessageLength)
 		}
 		close(c.opened)
 	})

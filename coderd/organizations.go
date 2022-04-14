@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
@@ -20,8 +19,7 @@ import (
 
 func (*api) organization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertOrganization(organization))
+	httpapi.Write(rw, http.StatusOK, convertOrganization(organization))
 }
 
 func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -38,8 +36,7 @@ func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, daemons)
+	httpapi.Write(rw, http.StatusOK, daemons)
 }
 
 // Creates a new version of a template. An import job is queued to parse the storage method provided.
@@ -147,8 +144,7 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob)))
+	httpapi.Write(rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob)))
 }
 
 // Create a new template in an organization.
@@ -252,8 +248,7 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, template)
+	httpapi.Write(rw, http.StatusCreated, template)
 }
 
 func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -284,8 +279,8 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertTemplates(templates, workspaceCounts))
+
+	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts))
 }
 
 func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
@@ -325,8 +320,7 @@ func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		count = uint32(workspaceCounts[0].Count)
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertTemplate(template, count))
+	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
 }
 
 // convertOrganization consumes the database representation and outputs an API friendly representation.

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"google.golang.org/api/idtoken"
 
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
@@ -67,8 +66,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/buildinfo", func(r chi.Router) {
 			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-				render.Status(r, http.StatusOK)
-				render.JSON(rw, r, codersdk.BuildInfoResponse{
+				httpapi.Write(rw, http.StatusOK, codersdk.BuildInfoResponse{
 					ExternalURL: buildinfo.ExternalURL(),
 					Version:     buildinfo.Version(),
 				})
@@ -150,6 +148,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
+					r.Put("/profile", api.putUserProfile)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					r.Post("/keys", api.postAPIKey)
@@ -168,25 +167,30 @@ func New(options *Options) (http.Handler, func()) {
 				})
 			})
 		})
-		r.Route("/workspaceresources", func(r chi.Router) {
-			r.Route("/auth", func(r chi.Router) {
-				r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
-				r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
-			})
-			r.Route("/agent", func(r chi.Router) {
+		r.Route("/workspaceagents", func(r chi.Router) {
+			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
+			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
+			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 			})
-			r.Route("/{workspaceresource}", func(r chi.Router) {
+			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractAPIKey(options.Database, nil),
-					httpmw.ExtractWorkspaceResourceParam(options.Database),
-					httpmw.ExtractWorkspaceParam(options.Database),
+					httpmw.ExtractWorkspaceAgentParam(options.Database),
 				)
-				r.Get("/", api.workspaceResource)
-				r.Get("/dial", api.workspaceResourceDial)
+				r.Get("/", api.workspaceAgent)
+				r.Get("/dial", api.workspaceAgentDial)
 			})
+		})
+		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractAPIKey(options.Database, nil),
+				httpmw.ExtractWorkspaceResourceParam(options.Database),
+				httpmw.ExtractWorkspaceParam(options.Database),
+			)
+			r.Get("/", api.workspaceResource)
 		})
 		r.Route("/workspaces/{workspace}", func(r chi.Router) {
 			r.Use(

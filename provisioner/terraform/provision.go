@@ -286,12 +286,32 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 			continue
 		}
 		agent := &proto.Agent{
+			Name: resource.Name,
 			Auth: &proto.Agent_Token{},
 		}
-		if envRaw, has := resource.Expressions["env"]; has {
-			env, ok := envRaw.ConstantValue.(map[string]string)
+		if operatingSystemRaw, has := resource.Expressions["os"]; has {
+			operatingSystem, ok := operatingSystemRaw.ConstantValue.(string)
 			if ok {
-				agent.Env = env
+				agent.OperatingSystem = operatingSystem
+			}
+		}
+		if archRaw, has := resource.Expressions["arch"]; has {
+			arch, ok := archRaw.ConstantValue.(string)
+			if ok {
+				agent.Architecture = arch
+			}
+		}
+		if envRaw, has := resource.Expressions["env"]; has {
+			env, ok := envRaw.ConstantValue.(map[string]interface{})
+			if ok {
+				agent.Env = map[string]string{}
+				for key, valueRaw := range env {
+					value, valid := valueRaw.(string)
+					if !valid {
+						continue
+					}
+					agent.Env[key] = value
+				}
 			}
 		}
 		if startupScriptRaw, has := resource.Expressions["startup_script"]; has {
@@ -320,19 +340,20 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 			continue
 		}
 		// Associate resources that depend on an agent.
-		var agent *proto.Agent
+		resourceAgents := make([]*proto.Agent, 0)
 		for _, dep := range resourceNode {
 			var has bool
-			agent, has = agents[dep]
-			if has {
-				break
+			agent, has := agents[dep]
+			if !has {
+				continue
 			}
+			resourceAgents = append(resourceAgents, agent)
 		}
 
 		resources = append(resources, &proto.Resource{
-			Name:  resource.Name,
-			Type:  resource.Type,
-			Agent: agent,
+			Name:   resource.Name,
+			Type:   resource.Type,
+			Agents: resourceAgents,
 		})
 	}
 
@@ -365,11 +386,13 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			return nil, xerrors.Errorf("find dependencies: %w", err)
 		}
 		type agentAttributes struct {
-			ID            string            `mapstructure:"id"`
-			Token         string            `mapstructure:"token"`
-			InstanceID    string            `mapstructure:"instance_id"`
-			Env           map[string]string `mapstructure:"env"`
-			StartupScript string            `mapstructure:"startup_script"`
+			Auth            string            `mapstructure:"auth"`
+			OperatingSystem string            `mapstructure:"os"`
+			Architecture    string            `mapstructure:"arch"`
+			ID              string            `mapstructure:"id"`
+			Token           string            `mapstructure:"token"`
+			Env             map[string]string `mapstructure:"env"`
+			StartupScript   string            `mapstructure:"startup_script"`
 		}
 		agents := map[string]*proto.Agent{}
 
@@ -384,24 +407,60 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 				return nil, xerrors.Errorf("decode agent attributes: %w", err)
 			}
 			agent := &proto.Agent{
-				Id:            attrs.ID,
-				Env:           attrs.Env,
-				StartupScript: attrs.StartupScript,
-				Auth: &proto.Agent_Token{
-					Token: attrs.Token,
-				},
+				Name:            resource.Name,
+				Id:              attrs.ID,
+				Env:             attrs.Env,
+				StartupScript:   attrs.StartupScript,
+				OperatingSystem: attrs.OperatingSystem,
+				Architecture:    attrs.Architecture,
 			}
-			if attrs.InstanceID != "" {
-				agent.Auth = &proto.Agent_InstanceId{
-					InstanceId: attrs.InstanceID,
+			switch attrs.Auth {
+			case "token":
+				agent.Auth = &proto.Agent_Token{
+					Token: attrs.Token,
 				}
+			default:
+				agent.Auth = &proto.Agent_InstanceId{}
 			}
 			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
 			agents[resourceKey] = agent
 		}
 
+		// Manually associate agents with instance IDs.
 		for _, resource := range state.Values.RootModule.Resources {
-			if resource.Type == "coder_agent" {
+			if resource.Type != "coder_agent_instance" {
+				continue
+			}
+			agentIDRaw, valid := resource.AttributeValues["agent_id"]
+			if !valid {
+				continue
+			}
+			agentID, valid := agentIDRaw.(string)
+			if !valid {
+				continue
+			}
+			instanceIDRaw, valid := resource.AttributeValues["instance_id"]
+			if !valid {
+				continue
+			}
+			instanceID, valid := instanceIDRaw.(string)
+			if !valid {
+				continue
+			}
+
+			for _, agent := range agents {
+				if agent.Id != agentID {
+					continue
+				}
+				agent.Auth = &proto.Agent_InstanceId{
+					InstanceId: instanceID,
+				}
+				break
+			}
+		}
+
+		for _, resource := range state.Values.RootModule.Resources {
+			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" {
 				continue
 			}
 			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
@@ -410,19 +469,46 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 				continue
 			}
 			// Associate resources that depend on an agent.
-			var agent *proto.Agent
+			resourceAgents := make([]*proto.Agent, 0)
 			for _, dep := range resourceNode {
 				var has bool
-				agent, has = agents[dep]
-				if has {
-					break
+				agent, has := agents[dep]
+				if !has {
+					continue
+				}
+				resourceAgents = append(resourceAgents, agent)
+
+				// Didn't use instance identity.
+				if agent.GetToken() != "" {
+					continue
+				}
+
+				key, isValid := map[string]string{
+					"google_compute_instance": "instance_id",
+					"aws_instance":            "id",
+				}[resource.Type]
+				if !isValid {
+					// The resource type doesn't support
+					// automatically setting the instance ID.
+					continue
+				}
+				instanceIDRaw, valid := resource.AttributeValues[key]
+				if !valid {
+					continue
+				}
+				instanceID, valid := instanceIDRaw.(string)
+				if !valid {
+					continue
+				}
+				agent.Auth = &proto.Agent_InstanceId{
+					InstanceId: instanceID,
 				}
 			}
 
 			resources = append(resources, &proto.Resource{
-				Name:  resource.Name,
-				Type:  resource.Type,
-				Agent: agent,
+				Name:   resource.Name,
+				Type:   resource.Type,
+				Agents: resourceAgents,
 			})
 		}
 	}
@@ -467,9 +553,8 @@ func convertTerraformLogLevel(logLevel string) (proto.LogLevel, error) {
 	}
 }
 
-// findDirectDependencies maps Terraform resources to their parent and
-// children nodes. This parses GraphViz output from Terraform which
-// certainly is not ideal, but seems reliable.
+// findDirectDependencies maps Terraform resources to their children nodes.
+// This parses GraphViz output from Terraform which isn't ideal, but seems reliable.
 func findDirectDependencies(rawGraph string) (map[string][]string, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
@@ -488,22 +573,17 @@ func findDirectDependencies(rawGraph string) (map[string][]string, error) {
 		label = strings.Trim(label, `"`)
 
 		dependencies := make([]string, 0)
-		for _, edges := range []map[string][]*gographviz.Edge{
-			graph.Edges.SrcToDsts[node.Name],
-			graph.Edges.DstToSrcs[node.Name],
-		} {
-			for destination := range edges {
-				dependencyNode, exists := graph.Nodes.Lookup[destination]
-				if !exists {
-					continue
-				}
-				label, exists := dependencyNode.Attrs["label"]
-				if !exists {
-					continue
-				}
-				label = strings.Trim(label, `"`)
-				dependencies = append(dependencies, label)
+		for destination := range graph.Edges.SrcToDsts[node.Name] {
+			dependencyNode, exists := graph.Nodes.Lookup[destination]
+			if !exists {
+				continue
 			}
+			label, exists := dependencyNode.Attrs["label"]
+			if !exists {
+				continue
+			}
+			label = strings.Trim(label, `"`)
+			dependencies = append(dependencies, label)
 		}
 		direct[label] = dependencies
 	}

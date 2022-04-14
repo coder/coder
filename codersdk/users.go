@@ -19,6 +19,7 @@ type User struct {
 	Email     string    `json:"email" validate:"required"`
 	CreatedAt time.Time `json:"created_at" validate:"required"`
 	Username  string    `json:"username" validate:"required"`
+	Name      string    `json:"name"`
 }
 
 type CreateFirstUserRequest struct {
@@ -39,6 +40,12 @@ type CreateUserRequest struct {
 	Username       string    `json:"username" validate:"required,username"`
 	Password       string    `json:"password" validate:"required"`
 	OrganizationID uuid.UUID `json:"organization_id" validate:"required"`
+}
+
+type UpdateUserProfileRequest struct {
+	Email    string  `json:"email" validate:"required,email"`
+	Username string  `json:"username" validate:"required,username"`
+	Name     *string `json:"name"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -109,6 +116,20 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// UpdateUserProfile enables callers to update profile information
+func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req UpdateUserProfileRequest) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		return User{}, readBodyAsError(res)
 	}
 	var user User
