@@ -16,7 +16,7 @@ import { SettingsPage } from "./pages/settings"
 import { TemplatesPage } from "./pages/templates"
 import { TemplatePage } from "./pages/templates/[organization]/[template]"
 import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
-import { UsersPage } from "./pages/users"
+import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 
 export const AppRouter: React.FC = () => (
