@@ -47,7 +47,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		cmd, _ := clitest.New(t, "workspaces", "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
+		cmd, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
@@ -101,7 +101,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		cmd, _ := clitest.New(t, "workspaces", "agent", "--auth", "google-instance-identity", "--url", client.URL.String())
+		cmd, _ := clitest.New(t, "agent", "--auth", "google-instance-identity", "--url", client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {

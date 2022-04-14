@@ -54,7 +54,9 @@ export interface CreateWorkspaceRequest {
   template_id: string
 }
 
-// Must be kept in sync with backend Workspace struct
+/**
+ * @remarks Keep in sync with codersdk/workspaces.go
+ */
 export interface Workspace {
   id: string
   created_at: string
@@ -62,6 +64,8 @@ export interface Workspace {
   owner_id: string
   template_id: string
   name: string
+  autostart_schedule: string
+  autostop_schedule: string
 }
 
 export interface APIKeyResponse {
@@ -73,4 +77,12 @@ export interface UserAgent {
   readonly device: string
   readonly ip_address: string
   readonly os: string
+}
+
+export interface WorkspaceAutostartRequest {
+  schedule: string
+}
+
+export interface WorkspaceAutostopRequest {
+  schedule: string
 }

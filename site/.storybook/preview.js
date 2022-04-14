@@ -1,3 +1,4 @@
+import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { withThemes } from "@react-theming/storybook-addon"
 import { createMemoryHistory } from "history"
@@ -6,7 +7,14 @@ import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { dark, light } from "../src/theme"
 import "../src/theme/global-fonts"
 
-addDecorator(withThemes(ThemeProvider, [light, dark]))
+const providerFn = ({ children, theme }) => (
+  <ThemeProvider theme={theme}>
+    <CssBaseline />
+    {children}
+  </ThemeProvider>
+)
+
+addDecorator(withThemes(null, [light, dark], { providerFn }))
 
 const history = createMemoryHistory()
 

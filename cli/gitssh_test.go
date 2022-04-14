@@ -65,7 +65,7 @@ func TestGitSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		// start workspace agent
-		cmd, root := clitest.New(t, "workspaces", "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
+		cmd, root := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
 		agentClient := &*client
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())

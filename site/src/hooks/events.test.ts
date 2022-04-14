@@ -1,0 +1,17 @@
+import { waitFor } from "@testing-library/react"
+import { renderHook } from "@testing-library/react-hooks"
+import { dispatchCustomEvent } from "../util/events"
+import { useCustomEvent } from "./events"
+
+describe("useCustomEvent", () => {
+  it("should listem a custom event", async () => {
+    const callback = jest.fn()
+    const detail = { title: "Test event" }
+    renderHook(() => useCustomEvent("testEvent", callback))
+    dispatchCustomEvent("testEvent", detail)
+    await waitFor(() => {
+      expect(callback).toBeCalledTimes(1)
+      expect(callback.mock.calls[0][0].detail).toBe(detail)
+    })
+  })
+})

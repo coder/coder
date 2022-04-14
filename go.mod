@@ -44,7 +44,6 @@ require (
 	github.com/charmbracelet/charm v0.11.0
 	github.com/charmbracelet/lipgloss v0.5.0
 	github.com/cli/safeexec v1.0.0
-	github.com/cloudflare/cloudflared v0.0.0-20220308214351-5352b3cf0489
 	github.com/coder/retry v1.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
@@ -104,6 +103,20 @@ require (
 )
 
 require (
+	github.com/cloudflare/cloudflared v0.0.0-00010101000000-000000000000
+	github.com/open-policy-agent/opa v0.39.0
+	github.com/pion/turn/v2 v2.0.8
+	golang.org/x/net v0.0.0-20220401154927-543a649e0bdd
+)
+
+require (
+	github.com/OneOfOne/xxhash v1.2.8 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
+	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
+	github.com/yashtewari/glob-intersection v0.1.0 // indirect
+)
+
+require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-20211129110424-6491aa3bf583 // indirect
@@ -158,7 +171,7 @@ require (
 	github.com/gobwas/ws v1.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-collections/collections v0.0.0-20130729185459-604e922904d3 // indirect
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
+	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.7 // indirect
@@ -218,7 +231,6 @@ require (
 	github.com/pion/sdp/v3 v3.0.4 // indirect
 	github.com/pion/srtp/v2 v2.0.5 // indirect
 	github.com/pion/stun v0.3.5 // indirect
-	github.com/pion/turn/v2 v2.0.8 // indirect
 	github.com/pion/udp v0.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -241,7 +253,6 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/net v0.0.0-20220401154927-543a649e0bdd // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	golang.org/x/tools v0.1.9 // indirect
