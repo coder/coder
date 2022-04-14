@@ -23,7 +23,7 @@ export interface UserResponse {
   readonly username: string
   readonly email: string
   readonly created_at: string
-  readonly name?: string
+  readonly name: string
 }
 
 /**
