@@ -5450,6 +5450,11 @@ create-require@^1.1.0:
   resolved "https://registry.yarnpkg.com/create-require/-/create-require-1.1.1.tgz#c1d7e8f1e5f6cfc9ff65f9cd352d37348756c333"
   integrity sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==
 
+cronstrue@2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/cronstrue/-/cronstrue-2.2.0.tgz#8e02b8ef0fa70a9eab9999f1f838df4bd378b471"
+  integrity sha512-oM/ftAvCNIdygVGGfYp8gxrVc81mDSA2mff0kvu6+ehrZhfYPzGHG8DVcFdrRVizjHnzWoFIlgEq6KTM/9lPBw==
+
 cross-fetch@^3.0.4:
   version "3.1.5"
   resolved "https://registry.yarnpkg.com/cross-fetch/-/cross-fetch-3.1.5.tgz#e1389f44d9e7ba767907f7af8454787952ab534f"

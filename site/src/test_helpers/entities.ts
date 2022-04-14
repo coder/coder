@@ -6,6 +6,7 @@ import {
   UserAgent,
   UserResponse,
   Workspace,
+  WorkspaceAutostartRequest,
 } from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
@@ -46,6 +47,25 @@ export const MockTemplate: Template = {
   active_version_id: "",
 }
 
+export const MockWorkspaceAutostartDisabled: WorkspaceAutostartRequest = {
+  schedule: "",
+}
+
+export const MockWorkspaceAutostartEnabled: WorkspaceAutostartRequest = {
+  // Runs at 9:30am Monday through Friday using Canada/Eastern
+  // (America/Toronto) time
+  schedule: "CRON_TZ=Canada/Eastern 30 9 1-5",
+}
+
+export const MockWorkspaceAutostopDisabled: WorkspaceAutostartRequest = {
+  schedule: "",
+}
+
+export const MockWorkspaceAutostopEnabled: WorkspaceAutostartRequest = {
+  // Runs at 9:30pm Monday through Friday using America/Toronto
+  schedule: "CRON_TZ=America/Toronto 30 21 1-5",
+}
+
 export const MockWorkspace: Workspace = {
   id: "test-workspace",
   name: "Test-Workspace",
@@ -53,6 +73,8 @@ export const MockWorkspace: Workspace = {
   updated_at: "",
   template_id: MockTemplate.id,
   owner_id: MockUser.id,
+  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
+  autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
 }
 
 export const MockUserAgent: UserAgent = {
