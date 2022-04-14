@@ -162,8 +162,8 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("template %q already exists", createTemplate.Name),
 			Errors: []httpapi.Error{{
-				Field: "name",
-				Code:  "exists",
+				Field:  "name",
+				Detail: "this value is already in use and should be unique",
 			}},
 		})
 		return
