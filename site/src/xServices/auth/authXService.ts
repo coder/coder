@@ -4,7 +4,7 @@ import * as Types from "../../api/types"
 import { displaySuccess } from "../../components/Snackbar"
 
 export const Language = {
-  successProfileUpdate: "Preferences updated successfully!",
+  successProfileUpdate: "Updated preferences.",
 }
 export interface AuthContext {
   getUserError?: Error | unknown
