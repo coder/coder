@@ -306,8 +306,6 @@ github.com/cncf/xds/go v0.0.0-20210312221358-fbca930ec8ed/go.mod h1:eXthEFrGJvWH
 github.com/cncf/xds/go v0.0.0-20210805033703-aa0b78936158/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20210922020428-25de7278fc84/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
 github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1/go.mod h1:eXthEFrGJvWHgFFCl3hGmgk+/aYT6PnTQLykKQRLhEs=
-github.com/coadler/frp v0.36.2-0.20220413215925-c89c1943e45b h1:L7U6t/EKCO+0JqKadGjsJoEFA86udF/ONd4DTxeac7A=
-github.com/coadler/frp v0.36.2-0.20220413215925-c89c1943e45b/go.mod h1:3Mp3fWvK8kD3PU8Hy89fKV/655Q5eFSHr+uuUr/lbOg=
 github.com/cockroachdb/apd v1.1.0/go.mod h1:8Sl8LxpKi29FqWXR16WEFZRNSz3SoPzUzeMeY4+DwBQ=
 github.com/cockroachdb/cockroach-go/v2 v2.1.1/go.mod h1:7NtUnP6eK+l6k483WSYNrq3Kb23bWV10IRV1TyeSpwM=
 github.com/cockroachdb/datadriven v0.0.0-20190809214429-80d97fb3cbaa/go.mod h1:zn76sxSg3SzpJ0PPJaLDCu+Bu0Lg3sKTORVIj19EIF8=
@@ -532,6 +530,8 @@ github.com/evanphx/json-patch v4.9.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLi
 github.com/evanphx/json-patch/v5 v5.5.0/go.mod h1:G79N1coSVB93tBe7j6PhzjmR3/2VvlbKOFpnXhI9Bw4=
 github.com/fatedier/beego v0.0.0-20171024143340-6c6a4f5bd5eb h1:wCrNShQidLmvVWn/0PikGmpdP0vtQmnvyRg3ZBEhczw=
 github.com/fatedier/beego v0.0.0-20171024143340-6c6a4f5bd5eb/go.mod h1:wx3gB6dbIfBRcucp94PI9Bt3I0F2c/MyNEWuhzpWiwk=
+github.com/fatedier/frp v0.36.2-0.20220414032436-21240ed96251 h1:IeF8g33NNx6i2YKporO9FJ8R9FL7n2TXzlkdyiHx+dY=
+github.com/fatedier/frp v0.36.2-0.20220414032436-21240ed96251/go.mod h1:3Mp3fWvK8kD3PU8Hy89fKV/655Q5eFSHr+uuUr/lbOg=
 github.com/fatedier/golib v0.1.1-0.20220321042308-c306138b83ac h1:td1FJwN/oz8+9GldeEm3YdBX0Husc0FSPywLesZxi4w=
 github.com/fatedier/golib v0.1.1-0.20220321042308-c306138b83ac/go.mod h1:fLV0TLwHqrnB/L3jbNl67Gn6PCLggDGHniX1wLrA2Qo=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
