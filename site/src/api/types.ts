@@ -86,7 +86,7 @@ export interface Pager {
 export interface PagedUsers {
   page: UserResponse[]
   pager: Pager
-} 
+}
 
 export interface WorkspaceAutostartRequest {
   schedule: string
