@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/render"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -44,8 +42,7 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, codersdk.GitSSHKey{
+	httpapi.Write(rw, http.StatusOK, codersdk.GitSSHKey{
 		UserID:    newKey.UserID,
 		CreatedAt: newKey.CreatedAt,
 		UpdatedAt: newKey.UpdatedAt,
@@ -64,8 +61,7 @@ func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, codersdk.GitSSHKey{
+	httpapi.Write(rw, http.StatusOK, codersdk.GitSSHKey{
 		UserID:    gitSSHKey.UserID,
 		CreatedAt: gitSSHKey.CreatedAt,
 		UpdatedAt: gitSSHKey.UpdatedAt,
@@ -108,8 +104,7 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, codersdk.AgentGitSSHKey{
+	httpapi.Write(rw, http.StatusOK, codersdk.AgentGitSSHKey{
 		PrivateKey: gitSSHKey.PrivateKey,
 	})
 }

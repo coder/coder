@@ -40,3 +40,14 @@ INSERT INTO
 	)
 VALUES
 	($1, $2, $3, $4, FALSE, $5, $6, $7, $8) RETURNING *;
+
+-- name: UpdateUserProfile :one
+UPDATE
+	users
+SET
+	email = $2,
+	"name" = $3,
+	username = $4,
+	updated_at = $5
+WHERE
+	id = $1 RETURNING *;

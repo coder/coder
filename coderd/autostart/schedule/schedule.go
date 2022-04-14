@@ -26,6 +26,7 @@ var defaultParser = cron.NewParser(parserFormatWeekly)
 //  local_sched, _ := schedule.Weekly("59 23 *")
 //  fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
 //  // Output: 2022-04-04T23:59:00Z
+//
 //  us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
 //  fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //  // Output: 2022-04-04T14:30:00Z

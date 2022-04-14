@@ -11,10 +11,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	// TemplateArchiveLimit represents the maximum size of a template in bytes.
+	TemplateArchiveLimit = 1 << 20
+)
+
 // Tar archives a directory.
-func Tar(directory string) ([]byte, error) {
+func Tar(directory string, limit int64) ([]byte, error) {
 	var buffer bytes.Buffer
 	tarWriter := tar.NewWriter(&buffer)
+	totalSize := int64(0)
 	err := filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -46,8 +52,14 @@ func Tar(directory string) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-		if _, err := io.Copy(tarWriter, data); err != nil {
+		defer data.Close()
+		wrote, err := io.Copy(tarWriter, data)
+		if err != nil {
 			return err
+		}
+		totalSize += wrote
+		if limit != 0 && totalSize >= limit {
+			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
 		}
 		return data.Close()
 	})

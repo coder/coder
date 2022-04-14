@@ -91,10 +91,10 @@ func TestWorkspaceBuildResources(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Id:   "something",
 								Auth: &proto.Agent_Token{},
-							},
+							}},
 						}, {
 							Name: "another",
 							Type: "example",
@@ -113,7 +113,7 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		require.Len(t, resources, 2)
 		require.Equal(t, "some", resources[0].Name)
 		require.Equal(t, "example", resources[0].Type)
-		require.NotNil(t, resources[0].Agent)
+		require.Len(t, resources[0].Agents, 1)
 	})
 }
 
@@ -138,10 +138,10 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 					Resources: []*proto.Resource{{
 						Name: "some",
 						Type: "example",
-						Agent: &proto.Agent{
+						Agents: []*proto.Agent{{
 							Id:   "something",
 							Auth: &proto.Agent_Token{},
-						},
+						}},
 					}, {
 						Name: "another",
 						Type: "example",

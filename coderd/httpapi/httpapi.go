@@ -63,7 +63,7 @@ type Error struct {
 }
 
 // Write outputs a standardized format to an HTTP response body.
-func Write(rw http.ResponseWriter, status int, response Response) {
+func Write(rw http.ResponseWriter, status int, response interface{}) {
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)

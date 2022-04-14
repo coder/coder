@@ -7,6 +7,7 @@ import React from "react"
 import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
 import * as Constants from "./constants"
+import { WorkspaceSchedule } from "./WorkspaceSchedule"
 import { WorkspaceSection } from "./WorkspaceSection"
 
 export interface WorkspaceProps {
@@ -30,6 +31,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, wo
             <WorkspaceSection title="Applications">
               <Placeholder />
             </WorkspaceSection>
+            <WorkspaceSchedule autostart={workspace.autostart_schedule} autostop={workspace.autostop_schedule} />
             <WorkspaceSection title="Dev URLs">
               <Placeholder />
             </WorkspaceSection>

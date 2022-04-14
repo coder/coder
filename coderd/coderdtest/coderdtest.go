@@ -108,7 +108,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
-		AgentConnectionUpdateFrequency: 25 * time.Millisecond,
+		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Database:                       db,
@@ -263,11 +263,10 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 		resources, err = client.WorkspaceResourcesByBuild(context.Background(), build)
 		require.NoError(t, err)
 		for _, resource := range resources {
-			if resource.Agent == nil {
-				continue
-			}
-			if resource.Agent.FirstConnectedAt == nil {
-				return false
+			for _, agent := range resource.Agents {
+				if agent.Status != codersdk.WorkspaceAgentConnected {
+					return false
+				}
 			}
 		}
 		return true

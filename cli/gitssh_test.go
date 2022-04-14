@@ -49,11 +49,11 @@ func TestGitSSH(t *testing.T) {
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
-							Agent: &proto.Agent{
+							Agents: []*proto.Agent{{
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
-							},
+							}},
 						}},
 					},
 				},
@@ -65,7 +65,7 @@ func TestGitSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		// start workspace agent
-		cmd, root := clitest.New(t, "workspaces", "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
+		cmd, root := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
 		agentClient := &*client
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -81,7 +81,7 @@ func TestGitSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].ID, nil, nil)
+		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()

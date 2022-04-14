@@ -1,16 +1,17 @@
 package cli
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 func workspaceShow() *cobra.Command {
 	return &cobra.Command{
-		Use: "show",
+		Use:  "show",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -18,20 +19,15 @@ func workspaceShow() *cobra.Command {
 			}
 			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
-				return err
+				return xerrors.Errorf("get workspace: %w", err)
 			}
 			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 			if err != nil {
-				return err
+				return xerrors.Errorf("get workspace resources: %w", err)
 			}
-			for _, resource := range resources {
-				if resource.Agent == nil {
-					continue
-				}
-
-				_, _ = fmt.Printf("Agent: %+v\n", resource.Agent)
-			}
-			return nil
+			return cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+				WorkspaceName: workspace.Name,
+			})
 		},
 	}
 }

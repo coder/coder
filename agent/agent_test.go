@@ -2,11 +2,19 @@ package agent_test
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
@@ -29,7 +37,8 @@ func TestAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("SessionExec", func(t *testing.T) {
 		t.Parallel()
-		session := setupSSH(t)
+		session := setupSSHSession(t)
+
 		command := "echo test"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe /c echo test"
@@ -41,7 +50,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("GitSSH", func(t *testing.T) {
 		t.Parallel()
-		session := setupSSH(t)
+		session := setupSSHSession(t)
 		command := "sh -c 'echo $GIT_SSH_COMMAND'"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
@@ -53,7 +62,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("SessionTTY", func(t *testing.T) {
 		t.Parallel()
-		session := setupSSH(t)
+		session := setupSSHSession(t)
 		prompt := "$"
 		command := "bash"
 		if runtime.GOOS == "windows" {
@@ -76,9 +85,93 @@ func TestAgent(t *testing.T) {
 		err = session.Wait()
 		require.NoError(t, err)
 	})
+
+	t.Run("LocalForwarding", func(t *testing.T) {
+		t.Parallel()
+		random, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		_ = random.Close()
+		tcpAddr, valid := random.Addr().(*net.TCPAddr)
+		require.True(t, valid)
+		randomPort := tcpAddr.Port
+
+		local, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer local.Close()
+		tcpAddr, valid = local.Addr().(*net.TCPAddr)
+		require.True(t, valid)
+		localPort := tcpAddr.Port
+		done := make(chan struct{})
+		go func() {
+			conn, err := local.Accept()
+			require.NoError(t, err)
+			_ = conn.Close()
+			close(done)
+		}()
+
+		err = setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
+		require.NoError(t, err)
+
+		conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(localPort))
+		require.NoError(t, err)
+		conn.Close()
+		<-done
+	})
+
+	t.Run("SFTP", func(t *testing.T) {
+		t.Parallel()
+		sshClient, err := setupAgent(t).SSHClient()
+		require.NoError(t, err)
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		tempFile := filepath.Join(t.TempDir(), "sftp")
+		file, err := client.Create(tempFile)
+		require.NoError(t, err)
+		err = file.Close()
+		require.NoError(t, err)
+		_, err = os.Stat(tempFile)
+		require.NoError(t, err)
+	})
 }
 
-func setupSSH(t *testing.T) *ssh.Session {
+func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
+	agentConn := setupAgent(t)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			ssh, err := agentConn.SSH()
+			require.NoError(t, err)
+			go io.Copy(conn, ssh)
+			go io.Copy(ssh, conn)
+		}
+	}()
+	t.Cleanup(func() {
+		_ = listener.Close()
+	})
+	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	args := append(beforeArgs,
+		"-o", "HostName "+tcpAddr.IP.String(),
+		"-o", "Port "+strconv.Itoa(tcpAddr.Port),
+		"-o", "StrictHostKeyChecking=no", "host")
+	args = append(args, afterArgs...)
+	return exec.Command("ssh", args...)
+}
+
+func setupSSHSession(t *testing.T) *ssh.Session {
+	sshClient, err := setupAgent(t).SSHClient()
+	require.NoError(t, err)
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	return session
+}
+
+func setupAgent(t *testing.T) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(func(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
 		return peerbroker.Listen(server, nil, opts)
@@ -100,14 +193,9 @@ func setupSSH(t *testing.T) *ssh.Session {
 	t.Cleanup(func() {
 		_ = conn.Close()
 	})
-	agentClient := &agent.Conn{
+
+	return &agent.Conn{
 		Negotiator: api,
 		Conn:       conn,
 	}
-	sshClient, err := agentClient.SSHClient()
-	require.NoError(t, err)
-	session, err := sshClient.NewSession()
-	require.NoError(t, err)
-
-	return session
 }

@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
@@ -34,8 +33,7 @@ func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 		count = uint32(workspaceCounts[0].Count)
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertTemplate(template, count))
+	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
 }
 
 func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
@@ -114,8 +112,8 @@ func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		}
 		apiVersion = append(apiVersion, convertTemplateVersion(version, convertProvisionerJob(job)))
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiVersion)
+
+	httpapi.Write(rw, http.StatusOK, apiVersion)
 }
 
 func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
@@ -148,8 +146,7 @@ func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
+	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
 }
 
 func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
