@@ -321,7 +321,7 @@ func start() *cobra.Command {
 				spin.Stop()
 			}
 
-			if dev && !skipTunnel {
+			if cfg.Dev && !cfg.SkipTunnel {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
 				closeTunnel()
 				<-tunnelErrChan
