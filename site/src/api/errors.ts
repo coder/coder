@@ -1,31 +1,38 @@
 import axios from "axios"
-import * as Types from "./types"
 
 export const Language = {
   errorsByCode: {
-    default: "Invalid value",
+    defaultErrorCode: "Invalid value",
     exists: "This value is already in use",
   },
 }
 
-const getApiError = (error: unknown): Types.ApiError | undefined => {
-  if (axios.isAxiosError(error)) {
-    return error.response?.data
-  }
+interface FieldError {
+  field: string
+  code: string
 }
 
-export const getFormErrorsFromApiError = (error: unknown): Record<string, string> | undefined => {
-  const apiError = getApiError(error)
+type FieldErrors = Record<FieldError["field"], FieldError["code"]>
 
-  if (apiError && apiError.errors) {
-    return apiError.errors.reduce((errors, error) => {
-      return {
-        ...errors,
-        [error.field]:
-          error.code in Language.errorsByCode
-            ? Language.errorsByCode[error.code as keyof typeof Language.errorsByCode]
-            : Language.errorsByCode.default,
-      }
-    }, {})
+export interface ApiError {
+  message: string
+  errors?: FieldError[]
+}
+
+export const mapApiErrorToFieldErrors = (apiError: ApiError): FieldErrors => {
+  const result: FieldErrors = {}
+
+  if (apiError.errors) {
+    for (const error of apiError.errors) {
+      result[error.field] = error.code || Language.errorsByCode.defaultErrorCode
+    }
+  }
+
+  return result
+}
+
+export const getApiError = (error: unknown): ApiError | undefined => {
+  if (axios.isAxiosError(error)) {
+    return error.response?.data
   }
 }

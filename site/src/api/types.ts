@@ -1,11 +1,3 @@
-export interface ApiError {
-  message: string
-  errors?: Array<{
-    field: string
-    code: string
-  }>
-}
-
 /**
  * `BuildInfoResponse` must be kept in sync with the go struct in buildinfo.go.
  */

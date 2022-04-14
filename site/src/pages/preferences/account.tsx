@@ -1,6 +1,6 @@
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
-import { getFormErrorsFromApiError } from "../../api/errors"
+import { getApiError, mapApiErrorToFieldErrors } from "../../api/errors"
 import { AccountForm } from "../../components/Preferences/AccountForm"
 import { Section } from "../../components/Section"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -14,7 +14,8 @@ export const PreferencesAccountPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me } = authState.context
-  const formErrors = getFormErrorsFromApiError(authState.context.updateProfileError)
+  const apiError = getApiError(authState.context.updateProfileError)
+  const formErrors = apiError ? mapApiErrorToFieldErrors(apiError) : undefined
 
   if (!me) {
     throw new Error("No current user found")
