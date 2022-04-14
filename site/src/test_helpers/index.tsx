@@ -27,7 +27,7 @@ export const render = (component: React.ReactElement): RenderResult => {
 type RenderWithAuthResult = RenderResult & { user: typeof MockUser }
 
 export function renderWithAuth(ui: JSX.Element, { route = "/" }: { route?: string } = {}): RenderWithAuthResult {
-  const renderResult = render(
+  const renderResult = wrappedRender(
     <MemoryRouter initialEntries={[route]}>
       <XServiceProvider>
         <Routes>

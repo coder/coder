@@ -91,5 +91,5 @@ export interface WorkspaceAutostopRequest {
 export interface UpdateProfileRequest {
   readonly username: string
   readonly email: string
-  readonly name?: string
+  readonly name: string
 }

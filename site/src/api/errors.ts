@@ -1,22 +1,43 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import axios from "axios"
 
 export const Language = {
   errorsByCode: {
     defaultErrorCode: "Invalid value",
-    exists: "This value is already in use",
   },
 }
 
 interface FieldError {
   field: string
-  code: string
+  detail: string
 }
 
-type FieldErrors = Record<FieldError["field"], FieldError["code"]>
+type FieldErrors = Record<FieldError["field"], FieldError["detail"]>
 
 export interface ApiError {
   message: string
   errors?: FieldError[]
+}
+
+const unwrapAxiosError = (obj: unknown): unknown => {
+  if (axios.isAxiosError(obj)) {
+    return obj.response?.data
+  } else {
+    return obj
+  }
+}
+
+export const isApiError = (err: any): err is ApiError => {
+  const maybeApiError = unwrapAxiosError(err) as Partial<ApiError> | undefined
+
+  if (!maybeApiError || maybeApiError instanceof Error) {
+    return false
+  } else if (typeof maybeApiError.message === "string") {
+    return typeof maybeApiError.errors === "undefined" || Array.isArray(maybeApiError.errors)
+  } else {
+    return false
+  }
 }
 
 export const mapApiErrorToFieldErrors = (apiError: ApiError): FieldErrors => {
@@ -24,15 +45,9 @@ export const mapApiErrorToFieldErrors = (apiError: ApiError): FieldErrors => {
 
   if (apiError.errors) {
     for (const error of apiError.errors) {
-      result[error.field] = error.code || Language.errorsByCode.defaultErrorCode
+      result[error.field] = error.detail || Language.errorsByCode.defaultErrorCode
     }
   }
 
   return result
-}
-
-export const getApiError = (error: unknown): ApiError | undefined => {
-  if (axios.isAxiosError(error)) {
-    return error.response?.data
-  }
 }

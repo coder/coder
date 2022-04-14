@@ -19,6 +19,7 @@ export const MockBuildInfo: BuildInfoResponse = {
 }
 
 export const MockUser: UserResponse = {
+  name: "Test User",
   id: "test-user",
   username: "TestUser",
   email: "test@coder.com",

@@ -2,7 +2,6 @@ import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import React from "react"
 import * as API from "../../api"
-import { Language } from "../../api/errors"
 import * as AccountForm from "../../components/Preferences/AccountForm"
 import { GlobalSnackbar } from "../../components/Snackbar/GlobalSnackbar"
 import { renderWithAuth } from "../../test_helpers"
@@ -60,13 +59,13 @@ describe("PreferencesAccountPage", () => {
     it("shows an error", async () => {
       jest.spyOn(API, "updateProfile").mockRejectedValueOnce({
         isAxiosError: true,
-        response: { data: { errors: [{ code: "exists", field: "email" }] } },
+        response: { data: { errors: [{ detail: "Email is already in use", field: "email" }] } },
       })
 
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText(Language.errorsByCode.exists)
+      const errorMessage = await screen.findByText("Email is already in use")
       expect(errorMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)
       expect(API.updateProfile).toBeCalledWith(user.id, newData)
@@ -77,13 +76,13 @@ describe("PreferencesAccountPage", () => {
     it("shows an error", async () => {
       jest.spyOn(API, "updateProfile").mockRejectedValueOnce({
         isAxiosError: true,
-        response: { data: { errors: [{ code: "exists", field: "username" }] } },
+        response: { data: { errors: [{ detail: "Username is already in use", field: "username" }] } },
       })
 
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const errorMessage = await screen.findByText(Language.errorsByCode.exists)
+      const errorMessage = await screen.findByText("Username is already in use")
       expect(errorMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)
       expect(API.updateProfile).toBeCalledWith(user.id, newData)

@@ -1,6 +1,6 @@
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
-import { getApiError, mapApiErrorToFieldErrors } from "../../api/errors"
+import { isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
 import { AccountForm } from "../../components/Preferences/AccountForm"
 import { Section } from "../../components/Section"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -13,9 +13,8 @@ const Language = {
 export const PreferencesAccountPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
-  const { me } = authState.context
-  const apiError = getApiError(authState.context.updateProfileError)
-  const formErrors = apiError ? mapApiErrorToFieldErrors(apiError) : undefined
+  const { me, updateProfileError } = authState.context
+  const formErrors = isApiError(updateProfileError) ? mapApiErrorToFieldErrors(updateProfileError) : undefined
 
   if (!me) {
     throw new Error("No current user found")
@@ -27,7 +26,7 @@ export const PreferencesAccountPage: React.FC = () => {
         <AccountForm
           errors={formErrors}
           isLoading={authState.matches("signedIn.profile.updatingProfile")}
-          initialValues={{ name: me.name ?? "", username: me.username, email: me.email }}
+          initialValues={{ name: me.name, username: me.username, email: me.email }}
           onSubmit={(data) => {
             authSend({
               type: "UPDATE_PROFILE",
