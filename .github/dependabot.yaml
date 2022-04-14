@@ -32,6 +32,9 @@ updates:
       timezone: "America/Chicago"
     commit-message:
       prefix: "chore"
+    labels:
+      - "dependencies"
+      - "go"
 
   - package-ecosystem: "npm"
     directory: "/site/"
@@ -50,3 +53,18 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+
+  - package-ecosystem: "terraform"
+    directory: "/examples"
+    schedule:
+      interval: "weekly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    commit-message:
+      prefix: "chore"
+    labels:
+      - "dependencies"
+      - "terraform"
+    ignore:
+      # We likely want to update this ourselves.
+      - dependency-name: "coder/coder"
