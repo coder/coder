@@ -67,6 +67,10 @@ func workspaceCreate() *cobra.Command {
 					return err
 				}
 
+				slices.SortFunc(templates, func(a, b codersdk.Template) bool {
+					return a.WorkspaceOwnerCount > b.WorkspaceOwnerCount
+				})
+
 				templateNames := make([]string, 0, len(templates))
 				templateByName := make(map[string]codersdk.Template, len(templates))
 
@@ -85,9 +89,6 @@ func workspaceCreate() *cobra.Command {
 					templateNames = append(templateNames, templateName)
 					templateByName[templateName] = template
 				}
-				slices.SortFunc(templateNames, func(a, b string) bool {
-					return templateByName[a].WorkspaceOwnerCount > templateByName[b].WorkspaceOwnerCount
-				})
 
 				// Move the cursor up a single line for nicer display!
 				option, err := cliui.Select(cmd, cliui.SelectOptions{
