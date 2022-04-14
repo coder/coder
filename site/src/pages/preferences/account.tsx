@@ -14,7 +14,9 @@ export const PreferencesAccountPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me, updateProfileError } = authState.context
-  const formErrors = isApiError(updateProfileError) ? mapApiErrorToFieldErrors(updateProfileError) : undefined
+  const formErrors = isApiError(updateProfileError)
+    ? mapApiErrorToFieldErrors(updateProfileError.response.data)
+    : undefined
 
   if (!me) {
     throw new Error("No current user found")

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import axios from "axios"
+import axios, { AxiosError, AxiosResponse } from "axios"
 
 export const Language = {
   errorsByCode: {
@@ -15,36 +15,30 @@ interface FieldError {
 
 type FieldErrors = Record<FieldError["field"], FieldError["detail"]>
 
-export interface ApiError {
+export interface ApiErrorResponse {
   message: string
   errors?: FieldError[]
 }
 
-const unwrapAxiosError = (obj: unknown): unknown => {
-  if (axios.isAxiosError(obj)) {
-    return obj.response?.data
-  } else {
-    return obj
-  }
-}
+export type ApiError = AxiosError<ApiErrorResponse> & { response: AxiosResponse<ApiErrorResponse> }
 
 export const isApiError = (err: any): err is ApiError => {
-  const maybeApiError = unwrapAxiosError(err) as Partial<ApiError> | undefined
+  if (axios.isAxiosError(err)) {
+    const response = err.response?.data
 
-  if (!maybeApiError || maybeApiError instanceof Error) {
-    return false
-  } else if (typeof maybeApiError.message === "string") {
-    return typeof maybeApiError.errors === "undefined" || Array.isArray(maybeApiError.errors)
-  } else {
-    return false
+    return (
+      typeof response.message === "string" && (typeof response.errors === "undefined" || Array.isArray(response.errors))
+    )
   }
+
+  return false
 }
 
-export const mapApiErrorToFieldErrors = (apiError: ApiError): FieldErrors => {
+export const mapApiErrorToFieldErrors = (apiErrorResponse: ApiErrorResponse): FieldErrors => {
   const result: FieldErrors = {}
 
-  if (apiError.errors) {
-    for (const error of apiError.errors) {
+  if (apiErrorResponse.errors) {
+    for (const error of apiErrorResponse.errors) {
       result[error.field] = error.detail || Language.errorsByCode.defaultErrorCode
     }
   }

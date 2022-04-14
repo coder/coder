@@ -1,5 +1,4 @@
-import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 import React from "react"
 import * as API from "../../api"
 import * as AccountForm from "../../components/Preferences/AccountForm"
@@ -25,10 +24,10 @@ const newData = {
 
 const fillAndSubmitForm = async () => {
   await waitFor(() => screen.findByLabelText("Name"))
-  await userEvent.type(screen.getByLabelText("Name"), newData.name)
-  await userEvent.type(screen.getByLabelText("Email"), newData.email)
-  await userEvent.type(screen.getByLabelText("Username"), newData.username)
-  await userEvent.click(screen.getByText(AccountForm.Language.updatePreferences))
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: newData.name } })
+  fireEvent.change(screen.getByLabelText("Email"), { target: { value: newData.email } })
+  fireEvent.change(screen.getByLabelText("Username"), { target: { value: newData.username } })
+  fireEvent.click(screen.getByText(AccountForm.Language.updatePreferences))
 }
 
 describe("PreferencesAccountPage", () => {
@@ -59,7 +58,9 @@ describe("PreferencesAccountPage", () => {
     it("shows an error", async () => {
       jest.spyOn(API, "updateProfile").mockRejectedValueOnce({
         isAxiosError: true,
-        response: { data: { errors: [{ detail: "Email is already in use", field: "email" }] } },
+        response: {
+          data: { message: "Invalid profile", errors: [{ detail: "Email is already in use", field: "email" }] },
+        },
       })
 
       const { user } = renderPage()
@@ -76,7 +77,9 @@ describe("PreferencesAccountPage", () => {
     it("shows an error", async () => {
       jest.spyOn(API, "updateProfile").mockRejectedValueOnce({
         isAxiosError: true,
-        response: { data: { errors: [{ detail: "Username is already in use", field: "username" }] } },
+        response: {
+          data: { message: "Invalid profile", errors: [{ detail: "Username is already in use", field: "username" }] },
+        },
       })
 
       const { user } = renderPage()
