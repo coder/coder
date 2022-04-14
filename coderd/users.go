@@ -45,7 +45,7 @@ func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Creates the initial user for a Detailr deployment.
+// Creates the initial user for a Coder deployment.
 func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(rw, r, &createUser) {
