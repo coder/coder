@@ -8,7 +8,7 @@ import { XServiceContext } from "../../xServices/StateContext"
 export const Language = {
   title: "Account",
   description: "Update your display name, email, and username.",
-  unknownError: "Oops, an unknown error happened.",
+  unknownError: "Oops, an unknown error occurred.",
 }
 
 export const PreferencesAccountPage: React.FC = () => {
