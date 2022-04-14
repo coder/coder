@@ -3,7 +3,7 @@ import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React, { useEffect } from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
-import { FormStack } from "../Form/FormStack"
+import { Stack } from "../Stack/Stack"
 import { LoadingButton } from "./../Button"
 
 interface AccountFormValues {
@@ -52,7 +52,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
   return (
     <>
       <form onSubmit={form.handleSubmit}>
-        <FormStack>
+        <Stack>
           <TextField
             {...getFormHelpers<AccountFormValues>(form, "name")}
             autoFocus
@@ -83,7 +83,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
               {isLoading ? "" : Language.updatePreferences}
             </LoadingButton>
           </div>
-        </FormStack>
+        </Stack>
       </form>
     </>
   )
