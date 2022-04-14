@@ -16,7 +16,7 @@ $ProgressPreference = "SilentlyContinue"
 Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-amd64.exe -OutFile $env:TEMP\sshd.exe
 $env:CODER_AUTH = "${AUTH_TYPE}"
 $env:CODER_URL = "${ACCESS_URL}"
-Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "workspaces","agent" -PassThru
+Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
 `,
 		},
 		"linux": {
@@ -28,7 +28,7 @@ curl -fsSL ${ACCESS_URL}bin/coder-linux-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_AUTH="${AUTH_TYPE}"
 export CODER_URL="${ACCESS_URL}"
-exec $BINARY_LOCATION workspaces agent
+exec $BINARY_LOCATION agent
 `,
 		},
 		"darwin": {
@@ -40,7 +40,7 @@ curl -fsSL ${ACCESS_URL}bin/coder-darwin-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_AUTH="${AUTH_TYPE}"
 export CODER_URL="${ACCESS_URL}"
-exec $BINARY_LOCATION workspaces agent
+exec $BINARY_LOCATION agent
 `,
 		},
 	}

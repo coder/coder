@@ -44,4 +44,10 @@ export const handlers = [
   rest.get("/api/v2/workspaces/:workspaceId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
   }),
+  rest.put("/api/v2/workspaces/:workspaceId/autostart", async (req, res, ctx) => {
+    return res(ctx.status(200))
+  }),
+  rest.put("/api/v2/workspaces/:workspaceId/autostop", async (req, res, ctx) => {
+    return res(ctx.status(200))
+  }),
 ]
