@@ -1,4 +1,5 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import React from "react"
 import * as API from "../../api"
 import { Language } from "../../api/errors"
@@ -23,12 +24,12 @@ const newData = {
   username: "user",
 }
 
-const fillTheForm = async () => {
+const fillAndSubmitForm = async () => {
   await waitFor(() => screen.findByLabelText("Name"))
-  fireEvent.change(screen.getByLabelText("Name"), { target: { value: newData.name } })
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: newData.email } })
-  fireEvent.change(screen.getByLabelText("Username"), { target: { value: newData.username } })
-  fireEvent.click(screen.getByText(AccountForm.Language.updatePreferences))
+  await userEvent.type(screen.getByLabelText("Name"), newData.name)
+  await userEvent.type(screen.getByLabelText("Email"), newData.email)
+  await userEvent.type(screen.getByLabelText("Username"), newData.username)
+  await userEvent.click(screen.getByText(AccountForm.Language.updatePreferences))
 }
 
 describe("PreferencesAccountPage", () => {
@@ -46,7 +47,7 @@ describe("PreferencesAccountPage", () => {
         }),
       )
       const { user } = renderPage()
-      await fillTheForm()
+      await fillAndSubmitForm()
 
       const successMessage = await screen.findByText(AuthXService.Language.successProfileUpdate)
       expect(successMessage).toBeDefined()
@@ -63,7 +64,7 @@ describe("PreferencesAccountPage", () => {
       })
 
       const { user } = renderPage()
-      await fillTheForm()
+      await fillAndSubmitForm()
 
       const errorMessage = await screen.findByText(Language.errorsByCode.exists)
       expect(errorMessage).toBeDefined()
@@ -80,7 +81,7 @@ describe("PreferencesAccountPage", () => {
       })
 
       const { user } = renderPage()
-      await fillTheForm()
+      await fillAndSubmitForm()
 
       const errorMessage = await screen.findByText(Language.errorsByCode.exists)
       expect(errorMessage).toBeDefined()
