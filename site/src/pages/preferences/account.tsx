@@ -7,7 +7,7 @@ import { XServiceContext } from "../../xServices/StateContext"
 
 const Language = {
   title: "Account",
-  description: "Update your display name, email and username.",
+  description: "Update your display name, email, and username.",
 }
 
 export const PreferencesAccountPage: React.FC = () => {
