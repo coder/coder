@@ -31,7 +31,7 @@ export type AccountFormErrors = FormikErrors<AccountFormValues>
 export interface AccountFormProps {
   isLoading: boolean
   initialValues: AccountFormValues
-  onSubmit: (values: AccountFormValues) => Promise<void>
+  onSubmit: (values: AccountFormValues) => void
   errors?: AccountFormErrors
 }
 
