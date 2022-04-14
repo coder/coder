@@ -5,7 +5,7 @@ import * as AccountForm from "../../components/Preferences/AccountForm"
 import { GlobalSnackbar } from "../../components/Snackbar/GlobalSnackbar"
 import { renderWithAuth } from "../../test_helpers"
 import * as AuthXService from "../../xServices/auth/authXService"
-import { PreferencesAccountPage } from "./account"
+import { Language, PreferencesAccountPage } from "./account"
 
 const renderPage = () => {
   return renderWithAuth(
@@ -86,6 +86,22 @@ describe("PreferencesAccountPage", () => {
       await fillAndSubmitForm()
 
       const errorMessage = await screen.findByText("Username is already in use")
+      expect(errorMessage).toBeDefined()
+      expect(API.updateProfile).toBeCalledTimes(1)
+      expect(API.updateProfile).toBeCalledWith(user.id, newData)
+    })
+  })
+
+  describe("when it is an unknown error", () => {
+    it("shows a generic error message", async () => {
+      jest.spyOn(API, "updateProfile").mockRejectedValueOnce({
+        data: "unknown error",
+      })
+
+      const { user } = renderPage()
+      await fillAndSubmitForm()
+
+      const errorMessage = await screen.findByText(Language.unknownError)
       expect(errorMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)
       expect(API.updateProfile).toBeCalledWith(user.id, newData)

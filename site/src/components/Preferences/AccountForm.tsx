@@ -1,3 +1,4 @@
+import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React, { useEffect } from "react"
@@ -32,22 +33,23 @@ export interface AccountFormProps {
   isLoading: boolean
   initialValues: AccountFormValues
   onSubmit: (values: AccountFormValues) => void
-  errors?: AccountFormErrors
+  formErrors?: AccountFormErrors
+  error?: string
 }
 
-export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, initialValues, errors }) => {
+export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, initialValues, formErrors, error }) => {
   const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
     initialValues,
     validationSchema,
     onSubmit,
   })
 
-  // Sync errors from parent
+  // Sync formErrors from parent
   useEffect(() => {
-    if (errors) {
-      form.setErrors(errors)
+    if (formErrors) {
+      form.setErrors(formErrors)
     }
-  }, [errors, form])
+  }, [formErrors, form])
 
   return (
     <>
@@ -77,6 +79,8 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
             label={Language.usernameLabel}
             variant="outlined"
           />
+
+          {error && <FormHelperText error>{error}</FormHelperText>}
 
           <div>
             <LoadingButton color="primary" loading={isLoading} type="submit" variant="contained">
