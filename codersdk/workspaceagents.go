@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 
@@ -12,11 +13,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/pion/webrtc/v3"
+	"golang.org/x/net/proxy"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
@@ -134,9 +139,9 @@ func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context) (Workspac
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// ListenWorkspaceAgent connects as a workspace agent.
-// It obtains the agent ID based off the session token.
-func (c *Client) ListenWorkspaceAgent(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
+// ListenWorkspaceAgent connects as a workspace agent identifying with the session token.
+// On each inbound connection request, connection info is fetched.
+func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
 	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -169,15 +174,36 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, opts *peer.ConnOption
 	if err != nil {
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, error) {
-		return []webrtc.ICEServer{{
-			URLs: []string{"stun:stun.l.google.com:19302"},
-		}}, nil
-	}, opts)
+	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+		// This can be cached if it adds to latency too much.
+		res, err := c.request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/iceservers", nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			return nil, nil, readBodyAsError(res)
+		}
+		var iceServers []webrtc.ICEServer
+		err = json.NewDecoder(res.Body).Decode(&iceServers)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		options := webrtc.SettingEngine{}
+		options.SetSrflxAcceptanceMinWait(0)
+		options.SetRelayAcceptanceMinWait(0)
+		options.SetICEProxyDialer(c.turnProxyDialer(ctx, httpClient, "/api/v2/workspaceagents/me/turn"))
+		iceServers = append(iceServers, turnconn.Proxy)
+		return iceServers, &peer.ConnOptions{
+			SettingEngine: options,
+			Logger:        logger,
+		}, nil
+	})
 }
 
 // DialWorkspaceAgent creates a connection to the specified resource.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, iceServers []webrtc.ICEServer, opts *peer.ConnOptions) (*agent.Conn, error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *peer.ConnOptions) (*agent.Conn, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/dial", agentID.String()))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -215,7 +241,30 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, iceS
 	if err != nil {
 		return nil, xerrors.Errorf("negotiate connection: %w", err)
 	}
-	peerConn, err := peerbroker.Dial(stream, iceServers, opts)
+
+	res, err = c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/iceservers", agentID.String()), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var iceServers []webrtc.ICEServer
+	err = json.NewDecoder(res.Body).Decode(&iceServers)
+	if err != nil {
+		return nil, err
+	}
+
+	if options == nil {
+		options = &peer.ConnOptions{}
+	}
+	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
+	options.SettingEngine.SetRelayAcceptanceMinWait(0)
+	options.SettingEngine.SetICEProxyDialer(c.turnProxyDialer(ctx, httpClient, fmt.Sprintf("/api/v2/workspaceagents/%s/turn", agentID.String())))
+	iceServers = append(iceServers, turnconn.Proxy)
+
+	peerConn, err := peerbroker.Dial(stream, iceServers, options)
 	if err != nil {
 		return nil, xerrors.Errorf("dial peer: %w", err)
 	}
@@ -237,4 +286,25 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	var workspaceAgent WorkspaceAgent
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
+}
+
+func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, path string) proxy.Dialer {
+	return turnconn.ProxyDialer(func() (net.Conn, error) {
+		turnURL, err := c.URL.Parse(path)
+		if err != nil {
+			return nil, xerrors.Errorf("parse url: %w", err)
+		}
+		conn, res, err := websocket.Dial(ctx, turnURL.String(), &websocket.DialOptions{
+			HTTPClient: httpClient,
+			// Need to disable compression to avoid a data-race.
+			CompressionMode: websocket.CompressionDisabled,
+		})
+		if err != nil {
+			if res == nil {
+				return nil, err
+			}
+			return nil, readBodyAsError(res)
+		}
+		return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+	})
 }

@@ -38,7 +38,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			token, err := uuid.Parse(cookie.Value)
 			if err != nil {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("parse token: %s", err),
+					Message: fmt.Sprintf("parse token %q: %s", cookie.Value, err),
 				})
 				return
 			}

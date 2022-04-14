@@ -14,13 +14,14 @@ import (
 
 var (
 	reservedHost = "coder"
+	credential   = "coder"
 
 	// Proxy is a an ICE Server that uses a special hostname
 	// to indicate traffic should be proxied.
 	Proxy = webrtc.ICEServer{
 		URLs:       []string{"turns:" + reservedHost},
 		Username:   "coder",
-		Credential: "coder",
+		Credential: credential,
 	}
 )
 
@@ -46,7 +47,7 @@ func New(relayAddress *turn.RelayAddressGeneratorStatic) (*Server, error) {
 	var err error
 	server.turn, err = turn.NewServer(turn.ServerConfig{
 		AuthHandler: func(username, realm string, srcAddr net.Addr) (key []byte, ok bool) {
-			return turn.GenerateAuthKey(Proxy.Username, "", Proxy.Credential.(string)), true
+			return turn.GenerateAuthKey(Proxy.Username, "", credential), true
 		},
 		ListenerConfigs: []turn.ListenerConfig{{
 			Listener:              server.listener,
@@ -78,11 +79,12 @@ func ProxyDialer(proxyFunc func() (c net.Conn, err error)) proxy.Dialer {
 		if err != nil {
 			return nil, err
 		}
-		return &conn{
+		return &Conn{
 			localAddress: &net.TCPAddr{
 				IP: net.IPv4(127, 0, 0, 1),
 			},
-			Conn: netConn,
+			closed: make(chan struct{}),
+			Conn:   netConn,
 		}, nil
 	})
 }
@@ -103,11 +105,14 @@ type Server struct {
 // Accept consumes a new connection into the TURN server.
 // A unique remote address must exist per-connection.
 // pion/turn indexes allocations based on the address.
-func (s *Server) Accept(nc net.Conn, remoteAddress *net.TCPAddr) {
-	s.conns <- &conn{
+func (s *Server) Accept(nc net.Conn, remoteAddress *net.TCPAddr) *Conn {
+	conn := &Conn{
 		Conn:          nc,
 		remoteAddress: remoteAddress,
+		closed:        make(chan struct{}),
 	}
+	s.conns <- conn
+	return conn
 }
 
 // Close ends the TURN server.
@@ -117,9 +122,10 @@ func (s *Server) Close() error {
 	if s.isClosed() {
 		return nil
 	}
-	defer close(s.closed)
+	err := s.turn.Close()
 	close(s.conns)
-	return s.turn.Close()
+	close(s.closed)
+	return err
 }
 
 func (s *Server) isClosed() bool {
@@ -153,18 +159,34 @@ func (*listener) Addr() net.Addr {
 	return nil
 }
 
-type conn struct {
+type Conn struct {
 	net.Conn
+	closed        chan struct{}
 	localAddress  *net.TCPAddr
 	remoteAddress *net.TCPAddr
 }
 
-func (t *conn) LocalAddr() net.Addr {
-	return t.localAddress
+func (c *Conn) LocalAddr() net.Addr {
+	return c.localAddress
 }
 
-func (t *conn) RemoteAddr() net.Addr {
-	return t.remoteAddress
+func (c *Conn) RemoteAddr() net.Addr {
+	return c.remoteAddress
+}
+
+// Closed returns a channel which is closed when
+// the connection is.
+func (c *Conn) Closed() <-chan struct{} {
+	return c.closed
+}
+
+func (c *Conn) Close() error {
+	select {
+	case <-c.closed:
+	default:
+		close(c.closed)
+	}
+	return c.Conn.Close()
 }
 
 type dialer func(network, addr string) (c net.Conn, err error)

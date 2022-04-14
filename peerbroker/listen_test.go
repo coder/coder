@@ -23,7 +23,7 @@ func TestListen(t *testing.T) {
 		defer client.Close()
 		defer server.Close()
 
-		listener, err := peerbroker.Listen(server, nil, nil)
+		listener, err := peerbroker.Listen(server, nil)
 		require.NoError(t, err)
 
 		api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
@@ -43,7 +43,7 @@ func TestListen(t *testing.T) {
 		defer client.Close()
 		defer server.Close()
 
-		listener, err := peerbroker.Listen(server, nil, nil)
+		listener, err := peerbroker.Listen(server, nil)
 		require.NoError(t, err)
 		go listener.Close()
 		_, err = listener.Accept()

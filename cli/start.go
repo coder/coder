@@ -61,6 +61,7 @@ func start() *cobra.Command {
 		secureAuthCookie       bool
 		sshKeygenAlgorithmRaw  string
 	)
+
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
