@@ -39,7 +39,7 @@ describe("SignInPage", () => {
     render(<SignInPage />)
     const email = screen.getByLabelText(Language.emailLabel)
     const password = screen.getByLabelText(Language.passwordLabel)
-    await userEvent.type(email, "test@coder.com") 
+    await userEvent.type(email, "test@coder.com")
     await userEvent.type(password, "password")
     // Click sign-in
     const signInButton = await screen.findByText(Language.signIn)
