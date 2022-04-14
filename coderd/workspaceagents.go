@@ -232,6 +232,7 @@ func (api *api) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
+	localAddress, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
 	remoteAddress := &net.TCPAddr{
 		IP: net.ParseIP(r.RemoteAddr),
 	}
@@ -261,11 +262,16 @@ func (api *api) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	defer func() {
+		_ = wsConn.Close(websocket.StatusNormalClosure, "")
+	}()
 	netConn := websocket.NetConn(r.Context(), wsConn, websocket.MessageBinary)
+	api.Logger.Debug(r.Context(), "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 	select {
-	case <-api.TURNServer.Accept(netConn, remoteAddress).Closed():
+	case <-api.TURNServer.Accept(netConn, remoteAddress, localAddress).Closed():
 	case <-r.Context().Done():
 	}
+	api.Logger.Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 }
 
 func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {

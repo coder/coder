@@ -143,7 +143,9 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 		_ = agentCloser.Close()
 	})
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	opts := &peer.ConnOptions{}
+	opts := &peer.ConnOptions{
+		Logger: slogtest.Make(t, nil).Named("client"),
+	}
 	// Force a TURN connection!
 	opts.SettingEngine.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeTCP4})
 	conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, opts)

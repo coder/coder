@@ -30,8 +30,8 @@ func TestTURNConn(t *testing.T) {
 	clientDialer, clientTURN := net.Pipe()
 	turnServer.Accept(clientTURN, &net.TCPAddr{
 		IP:   net.IPv4(127, 0, 0, 1),
-		Port: 1,
-	})
+		Port: 16000,
+	}, nil)
 	require.NoError(t, err)
 	clientSettings := webrtc.SettingEngine{}
 	clientSettings.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeTCP4, webrtc.NetworkTypeTCP6})
@@ -48,8 +48,8 @@ func TestTURNConn(t *testing.T) {
 	serverDialer, serverTURN := net.Pipe()
 	turnServer.Accept(serverTURN, &net.TCPAddr{
 		IP:   net.IPv4(127, 0, 0, 1),
-		Port: 2,
-	})
+		Port: 16001,
+	}, nil)
 	require.NoError(t, err)
 	serverSettings := webrtc.SettingEngine{}
 	serverSettings.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeTCP4, webrtc.NetworkTypeTCP6})

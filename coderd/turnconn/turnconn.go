@@ -1,6 +1,7 @@
 package turnconn
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -13,13 +14,20 @@ import (
 )
 
 var (
-	reservedHost = "coder"
-	credential   = "coder"
+	// reservedAddress is a magic address that's used exclusively
+	// for proxying via Coder. We don't proxy all TURN connections,
+	// because that'd exclude the possibility of a customer using
+	// their own TURN server.
+	reservedAddress = "127.0.0.1:12345"
+	credential      = "coder"
+	localhost       = &net.TCPAddr{
+		IP: net.IPv4(127, 0, 0, 1),
+	}
 
 	// Proxy is a an ICE Server that uses a special hostname
 	// to indicate traffic should be proxied.
 	Proxy = webrtc.ICEServer{
-		URLs:       []string{"turns:" + reservedHost},
+		URLs:       []string{"turns:" + reservedAddress},
 		Username:   "coder",
 		Credential: credential,
 	}
@@ -29,14 +37,37 @@ var (
 // The relay address is used to broadcast the location of an accepted connection.
 func New(relayAddress *turn.RelayAddressGeneratorStatic) (*Server, error) {
 	if relayAddress == nil {
-		// Default to localhost.
+		ip := ""
+		addrs, err := net.InterfaceAddrs()
+		if err != nil {
+			return nil, xerrors.Errorf("find interface addrs: %w", err)
+		}
+		// Try to find the localhost IP address.
+		// It will generally be 127.0.0.1, but
+		// search to be sure!
+		for _, address := range addrs {
+			ipNet, ok := address.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			if !ipNet.IP.IsLoopback() {
+				continue
+			}
+			ip = ipNet.IP.String()
+			break
+		}
+		fmt.Printf("WE HAVE IP %q\n", ip)
+		// if ip == "" {
+		ip = "127.0.0.1"
+		// }
+
 		relayAddress = &turn.RelayAddressGeneratorStatic{
-			RelayAddress: net.IP{127, 0, 0, 1},
-			Address:      "127.0.0.1",
+			RelayAddress: net.ParseIP(ip),
+			Address:      ip,
 		}
 	}
 	logger := logging.NewDefaultLoggerFactory()
-	logger.DefaultLogLevel = logging.LogLevelDisabled
+	logger.DefaultLogLevel = logging.LogLevelDebug
 	server := &Server{
 		conns:  make(chan net.Conn, 1),
 		closed: make(chan struct{}),
@@ -47,6 +78,8 @@ func New(relayAddress *turn.RelayAddressGeneratorStatic) (*Server, error) {
 	var err error
 	server.turn, err = turn.NewServer(turn.ServerConfig{
 		AuthHandler: func(username, realm string, srcAddr net.Addr) (key []byte, ok bool) {
+			// TURN connections require credentials. It's not important
+			// for our use-case, because our listener is entirely in-memory.
 			return turn.GenerateAuthKey(Proxy.Username, "", credential), true
 		},
 		ListenerConfigs: []turn.ListenerConfig{{
@@ -60,33 +93,6 @@ func New(relayAddress *turn.RelayAddressGeneratorStatic) (*Server, error) {
 	}
 
 	return server, nil
-}
-
-// ProxyDialer accepts a proxy function that's called when the connection
-// address matches the reserved host in the "Proxy" ICE server.
-//
-// This should be passed to WebRTC connections as an ICE dialer.
-func ProxyDialer(proxyFunc func() (c net.Conn, err error)) proxy.Dialer {
-	return dialer(func(network, addr string) (net.Conn, error) {
-		host, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			return nil, err
-		}
-		if host != reservedHost {
-			return proxy.Direct.Dial(network, addr)
-		}
-		netConn, err := proxyFunc()
-		if err != nil {
-			return nil, err
-		}
-		return &Conn{
-			localAddress: &net.TCPAddr{
-				IP: net.IPv4(127, 0, 0, 1),
-			},
-			closed: make(chan struct{}),
-			Conn:   netConn,
-		}, nil
-	})
 }
 
 // Server accepts and connects TURN allocations.
@@ -105,10 +111,14 @@ type Server struct {
 // Accept consumes a new connection into the TURN server.
 // A unique remote address must exist per-connection.
 // pion/turn indexes allocations based on the address.
-func (s *Server) Accept(nc net.Conn, remoteAddress *net.TCPAddr) *Conn {
+func (s *Server) Accept(nc net.Conn, remoteAddress, localAddress *net.TCPAddr) *Conn {
+	if localAddress == nil {
+		localAddress = localhost
+	}
 	conn := &Conn{
 		Conn:          nc,
 		remoteAddress: remoteAddress,
+		localAddress:  localAddress,
 		closed:        make(chan struct{}),
 	}
 	s.conns <- conn
@@ -181,16 +191,38 @@ func (c *Conn) Closed() <-chan struct{} {
 }
 
 func (c *Conn) Close() error {
+	err := c.Conn.Close()
 	select {
 	case <-c.closed:
 	default:
 		close(c.closed)
 	}
-	return c.Conn.Close()
+	return err
 }
 
 type dialer func(network, addr string) (c net.Conn, err error)
 
 func (d dialer) Dial(network, addr string) (c net.Conn, err error) {
 	return d(network, addr)
+}
+
+// ProxyDialer accepts a proxy function that's called when the connection
+// address matches the reserved host in the "Proxy" ICE server.
+//
+// This should be passed to WebRTC connections as an ICE dialer.
+func ProxyDialer(proxyFunc func() (c net.Conn, err error)) proxy.Dialer {
+	return dialer(func(network, addr string) (net.Conn, error) {
+		if addr != reservedAddress {
+			return proxy.Direct.Dial(network, addr)
+		}
+		netConn, err := proxyFunc()
+		if err != nil {
+			return nil, err
+		}
+		return &Conn{
+			localAddress: localhost,
+			closed:       make(chan struct{}),
+			Conn:         netConn,
+		}, nil
+	})
 }
