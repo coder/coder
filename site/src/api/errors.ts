@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import axios, { AxiosError, AxiosResponse } from "axios"
 
 export const Language = {
@@ -22,6 +20,7 @@ export interface ApiErrorResponse {
 
 export type ApiError = AxiosError<ApiErrorResponse> & { response: AxiosResponse<ApiErrorResponse> }
 
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any
 export const isApiError = (err: any): err is ApiError => {
   if (axios.isAxiosError(err)) {
     const response = err.response?.data
