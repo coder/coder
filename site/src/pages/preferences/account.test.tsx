@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import React from "react"
 import * as API from "../../api"
+import { Language } from "../../api/errors"
 import * as AccountForm from "../../components/Preferences/AccountForm"
 import { GlobalSnackbar } from "../../components/Snackbar/GlobalSnackbar"
 import { renderWithAuth } from "../../test_helpers"
@@ -64,7 +65,7 @@ describe("PreferencesAccountPage", () => {
       const { user } = renderPage()
       await fillTheForm()
 
-      const errorMessage = await screen.findByText(API.Language.errorsByCode.exists)
+      const errorMessage = await screen.findByText(Language.errorsByCode.exists)
       expect(errorMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)
       expect(API.updateProfile).toBeCalledWith(user.id, newData)
@@ -81,7 +82,7 @@ describe("PreferencesAccountPage", () => {
       const { user } = renderPage()
       await fillTheForm()
 
-      const errorMessage = await screen.findByText(API.Language.errorsByCode.exists)
+      const errorMessage = await screen.findByText(Language.errorsByCode.exists)
       expect(errorMessage).toBeDefined()
       expect(API.updateProfile).toBeCalledTimes(1)
       expect(API.updateProfile).toBeCalledWith(user.id, newData)
