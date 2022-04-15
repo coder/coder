@@ -1,7 +1,7 @@
 import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
-import React, { useEffect } from "react"
+import React from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
 import { Stack } from "../Stack/Stack"
@@ -37,26 +37,25 @@ export interface AccountFormProps {
   error?: string
 }
 
-export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, initialValues, formErrors, error }) => {
+export const AccountForm: React.FC<AccountFormProps> = ({
+  isLoading,
+  onSubmit,
+  initialValues,
+  formErrors = {},
+  error,
+}) => {
   const form: FormikContextType<AccountFormValues> = useFormik<AccountFormValues>({
     initialValues,
     validationSchema,
     onSubmit,
   })
 
-  // Sync formErrors from parent
-  useEffect(() => {
-    if (formErrors) {
-      form.setErrors(formErrors)
-    }
-  }, [formErrors, form])
-
   return (
     <>
       <form onSubmit={form.handleSubmit}>
         <Stack>
           <TextField
-            {...getFormHelpers<AccountFormValues>(form, "name")}
+            {...getFormHelpers<AccountFormValues>(form, "name", formErrors)}
             autoFocus
             autoComplete="name"
             fullWidth
@@ -64,7 +63,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
             variant="outlined"
           />
           <TextField
-            {...getFormHelpers<AccountFormValues>(form, "email")}
+            {...getFormHelpers<AccountFormValues>(form, "email", formErrors)}
             onChange={onChangeTrimmed(form)}
             autoComplete="email"
             fullWidth
@@ -72,7 +71,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({ isLoading, onSubmit, i
             variant="outlined"
           />
           <TextField
-            {...getFormHelpers<AccountFormValues>(form, "username")}
+            {...getFormHelpers<AccountFormValues>(form, "username", formErrors)}
             onChange={onChangeTrimmed(form)}
             autoComplete="username"
             fullWidth

@@ -106,8 +106,10 @@ export const authMachine =
                   },
                 },
                 updatingProfile: {
+                  entry: ["clearUpdateProfileError"],
                   invoke: {
                     src: "updateProfile",
+
                     onDone: [
                       {
                         actions: ["assignMe", "notifySuccessProfileUpdate"],
@@ -195,6 +197,9 @@ export const authMachine =
         notifySuccessProfileUpdate: () => {
           displaySuccess(Language.successProfileUpdate)
         },
+        clearUpdateProfileError: assign({
+          updateProfileError: (_) => undefined,
+        }),
       },
     },
   )

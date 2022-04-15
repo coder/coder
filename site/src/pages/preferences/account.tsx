@@ -25,21 +25,19 @@ export const PreferencesAccountPage: React.FC = () => {
   }
 
   return (
-    <>
-      <Section title={Language.title} description={Language.description}>
-        <AccountForm
-          error={hasUnknownError ? Language.unknownError : undefined}
-          formErrors={formErrors}
-          isLoading={authState.matches("signedIn.profile.updatingProfile")}
-          initialValues={{ name: me.name, username: me.username, email: me.email }}
-          onSubmit={(data) => {
-            authSend({
-              type: "UPDATE_PROFILE",
-              data,
-            })
-          }}
-        />
-      </Section>
-    </>
+    <Section title={Language.title} description={Language.description}>
+      <AccountForm
+        error={hasUnknownError ? Language.unknownError : undefined}
+        formErrors={formErrors}
+        isLoading={authState.matches("signedIn.profile.updatingProfile")}
+        initialValues={{ name: me.name, username: me.username, email: me.email }}
+        onSubmit={(data) => {
+          authSend({
+            type: "UPDATE_PROFILE",
+            data,
+          })
+        }}
+      />
+    </Section>
   )
 }
