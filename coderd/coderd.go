@@ -138,7 +138,6 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/users", func(r chi.Router) {
-			r.Get("/", api.getUsers)
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)
@@ -146,6 +145,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
 				r.Post("/", api.postUsers)
+				r.Get("/", api.getUsers)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
