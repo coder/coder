@@ -64,8 +64,11 @@ func start() *cobra.Command {
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			if traceDatadog {
-				tracer.Start()
+				tracer.Start(tracer.WithLogStartup(false), tracer.WithLogger(&datadogLogger{
+					logger: logger.Named("datadog"),
+				}))
 				defer tracer.Stop()
 			}
 
@@ -153,7 +156,6 @@ func start() *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
-			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
 				Logger:               logger.Named("coderd"),
@@ -533,4 +535,12 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	}
 
 	return tls.NewListener(listener, tlsConfig), nil
+}
+
+type datadogLogger struct {
+	logger slog.Logger
+}
+
+func (d *datadogLogger) Log(msg string) {
+	d.logger.Debug(context.Background(), msg)
 }
