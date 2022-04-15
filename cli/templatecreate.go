@@ -26,13 +26,14 @@ func templateCreate() *cobra.Command {
 		provisioner string
 	)
 	cmd := &cobra.Command{
-		Use:   "create <directory> [name]",
+		Use:   "create [name]",
 		Short: "Create a template from the current directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
+
 			organization, err := currentOrganization(cmd, client)
 			if err != nil {
 				return err
@@ -44,6 +45,7 @@ func templateCreate() *cobra.Command {
 			} else {
 				templateName = args[0]
 			}
+
 			_, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
 			if err == nil {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
@@ -113,7 +115,7 @@ func templateCreate() *cobra.Command {
 				"The "+cliui.Styles.Keyword.Render(templateName)+" template has been created! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder workspaces create "+templateName))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder workspaces create --template=%q [workspace name]", templateName)))
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
 			return nil
@@ -214,9 +216,15 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 	if err != nil {
 		return nil, nil, err
 	}
-	return &version, parameters, cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
+
+	err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
 		HideAgentState: true,
 		HideAccess:     true,
 		Title:          "Template Preview",
 	})
+	if err != nil {
+		return nil, nil, xerrors.Errorf("preview template resources: %w", err)
+	}
+
+	return &version, parameters, nil
 }

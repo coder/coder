@@ -386,10 +386,6 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - name: Build frontend
-        run: yarn build
-        working-directory: site
-
       - run: yarn test:coverage
         working-directory: site
 

@@ -6,9 +6,9 @@ import (
 	"net"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
@@ -24,25 +24,21 @@ import (
 func TestGitSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("Dial", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-		instanceID := "instanceidentifier"
-		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
-		client := coderdtest.New(t, &coderdtest.Options{
-			AWSInstanceIdentity: certificates,
-		})
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// get user public key
-		keypair, err := client.GitSSHKey(ctx, codersdk.Me)
+		keypair, err := client.GitSSHKey(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		publicKey, _, _, _, err := gossh.ParseAuthorizedKey([]byte(keypair.PublicKey))
 		require.NoError(t, err)
 
 		// setup provisioner
+		agentToken := uuid.NewString()
 		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
+			Parse:           echo.ParseComplete,
+			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
@@ -50,8 +46,8 @@ func TestGitSSH(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agents: []*proto.Agent{{
-								Auth: &proto.Agent_InstanceId{
-									InstanceId: instanceID,
+								Auth: &proto.Agent_Token{
+									Token: agentToken,
 								},
 							}},
 						}},
@@ -65,23 +61,20 @@ func TestGitSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		// start workspace agent
-		cmd, root := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--url", client.URL.String())
+		cmd, root := clitest.New(t, "agent", "--token", agentToken, "--url", client.URL.String())
 		agentClient := &*client
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
-			// A linting error occurs for weakly typing the context value here,
-			// but it seems reasonable for a one-off test.
-			// nolint
-			ctx = context.WithValue(ctx, "aws-client", metadataClient)
 			err := cmd.ExecuteContext(ctx)
 			require.NoError(t, err)
 		}()
+
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil, nil)
+		dialer, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()
@@ -113,7 +106,7 @@ func TestGitSSH(t *testing.T) {
 		cmd, root = clitest.New(t, "gitssh", "--global-config="+string(cfgDir), "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
 		clitest.SetupConfig(t, agentClient, root)
 
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.ExecuteContext(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
 	})

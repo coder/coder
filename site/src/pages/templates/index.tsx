@@ -9,7 +9,6 @@ import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { Header } from "../../components/Header"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import { Footer } from "../../components/Page"
 import { Column, Table } from "../../components/Table"
 
 export const TemplatesPage: React.FC = () => {
@@ -74,7 +73,6 @@ export const TemplatesPage: React.FC = () => {
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
         <Table {...tableProps} />
       </Paper>
-      <Footer />
     </div>
   )
 }

@@ -1,18 +1,18 @@
-package tunnel_test
+package devtunnel_test
 
 import (
 	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/tunnel"
+	"github.com/coder/coder/coderd/devtunnel"
 )
 
 // The tunnel leaks a few goroutines that aren't impactful to production scenarios.
@@ -22,9 +22,7 @@ import (
 
 func TestTunnel(t *testing.T) {
 	t.Parallel()
-	if testing.Short() || os.Getenv("CI") != "" {
-		// This test has extreme inconsistency in CI.
-		// It's something with the networking in CI that causes this test to flake.
+	if testing.Short() {
 		t.Skip()
 		return
 	}
@@ -36,12 +34,16 @@ func TestTunnel(t *testing.T) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	url, _, err := tunnel.New(ctx, srv.URL)
+
+	srvURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	t.Log(url)
+
+	tunURL, _, err := devtunnel.New(ctx, srvURL)
+	require.NoError(t, err)
+	t.Log(tunURL)
 
 	require.Eventually(t, func() bool {
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", tunURL, nil)
 		require.NoError(t, err)
 		res, err := http.DefaultClient.Do(req)
 		var dnsErr *net.DNSError
