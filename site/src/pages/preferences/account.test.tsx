@@ -31,10 +31,6 @@ const fillAndSubmitForm = async () => {
 }
 
 describe("PreferencesAccountPage", () => {
-  afterEach(() => {
-    jest.clearAllMocks()
-  })
-
   describe("when it is a success", () => {
     it("shows the success message", async () => {
       jest.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>

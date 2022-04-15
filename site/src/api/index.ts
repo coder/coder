@@ -1,6 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
-import { MockPager, MockUser, MockUser2 } from "../test_helpers"
+import { MockPager, MockUser, MockUser2 } from "../test_helpers/entities"
 import * as Types from "./types"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
