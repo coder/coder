@@ -44,7 +44,7 @@ export interface ProvisionerJobLog {
 
 export interface Template {
   name: string
-  workspace_owner_count: uint32
+  workspace_owner_count: number
 }
 
 export interface TemplateVersion {
@@ -130,11 +130,11 @@ export interface WorkspaceAgent {
 }
 
 export interface WorkspaceAgentResourceMetadata {
-  memory_total: uint64
-  disk_total: uint64
-  cpu_cores: uint64
+  memory_total: number
+  disk_total: number
+  cpu_cores: number
   cpu_model: string
-  cpu_mhz: float64
+  cpu_mhz: number
 }
 
 export interface WorkspaceAgentInstanceMetadata {
@@ -146,20 +146,20 @@ export interface WorkspaceAgentInstanceMetadata {
   kernel_architecture: string
   cloud: string
   jail: string
-  vnc: bool
+  vnc: boolean
 }
 
 export interface Workspace {
   template_name: string
   latest_build: WorkspaceBuild
-  outdated: bool
+  outdated: boolean
   name: string
   autostart_schedule: string
   autostop_schedule: string
 }
 
 export interface CreateWorkspaceBuildRequest {
-  dry_run: bool
+  dry_run: boolean
 }
 
 export interface UpdateWorkspaceAutostartRequest {

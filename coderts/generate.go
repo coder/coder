@@ -73,6 +73,13 @@ func writeStruct(typeSpec *ast.TypeSpec) (string, error) {
 				continue
 			}
 			fieldType := i.Name
+			switch fieldType {
+			case "bool":
+				fieldType = "boolean"
+			case "uint64", "uint32", "float64":
+				fieldType = "number"
+			}
+
 			fieldName := ""
 			if field.Tag != nil && field.Tag.Value != "" {
 				for _, pair := range strings.Split(field.Tag.Value, " ") {
