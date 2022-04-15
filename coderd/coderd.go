@@ -167,7 +167,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
-				r.Post("/", api.postUsers)
+				r.Post("/", api.postUser)
 				r.Get("/", api.users)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
