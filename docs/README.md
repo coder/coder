@@ -4,7 +4,7 @@
 
 Provision remote development environments with Terraform.
 
-## Highlights
+### Highlights
 
 - Automate development environments for Linux, Windows, and MacOS in your cloud
 - Start writing code with a single command
