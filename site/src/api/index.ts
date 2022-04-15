@@ -1,6 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
-import { MockPager, MockUser, MockUser2 } from "../test_helpers"
+import { MockPager, MockUser, MockUser2 } from "../test_helpers/entities"
 import * as Types from "./types"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
@@ -102,4 +102,9 @@ export const putWorkspaceAutostop = async (
   await axios.put(`/api/v2/workspaces/${workspaceID}/autostop`, payload, {
     headers: { ...CONTENT_TYPE_JSON },
   })
+}
+
+export const updateProfile = async (userId: string, data: Types.UpdateProfileRequest): Promise<Types.UserResponse> => {
+  const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
+  return response.data
 }
