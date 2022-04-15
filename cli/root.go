@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
@@ -29,11 +28,6 @@ const (
 )
 
 func Root() *cobra.Command {
-	var (
-		localConfig string
-		forceTTY    bool
-		noOpen      bool
-	)
 	cmd := &cobra.Command{
 		Use:           "coder",
 		Version:       buildinfo.Version(),
@@ -82,14 +76,14 @@ func Root() *cobra.Command {
 		workspaceAgent(),
 	)
 
-	cliflag.StringVarP(cmd.PersistentFlags(), &localConfig, varGlobalConfig, "", "CODER_GLOBAL_CONFIG", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
-	cliflag.BoolVarP(cmd.PersistentFlags(), &forceTTY, varForceTty, "", "CODER_FORCE_TTY", false, "Force the `coder` command to run as if connected to a TTY")
+	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
+	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
 	err := cmd.PersistentFlags().MarkHidden(varForceTty)
 	if err != nil {
 		// This should never return an error, because we just added the `--force-tty`` flag prior to calling MarkHidden.
 		panic(err)
 	}
-	cliflag.BoolVarP(cmd.PersistentFlags(), &noOpen, varNoOpen, "", "CODER_NO_OPEN", false, "Block automatically opening URLs in the browser.")
+	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
 	err = cmd.PersistentFlags().MarkHidden(varNoOpen)
 	if err != nil {
 		panic(err)
