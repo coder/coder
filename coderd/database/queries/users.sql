@@ -51,3 +51,9 @@ SET
 	updated_at = $5
 WHERE
 	id = $1 RETURNING *;
+
+-- name: GetUsers :many
+SELECT
+	*
+FROM
+	users;
