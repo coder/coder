@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 
-	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,69 +25,65 @@ type startConfig struct {
 	SSHKeygenAlgorithmRaw  string `yaml:"ssh-keygen-algorithm"`
 }
 
-func mergeStartConfig(cmd *cobra.Command, flags startConfig) startConfig {
-	var cfg startConfig
-	f, err := cmd.Flags().GetString(varStartConfig)
+func mergeStartConfig(file string, flagCfg startConfig) startConfig {
+	var fileCfg startConfig
+	b, err := os.ReadFile(file)
 	if err != nil {
-		return flags
+		return flagCfg
 	}
-	b, err := os.ReadFile(f)
+	err = yaml.Unmarshal(b, fileCfg)
 	if err != nil {
-		return flags
-	}
-	err = yaml.Unmarshal(b, cfg)
-	if err != nil {
-		return flags
+		return flagCfg
 	}
 
-	if flags.AccessURL != "" {
-		cfg.AccessURL = flags.AccessURL
+	if flagCfg.AccessURL != "" {
+		fileCfg.AccessURL = flagCfg.AccessURL
 	}
-	if flags.Address != "" {
-		cfg.Address = flags.Address
+	if flagCfg.Address != "" {
+		fileCfg.Address = flagCfg.Address
 	}
-	if flags.CacheDir != "" {
-		cfg.CacheDir = flags.CacheDir
+	if flagCfg.CacheDir != "" {
+		fileCfg.CacheDir = flagCfg.CacheDir
 	}
-	if flags.Dev {
-		cfg.Dev = flags.Dev
+	if flagCfg.Dev {
+		fileCfg.Dev = flagCfg.Dev
 	}
-	if flags.PostgresURL != "" {
-		cfg.PostgresURL = flags.PostgresURL
+	if flagCfg.PostgresURL != "" {
+		fileCfg.PostgresURL = flagCfg.PostgresURL
 	}
-	if flags.ProvisionerDaemonCount != 0 {
-		cfg.ProvisionerDaemonCount = flags.ProvisionerDaemonCount
+	if flagCfg.ProvisionerDaemonCount != 0 {
+		fileCfg.ProvisionerDaemonCount = flagCfg.ProvisionerDaemonCount
 	}
-	if flags.TLSCertFile != "" {
-		cfg.TLSCertFile = flags.TLSCertFile
+	if flagCfg.TLSCertFile != "" {
+		fileCfg.TLSCertFile = flagCfg.TLSCertFile
 	}
-	if flags.TLSClientCAFile != "" {
-		cfg.TLSClientCAFile = flags.TLSClientCAFile
+	if flagCfg.TLSClientCAFile != "" {
+		fileCfg.TLSClientCAFile = flagCfg.TLSClientCAFile
 	}
-	if flags.TLSClientAuth != "" {
-		cfg.TLSClientAuth = flags.TLSClientAuth
+	if flagCfg.TLSClientAuth != "" {
+		fileCfg.TLSClientAuth = flagCfg.TLSClientAuth
 	}
-	if flags.TLSEnable {
-		cfg.TLSEnable = flags.TLSEnable
+	if flagCfg.TLSEnable {
+		fileCfg.TLSEnable = flagCfg.TLSEnable
 	}
-	if flags.TLSKeyFile != "" {
-		cfg.TLSKeyFile = flags.TLSKeyFile
+	if flagCfg.TLSKeyFile != "" {
+		fileCfg.TLSKeyFile = flagCfg.TLSKeyFile
 	}
-	if flags.TLSMinVersion != "" {
-		cfg.TLSMinVersion = flags.TLSMinVersion
+	if flagCfg.TLSMinVersion != "" {
+		fileCfg.TLSMinVersion = flagCfg.TLSMinVersion
 	}
-	if flags.SkipTunnel {
-		cfg.SkipTunnel = flags.SkipTunnel
+	if flagCfg.SkipTunnel {
+		fileCfg.SkipTunnel = flagCfg.SkipTunnel
 	}
-	if flags.TraceDatadog {
-		cfg.TraceDatadog = flags.TraceDatadog
+	if flagCfg.TraceDatadog {
+		fileCfg.TraceDatadog = flagCfg.TraceDatadog
 	}
-	if flags.SecureAuthCookie {
-		cfg.SecureAuthCookie = flags.SecureAuthCookie
+	if flagCfg.SecureAuthCookie {
+		fileCfg.SecureAuthCookie = flagCfg.SecureAuthCookie
 	}
-	if flags.SSHKeygenAlgorithmRaw != "" {
-		cfg.SSHKeygenAlgorithmRaw = flags.SSHKeygenAlgorithmRaw
+	if flagCfg.SSHKeygenAlgorithmRaw != "" {
+		fileCfg.SSHKeygenAlgorithmRaw = flagCfg.SSHKeygenAlgorithmRaw
 	}
 
-	return cfg
+	return fileCfg
 }

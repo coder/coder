@@ -31,7 +31,6 @@ const (
 func Root() *cobra.Command {
 	var (
 		localConfig string
-		startConfig string
 		forceTTY    bool
 		noOpen      bool
 	)

@@ -42,12 +42,15 @@ import (
 )
 
 func start() *cobra.Command {
-	var flagConfig startConfig
+	var (
+		startConfigFile string
+		flagConfig      startConfig
+	)
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// read start.yaml config file and apply flag and env var overrides
-			cfg := mergeStartConfig(cmd, flagConfig)
+			cfg := mergeStartConfig(startConfigFile, flagConfig)
 
 			if cfg.TraceDatadog {
 				tracer.Start()
@@ -336,6 +339,7 @@ func start() *cobra.Command {
 		},
 	}
 
+	cliflag.StringVarP(root.Flags(), &startConfigFile, "start-config", "", "CODER_START_CONFIG", "", "Specifies the start.yaml config file location")
 	cliflag.StringVarP(root.Flags(), &flagConfig.AccessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
 	cliflag.StringVarP(root.Flags(), &flagConfig.Address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
 	// systemd uses the CACHE_DIRECTORY environment variable!
