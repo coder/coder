@@ -32,8 +32,8 @@ types:
   # Any work performed on CI.
   - ci
   
-  # Any work that improves documentation and examples.
-  - docs
+  # Work that creates or improves examples
+  - example
 
   # Work that directly implements or supports the implementation of a feature.
   - feat
