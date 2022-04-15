@@ -42,11 +42,13 @@ import (
 )
 
 func start() *cobra.Command {
-	var cfg = parseStartConfig(filepath.Join(varGlobalConfig, "coderd.yaml"))
-
+	var flagConfig startConfig
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// read start.yaml config file and apply flag and env var overrides
+			cfg := mergeStartConfig(cmd, flagConfig)
+
 			if cfg.TraceDatadog {
 				tracer.Start()
 				defer tracer.Stop()
@@ -334,32 +336,32 @@ func start() *cobra.Command {
 		},
 	}
 
-	cliflag.StringVarP(root.Flags(), &cfg.AccessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
-	cliflag.StringVarP(root.Flags(), &cfg.Address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
+	cliflag.StringVarP(root.Flags(), &flagConfig.AccessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
+	cliflag.StringVarP(root.Flags(), &flagConfig.Address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
 	// systemd uses the CACHE_DIRECTORY environment variable!
-	cliflag.StringVarP(root.Flags(), &cfg.CacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
-	cliflag.BoolVarP(root.Flags(), &cfg.Dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
-	cliflag.StringVarP(root.Flags(), &cfg.PostgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
-	cliflag.Uint8VarP(root.Flags(), &cfg.ProvisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
-	cliflag.BoolVarP(root.Flags(), &cfg.TLSEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
-	cliflag.StringVarP(root.Flags(), &cfg.TLSCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
+	cliflag.StringVarP(root.Flags(), &flagConfig.CacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
+	cliflag.BoolVarP(root.Flags(), &flagConfig.Dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
+	cliflag.StringVarP(root.Flags(), &flagConfig.PostgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
+	cliflag.Uint8VarP(root.Flags(), &flagConfig.ProvisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
+	cliflag.BoolVarP(root.Flags(), &flagConfig.TLSEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
+	cliflag.StringVarP(root.Flags(), &flagConfig.TLSCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
 			"To configure the listener to use a CA certificate, concatenate the primary certificate "+
 			"and the CA certificate together. The primary certificate should appear first in the combined file")
-	cliflag.StringVarP(root.Flags(), &cfg.TLSClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
+	cliflag.StringVarP(root.Flags(), &flagConfig.TLSClientCAFile, "tls-client-ca-file", "", "CODER_TLS_CLIENT_CA_FILE", "",
 		"PEM-encoded Certificate Authority file used for checking the authenticity of client")
-	cliflag.StringVarP(root.Flags(), &cfg.TLSClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
+	cliflag.StringVarP(root.Flags(), &flagConfig.TLSClientAuth, "tls-client-auth", "", "CODER_TLS_CLIENT_AUTH", "request",
 		`Specifies the policy the server will follow for TLS Client Authentication. `+
 			`Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify"`)
-	cliflag.StringVarP(root.Flags(), &cfg.TLSKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
+	cliflag.StringVarP(root.Flags(), &flagConfig.TLSKeyFile, "tls-key-file", "", "CODER_TLS_KEY_FILE", "",
 		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
-	cliflag.StringVarP(root.Flags(), &cfg.TLSMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
+	cliflag.StringVarP(root.Flags(), &flagConfig.TLSMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflag.BoolVarP(root.Flags(), &cfg.SkipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
+	cliflag.BoolVarP(root.Flags(), &flagConfig.SkipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
 	_ = root.Flags().MarkHidden("skip-tunnel")
-	cliflag.BoolVarP(root.Flags(), &cfg.TraceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
-	cliflag.BoolVarP(root.Flags(), &cfg.SecureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
-	cliflag.StringVarP(root.Flags(), &cfg.SSHKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
+	cliflag.BoolVarP(root.Flags(), &flagConfig.TraceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &flagConfig.SecureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
+	cliflag.StringVarP(root.Flags(), &flagConfig.SSHKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
 
 	return root
