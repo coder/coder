@@ -25,7 +25,7 @@ types:
   # A build of any kind.
   - build
 
-  # Any code task that operats outside of CI, docs, or the product. Examples
+  # Any code task that operates outside of CI, docs, or the product. Examples
   # include configurations, linters etc.
   - chore
 
