@@ -23,7 +23,7 @@ Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
 			"amd64": `
 #!/usr/bin/env sh
 set -eu pipefail
-export BINARY_LOCATION=$(mktemp -d)/coder
+export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
 curl -fsSL ${ACCESS_URL}bin/coder-linux-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_AUTH="${AUTH_TYPE}"
@@ -35,7 +35,7 @@ exec $BINARY_LOCATION agent
 			"amd64": `
 #!/usr/bin/env sh
 set -eu pipefail
-export BINARY_LOCATION=$(mktemp -d)/coder
+export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
 curl -fsSL ${ACCESS_URL}bin/coder-darwin-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_AUTH="${AUTH_TYPE}"
