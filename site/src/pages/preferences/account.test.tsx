@@ -36,7 +36,7 @@ describe("PreferencesAccountPage", () => {
   })
 
   describe("when it is a success", () => {
-    it.only("shows the success message", async () => {
+    it("shows the success message", async () => {
       jest.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>
         Promise.resolve({
           id: userId,

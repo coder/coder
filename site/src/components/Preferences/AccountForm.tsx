@@ -55,7 +55,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
       <form onSubmit={form.handleSubmit}>
         <Stack>
           <TextField
-            {...getFormHelpers<AccountFormValues>(form, "name", formErrors)}
+            {...getFormHelpers<AccountFormValues>(form, "name")}
             autoFocus
             autoComplete="name"
             fullWidth
@@ -63,7 +63,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             variant="outlined"
           />
           <TextField
-            {...getFormHelpers<AccountFormValues>(form, "email", formErrors)}
+            {...getFormHelpers<AccountFormValues>(form, "email", formErrors.email)}
             onChange={onChangeTrimmed(form)}
             autoComplete="email"
             fullWidth
@@ -71,7 +71,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
             variant="outlined"
           />
           <TextField
-            {...getFormHelpers<AccountFormValues>(form, "username", formErrors)}
+            {...getFormHelpers<AccountFormValues>(form, "username", formErrors.username)}
             onChange={onChangeTrimmed(form)}
             autoComplete="username"
             fullWidth
