@@ -19,7 +19,7 @@ export type AuthEvent =
   | { type: "UPDATE_PROFILE"; data: Types.UpdateProfileRequest }
 
 export const authMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogCMABgCcAFkLyZAVilS5GgEwAOAMwA2ADQgAnogDsa5YcOXD2y7oWH92-QF9PptFlz4RKQUJORQDOS0ECJEoQBufADWQWTkEWL8gsKiSBKI7kraqpZSuh7aUvpy6vqmFghlcoT6qgb6GsUlctrevhg4eATEqaHhkWAAThN8E4Q8ADb4AGYzALbDFOm5mSRCImKSCLKKynJqGlpSekZ1iIaltvaOzq4FvSB+A4GEMOhCYQBVWCTKIxQjxJJEX4AWTAGQEu2yB0QrikhG0Mn0+l0ulUWJkhlatXMKKqynkCn0lOscnsUnenwCQ1+-ygQJBk2mswWyzWPzA6Fh8Ky+1yh202iacip2I8hjU9m0twQ1lUzSk9hkHlUCjU2kMDP6TJSFEgETm0yWJHmRFQPAg+FGAAVLdawKDKODyAlkoRGYMTZQIOaeK6bYQ7Q7WS6+FabQgIQBjR0iADaMgAusLEaLQIcNJY1YpZB5pQpJVJLMqMbpCKVulVCY5aZXDf4AxsgyGw7b7Y6wjG4+7OTM5ot0CsJut-d9gl3yBbY26I33oz2E96+Mm9uR01ntgid8iGlpCLpLNoFJXpYXHLplbr9IRi4oZDJdHJLIpim2vkM52aC6hkuNq0ACToACIAIIACoAKJsE6ABKVAAGIMAAMnB2ZHmKiDnjI6oOG4ihVM4yqfuiVS6hqEqFooBo+B8RodgBwaRIwrBsFQAIwThSJ4UcWLorSWKqDIlhGJWlhViSCCUaWNGOE4qiKHIv7Gp2ow0OgHqxJuvpzjp-G5nkCDuE+F5yLohiUqU2oeMqOq1moH4XrZL5eExM7-iMYQ6bQI7cuOk7rEZGAmTkeaIEUaruB+CjqFcRL6LJ9RFIRqUKFexQZQYEreEx5B8BAcBiD5gbUBFB4ilFZnqIYhBuNSajYoS1nKoWT4KAYqkeO0GKGOp3ksbOfljJFx5XPKdZ4hJ0qfu0ypDdoZ4ahe4klLiegaR2LKjOyEyTYJ5bKroGpnkSWiSbimiqLtY2muxi5DuCEDhsVcFTDMx3RUc0lnoWb4KJJhJag+F1ZZSqiDdZGKWA9vlPd2IGxO9RBBb9ZkFpYgPiTIINGOJSpya4jXiYo2WfvqEkSYjlXPcBr0kOjWP5lIeJ48DoPE8qMrNJY2VXKUzy6PTnaAS9y6Rv2UCDm6bP4QYhD0ZUqUltiUjKndTUfqWTaSvcCMje2j3zlLNqKw0rhEXY1FkfeclXFRN42Vqah4oYYsm3+DNbLwh4CX9ZSre0xH25+jv1AAtDNDgEgSqhJ7ZuKEuLc7adVAe1ce7iEFTl6FkUOIyFIChOeJyitGWpQEho9I+8aVu1gXIMw60uil+XcnR2rKvyvKydnBzrSFZ4QA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogCMABgCcAFkLyZAVilS5GgEwAOAMwA2ADQgAnogDsa5YcOXD2y7oWH92-QF9PptFlz4RKQUJORQDOS0ECJEoQBufADWQWTkEWL8gsKiSBKI7kraqpZSuh7aUvpy6vqmFghlcoT6qgb6GsUlctrevhg4eATEqaHhkWAAThN8E4Q8ADb4AGYzALbDFOm5mSRCImKSCLKKynJqGlpSekZ1iIaltvaOzq4FvSB+A4GEMOhCYQBVWCTKIxQjxJJEX4AWTAGQEu2yB0QrikhG0Mn0+l0ulUWJkhlatXMKKqynkCn0lOscnsUnenwCQ1+-ygQJBk2mswWyzWPzA6Fh8Ky+1yh202iacip2I8hjU9m0twQ1lUzSk9hkHlUCjU2kMDP6TJSFEgETm0yWJHmsQgNtoAIACgARACCABUAKJsR0AJSoADEGAAZT3CxGi0CHGTKmSG-yDE2UCDmniW61EVA8CD4UaO9P26KUcHkBLJQiMxMbZOpguZ7O5sL5vhWm0ICEAY1zIgA2jIALrhvY5KPSKSWNWKWQeaUKSXj5UY3SEUrdKqExy08fxr5DYI18gWlsZwhZnOs5utsC0TkzOaLdArCbrSvffdmw9p48208Ni919tSz4Lthz7QdtgRYdkQaLRCF0SxtAUcdpQnRxdGVXV9EIKdFBkGRdDkSxFGKHdjWrD96GYdgqABd0hyRMVpCxdFaSxVQZEsIxx0sSxlUI9Eql1DUJQnRQ5FIqt91GGh0FBYsIXLfcZPoyM8gQdwsIQuRdEMSlSm1DxlR1Zc1AIhDdJwrwfA+I1JJGMIZJvKY7x5R8+SUjAVJHNSijVdwCIUdQriJfReJJBAihkZpLAUJDikigwJW8azyD4CA4DEV891SahPIgkVvMOdRDEINxqTUbFCW05UJywhQDFUNd2gxQxxOsrKk1GLZeEghjRyOfUoqkPEOOlQj2mVVrtDgjUEPYkpcT0CTvhZUZ2QmLzoLnZVdA1OCiS0TjcU0VRluy00U0-OtwTtIhUs9ZyNvyiNCrHHi4InPCFE4wktQwvbQtiloWu0jFLDOpMPyPK8bp-W8np6groI0d74PYmRvqMdilXC1wSvYxRYsIwbrHB9rbLfHLLuhk8SFuzbGKOYasLRr6fux5UZWi2KCclXarL6BNKYu2tv3rc88zrBn+pxTTGsqULp2xKRlRO0qCJnDdJXuMnBd3SHqa-K9pbUgBaRDlVNzjyTwjpOM+1QDXJoXzoPE3DlN+rLakVwba1dpvvYjQIeraS8sRl7oPcQgicQicihxGQfaM9jlFaWdSgJDR6Wd-X3cQZdY8DhPdCThRLY8dUOPsBwDE4wjdGSzwgA */
   createMachine(
     {
       context: { me: undefined, getUserError: undefined, authError: undefined, updateProfileError: undefined },
@@ -94,22 +94,21 @@ export const authMachine =
               initial: "idle",
               states: {
                 idle: {
-                  on: {
-                    UPDATE_PROFILE: {
-                      target: "#authState.signedIn.profile.updatingProfile",
-                    },
-                  },
                   initial: "noError",
                   states: {
                     noError: {},
                     error: {},
                   },
+                  on: {
+                    UPDATE_PROFILE: {
+                      target: "updatingProfile",
+                    },
+                  },
                 },
                 updatingProfile: {
-                  entry: ["clearUpdateProfileError"],
+                  entry: "clearUpdateProfileError",
                   invoke: {
                     src: "updateProfile",
-
                     onDone: [
                       {
                         actions: ["assignMe", "notifySuccessProfileUpdate"],
