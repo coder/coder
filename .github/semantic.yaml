@@ -25,26 +25,22 @@ types:
   # A build of any kind.
   - build
 
-  # A RELEASED fix that will NOT be back-ported. The originating issue may have
-  # been discovered internally or externally to Coder.
-  - fix
-
-  # Any code task that is ignored for changelog purposes. Examples include
-  # devbin scripts and internal-only configurations.
+  # Any code task that operates outside of CI, docs, or the product. Examples
+  # include configurations, linters etc.
   - chore
 
   # Any work performed on CI.
   - ci
-
-  # An UNRELEASED correction. For example, features are often built
-  # incrementally and sometimes introduce minor flaws during a release cycle.
-  # Corrections address those increments and flaws.
-  - correct
+  
+  - example
 
   # Work that directly implements or supports the implementation of a feature.
   - feat
 
-  # A fix for a RELEASED bug (regression fix) that is intended for patch-release
+  # A fix for either a released or unrelesed bug.
+  - fix
+
+  # A fix for a released bug (regression fix) that is intended for patch-release
   # purposes.
   - hotfix
 
