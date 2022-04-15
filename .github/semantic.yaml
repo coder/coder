@@ -32,7 +32,7 @@ types:
   # Any work performed on CI.
   - ci
   
-  # Work that creates or improves examples
+  # Work that creates or improves examples.
   - example
 
   # Work that directly implements or supports the implementation of a feature.
