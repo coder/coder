@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
@@ -69,46 +70,10 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashedPassword, err := userpassword.Hash(createUser.Password)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("hash password: %s", err.Error()),
-		})
-		return
-	}
-
 	// Create the user, organization, and membership to the user.
 	var user database.User
 	var organization database.Organization
 	err = api.Database.InTx(func(db database.Store) error {
-		user, err = api.Database.InsertUser(r.Context(), database.InsertUserParams{
-			ID:             uuid.New(),
-			Email:          createUser.Email,
-			HashedPassword: []byte(hashedPassword),
-			Username:       createUser.Username,
-			LoginType:      database.LoginTypeBuiltIn,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-		})
-		if err != nil {
-			return xerrors.Errorf("create user: %w", err)
-		}
-
-		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
-		if err != nil {
-			return xerrors.Errorf("generate user gitsshkey: %w", err)
-		}
-		_, err = db.InsertGitSSHKey(r.Context(), database.InsertGitSSHKeyParams{
-			UserID:     user.ID,
-			CreatedAt:  database.Now(),
-			UpdatedAt:  database.Now(),
-			PrivateKey: privateKey,
-			PublicKey:  publicKey,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert user gitsshkey: %w", err)
-		}
-
 		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      createUser.OrganizationName,
@@ -118,15 +83,14 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
 		}
-		_, err = api.Database.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+		user, err = api.createUser(r.Context(), db, codersdk.CreateUserRequest{
+			Email:          createUser.Email,
+			Username:       createUser.Username,
+			Password:       createUser.Password,
 			OrganizationID: organization.ID,
-			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			Roles:          []string{"organization-admin"},
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
+			return xerrors.Errorf("create user: %w", err)
 		}
 		return nil
 	})
@@ -199,56 +163,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashedPassword, err := userpassword.Hash(createUser.Password)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("hash password: %s", err.Error()),
-		})
-		return
-	}
-
-	var user database.User
-	err = api.Database.InTx(func(db database.Store) error {
-		user, err = db.InsertUser(r.Context(), database.InsertUserParams{
-			ID:             uuid.New(),
-			Email:          createUser.Email,
-			HashedPassword: []byte(hashedPassword),
-			Username:       createUser.Username,
-			LoginType:      database.LoginTypeBuiltIn,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-		})
-		if err != nil {
-			return xerrors.Errorf("create user: %w", err)
-		}
-
-		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
-		if err != nil {
-			return xerrors.Errorf("generate user gitsshkey: %w", err)
-		}
-		_, err = db.InsertGitSSHKey(r.Context(), database.InsertGitSSHKeyParams{
-			UserID:     user.ID,
-			CreatedAt:  database.Now(),
-			UpdatedAt:  database.Now(),
-			PrivateKey: privateKey,
-			PublicKey:  publicKey,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert user gitsshkey: %w", err)
-		}
-
-		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
-			OrganizationID: organization.ID,
-			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			Roles:          []string{},
-		})
-		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
-		}
-		return nil
-	})
+	user, err := api.createUser(r.Context(), api.Database, createUser)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
@@ -479,41 +394,10 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyID, keySecret, err := generateAPIKeyIDSecret()
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("generate api key parts: %s", err.Error()),
-		})
+	sessionToken, created := api.createAPIKey(rw, r, user.ID)
+	if !created {
 		return
 	}
-	hashed := sha256.Sum256([]byte(keySecret))
-
-	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:           keyID,
-		UserID:       user.ID,
-		ExpiresAt:    database.Now().Add(24 * time.Hour),
-		CreatedAt:    database.Now(),
-		UpdatedAt:    database.Now(),
-		HashedSecret: hashed[:],
-		LoginType:    database.LoginTypeBuiltIn,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("insert api key: %s", err.Error()),
-		})
-		return
-	}
-
-	// This format is consumed by the APIKey middleware.
-	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
-	http.SetCookie(rw, &http.Cookie{
-		Name:     httpmw.AuthCookie,
-		Value:    sessionToken,
-		Path:     "/",
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   api.SecureAuthCookie,
-	})
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: sessionToken,
@@ -532,35 +416,12 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyID, keySecret, err := generateAPIKeyIDSecret()
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("generate api key parts: %s", err.Error()),
-		})
-		return
-	}
-	hashed := sha256.Sum256([]byte(keySecret))
-
-	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:           keyID,
-		UserID:       apiKey.UserID,
-		ExpiresAt:    database.Now().AddDate(1, 0, 0), // Expire after 1 year (same as v1)
-		CreatedAt:    database.Now(),
-		UpdatedAt:    database.Now(),
-		HashedSecret: hashed[:],
-		LoginType:    database.LoginTypeBuiltIn,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("insert api key: %s", err.Error()),
-		})
+	sessionToken, created := api.createAPIKey(rw, r, user.ID)
+	if !created {
 		return
 	}
 
-	// This format is consumed by the APIKey middleware.
-	generatedAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
-
-	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: generatedAPIKey})
+	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: sessionToken})
 }
 
 // Clear the user's session cookie
@@ -929,4 +790,93 @@ func convertUser(user database.User) codersdk.User {
 		Username:  user.Username,
 		Name:      user.Name,
 	}
+}
+
+func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, userID uuid.UUID) (string, bool) {
+	keyID, keySecret, err := generateAPIKeyIDSecret()
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("generate api key parts: %s", err.Error()),
+		})
+		return "", false
+	}
+	hashed := sha256.Sum256([]byte(keySecret))
+
+	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+		ID:           keyID,
+		UserID:       userID,
+		ExpiresAt:    database.Now().Add(24 * time.Hour),
+		CreatedAt:    database.Now(),
+		UpdatedAt:    database.Now(),
+		HashedSecret: hashed[:],
+		LoginType:    database.LoginTypeBuiltIn,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("insert api key: %s", err.Error()),
+		})
+		return "", false
+	}
+
+	// This format is consumed by the APIKey middleware.
+	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
+	http.SetCookie(rw, &http.Cookie{
+		Name:     httpmw.AuthCookie,
+		Value:    sessionToken,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   api.SecureAuthCookie,
+	})
+	return sessionToken, true
+}
+
+func (api *api) createUser(ctx context.Context, db database.Store, req codersdk.CreateUserRequest) (database.User, error) {
+	params := database.InsertUserParams{
+		ID:        uuid.New(),
+		Email:     req.Email,
+		Username:  req.Username,
+		LoginType: database.LoginTypeBuiltIn,
+		CreatedAt: database.Now(),
+		UpdatedAt: database.Now(),
+	}
+	// If a user signs up with OAuth, they can have no password!
+	if req.Password != "" {
+		hashedPassword, err := userpassword.Hash(req.Password)
+		if err != nil {
+			return database.User{}, xerrors.Errorf("hash password: %w", err)
+		}
+		params.HashedPassword = []byte(hashedPassword)
+	}
+
+	user, err := db.InsertUser(ctx, params)
+	if err != nil {
+		return database.User{}, xerrors.Errorf("create user: %w", err)
+	}
+
+	privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
+	if err != nil {
+		return database.User{}, xerrors.Errorf("generate user gitsshkey: %w", err)
+	}
+	_, err = db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+		UserID:     user.ID,
+		CreatedAt:  database.Now(),
+		UpdatedAt:  database.Now(),
+		PrivateKey: privateKey,
+		PublicKey:  publicKey,
+	})
+	if err != nil {
+		return database.User{}, xerrors.Errorf("insert user gitsshkey: %w", err)
+	}
+	_, err = db.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+		OrganizationID: req.OrganizationID,
+		UserID:         user.ID,
+		CreatedAt:      database.Now(),
+		UpdatedAt:      database.Now(),
+		Roles:          []string{},
+	})
+	if err != nil {
+		return database.User{}, xerrors.Errorf("create organization member: %w", err)
+	}
+	return user, nil
 }

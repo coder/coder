@@ -453,6 +453,42 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 	return i, err
 }
 
+const getOrganizations = `-- name: GetOrganizations :many
+SELECT
+	id, name, description, created_at, updated_at
+FROM
+	organizations
+`
+
+func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Organization
+	for rows.Next() {
+		var i Organization
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
 	id, name, description, created_at, updated_at

@@ -34,6 +34,7 @@ type Options struct {
 
 	AWSCertificates      awsidentity.Certificates
 	GoogleTokenValidator *idtoken.Validator
+	GithubOAuth2Provider GithubOAuth2Provider
 
 	SecureAuthCookie   bool
 	SSHKeygenAlgorithm gitsshkey.Algorithm
@@ -142,6 +143,12 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)
 			r.Post("/logout", api.postLogout)
+			r.Route("/auth", func(r chi.Router) {
+				r.Route("/callback/github", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Provider))
+					r.Get("/", api.userAuthGithub)
+				})
+			})
 			r.Group(func(r chi.Router) {
 				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
 				r.Post("/", api.postUsers)

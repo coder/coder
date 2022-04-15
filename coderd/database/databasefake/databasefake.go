@@ -365,6 +365,16 @@ func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetW
 	return workspaces, nil
 }
 
+func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if len(q.organizations) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return q.organizations, nil
+}
+
 func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

@@ -49,6 +49,7 @@ import (
 
 type Options struct {
 	AWSInstanceIdentity    awsidentity.Certificates
+	GithubOAuth2Provider   coderd.GithubOAuth2Provider
 	GoogleInstanceIdentity *idtoken.Validator
 	SSHKeygenAlgorithm     gitsshkey.Algorithm
 }
@@ -115,6 +116,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		Pubsub:                         pubsub,
 
 		AWSCertificates:      options.AWSInstanceIdentity,
+		GithubOAuth2Provider: options.GithubOAuth2Provider,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 	})
