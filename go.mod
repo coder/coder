@@ -79,7 +79,7 @@ require (
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
-	github.com/pion/webrtc/v3 v3.1.27
+	github.com/pion/webrtc/v3 v3.1.28
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/sftp v1.13.4
 	github.com/quasilyte/go-ruleguard/dsl v0.3.19
@@ -186,12 +186,12 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.0-beta.6 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pion/dtls/v2 v2.1.3 // indirect
-	github.com/pion/ice/v2 v2.2.2 // indirect
+	github.com/pion/ice/v2 v2.2.3 // indirect
 	github.com/pion/interceptor v0.1.10 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.9 // indirect
-	github.com/pion/rtp v1.7.9 // indirect
+	github.com/pion/rtp v1.7.12 // indirect
 	github.com/pion/sctp v1.8.2 // indirect
 	github.com/pion/sdp/v3 v3.0.4 // indirect
 	github.com/pion/srtp/v2 v2.0.5 // indirect
@@ -219,7 +219,7 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/net v0.0.0-20220325170049-de3da57026de // indirect
+	golang.org/x/net v0.0.0-20220401154927-543a649e0bdd // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
