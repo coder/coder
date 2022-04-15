@@ -17,8 +17,13 @@ interface FormHelpers {
   helperText?: string
 }
 
-export const getFormHelpers = <T>(form: FormikContextType<T>, name: string, error?: string): FormHelpers => {
-  // getIn is a util function from Formik that gets at any depth of nesting, and is necessary for the types to work
+export const getFormHelpers = <T>(form: FormikContextType<T>, name: keyof T, error?: string): FormHelpers => {
+  if (typeof name !== "string") {
+    throw new Error(`name must be type of string, instead received '${typeof name}'`)
+  }
+
+  // getIn is a util function from Formik that gets at any depth of nesting
+  // and is necessary for the types to work
   const touched = getIn(form.touched, name)
   const errors = error ?? getIn(form.errors, name)
   return {
