@@ -3,6 +3,7 @@
 package schedule
 
 import (
+	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -10,16 +11,19 @@ import (
 )
 
 // For the purposes of this library, we only need minute, hour, and
-// day-of-week.
-const parserFormatWeekly = cron.Minute | cron.Hour | cron.Dow
+// day-of-week. However to ensure interoperability we will use the standard
+// five-valued cron format. Descriptors are not supported.
+const parserFormat = cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow
 
-var defaultParser = cron.NewParser(parserFormatWeekly)
+var defaultParser = cron.NewParser(parserFormat)
 
 // Weekly parses a Schedule from spec scoped to a recurring weekly event.
 // Spec consists of the following space-delimited fields, in the following order:
 // - timezone e.g. CRON_TZ=US/Central (optional)
 // - minutes of hour e.g. 30 (required)
 // - hour of day e.g. 9 (required)
+// - day of month (must be *)
+// - month (must be *)
 // - day of week e.g. 1 (required)
 //
 // Example Usage:
@@ -31,6 +35,10 @@ var defaultParser = cron.NewParser(parserFormatWeekly)
 //  fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //  // Output: 2022-04-04T14:30:00Z
 func Weekly(spec string) (*Schedule, error) {
+	if err := validateWeeklySpec(spec); err != nil {
+		return nil, xerrors.Errorf("validate weekly schedule: %w", err)
+	}
+
 	specSched, err := defaultParser.Parse(spec)
 	if err != nil {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
@@ -64,4 +72,20 @@ func (s Schedule) String() string {
 // Next returns the next time in the schedule relative to t.
 func (s Schedule) Next(t time.Time) time.Time {
 	return s.sched.Next(t)
+}
+
+// validateWeeklySpec ensures that the day-of-month and month options of
+// spec are both set to *
+func validateWeeklySpec(spec string) error {
+	parts := strings.Fields(spec)
+	if len(parts) < 5 {
+		return xerrors.Errorf("expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix")
+	}
+	if len(parts) == 6 {
+		parts = parts[1:]
+	}
+	if parts[2] != "*" || parts[3] != "*" {
+		return xerrors.Errorf("expected month and dom to be *")
+	}
+	return nil
 }
