@@ -6,8 +6,14 @@
 # SEE: https://www.chromatic.com/docs/ci
 name: chromatic
 
-# Chromatic works best with push events, not pull_request or other event types.
-on: push
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+
+  pull_request:
 
 jobs:
   deploy:
