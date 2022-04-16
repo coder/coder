@@ -205,7 +205,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:             "friday to monday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 1-5",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * 1-5",
 			expectedError:    "",
 			at:               time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
@@ -213,7 +213,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:             "monday to tuesday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 1-5",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * 1-5",
 			expectedError:    "",
 			at:               time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
@@ -222,7 +222,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland began on Mar 27 in 2022 at 0100. Forward 1 hour.
 			name:             "DST start",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 *",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * *",
 			expectedError:    "",
 			at:               time.Date(2022, 3, 26, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 3, 27, 9, 30, 0, 0, dublinLoc),
@@ -231,7 +231,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland ends on Oct 30 in 2022 at 0200. Back 1 hour.
 			name:             "DST end",
-			schedule:         "CRON_TZ=Europe/Dublin 30 9 *",
+			schedule:         "CRON_TZ=Europe/Dublin 30 9 * * *",
 			expectedError:    "",
 			at:               time.Date(2022, 10, 29, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 10, 30, 9, 30, 0, 0, dublinLoc),
@@ -239,13 +239,18 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:          "invalid location",
-			schedule:      "CRON_TZ=Imaginary/Place 30 9 1-5",
+			schedule:      "CRON_TZ=Imaginary/Place 30 9 * * 1-5",
 			expectedError: "status code 500: invalid autostart schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
 			schedule:      "asdf asdf asdf ",
-			expectedError: `status code 500: invalid autostart schedule: parse schedule: failed to parse int from asdf: strconv.Atoi: parsing "asdf": invalid syntax`,
+			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+		},
+		{
+			name:          "only 3 values",
+			schedule:      "CRON_TZ=Europe/Dublin 30 9 *",
+			expectedError: `status code 500: invalid autostart schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 	}
 
@@ -334,7 +339,7 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 		},
 		{
 			name:             "friday to monday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 17 1-5",
+			schedule:         "CRON_TZ=Europe/Dublin 30 17 * * 1-5",
 			expectedError:    "",
 			at:               time.Date(2022, 5, 6, 17, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 9, 17, 30, 0, 0, dublinLoc),
@@ -342,7 +347,7 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 		},
 		{
 			name:             "monday to tuesday",
-			schedule:         "CRON_TZ=Europe/Dublin 30 17 1-5",
+			schedule:         "CRON_TZ=Europe/Dublin 30 17 * * 1-5",
 			expectedError:    "",
 			at:               time.Date(2022, 5, 9, 17, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 10, 17, 30, 0, 0, dublinLoc),
@@ -351,7 +356,7 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 		{
 			// DST in Ireland began on Mar 27 in 2022 at 0100. Forward 1 hour.
 			name:             "DST start",
-			schedule:         "CRON_TZ=Europe/Dublin 30 17 *",
+			schedule:         "CRON_TZ=Europe/Dublin 30 17 * * *",
 			expectedError:    "",
 			at:               time.Date(2022, 3, 26, 17, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 3, 27, 17, 30, 0, 0, dublinLoc),
@@ -360,7 +365,7 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 		{
 			// DST in Ireland ends on Oct 30 in 2022 at 0200. Back 1 hour.
 			name:             "DST end",
-			schedule:         "CRON_TZ=Europe/Dublin 30 17 *",
+			schedule:         "CRON_TZ=Europe/Dublin 30 17 * * *",
 			expectedError:    "",
 			at:               time.Date(2022, 10, 29, 17, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 10, 30, 17, 30, 0, 0, dublinLoc),
@@ -368,13 +373,18 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 		},
 		{
 			name:          "invalid location",
-			schedule:      "CRON_TZ=Imaginary/Place 30 17 1-5",
+			schedule:      "CRON_TZ=Imaginary/Place 30 17 * * 1-5",
 			expectedError: "status code 500: invalid autostop schedule: parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
 			schedule:      "asdf asdf asdf ",
-			expectedError: `status code 500: invalid autostop schedule: parse schedule: failed to parse int from asdf: strconv.Atoi: parsing "asdf": invalid syntax`,
+			expectedError: `status code 500: invalid autostop schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
+		},
+		{
+			name:          "only 3 values",
+			schedule:      "CRON_TZ=Europe/Dublin 30 9 *",
+			expectedError: `status code 500: invalid autostop schedule: validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 	}
 
