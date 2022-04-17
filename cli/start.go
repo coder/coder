@@ -557,6 +557,7 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string) (*
 			RedirectURL:  redirectURL.String(),
 			Scopes: []string{
 				"read:user",
+				"read:org",
 				"user:email",
 			},
 		},
@@ -570,9 +571,11 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string) (*
 			emails, _, err := github.NewClient(client).Users.ListEmails(ctx, &github.ListOptions{})
 			return emails, err
 		},
-		ListOrganizations: func(ctx context.Context, client *http.Client) ([]*github.Organization, error) {
-			orgs, _, err := github.NewClient(client).Organizations.List(ctx, "", &github.ListOptions{})
-			return orgs, err
+		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+			memberships, _, err := github.NewClient(client).Organizations.ListOrgMemberships(ctx, &github.ListOrgMembershipsOptions{
+				State: "active",
+			})
+			return memberships, err
 		},
 	}, nil
 }

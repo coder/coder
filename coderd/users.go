@@ -375,7 +375,10 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, created := api.createAPIKey(rw, r, user.ID)
+	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeBasic,
+	})
 	if !created {
 		return
 	}
@@ -397,7 +400,10 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, created := api.createAPIKey(rw, r, user.ID)
+	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeBasic,
+	})
 	if !created {
 		return
 	}
@@ -773,7 +779,7 @@ func convertUser(user database.User) codersdk.User {
 	}
 }
 
-func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, userID uuid.UUID) (string, bool) {
+func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, params database.InsertAPIKeyParams) (string, bool) {
 	keyID, keySecret, err := generateAPIKeyIDSecret()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -784,12 +790,17 @@ func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, userID uui
 	hashed := sha256.Sum256([]byte(keySecret))
 
 	_, err = api.Database.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-		ID:           keyID,
-		UserID:       userID,
-		ExpiresAt:    database.Now().Add(24 * time.Hour),
-		CreatedAt:    database.Now(),
-		UpdatedAt:    database.Now(),
-		HashedSecret: hashed[:],
+		ID:                keyID,
+		UserID:            params.UserID,
+		ExpiresAt:         database.Now().Add(24 * time.Hour),
+		CreatedAt:         database.Now(),
+		UpdatedAt:         database.Now(),
+		HashedSecret:      hashed[:],
+		LoginType:         params.LoginType,
+		OAuthAccessToken:  params.OAuthAccessToken,
+		OAuthRefreshToken: params.OAuthRefreshToken,
+		OAuthIDToken:      params.OAuthIDToken,
+		OAuthExpiry:       params.OAuthExpiry,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

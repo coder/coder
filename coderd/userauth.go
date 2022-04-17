@@ -20,39 +20,43 @@ import (
 // GithubOAuth2Provider exposes required functions for the Github authentication flow.
 type GithubOAuth2Config struct {
 	httpmw.OAuth2Config
-	AuthenticatedUser func(ctx context.Context, client *http.Client) (*github.User, error)
-	ListEmails        func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error)
-	ListOrganizations func(ctx context.Context, client *http.Client) ([]*github.Organization, error)
+	AuthenticatedUser           func(ctx context.Context, client *http.Client) (*github.User, error)
+	ListEmails                  func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error)
+	ListOrganizationMemberships func(ctx context.Context, client *http.Client) ([]*github.Membership, error)
 
 	AllowSignups       bool
 	AllowOrganizations []string
+}
+
+func (api *api) userAuthMethods(rw http.ResponseWriter, _ *http.Request) {
+	httpapi.Write(rw, http.StatusOK, codersdk.AuthMethods{
+		Password: true,
+		Github:   api.GithubOAuth2Config != nil,
+	})
 }
 
 func (api *api) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	state := httpmw.OAuth2(r)
 
 	oauthClient := oauth2.NewClient(r.Context(), oauth2.StaticTokenSource(state.Token))
-	organizations, err := api.GithubOAuth2Config.ListOrganizations(r.Context(), oauthClient)
+	memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(r.Context(), oauthClient)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get authenticated github user organizations: %s", err),
 		})
 		return
 	}
-	var selectedOrganization *github.Organization
-	for _, organization := range organizations {
-		if organization.Login == nil {
-			continue
-		}
+	var selectedMembership *github.Membership
+	for _, membership := range memberships {
 		for _, allowed := range api.GithubOAuth2Config.AllowOrganizations {
-			if *organization.Login != allowed {
+			if *membership.Organization.Login != allowed {
 				continue
 			}
-			selectedOrganization = organization
+			selectedMembership = membership
 			break
 		}
 	}
-	if selectedOrganization == nil {
+	if selectedMembership == nil {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("You aren't a member of the authorized Github organizations!"),
 		})
@@ -132,7 +136,13 @@ func (api *api) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, created := api.createAPIKey(rw, r, user.ID)
+	_, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
+		UserID:            user.ID,
+		LoginType:         database.LoginTypeGithub,
+		OAuthAccessToken:  state.Token.AccessToken,
+		OAuthRefreshToken: state.Token.RefreshToken,
+		OAuthExpiry:       state.Token.Expiry,
+	})
 	if !created {
 		return
 	}

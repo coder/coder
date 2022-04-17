@@ -31,6 +31,28 @@ func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSou
 	return nil
 }
 
+func TestUserAuthMethods(t *testing.T) {
+	t.Parallel()
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		methods, err := client.AuthMethods(context.Background())
+		require.NoError(t, err)
+		require.True(t, methods.Password)
+		require.False(t, methods.Github)
+	})
+	t.Run("Github", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{},
+		})
+		methods, err := client.AuthMethods(context.Background())
+		require.NoError(t, err)
+		require.True(t, methods.Password)
+		require.True(t, methods.Github)
+	})
+}
+
 func TestUserOAuth2Github(t *testing.T) {
 	t.Parallel()
 	t.Run("NotInAllowedOrganization", func(t *testing.T) {
@@ -38,9 +60,11 @@ func TestUserOAuth2Github(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config: &oauth2Config{},
-				ListOrganizations: func(ctx context.Context, client *http.Client) ([]*github.Organization, error) {
-					return []*github.Organization{{
-						Login: github.String("kyle"),
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("kyle"),
+						},
 					}}, nil
 				},
 			},
@@ -55,9 +79,11 @@ func TestUserOAuth2Github(t *testing.T) {
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
-				ListOrganizations: func(ctx context.Context, client *http.Client) ([]*github.Organization, error) {
-					return []*github.Organization{{
-						Login: github.String("coder"),
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
@@ -81,9 +107,11 @@ func TestUserOAuth2Github(t *testing.T) {
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
-				ListOrganizations: func(ctx context.Context, client *http.Client) ([]*github.Organization, error) {
-					return []*github.Organization{{
-						Login: github.String("coder"),
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
@@ -104,9 +132,11 @@ func TestUserOAuth2Github(t *testing.T) {
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
 				AllowSignups:       true,
-				ListOrganizations: func(ctx context.Context, client *http.Client) ([]*github.Organization, error) {
-					return []*github.Organization{{
-						Login: github.String("coder"),
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
@@ -129,9 +159,11 @@ func TestUserOAuth2Github(t *testing.T) {
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
-				ListOrganizations: func(ctx context.Context, client *http.Client) ([]*github.Organization, error) {
-					return []*github.Organization{{
-						Login: github.String("coder"),
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
 					}}, nil
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {

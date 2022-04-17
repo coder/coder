@@ -146,6 +146,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)
 			r.Post("/logout", api.postLogout)
+			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
 					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config))
