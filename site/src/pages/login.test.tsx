@@ -18,7 +18,7 @@ describe("SignInPage", () => {
     )
     // only leave password auth enabled by default
     server.use(
-      rest.get("/api/v2/users/auth", (req, res, ctx) => {
+      rest.get("/api/v2/users/authmethods", (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({
@@ -66,7 +66,7 @@ describe("SignInPage", () => {
   it("shows github authentication when enabled", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/users/auth", async (req, res, ctx) => {
+      rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
         return res(
           ctx.status(200),
           ctx.json({

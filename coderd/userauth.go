@@ -109,8 +109,8 @@ func (api *api) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var organizationID uuid.UUID
-		organizations, err := api.Database.GetOrganizations(r.Context())
-		if err == nil {
+		organizations, _ := api.Database.GetOrganizations(r.Context())
+		if len(organizations) > 0 {
 			// Add the user to the first organization. Once multi-organization
 			// support is added, we should enable a configuration map of user
 			// email to organization.
