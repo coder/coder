@@ -18,7 +18,10 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/google/go-github/v43/github"
 	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
+	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -153,6 +156,11 @@ func start() *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
+			githubOAuth2Config, err := configureGithubOAuth2(accessURLParsed, "", "")
+			if err != nil {
+				return xerrors.Errorf("configure github oauth2: %w", err)
+			}
+
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
@@ -160,6 +168,7 @@ func start() *cobra.Command {
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
+				GithubOAuth2Config:   githubOAuth2Config,
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 			}
@@ -533,4 +542,37 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	}
 
 	return tls.NewListener(listener, tlsConfig), nil
+}
+
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string) (*coderd.GithubOAuth2Config, error) {
+	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
+	if err != nil {
+		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
+	}
+	return &coderd.GithubOAuth2Config{
+		OAuth2Config: &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Endpoint:     xgithub.Endpoint,
+			RedirectURL:  redirectURL.String(),
+			Scopes: []string{
+				"read:user",
+				"user:email",
+			},
+		},
+		AllowSignups:       true,
+		AllowOrganizations: []string{"coder"},
+		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+			user, _, err := github.NewClient(client).Users.Get(ctx, "")
+			return user, err
+		},
+		ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+			emails, _, err := github.NewClient(client).Users.ListEmails(ctx, &github.ListOptions{})
+			return emails, err
+		},
+		ListOrganizations: func(ctx context.Context, client *http.Client) ([]*github.Organization, error) {
+			orgs, _, err := github.NewClient(client).Organizations.List(ctx, "", &github.ListOptions{})
+			return orgs, err
+		},
+	}, nil
 }

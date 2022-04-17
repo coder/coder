@@ -23,11 +23,12 @@ type OAuth2State struct {
 	Redirect string
 }
 
-// OAuth2Provider exposes a subset of *oauth2.Config functions for easier testing.
+// OAuth2Config exposes a subset of *oauth2.Config functions for easier testing.
 // *oauth2.Config should be used instead of implementing this in production.
-type OAuth2Provider interface {
+type OAuth2Config interface {
 	AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string
 	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
+	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
 }
 
 // OAuth2 returns the state from an oauth request.
@@ -42,9 +43,16 @@ func OAuth2(r *http.Request) OAuth2State {
 // ExtractOAuth2 adds a middleware for handling OAuth2 callbacks.
 // Any route that does not have a "code" URL parameter will be redirected
 // to the handler configuration provided.
-func ExtractOAuth2(provider OAuth2Provider) func(http.Handler) http.Handler {
+func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if config == nil {
+				httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
+					Message: fmt.Sprintf("The oauth2 method requested is not configured!"),
+				})
+				return
+			}
+
 			code := r.URL.Query().Get("code")
 			state := r.URL.Query().Get("state")
 
@@ -75,7 +83,7 @@ func ExtractOAuth2(provider OAuth2Provider) func(http.Handler) http.Handler {
 					SameSite: http.SameSiteStrictMode,
 				})
 
-				http.Redirect(rw, r, provider.AuthCodeURL(state, oauth2.AccessTypeOffline), http.StatusTemporaryRedirect)
+				http.Redirect(rw, r, config.AuthCodeURL(state, oauth2.AccessTypeOffline), http.StatusTemporaryRedirect)
 				return
 			}
 
@@ -106,7 +114,7 @@ func ExtractOAuth2(provider OAuth2Provider) func(http.Handler) http.Handler {
 				redirect = stateRedirect.Value
 			}
 
-			oauthToken, err := provider.Exchange(r.Context(), code)
+			oauthToken, err := config.Exchange(r.Context(), code)
 			if err != nil {
 				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 					Message: fmt.Sprintf("exchange oauth code: %s", err),

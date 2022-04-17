@@ -17,18 +17,29 @@ import (
 type testOAuth2Provider struct {
 }
 
-func (*testOAuth2Provider) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
+func (*testOAuth2Provider) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "?state=" + url.QueryEscape(state)
 }
 
-func (*testOAuth2Provider) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+func (*testOAuth2Provider) Exchange(_ context.Context, _ string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	return &oauth2.Token{
 		AccessToken: "hello",
 	}, nil
 }
 
+func (*testOAuth2Provider) TokenSource(_ context.Context, _ *oauth2.Token) oauth2.TokenSource {
+	return nil
+}
+
 func TestOAuth2(t *testing.T) {
 	t.Parallel()
+	t.Run("NotSetup", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest("GET", "/", nil)
+		res := httptest.NewRecorder()
+		httpmw.ExtractOAuth2(nil)(nil).ServeHTTP(res, req)
+		require.Equal(t, http.StatusPreconditionRequired, res.Result().StatusCode)
+	})
 	t.Run("RedirectWithoutCode", func(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape("/dashboard"), nil)
@@ -84,14 +95,4 @@ func TestOAuth2(t *testing.T) {
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)
 	})
-
-	// t.Run("ExchangeCodeAndState", func(t *testing.T) {
-	// 	t.Parallel()
-	// 	req := httptest.NewRequest("GET", "/?code=test&state="+url.QueryEscape(state), nil)
-	// 	res := httptest.NewRecorder()
-	// 	ExtractOAuth(log, cipher, &testOAuthProvider{})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-	// 		rw.WriteHeader(http.StatusOK)
-	// 	})).ServeHTTP(res, req)
-	// 	assert.Equal(t, res.Result().StatusCode, http.StatusOK)
-	// })
 }

@@ -70,29 +70,10 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create the user, organization, and membership to the user.
-	var user database.User
-	var organization database.Organization
-	err = api.Database.InTx(func(db database.Store) error {
-		organization, err = api.Database.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.New(),
-			Name:      createUser.OrganizationName,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
-		})
-		if err != nil {
-			return xerrors.Errorf("create organization: %w", err)
-		}
-		user, err = api.createUser(r.Context(), db, codersdk.CreateUserRequest{
-			Email:          createUser.Email,
-			Username:       createUser.Username,
-			Password:       createUser.Password,
-			OrganizationID: organization.ID,
-		})
-		if err != nil {
-			return xerrors.Errorf("create user: %w", err)
-		}
-		return nil
+	user, organizationID, err := api.createUser(r.Context(), codersdk.CreateUserRequest{
+		Email:    createUser.Email,
+		Username: createUser.Username,
+		Password: createUser.Password,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -103,7 +84,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
-		OrganizationID: organization.ID,
+		OrganizationID: organizationID,
 	})
 }
 
@@ -163,7 +144,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := api.createUser(r.Context(), api.Database, createUser)
+	user, _, err := api.createUser(r.Context(), createUser)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
@@ -809,7 +790,6 @@ func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, userID uui
 		CreatedAt:    database.Now(),
 		UpdatedAt:    database.Now(),
 		HashedSecret: hashed[:],
-		LoginType:    database.LoginTypeBuiltIn,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -831,52 +811,70 @@ func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, userID uui
 	return sessionToken, true
 }
 
-func (api *api) createUser(ctx context.Context, db database.Store, req codersdk.CreateUserRequest) (database.User, error) {
-	params := database.InsertUserParams{
-		ID:        uuid.New(),
-		Email:     req.Email,
-		Username:  req.Username,
-		LoginType: database.LoginTypeBuiltIn,
-		CreatedAt: database.Now(),
-		UpdatedAt: database.Now(),
-	}
-	// If a user signs up with OAuth, they can have no password!
-	if req.Password != "" {
-		hashedPassword, err := userpassword.Hash(req.Password)
-		if err != nil {
-			return database.User{}, xerrors.Errorf("hash password: %w", err)
+func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
+	var user database.User
+	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
+		// If no organization is provided, create a new one for the user.
+		if req.OrganizationID == uuid.Nil {
+			organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+				ID:        uuid.New(),
+				Name:      req.Username,
+				CreatedAt: database.Now(),
+				UpdatedAt: database.Now(),
+			})
+			if err != nil {
+				return xerrors.Errorf("create organization: %w", err)
+			}
+			req.OrganizationID = organization.ID
 		}
-		params.HashedPassword = []byte(hashedPassword)
-	}
 
-	user, err := db.InsertUser(ctx, params)
-	if err != nil {
-		return database.User{}, xerrors.Errorf("create user: %w", err)
-	}
+		params := database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     req.Email,
+			Username:  req.Username,
+			LoginType: database.LoginTypeBasic,
+			CreatedAt: database.Now(),
+			UpdatedAt: database.Now(),
+		}
+		// If a user signs up with OAuth, they can have no password!
+		if req.Password != "" {
+			hashedPassword, err := userpassword.Hash(req.Password)
+			if err != nil {
+				return xerrors.Errorf("hash password: %w", err)
+			}
+			params.HashedPassword = []byte(hashedPassword)
+		}
 
-	privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
-	if err != nil {
-		return database.User{}, xerrors.Errorf("generate user gitsshkey: %w", err)
-	}
-	_, err = db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
-		UserID:     user.ID,
-		CreatedAt:  database.Now(),
-		UpdatedAt:  database.Now(),
-		PrivateKey: privateKey,
-		PublicKey:  publicKey,
+		var err error
+		user, err = db.InsertUser(ctx, params)
+		if err != nil {
+			return xerrors.Errorf("create user: %w", err)
+		}
+
+		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
+		if err != nil {
+			return xerrors.Errorf("generate user gitsshkey: %w", err)
+		}
+		_, err = db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  database.Now(),
+			UpdatedAt:  database.Now(),
+			PrivateKey: privateKey,
+			PublicKey:  publicKey,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert user gitsshkey: %w", err)
+		}
+		_, err = db.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+			OrganizationID: req.OrganizationID,
+			UserID:         user.ID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			Roles:          []string{},
+		})
+		if err != nil {
+			return xerrors.Errorf("create organization member: %w", err)
+		}
+		return nil
 	})
-	if err != nil {
-		return database.User{}, xerrors.Errorf("insert user gitsshkey: %w", err)
-	}
-	_, err = db.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
-		OrganizationID: req.OrganizationID,
-		UserID:         user.ID,
-		CreatedAt:      database.Now(),
-		UpdatedAt:      database.Now(),
-		Roles:          []string{},
-	})
-	if err != nil {
-		return database.User{}, xerrors.Errorf("create organization member: %w", err)
-	}
-	return user, nil
 }

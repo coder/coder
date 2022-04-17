@@ -797,21 +797,18 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 
 	//nolint:gosimple
 	key := database.APIKey{
-		ID:               arg.ID,
-		HashedSecret:     arg.HashedSecret,
-		UserID:           arg.UserID,
-		Application:      arg.Application,
-		Name:             arg.Name,
-		LastUsed:         arg.LastUsed,
-		ExpiresAt:        arg.ExpiresAt,
-		CreatedAt:        arg.CreatedAt,
-		UpdatedAt:        arg.UpdatedAt,
-		LoginType:        arg.LoginType,
-		OIDCAccessToken:  arg.OIDCAccessToken,
-		OIDCRefreshToken: arg.OIDCRefreshToken,
-		OIDCIDToken:      arg.OIDCIDToken,
-		OIDCExpiry:       arg.OIDCExpiry,
-		DevurlToken:      arg.DevurlToken,
+		ID:                arg.ID,
+		HashedSecret:      arg.HashedSecret,
+		UserID:            arg.UserID,
+		ExpiresAt:         arg.ExpiresAt,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		LastUsed:          arg.LastUsed,
+		LoginType:         arg.LoginType,
+		OAuthAccessToken:  arg.OAuthAccessToken,
+		OAuthRefreshToken: arg.OAuthRefreshToken,
+		OAuthIDToken:      arg.OAuthIDToken,
+		OAuthExpiry:       arg.OAuthExpiry,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
@@ -1126,9 +1123,9 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		}
 		apiKey.LastUsed = arg.LastUsed
 		apiKey.ExpiresAt = arg.ExpiresAt
-		apiKey.OIDCAccessToken = arg.OIDCAccessToken
-		apiKey.OIDCRefreshToken = arg.OIDCRefreshToken
-		apiKey.OIDCExpiry = arg.OIDCExpiry
+		apiKey.OAuthAccessToken = arg.OAuthAccessToken
+		apiKey.OAuthRefreshToken = arg.OAuthRefreshToken
+		apiKey.OAuthExpiry = arg.OAuthExpiry
 		q.apiKeys[index] = apiKey
 		return nil
 	}
