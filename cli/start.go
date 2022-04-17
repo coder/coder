@@ -52,17 +52,21 @@ func start() *cobra.Command {
 		dev         bool
 		postgresURL string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
-		provisionerDaemonCount uint8
-		tlsCertFile            string
-		tlsClientCAFile        string
-		tlsClientAuth          string
-		tlsEnable              bool
-		tlsKeyFile             string
-		tlsMinVersion          string
-		skipTunnel             bool
-		traceDatadog           bool
-		secureAuthCookie       bool
-		sshKeygenAlgorithmRaw  string
+		provisionerDaemonCount           uint8
+		oauth2GithubClientID             string
+		oauth2GithubClientSecret         string
+		oauth2GithubAllowedOrganizations []string
+		oauth2GithubAllowSignups         bool
+		tlsCertFile                      string
+		tlsClientCAFile                  string
+		tlsClientAuth                    string
+		tlsEnable                        bool
+		tlsKeyFile                       string
+		tlsMinVersion                    string
+		skipTunnel                       bool
+		traceDatadog                     bool
+		secureAuthCookie                 bool
+		sshKeygenAlgorithmRaw            string
 	)
 	root := &cobra.Command{
 		Use: "start",
@@ -156,11 +160,6 @@ func start() *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
-			githubOAuth2Config, err := configureGithubOAuth2(accessURLParsed, "", "")
-			if err != nil {
-				return xerrors.Errorf("configure github oauth2: %w", err)
-			}
-
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
@@ -168,9 +167,15 @@ func start() *cobra.Command {
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
 				GoogleTokenValidator: validator,
-				GithubOAuth2Config:   githubOAuth2Config,
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
+			}
+
+			if oauth2GithubClientSecret != "" {
+				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations)
+				if err != nil {
+					return xerrors.Errorf("configure github oauth2: %w", err)
+				}
 			}
 
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", accessURL)
@@ -366,6 +371,14 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
+	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
+		"Specifies a client ID to use for oauth2 with GitHub.")
+	cliflag.StringVarP(root.Flags(), &oauth2GithubClientSecret, "oauth2-github-client-secret", "", "CODER_OAUTH2_GITHUB_CLIENT_SECRET", "",
+		"Specifies a client secret to use for oauth2 with GitHub.")
+	cliflag.StringArrayVarP(root.Flags(), &oauth2GithubAllowedOrganizations, "oauth2-github-allowed-orgs", "", "CODER_OAUTH2_GITHUB_ALLOWED_ORGS", nil,
+		"Specifies organizations the user must be a member of to authenticate with GitHub.")
+	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
+		"Specifies whether new users can sign up with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
 	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
@@ -544,7 +557,7 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	return tls.NewListener(listener, tlsConfig), nil
 }
 
-func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string) (*coderd.GithubOAuth2Config, error) {
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
 		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
@@ -561,8 +574,8 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string) (*
 				"user:email",
 			},
 		},
-		AllowSignups:       true,
-		AllowOrganizations: []string{"coder"},
+		AllowSignups:       allowSignups,
+		AllowOrganizations: allowOrgs,
 		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 			user, _, err := github.NewClient(client).Users.Get(ctx, "")
 			return user, err
