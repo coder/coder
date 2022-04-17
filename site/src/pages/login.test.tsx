@@ -16,6 +16,15 @@ describe("SignInPage", () => {
         return res(ctx.status(401), ctx.json({ message: "no user here" }))
       }),
     )
+    // only leave password auth enabled by default
+    server.use(
+      rest.get("/api/v2/users/auth", (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json({
+          password: true,
+          github: false,
+        }))
+      })
+    )
   })
 
   it("renders the sign-in form", async () => {
@@ -23,7 +32,7 @@ describe("SignInPage", () => {
     render(<SignInPage />)
 
     // Then
-    await screen.findByText(Language.signIn)
+    await screen.findByText(Language.basicSignIn)
   })
 
   it("shows an error message if SignIn fails", async () => {
@@ -42,12 +51,30 @@ describe("SignInPage", () => {
     await userEvent.type(email, "test@coder.com")
     await userEvent.type(password, "password")
     // Click sign-in
-    const signInButton = await screen.findByText(Language.signIn)
+    const signInButton = await screen.findByText(Language.basicSignIn)
     act(() => signInButton.click())
 
     // Then
     const errorMessage = await screen.findByText(Language.authErrorMessage)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
+  })
+
+  it("shows github authentication when enabled", async () => {
+    // Given
+    server.use(
+      rest.get("/api/v2/users/auth", async (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json({ 
+          password: true,
+          github: true,
+        }))
+      }),
+    )
+
+    // When
+    render(<SignInPage />)
+
+    // Then
+    await screen.findByText(Language.githubSignIn)
   })
 })

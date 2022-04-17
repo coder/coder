@@ -1,11 +1,14 @@
+import Button from "@material-ui/core/Button"
 import FormHelperText from "@material-ui/core/FormHelperText"
+import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
+import { AuthMethods } from "../../api/types"
+import { LoadingButton } from "../Button"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
-import { LoadingButton } from "./../Button"
 import { Welcome } from "./Welcome"
 
 /**
@@ -24,7 +27,8 @@ export const Language = {
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   authErrorMessage: "Incorrect email or password.",
-  signIn: "Sign In",
+  basicSignIn: "Sign In",
+  githubSignIn: "GitHub",
 }
 
 const validationSchema = Yup.object({
@@ -49,10 +53,11 @@ const useStyles = makeStyles((theme) => ({
 export interface SignInFormProps {
   isLoading: boolean
   authErrorMessage?: string
+  authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
 }
 
-export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMessage, onSubmit }) => {
+export const SignInForm: React.FC<SignInFormProps> = ({ authMethods, isLoading, authErrorMessage, onSubmit }) => {
   const styles = useStyles()
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
@@ -76,6 +81,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
           className={styles.loginTextField}
           fullWidth
           label={Language.emailLabel}
+          type="email"
           variant="outlined"
         />
         <TextField
@@ -91,10 +97,19 @@ export const SignInForm: React.FC<SignInFormProps> = ({ isLoading, authErrorMess
         {authErrorMessage && <FormHelperText error>{Language.authErrorMessage}</FormHelperText>}
         <div className={styles.submitBtn}>
           <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
-            {isLoading ? "" : Language.signIn}
+            {isLoading ? "" : Language.basicSignIn}
           </LoadingButton>
         </div>
       </form>
+      {authMethods?.github && (
+        <div className={styles.submitBtn}>
+          <Link href="/api/v2/users/oauth2/github/callback">
+            <Button color="primary" disabled={isLoading} fullWidth type="submit" variant="contained">
+              {Language.githubSignIn}
+            </Button>
+          </Link>
+        </div>
+      )}
     </>
   )
 }

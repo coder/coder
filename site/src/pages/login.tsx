@@ -47,7 +47,7 @@ export const SignInPage: React.FC = () => {
       <div className={styles.root}>
         <div className={styles.layout}>
           <div className={styles.container}>
-            <SignInForm isLoading={isLoading} authErrorMessage={authErrorMessage} onSubmit={onSubmit} />
+            <SignInForm authMethods={authState.context.methods} isLoading={isLoading} authErrorMessage={authErrorMessage} onSubmit={onSubmit} />
           </div>
 
           <Footer />

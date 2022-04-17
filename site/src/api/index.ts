@@ -65,6 +65,11 @@ export const getUser = async (): Promise<Types.UserResponse> => {
   return response.data
 }
 
+export const getAuthMethods = async (): Promise<Types.AuthMethods> => {
+  const response = await axios.get<Types.AuthMethods>("/api/v2/users/authmethods")
+  return response.data
+}
+
 export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
   const response = await axios.post<Types.APIKeyResponse>("/api/v2/users/me/keys")
   return response.data

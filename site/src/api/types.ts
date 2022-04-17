@@ -18,6 +18,11 @@ export interface UserResponse {
   readonly name: string
 }
 
+export interface AuthMethods {
+  readonly password: boolean
+  readonly github: boolean
+}
+
 /**
  * `Organization` must be kept in sync with the go struct in organizations.go
  */
