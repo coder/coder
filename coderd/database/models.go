@@ -232,7 +232,6 @@ type APIKey struct {
 	ID                string    `db:"id" json:"id"`
 	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	Name              string    `db:"name" json:"name"`
 	LastUsed          time.Time `db:"last_used" json:"last_used"`
 	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`

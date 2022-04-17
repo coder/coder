@@ -15,7 +15,7 @@ import (
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, name, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
 FROM
 	api_keys
 WHERE
@@ -31,7 +31,6 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.ID,
 		&i.HashedSecret,
 		&i.UserID,
-		&i.Name,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -62,7 +61,7 @@ INSERT INTO
 		oauth_expiry
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, name, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
 `
 
 type InsertAPIKeyParams struct {
@@ -100,7 +99,6 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.ID,
 		&i.HashedSecret,
 		&i.UserID,
-		&i.Name,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,

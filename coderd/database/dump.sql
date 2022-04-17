@@ -66,7 +66,6 @@ CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
     user_id uuid NOT NULL,
-    name text NOT NULL,
     last_used timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL,
