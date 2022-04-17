@@ -1,6 +1,7 @@
 import {
   BuildInfoResponse,
   Organization,
+  Pager,
   Provisioner,
   Template,
   UserAgent,
@@ -19,10 +20,23 @@ export const MockBuildInfo: BuildInfoResponse = {
 }
 
 export const MockUser: UserResponse = {
+  name: "Test User",
   id: "test-user",
   username: "TestUser",
   email: "test@coder.com",
   created_at: "",
+}
+
+export const MockUser2: UserResponse = {
+  id: "test-user-2",
+  name: "Test User 2",
+  username: "TestUser2",
+  email: "test2@coder.com",
+  created_at: "",
+}
+
+export const MockPager: Pager = {
+  total: 2,
 }
 
 export const MockOrganization: Organization = {

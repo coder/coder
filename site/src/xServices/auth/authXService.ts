@@ -1,19 +1,28 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
+import { displaySuccess } from "../../components/Snackbar"
 
+export const Language = {
+  successProfileUpdate: "Updated preferences.",
+}
 export interface AuthContext {
   getUserError?: Error | unknown
   authError?: Error | unknown
+  updateProfileError?: Error | unknown
   me?: Types.UserResponse
 }
 
-export type AuthEvent = { type: "SIGN_OUT" } | { type: "SIGN_IN"; email: string; password: string }
+export type AuthEvent =
+  | { type: "SIGN_OUT" }
+  | { type: "SIGN_IN"; email: string; password: string }
+  | { type: "UPDATE_PROFILE"; data: Types.UpdateProfileRequest }
 
 export const authMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE4GUAuBDbYAdLAJZQB2kA8stgMSYCSA4gHID6jrioADgPalsJfuR4gAHogDM0gJyEATAHYAbNIAscxdunKArKo0AaEAE9EG+YX0BGABz3FD6atsbbc5QF9vp1Bg4+ESkFCTkUIzkdBCiROEAbvwA1iFk5FHiAkIiYkiSiHIADITSOvbSRRqq2m7StqYWCIr2+ja2tvVV+vqaRVW+-mhYeATE6eGR0Rjo-OiEvAA2+ABmcwC24xSZ+dkkwqLiUghlyoRF+opayq4X+sqK+o2Il6qEcq5y+hrfjt+qgxAARGwUIMGwwgiAFVhjE4oREikiOCALJgLKCfa5I4yIyEZTFZQaezFK5lPTPBC2IqKUqKC4EjqqKrFOSA4FBMbgyFQGEYOgzOYLZbYNboTao9G7TEHPKgY7SewlTQ3dRyVQ6GpVSmKMqEIz2ZRKjrKIqqJzs4actIUSBRBgsDhUKEAFQxOUO+WOhvshA0ahualsqnu8kpthUhGplVUIa+rUq9ktgVGNvIkxo9FilAR5CSqS25Ez7qxnvliCMGlK1Tk6vN5p+T3ML0Ub2U7iKXmcGg8tmTILGoXTEUzAvQs3mS1WG0LxelHrlBQQIbasc7aiKtnbV3sOpaUZXBjkwd1A0B5H4EDg4g5qcL1FoJdlOIQdlpH2qhmJzJ+DWbCB7WxSmUIl2wJM0CSTPwgStO8h0mHY+BlbEvReICaSMbQflkU0fkpHtfS3MC3C+aR9ENfR+2tMEwAhSY+XQJ8UPLACziVS5TXKAxPDI8MaSjIojSqPQezNRUqLg9I7UXPZn1Q5dqn1CMNEEi4HAecNIyVGoIweVQDH0tloNvUF4JHR951LRdvQcc4PCcAx12-fDOnOeRTU7C4SXsPtjNg4ImLLJddUIdiVBpOQKJ4psmh0ASQOPRUiI8RRfF8IA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogCMABgCcAFkLyZAVilS5GgEwAOAMwA2ADQgAnogDsa5YcOXD2y7oWH92-QF9PptFlz4RKQUJORQDOS0ECJEoQBufADWQWTkEWL8gsKiSBKI7kraqpZSuh7aUvpy6vqmFghlcoT6qgb6GsUlctrevhg4eATEqaHhkWAAThN8E4Q8ADb4AGYzALbDFOm5mSRCImKSCLKKynJqGlpSekZ1iIaltvaOzq4FvSB+A4GEMOhCYQBVWCTKIxQjxJJEX4AWTAGQEu2yB0QrikhG0Mn0+l0ulUWJkhlatXMKKqynkCn0lOscnsUnenwCQ1+-ygQJBk2mswWyzWPzA6Fh8Ky+1yh202iacip2I8hjU9m0twQ1lUzSk9hkHlUCjU2kMDP6TJSFEgETm0yWJHmsQgNtoAIACgARACCABUAKJsR0AJSoADEGAAZT3CxGi0CHGTKmSG-yDE2UCDmniW61EVA8CD4UaO9P26KUcHkBLJQiMxMbZOpguZ7O5sL5vhWm0ICEAY1zIgA2jIALrhvY5KPSKSWNWKWQeaUKSXj5UY3SEUrdKqExy08fxr5DYI18gWlsZwhZnOs5utsC0TkzOaLdArCbrSvffdmw9p48208Ni919tSz4Lthz7QdtgRYdkQaLRCF0SxtAUcdpQnRxdGVXV9EIKdFBkGRdDkSxFGKHdjWrD96GYdgqABd0hyRMVpCxdFaSxVQZEsIxx0sSxlUI9Eql1DUJQnRQ5FIqt91GGh0FBYsIXLfcZPoyM8gQdwsIQuRdEMSlSm1DxlR1Zc1AIhDdJwrwfA+I1JJGMIZJvKY7x5R8+SUjAVJHNSijVdwCIUdQriJfReJJBAihkZpLAUJDikigwJW8azyD4CA4DEV891SahPIgkVvMOdRDEINxqTUbFCW05UJywhQDFUNd2gxQxxOsrKk1GLZeEghjRyOfUoqkPEOOlQj2mVVrtDgjUEPYkpcT0CTvhZUZ2QmLzoLnZVdA1OCiS0TjcU0VRluy00U0-OtwTtIhUs9ZyNvyiNCrHHi4InPCFE4wktQwvbQtiloWu0jFLDOpMPyPK8bp-W8np6groI0d74PYmRvqMdilXC1wSvYxRYsIwbrHB9rbLfHLLuhk8SFuzbGKOYasLRr6fux5UZWi2KCclXarL6BNKYu2tv3rc88zrBn+pxTTGsqULp2xKRlRO0qCJnDdJXuMnBd3SHqa-K9pbUgBaRDlVNzjyTwjpOM+1QDXJoXzoPE3DlN+rLakVwba1dpvvYjQIeraS8sRl7oPcQgicQicihxGQfaM9jlFaWdSgJDR6Wd-X3cQZdY8DhPdCThRLY8dUOPsBwDE4wjdGSzwgA */
   createMachine(
     {
+      context: { me: undefined, getUserError: undefined, authError: undefined, updateProfileError: undefined },
       tsTypes: {} as import("./authXService.typegen").Typegen0,
       schema: {
         context: {} as AuthContext,
@@ -25,12 +34,10 @@ export const authMachine =
           signIn: {
             data: Types.LoginResponse
           }
+          updateProfile: {
+            data: Types.UserResponse
+          }
         },
-      },
-      context: {
-        me: undefined,
-        getUserError: undefined,
-        authError: undefined,
       },
       id: "authState",
       initial: "gettingUser",
@@ -38,7 +45,7 @@ export const authMachine =
         signedOut: {
           on: {
             SIGN_IN: {
-              target: "#authState.signingIn",
+              target: "signingIn",
             },
           },
         },
@@ -48,14 +55,14 @@ export const authMachine =
             id: "signIn",
             onDone: [
               {
-                target: "#authState.gettingUser",
                 actions: "clearAuthError",
+                target: "gettingUser",
               },
             ],
             onError: [
               {
                 actions: "assignAuthError",
-                target: "#authState.signedOut",
+                target: "signedOut",
               },
             ],
           },
@@ -68,22 +75,60 @@ export const authMachine =
             onDone: [
               {
                 actions: ["assignMe", "clearGetUserError"],
-                target: "#authState.signedIn",
+                target: "signedIn",
               },
             ],
             onError: [
               {
                 actions: "assignGetUserError",
-                target: "#authState.signedOut",
+                target: "signedOut",
               },
             ],
           },
           tags: "loading",
         },
         signedIn: {
+          type: "parallel",
+          states: {
+            profile: {
+              initial: "idle",
+              states: {
+                idle: {
+                  initial: "noError",
+                  states: {
+                    noError: {},
+                    error: {},
+                  },
+                  on: {
+                    UPDATE_PROFILE: {
+                      target: "updatingProfile",
+                    },
+                  },
+                },
+                updatingProfile: {
+                  entry: "clearUpdateProfileError",
+                  invoke: {
+                    src: "updateProfile",
+                    onDone: [
+                      {
+                        actions: ["assignMe", "notifySuccessProfileUpdate"],
+                        target: "#authState.signedIn.profile.idle.noError",
+                      },
+                    ],
+                    onError: [
+                      {
+                        actions: "assignUpdateProfileError",
+                        target: "#authState.signedIn.profile.idle.error",
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
           on: {
             SIGN_OUT: {
-              target: "#authState.signingOut",
+              target: "signingOut",
             },
           },
         },
@@ -94,13 +139,13 @@ export const authMachine =
             onDone: [
               {
                 actions: ["unassignMe", "clearAuthError"],
-                target: "#authState.signedOut",
+                target: "signedOut",
               },
             ],
             onError: [
               {
                 actions: "assignAuthError",
-                target: "#authState.signedIn",
+                target: "signedIn",
               },
             ],
           },
@@ -115,6 +160,13 @@ export const authMachine =
         },
         signOut: API.logout,
         getMe: API.getUser,
+        updateProfile: async (context, event) => {
+          if (!context.me) {
+            throw new Error("No current user found")
+          }
+
+          return API.updateProfile(context.me.id, event.data)
+        },
       },
       actions: {
         assignMe: assign({
@@ -138,6 +190,15 @@ export const authMachine =
           ...context,
           authError: undefined,
         })),
+        assignUpdateProfileError: assign({
+          updateProfileError: (_, event) => event.data,
+        }),
+        notifySuccessProfileUpdate: () => {
+          displaySuccess(Language.successProfileUpdate)
+        },
+        clearUpdateProfileError: assign({
+          updateProfileError: (_) => undefined,
+        }),
       },
     },
   )

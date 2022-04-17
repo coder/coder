@@ -15,6 +15,7 @@ export interface UserResponse {
   readonly username: string
   readonly email: string
   readonly created_at: string
+  readonly name: string
 }
 
 /**
@@ -79,10 +80,25 @@ export interface UserAgent {
   readonly os: string
 }
 
+export interface Pager {
+  total: number
+}
+
+export interface PagedUsers {
+  page: UserResponse[]
+  pager: Pager
+}
+
 export interface WorkspaceAutostartRequest {
   schedule: string
 }
 
 export interface WorkspaceAutostopRequest {
   schedule: string
+}
+
+export interface UpdateProfileRequest {
+  readonly username: string
+  readonly email: string
+  readonly name: string
 }

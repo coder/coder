@@ -5,7 +5,6 @@ import useSWR from "swr"
 import * as Types from "../../api/types"
 import { ErrorSummary } from "../../components/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import { Footer } from "../../components/Page"
 import { Workspace } from "../../components/Workspace"
 import { unsafeSWRArgument } from "../../util"
 import { firstOrItem } from "../../util/array"
@@ -50,8 +49,6 @@ export const WorkspacePage: React.FC = () => {
       <div className={styles.inner}>
         <Workspace organization={organization} template={template} workspace={workspace} />
       </div>
-
-      <Footer />
     </div>
   )
 }
