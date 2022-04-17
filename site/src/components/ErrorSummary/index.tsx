@@ -1,15 +1,19 @@
 import React from "react"
 
+const Language = {
+  unknownErrorMessage: "Unknown error",
+}
+
 export interface ErrorSummaryProps {
-  error: Error | undefined
+  error: Error | unknown
 }
 
 export const ErrorSummary: React.FC<ErrorSummaryProps> = ({ error }) => {
   // TODO: More interesting error page
 
-  if (typeof error === "undefined") {
-    return <div>{"Unknown error"}</div>
+  if (!(error instanceof Error)) {
+    return <div>{Language.unknownErrorMessage}</div>
+  } else {
+    return <div>{error.toString()}</div>
   }
-
-  return <div>{error.toString()}</div>
 }

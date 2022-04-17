@@ -4,7 +4,7 @@
 //         unexpectedly, leading to OOM kills.
 //
 // SEE thread: https://github.com/coder/coder/pull/483#discussion_r829636583
-const maxWorkers = process.env.CI ? 16 : 2
+const maxWorkers = 2
 
 module.exports = {
   maxWorkers,

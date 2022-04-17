@@ -1,6 +1,7 @@
 import React from "react"
 import { Route, Routes } from "react-router-dom"
-import { AuthAndNav, RequireAuth } from "./components"
+import { RequireAuth } from "./components"
+import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { PreferencesLayout } from "./components/Preferences/Layout"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404"
@@ -16,7 +17,7 @@ import { SettingsPage } from "./pages/settings"
 import { TemplatesPage } from "./pages/templates"
 import { TemplatePage } from "./pages/templates/[organization]/[template]"
 import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
-import { UsersPage } from "./pages/users"
+import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/workspaces/[workspace]"
 
 export const AppRouter: React.FC = () => (
@@ -39,18 +40,18 @@ export const AppRouter: React.FC = () => (
         <Route
           index
           element={
-            <AuthAndNav>
+            <AuthAndFrame>
               <TemplatesPage />
-            </AuthAndNav>
+            </AuthAndFrame>
           }
         />
         <Route path=":organization/:template">
           <Route
             index
             element={
-              <AuthAndNav>
+              <AuthAndFrame>
                 <TemplatePage />
-              </AuthAndNav>
+              </AuthAndFrame>
             }
           />
           <Route
@@ -68,9 +69,9 @@ export const AppRouter: React.FC = () => (
         <Route
           path=":workspace"
           element={
-            <AuthAndNav>
+            <AuthAndFrame>
               <WorkspacePage />
-            </AuthAndNav>
+            </AuthAndFrame>
           }
         />
       </Route>
@@ -78,25 +79,25 @@ export const AppRouter: React.FC = () => (
       <Route
         path="users"
         element={
-          <AuthAndNav>
+          <AuthAndFrame>
             <UsersPage />
-          </AuthAndNav>
+          </AuthAndFrame>
         }
       />
       <Route
         path="orgs"
         element={
-          <AuthAndNav>
+          <AuthAndFrame>
             <OrganizationsPage />
-          </AuthAndNav>
+          </AuthAndFrame>
         }
       />
       <Route
         path="settings"
         element={
-          <AuthAndNav>
+          <AuthAndFrame>
             <SettingsPage />
-          </AuthAndNav>
+          </AuthAndFrame>
         }
       />
 

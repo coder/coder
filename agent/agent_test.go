@@ -63,11 +63,9 @@ func TestAgent(t *testing.T) {
 	t.Run("SessionTTY", func(t *testing.T) {
 		t.Parallel()
 		session := setupSSHSession(t)
-		prompt := "$"
 		command := "bash"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe"
-			prompt = ">"
 		}
 		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
@@ -78,7 +76,6 @@ func TestAgent(t *testing.T) {
 		session.Stdin = ptty.Input()
 		err = session.Start(command)
 		require.NoError(t, err)
-		ptty.ExpectMatch(prompt)
 		ptty.WriteLine("echo test")
 		ptty.ExpectMatch("test")
 		ptty.WriteLine("exit")

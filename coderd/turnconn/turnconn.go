@@ -1,7 +1,6 @@
 package turnconn
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -37,33 +36,9 @@ var (
 // The relay address is used to broadcast the location of an accepted connection.
 func New(relayAddress *turn.RelayAddressGeneratorStatic) (*Server, error) {
 	if relayAddress == nil {
-		ip := ""
-		addrs, err := net.InterfaceAddrs()
-		if err != nil {
-			return nil, xerrors.Errorf("find interface addrs: %w", err)
-		}
-		// Try to find the localhost IP address.
-		// It will generally be 127.0.0.1, but
-		// search to be sure!
-		for _, address := range addrs {
-			ipNet, ok := address.(*net.IPNet)
-			if !ok {
-				continue
-			}
-			if !ipNet.IP.IsLoopback() {
-				continue
-			}
-			ip = ipNet.IP.String()
-			break
-		}
-		fmt.Printf("WE HAVE IP %q\n", ip)
-		// if ip == "" {
-		ip = "127.0.0.1"
-		// }
-
 		relayAddress = &turn.RelayAddressGeneratorStatic{
-			RelayAddress: net.ParseIP(ip),
-			Address:      ip,
+			RelayAddress: localhost.IP,
+			Address:      "127.0.0.1",
 		}
 	}
 	logger := logging.NewDefaultLoggerFactory()

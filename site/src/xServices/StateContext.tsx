@@ -3,10 +3,12 @@ import React, { createContext } from "react"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
+import { usersMachine } from "./users/usersXService"
 
 interface XServiceContextType {
-  buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
   authXService: ActorRefFrom<typeof authMachine>
+  buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
+  usersXService: ActorRefFrom<typeof usersMachine>
 }
 
 /**
@@ -23,8 +25,9 @@ export const XServiceProvider: React.FC = ({ children }) => {
   return (
     <XServiceContext.Provider
       value={{
-        buildInfoXService: useInterpret(buildInfoMachine),
         authXService: useInterpret(authMachine),
+        buildInfoXService: useInterpret(buildInfoMachine),
+        usersXService: useInterpret(usersMachine),
       }}
     >
       {children}
