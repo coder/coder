@@ -14,7 +14,7 @@ CREATE TYPE log_source AS ENUM (
 );
 
 CREATE TYPE login_type AS ENUM (
-    'basic',
+    'password',
     'github'
 );
 

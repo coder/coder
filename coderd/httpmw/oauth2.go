@@ -40,9 +40,9 @@ func OAuth2(r *http.Request) OAuth2State {
 	return oauth
 }
 
-// ExtractOAuth2 adds a middleware for handling OAuth2 callbacks.
-// Any route that does not have a "code" URL parameter will be redirected
-// to the handler configuration provided.
+// ExtractOAuth2 is a middleware for automatically redirecting to OAuth
+// URLs, and handling the exchange inbound. Any route that does not have
+// a "code" URL parameter will be redirected.
 func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

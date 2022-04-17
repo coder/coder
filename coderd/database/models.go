@@ -56,8 +56,8 @@ func (e *LogSource) Scan(src interface{}) error {
 type LoginType string
 
 const (
-	LoginTypeBasic  LoginType = "basic"
-	LoginTypeGithub LoginType = "github"
+	LoginTypePassword LoginType = "password"
+	LoginTypeGithub   LoginType = "github"
 )
 
 func (e *LoginType) Scan(src interface{}) error {

@@ -40,7 +40,7 @@ func TestTemplateVersionParam(t *testing.T) {
 			ID:             userID,
 			Email:          "testaccount@coder.com",
 			Name:           "example",
-			LoginType:      database.LoginTypeBasic,
+			LoginType:      database.LoginTypePassword,
 			HashedPassword: hashed[:],
 			Username:       username,
 			CreatedAt:      database.Now(),

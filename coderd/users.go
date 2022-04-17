@@ -377,7 +377,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:    user.ID,
-		LoginType: database.LoginTypeBasic,
+		LoginType: database.LoginTypePassword,
 	})
 	if !created {
 		return
@@ -402,7 +402,7 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 
 	sessionToken, created := api.createAPIKey(rw, r, database.InsertAPIKeyParams{
 		UserID:    user.ID,
-		LoginType: database.LoginTypeBasic,
+		LoginType: database.LoginTypePassword,
 	})
 	if !created {
 		return
@@ -843,7 +843,7 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			ID:        uuid.New(),
 			Email:     req.Email,
 			Username:  req.Username,
-			LoginType: database.LoginTypeBasic,
+			LoginType: database.LoginTypePassword,
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 		}

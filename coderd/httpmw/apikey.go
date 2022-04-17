@@ -99,7 +99,7 @@ func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) h
 			// Tracks if the API key has properties updated!
 			changed := false
 
-			if key.LoginType != database.LoginTypeBasic {
+			if key.LoginType != database.LoginTypePassword {
 				// Check if the OAuth token is expired!
 				if key.OAuthExpiry.Before(now) && !key.OAuthExpiry.IsZero() {
 					var oauthConfig OAuth2Config

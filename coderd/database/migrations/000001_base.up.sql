@@ -5,7 +5,7 @@
 -- https://github.com/coder/m/blob/47b6fc383347b9f9fab424d829c482defd3e1fe2/product/coder/pkg/database/dump.sql
 
 CREATE TYPE login_type AS ENUM (
-    'basic',
+    'password',
     'github'
 );
 

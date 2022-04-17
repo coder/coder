@@ -19,11 +19,14 @@ describe("SignInPage", () => {
     // only leave password auth enabled by default
     server.use(
       rest.get("/api/v2/users/auth", (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json({
-          password: true,
-          github: false,
-        }))
-      })
+        return res(
+          ctx.status(200),
+          ctx.json({
+            password: true,
+            github: false,
+          }),
+        )
+      }),
     )
   })
 
@@ -64,10 +67,13 @@ describe("SignInPage", () => {
     // Given
     server.use(
       rest.get("/api/v2/users/auth", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json({ 
-          password: true,
-          github: true,
-        }))
+        return res(
+          ctx.status(200),
+          ctx.json({
+            password: true,
+            github: true,
+          }),
+        )
       }),
     )
 

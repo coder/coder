@@ -33,7 +33,7 @@ func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSou
 
 func TestUserAuthMethods(t *testing.T) {
 	t.Parallel()
-	t.Run("Basic", func(t *testing.T) {
+	t.Run("Password", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		methods, err := client.AuthMethods(context.Background())
