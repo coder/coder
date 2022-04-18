@@ -5,7 +5,7 @@ import {
   Provisioner,
   Template,
   UserAgent,
-  User,
+  UserResponse,
   Workspace,
   WorkspaceAutostartRequest,
 } from "../api/types"
@@ -19,7 +19,7 @@ export const MockBuildInfo: BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
-export const MockUser: User = {
+export const MockUser: UserResponse = {
   name: "Test User",
   id: "test-user",
   username: "TestUser",
@@ -27,7 +27,7 @@ export const MockUser: User = {
   created_at: "",
 }
 
-export const MockUser2: User = {
+export const MockUser2: UserResponse = {
   id: "test-user-2",
   name: "Test User 2",
   username: "TestUser2",

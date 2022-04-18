@@ -1,6 +1,6 @@
 import axios from "axios"
 import { getApiKey, login, logout } from "."
-import { GenerateAPIKeyResponse, LoginWithPasswordResponse } from "./types"
+import { APIKeyResponse, LoginResponse } from "./types"
 
 // Mock the axios module so that no real network requests are made, but rather
 // we swap in a resolved or rejected value
@@ -10,9 +10,9 @@ jest.mock("axios")
 
 describe("api.ts", () => {
   describe("login", () => {
-    it("should return LoginWithPasswordResponse", async () => {
+    it("should return LoginResponse", async () => {
       // given
-      const loginResponse: LoginWithPasswordResponse = {
+      const loginResponse: LoginResponse = {
         session_token: "abc_123_test",
       }
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
@@ -87,7 +87,7 @@ describe("api.ts", () => {
   describe("getApiKey", () => {
     it("should return APIKeyResponse", async () => {
       // given
-      const apiKeyResponse: GenerateAPIKeyResponse = {
+      const apiKeyResponse: APIKeyResponse = {
         key: "abc_123_test",
       }
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {

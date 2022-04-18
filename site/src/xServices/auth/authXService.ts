@@ -10,7 +10,7 @@ export interface AuthContext {
   getUserError?: Error | unknown
   authError?: Error | unknown
   updateProfileError?: Error | unknown
-  me?: Types.User
+  me?: Types.UserResponse
 }
 
 export type AuthEvent =
@@ -29,13 +29,13 @@ export const authMachine =
         events: {} as AuthEvent,
         services: {} as {
           getMe: {
-            data: Types.User
+            data: Types.UserResponse
           }
           signIn: {
-            data: Types.LoginWithPasswordResponse
+            data: Types.LoginResponse
           }
           updateProfile: {
-            data: Types.User
+            data: Types.UserResponse
           }
         },
       },
