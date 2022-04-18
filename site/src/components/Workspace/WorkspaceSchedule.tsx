@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import Typography from "@material-ui/core/Typography"
 import cronstrue from "cronstrue"
 import React from "react"
-import { stripTimezone, extractTimezone } from "../../util/schedule"
+import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { WorkspaceSection } from "./WorkspaceSection"
 
 const Language = {
