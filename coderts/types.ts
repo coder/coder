@@ -27,10 +27,39 @@ export interface CreateTemplateRequest {
   name: string
 }
 
+type ParameterScope = string
+
+const ParameterOrganization: ParameterScope = "organization"
+
+const ParameterTemplate: ParameterScope = "template"
+
+const ParameterUser: ParameterScope = "user"
+
+const ParameterWorkspace: ParameterScope = "workspace"
+
+export interface Parameter {
+  scope: ParameterScope
+  name: string
+}
+
 export interface CreateParameterRequest {
   name: string
   source_value: string
 }
+
+type ProvisionerJobStatus = string
+
+const ProvisionerJobPending: ProvisionerJobStatus = "pending"
+
+const ProvisionerJobRunning: ProvisionerJobStatus = "running"
+
+const ProvisionerJobSucceeded: ProvisionerJobStatus = "succeeded"
+
+const ProvisionerJobCanceling: ProvisionerJobStatus = "canceling"
+
+const ProvisionerJobCanceled: ProvisionerJobStatus = "canceled"
+
+const ProvisionerJobFailed: ProvisionerJobStatus = "failed"
 
 export interface ProvisionerJob {
   error: string
@@ -114,6 +143,14 @@ export interface WorkspaceBuild {
   name: string
   job: ProvisionerJob
 }
+
+type WorkspaceAgentStatus = string
+
+const WorkspaceAgentConnecting: WorkspaceAgentStatus = "connecting"
+
+const WorkspaceAgentConnected: WorkspaceAgentStatus = "connected"
+
+const WorkspaceAgentDisconnected: WorkspaceAgentStatus = "disconnected"
 
 export interface WorkspaceResource {
   type: string
