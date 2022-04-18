@@ -23,6 +23,25 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
+// Lists all the users
+func (api *api) users(rw http.ResponseWriter, r *http.Request) {
+	users, err := api.Database.GetUsers(r.Context())
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get users: %s", err.Error()),
+		})
+		return
+	}
+
+	var res []codersdk.User
+	for _, user := range users {
+		res = append(res, convertUser(user))
+	}
+
+	httpapi.Write(rw, http.StatusOK, res)
+}
+
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())

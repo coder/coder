@@ -136,6 +136,19 @@ func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req Up
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
+func (c *Client) GetUsers(ctx context.Context) ([]User, error) {
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/users", nil)
+	if err != nil {
+		return []User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return []User{}, readBodyAsError(res)
+	}
+	var users []User
+	return users, json.NewDecoder(res.Body).Decode(&users)
+}
+
 // CreateAPIKey generates an API key for the user ID provided.
 func (c *Client) CreateAPIKey(ctx context.Context, userID uuid.UUID) (*GenerateAPIKeyResponse, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", uuidOrMe(userID)), nil)

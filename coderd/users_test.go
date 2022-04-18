@@ -313,6 +313,21 @@ func TestUserByName(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetUsers(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		Email:          "bruno@coder.com",
+		Username:       "bruno",
+		Password:       "password",
+		OrganizationID: user.OrganizationID,
+	})
+	users, err := client.GetUsers(context.Background())
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+}
+
 func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
