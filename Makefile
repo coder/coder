@@ -19,8 +19,9 @@ coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/dat
 	coderd/database/generate.sh
 .PHONY: coderd/database/generate
 
-coderts/generate: coderts/types.ts
-	go run scripts/coderts/main.go > coderts/types.ts
+apitypings/generate: site/src/api/types.ts
+	go run scripts/apitypings/main.go > site/src/api/types.ts
+	cd site && yarn run format:types
 .PHONY: coderts/generate
 
 fmt/prettier:
@@ -52,7 +53,7 @@ fmt/terraform: $(wildcard *.tf)
 fmt: fmt/prettier fmt/sql fmt/terraform
 .PHONY: fmt
 
-gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto coderts/generate
+gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto apitypings/generate
 .PHONY: gen
 
 install: bin
