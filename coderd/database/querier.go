@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type querier interface {
+type Querier interface {
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
@@ -90,4 +90,4 @@ type querier interface {
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 }
 
-var _ querier = (*sqlQuerier)(nil)
+var _ Querier = (*Queries)(nil)

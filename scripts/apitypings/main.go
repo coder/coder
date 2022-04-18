@@ -115,7 +115,7 @@ func handleTypeSpec(typeSpec *ast.TypeSpec, pos token.Position, enums map[string
 				continue
 			}
 
-			s = fmt.Sprintf("%s  %s%s: %s\n", s, fieldName, optional, fieldType)
+			s = fmt.Sprintf("%s  readonly %s%s: %s\n", s, fieldName, optional, fieldType)
 			jsonFields++
 		}
 
@@ -129,7 +129,7 @@ func handleTypeSpec(typeSpec *ast.TypeSpec, pos token.Position, enums map[string
 	case *ast.Ident:
 		// save type declaration to map of types
 		// later we come back and add union types to this declaration
-		enums[typeSpec.Name.Name] = fmt.Sprintf("%stype %s = \n", s, typeSpec.Name.Name)
+		enums[typeSpec.Name.Name] = fmt.Sprintf("%sexport type %s = \n", s, typeSpec.Name.Name)
 		return "", xerrors.New("enums are not printed at this stage")
 	default:
 		return "", xerrors.New("not struct or alias")

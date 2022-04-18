@@ -2,17 +2,6 @@
 
 package database
 
-import (
-	"context"
-	"database/sql"
-	"encoding/json"
-	"time"
-
-	"github.com/google/uuid"
-	"github.com/lib/pq"
-	"github.com/tabbed/pqtype"
-)
-
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
 	id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
@@ -24,7 +13,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, error) {
+func (q *Queries) GetAPIKeyByID(ctx context.Context, id string) (APIKey, error) {
 	row := q.db.QueryRowContext(ctx, getAPIKeyByID, id)
 	var i APIKey
 	err := row.Scan(
@@ -104,7 +93,7 @@ type InsertAPIKeyParams struct {
 	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
 }
 
-func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
+func (q *Queries) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
 	row := q.db.QueryRowContext(ctx, insertAPIKey,
 		arg.ID,
 		arg.HashedSecret,
@@ -165,7 +154,7 @@ type UpdateAPIKeyByIDParams struct {
 	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
 }
 
-func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error {
+func (q *Queries) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateAPIKeyByID,
 		arg.ID,
 		arg.LastUsed,
@@ -188,7 +177,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetFileByHash(ctx context.Context, hash string) (File, error) {
+func (q *Queries) GetFileByHash(ctx context.Context, hash string) (File, error) {
 	row := q.db.QueryRowContext(ctx, getFileByHash, hash)
 	var i File
 	err := row.Scan(
@@ -216,7 +205,7 @@ type InsertFileParams struct {
 	Data      []byte    `db:"data" json:"data"`
 }
 
-func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File, error) {
+func (q *Queries) InsertFile(ctx context.Context, arg InsertFileParams) (File, error) {
 	row := q.db.QueryRowContext(ctx, insertFile,
 		arg.Hash,
 		arg.CreatedAt,
@@ -242,7 +231,7 @@ WHERE
 	user_id = $1
 `
 
-func (q *sqlQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
+func (q *Queries) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteGitSSHKey, userID)
 	return err
 }
@@ -256,7 +245,7 @@ WHERE
 	user_id = $1
 `
 
-func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error) {
+func (q *Queries) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error) {
 	row := q.db.QueryRowContext(ctx, getGitSSHKey, userID)
 	var i GitSSHKey
 	err := row.Scan(
@@ -290,7 +279,7 @@ type InsertGitSSHKeyParams struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 }
 
-func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error) {
+func (q *Queries) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error) {
 	row := q.db.QueryRowContext(ctx, insertGitSSHKey,
 		arg.UserID,
 		arg.CreatedAt,
@@ -327,7 +316,7 @@ type UpdateGitSSHKeyParams struct {
 	PublicKey  string    `db:"public_key" json:"public_key"`
 }
 
-func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error {
+func (q *Queries) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error {
 	_, err := q.db.ExecContext(ctx, updateGitSSHKey,
 		arg.UserID,
 		arg.UpdatedAt,
@@ -354,7 +343,7 @@ type GetOrganizationMemberByUserIDParams struct {
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error) {
+func (q *Queries) GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationMemberByUserID, arg.OrganizationID, arg.UserID)
 	var i OrganizationMember
 	err := row.Scan(
@@ -388,7 +377,7 @@ type InsertOrganizationMemberParams struct {
 	Roles          []string  `db:"roles" json:"roles"`
 }
 
-func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error) {
+func (q *Queries) InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error) {
 	row := q.db.QueryRowContext(ctx, insertOrganizationMember,
 		arg.OrganizationID,
 		arg.UserID,
@@ -416,7 +405,7 @@ WHERE
 	id = $1
 `
 
-func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error) {
+func (q *Queries) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationByID, id)
 	var i Organization
 	err := row.Scan(
@@ -440,7 +429,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
+func (q *Queries) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationByName, name)
 	var i Organization
 	err := row.Scan(
@@ -469,7 +458,7 @@ WHERE
 	)
 `
 
-func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error) {
+func (q *Queries) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error) {
 	rows, err := q.db.QueryContext(ctx, getOrganizationsByUserID, userID)
 	if err != nil {
 		return nil, err
@@ -513,7 +502,7 @@ type InsertOrganizationParams struct {
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error) {
+func (q *Queries) InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, insertOrganization,
 		arg.ID,
 		arg.Name,
@@ -541,7 +530,7 @@ WHERE
 	job_id = $1
 `
 
-func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error) {
+func (q *Queries) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error) {
 	rows, err := q.db.QueryContext(ctx, getParameterSchemasByJobID, jobID)
 	if err != nil {
 		return nil, err
@@ -641,7 +630,7 @@ type InsertParameterSchemaParams struct {
 	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
 }
 
-func (q *sqlQuerier) InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error) {
+func (q *Queries) InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error) {
 	row := q.db.QueryRowContext(ctx, insertParameterSchema,
 		arg.ID,
 		arg.CreatedAt,
@@ -689,7 +678,7 @@ WHERE
 	id = $1
 `
 
-func (q *sqlQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
+func (q *Queries) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteParameterValueByID, id)
 	return err
 }
@@ -713,7 +702,7 @@ type GetParameterValueByScopeAndNameParams struct {
 	Name    string         `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error) {
+func (q *Queries) GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error) {
 	row := q.db.QueryRowContext(ctx, getParameterValueByScopeAndName, arg.Scope, arg.ScopeID, arg.Name)
 	var i ParameterValue
 	err := row.Scan(
@@ -745,7 +734,7 @@ type GetParameterValuesByScopeParams struct {
 	ScopeID uuid.UUID      `db:"scope_id" json:"scope_id"`
 }
 
-func (q *sqlQuerier) GetParameterValuesByScope(ctx context.Context, arg GetParameterValuesByScopeParams) ([]ParameterValue, error) {
+func (q *Queries) GetParameterValuesByScope(ctx context.Context, arg GetParameterValuesByScopeParams) ([]ParameterValue, error) {
 	rows, err := q.db.QueryContext(ctx, getParameterValuesByScope, arg.Scope, arg.ScopeID)
 	if err != nil {
 		return nil, err
@@ -807,7 +796,7 @@ type InsertParameterValueParams struct {
 	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
 }
 
-func (q *sqlQuerier) InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error) {
+func (q *Queries) InsertParameterValue(ctx context.Context, arg InsertParameterValueParams) (ParameterValue, error) {
 	row := q.db.QueryRowContext(ctx, insertParameterValue,
 		arg.ID,
 		arg.Name,
@@ -843,7 +832,7 @@ WHERE
 	id = $1
 `
 
-func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error) {
+func (q *Queries) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error) {
 	row := q.db.QueryRowContext(ctx, getProvisionerDaemonByID, id)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -864,7 +853,7 @@ FROM
 	provisioner_daemons
 `
 
-func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
+func (q *Queries) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerDaemons)
 	if err != nil {
 		return nil, err
@@ -915,7 +904,7 @@ type InsertProvisionerDaemonParams struct {
 	Provisioners   []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
 
-func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
+func (q *Queries) InsertProvisionerDaemon(ctx context.Context, arg InsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
 	row := q.db.QueryRowContext(ctx, insertProvisionerDaemon,
 		arg.ID,
 		arg.CreatedAt,
@@ -951,7 +940,7 @@ type UpdateProvisionerDaemonByIDParams struct {
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 }
 
-func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
+func (q *Queries) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
 	return err
 }
@@ -977,7 +966,7 @@ type GetProvisionerLogsByIDBetweenParams struct {
 	CreatedBefore time.Time `db:"created_before" json:"created_before"`
 }
 
-func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error) {
+func (q *Queries) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerLogsByIDBetween, arg.JobID, arg.CreatedAfter, arg.CreatedBefore)
 	if err != nil {
 		return nil, err
@@ -1031,7 +1020,7 @@ type InsertProvisionerJobLogsParams struct {
 	Output    []string    `db:"output" json:"output"`
 }
 
-func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error) {
+func (q *Queries) InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error) {
 	rows, err := q.db.QueryContext(ctx, insertProvisionerJobLogs,
 		pq.Array(arg.ID),
 		arg.JobID,
@@ -1109,7 +1098,7 @@ type AcquireProvisionerJobParams struct {
 // SKIP LOCKED is used to jump over locked rows. This prevents
 // multiple provisioners from acquiring the same jobs. See:
 // https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
-func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error) {
+func (q *Queries) AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error) {
 	row := q.db.QueryRowContext(ctx, acquireProvisionerJob, arg.StartedAt, arg.WorkerID, pq.Array(arg.Types))
 	var i ProvisionerJob
 	err := row.Scan(
@@ -1141,7 +1130,7 @@ WHERE
 	id = $1
 `
 
-func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
+func (q *Queries) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error) {
 	row := q.db.QueryRowContext(ctx, getProvisionerJobByID, id)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -1173,7 +1162,7 @@ WHERE
 	id = ANY($1 :: uuid [ ])
 `
 
-func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
+func (q *Queries) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -1243,7 +1232,7 @@ type InsertProvisionerJobParams struct {
 	Input          json.RawMessage          `db:"input" json:"input"`
 }
 
-func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
+func (q *Queries) InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error) {
 	row := q.db.QueryRowContext(ctx, insertProvisionerJob,
 		arg.ID,
 		arg.CreatedAt,
@@ -1291,7 +1280,7 @@ type UpdateProvisionerJobByIDParams struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error {
+func (q *Queries) UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateProvisionerJobByID, arg.ID, arg.UpdatedAt)
 	return err
 }
@@ -1310,7 +1299,7 @@ type UpdateProvisionerJobWithCancelByIDParams struct {
 	CanceledAt sql.NullTime `db:"canceled_at" json:"canceled_at"`
 }
 
-func (q *sqlQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error {
+func (q *Queries) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCancelByID, arg.ID, arg.CanceledAt)
 	return err
 }
@@ -1333,7 +1322,7 @@ type UpdateProvisionerJobWithCompleteByIDParams struct {
 	Error       sql.NullString `db:"error" json:"error"`
 }
 
-func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error {
+func (q *Queries) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateProvisionerJobWithCompleteByID,
 		arg.ID,
 		arg.UpdatedAt,
@@ -1354,7 +1343,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error) {
+func (q *Queries) GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateByID, id)
 	var i Template
 	err := row.Scan(
@@ -1389,7 +1378,7 @@ type GetTemplateByOrganizationAndNameParams struct {
 	Name           string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error) {
+func (q *Queries) GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateByOrganizationAndName, arg.OrganizationID, arg.Deleted, arg.Name)
 	var i Template
 	err := row.Scan(
@@ -1414,7 +1403,7 @@ WHERE
 	id = ANY($1 :: uuid [ ])
 `
 
-func (q *sqlQuerier) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]Template, error) {
+func (q *Queries) GetTemplatesByIDs(ctx context.Context, ids []uuid.UUID) ([]Template, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplatesByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -1461,7 +1450,7 @@ type GetTemplatesByOrganizationParams struct {
 	Deleted        bool      `db:"deleted" json:"deleted"`
 }
 
-func (q *sqlQuerier) GetTemplatesByOrganization(ctx context.Context, arg GetTemplatesByOrganizationParams) ([]Template, error) {
+func (q *Queries) GetTemplatesByOrganization(ctx context.Context, arg GetTemplatesByOrganizationParams) ([]Template, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplatesByOrganization, arg.OrganizationID, arg.Deleted)
 	if err != nil {
 		return nil, err
@@ -1518,7 +1507,7 @@ type InsertTemplateParams struct {
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 }
 
-func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
+func (q *Queries) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
 	row := q.db.QueryRowContext(ctx, insertTemplate,
 		arg.ID,
 		arg.CreatedAt,
@@ -1556,7 +1545,7 @@ type UpdateTemplateActiveVersionByIDParams struct {
 	ActiveVersionID uuid.UUID `db:"active_version_id" json:"active_version_id"`
 }
 
-func (q *sqlQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error {
+func (q *Queries) UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateActiveVersionByID, arg.ID, arg.ActiveVersionID)
 	return err
 }
@@ -1575,7 +1564,7 @@ type UpdateTemplateDeletedByIDParams struct {
 	Deleted bool      `db:"deleted" json:"deleted"`
 }
 
-func (q *sqlQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error {
+func (q *Queries) UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateDeletedByID, arg.ID, arg.Deleted)
 	return err
 }
@@ -1589,7 +1578,7 @@ WHERE
 	id = $1
 `
 
-func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
+func (q *Queries) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateVersionByID, id)
 	var i TemplateVersion
 	err := row.Scan(
@@ -1614,7 +1603,7 @@ WHERE
 	job_id = $1
 `
 
-func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error) {
+func (q *Queries) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateVersionByJobID, jobID)
 	var i TemplateVersion
 	err := row.Scan(
@@ -1645,7 +1634,7 @@ type GetTemplateVersionByTemplateIDAndNameParams struct {
 	Name       string        `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error) {
+func (q *Queries) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateVersionByTemplateIDAndName, arg.TemplateID, arg.Name)
 	var i TemplateVersion
 	err := row.Scan(
@@ -1670,7 +1659,7 @@ WHERE
 	template_id = $1 :: uuid
 `
 
-func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, dollar_1 uuid.UUID) ([]TemplateVersion, error) {
+func (q *Queries) GetTemplateVersionsByTemplateID(ctx context.Context, dollar_1 uuid.UUID) ([]TemplateVersion, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByTemplateID, dollar_1)
 	if err != nil {
 		return nil, err
@@ -1729,7 +1718,7 @@ type InsertTemplateVersionParams struct {
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 }
 
-func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error) {
+func (q *Queries) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error) {
 	row := q.db.QueryRowContext(ctx, insertTemplateVersion,
 		arg.ID,
 		arg.TemplateID,
@@ -1770,7 +1759,7 @@ type UpdateTemplateVersionByIDParams struct {
 	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error {
+func (q *Queries) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionByID, arg.ID, arg.TemplateID, arg.UpdatedAt)
 	return err
 }
@@ -1792,7 +1781,7 @@ type GetUserByEmailOrUsernameParams struct {
 	Email    string `db:"email" json:"email"`
 }
 
-func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
+func (q *Queries) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
 	var i User
 	err := row.Scan(
@@ -1820,7 +1809,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
@@ -1844,7 +1833,7 @@ FROM
 	users
 `
 
-func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
+func (q *Queries) GetUserCount(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getUserCount)
 	var count int64
 	err := row.Scan(&count)
@@ -1919,7 +1908,7 @@ type InsertUserParams struct {
 	Username       string    `db:"username" json:"username"`
 }
 
-func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
+func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, insertUser,
 		arg.ID,
 		arg.Email,
@@ -1965,7 +1954,7 @@ type UpdateUserProfileParams struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, updateUserProfile,
 		arg.ID,
 		arg.Email,
@@ -1999,7 +1988,7 @@ ORDER BY
 	created_at DESC
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {
+func (q *Queries) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByAuthToken, authToken)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -2032,7 +2021,7 @@ WHERE
 	id = $1
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error) {
+func (q *Queries) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByID, id)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -2067,7 +2056,7 @@ ORDER BY
 	created_at DESC
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error) {
+func (q *Queries) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByInstanceID, authInstanceID)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -2100,7 +2089,7 @@ WHERE
 	resource_id = ANY($1 :: uuid [ ])
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error) {
+func (q *Queries) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsByResourceIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -2177,7 +2166,7 @@ type InsertWorkspaceAgentParams struct {
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
+func (q *Queries) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceAgent,
 		arg.ID,
 		arg.CreatedAt,
@@ -2233,7 +2222,7 @@ type UpdateWorkspaceAgentConnectionByIDParams struct {
 	DisconnectedAt   sql.NullTime `db:"disconnected_at" json:"disconnected_at"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error {
+func (q *Queries) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentConnectionByID,
 		arg.ID,
 		arg.FirstConnectedAt,
@@ -2254,7 +2243,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
+func (q *Queries) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByID, id)
 	var i WorkspaceBuild
 	err := row.Scan(
@@ -2285,7 +2274,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error) {
+func (q *Queries) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByJobID, jobID)
 	var i WorkspaceBuild
 	err := row.Scan(
@@ -2314,7 +2303,7 @@ WHERE
 	workspace_id = $1
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceBuild, error) {
+func (q *Queries) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceBuild, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildByWorkspaceID, workspaceID)
 	if err != nil {
 		return nil, err
@@ -2365,7 +2354,7 @@ type GetWorkspaceBuildByWorkspaceIDAndNameParams struct {
 	Name        string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndNameParams) (WorkspaceBuild, error) {
+func (q *Queries) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndNameParams) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDAndName, arg.WorkspaceID, arg.Name)
 	var i WorkspaceBuild
 	err := row.Scan(
@@ -2397,7 +2386,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error) {
+func (q *Queries) GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDWithoutAfter, workspaceID)
 	var i WorkspaceBuild
 	err := row.Scan(
@@ -2427,7 +2416,7 @@ WHERE
 	AND after_id IS NULL
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
+func (q *Queries) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildsByWorkspaceIDsWithoutAfter, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -2496,7 +2485,7 @@ type InsertWorkspaceBuildParams struct {
 	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error) {
+func (q *Queries) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceBuild,
 		arg.ID,
 		arg.CreatedAt,
@@ -2546,7 +2535,7 @@ type UpdateWorkspaceBuildByIDParams struct {
 	ProvisionerState []byte        `db:"provisioner_state" json:"provisioner_state"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
+func (q *Queries) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
 		arg.ID,
 		arg.UpdatedAt,
@@ -2565,7 +2554,7 @@ WHERE
 	id = $1
 `
 
-func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
+func (q *Queries) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceResourceByID, id)
 	var i WorkspaceResource
 	err := row.Scan(
@@ -2588,7 +2577,7 @@ WHERE
 	job_id = $1
 `
 
-func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error) {
+func (q *Queries) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceResourcesByJobID, jobID)
 	if err != nil {
 		return nil, err
@@ -2634,7 +2623,7 @@ type InsertWorkspaceResourceParams struct {
 	Name       string              `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
+func (q *Queries) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceResource,
 		arg.ID,
 		arg.CreatedAt,
@@ -2666,7 +2655,7 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error) {
+func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByID, id)
 	var i Workspace
 	err := row.Scan(
@@ -2700,7 +2689,7 @@ type GetWorkspaceByUserIDAndNameParams struct {
 	Name    string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWorkspaceByUserIDAndNameParams) (Workspace, error) {
+func (q *Queries) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWorkspaceByUserIDAndNameParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByUserIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
 	var i Workspace
 	err := row.Scan(
@@ -2735,7 +2724,7 @@ type GetWorkspaceOwnerCountsByTemplateIDsRow struct {
 	Count      int64     `db:"count" json:"count"`
 }
 
-func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
+func (q *Queries) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceOwnerCountsByTemplateIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -2773,7 +2762,7 @@ type GetWorkspacesByTemplateIDParams struct {
 	Deleted    bool      `db:"deleted" json:"deleted"`
 }
 
-func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorkspacesByTemplateIDParams) ([]Workspace, error) {
+func (q *Queries) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorkspacesByTemplateIDParams) ([]Workspace, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspacesByTemplateID, arg.TemplateID, arg.Deleted)
 	if err != nil {
 		return nil, err
@@ -2821,7 +2810,7 @@ type GetWorkspacesByUserIDParams struct {
 	Deleted bool      `db:"deleted" json:"deleted"`
 }
 
-func (q *sqlQuerier) GetWorkspacesByUserID(ctx context.Context, arg GetWorkspacesByUserIDParams) ([]Workspace, error) {
+func (q *Queries) GetWorkspacesByUserID(ctx context.Context, arg GetWorkspacesByUserIDParams) ([]Workspace, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspacesByUserID, arg.OwnerID, arg.Deleted)
 	if err != nil {
 		return nil, err
@@ -2877,7 +2866,7 @@ type InsertWorkspaceParams struct {
 	Name       string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
+func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspace,
 		arg.ID,
 		arg.CreatedAt,
@@ -2915,7 +2904,7 @@ type UpdateWorkspaceAutostartParams struct {
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error {
+func (q *Queries) UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostart, arg.ID, arg.AutostartSchedule)
 	return err
 }
@@ -2934,7 +2923,7 @@ type UpdateWorkspaceAutostopParams struct {
 	AutostopSchedule sql.NullString `db:"autostop_schedule" json:"autostop_schedule"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceAutostop(ctx context.Context, arg UpdateWorkspaceAutostopParams) error {
+func (q *Queries) UpdateWorkspaceAutostop(ctx context.Context, arg UpdateWorkspaceAutostopParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostop, arg.ID, arg.AutostopSchedule)
 	return err
 }
@@ -2953,7 +2942,7 @@ type UpdateWorkspaceDeletedByIDParams struct {
 	Deleted bool      `db:"deleted" json:"deleted"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error {
+func (q *Queries) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceDeletedByID, arg.ID, arg.Deleted)
 	return err
 }
