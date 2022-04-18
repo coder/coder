@@ -53,7 +53,7 @@ WHERE
 	id = $1 RETURNING *;
 
 
--- name: PaginatedUsers :many
+-- name: PaginatedUsersAfter :many
 SELECT
 	*
 FROM
@@ -62,15 +62,45 @@ WHERE
 	CASE
 		WHEN @after::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			created_at > (SELECT created_at FROM users WHERE id = @after)
-		WHEN @before::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			created_at < (SELECT created_at FROM users WHERE id = @before)
-	    ELSE true
+		-- If the after field is not provided, just return the first page
+		ELSE true
+	END
+	AND
+	CASE
+	    WHEN @email::text != '' THEN
+				email LIKE '%' || @email || '%'
+		ELSE true
 	END
 ORDER BY
-    -- TODO: When doing 'before', we need to flip this to DESC.
-	-- You cannot put 'ASC' or 'DESC' in a CASE statement. :'(
-	-- Until we figure this out, before is broken.
-	-- Another option is to do a subquery above
 	created_at ASC
 LIMIT
 	@limit_opt;
+
+-- name: PaginatedUsersBefore :many
+SELECT users_before.* FROM
+	(SELECT
+		*
+	FROM
+		users
+	WHERE
+		CASE
+			WHEN @before::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				created_at < (SELECT created_at FROM users WHERE id = @before)
+			-- If the 'before' field is not provided, this will return the last page.
+			-- Kinda odd, it's just a consequence of spliting the pagination queries into 2
+			-- functions.
+			ELSE true
+		END
+		AND
+		CASE
+			WHEN @email::text != '' THEN
+				email LIKE '%' || @email || '%'
+			ELSE true
+		END
+	ORDER BY
+		created_at DESC
+	LIMIT
+		@limit_opt) AS users_before
+-- Maintain the original ordering of the rows so the pages are the same order
+-- as PaginatedUsersAfter.
+ORDER BY users_before.created_at ASC;

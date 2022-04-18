@@ -1905,7 +1905,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
-const paginatedUsers = `-- name: PaginatedUsers :many
+const paginatedUsersAfter = `-- name: PaginatedUsersAfter :many
 SELECT
 	id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
 FROM
@@ -1914,26 +1914,98 @@ WHERE
 	CASE
 		WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			created_at > (SELECT created_at FROM users WHERE id = $1)
-		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			created_at < (SELECT created_at FROM users WHERE id = $2)
-	    ELSE true
+		-- If the after field is not provided, just return the first page
+		ELSE true
+	END
+	AND
+	CASE
+	    WHEN $2::text != '' THEN
+				email LIKE '%' || $2 || '%'
+		ELSE true
 	END
 ORDER BY
-    -- TODO: When doing 'before', we need to flip this to DESC.
-	-- You cannot put 'ASC' or 'DESC' in a CASE statement. :'(
 	created_at ASC
 LIMIT
 	$3
 `
 
-type PaginatedUsersParams struct {
+type PaginatedUsersAfterParams struct {
 	After    uuid.UUID `db:"after" json:"after"`
-	Before   uuid.UUID `db:"before" json:"before"`
+	Email    string    `db:"email" json:"email"`
 	LimitOpt int32     `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) PaginatedUsers(ctx context.Context, arg PaginatedUsersParams) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, paginatedUsers, arg.After, arg.Before, arg.LimitOpt)
+func (q *sqlQuerier) PaginatedUsersAfter(ctx context.Context, arg PaginatedUsersAfterParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, paginatedUsersAfter, arg.After, arg.Email, arg.LimitOpt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.Revoked,
+			&i.LoginType,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const paginatedUsersBefore = `-- name: PaginatedUsersBefore :many
+SELECT users_before.id, users_before.email, users_before.name, users_before.revoked, users_before.login_type, users_before.hashed_password, users_before.created_at, users_before.updated_at, users_before.username FROM
+	(SELECT
+		id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+	FROM
+		users
+	WHERE
+		CASE
+			WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				created_at < (SELECT created_at FROM users WHERE id = $1)
+			-- If the 'before' field is not provided, this will return the last page.
+			-- Kinda odd, it's just a consequence of spliting the pagination queries into 2
+			-- functions.
+			ELSE true
+		END
+		AND
+		CASE
+			WHEN $2::text != '' THEN
+				email LIKE '%' || $2 || '%'
+			ELSE true
+		END
+	ORDER BY
+		created_at DESC
+	LIMIT
+		$3) AS users_before
+ORDER BY users_before.created_at ASC
+`
+
+type PaginatedUsersBeforeParams struct {
+	Before   uuid.UUID `db:"before" json:"before"`
+	Email    string    `db:"email" json:"email"`
+	LimitOpt int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+// Maintain the original ordering of the rows so the pages are the same order
+// as PaginatedUsersAfter.
+func (q *sqlQuerier) PaginatedUsersBefore(ctx context.Context, arg PaginatedUsersBeforeParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, paginatedUsersBefore, arg.Before, arg.Email, arg.LimitOpt)
 	if err != nil {
 		return nil, err
 	}

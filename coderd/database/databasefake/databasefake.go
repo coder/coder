@@ -1375,6 +1375,10 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) PaginatedUsers(ctx context.Context, arg database.PaginatedUsersParams) ([]database.User, error) {
+func (q *fakeQuerier) PaginatedUsersAfter(ctx context.Context, arg database.PaginatedUsersAfterParams) ([]database.User, error) {
+	return nil, xerrors.Errorf("not implemented")
+}
+
+func (q *fakeQuerier) PaginatedUsersBefore(ctx context.Context, arg database.PaginatedUsersBeforeParams) ([]database.User, error) {
 	return nil, xerrors.Errorf("not implemented")
 }
