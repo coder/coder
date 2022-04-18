@@ -89,8 +89,8 @@ func handleTypeSpec(typeSpec *ast.TypeSpec, pos token.Position) (string, error) 
 				continue
 			}
 
-			fieldName, err := toJSONField(field)
-			if err != nil || fieldType == "" {
+			fieldName := toJSONField(field)
+			if fieldType == "" {
 				continue
 			}
 
@@ -169,7 +169,7 @@ func toTsType(fieldType string) string {
 	return fieldType
 }
 
-func toJSONField(field *ast.Field) (string, error) {
+func toJSONField(field *ast.Field) string {
 	if field.Tag != nil && field.Tag.Value != "" {
 		fieldName := strings.Trim(field.Tag.Value, "`")
 		for _, pair := range strings.Split(fieldName, " ") {
@@ -178,10 +178,10 @@ func toJSONField(field *ast.Field) (string, error) {
 				fieldName = strings.Trim(fieldName, `"`)
 				fieldName = strings.Split(fieldName, ",")[0]
 
-				return fieldName, nil
+				return fieldName
 			}
 		}
 	}
 
-	return "", xerrors.New("no json tag")
+	return ""
 }
