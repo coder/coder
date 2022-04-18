@@ -45,28 +45,31 @@ func run() error {
 		astFiles = append(astFiles, astFile)
 	}
 
+	// TypeSpec case for structs and type alias
 	loopSpecs(astFiles, func(spec ast.Spec) {
 		pos := fset.Position(spec.Pos())
-		switch s := spec.(type) {
-		// TypeSpec case for structs and type alias
-		case *ast.TypeSpec:
-			out, err := handleTypeSpec(s, pos, enums)
-			if err != nil {
-				break
-			}
-
-			_, _ = fmt.Printf(out)
+		s, ok := spec.(*ast.TypeSpec)
+		if !ok {
+			return
 		}
+		out, err := handleTypeSpec(s, pos, enums)
+		if err != nil {
+			return
+		}
+
+		_, _ = fmt.Printf(out)
 	})
 
+	// ValueSpec case for loading type alias values into the enum map
 	loopSpecs(astFiles, func(spec ast.Spec) {
-		switch s := spec.(type) {
-		// ValueSpec case for const "enums"
-		case *ast.ValueSpec:
-			handleValueSpec(s, enums)
+		s, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			return
 		}
+		handleValueSpec(s, enums)
 	})
 
+	// write each type alias declaration with possible values
 	for _, v := range enums {
 		_, _ = fmt.Printf("%s\n", v)
 	}
