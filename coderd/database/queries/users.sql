@@ -52,7 +52,6 @@ SET
 WHERE
 	id = $1 RETURNING *;
 
-
 -- name: GetUsers :many
 SELECT
 	*
@@ -60,19 +59,15 @@ FROM
 	users
 WHERE
 	CASE
-	    -- This allows using the last element on a page as effectively a cursor.
-	    -- This is an important option for scripts that need to paginate without
-	    -- duplicating or missing data.
-	    WHEN @created_after::timestamp with time zone != '0001-01-01 00:00:00+00' THEN
-			created_at > @created_after
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00+00' THEN created_at > @created_after
 		ELSE true
 	END
-	AND
-	CASE
-	    WHEN @search_email::text != '' THEN
-			email LIKE '%' || @search_email || '%'
+	AND CASE
+		WHEN @search_email :: text != '' THEN email LIKE concat('%', @search_email, '%')
 		ELSE true
-	END
-OFFSET @offset_opt
--- A null limit means "no limit", so -1 means return all
-LIMIT NULLIF(@limit_opt::int, -1);
+	END OFFSET @offset_opt -- A null limit means "no limit", so -1 means return all
+LIMIT
+	NULLIF(@limit_opt :: int, -1);

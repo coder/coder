@@ -1858,21 +1858,18 @@ FROM
 	users
 WHERE
 	CASE
-	    -- This allows using the last element on a page as effectively a cursor.
-	    -- This is an important option for scripts that need to paginate without
-	    -- duplicating or missing data.
-	    WHEN $1::timestamp with time zone != '0001-01-01 00:00:00+00' THEN
-			created_at > $1
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $1 :: timestamp with time zone != '0001-01-01 00:00:00+00' THEN created_at > $1
 		ELSE true
 	END
-	AND
-	CASE
-	    WHEN $2::text != '' THEN
-			email LIKE '%' || $2 || '%'
+	AND CASE
+		WHEN $2 :: text != '' THEN email LIKE concat('%', $2, '%')
 		ELSE true
-	END
-OFFSET $3
-LIMIT NULLIF($4::int, -1)
+	END OFFSET $3 -- A null limit means "no limit", so -1 means return all
+LIMIT
+	NULLIF($4 :: int, -1)
 `
 
 type GetUsersParams struct {
@@ -1882,7 +1879,6 @@ type GetUsersParams struct {
 	LimitOpt     int32     `db:"limit_opt" json:"limit_opt"`
 }
 
-// A null limit means "no limit", so -1 means return all
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.CreatedAfter,
