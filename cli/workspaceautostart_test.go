@@ -3,6 +3,8 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,11 +29,13 @@ func TestWorkspaceAutostart(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
-			sched     = "CRON_TZ=Europe/Dublin 30 9 1-5"
+			tz        = "Europe/Dublin"
+			cmdArgs   = []string{"workspaces", "autostart", "enable", workspace.Name, "--minute", "30", "--hour", "9", "--days", "1-5", "--tz", tz}
+			sched     = "CRON_TZ=Europe/Dublin 30 9 * * 1-5"
 			stdoutBuf = &bytes.Buffer{}
 		)
 
-		cmd, root := clitest.New(t, "workspaces", "autostart", "enable", workspace.Name, sched)
+		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
@@ -68,10 +72,9 @@ func TestWorkspaceAutostart(t *testing.T) {
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			sched   = "CRON_TZ=Europe/Dublin 30 9 1-5"
 		)
 
-		cmd, root := clitest.New(t, "workspaces", "autostart", "enable", "doesnotexist", sched)
+		cmd, root := clitest.New(t, "workspaces", "autostart", "enable", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
@@ -96,34 +99,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 		require.ErrorContains(t, err, "status code 404: no workspace found by name", "unexpected error")
 	})
 
-	t.Run("Enable_InvalidSchedule", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
-			sched     = "sdfasdfasdf asdf asdf"
-		)
-
-		cmd, root := clitest.New(t, "workspaces", "autostart", "enable", workspace.Name, sched)
-		clitest.SetupConfig(t, client, root)
-
-		err := cmd.Execute()
-		require.ErrorContains(t, err, "failed to parse int from sdfasdfasdf: strconv.Atoi:", "unexpected error")
-
-		// Ensure nothing happened
-		updated, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err, "fetch updated workspace")
-		require.Empty(t, updated.AutostartSchedule, "expected autostart schedule to be empty")
-	})
-
-	t.Run("Enable_NoSchedule", func(t *testing.T) {
+	t.Run("Enable_DefaultSchedule", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -137,15 +113,21 @@ func TestWorkspaceAutostart(t *testing.T) {
 			workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 		)
 
+		// check current TZ env var
+		currTz := os.Getenv("TZ")
+		if currTz == "" {
+			currTz = "UTC"
+		}
+		expectedSchedule := fmt.Sprintf("CRON_TZ=%s 0 9 * * 1-5", currTz)
 		cmd, root := clitest.New(t, "workspaces", "autostart", "enable", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "accepts 2 arg(s), received 1", "unexpected error")
+		require.NoError(t, err, "unexpected error")
 
 		// Ensure nothing happened
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Empty(t, updated.AutostartSchedule, "expected autostart schedule to be empty")
+		require.Equal(t, expectedSchedule, updated.AutostartSchedule, "expected default autostart schedule")
 	})
 }

@@ -76,7 +76,7 @@ func TestRead(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, v.Errors, 1)
 		require.Equal(t, v.Errors[0].Field, "value")
-		require.Equal(t, v.Errors[0].Code, "required")
+		require.Equal(t, v.Errors[0].Detail, "required")
 	})
 }
 

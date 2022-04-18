@@ -23,6 +23,25 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
+// Lists all the users
+func (api *api) users(rw http.ResponseWriter, r *http.Request) {
+	users, err := api.Database.GetUsers(r.Context())
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get users: %s", err.Error()),
+		})
+		return
+	}
+
+	var res []codersdk.User
+	for _, user := range users {
+		res = append(res, convertUser(user))
+	}
+
+	httpapi.Write(rw, http.StatusOK, res)
+}
+
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
@@ -289,14 +308,14 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		responseErrors := []httpapi.Error{}
 		if existentUser.Email == params.Email {
 			responseErrors = append(responseErrors, httpapi.Error{
-				Field: "email",
-				Code:  "exists",
+				Field:  "email",
+				Detail: "this value is already in use and should be unique",
 			})
 		}
 		if existentUser.Username == params.Username {
 			responseErrors = append(responseErrors, httpapi.Error{
-				Field: "username",
-				Code:  "exists",
+				Field:  "username",
+				Detail: "this value is already in use and should be unique",
 			})
 		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
@@ -591,8 +610,8 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("template %q doesn't exist", createWorkspace.TemplateID.String()),
 			Errors: []httpapi.Error{{
-				Field: "template_id",
-				Code:  "not_found",
+				Field:  "template_id",
+				Detail: "template not found",
 			}},
 		})
 		return
@@ -637,8 +656,8 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
 			Errors: []httpapi.Error{{
-				Field: "name",
-				Code:  "exists",
+				Field:  "name",
+				Detail: "this value is already in use and should be unique",
 			}},
 		})
 		return

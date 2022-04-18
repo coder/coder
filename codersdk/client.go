@@ -127,7 +127,7 @@ func (e *Error) Error() string {
 	var builder strings.Builder
 	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
 	for _, err := range e.Errors {
-		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Code)
+		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
 	}
 	return builder.String()
 }

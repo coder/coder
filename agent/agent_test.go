@@ -57,7 +57,7 @@ func TestAgent(t *testing.T) {
 		}
 		output, err := session.Output(command)
 		require.NoError(t, err)
-		require.Contains(t, string(output), "gitssh --")
+		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 	})
 
 	t.Run("SessionTTY", func(t *testing.T) {
