@@ -22,7 +22,7 @@ coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/dat
 apitypings/generate: site/src/api/types.ts
 	go run scripts/apitypings/main.go > site/src/api/types-generated.ts
 	cd site && yarn run format:types
-.PHONY: coderts/generate
+.PHONY: apitypings/generate
 
 fmt/prettier:
 	@echo "--- prettier"
