@@ -90,7 +90,7 @@ func handleTypeSpec(typeSpec *ast.TypeSpec, pos token.Position) (string, error) 
 			}
 
 			fieldName := toJSONField(field)
-			if fieldType == "" {
+			if fieldName == "" {
 				continue
 			}
 

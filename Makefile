@@ -20,7 +20,7 @@ coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/dat
 .PHONY: coderd/database/generate
 
 coderts/generate: coderts/types.ts
-	go run coderts/generate.go > coderts/types.ts
+	go run scripts/coderts/main.go > coderts/types.ts
 .PHONY: coderts/generate
 
 fmt/prettier:
