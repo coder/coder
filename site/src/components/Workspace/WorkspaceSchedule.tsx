@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import Typography from "@material-ui/core/Typography"
 import cronstrue from "cronstrue"
 import React from "react"
-import { expandScheduleCronString, extractTimezone } from "../../util/schedule"
+import { extractTimezone, stripTimezone } from "../../util/schedule"
 import { WorkspaceSection } from "./WorkspaceSection"
 
 const Language = {
@@ -26,7 +26,7 @@ const Language = {
   },
   cronHumanDisplay: (schedule: string): string => {
     if (schedule) {
-      return cronstrue.toString(expandScheduleCronString(schedule), { throwExceptionOnParseError: false })
+      return cronstrue.toString(stripTimezone(schedule), { throwExceptionOnParseError: false })
     }
     return "Manual"
   },

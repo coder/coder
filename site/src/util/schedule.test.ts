@@ -1,4 +1,4 @@
-import { expandScheduleCronString, extractTimezone, stripTimezone } from "./schedule"
+import { extractTimezone, stripTimezone } from "./schedule"
 
 describe("util/schedule", () => {
   describe("stripTimezone", () => {
@@ -18,16 +18,6 @@ describe("util/schedule", () => {
       ["30 9 1-5", "UTC"],
     ])(`extractTimezone(%p) returns %p`, (input, expected) => {
       expect(extractTimezone(input)).toBe(expected)
-    })
-  })
-
-  describe("expandScheduleCronString", () => {
-    it.each<[string, string]>([
-      ["CRON_TZ=Canada/Eastern 30 9 1-5", "30 9 * * 1-5"],
-      ["CRON_TZ=America/Central 0 8 1,2,4,5", "0 8 * * 1,2,4,5"],
-      ["30 9 1-5", "30 9 * * 1-5"],
-    ])(`expandScheduleCronString(%p) returns %p`, (input, expected) => {
-      expect(expandScheduleCronString(input)).toBe(expected)
     })
   })
 })

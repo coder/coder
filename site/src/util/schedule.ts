@@ -30,25 +30,3 @@ export const extractTimezone = (raw: string): string => {
     return DEFAULT_TIMEZONE
   }
 }
-
-/**
- * expandScheduleCronString ensures a Schedule is expanded to a valid 5-value
- * cron string by inserting '*' in month and day positions. If there is a
- * leading timezone, it is removed.
- *
- * @example
- * expandScheduleCronString("30 9 1-5") // -> "30 9 * * 1-5"
- */
-export const expandScheduleCronString = (schedule: string): string => {
-  const prepared = stripTimezone(schedule).trim()
-
-  const parts = prepared.split(" ")
-
-  while (parts.length < 5) {
-    // insert '*' in the second to last position
-    // ie [a, b, c] --> [a, b, *, c]
-    parts.splice(parts.length - 1, 0, "*")
-  }
-
-  return parts.join(" ")
-}
