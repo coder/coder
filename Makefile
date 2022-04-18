@@ -88,8 +88,8 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 		./provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
-release: site/out
-	goreleaser release --snapshot --rm-dist
+release:
+	goreleaser release --snapshot --rm-dist --skip-sign
 .PHONY: release
 
 site/out:
@@ -102,4 +102,3 @@ site/out:
 
 test:
 	gotestsum -- -v -short ./...
-
