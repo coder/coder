@@ -145,37 +145,16 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Lists all the users
-func (api *api) users(rw http.ResponseWriter, r *http.Request) {
-	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
-		CreatedAfter: time.Time{},
-		OffsetOpt:    0,
-		LimitOpt:     -1,
-	})
-
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get users: %s", err.Error()),
-		})
-		return
-	}
-
-	var res []codersdk.User
-	for _, user := range users {
-		res = append(res, convertUser(user))
-	}
-
-	httpapi.Write(rw, http.StatusOK, res)
-}
-
 func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		afterArg  = r.URL.Query().Get("created_after")
-		limitArg  = r.URL.Query().Get("limit")
-		offsetArg = r.URL.Query().Get("offset")
+		afterArg    = r.URL.Query().Get("created_after")
+		limitArg    = r.URL.Query().Get("limit")
+		offsetArg   = r.URL.Query().Get("offset")
+		searchEmail = r.URL.Query().Get("search_email")
 	)
 
 	var createdAfter time.Time
+	// Allow both the Golang default layout for timestamps, or unix time milli.
 	if afterArg != "" {
 		after, err := time.Parse(time.RFC3339Nano, afterArg)
 		if err != nil {
@@ -195,6 +174,7 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 
 	pagerFields := codersdk.PagerFields{}
 
+	// Default to no limit
 	pagerFields.Limit = -1
 	if limitArg != "" {
 		limit, err := strconv.Atoi(limitArg)
@@ -220,6 +200,7 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 		CreatedAfter: createdAfter,
 		OffsetOpt:    int32(pagerFields.Offset),
 		LimitOpt:     int32(pagerFields.Limit),
+		SearchEmail:  searchEmail,
 	})
 
 	if err != nil {

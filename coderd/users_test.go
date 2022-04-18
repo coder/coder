@@ -592,13 +592,13 @@ func TestPaginatedUsers(t *testing.T) {
 	assertPagination(t, ctx, client, 1, allUsers, nil)
 
 	// Try a search
-	//gmailSearch := func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
-	//	//request.SearchEmail = "gmail"
-	//	return request
-	//}
-	//assertPagination(t, ctx, client, 3, gmailUsers, gmailSearch)
-	//assertPagination(t, ctx, client, 7, gmailUsers, gmailSearch)
-	//assertPagination(t, ctx, client, 1, gmailUsers, gmailSearch)
+	gmailSearch := func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
+		request.SearchEmail = "gmail"
+		return request
+	}
+	assertPagination(t, ctx, client, 3, gmailUsers, gmailSearch)
+	assertPagination(t, ctx, client, 7, gmailUsers, gmailSearch)
+	assertPagination(t, ctx, client, 1, gmailUsers, gmailSearch)
 }
 
 func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client, limit int, allUsers []codersdk.User,
