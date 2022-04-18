@@ -200,9 +200,10 @@ func start() *cobra.Command {
 				}
 			}
 
+			errCh := make(chan error, 1)
 			provisionerDaemons := make([]*provisionerd.Server, 0)
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir)
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir, errCh)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -214,7 +215,6 @@ func start() *cobra.Command {
 				}
 			}()
 
-			errCh := make(chan error, 1)
 			shutdownConnsCtx, shutdownConns := context.WithCancel(cmd.Context())
 			defer shutdownConns()
 			go func() {
@@ -411,7 +411,7 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	return nil
 }
 
-func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string) (*provisionerd.Server, error) {
+func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string, errChan chan error) (*provisionerd.Server, error) {
 	err := os.MkdirAll(cacheDir, 0700)
 	if err != nil {
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
@@ -427,7 +427,7 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 			Logger:    logger,
 		})
 		if err != nil {
-			panic(err)
+			errChan <- err
 		}
 	}()
 
