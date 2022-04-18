@@ -115,8 +115,8 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: "template version not found",
 			Errors: []httpapi.Error{{
-				Field: "template_version_id",
-				Code:  "exists",
+				Field:  "template_version_id",
+				Detail: "template version not found",
 			}},
 		})
 		return
