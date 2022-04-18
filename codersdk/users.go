@@ -15,18 +15,14 @@ import (
 var Me = uuid.Nil
 
 type PaginatedUsersRequest struct {
-	After       string `json:"after"`
-	Before      string `json:"before"`
-	Limit       int    `json:"limit"`
-	SearchEmail string `json:"search_email"`
+	CreatedAfter time.Time `json:"created_after"`
+	Limit        int       `json:"limit"`
+	Offset       int       `json:"offset"`
 }
 
 type PagerFields struct {
-	EndingBefore  string `json:"ending_before"`
-	StartingAfter string `json:"starting_after"`
-	NextURI       string `json:"next_uri"`
-	PreviousURI   string `json:"previous_uri"`
-	Limit         int    `json:"limit"`
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
 }
 
 type PaginatedUsers struct {
@@ -234,14 +230,13 @@ func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
 func (c *Client) PaginatedUsers(ctx context.Context, req PaginatedUsersRequest) (PaginatedUsers, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil, func(r *http.Request) {
 		q := r.URL.Query()
-		if req.Before != "" {
-			q.Set("before", req.Before)
+		if !req.CreatedAfter.IsZero() {
+			q.Set("created_after", req.CreatedAfter.Format(time.RFC3339Nano))
 		}
-		if req.After != "" {
-			q.Set("after", req.After)
+		if req.Limit > 0 {
+			q.Set("limit", strconv.Itoa(req.Limit))
 		}
-		q.Set("email", req.SearchEmail)
-		q.Set("limit", strconv.Itoa(req.Limit))
+		q.Set("offset", strconv.Itoa(req.Offset))
 		r.URL.RawQuery = q.Encode()
 	})
 	if err != nil {

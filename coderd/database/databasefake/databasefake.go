@@ -165,7 +165,7 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) GetUsers(_ context.Context) ([]database.User, error) {
+func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

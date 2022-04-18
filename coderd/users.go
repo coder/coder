@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-chi/render"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -24,25 +24,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
-
-// Lists all the users
-func (api *api) users(rw http.ResponseWriter, r *http.Request) {
-	users, err := api.Database.GetUsers(r.Context())
-
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get users: %s", err.Error()),
-		})
-		return
-	}
-
-	var res []codersdk.User
-	for _, user := range users {
-		res = append(res, convertUser(user))
-	}
-
-	httpapi.Write(rw, http.StatusOK, res)
-}
 
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
@@ -164,107 +145,88 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Lists all the users
+func (api *api) users(rw http.ResponseWriter, r *http.Request) {
+	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
+		CreatedAfter: time.Time{},
+		OffsetOpt:    0,
+		LimitOpt:     -1,
+	})
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get users: %s", err.Error()),
+		})
+		return
+	}
+
+	var res []codersdk.User
+	for _, user := range users {
+		res = append(res, convertUser(user))
+	}
+
+	httpapi.Write(rw, http.StatusOK, res)
+}
+
 func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		beforeArg   = r.URL.Query().Get("before")
-		afterArg    = r.URL.Query().Get("after")
-		limitArg    = r.URL.Query().Get("limit")
-		searchEmail = r.URL.Query().Get("email")
+		afterArg  = r.URL.Query().Get("created_after")
+		limitArg  = r.URL.Query().Get("limit")
+		offsetArg = r.URL.Query().Get("offset")
 	)
 
-	limit, err := strconv.Atoi(limitArg)
-	if limitArg != "" && err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("limit must be an integer: %s", err.Error()),
-		})
-		return
-	}
-	if limit <= 0 {
-		// Default
-		limit = 10
-	}
-
-	if beforeArg != "" && afterArg != "" {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("cannot provide both 'after' and 'before'"),
-		})
-		return
-	}
-
-	pagerFields := codersdk.PagerFields{
-		Limit: limit,
-	}
-
-	var useBefore bool
-	var cursor uuid.UUID
-	var cursorErr error
-	if beforeArg != "" && afterArg != "" {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("cannot provide both 'after' and 'before'"),
-		})
-		return
-	} else if beforeArg != "" {
-		// Last is a special word to indicate the last page
-		if beforeArg != "last" {
-			cursor, cursorErr = uuid.Parse(beforeArg)
+	var createdAfter time.Time
+	if afterArg != "" {
+		after, err := time.Parse(time.RFC3339Nano, afterArg)
+		if err != nil {
+			// Try it as a unix timestamp in ms
+			unixmilli, err := strconv.ParseInt(afterArg, 10, 64)
+			if err != nil {
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: fmt.Sprintf("created_after should be a unix timestamp in milliseconds"),
+				})
+				return
+			}
+			createdAfter = time.UnixMilli(unixmilli)
+		} else {
+			createdAfter = after
 		}
-		useBefore = true
-	} else if afterArg != "" {
-		cursor, cursorErr = uuid.Parse(afterArg)
-		// Special keyword just incase this is the last page
-		pagerFields.EndingBefore = "last"
 	}
-	if cursorErr != nil {
+
+	pagerFields := codersdk.PagerFields{}
+
+	pagerFields.Limit = -1
+	if limitArg != "" {
+		limit, err := strconv.Atoi(limitArg)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("limit must be an integer: %s", err.Error()),
+			})
+			return
+		}
+		pagerFields.Limit = limit
+	}
+
+	offset, err := strconv.Atoi(offsetArg)
+	if offsetArg != "" && err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("cursor must be a uuid: %s", cursorErr.Error()),
+			Message: fmt.Sprintf("offset must be an integer: %s", err.Error()),
 		})
 		return
 	}
+	pagerFields.Offset = offset
 
-	var users []database.User
-	if useBefore {
-		users, err = api.Database.PaginatedUsersBefore(r.Context(), database.PaginatedUsersBeforeParams{
-			Before:   cursor,
-			Email:    searchEmail,
-			LimitOpt: int32(limit),
-		})
-	} else {
-		users, err = api.Database.PaginatedUsersAfter(r.Context(), database.PaginatedUsersAfterParams{
-			After:    cursor,
-			Email:    searchEmail,
-			LimitOpt: int32(limit),
-		})
-	}
+	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
+		CreatedAfter: createdAfter,
+		OffsetOpt:    int32(pagerFields.Offset),
+		LimitOpt:     int32(pagerFields.Limit),
+	})
+
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
 		})
 		return
-	}
-
-	// If we have users, we can build the pager fields
-	if len(users) != 0 {
-		first := users[0].ID
-		last := users[len(users)-1].ID
-		vals := r.URL.Query()
-		vals.Del("before")
-		vals.Del("after")
-
-		prev := make(url.Values)
-		for k, v := range vals {
-			prev[k] = v
-		}
-		next := vals
-		prev.Set("before", first.String())
-		next.Set("after", last.String())
-
-		pagerFields = codersdk.PagerFields{
-			EndingBefore:  first.String(),
-			StartingAfter: last.String(),
-			NextURI:       r.URL.Path + "?" + next.Encode(),
-			PreviousURI:   r.URL.Path + "?" + prev.Encode(),
-			Limit:         limit,
-		}
 	}
 
 	render.Status(r, http.StatusOK)

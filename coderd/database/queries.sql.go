@@ -1856,10 +1856,24 @@ SELECT
 	id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
 FROM
 	users
+WHERE
+	CASE
+	    WHEN $1::timestamp with time zone != '0001-01-01 00:00:00+00' THEN
+			created_at > $1
+		ELSE true
+	END
+OFFSET $2
+LIMIT NULLIF($3::int, -1)
 `
 
-func (q *sqlQuerier) GetUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getUsers)
+type GetUsersParams struct {
+	CreatedAfter time.Time `db:"created_after" json:"created_after"`
+	OffsetOpt    int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt     int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getUsers, arg.CreatedAfter, arg.OffsetOpt, arg.LimitOpt)
 	if err != nil {
 		return nil, err
 	}

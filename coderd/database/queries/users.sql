@@ -57,7 +57,16 @@ WHERE
 SELECT
 	*
 FROM
-	users;
+	users
+WHERE
+	CASE
+	    WHEN @created_after::timestamp with time zone != '0001-01-01 00:00:00+00' THEN
+			created_at > @created_after
+		ELSE true
+	END
+OFFSET @offset_opt
+-- A null limit means "no limit", so -1 means return all
+LIMIT NULLIF(@limit_opt::int, -1);
 
 -- name: PaginatedUsersAfter :many
 SELECT
