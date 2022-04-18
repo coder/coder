@@ -24,7 +24,7 @@ import (
 )
 
 // Lists all the users
-func (api *api) getUsers(rw http.ResponseWriter, r *http.Request) {
+func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	users, err := api.Database.GetUsers(r.Context())
 
 	if err != nil {
