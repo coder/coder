@@ -42,7 +42,7 @@ func New(relayAddress *turn.RelayAddressGeneratorStatic) (*Server, error) {
 		}
 	}
 	logger := logging.NewDefaultLoggerFactory()
-	logger.DefaultLogLevel = logging.LogLevelDebug
+	logger.DefaultLogLevel = logging.LogLevelDisabled
 	server := &Server{
 		conns:  make(chan net.Conn, 1),
 		closed: make(chan struct{}),
