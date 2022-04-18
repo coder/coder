@@ -29,8 +29,10 @@ func TestProxy(t *testing.T) {
 	defer listenerClient.Close()
 	defer listenerServer.Close()
 
-	listener, err := peerbroker.Listen(listenerServer, nil, &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+	listener, err := peerbroker.Listen(listenerServer, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+		return nil, &peer.ConnOptions{
+			Logger: slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+		}, nil
 	})
 	require.NoError(t, err)
 

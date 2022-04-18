@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer"
 	"github.com/coder/retry"
 )
 
@@ -110,9 +109,7 @@ func workspaceAgent() *cobra.Command {
 				return xerrors.Errorf("writing agent session token to config: %w", err)
 			}
 
-			closer := agent.New(client.ListenWorkspaceAgent, &peer.ConnOptions{
-				Logger: logger,
-			})
+			closer := agent.New(client.ListenWorkspaceAgent, logger)
 			<-cmd.Context().Done()
 			return closer.Close()
 		},

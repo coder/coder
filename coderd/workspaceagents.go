@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/yamux"
@@ -217,6 +219,59 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func (api *api) workspaceAgentICEServers(rw http.ResponseWriter, _ *http.Request) {
+	httpapi.Write(rw, http.StatusOK, api.ICEServers)
+}
+
+// workspaceAgentTurn proxies a WebSocket connection to the TURN server.
+func (api *api) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
+	defer api.websocketWaitGroup.Done()
+
+	localAddress, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+	remoteAddress := &net.TCPAddr{
+		IP: net.ParseIP(r.RemoteAddr),
+	}
+	// By default requests have the remote address and port.
+	host, port, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("get remote address: %s", err),
+		})
+		return
+	}
+	remoteAddress.IP = net.ParseIP(host)
+	remoteAddress.Port, err = strconv.Atoi(port)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("remote address %q has no parsable port: %s", r.RemoteAddr, err),
+		})
+		return
+	}
+
+	wsConn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
+	}
+	defer func() {
+		_ = wsConn.Close(websocket.StatusNormalClosure, "")
+	}()
+	netConn := websocket.NetConn(r.Context(), wsConn, websocket.MessageBinary)
+	api.Logger.Debug(r.Context(), "accepting turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+	select {
+	case <-api.TURNServer.Accept(netConn, remoteAddress, localAddress).Closed():
+	case <-r.Context().Done():
+	}
+	api.Logger.Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
 }
 
 func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {

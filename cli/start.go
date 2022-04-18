@@ -18,6 +18,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/pion/turn/v2"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -34,6 +35,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
@@ -56,11 +58,13 @@ func start() *cobra.Command {
 		tlsEnable              bool
 		tlsKeyFile             string
 		tlsMinVersion          string
+		turnRelayAddress       string
 		skipTunnel             bool
 		traceDatadog           bool
 		secureAuthCookie       bool
 		sshKeygenAlgorithmRaw  string
 	)
+
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -156,6 +160,14 @@ func start() *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
+			turnServer, err := turnconn.New(&turn.RelayAddressGeneratorStatic{
+				RelayAddress: net.ParseIP(turnRelayAddress),
+				Address:      turnRelayAddress,
+			})
+			if err != nil {
+				return xerrors.Errorf("create turn server: %w", err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
 				Logger:               logger.Named("coderd"),
@@ -164,6 +176,7 @@ func start() *cobra.Command {
 				GoogleTokenValidator: validator,
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
+				TURNServer:           turnServer,
 			}
 
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", accessURL)
@@ -376,6 +389,8 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &skipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
 	_ = root.Flags().MarkHidden("skip-tunnel")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
+		"Specifies the address to bind TURN connections.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)

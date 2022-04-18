@@ -32,13 +32,13 @@ func TestDial(t *testing.T) {
 		defer server.Close()
 
 		settingEngine := webrtc.SettingEngine{}
-		listener, err := peerbroker.Listen(server, func(ctx context.Context) ([]webrtc.ICEServer, error) {
+		listener, err := peerbroker.Listen(server, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
 			return []webrtc.ICEServer{{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			}}, nil
-		}, &peer.ConnOptions{
-			Logger:        slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
-			SettingEngine: settingEngine,
+					URLs: []string{"stun:stun.l.google.com:19302"},
+				}}, &peer.ConnOptions{
+					Logger:        slogtest.Make(t, nil).Named("server").Leveled(slog.LevelDebug),
+					SettingEngine: settingEngine,
+				}, nil
 		})
 		require.NoError(t, err)
 

@@ -169,10 +169,6 @@ jobs:
           terraform_version: 1.1.2
           terraform_wrapper: false
 
-      - name: Install socat
-        if: runner.os == 'Linux'
-        run: sudo apt-get install -y socat
-
       - name: Test with Mock Database
         shell: bash
         env:

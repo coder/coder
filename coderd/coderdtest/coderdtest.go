@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -91,9 +92,8 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	}
 
 	srv := httptest.NewUnstartedServer(nil)
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		t.Cleanup(cancelFunc)
 		return ctx
 	}
 	srv.Start()
@@ -106,6 +106,9 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		options.SSHKeygenAlgorithm = gitsshkey.AlgorithmEd25519
 	}
 
+	turnServer, err := turnconn.New(nil)
+	require.NoError(t, err)
+
 	// We set the handler after server creation for the access URL.
 	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
@@ -117,8 +120,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		AWSCertificates:      options.AWSInstanceIdentity,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
+		TURNServer:           turnServer,
 	})
 	t.Cleanup(func() {
+		cancelFunc()
+		_ = turnServer.Close()
 		srv.Close()
 		closeWait()
 	})

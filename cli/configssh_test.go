@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
@@ -72,9 +71,7 @@ func TestConfigSSH(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil),
-	})
+	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, slogtest.Make(t, nil))
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
@@ -82,7 +79,7 @@ func TestConfigSSH(t *testing.T) {
 	require.NoError(t, err)
 	_ = tempFile.Close()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil, nil)
+	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()
 

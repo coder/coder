@@ -32,23 +32,23 @@ type Options struct {
 	Logger slog.Logger
 }
 
-type Dialer func(ctx context.Context, options *peer.ConnOptions) (*peerbroker.Listener, error)
+type Dialer func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error)
 
-func New(dialer Dialer, options *peer.ConnOptions) io.Closer {
+func New(dialer Dialer, logger slog.Logger) io.Closer {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		clientDialer: dialer,
-		options:      options,
-		closeCancel:  cancelFunc,
-		closed:       make(chan struct{}),
+		dialer:      dialer,
+		logger:      logger,
+		closeCancel: cancelFunc,
+		closed:      make(chan struct{}),
 	}
 	server.init(ctx)
 	return server
 }
 
 type agent struct {
-	clientDialer Dialer
-	options      *peer.ConnOptions
+	dialer Dialer
+	logger slog.Logger
 
 	connCloseWait sync.WaitGroup
 	closeCancel   context.CancelFunc
@@ -64,7 +64,7 @@ func (a *agent) run(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		peerListener, err = a.clientDialer(ctx, a.options)
+		peerListener, err = a.dialer(ctx, a.logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -72,10 +72,10 @@ func (a *agent) run(ctx context.Context) {
 			if a.isClosed() {
 				return
 			}
-			a.options.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
+			a.logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
-		a.options.Logger.Info(context.Background(), "connected")
+		a.logger.Info(context.Background(), "connected")
 		break
 	}
 	select {
@@ -90,7 +90,7 @@ func (a *agent) run(ctx context.Context) {
 			if a.isClosed() {
 				return
 			}
-			a.options.Logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
+			a.logger.Debug(ctx, "peer listener accept exited; restarting connection", slog.Error(err))
 			a.run(ctx)
 			return
 		}
@@ -105,10 +105,9 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 	go func() {
 		select {
 		case <-a.closed:
-			_ = conn.Close()
 		case <-conn.Closed():
 		}
-		<-conn.Closed()
+		_ = conn.Close()
 		a.connCloseWait.Done()
 	}()
 	for {
@@ -117,7 +116,7 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 			if errors.Is(err, peer.ErrClosed) || a.isClosed() {
 				return
 			}
-			a.options.Logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
+			a.logger.Debug(ctx, "accept channel from peer connection", slog.Error(err))
 			return
 		}
 
@@ -125,7 +124,7 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 		case "ssh":
 			go a.sshServer.HandleConn(channel.NetConn())
 		default:
-			a.options.Logger.Warn(ctx, "unhandled protocol from channel",
+			a.logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
 				slog.F("label", channel.Label()),
 			)
@@ -145,7 +144,7 @@ func (a *agent) init(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	sshLogger := a.options.Logger.Named("ssh-server")
+	sshLogger := a.logger.Named("ssh-server")
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	a.sshServer = &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
@@ -158,7 +157,7 @@ func (a *agent) init(ctx context.Context) {
 		Handler: func(session ssh.Session) {
 			err := a.handleSSHSession(session)
 			if err != nil {
-				a.options.Logger.Warn(ctx, "ssh session failed", slog.Error(err))
+				a.logger.Warn(ctx, "ssh session failed", slog.Error(err))
 				_ = session.Exit(1)
 				return
 			}
@@ -194,7 +193,7 @@ func (a *agent) init(ctx context.Context) {
 			"sftp": func(session ssh.Session) {
 				server, err := sftp.NewServer(session)
 				if err != nil {
-					a.options.Logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
+					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
 					return
 				}
 				defer server.Close()
@@ -202,7 +201,7 @@ func (a *agent) init(ctx context.Context) {
 				if errors.Is(err, io.EOF) {
 					return
 				}
-				a.options.Logger.Debug(session.Context(), "sftp server exited with error", slog.Error(err))
+				a.logger.Debug(session.Context(), "sftp server exited with error", slog.Error(err))
 			},
 		},
 	}
@@ -250,7 +249,7 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 			for win := range windowSize {
 				err = ptty.Resize(uint16(win.Width), uint16(win.Height))
 				if err != nil {
-					a.options.Logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
+					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
 				}
 			}
 		}()
