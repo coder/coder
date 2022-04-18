@@ -103,6 +103,7 @@ export interface CreateUserRequest {
 export interface UpdateUserProfileRequest {
   email: string
   username: string
+  name?: string
 }
 
 export interface LoginWithPasswordRequest {

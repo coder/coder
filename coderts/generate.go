@@ -83,21 +83,34 @@ func handleTypeSpec(typeSpec *ast.TypeSpec) (string, error) {
 		s = fmt.Sprintf("export interface %s {\n", typeSpec.Name.Name)
 		structType := typeSpec.Type.(*ast.StructType)
 		for _, field := range structType.Fields.List {
-			i, ok := field.Type.(*ast.Ident)
-			if !ok {
+			var i *ast.Ident
+			optional := ""
+			switch field.Type.(type) {
+			case *ast.Ident:
+				i = field.Type.(*ast.Ident)
+			case *ast.StarExpr:
+				var ok bool
+				se := field.Type.(*ast.StarExpr)
+				i, ok = se.X.(*ast.Ident)
+				if !ok {
+					continue
+				}
+				optional = "?"
+			default:
 				continue
 			}
-			fieldType, err := toTsType(i)
-			if err != nil {
+
+			fieldType := toTsType(i)
+			if fieldType == "" {
 				continue
 			}
 
 			fieldName, err := toJSONField(field)
-			if err != nil {
+			if err != nil || fieldType == "" {
 				continue
 			}
 
-			s = fmt.Sprintf("%s  %s: %s\n", s, fieldName, fieldType)
+			s = fmt.Sprintf("%s  %s%s: %s\n", s, fieldName, optional, fieldType)
 			jsonFields++
 		}
 
@@ -146,20 +159,26 @@ func handleValueSpec(valueSpec *ast.ValueSpec) (string, error) {
 	return fmt.Sprintf("%s %s: %s = %s\n\n", valueDecl, valueName, valueType, valueValue), nil
 }
 
-func toTsType(e ast.Expr) (string, error) {
-	i, ok := e.(*ast.Ident)
-	if !ok {
-		return "", xerrors.New("not ident")
-	}
-	fieldType := i.Name
-	switch fieldType {
-	case "bool":
-		return "boolean", nil
-	case "uint64", "uint32", "float64":
-		return "number", nil
+func toTsType(e ast.Expr) string {
+	fieldType := ""
+	switch e.(type) {
+	case *ast.Ident:
+		i := e.(*ast.Ident)
+		fieldType = i.Name
+	case *ast.StarExpr:
+		se := e.(*ast.StarExpr)
+		i := se.X.(*ast.Ident)
+		fieldType = i.Name
 	}
 
-	return fieldType, nil
+	switch fieldType {
+	case "bool":
+		return "boolean"
+	case "uint64", "uint32", "float64":
+		return "number"
+	}
+
+	return fieldType
 }
 
 func toJSONField(field *ast.Field) (string, error) {
