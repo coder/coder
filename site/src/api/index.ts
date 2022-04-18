@@ -43,13 +43,13 @@ export namespace Workspace {
   }
 }
 
-export const login = async (email: string, password: string): Promise<Types.LoginResponse> => {
+export const login = async (email: string, password: string): Promise<Types.LoginWithPasswordResponse> => {
   const payload = JSON.stringify({
     email,
     password,
   })
 
-  const response = await axios.post<Types.LoginResponse>("/api/v2/users/login", payload, {
+  const response = await axios.post<Types.LoginWithPasswordResponse>("/api/v2/users/login", payload, {
     headers: { ...CONTENT_TYPE_JSON },
   })
 
@@ -60,8 +60,8 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
 
-export const getUser = async (): Promise<Types.UserResponse> => {
-  const response = await axios.get<Types.UserResponse>("/api/v2/users/me")
+export const getUser = async (): Promise<Types.User> => {
+  const response = await axios.get<Types.User>("/api/v2/users/me")
   return response.data
 }
 
@@ -71,7 +71,7 @@ export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
 }
 
 export const getUsers = async (): Promise<Types.PagedUsers> => {
-  // const response = await axios.get<Types.UserResponse[]>("/api/v2/users")
+  // const response = await axios.get<Types.User[]>("/api/v2/users")
   // return response.data
   return Promise.resolve({
     page: [MockUser, MockUser2],
@@ -104,7 +104,7 @@ export const putWorkspaceAutostop = async (
   })
 }
 
-export const updateProfile = async (userId: string, data: Types.UpdateProfileRequest): Promise<Types.UserResponse> => {
+export const updateProfile = async (userId: string, data: Types.UpdateProfileRequest): Promise<Types.User> => {
   const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
   return response.data
 }

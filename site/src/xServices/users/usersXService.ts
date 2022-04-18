@@ -3,7 +3,7 @@ import * as API from "../../api"
 import * as Types from "../../api/types"
 
 export interface UsersContext {
-  users: Types.UserResponse[]
+  users: Types.User[]
   pager?: Types.Pager
   getUsersError?: Error | unknown
 }
