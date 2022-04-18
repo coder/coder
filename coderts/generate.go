@@ -45,10 +45,11 @@ func run() error {
 				continue
 			}
 			for _, spec := range genDecl.Specs {
+				pos := fset.Position(spec.Pos())
 				switch s := spec.(type) {
 				// TypeSpec case for structs and type alias
 				case *ast.TypeSpec:
-					out, err := handleTypeSpec(s)
+					out, err := handleTypeSpec(s, pos)
 					if err != nil {
 						break
 					}
@@ -56,7 +57,7 @@ func run() error {
 					_, _ = fmt.Printf(out)
 				// ValueSpec case for const "enums"
 				case *ast.ValueSpec:
-					out, err := handleValueSpec(s)
+					out, err := handleValueSpec(s, pos)
 					if err != nil {
 						break
 					}
@@ -70,13 +71,13 @@ func run() error {
 	return nil
 }
 
-func handleTypeSpec(typeSpec *ast.TypeSpec) (string, error) {
+func handleTypeSpec(typeSpec *ast.TypeSpec, pos token.Position) (string, error) {
 	jsonFields := 0
-	s := ""
+	s := fmt.Sprintf("// From %s.\n", pos.String())
 	switch t := typeSpec.Type.(type) {
 	// Struct declaration
 	case *ast.StructType:
-		s = fmt.Sprintf("export interface %s {\n", typeSpec.Name.Name)
+		s = fmt.Sprintf("%sexport interface %s {\n", s, typeSpec.Name.Name)
 		for _, field := range t.Fields.List {
 			i, optional, err := getIdent(field.Type)
 			if err != nil {
@@ -105,13 +106,13 @@ func handleTypeSpec(typeSpec *ast.TypeSpec) (string, error) {
 		return fmt.Sprintf("%s}\n\n", s), nil
 	// Type alias declaration
 	case *ast.Ident:
-		return fmt.Sprintf("type %s = %s\n\n", typeSpec.Name.Name, t.Name), nil
+		return fmt.Sprintf("%stype %s = %s\n\n", s, typeSpec.Name.Name, t.Name), nil
 	default:
 		return "", xerrors.New("not struct or alias")
 	}
 }
 
-func handleValueSpec(valueSpec *ast.ValueSpec) (string, error) {
+func handleValueSpec(valueSpec *ast.ValueSpec, pos token.Position) (string, error) {
 	valueDecl := ""
 	valueName := ""
 	valueType := ""
@@ -139,7 +140,7 @@ func handleValueSpec(valueSpec *ast.ValueSpec) (string, error) {
 		break
 	}
 
-	return fmt.Sprintf("%s %s: %s = %s\n\n", valueDecl, valueName, valueType, valueValue), nil
+	return fmt.Sprintf("// From %s.\n%s %s: %s = %s\n\n", pos.String(), valueDecl, valueName, valueType, valueValue), nil
 }
 
 func getIdent(e ast.Expr) (*ast.Ident, string, error) {
