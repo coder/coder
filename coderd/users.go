@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
@@ -25,6 +24,25 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
+
+// Lists all the users
+func (api *api) users(rw http.ResponseWriter, r *http.Request) {
+	users, err := api.Database.GetUsers(r.Context())
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get users: %s", err.Error()),
+		})
+		return
+	}
+
+	var res []codersdk.User
+	for _, user := range users {
+		res = append(res, convertUser(user))
+	}
+
+	httpapi.Write(rw, http.StatusOK, res)
+}
 
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
@@ -140,8 +158,7 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, codersdk.CreateFirstUserResponse{
+	httpapi.Write(rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
 		OrganizationID: organization.ID,
 	})
@@ -370,8 +387,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertUser(user))
+	httpapi.Write(rw, http.StatusCreated, convertUser(user))
 }
 
 // Returns the parameterized user requested. All validation
@@ -379,7 +395,7 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	render.JSON(rw, r, convertUser(user))
+	httpapi.Write(rw, http.StatusOK, convertUser(user))
 }
 
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
@@ -404,14 +420,14 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		responseErrors := []httpapi.Error{}
 		if existentUser.Email == params.Email {
 			responseErrors = append(responseErrors, httpapi.Error{
-				Field: "email",
-				Code:  "exists",
+				Field:  "email",
+				Detail: "this value is already in use and should be unique",
 			})
 		}
 		if existentUser.Username == params.Username {
 			responseErrors = append(responseErrors, httpapi.Error{
-				Field: "username",
-				Code:  "exists",
+				Field:  "username",
+				Detail: "this value is already in use and should be unique",
 			})
 		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
@@ -442,8 +458,7 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUser(updatedUserProfile))
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile))
 }
 
 // Returns organizations the parameterized user has access to.
@@ -467,8 +482,7 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, publicOrganizations)
+	httpapi.Write(rw, http.StatusOK, publicOrganizations)
 }
 
 func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
@@ -504,8 +518,7 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertOrganization(organization))
+	httpapi.Write(rw, http.StatusOK, convertOrganization(organization))
 }
 
 func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request) {
@@ -558,8 +571,7 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertOrganization(organization))
+	httpapi.Write(rw, http.StatusCreated, convertOrganization(organization))
 }
 
 // Authenticates the user with an email and password.
@@ -634,8 +646,7 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 		Secure:   api.SecureAuthCookie,
 	})
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, codersdk.LoginWithPasswordResponse{
+	httpapi.Write(rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
 		SessionToken: sessionToken,
 	})
 }
@@ -680,12 +691,11 @@ func (api *api) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	// This format is consumed by the APIKey middleware.
 	generatedAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, codersdk.GenerateAPIKeyResponse{Key: generatedAPIKey})
+	httpapi.Write(rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: generatedAPIKey})
 }
 
 // Clear the user's session cookie
-func (*api) postLogout(rw http.ResponseWriter, r *http.Request) {
+func (*api) postLogout(rw http.ResponseWriter, _ *http.Request) {
 	// Get a blank token cookie
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now
@@ -695,7 +705,9 @@ func (*api) postLogout(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, cookie)
-	render.Status(r, http.StatusOK)
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Logged out!",
+	})
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -710,8 +722,8 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("template %q doesn't exist", createWorkspace.TemplateID.String()),
 			Errors: []httpapi.Error{{
-				Field: "template_id",
-				Code:  "not_found",
+				Field:  "template_id",
+				Detail: "template not found",
 			}},
 		})
 		return
@@ -756,8 +768,8 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 			Message: fmt.Sprintf("workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
 			Errors: []httpapi.Error{{
-				Field: "name",
-				Code:  "exists",
+				Field:  "name",
+				Detail: "this value is already in use and should be unique",
 			}},
 		})
 		return
@@ -879,8 +891,7 @@ func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(rw, r, convertWorkspace(workspace,
+	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace,
 		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template))
 }
 
@@ -977,8 +988,8 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		apiWorkspaces = append(apiWorkspaces,
 			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiWorkspaces)
+
+	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
 func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) {
@@ -1022,8 +1033,7 @@ func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertWorkspace(workspace,
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace,
 		convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
 }
 

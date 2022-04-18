@@ -4,6 +4,7 @@ import React from "react"
 import { BrowserRouter as Router } from "react-router-dom"
 import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
+import { GlobalSnackbar } from "./components/Snackbar/GlobalSnackbar"
 import { light } from "./theme"
 import "./theme/global-fonts"
 import { XServiceProvider } from "./xServices/StateContext"
@@ -33,6 +34,7 @@ export const App: React.FC = () => {
           <ThemeProvider theme={light}>
             <CssBaseline />
             <AppRouter />
+            <GlobalSnackbar />
           </ThemeProvider>
         </XServiceProvider>
       </SWRConfig>

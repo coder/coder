@@ -165,6 +165,13 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
+func (q *fakeQuerier) GetUsers(_ context.Context) ([]database.User, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.users, nil
+}
+
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -627,7 +634,9 @@ func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, agent := range q.provisionerJobAgent {
+	// The schema sorts this by created at, so we iterate the array backwards.
+	for i := len(q.provisionerJobAgent) - 1; i >= 0; i-- {
+		agent := q.provisionerJobAgent[i]
 		if agent.AuthToken.String() == authToken.String() {
 			return agent, nil
 		}
@@ -1025,7 +1034,6 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		CreatedAt:  arg.CreatedAt,
 		JobID:      arg.JobID,
 		Transition: arg.Transition,
-		Address:    arg.Address,
 		Type:       arg.Type,
 		Name:       arg.Name,
 	}

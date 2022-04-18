@@ -53,6 +53,12 @@ WHERE
 	id = $1 RETURNING *;
 
 
+-- name: GetUsers :many
+SELECT
+	*
+FROM
+	users;
+
 -- name: PaginatedUsersAfter :many
 SELECT
 	*

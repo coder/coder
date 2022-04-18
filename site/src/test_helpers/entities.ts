@@ -1,11 +1,13 @@
 import {
   BuildInfoResponse,
   Organization,
+  Pager,
   Provisioner,
   Template,
   UserAgent,
   UserResponse,
   Workspace,
+  WorkspaceAutostartRequest,
 } from "../api/types"
 
 export const MockSessionToken = { session_token: "my-session-token" }
@@ -18,10 +20,23 @@ export const MockBuildInfo: BuildInfoResponse = {
 }
 
 export const MockUser: UserResponse = {
+  name: "Test User",
   id: "test-user",
   username: "TestUser",
   email: "test@coder.com",
   created_at: "",
+}
+
+export const MockUser2: UserResponse = {
+  id: "test-user-2",
+  name: "Test User 2",
+  username: "TestUser2",
+  email: "test2@coder.com",
+  created_at: "",
+}
+
+export const MockPager: Pager = {
+  total: 2,
 }
 
 export const MockOrganization: Organization = {
@@ -46,6 +61,25 @@ export const MockTemplate: Template = {
   active_version_id: "",
 }
 
+export const MockWorkspaceAutostartDisabled: WorkspaceAutostartRequest = {
+  schedule: "",
+}
+
+export const MockWorkspaceAutostartEnabled: WorkspaceAutostartRequest = {
+  // Runs at 9:30am Monday through Friday using Canada/Eastern
+  // (America/Toronto) time
+  schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
+}
+
+export const MockWorkspaceAutostopDisabled: WorkspaceAutostartRequest = {
+  schedule: "",
+}
+
+export const MockWorkspaceAutostopEnabled: WorkspaceAutostartRequest = {
+  // Runs at 9:30pm Monday through Friday using America/Toronto
+  schedule: "CRON_TZ=America/Toronto 30 21 * * 1-5",
+}
+
 export const MockWorkspace: Workspace = {
   id: "test-workspace",
   name: "Test-Workspace",
@@ -53,6 +87,8 @@ export const MockWorkspace: Workspace = {
   updated_at: "",
   template_id: MockTemplate.id,
   owner_id: MockUser.id,
+  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
+  autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
 }
 
 export const MockUserAgent: UserAgent = {

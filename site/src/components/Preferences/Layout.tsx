@@ -1,7 +1,7 @@
 import Box from "@material-ui/core/Box"
 import React from "react"
 import { Outlet } from "react-router-dom"
-import { AuthAndNav } from "../Page"
+import { AuthAndFrame } from "../AuthAndFrame/AuthAndFrame"
 import { TabPanel } from "../TabPanel"
 
 export const Language = {
@@ -21,7 +21,7 @@ const menuItems = [
 
 export const PreferencesLayout: React.FC = () => {
   return (
-    <AuthAndNav>
+    <AuthAndFrame>
       <Box display="flex" flexDirection="column">
         <Box style={{ maxWidth: "1380px", margin: "1em auto" }}>
           <TabPanel title={Language.preferencesLabel} menuItems={menuItems}>
@@ -29,6 +29,6 @@ export const PreferencesLayout: React.FC = () => {
           </TabPanel>
         </Box>
       </Box>
-    </AuthAndNav>
+    </AuthAndFrame>
   )
 }

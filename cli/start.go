@@ -32,8 +32,8 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/tunnel"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
@@ -64,8 +64,11 @@ func start() *cobra.Command {
 	root := &cobra.Command{
 		Use: "start",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			if traceDatadog {
-				tracer.Start()
+				tracer.Start(tracer.WithLogStartup(false), tracer.WithLogger(&datadogLogger{
+					logger: logger.Named("datadog"),
+				}))
 				defer tracer.Stop()
 			}
 
@@ -105,7 +108,13 @@ func start() *cobra.Command {
 				// If an access URL is specified, always skip tunneling.
 				skipTunnel = true
 			}
-			var tunnelErr <-chan error
+
+			var (
+				tunnelErrChan          <-chan error
+				ctxTunnel, closeTunnel = context.WithCancel(cmd.Context())
+			)
+			defer closeTunnel()
+
 			// If we're attempting to tunnel in dev-mode, the access URL
 			// needs to be changed to use the tunnel.
 			if dev && !skipTunnel {
@@ -124,13 +133,14 @@ func start() *cobra.Command {
 					return err
 				}
 				if err == nil {
-					accessURL, tunnelErr, err = tunnel.New(cmd.Context(), localURL.String())
+					accessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
 					if err != nil {
 						return xerrors.Errorf("create tunnel: %w", err)
 					}
 				}
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 			}
+
 			validator, err := idtoken.NewValidator(cmd.Context(), option.WithoutAuthentication())
 			if err != nil {
 				return err
@@ -146,7 +156,6 @@ func start() *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
-			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
 				Logger:               logger.Named("coderd"),
@@ -193,9 +202,10 @@ func start() *cobra.Command {
 				}
 			}
 
+			errCh := make(chan error, 1)
 			provisionerDaemons := make([]*provisionerd.Server, 0)
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir)
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir, errCh)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -207,7 +217,6 @@ func start() *cobra.Command {
 				}
 			}()
 
-			errCh := make(chan error, 1)
 			shutdownConnsCtx, shutdownConns := context.WithCancel(cmd.Context())
 			defer shutdownConns()
 			go func() {
@@ -263,8 +272,10 @@ func start() *cobra.Command {
 			case <-cmd.Context().Done():
 				closeCoderd()
 				return cmd.Context().Err()
-			case err := <-tunnelErr:
-				return err
+			case err := <-tunnelErrChan:
+				if err != nil {
+					return err
+				}
 			case err := <-errCh:
 				closeCoderd()
 				return err
@@ -326,6 +337,12 @@ func start() *cobra.Command {
 				}
 				spin.FinalMSG = cliui.Styles.Prompt.String() + "Gracefully shut down provisioner daemon!\n"
 				spin.Stop()
+			}
+
+			if dev && !skipTunnel {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
+				closeTunnel()
+				<-tunnelErrChan
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
@@ -396,7 +413,7 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	return nil
 }
 
-func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string) (*provisionerd.Server, error) {
+func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string, errChan chan error) (*provisionerd.Server, error) {
 	err := os.MkdirAll(cacheDir, 0700)
 	if err != nil {
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
@@ -412,7 +429,7 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 			Logger:    logger,
 		})
 		if err != nil {
-			panic(err)
+			errChan <- err
 		}
 	}()
 
@@ -518,4 +535,12 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	}
 
 	return tls.NewListener(listener, tlsConfig), nil
+}
+
+type datadogLogger struct {
+	logger slog.Logger
+}
+
+func (d *datadogLogger) Log(msg string) {
+	d.logger.Debug(context.Background(), msg)
 }

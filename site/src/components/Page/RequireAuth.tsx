@@ -15,7 +15,7 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({ children }) => {
   const location = useLocation()
   const redirectTo = embedRedirect(location.pathname)
 
-  if (authState.matches("signedOut") || !authState.context.me) {
+  if (authState.matches("signedOut")) {
     return <Navigate to={redirectTo} />
   } else if (authState.hasTag("loading")) {
     return <FullScreenLoader />

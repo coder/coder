@@ -73,6 +73,7 @@ func Root() *cobra.Command {
 		workspaceTunnel(),
 		gitssh(),
 		publickey(),
+		workspaceAgent(),
 	)
 
 	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")

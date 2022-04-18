@@ -2,10 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
@@ -17,67 +17,24 @@ import (
 func workspaceCreate() *cobra.Command {
 	var (
 		workspaceName string
+		templateName  string
 	)
 	cmd := &cobra.Command{
-		Use:   "create [template]",
+		Use:   "create [name]",
 		Short: "Create a workspace from a template",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
+
 			organization, err := currentOrganization(cmd, client)
 			if err != nil {
 				return err
 			}
 
-			templateName := ""
 			if len(args) >= 1 {
-				templateName = args[0]
-			}
-
-			var template codersdk.Template
-			if templateName == "" {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
-
-				templateNames := []string{}
-				templateByName := map[string]codersdk.Template{}
-				templates, err := client.TemplatesByOrganization(cmd.Context(), organization.ID)
-				if err != nil {
-					return err
-				}
-				for _, template := range templates {
-					templateName := template.Name
-					if template.WorkspaceOwnerCount > 0 {
-						developerText := "developer"
-						if template.WorkspaceOwnerCount != 1 {
-							developerText = "developers"
-						}
-						templateName += cliui.Styles.Placeholder.Render(fmt.Sprintf(" (used by %d %s)", template.WorkspaceOwnerCount, developerText))
-					}
-					templateNames = append(templateNames, templateName)
-					templateByName[templateName] = template
-				}
-				sort.Slice(templateNames, func(i, j int) bool {
-					return templateByName[templateNames[i]].WorkspaceOwnerCount > templateByName[templateNames[j]].WorkspaceOwnerCount
-				})
-				// Move the cursor up a single line for nicer display!
-				option, err := cliui.Select(cmd, cliui.SelectOptions{
-					Options:    templateNames,
-					HideSearch: true,
-				})
-				if err != nil {
-					return err
-				}
-				template = templateByName[option]
-			} else {
-				template, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
-				if err != nil {
-					return xerrors.Errorf("get template by name: %w", err)
-				}
-				if err != nil {
-					return err
-				}
+				workspaceName = args[0]
 			}
 
 			if workspaceName == "" {
@@ -99,6 +56,55 @@ func workspaceCreate() *cobra.Command {
 			_, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceName)
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
+			}
+
+			var template codersdk.Template
+			if templateName == "" {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
+
+				templates, err := client.TemplatesByOrganization(cmd.Context(), organization.ID)
+				if err != nil {
+					return err
+				}
+
+				slices.SortFunc(templates, func(a, b codersdk.Template) bool {
+					return a.WorkspaceOwnerCount > b.WorkspaceOwnerCount
+				})
+
+				templateNames := make([]string, 0, len(templates))
+				templateByName := make(map[string]codersdk.Template, len(templates))
+
+				for _, template := range templates {
+					templateName := template.Name
+
+					if template.WorkspaceOwnerCount > 0 {
+						developerText := "developer"
+						if template.WorkspaceOwnerCount != 1 {
+							developerText = "developers"
+						}
+
+						templateName += cliui.Styles.Placeholder.Render(fmt.Sprintf(" (used by %d %s)", template.WorkspaceOwnerCount, developerText))
+					}
+
+					templateNames = append(templateNames, templateName)
+					templateByName[templateName] = template
+				}
+
+				// Move the cursor up a single line for nicer display!
+				option, err := cliui.Select(cmd, cliui.SelectOptions{
+					Options:    templateNames,
+					HideSearch: true,
+				})
+				if err != nil {
+					return err
+				}
+
+				template = templateByName[option]
+			} else {
+				template, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
+				if err != nil {
+					return xerrors.Errorf("get template by name: %w", err)
+				}
 			}
 
 			templateVersion, err := client.TemplateVersion(cmd.Context(), template.ActiveVersionID)
@@ -164,10 +170,12 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID, before)
 			if err != nil {
 				return err
 			}
+
 			resources, err = client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
 			if err != nil {
 				return err
@@ -179,11 +187,12 @@ func workspaceCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "The %s workspace has been created!\n", cliui.Styles.Keyword.Render(workspace.Name))
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &workspaceName, "name", "n", "CODER_WORKSPACE_NAME", "", "Specify a workspace name.")
 
+	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
 	return cmd
 }

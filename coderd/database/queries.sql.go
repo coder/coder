@@ -1851,6 +1851,46 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getUsers = `-- name: GetUsers :many
+SELECT
+	id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+FROM
+	users
+`
+
+func (q *sqlQuerier) GetUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.Revoked,
+			&i.LoginType,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertUser = `-- name: InsertUser :one
 INSERT INTO
 	users (
@@ -2650,7 +2690,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, address, type, name
+	id, created_at, job_id, transition, type, name
 FROM
 	workspace_resources
 WHERE
@@ -2665,7 +2705,6 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.CreatedAt,
 		&i.JobID,
 		&i.Transition,
-		&i.Address,
 		&i.Type,
 		&i.Name,
 	)
@@ -2674,7 +2713,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, address, type, name
+	id, created_at, job_id, transition, type, name
 FROM
 	workspace_resources
 WHERE
@@ -2695,7 +2734,6 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.CreatedAt,
 			&i.JobID,
 			&i.Transition,
-			&i.Address,
 			&i.Type,
 			&i.Name,
 		); err != nil {
@@ -2714,17 +2752,9 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (
-		id,
-		created_at,
-		job_id,
-		transition,
-		address,
-		type,
-		name
-	)
+	workspace_resources (id, created_at, job_id, transition, type, name)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, job_id, transition, address, type, name
+	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, job_id, transition, type, name
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -2732,7 +2762,6 @@ type InsertWorkspaceResourceParams struct {
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
 	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
 	Transition WorkspaceTransition `db:"transition" json:"transition"`
-	Address    string              `db:"address" json:"address"`
 	Type       string              `db:"type" json:"type"`
 	Name       string              `db:"name" json:"name"`
 }
@@ -2743,7 +2772,6 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.CreatedAt,
 		arg.JobID,
 		arg.Transition,
-		arg.Address,
 		arg.Type,
 		arg.Name,
 	)
@@ -2753,7 +2781,6 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.CreatedAt,
 		&i.JobID,
 		&i.Transition,
-		&i.Address,
 		&i.Type,
 		&i.Name,
 	)

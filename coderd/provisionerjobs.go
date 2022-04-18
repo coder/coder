@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/render"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
@@ -87,8 +86,8 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		if logs == nil {
 			logs = []database.ProvisionerJobLog{}
 		}
-		render.Status(r, http.StatusOK)
-		render.JSON(rw, r, logs)
+
+		httpapi.Write(rw, http.StatusOK, logs)
 		return
 	}
 
@@ -229,8 +228,8 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		}
 		apiResources = append(apiResources, convertWorkspaceResource(resource, agents))
 	}
-	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, apiResources)
+
+	httpapi.Write(rw, http.StatusOK, apiResources)
 }
 
 func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) codersdk.ProvisionerJobLog {

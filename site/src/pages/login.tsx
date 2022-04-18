@@ -2,6 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { Navigate, useLocation } from "react-router-dom"
+import { Footer } from "../components/Page/Footer"
 import { retrieveRedirect } from "../util/redirect"
 import { XServiceContext } from "../xServices/StateContext"
 import { SignInForm } from "./../components/SignIn"
@@ -11,6 +12,12 @@ export const useStyles = makeStyles((theme) => ({
     height: "100vh",
     display: "flex",
     justifyContent: "center",
+    alignItems: "center",
+  },
+  layout: {
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(4),
     alignItems: "center",
   },
   container: {
@@ -38,8 +45,12 @@ export const SignInPage: React.FC = () => {
   } else {
     return (
       <div className={styles.root}>
-        <div className={styles.container}>
-          <SignInForm isLoading={isLoading} authErrorMessage={authErrorMessage} onSubmit={onSubmit} />
+        <div className={styles.layout}>
+          <div className={styles.container}>
+            <SignInForm isLoading={isLoading} authErrorMessage={authErrorMessage} onSubmit={onSubmit} />
+          </div>
+
+          <Footer />
         </div>
       </div>
     )

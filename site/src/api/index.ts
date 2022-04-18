@@ -1,5 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
+import { MockPager, MockUser, MockUser2 } from "../test_helpers/entities"
 import * as Types from "./types"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
@@ -69,7 +70,41 @@ export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
   return response.data
 }
 
+export const getUsers = async (): Promise<Types.PagedUsers> => {
+  // const response = await axios.get<Types.UserResponse[]>("/api/v2/users")
+  // return response.data
+  return Promise.resolve({
+    page: [MockUser, MockUser2],
+    pager: MockPager,
+  })
+}
+
 export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
   const response = await axios.get("/api/v2/buildinfo")
+  return response.data
+}
+
+export const putWorkspaceAutostart = async (
+  workspaceID: string,
+  autostart: Types.WorkspaceAutostartRequest,
+): Promise<void> => {
+  const payload = JSON.stringify(autostart)
+  await axios.put(`/api/v2/workspaces/${workspaceID}/autostart`, payload, {
+    headers: { ...CONTENT_TYPE_JSON },
+  })
+}
+
+export const putWorkspaceAutostop = async (
+  workspaceID: string,
+  autostop: Types.WorkspaceAutostopRequest,
+): Promise<void> => {
+  const payload = JSON.stringify(autostop)
+  await axios.put(`/api/v2/workspaces/${workspaceID}/autostop`, payload, {
+    headers: { ...CONTENT_TYPE_JSON },
+  })
+}
+
+export const updateProfile = async (userId: string, data: Types.UpdateProfileRequest): Promise<Types.UserResponse> => {
+  const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
   return response.data
 }
