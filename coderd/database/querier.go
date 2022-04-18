@@ -73,8 +73,6 @@ type querier interface {
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
-	PaginatedUsersAfter(ctx context.Context, arg PaginatedUsersAfterParams) ([]User, error)
-	PaginatedUsersBefore(ctx context.Context, arg PaginatedUsersBeforeParams) ([]User, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) error
 	UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error

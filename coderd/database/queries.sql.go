@@ -1858,22 +1858,38 @@ FROM
 	users
 WHERE
 	CASE
+	    -- This allows using the last element on a page as effectively a cursor.
+	    -- This is an important option for scripts that need to paginate without
+	    -- duplicating or missing data.
 	    WHEN $1::timestamp with time zone != '0001-01-01 00:00:00+00' THEN
 			created_at > $1
 		ELSE true
 	END
-OFFSET $2
-LIMIT NULLIF($3::int, -1)
+	AND
+	CASE
+	    WHEN $2::text != '' THEN
+			email LIKE '%' || $2 || '%'
+		ELSE true
+	END
+OFFSET $3
+LIMIT NULLIF($4::int, -1)
 `
 
 type GetUsersParams struct {
 	CreatedAfter time.Time `db:"created_after" json:"created_after"`
+	SearchEmail  string    `db:"search_email" json:"search_email"`
 	OffsetOpt    int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt     int32     `db:"limit_opt" json:"limit_opt"`
 }
 
+// A null limit means "no limit", so -1 means return all
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getUsers, arg.CreatedAfter, arg.OffsetOpt, arg.LimitOpt)
+	rows, err := q.db.QueryContext(ctx, getUsers,
+		arg.CreatedAfter,
+		arg.SearchEmail,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1957,138 +1973,6 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.Username,
 	)
 	return i, err
-}
-
-const paginatedUsersAfter = `-- name: PaginatedUsersAfter :many
-SELECT
-	id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
-FROM
-	users
-WHERE
-	CASE
-		WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			created_at > (SELECT created_at FROM users WHERE id = $1)
-		-- If the after field is not provided, just return the first page
-		ELSE true
-	END
-	AND
-	CASE
-	    WHEN $2::text != '' THEN
-				email LIKE '%' || $2 || '%'
-		ELSE true
-	END
-ORDER BY
-	created_at ASC
-LIMIT
-	$3
-`
-
-type PaginatedUsersAfterParams struct {
-	After    uuid.UUID `db:"after" json:"after"`
-	Email    string    `db:"email" json:"email"`
-	LimitOpt int32     `db:"limit_opt" json:"limit_opt"`
-}
-
-func (q *sqlQuerier) PaginatedUsersAfter(ctx context.Context, arg PaginatedUsersAfterParams) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, paginatedUsersAfter, arg.After, arg.Email, arg.LimitOpt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []User
-	for rows.Next() {
-		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Name,
-			&i.Revoked,
-			&i.LoginType,
-			&i.HashedPassword,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Username,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const paginatedUsersBefore = `-- name: PaginatedUsersBefore :many
-SELECT users_before.id, users_before.email, users_before.name, users_before.revoked, users_before.login_type, users_before.hashed_password, users_before.created_at, users_before.updated_at, users_before.username FROM
-	(SELECT
-		id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
-	FROM
-		users
-	WHERE
-		CASE
-			WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-				created_at < (SELECT created_at FROM users WHERE id = $1)
-			-- If the 'before' field is not provided, this will return the last page.
-			-- Kinda odd, it's just a consequence of spliting the pagination queries into 2
-			-- functions.
-			ELSE true
-		END
-		AND
-		CASE
-			WHEN $2::text != '' THEN
-				email LIKE '%' || $2 || '%'
-			ELSE true
-		END
-	ORDER BY
-		created_at DESC
-	LIMIT
-		$3) AS users_before
-ORDER BY users_before.created_at ASC
-`
-
-type PaginatedUsersBeforeParams struct {
-	Before   uuid.UUID `db:"before" json:"before"`
-	Email    string    `db:"email" json:"email"`
-	LimitOpt int32     `db:"limit_opt" json:"limit_opt"`
-}
-
-// Maintain the original ordering of the rows so the pages are the same order
-// as PaginatedUsersAfter.
-func (q *sqlQuerier) PaginatedUsersBefore(ctx context.Context, arg PaginatedUsersBeforeParams) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, paginatedUsersBefore, arg.Before, arg.Email, arg.LimitOpt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []User
-	for rows.Next() {
-		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Name,
-			&i.Revoked,
-			&i.LoginType,
-			&i.HashedPassword,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Username,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const updateUserProfile = `-- name: UpdateUserProfile :one
