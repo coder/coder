@@ -5,7 +5,7 @@ on:
       - "v*"
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -13,6 +13,17 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
+
+      - name: Install Gon
+        run: |
+          brew tap mitchellh/gon
+          brew install mitchellh/gon/gon
+
+      - name: Import Signing Certificates
+        uses: Apple-Actions/import-codesign-certs@v1
+        with:
+          p12-file-base64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -53,3 +64,5 @@ jobs:
           args: release --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AC_USERNAME: ${{ secrets.AC_USERNAME }}
+          AC_PASSWORD: ${{ secrets.AC_PASSWORD }}

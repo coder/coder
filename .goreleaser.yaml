@@ -1,13 +1,24 @@
 archives:
-  - id: coder
-    builds:
-      - coder
+  - id: coder-linux
+    builds: [coder-linux]
+    format: tar
     files:
       - src: docs/README.md
         dst: README.md
-    format_overrides:
-      - goos: windows
-        format: zip
+
+  - id: coder-darwin
+    builds: [coder-darwin]
+    format: zip
+    files:
+      - src: docs/README.md
+        dst: README.md
+
+  - id: coder-windows
+    builds: [coder-windows]
+    format: zip
+    files:
+      - src: docs/README.md
+        dst: README.md
 
 before:
   hooks:
@@ -27,14 +38,43 @@ builds:
       post: |
         cp {{.Path}} site/out/bin/coder-{{ .Os }}-{{ .Arch }}{{ trimprefix .Name "coder" }}
 
-  - id: coder
+  - id: coder-linux
     dir: cmd/coder
-    flags: ["-tags=embed"]
+    flags: [-tags=embed]
     ldflags:
       ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
-    goos: [darwin, linux, windows]
+    goos: [linux]
     goarch: [amd64, arm64]
+
+  - id: coder-windows
+    dir: cmd/coder
+    flags: [-tags=embed]
+    ldflags:
+      ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+
+  - id: coder-darwin
+    dir: cmd/coder
+    flags: [-tags=embed]
+    ldflags:
+      ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
+    env: [CGO_ENABLED=0]
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    hooks:
+      # This signs the binary that will be located inside the zip.
+      # MacOS requires the binary to be signed for notarization.
+      # 
+      # If it doesn't successfully sign, the zip sign step will error.
+      post: |
+        sh -c 'codesign -s {{.Env.AC_APPLICATION_IDENTITY}} -f -v --timestamp --options runtime {{.Path}} || true'
+
+env:
+  # Apple identity for signing!
+  - AC_APPLICATION_IDENTITY=BDB050EB749EDD6A80C6F119BF1382ECA119CCCC
 
 nfpms:
   - id: packages
@@ -50,7 +90,7 @@ nfpms:
     suggests:
       - postgresql
     builds:
-      - coder
+      - coder-linux
     bindir: /usr/bin
     contents:
       - src: coder.env
@@ -60,7 +100,14 @@ nfpms:
         dst: /usr/lib/systemd/system/coder.service
 
 release:
-  ids: [coder, packages]
+  ids: [coder-linux, coder-darwin, coder-windows, packages]
+
+signs:
+  - ids: [coder-darwin]
+    artifacts: archive
+    cmd: ./scripts/sign_macos.sh
+    args: ["${artifact}"]
+    output: true
 
 snapshot:
   name_template: "{{ .Version }}-devel+{{ .ShortCommit }}"
