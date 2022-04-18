@@ -536,40 +536,101 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 func TestPaginatedUsers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
 	coderdtest.CreateFirstUser(t, client)
 	me, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err)
 
 	allUsers := make([]codersdk.User, 0)
 	allUsers = append(allUsers, me)
+	gmailUsers := make([]codersdk.User, 0)
 
 	org, err := client.CreateOrganization(ctx, me.ID, codersdk.CreateOrganizationRequest{
 		Name: "default",
 	})
 	require.NoError(t, err)
 
+	// When 100 users exist
 	total := 100
 	// Create users
 	for i := 0; i < total; i++ {
+		email := fmt.Sprintf("%d@coder.com", i)
+		if i%2 == 0 {
+			email = fmt.Sprintf("%d@gmail.com", i)
+		}
 		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-			Email:          fmt.Sprintf("%d@coder.com", i),
+			Email:          email,
 			Username:       fmt.Sprintf("user%d", i),
 			Password:       "password",
 			OrganizationID: org.ID,
 		})
 		require.NoError(t, err)
 		allUsers = append(allUsers, newUser)
+		if i%2 == 0 {
+			gmailUsers = append(gmailUsers, newUser)
+		}
 	}
 
-	limit := 10
-	users, err := client.PaginatedUsers(ctx, codersdk.PaginatedUsersRequest{
-		Limit: limit,
-	})
-	require.NoError(t, err)
-	require.Equal(t, users.Page, allUsers[:limit])
+	assertPagination(t, ctx, client, 10, allUsers, nil)
+	assertPagination(t, ctx, client, 5, allUsers, nil)
+	assertPagination(t, ctx, client, 3, allUsers, nil)
+	assertPagination(t, ctx, client, 1, allUsers, nil)
 
-	users, err = client.PaginatedUsers(ctx, codersdk.PaginatedUsersRequest{After: users.Page[len(users.Page)-1].ID})
-	require.NoError(t, err)
-	require.Equal(t, users.Page, allUsers[limit:limit*2])
+	// Try a search
+	gmailSearch := func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
+		request.SearchEmail = "gmail"
+		return request
+	}
+	assertPagination(t, ctx, client, 3, gmailUsers, gmailSearch)
+	assertPagination(t, ctx, client, 7, gmailUsers, gmailSearch)
+	assertPagination(t, ctx, client, 1, gmailUsers, gmailSearch)
+}
+
+func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client, limit int, allUsers []codersdk.User,
+	opt func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest) {
+	var count int
+	if opt == nil {
+		opt = func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
+			return request
+		}
+	}
+
+	// Check the first page
+	page, err := client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
+		Limit: limit,
+	}))
+	require.NoError(t, err, "first page")
+	require.Equal(t, page.Page, allUsers[:limit])
+	require.Equal(t, page.Pager.Limit, limit, "expected limit")
+	count += len(page.Page)
+
+	for {
+		if page.Pager.StartingAfter == "" {
+			break
+		}
+		// Assert each page is the next expected page
+		page, err = client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
+			Limit: limit,
+			After: page.Pager.StartingAfter,
+		}))
+		require.NoError(t, err, "next page")
+
+		var expected []codersdk.User
+		if count+limit > len(allUsers) {
+			expected = allUsers[count:]
+		} else {
+			expected = allUsers[count : count+limit]
+		}
+		require.Equal(t, page.Page, expected, "next users")
+
+		// Also check the before
+		prevPage, err := client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
+			After:  "",
+			Before: page.Pager.EndingBefore,
+			Limit:  limit,
+		}))
+		require.NoError(t, err, "prev page")
+		require.Equal(t, allUsers[count-limit:count], prevPage.Page, "prev users")
+		count += len(page.Page)
+	}
 }

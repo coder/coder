@@ -38,6 +38,7 @@ type Options struct {
 
 	SecureAuthCookie   bool
 	SSHKeygenAlgorithm gitsshkey.Algorithm
+	APIRateLimit       int
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -48,6 +49,9 @@ func New(options *Options) (http.Handler, func()) {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
+	if options.APIRateLimit == 0 {
+		options.APIRateLimit = 512
+	}
 	api := &api{
 		Options: options,
 	}
@@ -57,7 +61,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Use(
 			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
-			httpmw.RateLimitPerMinute(512),
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {

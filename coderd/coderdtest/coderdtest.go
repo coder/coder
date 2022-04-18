@@ -51,6 +51,7 @@ type Options struct {
 	AWSInstanceIdentity    awsidentity.Certificates
 	GoogleInstanceIdentity *idtoken.Validator
 	SSHKeygenAlgorithm     gitsshkey.Algorithm
+	APIRateLimit           int
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -117,6 +118,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		AWSCertificates:      options.AWSInstanceIdentity,
 		GoogleTokenValidator: options.GoogleInstanceIdentity,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
+		APIRateLimit:         options.APIRateLimit,
 	})
 	t.Cleanup(func() {
 		srv.Close()

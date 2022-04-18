@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -148,9 +149,10 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		beforeArg = r.URL.Query().Get("before")
-		afterArg  = r.URL.Query().Get("after")
-		limitArg  = r.URL.Query().Get("limit")
+		beforeArg   = r.URL.Query().Get("before")
+		afterArg    = r.URL.Query().Get("after")
+		limitArg    = r.URL.Query().Get("limit")
+		searchEmail = r.URL.Query().Get("email")
 	)
 
 	limit, err := strconv.Atoi(limitArg)
@@ -165,35 +167,57 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 		limit = 10
 	}
 
-	var before uuid.UUID
-	var after uuid.UUID
-	if beforeArg != "" {
-		before, err = uuid.Parse(beforeArg)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("before must be a uuid: %s", err.Error()),
-			})
-			return
-		}
+	if beforeArg != "" && afterArg != "" {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("cannot provide both 'after' and 'before'"),
+		})
+		return
 	}
 
-	if afterArg != "" {
-		after, err = uuid.Parse(afterArg)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("after must be a uuid: %s", err.Error()),
-			})
-			return
-		}
+	pagerFields := codersdk.PagerFields{
+		Limit: limit,
 	}
 
-	var _, _ = before, after
-	users, err := api.Database.PaginatedUsers(r.Context(), database.PaginatedUsersParams{
-		Before:   before,
-		After:    after,
-		LimitOpt: int32(limit),
-	})
-	//users, err := api.Database.PaginatedUsers(r.Context(), int32(limit))
+	var useBefore bool
+	var cursor uuid.UUID
+	var cursorErr error
+	if beforeArg != "" && afterArg != "" {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("cannot provide both 'after' and 'before'"),
+		})
+		return
+	} else if beforeArg != "" {
+		// Last is a special word to indicate the last page
+		if beforeArg != "last" {
+			cursor, cursorErr = uuid.Parse(beforeArg)
+		}
+		useBefore = true
+	} else if afterArg != "" {
+		cursor, cursorErr = uuid.Parse(afterArg)
+		// Special keyword just incase this is the last page
+		pagerFields.EndingBefore = "last"
+	}
+	if cursorErr != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("cursor must be a uuid: %s", cursorErr.Error()),
+		})
+		return
+	}
+
+	var users []database.User
+	if useBefore {
+		users, err = api.Database.PaginatedUsersBefore(r.Context(), database.PaginatedUsersBeforeParams{
+			Before:   cursor,
+			Email:    searchEmail,
+			LimitOpt: int32(limit),
+		})
+	} else {
+		users, err = api.Database.PaginatedUsersAfter(r.Context(), database.PaginatedUsersAfterParams{
+			After:    cursor,
+			Email:    searchEmail,
+			LimitOpt: int32(limit),
+		})
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
@@ -201,9 +225,35 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If we have users, we can build the pager fields
+	if len(users) != 0 {
+		first := users[0].ID
+		last := users[len(users)-1].ID
+		vals := r.URL.Query()
+		vals.Del("before")
+		vals.Del("after")
+
+		prev := make(url.Values)
+		for k, v := range vals {
+			prev[k] = v
+		}
+		next := vals
+		prev.Set("before", first.String())
+		next.Set("after", last.String())
+
+		pagerFields = codersdk.PagerFields{
+			EndingBefore:  first.String(),
+			StartingAfter: last.String(),
+			NextURI:       r.URL.Path + "?" + next.Encode(),
+			PreviousURI:   r.URL.Path + "?" + prev.Encode(),
+			Limit:         limit,
+		}
+	}
+
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, codersdk.PaginatedUsers{
-		Page: convertUsers(users),
+		Pager: pagerFields,
+		Page:  convertUsers(users),
 	})
 }
 
