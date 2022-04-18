@@ -19,6 +19,10 @@ coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/dat
 	coderd/database/generate.sh
 .PHONY: coderd/database/generate
 
+coderts/generate: coderts/types.ts
+	go run coderts/generate.go > coderts/types.ts
+.PHONY: coderts/generate
+
 fmt/prettier:
 	@echo "--- prettier"
 # Avoid writing files in CI to reduce file write activity
@@ -48,7 +52,7 @@ fmt/terraform: $(wildcard *.tf)
 fmt: fmt/prettier fmt/sql fmt/terraform
 .PHONY: fmt
 
-gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto
+gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto coderts/generate
 .PHONY: gen
 
 install: bin
