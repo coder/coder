@@ -25,48 +25,43 @@ func main() {
 }
 
 func run() error {
-	var astFiles []*ast.File
 	fset := token.NewFileSet()
 	entries, err := os.ReadDir(baseDir)
 	if err != nil {
-		return err
+		return xerrors.Errorf("reading dir %s: %w", baseDir, err)
 	}
 
+	// loop each file in directory
 	for _, entry := range entries {
-		goFile, err := parser.ParseFile(fset, filepath.Join(baseDir, entry.Name()), nil, 0)
+		astFile, err := parser.ParseFile(fset, filepath.Join(baseDir, entry.Name()), nil, 0)
 		if err != nil {
-			return err
+			return xerrors.Errorf("parsing file %s: %w", filepath.Join(baseDir, entry.Name()), err)
 		}
 
-		astFiles = append(astFiles, goFile)
-	}
-
-	for _, astFile := range astFiles {
+		// loop each declaration in file
 		for _, node := range astFile.Decls {
-			switch node.(type) {
-			case *ast.GenDecl:
-				genDecl := node.(*ast.GenDecl)
-				for _, spec := range genDecl.Specs {
-					switch spec.(type) {
-					case *ast.TypeSpec:
-						typeSpec := spec.(*ast.TypeSpec)
-						s, err := handleTypeSpec(typeSpec)
-						if err != nil {
-							break
-						}
-
-						fmt.Printf(s)
-						break
-					case *ast.ValueSpec:
-						valueSpec := spec.(*ast.ValueSpec)
-						s, err := handleValueSpec(valueSpec)
-						if err != nil {
-							break
-						}
-
-						fmt.Printf(s)
+			genDecl, ok := node.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range genDecl.Specs {
+				switch s := spec.(type) {
+				// TypeSpec case for structs and type alias
+				case *ast.TypeSpec:
+					out, err := handleTypeSpec(s)
+					if err != nil {
 						break
 					}
+
+					_, _ = fmt.Printf(out)
+				// ValueSpec case for const "enums"
+				case *ast.ValueSpec:
+					out, err := handleValueSpec(s)
+					if err != nil {
+						break
+					}
+
+					_, _ = fmt.Printf(out)
 				}
 			}
 		}
@@ -78,29 +73,17 @@ func run() error {
 func handleTypeSpec(typeSpec *ast.TypeSpec) (string, error) {
 	jsonFields := 0
 	s := ""
-	switch typeSpec.Type.(type) {
+	switch t := typeSpec.Type.(type) {
+	// Struct declaration
 	case *ast.StructType:
 		s = fmt.Sprintf("export interface %s {\n", typeSpec.Name.Name)
-		structType := typeSpec.Type.(*ast.StructType)
-		for _, field := range structType.Fields.List {
-			var i *ast.Ident
-			optional := ""
-			switch field.Type.(type) {
-			case *ast.Ident:
-				i = field.Type.(*ast.Ident)
-			case *ast.StarExpr:
-				var ok bool
-				se := field.Type.(*ast.StarExpr)
-				i, ok = se.X.(*ast.Ident)
-				if !ok {
-					continue
-				}
-				optional = "?"
-			default:
+		for _, field := range t.Fields.List {
+			i, optional, err := getIdent(field.Type)
+			if err != nil {
 				continue
 			}
 
-			fieldType := toTsType(i)
+			fieldType := toTsType(i.Name)
 			if fieldType == "" {
 				continue
 			}
@@ -114,15 +97,15 @@ func handleTypeSpec(typeSpec *ast.TypeSpec) (string, error) {
 			jsonFields++
 		}
 
+		// Do not print struct if it has no json fields
 		if jsonFields == 0 {
 			return "", xerrors.New("no json fields")
 		}
 
 		return fmt.Sprintf("%s}\n\n", s), nil
+	// Type alias declaration
 	case *ast.Ident:
-		ident := typeSpec.Type.(*ast.Ident)
-
-		return fmt.Sprintf("type %s = %s\n\n", typeSpec.Name.Name, ident.Name), nil
+		return fmt.Sprintf("type %s = %s\n\n", typeSpec.Name.Name, t.Name), nil
 	default:
 		return "", xerrors.New("not struct or alias")
 	}
@@ -159,18 +142,22 @@ func handleValueSpec(valueSpec *ast.ValueSpec) (string, error) {
 	return fmt.Sprintf("%s %s: %s = %s\n\n", valueDecl, valueName, valueType, valueValue), nil
 }
 
-func toTsType(e ast.Expr) string {
-	fieldType := ""
-	switch e.(type) {
+func getIdent(e ast.Expr) (*ast.Ident, string, error) {
+	switch t := e.(type) {
 	case *ast.Ident:
-		i := e.(*ast.Ident)
-		fieldType = i.Name
+		return t, "", nil
 	case *ast.StarExpr:
-		se := e.(*ast.StarExpr)
-		i := se.X.(*ast.Ident)
-		fieldType = i.Name
+		i, ok := t.X.(*ast.Ident)
+		if !ok {
+			return nil, "", xerrors.New("failed to cast star expr to indent")
+		}
+		return i, "?", nil
+	default:
+		return nil, "", xerrors.New("unknown expr type")
 	}
+}
 
+func toTsType(fieldType string) string {
 	switch fieldType {
 	case "bool":
 		return "boolean"
