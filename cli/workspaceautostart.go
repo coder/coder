@@ -13,7 +13,7 @@ import (
 
 const autostartDescriptionLong = `To have your workspace build automatically at a regular time you can enable autostart.
 When enabling autostart, provide the minute, hour, and day(s) of week.
-The default schedule is at 0900 in your local timezone (TZ env, UTC by default).
+The default schedule is at 09:00 in your local timezone (TZ env, UTC by default).
 `
 
 func workspaceAutostart() *cobra.Command {
@@ -21,7 +21,7 @@ func workspaceAutostart() *cobra.Command {
 		Use:     "autostart enable <workspace>",
 		Short:   "schedule a workspace to automatically start at a regular time",
 		Long:    autostartDescriptionLong,
-		Example: "coder workspaces autostart enable my-workspace --minute 30 --hour 9 --dow 1-5 --tz Europe/Dublin",
+		Example: "coder workspaces autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Europe/Dublin",
 		Hidden:  true, // TODO(cian): un-hide when autostart scheduling implemented
 	}
 
@@ -73,7 +73,7 @@ func workspaceAutostartEnable() *cobra.Command {
 
 	cmd.Flags().StringVar(&autostartMinute, "minute", "0", "autostart minute")
 	cmd.Flags().StringVar(&autostartHour, "hour", "9", "autostart hour")
-	cmd.Flags().StringVar(&autostartDayOfWeek, "dow", "1-5", "autostart hour")
+	cmd.Flags().StringVar(&autostartDayOfWeek, "days", "1-5", "autostart day(s) of week")
 	tzEnv := os.Getenv("TZ")
 	if tzEnv == "" {
 		tzEnv = "UTC"

@@ -29,7 +29,7 @@ func TestWorkspaceAutostop(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
-			cmdArgs   = []string{"workspaces", "autostop", "enable", workspace.Name, "--minute", "30", "--hour", "17", "--dow", "1-5", "--tz", "Europe/Dublin"}
+			cmdArgs   = []string{"workspaces", "autostop", "enable", workspace.Name, "--minute", "30", "--hour", "17", "--days", "1-5", "--tz", "Europe/Dublin"}
 			sched     = "CRON_TZ=Europe/Dublin 30 17 * * 1-5"
 			stdoutBuf = &bytes.Buffer{}
 		)

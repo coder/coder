@@ -30,7 +30,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
 			tz        = "Europe/Dublin"
-			cmdArgs   = []string{"workspaces", "autostart", "enable", workspace.Name, "--minute", "30", "--hour", "9", "--dow", "1-5", "--tz", tz}
+			cmdArgs   = []string{"workspaces", "autostart", "enable", workspace.Name, "--minute", "30", "--hour", "9", "--days", "1-5", "--tz", tz}
 			sched     = "CRON_TZ=Europe/Dublin 30 9 * * 1-5"
 			stdoutBuf = &bytes.Buffer{}
 		)

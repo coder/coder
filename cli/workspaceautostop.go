@@ -13,7 +13,7 @@ import (
 
 const autostopDescriptionLong = `To have your workspace stop automatically at a regular time you can enable autostop.
 When enabling autostop, provide the minute, hour, and day(s) of week.
-The default autostop schedule is at 1800 in your local timezone (TZ env, UTC by default).
+The default autostop schedule is at 18:00 in your local timezone (TZ env, UTC by default).
 `
 
 func workspaceAutostop() *cobra.Command {
@@ -21,7 +21,7 @@ func workspaceAutostop() *cobra.Command {
 		Use:     "autostop enable <workspace>",
 		Short:   "schedule a workspace to automatically stop at a regular time",
 		Long:    autostopDescriptionLong,
-		Example: "coder workspaces autostop enable my-workspace -minute 0 -hour 18 -dow 1-5 -tz Europe/Dublin",
+		Example: "coder workspaces autostop enable my-workspace --minute 0 --hour 18 --days 1-5 -tz Europe/Dublin",
 		Hidden:  true, // TODO(cian): un-hide when autostop scheduling implemented
 	}
 
@@ -73,7 +73,7 @@ func workspaceAutostopEnable() *cobra.Command {
 
 	cmd.Flags().StringVar(&autostopMinute, "minute", "0", "autostop minute")
 	cmd.Flags().StringVar(&autostopHour, "hour", "18", "autostop hour")
-	cmd.Flags().StringVar(&autostopDayOfWeek, "dow", "1-5", "autostop hour")
+	cmd.Flags().StringVar(&autostopDayOfWeek, "days", "1-5", "autostop day(s) of week")
 	tzEnv := os.Getenv("TZ")
 	if tzEnv == "" {
 		tzEnv = "UTC"
