@@ -34,21 +34,6 @@ export interface CreateTemplateRequest {
   name: string
 }
 
-// From codersdk/parameters.go:16:6.
-type ParameterScope = string
-
-// From codersdk/parameters.go:19:2.
-const ParameterOrganization: ParameterScope = "organization"
-
-// From codersdk/parameters.go:20:2.
-const ParameterTemplate: ParameterScope = "template"
-
-// From codersdk/parameters.go:21:2.
-const ParameterUser: ParameterScope = "user"
-
-// From codersdk/parameters.go:22:2.
-const ParameterWorkspace: ParameterScope = "workspace"
-
 // From codersdk/parameters.go:26:6.
 export interface Parameter {
   scope: ParameterScope
@@ -60,27 +45,6 @@ export interface CreateParameterRequest {
   name: string
   source_value: string
 }
-
-// From codersdk/provisionerdaemons.go:26:6.
-type ProvisionerJobStatus = string
-
-// From codersdk/provisionerdaemons.go:29:2.
-const ProvisionerJobPending: ProvisionerJobStatus = "pending"
-
-// From codersdk/provisionerdaemons.go:30:2.
-const ProvisionerJobRunning: ProvisionerJobStatus = "running"
-
-// From codersdk/provisionerdaemons.go:31:2.
-const ProvisionerJobSucceeded: ProvisionerJobStatus = "succeeded"
-
-// From codersdk/provisionerdaemons.go:32:2.
-const ProvisionerJobCanceling: ProvisionerJobStatus = "canceling"
-
-// From codersdk/provisionerdaemons.go:33:2.
-const ProvisionerJobCanceled: ProvisionerJobStatus = "canceled"
-
-// From codersdk/provisionerdaemons.go:34:2.
-const ProvisionerJobFailed: ProvisionerJobStatus = "failed"
 
 // From codersdk/provisionerdaemons.go:37:6.
 export interface ProvisionerJob {
@@ -183,18 +147,6 @@ export interface WorkspaceBuild {
   job: ProvisionerJob
 }
 
-// From codersdk/workspaceresources.go:15:6.
-type WorkspaceAgentStatus = string
-
-// From codersdk/workspaceresources.go:18:2.
-const WorkspaceAgentConnecting: WorkspaceAgentStatus = "connecting"
-
-// From codersdk/workspaceresources.go:19:2.
-const WorkspaceAgentConnected: WorkspaceAgentStatus = "connected"
-
-// From codersdk/workspaceresources.go:20:2.
-const WorkspaceAgentDisconnected: WorkspaceAgentStatus = "disconnected"
-
 // From codersdk/workspaceresources.go:23:6.
 export interface WorkspaceResource {
   type: string
@@ -257,3 +209,12 @@ export interface UpdateWorkspaceAutostartRequest {
 export interface UpdateWorkspaceAutostopRequest {
   schedule: string
 }
+
+// From codersdk/provisionerdaemons.go:26:6.
+type ProvisionerJobStatus = "pending" | "running" | "succeeded" | "canceling" | "canceled" | "failed"
+
+// From codersdk/workspaceresources.go:15:6.
+type WorkspaceAgentStatus = "connecting" | "connected" | "disconnected"
+
+// From codersdk/parameters.go:16:6.
+type ParameterScope = "organization" | "template" | "user" | "workspace"
