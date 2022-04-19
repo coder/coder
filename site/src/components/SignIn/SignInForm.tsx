@@ -27,7 +27,8 @@ export const Language = {
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   authErrorMessage: "Incorrect email or password.",
-  basicSignIn: "Sign In",
+  methodsErrorMessage: "Unable to fetch auth methods.",
+  passwordSignIn: "Sign In",
   githubSignIn: "GitHub",
 }
 
@@ -53,11 +54,18 @@ const useStyles = makeStyles((theme) => ({
 export interface SignInFormProps {
   isLoading: boolean
   authErrorMessage?: string
+  methodsErrorMessage?: string
   authMethods?: AuthMethods
   onSubmit: ({ email, password }: { email: string; password: string }) => Promise<void>
 }
 
-export const SignInForm: React.FC<SignInFormProps> = ({ authMethods, isLoading, authErrorMessage, onSubmit }) => {
+export const SignInForm: React.FC<SignInFormProps> = ({
+  authMethods,
+  isLoading,
+  authErrorMessage,
+  methodsErrorMessage,
+  onSubmit,
+}) => {
   const styles = useStyles()
 
   const form: FormikContextType<BuiltInAuthFormValues> = useFormik<BuiltInAuthFormValues>({
@@ -95,9 +103,10 @@ export const SignInForm: React.FC<SignInFormProps> = ({ authMethods, isLoading, 
           variant="outlined"
         />
         {authErrorMessage && <FormHelperText error>{Language.authErrorMessage}</FormHelperText>}
+        {methodsErrorMessage && <FormHelperText error>{Language.methodsErrorMessage}</FormHelperText>}
         <div className={styles.submitBtn}>
           <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
-            {isLoading ? "" : Language.basicSignIn}
+            {isLoading ? "" : Language.passwordSignIn}
           </LoadingButton>
         </div>
       </form>

@@ -24,7 +24,26 @@ SignedOut.args = {
 }
 
 export const Loading = Template.bind({})
-Loading.args = { ...SignedOut.args, isLoading: true }
+Loading.args = {
+  ...SignedOut.args,
+  isLoading: true,
+  authMethods: {
+    github: true,
+    password: true,
+  },
+}
 
-export const WithError = Template.bind({})
-WithError.args = { ...SignedOut.args, authErrorMessage: "Email or password was invalid" }
+export const WithLoginError = Template.bind({})
+WithLoginError.args = { ...SignedOut.args, authErrorMessage: "Email or password was invalid" }
+
+export const WithAuthMethodsError = Template.bind({})
+WithAuthMethodsError.args = { ...SignedOut.args, methodsErrorMessage: "Failed to fetch auth methods" }
+
+export const WithGithub = Template.bind({})
+WithGithub.args = {
+  ...SignedOut.args,
+  authMethods: {
+    password: true,
+    github: true,
+  },
+}

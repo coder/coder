@@ -35,6 +35,9 @@ export const SignInPage: React.FC = () => {
   const isLoading = authState.hasTag("loading")
   const redirectTo = retrieveRedirect(location.search)
   const authErrorMessage = authState.context.authError ? (authState.context.authError as Error).message : undefined
+  const getMethodsError = authState.context.getMethodsError
+    ? (authState.context.getMethodsError as Error).message
+    : undefined
 
   const onSubmit = async ({ email, password }: { email: string; password: string }) => {
     authSend({ type: "SIGN_IN", email, password })
@@ -51,6 +54,7 @@ export const SignInPage: React.FC = () => {
               authMethods={authState.context.methods}
               isLoading={isLoading}
               authErrorMessage={authErrorMessage}
+              methodsErrorMessage={getMethodsError}
               onSubmit={onSubmit}
             />
           </div>

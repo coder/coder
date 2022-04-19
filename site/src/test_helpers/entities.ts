@@ -1,4 +1,5 @@
 import {
+  AuthMethods,
   BuildInfoResponse,
   Organization,
   Pager,
@@ -96,4 +97,9 @@ export const MockUserAgent: UserAgent = {
   device: "Other",
   ip_address: "11.22.33.44",
   os: "Windows 10",
+}
+
+export const MockAuthMethods: AuthMethods = {
+  password: true,
+  github: false,
 }
