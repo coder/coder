@@ -1,9 +1,9 @@
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
-import { isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
-import { AccountForm } from "../../components/Preferences/AccountForm"
-import { Section } from "../../components/Section/Section"
-import { XServiceContext } from "../../xServices/StateContext"
+import { isApiError, mapApiErrorToFieldErrors } from "../../../api/errors"
+import { AccountForm } from "../../../components/Preferences/AccountForm"
+import { Section } from "../../../components/Section/Section"
+import { XServiceContext } from "../../../xServices/StateContext"
 
 export const Language = {
   title: "Account",
@@ -11,7 +11,7 @@ export const Language = {
   unknownError: "Oops, an unknown error occurred.",
 }
 
-export const PreferencesAccountPage: React.FC = () => {
+export const AccountPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me, updateProfileError } = authState.context

@@ -1,5 +1,5 @@
 import React from "react"
-import { Section } from "../../components/Section/Section"
+import { Section } from "../../../components/Section/Section"
 
 const Language = {
   title: "Linked Accounts",
@@ -7,6 +7,6 @@ const Language = {
     "Linking your Coder account will add your workspace SSH key, allowing you to perform Git actions on all your workspaces.",
 }
 
-export const PreferencesLinkedAccountsPage: React.FC = () => {
+export const LinkedAccountsPage: React.FC = () => {
   return <Section title={Language.title} description={Language.description} />
 }
