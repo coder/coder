@@ -5,8 +5,8 @@ import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import React from "react"
-import { TableHeaders } from "./TableHeaders"
-import { TableTitle } from "./TableTitle"
+import { TableHeaders } from "../TableHeaders/TableHeaders"
+import { TableTitle } from "../TableTitle/TableTitle"
 
 export interface Column<T> {
   /**

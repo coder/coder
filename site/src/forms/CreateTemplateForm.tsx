@@ -4,12 +4,12 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { CreateTemplateRequest, Organization, Provisioner, Template } from "../api/types"
-import { LoadingButton } from "../components/Button/LoadingButton"
-import { FormCloseButton } from "../components/Form/FormCloseButton"
-import { DropdownItem, FormDropdownField } from "../components/Form/FormDropdownField"
-import { FormSection } from "../components/Form/FormSection"
-import { FormTextField } from "../components/Form/FormTextField"
-import { FormTitle } from "../components/Form/FormTitle"
+import { FormCloseButton } from "../components/FormCloseButton/FormCloseButton"
+import { FormDropdownField, FormDropdownItem } from "../components/FormDropdownField/FormDropdownField"
+import { FormSection } from "../components/FormSection/FormSection"
+import { FormTextField } from "../components/FormTextField/FormTextField"
+import { FormTitle } from "../components/FormTitle/FormTitle"
+import { LoadingButton } from "../components/LoadingButton/LoadingButton"
 
 export interface CreateTemplateFormProps {
   provisioners: Provisioner[]
@@ -45,14 +45,14 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = ({
     },
   })
 
-  const organizationDropDownItems: DropdownItem[] = organizations.map((org) => {
+  const organizationDropDownItems: FormDropdownItem[] = organizations.map((org) => {
     return {
       value: org.name,
       name: org.name,
     }
   })
 
-  const provisionerDropDownItems: DropdownItem[] = provisioners.map((provisioner) => {
+  const provisionerDropDownItems: FormDropdownItem[] = provisioners.map((provisioner) => {
     return {
       value: provisioner.id,
       name: provisioner.name,

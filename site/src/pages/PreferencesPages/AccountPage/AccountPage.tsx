@@ -1,7 +1,7 @@
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { isApiError, mapApiErrorToFieldErrors } from "../../../api/errors"
-import { AccountForm } from "../../../components/Preferences/AccountForm"
+import { AccountForm } from "../../../components/PreferencesAccountForm/PreferencesAccountForm"
 import { Section } from "../../../components/Section/Section"
 import { XServiceContext } from "../../../xServices/StateContext"
 
