@@ -52,6 +52,7 @@ require (
 	github.com/fatedier/frp v0.36.2-0.20220414032436-21240ed96251
 	github.com/fatedier/golib v0.1.1-0.20220321042308-c306138b83ac
 	github.com/fatih/color v1.13.0
+	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gliderlabs/ssh v0.3.3
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/httprate v0.5.3

@@ -76,7 +76,19 @@ func workspaceAgent() *cobra.Command {
 					return client.AuthWorkspaceAWSInstanceIdentity(ctx)
 				}
 			case "azure-instance-identity":
-				return xerrors.Errorf("not implemented")
+				// This is *only* done for testing to mock client authentication.
+				// This will never be set in a production scenario.
+				var azureClient *http.Client
+				azureClientRaw := cmd.Context().Value("azure-client")
+				if azureClientRaw != nil {
+					azureClient, _ = azureClientRaw.(*http.Client)
+					if azureClient != nil {
+						client.HTTPClient = azureClient
+					}
+				}
+				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
+					return client.AuthWorkspaceAzureInstanceIdentity(ctx)
+				}
 			}
 
 			if exchangeToken != nil {
