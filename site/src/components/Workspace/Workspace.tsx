@@ -6,9 +6,9 @@ import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import React from "react"
 import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
+import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
+import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import * as Constants from "./constants"
-import { WorkspaceSchedule } from "./WorkspaceSchedule"
-import { WorkspaceSection } from "./WorkspaceSection"
 
 export interface WorkspaceProps {
   organization: Types.Organization

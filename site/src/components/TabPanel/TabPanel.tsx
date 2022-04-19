@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { fade } from "@material-ui/core/styles/colorManipulator"
 import React from "react"
-import { TabSidebar, TabSidebarItem } from "./TabSidebar"
+import { TabSidebar, TabSidebarItem } from "../TabSidebar/TabSidebar"
 
 export type AdminMenuItemCallback = (menuItem: string) => void
 

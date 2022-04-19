@@ -1,8 +1,8 @@
 import React from "react"
 import { UserResponse } from "../../api/types"
-import { Column, Table } from "../../components/Table/Table"
 import { EmptyState } from "../EmptyState/EmptyState"
-import { UserCell } from "../Table/Cells/UserCell"
+import { Column, Table } from "../Table/Table"
+import { UserCell } from "../UserCell/UserCell"
 
 const Language = {
   pageTitle: "Users",

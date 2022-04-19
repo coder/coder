@@ -1,7 +1,7 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
-import { displaySuccess } from "../../components/Snackbar/utils"
+import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   successProfileUpdate: "Updated preferences.",
