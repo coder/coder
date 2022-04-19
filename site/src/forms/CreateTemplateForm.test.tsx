@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import React from "react"
-import { MockOrganization, MockProvisioner, MockTemplate } from "./../test_helpers"
+import { MockOrganization, MockProvisioner, MockTemplate } from "../testHelpers"
 import { CreateTemplateForm } from "./CreateTemplateForm"
 
 describe("CreateTemplateForm", () => {

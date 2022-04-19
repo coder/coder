@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react"
 import React from "react"
 import { NavbarView } from "."
-import { render } from "../../../test_helpers"
-import { MockUser } from "../../../test_helpers/entities"
+import { render } from "../../../testHelpers"
+import { MockUser } from "../../../testHelpers/entities"
 
 describe("NavbarView", () => {
   const noop = () => {

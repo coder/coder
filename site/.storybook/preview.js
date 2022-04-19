@@ -5,7 +5,7 @@ import { createMemoryHistory } from "history"
 import { addDecorator } from "node_modules/@storybook/react"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { dark, light } from "../src/theme"
-import "../src/theme/global-fonts"
+import "../src/theme/globalFonts"
 
 const providerFn = ({ children, theme }) => (
   <ThemeProvider theme={theme}>
