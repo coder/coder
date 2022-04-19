@@ -467,6 +467,7 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 	}), nil
 }
 
+// nolint: revive
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `
