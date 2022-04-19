@@ -481,6 +481,7 @@ func printLogo(cmd *cobra.Command, spooky bool) {
 		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
 		░ ░          ░ ░     ░       ░  ░   ░     
 		░                  ░                      		
+
 `)
 		return
 	}
@@ -489,6 +490,7 @@ func printLogo(cmd *cobra.Command, spooky bool) {
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
 █▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █
      ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
+
 `)
 }
 
