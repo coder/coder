@@ -6,7 +6,7 @@ import { NavLink } from "react-router-dom"
 import { UserResponse } from "../../../api/types"
 import { navHeight } from "../../../theme/constants"
 import { AdminDropdown } from "../../AdminDropdown/AdminDropdown"
-import { Logo } from "../../Icons"
+import { Logo } from "../../Icons/Logo"
 import { UserDropdown } from "../UserDropdown"
 
 export interface NavbarViewProps {
