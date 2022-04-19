@@ -210,11 +210,11 @@ export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaceresources.go:15:6.
-export type WorkspaceAgentStatus = "connecting" | "connected" | "disconnected"
-
 // From codersdk/parameters.go:16:6.
 export type ParameterScope = "organization" | "template" | "user" | "workspace"
 
 // From codersdk/provisionerdaemons.go:26:6.
 export type ProvisionerJobStatus = "pending" | "running" | "succeeded" | "canceling" | "canceled" | "failed"
+
+// From codersdk/workspaceresources.go:15:6.
+export type WorkspaceAgentStatus = "connecting" | "connected" | "disconnected"
