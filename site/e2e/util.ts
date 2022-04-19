@@ -57,10 +57,10 @@ interface WaitForClientSideNavigationOpts {
  * @remark This is necessary in a client-side SPA world since playwright
  * waitForNavigation waits for load events on the DOM (ex: after a page load
  * from the server).
- *
- * @todo Better logging for this.
  */
 export const waitForClientSideNavigation = async (page: Page, opts: WaitForClientSideNavigationOpts): Promise<void> => {
+  console.info(`--- waitForClientSideNavigation: start`)
+
   await Promise.all([
     waitFor(() => {
       const conditions: boolean[] = []
@@ -74,9 +74,12 @@ export const waitForClientSideNavigation = async (page: Page, opts: WaitForClien
       }
 
       const unmetConditions = conditions.filter((condition) => !condition)
+      console.info(`--- waitForClientSideNavigation: ${unmetConditions.length} conditions not met`)
 
       return Promise.resolve(unmetConditions.length === 0)
     }),
     page.waitForLoadState("networkidle"),
   ])
+
+  console.info(`--- waitForClientSideNavigation: done`)
 }

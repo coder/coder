@@ -20,8 +20,6 @@ type Role struct {
 	Name string       `json:"name"`
 	Site []Permission `json:"site"`
 	// Org is a map of orgid to permissions. We represent orgid as a string.
-	// TODO: Maybe switch to uuid, but tokens might need to support a "wildcard" org
-	//		which could be a special uuid (like all 0s?)
 	Org  map[string][]Permission `json:"org"`
 	User []Permission            `json:"user"`
 }
@@ -49,7 +47,6 @@ var (
 	RoleAuditor = Role{
 		Name: "auditor",
 		Site: permissions(map[Object][]Action{
-			// TODO: @emyrk when audit logs are added, add back a read perm
 			//ResourceAuditLogs: {ActionRead},
 			// Should be able to read user details to associate with logs.
 			// Without this the user-id in logs is not very helpful

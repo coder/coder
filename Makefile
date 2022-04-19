@@ -35,7 +35,6 @@ endif
 .PHONY: fmt/prettier
 
 fmt/sql: $(wildcard coderd/database/queries/*.sql)
-	# TODO: this is slightly slow
 	for fi in coderd/database/queries/*.sql; do \
 		npx sql-formatter \
 			--language postgresql \
