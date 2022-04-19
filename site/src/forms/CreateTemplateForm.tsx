@@ -11,7 +11,6 @@ import { FormSection } from "../components/Form/FormSection"
 import { FormTextField } from "../components/Form/FormTextField"
 import { FormTitle } from "../components/Form/FormTitle"
 
-
 export interface CreateTemplateFormProps {
   provisioners: Provisioner[]
   organizations: Organization[]

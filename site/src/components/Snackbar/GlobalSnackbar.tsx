@@ -1,5 +1,10 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React, { useCallback, useState } from "react"
+import { useCustomEvent } from "../../hooks/events"
+import { CustomEventListener } from "../../util/events"
+import { ErrorIcon } from "../Icons/ErrorIcon"
+import { Typography } from "../Typography/Typography"
+import { EnterpriseSnackbar } from "./EnterpriseSnackbar"
 import {
   AdditionalMessage,
   isNotificationList,
@@ -9,11 +14,6 @@ import {
   NotificationMsg,
   SnackbarEventType,
 } from "./utils"
-import { useCustomEvent } from "../../hooks/events"
-import { CustomEventListener } from "../../util/events"
-import { ErrorIcon } from "../Icons/ErrorIcon"
-import { Typography } from "../Typography/Typography"
-import { EnterpriseSnackbar } from "./EnterpriseSnackbar"
 
 export const GlobalSnackbar: React.FC = () => {
   const styles = useStyles()
