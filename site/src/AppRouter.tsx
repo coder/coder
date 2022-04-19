@@ -14,7 +14,7 @@ import { LinkedAccountsPage } from "./pages/PreferencesPages/LinkedAccountsPage/
 import { SecurityPage } from "./pages/PreferencesPages/SecurityPage/SecurityPage"
 import { SSHKeysPage } from "./pages/PreferencesPages/SSHKeysPage/SSHKeysPage"
 import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
-import { TemplatesPage } from "./pages/TemplatesPages"
+import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { TemplatePage } from "./pages/TemplatesPages/[organization]/[template]/TemplatePage"
 import { CreateWorkspacePage } from "./pages/TemplatesPages/[organization]/[template]/CreateWorkspacePage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
