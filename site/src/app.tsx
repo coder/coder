@@ -5,6 +5,7 @@ import { BrowserRouter as Router } from "react-router-dom"
 import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
 import { GlobalSnackbar } from "./components/Snackbar/GlobalSnackbar"
+import { BirdEasterEgg } from "./easterEggs/BirdEasterEgg"
 import { light } from "./theme"
 import "./theme/global-fonts"
 import { XServiceProvider } from "./xServices/StateContext"
@@ -35,6 +36,7 @@ export const App: React.FC = () => {
             <CssBaseline />
             <AppRouter />
             <GlobalSnackbar />
+            <BirdEasterEgg />
           </ThemeProvider>
         </XServiceProvider>
       </SWRConfig>
