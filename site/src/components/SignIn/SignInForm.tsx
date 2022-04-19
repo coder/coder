@@ -5,7 +5,7 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
-import { LoadingButton } from "./../Button"
+import { LoadingButton } from "./../Button/LoadingButton"
 import { Welcome } from "./Welcome"
 
 /**

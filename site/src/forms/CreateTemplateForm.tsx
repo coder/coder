@@ -4,7 +4,7 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { CreateTemplateRequest, Organization, Provisioner, Template } from "../api/types"
-import { LoadingButton } from "../components/Button"
+import { LoadingButton } from "../components/Button/LoadingButton"
 import {
   DropdownItem,
   FormCloseButton,

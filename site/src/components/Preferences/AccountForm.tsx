@@ -5,7 +5,7 @@ import React from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../Form"
 import { Stack } from "../Stack/Stack"
-import { LoadingButton } from "./../Button"
+import { LoadingButton } from "./../Button/LoadingButton"
 
 interface AccountFormValues {
   name: string
