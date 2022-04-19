@@ -72,7 +72,7 @@ func run() error {
 
 	// sort keys so output is always the same
 	var keys []string
-	for k, _ := range enums {
+	for k := range enums {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
