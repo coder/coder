@@ -3,7 +3,7 @@ import React from "react"
 import { EnterpriseSnackbar, EnterpriseSnackbarProps } from "./EnterpriseSnackbar"
 
 export default {
-  title: "Snackbar/EnterpriseSnackbar",
+  title: "components/EnterpriseSnackbar",
   component: EnterpriseSnackbar,
 }
 

@@ -3,7 +3,7 @@ import React from "react"
 import { FormCloseButton, FormCloseButtonProps } from "./FormCloseButton"
 
 export default {
-  title: "Form/FormCloseButton",
+  title: "components/FormCloseButton",
   component: FormCloseButton,
   argTypes: {
     onClose: { action: "onClose" },

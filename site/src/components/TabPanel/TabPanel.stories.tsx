@@ -3,7 +3,7 @@ import React from "react"
 import { TabPanel, TabPanelProps } from "."
 
 export default {
-  title: "TabPanel/TabPanel",
+  title: "components/TabPanel",
   component: TabPanel,
 }
 

@@ -3,7 +3,7 @@ import React from "react"
 import { LoadingButton, LoadingButtonProps } from "./LoadingButton"
 
 export default {
-  title: "Button/LoadingButton",
+  title: "components/LoadingButton",
   component: LoadingButton,
   argTypes: {
     loading: { control: { type: "boolean" } },

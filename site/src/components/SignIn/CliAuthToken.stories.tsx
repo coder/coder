@@ -3,7 +3,7 @@ import React from "react"
 import { CliAuthToken, CliAuthTokenProps } from "./CliAuthToken"
 
 export default {
-  title: "SignIn/CliAuthToken",
+  title: "components/CliAuthToken",
   component: CliAuthToken,
   argTypes: {
     sessionToken: { control: "text", defaultValue: "some-session-token" },

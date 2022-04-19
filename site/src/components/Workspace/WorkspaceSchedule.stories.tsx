@@ -4,7 +4,7 @@ import { MockWorkspaceAutostartEnabled } from "../../testHelpers"
 import { WorkspaceSchedule, WorkspaceScheduleProps } from "./WorkspaceSchedule"
 
 export default {
-  title: "Workspaces/WorkspaceSchedule",
+  title: "components/WorkspaceSchedule",
   component: WorkspaceSchedule,
 }
 

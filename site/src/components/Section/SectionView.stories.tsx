@@ -5,7 +5,7 @@ import React from "react"
 import { Section, SectionProps } from "./"
 
 export default {
-  title: "Page/Section",
+  title: "components/Section",
   component: Section,
   argTypes: {
     title: { type: "string" },
