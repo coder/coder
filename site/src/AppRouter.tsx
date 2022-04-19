@@ -4,21 +4,21 @@ import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/Page/RequireAuth"
 import { PreferencesLayout } from "./components/Preferences/Layout"
 import { IndexPage } from "./pages"
-import { NotFoundPage } from "./pages/404"
-import { CliAuthenticationPage } from "./pages/cli-auth"
-import { HealthzPage } from "./pages/healthz"
-import { SignInPage } from "./pages/login"
-import { OrganizationsPage } from "./pages/orgs"
-import { PreferencesAccountPage } from "./pages/preferences/account"
-import { PreferencesLinkedAccountsPage } from "./pages/preferences/linkedAccounts"
-import { PreferencesSecurityPage } from "./pages/preferences/security"
-import { PreferencesSSHKeysPage } from "./pages/preferences/sshKeys"
-import { SettingsPage } from "./pages/settings"
-import { TemplatesPage } from "./pages/templates"
-import { TemplatePage } from "./pages/templates/[organization]/[template]"
-import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
+import { NotFoundPage } from "./pages/404Page/404Page"
+import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
+import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
+import { LoginPage } from "./pages/LoginPage/LoginPage"
+import { OrgsPage } from "./pages/OrgsPage/OrgsPage"
+import { AccountPage } from "./pages/PreferencesPages/AccountPage/AccountPage"
+import { LinkedAccountsPage } from "./pages/PreferencesPages/LinkedAccountsPage/LinkedAccountsPage"
+import { SecurityPage } from "./pages/PreferencesPages/SecurityPage/SecurityPage"
+import { SSHKeysPage } from "./pages/PreferencesPages/SSHKeysPage/SSHKeysPage"
+import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
+import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/CreateWorkspacePage"
+import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/TemplatePage"
+import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
-import { WorkspacePage } from "./pages/workspaces/[workspace]"
+import { WorkspacePage } from "./pages/WorkspacesPage/WorkspacesPage"
 
 export const AppRouter: React.FC = () => (
   <Routes>
@@ -32,7 +32,7 @@ export const AppRouter: React.FC = () => (
         }
       />
 
-      <Route path="login" element={<SignInPage />} />
+      <Route path="login" element={<LoginPage />} />
       <Route path="healthz" element={<HealthzPage />} />
       <Route path="cli-auth" element={<CliAuthenticationPage />} />
 
@@ -88,7 +88,7 @@ export const AppRouter: React.FC = () => (
         path="orgs"
         element={
           <AuthAndFrame>
-            <OrganizationsPage />
+            <OrgsPage />
           </AuthAndFrame>
         }
       />
@@ -102,10 +102,10 @@ export const AppRouter: React.FC = () => (
       />
 
       <Route path="preferences" element={<PreferencesLayout />}>
-        <Route path="account" element={<PreferencesAccountPage />} />
-        <Route path="security" element={<PreferencesSecurityPage />} />
-        <Route path="ssh-keys" element={<PreferencesSSHKeysPage />} />
-        <Route path="linked-accounts" element={<PreferencesLinkedAccountsPage />} />
+        <Route path="account" element={<AccountPage />} />
+        <Route path="security" element={<SecurityPage />} />
+        <Route path="ssh-keys" element={<SSHKeysPage />} />
+        <Route path="linked-accounts" element={<LinkedAccountsPage />} />
       </Route>
 
       {/* Using path="*"" means "match anything", so this route

@@ -2,12 +2,12 @@ import { act, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import React from "react"
-import { Language } from "../components/SignIn/SignInForm"
-import { history, render } from "../testHelpers"
-import { server } from "../testHelpers/server"
-import { SignInPage } from "./login"
+import { Language } from "../../components/SignIn/SignInForm"
+import { history, render } from "../../testHelpers"
+import { server } from "../../testHelpers/server"
+import { LoginPage } from "./LoginPage"
 
-describe("SignInPage", () => {
+describe("LoginPage", () => {
   beforeEach(() => {
     history.replace("/login")
     // appear logged out
@@ -20,7 +20,7 @@ describe("SignInPage", () => {
 
   it("renders the sign-in form", async () => {
     // When
-    render(<SignInPage />)
+    render(<LoginPage />)
 
     // Then
     await screen.findByText(Language.signIn)
@@ -36,7 +36,7 @@ describe("SignInPage", () => {
     )
 
     // When
-    render(<SignInPage />)
+    render(<LoginPage />)
     const email = screen.getByLabelText(Language.emailLabel)
     const password = screen.getByLabelText(Language.passwordLabel)
     await userEvent.type(email, "test@coder.com")

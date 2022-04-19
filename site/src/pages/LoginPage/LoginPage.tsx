@@ -2,10 +2,10 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { Navigate, useLocation } from "react-router-dom"
-import { Footer } from "../components/Page/Footer"
-import { retrieveRedirect } from "../util/redirect"
-import { XServiceContext } from "../xServices/StateContext"
-import { SignInForm } from "./../components/SignIn/SignInForm"
+import { Footer } from "../../components/Page/Footer"
+import { SignInForm } from "../../components/SignIn/SignInForm"
+import { retrieveRedirect } from "../../util/redirect"
+import { XServiceContext } from "../../xServices/StateContext"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -27,7 +27,7 @@ export const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const SignInPage: React.FC = () => {
+export const LoginPage: React.FC = () => {
   const styles = useStyles()
   const location = useLocation()
   const xServices = useContext(XServiceContext)

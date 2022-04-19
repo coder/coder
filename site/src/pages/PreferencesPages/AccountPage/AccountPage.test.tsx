@@ -1,16 +1,16 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import React from "react"
-import * as API from "../../api"
-import * as AccountForm from "../../components/Preferences/AccountForm"
-import { GlobalSnackbar } from "../../components/Snackbar/GlobalSnackbar"
-import { renderWithAuth } from "../../testHelpers"
-import * as AuthXService from "../../xServices/auth/authXService"
-import { Language, PreferencesAccountPage } from "./account"
+import * as API from "../../../api"
+import * as AccountForm from "../../../components/Preferences/AccountForm"
+import { GlobalSnackbar } from "../../../components/Snackbar/GlobalSnackbar"
+import { renderWithAuth } from "../../../testHelpers"
+import * as AuthXService from "../../../xServices/auth/authXService"
+import { AccountPage, Language } from "./AccountPage"
 
 const renderPage = () => {
   return renderWithAuth(
     <>
-      <PreferencesAccountPage />
+      <AccountPage />
       <GlobalSnackbar />
     </>,
   )
@@ -30,7 +30,7 @@ const fillAndSubmitForm = async () => {
   fireEvent.click(screen.getByText(AccountForm.Language.updatePreferences))
 }
 
-describe("PreferencesAccountPage", () => {
+describe("AccountPage", () => {
   describe("when it is a success", () => {
     it("shows the success message", async () => {
       jest.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>
