@@ -480,7 +480,7 @@ func printLogo(cmd *cobra.Command, spooky bool) {
 		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
 		░ ░          ░ ░     ░       ░  ░   ░     
 		░                  ░                      		
-   `)
+`)
 		return
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), `    ▄█▀    ▀█▄
