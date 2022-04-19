@@ -3,9 +3,9 @@ import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { getFormHelpers, onChangeTrimmed } from "../Form"
+import { getFormHelpers, onChangeTrimmed } from "../Form/utils"
 import { Stack } from "../Stack/Stack"
-import { LoadingButton } from "./../Button"
+import { LoadingButton } from "./../Button/LoadingButton"
 
 interface AccountFormValues {
   name: string

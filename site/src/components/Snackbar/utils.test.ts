@@ -1,4 +1,4 @@
-import { displaySuccess, isNotificationTextPrefixed, MsgType, NotificationMsg } from "./index"
+import { displaySuccess, isNotificationTextPrefixed, MsgType, NotificationMsg } from "./utils"
 
 describe("Snackbar", () => {
   describe("isNotificationTextPrefixed", () => {

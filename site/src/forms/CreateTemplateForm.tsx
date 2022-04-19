@@ -4,15 +4,12 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { CreateTemplateRequest, Organization, Provisioner, Template } from "../api/types"
-import { LoadingButton } from "../components/Button"
-import {
-  DropdownItem,
-  FormCloseButton,
-  FormDropdownField,
-  FormSection,
-  FormTextField,
-  FormTitle,
-} from "../components/Form"
+import { LoadingButton } from "../components/Button/LoadingButton"
+import { FormCloseButton } from "../components/Form/FormCloseButton"
+import { DropdownItem, FormDropdownField } from "../components/Form/FormDropdownField"
+import { FormSection } from "../components/Form/FormSection"
+import { FormTextField } from "../components/Form/FormTextField"
+import { FormTitle } from "../components/Form/FormTitle"
 
 export interface CreateTemplateFormProps {
   provisioners: Provisioner[]

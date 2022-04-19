@@ -5,7 +5,7 @@ import { Navigate, useLocation } from "react-router-dom"
 import { Footer } from "../components/Page/Footer"
 import { retrieveRedirect } from "../util/redirect"
 import { XServiceContext } from "../xServices/StateContext"
-import { SignInForm } from "./../components/SignIn"
+import { SignInForm } from "./../components/SignIn/SignInForm"
 
 export const useStyles = makeStyles((theme) => ({
   root: {

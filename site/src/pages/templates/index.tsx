@@ -4,12 +4,12 @@ import React from "react"
 import { Link } from "react-router-dom"
 import useSWR from "swr"
 import { Organization, Template } from "../../api/types"
-import { EmptyState } from "../../components"
 import { CodeExample } from "../../components/CodeExample/CodeExample"
-import { ErrorSummary } from "../../components/ErrorSummary"
-import { Header } from "../../components/Header"
+import { EmptyState } from "../../components/EmptyState/EmptyState"
+import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
+import { Header } from "../../components/Header/Header"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
-import { Column, Table } from "../../components/Table"
+import { Column, Table } from "../../components/Table/Table"
 
 export const TemplatesPage: React.FC = () => {
   const styles = useStyles()

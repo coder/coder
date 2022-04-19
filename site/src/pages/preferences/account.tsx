@@ -2,7 +2,7 @@ import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
 import { AccountForm } from "../../components/Preferences/AccountForm"
-import { Section } from "../../components/Section"
+import { Section } from "../../components/Section/Section"
 import { XServiceContext } from "../../xServices/StateContext"
 
 export const Language = {

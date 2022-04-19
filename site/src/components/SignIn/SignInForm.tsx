@@ -4,8 +4,8 @@ import TextField from "@material-ui/core/TextField"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { getFormHelpers, onChangeTrimmed } from "../Form"
-import { LoadingButton } from "./../Button"
+import { getFormHelpers, onChangeTrimmed } from "../Form/utils"
+import { LoadingButton } from "./../Button/LoadingButton"
 import { Welcome } from "./Welcome"
 
 /**

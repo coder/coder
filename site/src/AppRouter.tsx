@@ -1,7 +1,7 @@
 import React from "react"
 import { Route, Routes } from "react-router-dom"
-import { RequireAuth } from "./components"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
+import { RequireAuth } from "./components/Page/RequireAuth"
 import { PreferencesLayout } from "./components/Preferences/Layout"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404"

@@ -2,7 +2,7 @@ import Button from "@material-ui/core/Button"
 import TextField from "@material-ui/core/TextField"
 import { Story } from "@storybook/react"
 import React from "react"
-import { Section, SectionProps } from "./"
+import { Section, SectionProps } from "./Section"
 
 export default {
   title: "components/Section",

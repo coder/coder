@@ -7,7 +7,7 @@ import { UserResponse } from "../../../api/types"
 import { navHeight } from "../../../theme/constants"
 import { AdminDropdown } from "../../AdminDropdown/AdminDropdown"
 import { Logo } from "../../Icons/Logo"
-import { UserDropdown } from "../UserDropdown"
+import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
 export interface NavbarViewProps {
   user?: UserResponse

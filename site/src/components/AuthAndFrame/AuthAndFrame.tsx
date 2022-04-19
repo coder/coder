@@ -1,5 +1,5 @@
 import React from "react"
-import { Navbar } from "../Navbar"
+import { Navbar } from "../Navbar/Navbar"
 import { Footer } from "../Page/Footer"
 import { RequireAuth } from "../Page/RequireAuth"
 

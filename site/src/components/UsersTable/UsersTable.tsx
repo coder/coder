@@ -1,7 +1,7 @@
 import React from "react"
 import { UserResponse } from "../../api/types"
-import { Column, Table } from "../../components/Table"
-import { EmptyState } from "../EmptyState"
+import { Column, Table } from "../../components/Table/Table"
+import { EmptyState } from "../EmptyState/EmptyState"
 import { UserCell } from "../Table/Cells/UserCell"
 
 const Language = {

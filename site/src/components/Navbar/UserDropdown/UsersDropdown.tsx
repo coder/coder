@@ -12,7 +12,7 @@ import { BorderedMenu } from "../../BorderedMenu/BorderedMenu"
 import { CloseDropdown, OpenDropdown } from "../../DropdownArrows/DropdownArrows"
 import { DocsIcon } from "../../Icons/DocsIcon"
 import { LogoutIcon } from "../../Icons/LogoutIcon"
-import { UserAvatar } from "../../User"
+import { UserAvatar } from "../../User/UserAvatar"
 import { UserProfileCard } from "../../User/UserProfileCard"
 
 export const Language = {
