@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { NavbarView } from "."
+import { NavbarView } from "./NavbarView"
 import { render } from "../../../testHelpers"
 import { MockUser } from "../../../testHelpers/entities"
 

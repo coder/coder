@@ -1,5 +1,5 @@
 import { FormikContextType } from "formik/dist/types"
-import { getFormHelpers, onChangeTrimmed } from "./index"
+import { getFormHelpers, onChangeTrimmed } from "./utils"
 
 interface TestType {
   untouchedGoodField: string

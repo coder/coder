@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import React from "react"
 import { render } from "../../testHelpers"
-import { Header } from "./index"
+import { Header } from "./Header"
 
 describe("Header", () => {
   it("renders title and subtitle", async () => {

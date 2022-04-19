@@ -5,7 +5,10 @@ import React from "react"
 import * as Yup from "yup"
 import { CreateWorkspaceRequest, Template, Workspace } from "../api/types"
 import { LoadingButton } from "../components/Button/LoadingButton"
-import { FormCloseButton, FormSection, FormTextField, FormTitle } from "../components/Form"
+import { FormCloseButton } from "../components/Form/FormCloseButton"
+import { FormSection } from "../components/Form/FormSection"
+import { FormTextField } from "../components/Form/FormTextField"
+import { FormTitle } from "../components/Form/FormTitle"
 
 export interface CreateWorkspaceForm {
   template: Template

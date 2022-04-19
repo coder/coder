@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import React from "react"
 import { Outlet } from "react-router-dom"
 import { AuthAndFrame } from "../AuthAndFrame/AuthAndFrame"
-import { TabPanel } from "../TabPanel"
+import { TabPanel } from "../TabPanel/TabPanel"
 
 export const Language = {
   accountLabel: "Account",

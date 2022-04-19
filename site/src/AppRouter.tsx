@@ -1,6 +1,6 @@
 import React from "react"
 import { Route, Routes } from "react-router-dom"
-import { RequireAuth } from "./components"
+import { RequireAuth } from "./components/Page/RequireAuth"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { PreferencesLayout } from "./components/Preferences/Layout"
 import { IndexPage } from "./pages"

@@ -8,7 +8,7 @@ import {
   MsgType,
   NotificationMsg,
   SnackbarEventType,
-} from "."
+} from "./utils"
 import { useCustomEvent } from "../../hooks/events"
 import { CustomEventListener } from "../../util/events"
 import { ErrorIcon } from "../Icons/ErrorIcon"

@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { Language, UserDropdown, UserDropdownProps } from "."
+import { Language, UserDropdown, UserDropdownProps } from "./UsersDropdown"
 import { render } from "../../../testHelpers"
 import { MockUser } from "../../../testHelpers/entities"
 
