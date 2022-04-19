@@ -3,6 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"strings"
 	"sync"
 
@@ -168,7 +169,56 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.users, nil
+	users := q.users
+	// Database orders by created_at
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].CreatedAt.Before(users[j].CreatedAt)
+	})
+
+	if !params.CreatedAfter.IsZero() {
+		found := false
+		for i := range users {
+			if users[i].CreatedAt.After(params.CreatedAfter) {
+				// Only grab users after
+				users = users[i:]
+				found = true
+				break
+			}
+		}
+
+		// If no users after the time, then we return an empty list.
+		if !found {
+			return []database.User{}, nil
+		}
+	}
+
+	if params.SearchEmail != "" {
+		tmp := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if strings.Contains(user.Email, params.SearchEmail) {
+				tmp = append(tmp, users[i])
+			}
+		}
+		users = tmp
+	}
+
+	if params.OffsetOpt > 0 {
+		if int(params.OffsetOpt) > len(users)-1 {
+			return []database.User{}, nil
+		}
+		users = users[params.OffsetOpt:]
+	}
+
+	if params.LimitOpt > 0 {
+		if int(params.LimitOpt) > len(users) {
+			params.LimitOpt = int32(len(users))
+		}
+		users = users[:params.LimitOpt]
+	}
+	tmp := make([]database.User, len(users))
+	copy(tmp, users)
+
+	return tmp, nil
 }
 
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {

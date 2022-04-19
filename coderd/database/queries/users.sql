@@ -68,6 +68,9 @@ WHERE
 	AND CASE
 		WHEN @search_email :: text != '' THEN email LIKE concat('%', @search_email, '%')
 		ELSE true
-	END OFFSET @offset_opt -- A null limit means "no limit", so -1 means return all
+	END
+ORDER BY
+	created_at ASC OFFSET @offset_opt
 LIMIT
+	-- A null limit means "no limit", so -1 means return all
 	NULLIF(@limit_opt :: int, -1);

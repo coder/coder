@@ -615,7 +615,7 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 		Limit: limit,
 	}))
 	require.NoError(t, err, "first page")
-	require.Equal(t, page.Page, allUsers[:limit])
+	require.Equalf(t, page.Page, allUsers[:limit], "first page, limit=%d", limit)
 	require.Equal(t, page.Pager.Limit, limit, "expected limit")
 	count += len(page.Page)
 
@@ -624,10 +624,11 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 			break
 		}
 
+		afterCursor := page.Page[len(page.Page)-1].CreatedAt
 		// Assert each page is the next expected page
 		page, err = client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
 			Limit:        limit,
-			CreatedAfter: page.Page[len(page.Page)-1].CreatedAt,
+			CreatedAfter: afterCursor,
 		}))
 		require.NoError(t, err, "next cursor page")
 
@@ -644,8 +645,8 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 		} else {
 			expected = allUsers[count : count+limit]
 		}
-		require.Equal(t, page.Page, expected, "next users")
-		require.Equal(t, offsetPage.Page, expected, "next users")
+		require.Equalf(t, page.Page, expected, "next users, after=%s, limit=%d", afterCursor, limit)
+		require.Equalf(t, offsetPage.Page, expected, "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
 		prevPage, err := client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{

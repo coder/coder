@@ -1867,8 +1867,11 @@ WHERE
 	AND CASE
 		WHEN $2 :: text != '' THEN email LIKE concat('%', $2, '%')
 		ELSE true
-	END OFFSET $3 -- A null limit means "no limit", so -1 means return all
+	END
+ORDER BY
+	created_at ASC OFFSET $3
 LIMIT
+	-- A null limit means "no limit", so -1 means return all
 	NULLIF($4 :: int, -1)
 `
 
