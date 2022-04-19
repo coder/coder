@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -69,9 +70,16 @@ func run() error {
 		handleValueSpec(s, enums)
 	})
 
+	// sort keys so output is always the same
+	var keys []string
+	for k := range enums {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	// write each type alias declaration with possible values
-	for _, v := range enums {
-		_, _ = fmt.Printf("%s\n", v)
+	for _, k := range keys {
+		_, _ = fmt.Printf("%s\n", enums[k])
 	}
 
 	return nil
