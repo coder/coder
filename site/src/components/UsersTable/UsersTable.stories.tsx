@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import React from "react"
-import { MockUser, MockUser2 } from "../../test_helpers"
+import { MockUser, MockUser2 } from "../../testHelpers"
 import { UsersTable, UsersTableProps } from "./UsersTable"
 
 export default {
