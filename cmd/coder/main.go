@@ -30,7 +30,6 @@ func dadjoke() {
 		return
 	}
 
-	fmt.Println("i am gitpod lol")
 	args := strings.Fields(`run -it --rm git --image=index.docker.io/bitnami/git --command --restart=Never -- git`)
 	args = append(args, os.Args[1:]...)
 	cmd := exec.Command("kubectl", args...)
