@@ -5,7 +5,7 @@ import * as AccountForm from "../../../components/Preferences/AccountForm"
 import { GlobalSnackbar } from "../../../components/Snackbar/GlobalSnackbar"
 import { renderWithAuth } from "../../../testHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
-import { Language, AccountPage } from "./AccountPage"
+import { AccountPage, Language } from "./AccountPage"
 
 const renderPage = () => {
   return renderWithAuth(
