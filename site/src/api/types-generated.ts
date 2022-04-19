@@ -125,18 +125,18 @@ export interface CreateWorkspaceRequest {
   readonly name: string
 }
 
-// From codersdk/workspaceagents.go:26:6.
+// From codersdk/workspaceagents.go:31:6.
 export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/workspaceagents.go:30:6.
+// From codersdk/workspaceagents.go:35:6.
 export interface AWSInstanceIdentityToken {
   readonly signature: string
   readonly document: string
 }
 
-// From codersdk/workspaceagents.go:37:6.
+// From codersdk/workspaceagents.go:42:6.
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
@@ -210,25 +210,11 @@ export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
 
-// From codersdk/parameters.go:16:6.
-export type ParameterScope = 
-  | "organization"
-  | "template"
-  | "user"
-  | "workspace"
-
 // From codersdk/provisionerdaemons.go:26:6.
-export type ProvisionerJobStatus = 
-  | "pending"
-  | "running"
-  | "succeeded"
-  | "canceling"
-  | "canceled"
-  | "failed"
+export type ProvisionerJobStatus = "pending" | "running" | "succeeded" | "canceling" | "canceled" | "failed"
 
 // From codersdk/workspaceresources.go:15:6.
-export type WorkspaceAgentStatus = 
-  | "connecting"
-  | "connected"
-  | "disconnected"
+export type WorkspaceAgentStatus = "connecting" | "connected" | "disconnected"
 
+// From codersdk/parameters.go:16:6.
+export type ParameterScope = "organization" | "template" | "user" | "workspace"
