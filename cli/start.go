@@ -63,6 +63,7 @@ func start() *cobra.Command {
 		traceDatadog           bool
 		secureAuthCookie       bool
 		sshKeygenAlgorithmRaw  string
+		spooky                 bool
 	)
 
 	root := &cobra.Command{
@@ -76,7 +77,7 @@ func start() *cobra.Command {
 				defer tracer.Stop()
 			}
 
-			printLogo(cmd)
+			printLogo(cmd, spooky)
 			listener, err := net.Listen("tcp", address)
 			if err != nil {
 				return xerrors.Errorf("listen %q: %w", address, err)
@@ -394,6 +395,8 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
+	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
+	_ = root.Flags().MarkHidden("spooky")
 
 	return root
 }
@@ -464,7 +467,24 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 	}), nil
 }
 
-func printLogo(cmd *cobra.Command) {
+// nolint: revive
+func printLogo(cmd *cobra.Command, spooky bool) {
+	if spooky {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `
+		▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+		▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
+		▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
+		▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+		▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
+		░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
+		  ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
+		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
+		░ ░          ░ ░     ░       ░  ░   ░     
+		░                  ░                      		
+
+`)
+		return
+	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), `    ▄█▀    ▀█▄
      ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
