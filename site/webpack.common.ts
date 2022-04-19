@@ -25,7 +25,7 @@ const dashboardEntrypoint = path.join(__dirname, "src/Main.tsx")
 /**
  * templatePath is the path to HTML templates for injecting webpack bundles
  */
-const templatePath = path.join(__dirname, "html_templates")
+const templatePath = path.join(__dirname, "htmlTemplates")
 
 /**
  * dashboardHTMLPluginConfig is the HtmlWebpackPlugin configuration for the

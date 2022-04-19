@@ -6,7 +6,7 @@ import { SWRConfig } from "swr"
 import { AppRouter } from "./AppRouter"
 import { GlobalSnackbar } from "./components/Snackbar/GlobalSnackbar"
 import { light } from "./theme"
-import "./theme/global-fonts"
+import "./theme/globalFonts"
 import { XServiceProvider } from "./xServices/StateContext"
 
 export const App: React.FC = () => {

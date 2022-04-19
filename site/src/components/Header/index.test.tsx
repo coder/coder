@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { render } from "./../../test_helpers"
+import { render } from "../../testHelpers"
 import { Header } from "./index"
 
 describe("Header", () => {

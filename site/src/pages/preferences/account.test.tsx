@@ -3,7 +3,7 @@ import React from "react"
 import * as API from "../../api"
 import * as AccountForm from "../../components/Preferences/AccountForm"
 import { GlobalSnackbar } from "../../components/Snackbar/GlobalSnackbar"
-import { renderWithAuth } from "../../test_helpers"
+import { renderWithAuth } from "../../testHelpers"
 import * as AuthXService from "../../xServices/auth/authXService"
 import { Language, PreferencesAccountPage } from "./account"
 
