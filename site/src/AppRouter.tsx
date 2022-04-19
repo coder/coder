@@ -14,11 +14,11 @@ import { LinkedAccountsPage } from "./pages/PreferencesPages/LinkedAccountsPage/
 import { SecurityPage } from "./pages/PreferencesPages/SecurityPage/SecurityPage"
 import { SSHKeysPage } from "./pages/PreferencesPages/SSHKeysPage/SSHKeysPage"
 import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
+import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/CreateWorkspacePage"
+import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/TemplatePage"
 import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
-import { TemplatePage } from "./pages/TemplatesPages/[organization]/[template]/TemplatePage"
-import { CreateWorkspacePage } from "./pages/TemplatesPages/[organization]/[template]/CreateWorkspacePage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
-import { WorkspacePage } from "./pages/WorkspacesPage/[workspace]"
+import { WorkspacePage } from "./pages/WorkspacesPage/WorkspacesPage"
 
 export const AppRouter: React.FC = () => (
   <Routes>
