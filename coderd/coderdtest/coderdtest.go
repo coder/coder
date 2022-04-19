@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -49,9 +51,10 @@ import (
 )
 
 type Options struct {
-	AWSInstanceIdentity    awsidentity.Certificates
-	GoogleInstanceIdentity *idtoken.Validator
-	SSHKeygenAlgorithm     gitsshkey.Algorithm
+	AWSCertificates      awsidentity.Certificates
+	AzureCertificates    x509.VerifyOptions
+	GoogleTokenValidator *idtoken.Validator
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -60,11 +63,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	if options == nil {
 		options = &Options{}
 	}
-	if options.GoogleInstanceIdentity == nil {
+	if options.GoogleTokenValidator == nil {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
 		var err error
-		options.GoogleInstanceIdentity, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
+		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
 	}
 
@@ -117,8 +120,9 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		Database:                       db,
 		Pubsub:                         pubsub,
 
-		AWSCertificates:      options.AWSInstanceIdentity,
-		GoogleTokenValidator: options.GoogleInstanceIdentity,
+		AWSCertificates:      options.AWSCertificates,
+		AzureCertificates:    options.AzureCertificates,
+		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
 	})
@@ -405,6 +409,65 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 					return &http.Response{
 						StatusCode: http.StatusOK,
 						Body:       io.NopCloser(bytes.NewReader(document)),
+						Header:     make(http.Header),
+					}, nil
+				default:
+					panic("unhandled route: " + r.URL.Path)
+				}
+			}),
+		}
+}
+
+// NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
+// instance authentication for Azure.
+func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptions, *http.Client) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	rawCertificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
+		SerialNumber: big.NewInt(2022),
+		NotAfter:     time.Now().AddDate(1, 0, 0),
+		Subject: pkix.Name{
+			CommonName: "metadata.azure.com",
+		},
+	}, &x509.Certificate{}, &privateKey.PublicKey, privateKey)
+	require.NoError(t, err)
+
+	certificate, err := x509.ParseCertificate(rawCertificate)
+	require.NoError(t, err)
+
+	signed, err := pkcs7.NewSignedData([]byte(`{"vmId":"` + instanceID + `"}`))
+	require.NoError(t, err)
+	err = signed.AddSigner(certificate, privateKey, pkcs7.SignerInfoConfig{})
+	require.NoError(t, err)
+	signatureRaw, err := signed.Finish()
+	require.NoError(t, err)
+	signature := make([]byte, base64.StdEncoding.EncodedLen(len(signatureRaw)))
+	base64.StdEncoding.Encode(signature, signatureRaw)
+
+	payload, err := json.Marshal(codersdk.AzureInstanceIdentityToken{
+		Signature: string(signature),
+		Encoding:  "pkcs7",
+	})
+	require.NoError(t, err)
+
+	certPool := x509.NewCertPool()
+	certPool.AddCert(certificate)
+
+	return x509.VerifyOptions{
+			Intermediates: certPool,
+			Roots:         certPool,
+		}, &http.Client{
+			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+				// Only handle metadata server requests.
+				if r.URL.Host != "169.254.169.254" {
+					return http.DefaultTransport.RoundTrip(r)
+				}
+				switch r.URL.Path {
+				case "/metadata/attested/document":
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       io.NopCloser(bytes.NewReader(payload)),
 						Header:     make(http.Header),
 					}, nil
 				default:

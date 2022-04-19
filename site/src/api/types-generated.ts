@@ -136,7 +136,13 @@ export interface AWSInstanceIdentityToken {
   readonly document: string
 }
 
-// From codersdk/workspaceagents.go:42:6.
+// From codersdk/workspaceagents.go:40:6.
+export interface AzureInstanceIdentityToken {
+  readonly signature: string
+  readonly encoding: string
+}
+
+// From codersdk/workspaceagents.go:47:6.
 export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }

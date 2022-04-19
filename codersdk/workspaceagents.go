@@ -37,6 +37,11 @@ type AWSInstanceIdentityToken struct {
 	Document  string `json:"document" validate:"required"`
 }
 
+type AzureInstanceIdentityToken struct {
+	Signature string `json:"signature" validate:"required"`
+	Encoding  string `json:"encoding" validate:"required"`
+}
+
 // WorkspaceAgentAuthenticateResponse is returned when an instance ID
 // has been exchanged for a session token.
 type WorkspaceAgentAuthenticateResponse struct {
@@ -128,6 +133,38 @@ func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context) (Workspac
 		Signature: string(signature),
 		Document:  string(document),
 	})
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentAuthenticateResponse{}, readBodyAsError(res)
+	}
+	var resp WorkspaceAgentAuthenticateResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// AuthWorkspaceAzureInstanceIdentity uses the Azure Instance Metadata Service to
+// fetch a signed payload, and exchange it for a session token for a workspace agent.
+func (c *Client) AuthWorkspaceAzureInstanceIdentity(ctx context.Context) (WorkspaceAgentAuthenticateResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/metadata/attested/document?api-version=2020-09-01", nil)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, nil
+	}
+	req.Header.Set("Metadata", "true")
+	res, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, err
+	}
+	defer res.Body.Close()
+
+	var token AzureInstanceIdentityToken
+	err = json.NewDecoder(res.Body).Decode(&token)
+	if err != nil {
+		return WorkspaceAgentAuthenticateResponse{}, err
+	}
+
+	res, err = c.request(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
 	if err != nil {
 		return WorkspaceAgentAuthenticateResponse{}, err
 	}

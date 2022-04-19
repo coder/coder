@@ -55,6 +55,7 @@
     "trimprefix",
     "unconvert",
     "Untar",
+    "VMID",
     "webrtc",
     "xerrors",
     "yamux"

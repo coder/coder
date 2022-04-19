@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -35,6 +36,7 @@ type Options struct {
 
 	AgentConnectionUpdateFrequency time.Duration
 	AWSCertificates                awsidentity.Certificates
+	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
 	ICEServers                     []webrtc.ICEServer
 	SecureAuthCookie               bool
@@ -172,6 +174,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/workspaceagents", func(r chi.Router) {
+			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
