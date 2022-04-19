@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/fullsailor/pkcs7"
+	"go.mozilla.org/pkcs7"
 	"golang.org/x/xerrors"
 )
 

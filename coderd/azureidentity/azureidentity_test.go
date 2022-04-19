@@ -18,5 +18,5 @@ func TestValidate(t *testing.T) {
 	t.Parallel()
 	vm, err := azureidentity.Validate(context.Background(), signature, x509.VerifyOptions{})
 	require.NoError(t, err)
-	t.Log(vm)
+	require.Equal(t, "bd8e7443-24a0-41f3-b949-8baf4fd1c573", vm)
 }
