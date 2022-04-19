@@ -1,2 +1,2 @@
-site @coder/frontend
+site/ @coder/frontend
 site/src/xServices @presleyp
