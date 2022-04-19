@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import Check from "@material-ui/icons/Check"
 import React, { useState } from "react"
-import { FileCopy } from "../Icons"
+import { FileCopyIcon } from "../Icons/FileCopyIcon"
 
 interface CopyButtonProps {
   text: string
@@ -38,7 +38,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ className = "", text }) 
     <Tooltip title="Copy to Clipboard" placement="top">
       <div className={`${styles.copyButtonWrapper} ${className}`}>
         <Button className={styles.copyButton} onClick={copyToClipboard} size="small">
-          {isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopy className={styles.fileCopyIcon} />}
+          {isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />}
         </Button>
       </div>
     </Tooltip>
