@@ -58,7 +58,7 @@ const config: Configuration = {
     // properly serving index.html on 404s.
     historyApiFallback: true,
     hot: true,
-    port: 8080,
+    port: process.env.PORT || 8080,
     proxy: {
       "/api": "http://localhost:3000",
     },
