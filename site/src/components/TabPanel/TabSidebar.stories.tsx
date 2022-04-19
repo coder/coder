@@ -3,7 +3,7 @@ import React from "react"
 import { TabSidebar, TabSidebarProps } from "./TabSidebar"
 
 export default {
-  title: "TabPanel/TabSidebar",
+  title: "components/TabSidebar",
   component: TabSidebar,
 }
 

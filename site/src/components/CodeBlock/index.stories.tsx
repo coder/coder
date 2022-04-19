@@ -9,7 +9,7 @@ Started container user
 Using user 'coder' with shell '/bin/bash'`.split("\n")
 
 export default {
-  title: "CodeBlock/CodeBlock",
+  title: "components/CodeBlock",
   component: CodeBlock,
   argTypes: {
     lines: { control: "text", defaultValue: sampleLines },

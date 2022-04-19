@@ -4,7 +4,7 @@ import React from "react"
 import { UserDropdown, UserDropdownProps } from "."
 
 export default {
-  title: "Page/UserDropdown",
+  title: "components/UserDropdown",
   component: UserDropdown,
   argTypes: {
     onSignOut: { action: "Sign Out" },

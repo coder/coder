@@ -3,7 +3,7 @@ import React from "react"
 import { SignInForm, SignInFormProps } from "./SignInForm"
 
 export default {
-  title: "SignIn/SignInForm",
+  title: "components/SignInForm",
   component: SignInForm,
   argTypes: {
     isLoading: "boolean",
