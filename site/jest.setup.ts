@@ -1,4 +1,4 @@
-import { server } from "./src/test_helpers/server"
+import { server } from "./src/testHelpers/server"
 
 // Establish API mocking before all tests through MSW.
 beforeAll(() =>

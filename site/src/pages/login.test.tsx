@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import React from "react"
 import { Language } from "../components/SignIn/SignInForm"
-import { history, render } from "../test_helpers"
-import { server } from "../test_helpers/server"
+import { history, render } from "../testHelpers"
+import { server } from "../testHelpers/server"
 import { SignInPage } from "./login"
 
 describe("SignInPage", () => {

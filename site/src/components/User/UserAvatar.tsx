@@ -1,6 +1,6 @@
 import Avatar from "@material-ui/core/Avatar"
 import React from "react"
-import { firstLetter } from "../../util/first-letter"
+import { firstLetter } from "../../util/firstLetter"
 
 export interface UserAvatarProps {
   className?: string

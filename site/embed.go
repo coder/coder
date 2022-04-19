@@ -270,8 +270,6 @@ func secureHeaders(next http.Handler) http.Handler {
 
 		// Only scripts can manipulate the dom. This prevents someone from
 		// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
-		// TODO: @emyrk we need to make FE changes to enable this. We get 'TrustedHTML' and 'TrustedURL' errors
-		//		that require FE changes to work.
 		// "require-trusted-types-for" : []string{"'script'"},
 	}
 

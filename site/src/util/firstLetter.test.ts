@@ -1,4 +1,4 @@
-import { firstLetter } from "./first-letter"
+import { firstLetter } from "./firstLetter"
 
 describe("first-letter", () => {
   it.each<[string, string]>([

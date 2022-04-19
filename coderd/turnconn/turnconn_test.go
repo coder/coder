@@ -44,6 +44,9 @@ func TestTURNConn(t *testing.T) {
 		Logger:        logger.Named("client"),
 	})
 	require.NoError(t, err)
+	defer func() {
+		_ = client.Close()
+	}()
 
 	serverDialer, serverTURN := net.Pipe()
 	turnServer.Accept(serverTURN, &net.TCPAddr{
@@ -62,6 +65,9 @@ func TestTURNConn(t *testing.T) {
 		Logger:        logger.Named("server"),
 	})
 	require.NoError(t, err)
+	defer func() {
+		_ = server.Close()
+	}()
 	exchange(t, client, server)
 
 	_, err = client.Ping()
@@ -71,12 +77,7 @@ func TestTURNConn(t *testing.T) {
 func exchange(t *testing.T, client, server *peer.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
-	t.Cleanup(func() {
-		_ = client.Close()
-		_ = server.Close()
-
-		wg.Wait()
-	})
+	t.Cleanup(wg.Wait)
 	go func() {
 		defer wg.Done()
 		for {

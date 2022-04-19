@@ -20,7 +20,7 @@ coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/dat
 .PHONY: coderd/database/generate
 
 apitypings/generate: site/src/api/types.ts
-	go run scripts/apitypings/main.go > site/src/api/types-generated.ts
+	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site && yarn run format:types
 .PHONY: apitypings/generate
 
@@ -35,7 +35,6 @@ endif
 .PHONY: fmt/prettier
 
 fmt/sql: $(wildcard coderd/database/queries/*.sql)
-	# TODO: this is slightly slow
 	for fi in coderd/database/queries/*.sql; do \
 		npx sql-formatter \
 			--language postgresql \

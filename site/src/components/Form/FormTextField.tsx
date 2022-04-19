@@ -62,7 +62,7 @@ export interface FormTextFieldProps<T>
    *   }}
    * />
    */
-  eventTransform?: (value: string) => unknown
+  eventTransform?: (value: string) => string
   /**
    * isPassword uses a PasswordField component when `true`; otherwise a
    * TextField component is used.
@@ -145,13 +145,8 @@ export const FormTextField = <T,>({
         }
 
         const event = e
-        if (typeof eventTransform !== "undefined") {
-          // TODO(Grey): Asserting the type as a string here is not quite
-          // right in that when an input is of type="number", the value will
-          // be a number. Type asserting is better than conversion for this
-          // reason, but perhaps there's a better way to do this without any
-          // assertions.
-          event.target.value = eventTransform(e.target.value) as string
+        if (typeof eventTransform !== "undefined" && typeof event.target.value === "string") {
+          event.target.value = eventTransform(e.target.value)
         }
         form.handleChange(event)
       }}

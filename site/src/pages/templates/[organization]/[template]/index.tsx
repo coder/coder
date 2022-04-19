@@ -25,9 +25,8 @@ export const TemplatePage: React.FC = () => {
     () => `/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/templates/${templateName}`,
   )
 
-  // TODO: The workspaces endpoint was recently changed, so that we can't get
-  // workspaces per-template. This just grabs all workspaces... and then
-  // later filters them to match the current template.
+  // This just grabs all workspaces... and then later filters them to match the
+  // current template.
   const { data: workspaces, error: workspacesError } = useSWR<Workspace[], Error>(() => `/api/v2/users/me/workspaces`)
 
   if (organizationError) {
