@@ -4,7 +4,7 @@ import { MockUser, MockUser2 } from "../../testHelpers"
 import { UsersTable, UsersTableProps } from "./UsersTable"
 
 export default {
-  title: "Components/UsersTable",
+  title: "components/UsersTable",
   component: UsersTable,
 } as ComponentMeta<typeof UsersTable>
 

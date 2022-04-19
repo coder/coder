@@ -4,7 +4,7 @@ import { MockUser, MockUserAgent } from "../../../testHelpers"
 import { UserCell, UserCellProps } from "./UserCell"
 
 export default {
-  title: "Table/Cells/UserCell",
+  title: "components/UserCell",
   component: UserCell,
 } as ComponentMeta<typeof UserCell>
 
