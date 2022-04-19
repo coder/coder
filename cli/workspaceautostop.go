@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -11,20 +12,16 @@ import (
 )
 
 const autostopDescriptionLong = `To have your workspace stop automatically at a regular time you can enable autostop.
-When enabling autostop, provide a schedule. This schedule is in cron format except only
-the following fields are allowed:
-- minute
-- hour
-- day of week
-
-For example, to stop your workspace every weekday at 5.30 pm, provide the schedule '30 17 1-5'.`
+When enabling autostop, provide the minute, hour, and day(s) of week.
+The default autostop schedule is at 18:00 in your local timezone (TZ env, UTC by default).
+`
 
 func workspaceAutostop() *cobra.Command {
 	autostopCmd := &cobra.Command{
-		Use:     "autostop enable <workspace> <schedule>",
-		Short:   "schedule a workspace to automatically start at a regular time",
+		Use:     "autostop enable <workspace>",
+		Short:   "schedule a workspace to automatically stop at a regular time",
 		Long:    autostopDescriptionLong,
-		Example: "coder workspaces autostop enable my-workspace '30 17 1-5'",
+		Example: "coder workspaces autostop enable my-workspace --minute 0 --hour 18 --days 1-5 -tz Europe/Dublin",
 		Hidden:  true, // TODO(cian): un-hide when autostop scheduling implemented
 	}
 
@@ -35,22 +32,28 @@ func workspaceAutostop() *cobra.Command {
 }
 
 func workspaceAutostopEnable() *cobra.Command {
-	return &cobra.Command{
+	// yes some of these are technically numbers but the cron library will do that work
+	var autostopMinute string
+	var autostopHour string
+	var autostopDayOfWeek string
+	var autostopTimezone string
+	cmd := &cobra.Command{
 		Use:               "enable <workspace_name> <schedule>",
 		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(2),
+		Args:              cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
+			spec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", autostopTimezone, autostopMinute, autostopHour, autostopDayOfWeek)
+			validSchedule, err := schedule.Weekly(spec)
 			if err != nil {
 				return err
 			}
 
-			validSchedule, err := schedule.Weekly(args[1])
+			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}
@@ -67,6 +70,16 @@ func workspaceAutostopEnable() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&autostopMinute, "minute", "0", "autostop minute")
+	cmd.Flags().StringVar(&autostopHour, "hour", "18", "autostop hour")
+	cmd.Flags().StringVar(&autostopDayOfWeek, "days", "1-5", "autostop day(s) of week")
+	tzEnv := os.Getenv("TZ")
+	if tzEnv == "" {
+		tzEnv = "UTC"
+	}
+	cmd.Flags().StringVar(&autostopTimezone, "tz", tzEnv, "autostop timezone")
+	return cmd
 }
 
 func workspaceAutostopDisable() *cobra.Command {

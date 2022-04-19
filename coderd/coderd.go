@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/pion/webrtc/v3"
 	"google.golang.org/api/idtoken"
 
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
@@ -20,24 +22,27 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
 
 // Options are requires parameters for Coder to start.
 type Options struct {
+	AccessURL *url.URL
+	Logger    slog.Logger
+	Database  database.Store
+	Pubsub    database.Pubsub
+
 	AgentConnectionUpdateFrequency time.Duration
-	AccessURL                      *url.URL
-	Logger                         slog.Logger
-	Database                       database.Store
-	Pubsub                         database.Pubsub
-
-	AWSCertificates      awsidentity.Certificates
-	GoogleTokenValidator *idtoken.Validator
-	GithubOAuth2Config   *GithubOAuth2Config
-
-	SecureAuthCookie   bool
-	SSHKeygenAlgorithm gitsshkey.Algorithm
+	AWSCertificates                awsidentity.Certificates
+	AzureCertificates              x509.VerifyOptions
+	GoogleTokenValidator           *idtoken.Validator
+	GithubOAuth2Config             *GithubOAuth2Config
+	ICEServers                     []webrtc.ICEServer
+	SecureAuthCookie               bool
+	SSHKeygenAlgorithm             gitsshkey.Algorithm
+	TURNServer                     *turnconn.Server
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -156,6 +161,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
 				r.Post("/", api.postUsers)
+				r.Get("/", api.users)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
@@ -179,12 +185,15 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/workspaceagents", func(r chi.Router) {
+			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
+				r.Get("/turn", api.workspaceAgentTurn)
+				r.Get("/iceservers", api.workspaceAgentICEServers)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -193,6 +202,8 @@ func New(options *Options) (http.Handler, func()) {
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/dial", api.workspaceAgentDial)
+				r.Get("/turn", api.workspaceAgentTurn)
+				r.Get("/iceservers", api.workspaceAgentICEServers)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {

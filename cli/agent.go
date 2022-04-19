@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/peer"
 	"github.com/coder/retry"
 )
 
@@ -77,7 +76,19 @@ func workspaceAgent() *cobra.Command {
 					return client.AuthWorkspaceAWSInstanceIdentity(ctx)
 				}
 			case "azure-instance-identity":
-				return xerrors.Errorf("not implemented")
+				// This is *only* done for testing to mock client authentication.
+				// This will never be set in a production scenario.
+				var azureClient *http.Client
+				azureClientRaw := cmd.Context().Value("azure-client")
+				if azureClientRaw != nil {
+					azureClient, _ = azureClientRaw.(*http.Client)
+					if azureClient != nil {
+						client.HTTPClient = azureClient
+					}
+				}
+				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
+					return client.AuthWorkspaceAzureInstanceIdentity(ctx)
+				}
 			}
 
 			if exchangeToken != nil {
@@ -110,9 +121,7 @@ func workspaceAgent() *cobra.Command {
 				return xerrors.Errorf("writing agent session token to config: %w", err)
 			}
 
-			closer := agent.New(client.ListenWorkspaceAgent, &peer.ConnOptions{
-				Logger: logger,
-			})
+			closer := agent.New(client.ListenWorkspaceAgent, logger)
 			<-cmd.Context().Done()
 			return closer.Close()
 		},

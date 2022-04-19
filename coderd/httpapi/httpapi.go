@@ -58,8 +58,8 @@ type Response struct {
 
 // Error represents a scoped error to a user input.
 type Error struct {
-	Field string `json:"field" validate:"required"`
-	Code  string `json:"code" validate:"required"`
+	Field  string `json:"field" validate:"required"`
+	Detail string `json:"detail" validate:"required"`
 }
 
 // Write outputs a standardized format to an HTTP response body.
@@ -97,8 +97,8 @@ func Read(rw http.ResponseWriter, r *http.Request, value interface{}) bool {
 		apiErrors := make([]Error, 0, len(validationErrors))
 		for _, validationError := range validationErrors {
 			apiErrors = append(apiErrors, Error{
-				Field: validationError.Field(),
-				Code:  validationError.Tag(),
+				Field:  validationError.Field(),
+				Detail: validationError.Tag(),
 			})
 		}
 		Write(rw, http.StatusBadRequest, Response{

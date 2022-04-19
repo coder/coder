@@ -164,6 +164,13 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
+func (q *fakeQuerier) GetUsers(_ context.Context) ([]database.User, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.users, nil
+}
+
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

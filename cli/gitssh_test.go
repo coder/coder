@@ -74,7 +74,7 @@ func TestGitSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
 		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil, nil)
+		dialer, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -11,20 +12,16 @@ import (
 )
 
 const autostartDescriptionLong = `To have your workspace build automatically at a regular time you can enable autostart.
-When enabling autostart, provide a schedule. This schedule is in cron format except only
-the following fields are allowed:
-- minute
-- hour
-- day of week
-
-For example, to start your workspace every weekday at 9.30 am, provide the schedule '30 9 1-5'.`
+When enabling autostart, provide the minute, hour, and day(s) of week.
+The default schedule is at 09:00 in your local timezone (TZ env, UTC by default).
+`
 
 func workspaceAutostart() *cobra.Command {
 	autostartCmd := &cobra.Command{
-		Use:     "autostart enable <workspace> <schedule>",
+		Use:     "autostart enable <workspace>",
 		Short:   "schedule a workspace to automatically start at a regular time",
 		Long:    autostartDescriptionLong,
-		Example: "coder workspaces autostart enable my-workspace '30 9 1-5'",
+		Example: "coder workspaces autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Europe/Dublin",
 		Hidden:  true, // TODO(cian): un-hide when autostart scheduling implemented
 	}
 
@@ -35,22 +32,28 @@ func workspaceAutostart() *cobra.Command {
 }
 
 func workspaceAutostartEnable() *cobra.Command {
-	return &cobra.Command{
+	// yes some of these are technically numbers but the cron library will do that work
+	var autostartMinute string
+	var autostartHour string
+	var autostartDayOfWeek string
+	var autostartTimezone string
+	cmd := &cobra.Command{
 		Use:               "enable <workspace_name> <schedule>",
 		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(2),
+		Args:              cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
+			spec := fmt.Sprintf("CRON_TZ=%s %s %s * * %s", autostartTimezone, autostartMinute, autostartHour, autostartDayOfWeek)
+			validSchedule, err := schedule.Weekly(spec)
 			if err != nil {
 				return err
 			}
 
-			validSchedule, err := schedule.Weekly(args[1])
+			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}
@@ -67,6 +70,16 @@ func workspaceAutostartEnable() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&autostartMinute, "minute", "0", "autostart minute")
+	cmd.Flags().StringVar(&autostartHour, "hour", "9", "autostart hour")
+	cmd.Flags().StringVar(&autostartDayOfWeek, "days", "1-5", "autostart day(s) of week")
+	tzEnv := os.Getenv("TZ")
+	if tzEnv == "" {
+		tzEnv = "UTC"
+	}
+	cmd.Flags().StringVar(&autostartTimezone, "tz", tzEnv, "autostart timezone")
+	return cmd
 }
 
 func workspaceAutostartDisable() *cobra.Command {

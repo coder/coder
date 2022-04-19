@@ -69,7 +69,7 @@ export const MockWorkspaceAutostartDisabled: WorkspaceAutostartRequest = {
 export const MockWorkspaceAutostartEnabled: WorkspaceAutostartRequest = {
   // Runs at 9:30am Monday through Friday using Canada/Eastern
   // (America/Toronto) time
-  schedule: "CRON_TZ=Canada/Eastern 30 9 1-5",
+  schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
 }
 
 export const MockWorkspaceAutostopDisabled: WorkspaceAutostartRequest = {
@@ -78,7 +78,7 @@ export const MockWorkspaceAutostopDisabled: WorkspaceAutostartRequest = {
 
 export const MockWorkspaceAutostopEnabled: WorkspaceAutostartRequest = {
   // Runs at 9:30pm Monday through Friday using America/Toronto
-  schedule: "CRON_TZ=America/Toronto 30 21 1-5",
+  schedule: "CRON_TZ=America/Toronto 30 21 * * 1-5",
 }
 
 export const MockWorkspace: Workspace = {

@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
-	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -99,9 +98,7 @@ func ssh() *cobra.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			conn, err := client.DialWorkspaceAgent(cmd.Context(), agent.ID, []webrtc.ICEServer{{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			}}, nil)
+			conn, err := client.DialWorkspaceAgent(cmd.Context(), agent.ID, nil)
 			if err != nil {
 				return err
 			}

@@ -17,22 +17,21 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 )
 
-// ICEServersFunc returns ICEServers when a new connection is requested.
-type ICEServersFunc func(ctx context.Context) ([]webrtc.ICEServer, error)
+// ConnSettingsFunc returns initialization options for a connection
+type ConnSettingsFunc func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error)
 
 // Listen consumes the transport as the server-side of the PeerBroker dRPC service.
 // The Accept function must be serviced, or new connections will hang.
-func Listen(connListener net.Listener, iceServersFunc ICEServersFunc, opts *peer.ConnOptions) (*Listener, error) {
-	if iceServersFunc == nil {
-		iceServersFunc = func(ctx context.Context) ([]webrtc.ICEServer, error) {
-			return []webrtc.ICEServer{}, nil
+func Listen(connListener net.Listener, connSettingsFunc ConnSettingsFunc) (*Listener, error) {
+	if connSettingsFunc == nil {
+		connSettingsFunc = func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+			return []webrtc.ICEServer{}, nil, nil
 		}
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	listener := &Listener{
 		connectionChannel:  make(chan *peer.Conn),
 		connectionListener: connListener,
-		iceServersFunc:     iceServersFunc,
 
 		closeFunc: cancelFunc,
 		closed:    make(chan struct{}),
@@ -40,7 +39,7 @@ func Listen(connListener net.Listener, iceServersFunc ICEServersFunc, opts *peer
 
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterPeerBroker(mux, &peerBrokerService{
-		connOptions: opts,
+		connSettingsFunc: connSettingsFunc,
 
 		listener: listener,
 	})
@@ -59,7 +58,6 @@ func Listen(connListener net.Listener, iceServersFunc ICEServersFunc, opts *peer
 type Listener struct {
 	connectionChannel  chan *peer.Conn
 	connectionListener net.Listener
-	iceServersFunc     ICEServersFunc
 
 	closeFunc  context.CancelFunc
 	closed     chan struct{}
@@ -112,17 +110,16 @@ func (l *Listener) isClosed() bool {
 type peerBrokerService struct {
 	listener *Listener
 
-	connOptions *peer.ConnOptions
+	connSettingsFunc ConnSettingsFunc
 }
 
 // NegotiateConnection negotiates a WebRTC connection.
 func (b *peerBrokerService) NegotiateConnection(stream proto.DRPCPeerBroker_NegotiateConnectionStream) error {
-	iceServers, err := b.listener.iceServersFunc(stream.Context())
+	iceServers, connOptions, err := b.connSettingsFunc(stream.Context())
 	if err != nil {
-		return xerrors.Errorf("get ice servers: %w", err)
+		return xerrors.Errorf("get connection settings: %w", err)
 	}
-	// Start with no ICE servers. They can be sent by the client if provided.
-	peerConn, err := peer.Server(iceServers, b.connOptions)
+	peerConn, err := peer.Server(iceServers, connOptions)
 	if err != nil {
 		return xerrors.Errorf("create peer connection: %w", err)
 	}

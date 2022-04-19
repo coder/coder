@@ -57,7 +57,7 @@ func TestAgent(t *testing.T) {
 		}
 		output, err := session.Output(command)
 		require.NoError(t, err)
-		require.Contains(t, string(output), "gitssh --")
+		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 	})
 
 	t.Run("SessionTTY", func(t *testing.T) {
@@ -170,11 +170,9 @@ func setupSSHSession(t *testing.T) *ssh.Session {
 
 func setupAgent(t *testing.T) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
-	closer := agent.New(func(ctx context.Context, opts *peer.ConnOptions) (*peerbroker.Listener, error) {
-		return peerbroker.Listen(server, nil, opts)
-	}, &peer.ConnOptions{
-		Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-	})
+	closer := agent.New(func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
+		return peerbroker.Listen(server, nil)
+	}, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()
