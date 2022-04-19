@@ -16,7 +16,7 @@ var Me = uuid.Nil
 
 type PaginatedUsersRequest struct {
 	CreatedAfter time.Time `json:"created_after"`
-	SearchEmail  string    `json:"search_email"`
+	SearchName   string    `json:"search_name"`
 	Limit        int       `json:"limit"`
 	Offset       int       `json:"offset"`
 }
@@ -238,7 +238,7 @@ func (c *Client) PaginatedUsers(ctx context.Context, req PaginatedUsersRequest) 
 			q.Set("limit", strconv.Itoa(req.Limit))
 		}
 		q.Set("offset", strconv.Itoa(req.Offset))
-		q.Set("search_email", req.SearchEmail)
+		q.Set("search_name", req.SearchName)
 		r.URL.RawQuery = q.Encode()
 	})
 	if err != nil {

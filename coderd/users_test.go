@@ -558,7 +558,7 @@ func TestPaginatedUsers(t *testing.T) {
 
 	allUsers := make([]codersdk.User, 0)
 	allUsers = append(allUsers, me)
-	gmailUsers := make([]codersdk.User, 0)
+	specialUsers := make([]codersdk.User, 0)
 
 	org, err := client.CreateOrganization(ctx, me.ID, codersdk.CreateOrganizationRequest{
 		Name: "default",
@@ -570,19 +570,21 @@ func TestPaginatedUsers(t *testing.T) {
 	// Create users
 	for i := 0; i < total; i++ {
 		email := fmt.Sprintf("%d@coder.com", i)
+		username := fmt.Sprintf("user%d", i)
 		if i%2 == 0 {
 			email = fmt.Sprintf("%d@gmail.com", i)
+			username = fmt.Sprintf("specialuser%d", i)
 		}
 		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          email,
-			Username:       fmt.Sprintf("user%d", i),
+			Username:       username,
 			Password:       "password",
 			OrganizationID: org.ID,
 		})
 		require.NoError(t, err)
 		allUsers = append(allUsers, newUser)
 		if i%2 == 0 {
-			gmailUsers = append(gmailUsers, newUser)
+			specialUsers = append(specialUsers, newUser)
 		}
 	}
 
@@ -593,12 +595,18 @@ func TestPaginatedUsers(t *testing.T) {
 
 	// Try a search
 	gmailSearch := func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
-		request.SearchEmail = "gmail"
+		request.SearchName = "gmail"
 		return request
 	}
-	assertPagination(t, ctx, client, 3, gmailUsers, gmailSearch)
-	assertPagination(t, ctx, client, 7, gmailUsers, gmailSearch)
-	assertPagination(t, ctx, client, 1, gmailUsers, gmailSearch)
+	assertPagination(t, ctx, client, 3, specialUsers, gmailSearch)
+	assertPagination(t, ctx, client, 7, specialUsers, gmailSearch)
+
+	usernameSearch := func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
+		request.SearchName = "specialuser"
+		return request
+	}
+	assertPagination(t, ctx, client, 3, specialUsers, usernameSearch)
+	assertPagination(t, ctx, client, 1, specialUsers, usernameSearch)
 }
 
 func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client, limit int, allUsers []codersdk.User,

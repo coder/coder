@@ -1865,7 +1865,10 @@ WHERE
 		ELSE true
 	END
 	AND CASE
-		WHEN $2 :: text != '' THEN email LIKE concat('%', $2, '%')
+		WHEN $2 :: text != '' THEN (
+			email LIKE concat('%', $2, '%')
+			OR username LIKE concat('%', $2, '%')
+		)
 		ELSE true
 	END
 ORDER BY
@@ -1877,7 +1880,7 @@ LIMIT
 
 type GetUsersParams struct {
 	CreatedAfter time.Time `db:"created_after" json:"created_after"`
-	SearchEmail  string    `db:"search_email" json:"search_email"`
+	SearchName   string    `db:"search_name" json:"search_name"`
 	OffsetOpt    int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt     int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -1885,7 +1888,7 @@ type GetUsersParams struct {
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.CreatedAfter,
-		arg.SearchEmail,
+		arg.SearchName,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

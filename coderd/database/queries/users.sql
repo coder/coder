@@ -66,7 +66,10 @@ WHERE
 		ELSE true
 	END
 	AND CASE
-		WHEN @search_email :: text != '' THEN email LIKE concat('%', @search_email, '%')
+		WHEN @search_name :: text != '' THEN (
+			email LIKE concat('%', @search_name, '%')
+			OR username LIKE concat('%', @search_name, '%')
+		)
 		ELSE true
 	END
 ORDER BY

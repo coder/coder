@@ -147,10 +147,10 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		afterArg    = r.URL.Query().Get("created_after")
-		limitArg    = r.URL.Query().Get("limit")
-		offsetArg   = r.URL.Query().Get("offset")
-		searchEmail = r.URL.Query().Get("search_email")
+		afterArg   = r.URL.Query().Get("created_after")
+		limitArg   = r.URL.Query().Get("limit")
+		offsetArg  = r.URL.Query().Get("offset")
+		searchName = r.URL.Query().Get("search_name")
 	)
 
 	var createdAfter time.Time
@@ -200,7 +200,7 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 		CreatedAfter: createdAfter,
 		OffsetOpt:    int32(pagerFields.Offset),
 		LimitOpt:     int32(pagerFields.Limit),
-		SearchEmail:  searchEmail,
+		SearchName:   searchName,
 	})
 
 	if err != nil {
