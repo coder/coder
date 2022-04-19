@@ -2,7 +2,7 @@ import IconButton from "@material-ui/core/IconButton"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React, { useEffect } from "react"
-import { CloseIcon } from "../Icons/Close"
+import { CloseIcon } from "../Icons/CloseIcon"
 
 export interface FormCloseButtonProps {
   onClose: () => void
