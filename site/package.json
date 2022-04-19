@@ -10,6 +10,7 @@
     "chromatic": "chromatic",
     "dev": "webpack-dev-server --config=webpack.dev.ts",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
+    "format:types": "prettier --write 'src/api/types-generated.ts'",
     "format:write": "prettier --write '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "lint": "jest --selectProjects lint",
     "lint:fix": "FIX=true yarn lint",
