@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { CodeBlock, CodeBlockProps } from "./index"
+import { CodeBlock, CodeBlockProps } from "./CodeBlock"
 
 const sampleLines = `Successfully assigned coder/image-jcws7 to cluster-1
 Container image "gcr.io/coder-dogfood/master/coder-dev-ubuntu@sha256" already present on machine

@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import React from "react"
 import { render } from "../../testHelpers"
-import { CodeBlock } from "./index"
+import { CodeBlock } from "./CodeBlock"
 
 describe("CodeBlock", () => {
   it("renders lines)", async () => {
