@@ -14,6 +14,14 @@ SELECT * FROM workspaces WHERE organization_id = $1 AND deleted = $2;
 -- name: GetWorkspacesByOrganizationIDs :many
 SELECT * FROM workspaces WHERE organization_id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
 
+-- name: GetWorkspaces :many
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	deleted = false;
+
 -- name: GetWorkspacesByTemplateID :many
 SELECT
 	*

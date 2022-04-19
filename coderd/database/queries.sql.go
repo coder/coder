@@ -3202,6 +3202,49 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 	return items, nil
 }
 
+const getWorkspaces = `-- name: GetWorkspaces :many
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+FROM
+	workspaces
+WHERE
+	deleted = false
+`
+
+func (q *sqlQuerier) GetWorkspaces(ctx context.Context) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspacesByOrganizationID = `-- name: GetWorkspacesByOrganizationID :many
 SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule FROM workspaces WHERE organization_id = $1 AND deleted = $2
 `

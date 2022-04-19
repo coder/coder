@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/autostart/lifecycle"
+
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
@@ -57,6 +59,9 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
+	Store                database.Store
+	Pubsub               database.Pubsub
+	LifecycleExecutor    *lifecycle.Executor
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -74,8 +79,14 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	}
 
 	// This can be hotswapped for a live database instance.
-	db := databasefake.New()
-	pubsub := database.NewPubsubInMemory()
+	db := options.Store
+	pubsub := options.Pubsub
+	if db == nil {
+		db = databasefake.New()
+	}
+	if pubsub == nil {
+		pubsub = database.NewPubsubInMemory()
+	}
 	if os.Getenv("DB") != "" {
 		connectionURL, close, err := postgres.Open()
 		require.NoError(t, err)
@@ -94,6 +105,10 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		t.Cleanup(func() {
 			_ = pubsub.Close()
 		})
+	}
+
+	if options.LifecycleExecutor == nil {
+		options.LifecycleExecutor = &lifecycle.Executor{}
 	}
 
 	srv := httptest.NewUnstartedServer(nil)
@@ -491,4 +506,11 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
+	ctx := context.Background()
+	ws, err := client.Workspace(ctx, workspaceID)
+	require.NoError(t, err, "no workspace found with id %s", workspaceID)
+	return ws
 }
