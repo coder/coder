@@ -92,7 +92,7 @@ provisionersdk/proto: provisionersdk/proto/provisioner.proto
 		./provisionersdk/proto/provisioner.proto
 .PHONY: provisionersdk/proto
 
-release:
+release: site/out
 	goreleaser release --snapshot --rm-dist --skip-sign
 .PHONY: release
 
