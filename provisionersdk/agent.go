@@ -14,6 +14,7 @@ var (
 			"amd64": `
 $ProgressPreference = "SilentlyContinue"
 Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-amd64.exe -OutFile $env:TEMP\sshd.exe
+Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
 $env:CODER_AUTH = "${AUTH_TYPE}"
 $env:CODER_URL = "${ACCESS_URL}"
 Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru
