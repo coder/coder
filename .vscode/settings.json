@@ -51,6 +51,7 @@
     "tcpip",
     "TCSETS",
     "tfexec",
+    "tfjson",
     "tfstate",
     "trimprefix",
     "unconvert",
