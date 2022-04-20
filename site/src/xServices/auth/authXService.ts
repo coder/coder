@@ -1,7 +1,8 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
-import { displaySuccess } from "../../components/Snackbar"
+import * as TypesGen from "../../api/typesGenerated"
+import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   successProfileUpdate: "Updated preferences.",
@@ -13,7 +14,7 @@ export interface AuthContext {
   authError?: Error | unknown
   updateProfileError?: Error | unknown
   me?: Types.UserResponse
-  methods?: Types.AuthMethods
+  methods?: TypesGen.AuthMethods
 }
 
 export type AuthEvent =
@@ -42,7 +43,7 @@ export const authMachine =
             data: Types.UserResponse
           }
           getMethods: {
-            data: Types.AuthMethods
+            data: TypesGen.AuthMethods
           }
           signIn: {
             data: Types.LoginResponse

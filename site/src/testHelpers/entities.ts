@@ -1,5 +1,4 @@
 import {
-  AuthMethods,
   BuildInfoResponse,
   Organization,
   Pager,
@@ -10,6 +9,7 @@ import {
   Workspace,
   WorkspaceAutostartRequest,
 } from "../api/types"
+import { AuthMethods } from "../api/typesGenerated"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
