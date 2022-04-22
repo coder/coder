@@ -73,7 +73,7 @@ func diffValues[T any](old, new T) DiffMap {
 
 		if !reflect.DeepEqual(oldI, newI) {
 			switch atype {
-			case ActionAuditable:
+			case ActionTrack:
 				baseDiff[diffName] = newI
 			case ActionSecret:
 				baseDiff[diffName] = reflect.Zero(newF.Type()).Interface()
