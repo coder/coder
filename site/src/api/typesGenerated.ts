@@ -71,31 +71,31 @@ export interface TemplateVersion {
 }
 
 // From codersdk/users.go:17:6.
-export interface PaginatedUsersRequest {
-  readonly search_name: string
+export interface UsersRequest {
+  readonly search: string
   readonly limit: int
   readonly offset: int
 }
 
-// From codersdk/users.go:27:6.
+// From codersdk/users.go:31:6.
 export interface PagerFields {
   readonly limit: int
   readonly offset: int
 }
 
-// From codersdk/users.go:32:6.
+// From codersdk/users.go:36:6.
 export interface PaginatedUsers {
   readonly pager: PagerFields
 }
 
-// From codersdk/users.go:38:6.
+// From codersdk/users.go:42:6.
 export interface User {
   readonly email: string
   readonly username: string
   readonly name: string
 }
 
-// From codersdk/users.go:46:6.
+// From codersdk/users.go:50:6.
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -103,42 +103,42 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:59:6.
+// From codersdk/users.go:63:6.
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
 }
 
-// From codersdk/users.go:66:6.
+// From codersdk/users.go:70:6.
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
   readonly name?: string
 }
 
-// From codersdk/users.go:73:6.
+// From codersdk/users.go:77:6.
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:79:6.
+// From codersdk/users.go:83:6.
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
-// From codersdk/users.go:84:6.
+// From codersdk/users.go:88:6.
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
-// From codersdk/users.go:88:6.
+// From codersdk/users.go:92:6.
 export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/users.go:93:6.
+// From codersdk/users.go:97:6.
 export interface CreateWorkspaceRequest {
   readonly name: string
 }

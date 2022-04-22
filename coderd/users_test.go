@@ -323,7 +323,7 @@ func TestGetUsers(t *testing.T) {
 		OrganizationID: user.OrganizationID,
 	})
 	// No params is all users
-	users, err := client.Users(context.Background(), codersdk.PaginatedUsersRequest{})
+	users, err := client.Users(context.Background(), codersdk.UsersRequest{})
 	require.NoError(t, err)
 	require.Len(t, users, 2)
 }
@@ -601,15 +601,15 @@ func TestPaginatedUsers(t *testing.T) {
 	assertPagination(t, ctx, client, 1, allUsers, nil)
 
 	// Try a search
-	gmailSearch := func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
-		request.SearchName = "gmail"
+	gmailSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
+		request.Search = "gmail"
 		return request
 	}
 	assertPagination(t, ctx, client, 3, specialUsers, gmailSearch)
 	assertPagination(t, ctx, client, 7, specialUsers, gmailSearch)
 
-	usernameSearch := func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
-		request.SearchName = "specialuser"
+	usernameSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
+		request.Search = "specialuser"
 		return request
 	}
 	assertPagination(t, ctx, client, 3, specialUsers, usernameSearch)
@@ -620,40 +620,39 @@ func TestPaginatedUsers(t *testing.T) {
 // limit for each page. The 'allUsers' is the expected full list to compare
 // against.
 func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client, limit int, allUsers []codersdk.User,
-	opt func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest) {
+	opt func(request codersdk.UsersRequest) codersdk.UsersRequest) {
 	var count int
 	if opt == nil {
-		opt = func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest {
+		opt = func(request codersdk.UsersRequest) codersdk.UsersRequest {
 			return request
 		}
 	}
 
 	// Check the first page
-	page, err := client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
+	page, err := client.Users(ctx, opt(codersdk.UsersRequest{
 		Limit: limit,
 	}))
 	require.NoError(t, err, "first page")
-	require.Equalf(t, page.Page, allUsers[:limit], "first page, limit=%d", limit)
-	require.Equal(t, page.Pager.Limit, limit, "expected limit")
-	count += len(page.Page)
+	require.Equalf(t, page, allUsers[:limit], "first page, limit=%d", limit)
+	count += len(page)
 
 	for {
-		if len(page.Page) == 0 {
+		if len(page) == 0 {
 			break
 		}
 
-		afterCursor := page.Page[len(page.Page)-1].ID
+		afterCursor := page[len(page)-1].ID
 		// Assert each page is the next expected page
 		// This is using a cursor, and only works if all users created_at
 		// is unique.
-		page, err = client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
+		page, err = client.Users(ctx, opt(codersdk.UsersRequest{
 			Limit:     limit,
 			AfterUser: afterCursor,
 		}))
 		require.NoError(t, err, "next cursor page")
 
 		// Also check page by offset
-		offsetPage, err := client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
+		offsetPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
 			Limit:  limit,
 			Offset: count,
 		}))
@@ -665,16 +664,16 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 		} else {
 			expected = allUsers[count : count+limit]
 		}
-		require.Equalf(t, page.Page, expected, "next users, after=%s, limit=%d", afterCursor, limit)
-		require.Equalf(t, offsetPage.Page, expected, "offset users, offset=%d, limit=%d", count, limit)
+		require.Equalf(t, page, expected, "next users, after=%s, limit=%d", afterCursor, limit)
+		require.Equalf(t, offsetPage, expected, "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
-		prevPage, err := client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
+		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
 			Offset: count - limit,
 			Limit:  limit,
 		}))
 		require.NoError(t, err, "prev page")
-		require.Equal(t, allUsers[count-limit:count], prevPage.Page, "prev users")
-		count += len(page.Page)
+		require.Equal(t, allUsers[count-limit:count], prevPage, "prev users")
+		count += len(page)
 	}
 }

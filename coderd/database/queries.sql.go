@@ -1897,16 +1897,16 @@ LIMIT
 `
 
 type GetUsersParams struct {
-	AfterUser  uuid.UUID `db:"after_user" json:"after_user"`
-	SearchName string    `db:"search_name" json:"search_name"`
-	OffsetOpt  int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt   int32     `db:"limit_opt" json:"limit_opt"`
+	AfterUser uuid.UUID `db:"after_user" json:"after_user"`
+	Search    string    `db:"search" json:"search"`
+	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterUser,
-		arg.SearchName,
+		arg.Search,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

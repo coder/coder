@@ -150,7 +150,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		afterArg   = r.URL.Query().Get("after_user")
 		limitArg   = r.URL.Query().Get("limit")
 		offsetArg  = r.URL.Query().Get("offset")
-		searchName = r.URL.Query().Get("search_name")
+		searchName = r.URL.Query().Get("search")
 	)
 
 	// createdAfter is a user uuid.
@@ -192,10 +192,10 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	pagerFields.Offset = offset
 
 	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
-		AfterUser:  createdAfter,
-		OffsetOpt:  int32(pagerFields.Offset),
-		LimitOpt:   int32(pagerFields.Limit),
-		SearchName: searchName,
+		AfterUser: createdAfter,
+		OffsetOpt: int32(pagerFields.Offset),
+		LimitOpt:  int32(pagerFields.Limit),
+		Search:    searchName,
 	})
 
 	if err != nil {
@@ -206,10 +206,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, codersdk.PaginatedUsers{
-		Pager: pagerFields,
-		Page:  convertUsers(users),
-	})
+	render.JSON(rw, r, convertUsers(users))
 }
 
 // Creates a new user.

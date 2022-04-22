@@ -200,14 +200,14 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		}
 	}
 
-	if params.SearchName != "" {
+	if params.Search != "" {
 		tmp := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if strings.Contains(user.Email, params.SearchName) {
+			if strings.Contains(user.Email, params.Search) {
 				tmp = append(tmp, users[i])
-			} else if strings.Contains(user.Username, params.SearchName) {
+			} else if strings.Contains(user.Username, params.Search) {
 				tmp = append(tmp, users[i])
-			} else if strings.Contains(user.Name, params.SearchName) {
+			} else if strings.Contains(user.Name, params.Search) {
 				tmp = append(tmp, users[i])
 			}
 		}

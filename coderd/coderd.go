@@ -35,17 +35,17 @@ type Options struct {
 	Pubsub    database.Pubsub
 
 	AgentConnectionUpdateFrequency time.Duration
-	AWSCertificates                awsidentity.Certificates
-	AzureCertificates              x509.VerifyOptions
-	GoogleTokenValidator           *idtoken.Validator
-	ICEServers                     []webrtc.ICEServer
-	SecureAuthCookie               bool
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	TURNServer                     *turnconn.Server
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
 	// app. Specific routes may have their own limiters.
-	APIRateLimit int
+	APIRateLimit         int
+	AWSCertificates      awsidentity.Certificates
+	AzureCertificates    x509.VerifyOptions
+	GoogleTokenValidator *idtoken.Validator
+	ICEServers           []webrtc.ICEServer
+	SecureAuthCookie     bool
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	TURNServer           *turnconn.Server
 }
 
 // New constructs the Coder API into an HTTP handler.

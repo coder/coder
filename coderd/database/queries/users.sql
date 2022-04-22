@@ -81,10 +81,10 @@ WHERE
 			ELSE true
 	END
 	AND CASE
-		WHEN @search_name :: text != '' THEN (
-			email LIKE concat('%', @search_name, '%')
-			OR username LIKE concat('%', @search_name, '%')
-			OR 'name' LIKE concat('%', @search_name, '%')
+		WHEN @search :: text != '' THEN (
+			email LIKE concat('%', @search, '%')
+			OR username LIKE concat('%', @search, '%')
+			OR 'name' LIKE concat('%', @search, '%')
 		)
 		ELSE true
 	END

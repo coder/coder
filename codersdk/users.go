@@ -14,9 +14,9 @@ import (
 // Me is used as a replacement for your own ID.
 var Me = uuid.Nil
 
-type PaginatedUsersRequest struct {
-	AfterUser  uuid.UUID `json:"after_user"`
-	SearchName string    `json:"search_name"`
+type UsersRequest struct {
+	AfterUser uuid.UUID `json:"after_user"`
+	Search    string    `json:"search"`
 	// Limit sets the maximum number of users to be returned
 	// in a single page. If the limit is <= 0, there is no limit
 	// and all users are returned.
@@ -224,7 +224,7 @@ func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
 
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
-func (c *Client) Users(ctx context.Context, req PaginatedUsersRequest) (PaginatedUsers, error) {
+func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil, func(r *http.Request) {
 		q := r.URL.Query()
 		if req.AfterUser != uuid.Nil {
@@ -234,19 +234,19 @@ func (c *Client) Users(ctx context.Context, req PaginatedUsersRequest) (Paginate
 			q.Set("limit", strconv.Itoa(req.Limit))
 		}
 		q.Set("offset", strconv.Itoa(req.Offset))
-		q.Set("search_name", req.SearchName)
+		q.Set("search", req.Search)
 		r.URL.RawQuery = q.Encode()
 	})
 	if err != nil {
-		return PaginatedUsers{}, err
+		return []User{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return PaginatedUsers{}, readBodyAsError(res)
+		return []User{}, readBodyAsError(res)
 	}
 
-	var users PaginatedUsers
+	var users []User
 	return users, json.NewDecoder(res.Body).Decode(&users)
 }
 
