@@ -14,7 +14,7 @@ import (
 // on IP, endpoint, and user ID (if available).
 func RateLimitPerMinute(count int) func(http.Handler) http.Handler {
 	// -1 is no rate limit
-	if count == -1 {
+	if count <= 0 {
 		return func(handler http.Handler) http.Handler {
 			return handler
 		}

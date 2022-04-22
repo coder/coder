@@ -42,7 +42,10 @@ type Options struct {
 	SecureAuthCookie               bool
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	TURNServer                     *turnconn.Server
-	APIRateLimit                   int
+	// APIRateLimit is the minutely throughput rate limit per user or ip.
+	// Setting a rate limit <0 will disable the rate limiter across the entire
+	// app. Specific routes may have their own limiters.
+	APIRateLimit int
 }
 
 // New constructs the Coder API into an HTTP handler.
