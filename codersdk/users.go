@@ -20,7 +20,11 @@ type PaginatedUsersRequest struct {
 	// Limit sets the maximum number of users to be returned
 	// in a single page. If the limit is <= 0, there is no limit
 	// and all users are returned.
-	Limit  int `json:"limit"`
+	Limit int `json:"limit"`
+	// Offset is used to indicate which page to return. An offset of 0
+	// returns the first 'limit' number of users.
+	// To get the next page, use offset=<limit>*<page_number>.
+	// Offset is 0 indexed, so the first record sits at offset 0.
 	Offset int `json:"offset"`
 }
 
