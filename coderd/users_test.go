@@ -580,13 +580,8 @@ func TestPaginatedUsers(t *testing.T) {
 		// mock time. Ideally I could pass in mocked times and space these users out.
 		//
 		// But this also serves as a good test. Postgres has microsecond precision on its timestamps.
-		// If 2 users have the same created_at, that could cause an issue if you are paginating via timestamps.
-		// This unit test ensures the precision of our timestamps supports enough granularity to effectively paginate
-		// through users created very closely together.
-		//
-		// Because the Go time.Time is not monotonic when marshalled, it is possible
-		// the user order is incorrect if this loop is "too quick". This would likely not happen
-		// because of the codersdk is an actual http request.
+		// If 2 users share the same created_at, that could cause an issue if you are strictly paginating via
+		// timestamps. The pagination goes by timestamps and uuids.
 		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          email,
 			Username:       username,
