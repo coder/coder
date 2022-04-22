@@ -155,6 +155,9 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 
 	var createdAfter time.Time
 	// Allow both the Golang default layout for timestamps, or unix time milli.
+	// TODO: We need to standardize how we receive time fields from the api. Until then,
+	// 	this function will accept the standard used in json.Marshal or a unix milli.
+	//	We want millisecond fidelity to ensure no 2 users share a created_at time
 	if afterArg != "" {
 		after, err := time.Parse(time.RFC3339Nano, afterArg)
 		if err != nil {
@@ -174,7 +177,7 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 
 	pagerFields := codersdk.PagerFields{}
 
-	// Default to no limit
+	// Default to no limit and return all users.
 	pagerFields.Limit = -1
 	if limitArg != "" {
 		limit, err := strconv.Atoi(limitArg)
@@ -187,6 +190,7 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 		pagerFields.Limit = limit
 	}
 
+	// The default for empty string is 0.
 	offset, err := strconv.Atoi(offsetArg)
 	if offsetArg != "" && err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
@@ -1008,13 +1012,7 @@ func convertUser(user database.User) codersdk.User {
 func convertUsers(users []database.User) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
-		converted = append(converted, codersdk.User{
-			ID:        u.ID,
-			Email:     u.Email,
-			CreatedAt: u.CreatedAt,
-			Username:  u.Username,
-			Name:      u.Name,
-		})
+		converted = append(converted, convertUser(u))
 	}
 	return converted
 }

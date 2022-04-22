@@ -3,15 +3,13 @@ package coderd_test
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"testing"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"net/http"
+	"testing"
 )
 
 func TestFirstUser(t *testing.T) {
@@ -548,6 +546,8 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 	})
 }
 
+// TestPaginatedUsers creates a list of users, then tries to paginate through
+// them using different page sizes.
 func TestPaginatedUsers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -575,6 +575,17 @@ func TestPaginatedUsers(t *testing.T) {
 			email = fmt.Sprintf("%d@gmail.com", i)
 			username = fmt.Sprintf("specialuser%d", i)
 		}
+		// One side effect of having to use the api vs the db calls directly, is you cannot
+		// mock time. Ideally I could pass in mocked times and space these users out.
+		//
+		// But this also serves as a good test. Postgres has microsecond precision on its timestamps.
+		// If 2 users have the same created_at, that could cause an issue if you are paginating via timestamps.
+		// This unit test ensures the precision of our timestamps supports enough granularity to effectively paginate
+		// through users created very closely together.
+		//
+		// Because the Go time.Time is not monotonic when marshalled, it is possible
+		// the user order is incorrect if this loop is "too quick". This would likely not happen
+		// because of the codersdk is an actual http request.
 		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          email,
 			Username:       username,
@@ -637,6 +648,8 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 
 		afterCursor := page.Page[len(page.Page)-1].CreatedAt
 		// Assert each page is the next expected page
+		// This is using a cursor, and only works if all users created_at
+		// is unique.
 		page, err = client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
 			Limit:        limit,
 			CreatedAfter: afterCursor,
