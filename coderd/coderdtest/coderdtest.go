@@ -55,6 +55,7 @@ type Options struct {
 	AzureCertificates    x509.VerifyOptions
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	APIRateLimit         int
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -125,6 +126,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
+		APIRateLimit:         options.APIRateLimit,
 	})
 	t.Cleanup(func() {
 		cancelFunc()

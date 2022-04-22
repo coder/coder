@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
@@ -22,25 +24,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
-
-// Lists all the users
-func (api *api) users(rw http.ResponseWriter, r *http.Request) {
-	users, err := api.Database.GetUsers(r.Context())
-
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get users: %s", err.Error()),
-		})
-		return
-	}
-
-	var res []codersdk.User
-	for _, user := range users {
-		res = append(res, convertUser(user))
-	}
-
-	httpapi.Write(rw, http.StatusOK, res)
-}
 
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
@@ -160,6 +143,67 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		UserID:         user.ID,
 		OrganizationID: organization.ID,
 	})
+}
+
+func (api *api) users(rw http.ResponseWriter, r *http.Request) {
+	var (
+		afterArg   = r.URL.Query().Get("after_user")
+		limitArg   = r.URL.Query().Get("limit")
+		offsetArg  = r.URL.Query().Get("offset")
+		searchName = r.URL.Query().Get("search")
+	)
+
+	// createdAfter is a user uuid.
+	createdAfter := uuid.Nil
+	if afterArg != "" {
+		after, err := uuid.Parse(afterArg)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("after_user must be a valid uuid: %s", err.Error()),
+			})
+			return
+		}
+		createdAfter = after
+	}
+
+	// Default to no limit and return all users.
+	pageLimit := -1
+	if limitArg != "" {
+		limit, err := strconv.Atoi(limitArg)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("limit must be an integer: %s", err.Error()),
+			})
+			return
+		}
+		pageLimit = limit
+	}
+
+	// The default for empty string is 0.
+	offset, err := strconv.ParseInt(offsetArg, 10, 64)
+	if offsetArg != "" && err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("offset must be an integer: %s", err.Error()),
+		})
+		return
+	}
+
+	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
+		AfterUser: createdAfter,
+		OffsetOpt: int32(offset),
+		LimitOpt:  int32(pageLimit),
+		Search:    searchName,
+	})
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	render.JSON(rw, r, convertUsers(users))
 }
 
 // Creates a new user.
@@ -948,4 +992,12 @@ func convertUser(user database.User) codersdk.User {
 		Username:  user.Username,
 		Name:      user.Name,
 	}
+}
+
+func convertUsers(users []database.User) []codersdk.User {
+	converted := make([]codersdk.User, 0, len(users))
+	for _, u := range users {
+		converted = append(converted, convertUser(u))
+	}
+	return converted
 }

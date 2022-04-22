@@ -35,13 +35,17 @@ type Options struct {
 	Pubsub    database.Pubsub
 
 	AgentConnectionUpdateFrequency time.Duration
-	AWSCertificates                awsidentity.Certificates
-	AzureCertificates              x509.VerifyOptions
-	GoogleTokenValidator           *idtoken.Validator
-	ICEServers                     []webrtc.ICEServer
-	SecureAuthCookie               bool
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	TURNServer                     *turnconn.Server
+	// APIRateLimit is the minutely throughput rate limit per user or ip.
+	// Setting a rate limit <0 will disable the rate limiter across the entire
+	// app. Specific routes may have their own limiters.
+	APIRateLimit         int
+	AWSCertificates      awsidentity.Certificates
+	AzureCertificates    x509.VerifyOptions
+	GoogleTokenValidator *idtoken.Validator
+	ICEServers           []webrtc.ICEServer
+	SecureAuthCookie     bool
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	TURNServer           *turnconn.Server
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -52,6 +56,9 @@ func New(options *Options) (http.Handler, func()) {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
+	if options.APIRateLimit == 0 {
+		options.APIRateLimit = 512
+	}
 	api := &api{
 		Options: options,
 	}
@@ -61,7 +68,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Use(
 			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
-			httpmw.RateLimitPerMinute(512),
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {

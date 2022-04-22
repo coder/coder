@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,20 @@ import (
 
 // Me is used as a replacement for your own ID.
 var Me = uuid.Nil
+
+type UsersRequest struct {
+	AfterUser uuid.UUID `json:"after_user"`
+	Search    string    `json:"search"`
+	// Limit sets the maximum number of users to be returned
+	// in a single page. If the limit is <= 0, there is no limit
+	// and all users are returned.
+	Limit int `json:"limit"`
+	// Offset is used to indicate which page to return. An offset of 0
+	// returns the first 'limit' number of users.
+	// To get the next page, use offset=<limit>*<page_number>.
+	// Offset is 0 indexed, so the first record sits at offset 0.
+	Offset int `json:"offset"`
+}
 
 // User represents a user in Coder.
 type User struct {
@@ -136,19 +151,6 @@ func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req Up
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-func (c *Client) GetUsers(ctx context.Context) ([]User, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/users", nil)
-	if err != nil {
-		return []User{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return []User{}, readBodyAsError(res)
-	}
-	var users []User
-	return users, json.NewDecoder(res.Body).Decode(&users)
-}
-
 // CreateAPIKey generates an API key for the user ID provided.
 func (c *Client) CreateAPIKey(ctx context.Context, userID uuid.UUID) (*GenerateAPIKeyResponse, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", uuidOrMe(userID)), nil)
@@ -208,6 +210,34 @@ func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
 	}
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// Users returns all users according to the request parameters. If no parameters are set,
+// the default behavior is to return all users in a single page.
+func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil, func(r *http.Request) {
+		q := r.URL.Query()
+		if req.AfterUser != uuid.Nil {
+			q.Set("after_user", req.AfterUser.String())
+		}
+		if req.Limit > 0 {
+			q.Set("limit", strconv.Itoa(req.Limit))
+		}
+		q.Set("offset", strconv.Itoa(req.Offset))
+		q.Set("search", req.Search)
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return []User{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return []User{}, readBodyAsError(res)
+	}
+
+	var users []User
+	return users, json.NewDecoder(res.Body).Decode(&users)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -318,12 +319,13 @@ func TestGetUsers(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-		Email:          "bruno@coder.com",
-		Username:       "bruno",
+		Email:          "alice@email.com",
+		Username:       "alice",
 		Password:       "password",
 		OrganizationID: user.OrganizationID,
 	})
-	users, err := client.GetUsers(context.Background())
+	// No params is all users
+	users, err := client.Users(context.Background(), codersdk.UsersRequest{})
 	require.NoError(t, err)
 	require.Len(t, users, 2)
 }
@@ -545,4 +547,135 @@ func TestWorkspaceByUserAndName(t *testing.T) {
 		_, err := client.WorkspaceByName(context.Background(), codersdk.Me, workspace.Name)
 		require.NoError(t, err)
 	})
+}
+
+// TestPaginatedUsers creates a list of users, then tries to paginate through
+// them using different page sizes.
+func TestPaginatedUsers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	coderdtest.CreateFirstUser(t, client)
+	me, err := client.User(context.Background(), codersdk.Me)
+	require.NoError(t, err)
+
+	allUsers := make([]codersdk.User, 0)
+	allUsers = append(allUsers, me)
+	specialUsers := make([]codersdk.User, 0)
+
+	org, err := client.CreateOrganization(ctx, me.ID, codersdk.CreateOrganizationRequest{
+		Name: "default",
+	})
+	require.NoError(t, err)
+
+	// When 100 users exist
+	total := 100
+	// Create users
+	for i := 0; i < total; i++ {
+		email := fmt.Sprintf("%d@coder.com", i)
+		username := fmt.Sprintf("user%d", i)
+		if i%2 == 0 {
+			email = fmt.Sprintf("%d@gmail.com", i)
+			username = fmt.Sprintf("specialuser%d", i)
+		}
+		// One side effect of having to use the api vs the db calls directly, is you cannot
+		// mock time. Ideally I could pass in mocked times and space these users out.
+		//
+		// But this also serves as a good test. Postgres has microsecond precision on its timestamps.
+		// If 2 users share the same created_at, that could cause an issue if you are strictly paginating via
+		// timestamps. The pagination goes by timestamps and uuids.
+		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          email,
+			Username:       username,
+			Password:       "password",
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		allUsers = append(allUsers, newUser)
+		if i%2 == 0 {
+			specialUsers = append(specialUsers, newUser)
+		}
+	}
+
+	assertPagination(ctx, t, client, 10, allUsers, nil)
+	assertPagination(ctx, t, client, 5, allUsers, nil)
+	assertPagination(ctx, t, client, 3, allUsers, nil)
+	assertPagination(ctx, t, client, 1, allUsers, nil)
+
+	// Try a search
+	gmailSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
+		request.Search = "gmail"
+		return request
+	}
+	assertPagination(ctx, t, client, 3, specialUsers, gmailSearch)
+	assertPagination(ctx, t, client, 7, specialUsers, gmailSearch)
+
+	usernameSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
+		request.Search = "specialuser"
+		return request
+	}
+	assertPagination(ctx, t, client, 3, specialUsers, usernameSearch)
+	assertPagination(ctx, t, client, 1, specialUsers, usernameSearch)
+}
+
+// Assert pagination will page through the list of all users using the given
+// limit for each page. The 'allUsers' is the expected full list to compare
+// against.
+func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []codersdk.User,
+	opt func(request codersdk.UsersRequest) codersdk.UsersRequest) {
+	var count int
+	if opt == nil {
+		opt = func(request codersdk.UsersRequest) codersdk.UsersRequest {
+			return request
+		}
+	}
+
+	// Check the first page
+	page, err := client.Users(ctx, opt(codersdk.UsersRequest{
+		Limit: limit,
+	}))
+	require.NoError(t, err, "first page")
+	require.Equalf(t, page, allUsers[:limit], "first page, limit=%d", limit)
+	count += len(page)
+
+	for {
+		if len(page) == 0 {
+			break
+		}
+
+		afterCursor := page[len(page)-1].ID
+		// Assert each page is the next expected page
+		// This is using a cursor, and only works if all users created_at
+		// is unique.
+		page, err = client.Users(ctx, opt(codersdk.UsersRequest{
+			Limit:     limit,
+			AfterUser: afterCursor,
+		}))
+		require.NoError(t, err, "next cursor page")
+
+		// Also check page by offset
+		offsetPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
+			Limit:  limit,
+			Offset: count,
+		}))
+		require.NoError(t, err, "next offset page")
+
+		var expected []codersdk.User
+		if count+limit > len(allUsers) {
+			expected = allUsers[count:]
+		} else {
+			expected = allUsers[count : count+limit]
+		}
+		require.Equalf(t, page, expected, "next users, after=%s, limit=%d", afterCursor, limit)
+		require.Equalf(t, offsetPage, expected, "offset users, offset=%d, limit=%d", count, limit)
+
+		// Also check the before
+		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
+			Offset: count - limit,
+			Limit:  limit,
+		}))
+		require.NoError(t, err, "prev page")
+		require.Equal(t, allUsers[count-limit:count], prevPage, "prev users")
+		count += len(page)
+	}
 }
