@@ -1,14 +1,22 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
+import * as GenTypes from "../../api/typesGenerated"
+import { displayError } from "../../components/GlobalSnackbar/utils"
+
+const Language = {
+  createUserError: "Unable to create user",
+  createUserSuccess: "Successfully created user"
+}
 
 export interface UsersContext {
   users: Types.UserResponse[]
   pager?: Types.Pager
   getUsersError?: Error | unknown
+  createUserError?: Error | unknown
 }
 
-export type UsersEvent = { type: "GET_USERS" }
+export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE", user: GenTypes.CreateUserRequest }
 
 export const usersMachine = createMachine(
   {
@@ -19,6 +27,9 @@ export const usersMachine = createMachine(
       services: {} as {
         getUsers: {
           data: Types.PagedUsers
+        },
+        createUser: {
+          data: GenTypes.User
         }
       },
     },
@@ -26,15 +37,21 @@ export const usersMachine = createMachine(
     context: {
       users: [],
     },
-    initial: "gettingUsers",
+    initial: "idle",
     states: {
+      idle: {
+        on: {
+          GET_USERS: "gettingUsers",
+          CREATE: "creatingUser"
+        },
+      },
       gettingUsers: {
         invoke: {
           src: "getUsers",
           id: "getUsers",
           onDone: [
             {
-              target: "#usersState.ready",
+              target: "#usersState.idle",
               actions: ["assignUsers", "clearGetUsersError"],
             },
           ],
@@ -47,10 +64,20 @@ export const usersMachine = createMachine(
         },
         tags: "loading",
       },
-      ready: {
-        on: {
-          GET_USERS: "gettingUsers",
+      creatingUser: {
+        invoke: {
+          src: "createUser",
+          id: "createUser",
+          onDone: {
+            target: "gettingUsers",
+            actions: "displayCreateUserSuccess"
+          },
+          onError: {
+            target: "idle",
+            actions: "displayCreateUserError"
+          }
         },
+        tags: "loading"
       },
       error: {
         on: {
@@ -62,6 +89,9 @@ export const usersMachine = createMachine(
   {
     services: {
       getUsers: API.getUsers,
+      createUser: (_, event) => (
+        API.createUser(event.user)
+      )
     },
     actions: {
       assignUsers: assign({
@@ -75,6 +105,12 @@ export const usersMachine = createMachine(
         ...context,
         getUsersError: undefined,
       })),
+      displayCreateUserError: () => {
+        displayError(Language.createUserError)
+      },
+      displayCreateUserSuccess: () => {
+        displayError(Language.createUserSuccess)
+      }
     },
   },
 )
