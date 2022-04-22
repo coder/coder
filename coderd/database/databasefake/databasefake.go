@@ -199,6 +199,8 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 				tmp = append(tmp, users[i])
 			} else if strings.Contains(user.Username, params.SearchName) {
 				tmp = append(tmp, users[i])
+			} else if strings.Contains(user.Name, params.SearchName) {
+				tmp = append(tmp, users[i])
 			}
 		}
 		users = tmp

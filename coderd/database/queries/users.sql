@@ -69,6 +69,7 @@ WHERE
 		WHEN @search_name :: text != '' THEN (
 			email LIKE concat('%', @search_name, '%')
 			OR username LIKE concat('%', @search_name, '%')
+	    	OR 'name' LIKE concat('%', @search_name, '%')
 		)
 		ELSE true
 	END

@@ -609,6 +609,9 @@ func TestPaginatedUsers(t *testing.T) {
 	assertPagination(t, ctx, client, 1, specialUsers, usernameSearch)
 }
 
+// Assert pagination will page through the list of all users using the given
+// limit for each page. The 'allUsers' is the expected full list to compare
+// against.
 func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client, limit int, allUsers []codersdk.User,
 	opt func(request codersdk.PaginatedUsersRequest) codersdk.PaginatedUsersRequest) {
 	var count int
