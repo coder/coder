@@ -317,8 +317,8 @@ func TestGetUsers(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-		Email:          "bruno@coder.com",
-		Username:       "bruno",
+		Email:          "alice@email.com",
+		Username:       "alice",
 		Password:       "password",
 		OrganizationID: user.OrganizationID,
 	})
