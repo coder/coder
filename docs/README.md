@@ -10,9 +10,10 @@ Provision remote development environments with Terraform.
 - Start writing code with a single command
 - Use one of many [examples](./examples) to get started
 
-## Getting Started
+## Installing Coder
 
-Install [the latest release](https://github.com/coder/coder/releases).
+Install [the latest release](https://github.com/coder/coder/releases) on a system with
+at least 2 CPU cores and 2 GB RAM.
 
 To tinker, start with dev-mode (all data is in-memory, and is destroyed on exit):
 
@@ -27,7 +28,7 @@ $ CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<pas
     coder start
 ```
 
-To run as a system service, install with `.deb` or `.rpm`:
+To run as a system service, install with `.deb` (Debian, Ubuntu) or `.rpm` (Fedora, CentOS, RHEL, SUSE):
 
 ```bash
 # Edit the configuration!
@@ -35,25 +36,27 @@ $ sudo vim /etc/coder.d/coder.env
 $ sudo service coder restart
 ```
 
+Reference `coder start --help` for a complete list of flags and environment variables.
+
 ### Your First Workspace
 
-In a new terminal, create a new project (eg. Develop in Linux on Google Cloud):
+In a new terminal, create a new template (eg. Develop in Linux on Google Cloud):
 
 ```
 $ coder templates init
 $ coder templates create
 ```
 
-Create a new workspace and SSH in:
+Create a new workspace and connect via SSH:
 
 ```
 $ coder workspaces create my-first-workspace
 $ coder ssh my-first-workspace
 ```
 
-### Working with Projects
+### Modifying Templates
 
-You can edit the Terraform from a sample project:
+You can edit the Terraform from a sample template:
 
 ```sh
 $ coder templates init
@@ -61,6 +64,23 @@ $ cd gcp-linux/
 $ vim main.tf
 $ coder templates update gcp-linux
 ```
+
+## Documentation
+
+Some pages are coming soon. Contributions welcome!
+
+- [About Coder](./about.md#about-coder)
+  - [Why remote development](about.md#why-remote-development)
+  - [Why Coder](about.md#why-coder)
+  - [What Coder is not](about.md#what-coder-is-not)
+- Concepts
+  - Templates
+  - Workspaces
+  - Users and Organizations
+- Guides
+  - Using the Coder CLI
+  - Install Coder on a VM with Caddy + LetsEncrypt
+  - Building templates in Coder
 
 ## Contributing
 
