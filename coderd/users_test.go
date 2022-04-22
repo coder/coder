@@ -3,13 +3,15 @@ package coderd_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
 )
 
 func TestFirstUser(t *testing.T) {
@@ -595,31 +597,31 @@ func TestPaginatedUsers(t *testing.T) {
 		}
 	}
 
-	assertPagination(t, ctx, client, 10, allUsers, nil)
-	assertPagination(t, ctx, client, 5, allUsers, nil)
-	assertPagination(t, ctx, client, 3, allUsers, nil)
-	assertPagination(t, ctx, client, 1, allUsers, nil)
+	assertPagination(ctx, t, client, 10, allUsers, nil)
+	assertPagination(ctx, t, client, 5, allUsers, nil)
+	assertPagination(ctx, t, client, 3, allUsers, nil)
+	assertPagination(ctx, t, client, 1, allUsers, nil)
 
 	// Try a search
 	gmailSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
 		request.Search = "gmail"
 		return request
 	}
-	assertPagination(t, ctx, client, 3, specialUsers, gmailSearch)
-	assertPagination(t, ctx, client, 7, specialUsers, gmailSearch)
+	assertPagination(ctx, t, client, 3, specialUsers, gmailSearch)
+	assertPagination(ctx, t, client, 7, specialUsers, gmailSearch)
 
 	usernameSearch := func(request codersdk.UsersRequest) codersdk.UsersRequest {
 		request.Search = "specialuser"
 		return request
 	}
-	assertPagination(t, ctx, client, 3, specialUsers, usernameSearch)
-	assertPagination(t, ctx, client, 1, specialUsers, usernameSearch)
+	assertPagination(ctx, t, client, 3, specialUsers, usernameSearch)
+	assertPagination(ctx, t, client, 1, specialUsers, usernameSearch)
 }
 
 // Assert pagination will page through the list of all users using the given
 // limit for each page. The 'allUsers' is the expected full list to compare
 // against.
-func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client, limit int, allUsers []codersdk.User,
+func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client, limit int, allUsers []codersdk.User,
 	opt func(request codersdk.UsersRequest) codersdk.UsersRequest) {
 	var count int
 	if opt == nil {
