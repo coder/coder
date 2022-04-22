@@ -1,5 +1,12 @@
-import React from "react"
+import { useActor } from "@xstate/react"
+import React, { useContext } from "react"
+import { CreateUserRequest } from "../../../api/typesGenerated"
+import { CreateUserForm } from "../../../components/CreateUserForm/CreateUserForm"
+import { XServiceContext } from "../../../xServices/StateContext"
 
 export const CreateUserPage = () => {
-  return <div>"Coming soon!"</div>
+  const xServices = useContext(XServiceContext)
+  const [_, usersSend] = useActor(xServices.usersXService)
+
+  return <CreateUserForm onSubmit={(user: CreateUserRequest) => usersSend({ type: "CREATE", user })} />
 }
