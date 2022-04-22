@@ -77,25 +77,14 @@ export interface UsersRequest {
   readonly offset: int
 }
 
-// From codersdk/users.go:31:6.
-export interface PagerFields {
-  readonly limit: int
-  readonly offset: int
-}
-
-// From codersdk/users.go:36:6.
-export interface PaginatedUsers {
-  readonly pager: PagerFields
-}
-
-// From codersdk/users.go:42:6.
+// From codersdk/users.go:32:6.
 export interface User {
   readonly email: string
   readonly username: string
   readonly name: string
 }
 
-// From codersdk/users.go:50:6.
+// From codersdk/users.go:40:6.
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -103,42 +92,42 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:63:6.
+// From codersdk/users.go:53:6.
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
 }
 
-// From codersdk/users.go:70:6.
+// From codersdk/users.go:60:6.
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
   readonly name?: string
 }
 
-// From codersdk/users.go:77:6.
+// From codersdk/users.go:67:6.
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:83:6.
+// From codersdk/users.go:73:6.
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
-// From codersdk/users.go:88:6.
+// From codersdk/users.go:78:6.
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
-// From codersdk/users.go:92:6.
+// From codersdk/users.go:82:6.
 export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/users.go:97:6.
+// From codersdk/users.go:87:6.
 export interface CreateWorkspaceRequest {
   readonly name: string
 }

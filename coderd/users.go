@@ -180,7 +180,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// The default for empty string is 0.
-	offset, err := strconv.Atoi(offsetArg)
+	offset, err := strconv.ParseInt(offsetArg, 10, 64)
 	if offsetArg != "" && err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("offset must be an integer: %s", err.Error()),
