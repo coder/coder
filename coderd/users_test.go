@@ -322,7 +322,8 @@ func TestGetUsers(t *testing.T) {
 		Password:       "password",
 		OrganizationID: user.OrganizationID,
 	})
-	users, err := client.GetUsers(context.Background())
+	// No params is all users
+	users, err := client.Users(context.Background(), codersdk.PaginatedUsersRequest{})
 	require.NoError(t, err)
 	require.Len(t, users, 2)
 }
@@ -633,7 +634,7 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 	}
 
 	// Check the first page
-	page, err := client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
+	page, err := client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
 		Limit: limit,
 	}))
 	require.NoError(t, err, "first page")
@@ -646,18 +647,18 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 			break
 		}
 
-		afterCursor := page.Page[len(page.Page)-1].CreatedAt
+		afterCursor := page.Page[len(page.Page)-1].ID
 		// Assert each page is the next expected page
 		// This is using a cursor, and only works if all users created_at
 		// is unique.
-		page, err = client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
-			Limit:        limit,
-			CreatedAfter: afterCursor,
+		page, err = client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
+			Limit:     limit,
+			AfterUser: afterCursor,
 		}))
 		require.NoError(t, err, "next cursor page")
 
 		// Also check page by offset
-		offsetPage, err := client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
+		offsetPage, err := client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
 			Limit:  limit,
 			Offset: count,
 		}))
@@ -673,7 +674,7 @@ func assertPagination(t *testing.T, ctx context.Context, client *codersdk.Client
 		require.Equalf(t, offsetPage.Page, expected, "offset users, offset=%d, limit=%d", count, limit)
 
 		// Also check the before
-		prevPage, err := client.PaginatedUsers(ctx, opt(codersdk.PaginatedUsersRequest{
+		prevPage, err := client.Users(ctx, opt(codersdk.PaginatedUsersRequest{
 			Offset: count - limit,
 			Limit:  limit,
 		}))

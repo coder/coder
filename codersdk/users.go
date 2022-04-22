@@ -15,10 +15,13 @@ import (
 var Me = uuid.Nil
 
 type PaginatedUsersRequest struct {
-	CreatedAfter time.Time `json:"created_after"`
-	SearchName   string    `json:"search_name"`
-	Limit        int       `json:"limit"`
-	Offset       int       `json:"offset"`
+	AfterUser  uuid.UUID `json:"after_user"`
+	SearchName string    `json:"search_name"`
+	// Limit sets the maximum number of users to be returned
+	// in a single page. If the limit is <= 0, there is no limit
+	// and all users are returned.
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
 }
 
 type PagerFields struct {
@@ -154,19 +157,6 @@ func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req Up
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-func (c *Client) GetUsers(ctx context.Context) ([]User, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/users", nil)
-	if err != nil {
-		return []User{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return []User{}, readBodyAsError(res)
-	}
-	var users []User
-	return users, json.NewDecoder(res.Body).Decode(&users)
-}
-
 // CreateAPIKey generates an API key for the user ID provided.
 func (c *Client) CreateAPIKey(ctx context.Context, userID uuid.UUID) (*GenerateAPIKeyResponse, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", uuidOrMe(userID)), nil)
@@ -228,11 +218,13 @@ func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-func (c *Client) PaginatedUsers(ctx context.Context, req PaginatedUsersRequest) (PaginatedUsers, error) {
+// Users returns all users according to the request parameters. If no parameters are set,
+// the default behavior is to return all users in a single page.
+func (c *Client) Users(ctx context.Context, req PaginatedUsersRequest) (PaginatedUsers, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil, func(r *http.Request) {
 		q := r.URL.Query()
-		if !req.CreatedAfter.IsZero() {
-			q.Set("created_after", req.CreatedAfter.Format(time.RFC3339Nano))
+		if req.AfterUser != uuid.Nil {
+			q.Set("after_user", req.AfterUser.String())
 		}
 		if req.Limit > 0 {
 			q.Set("limit", strconv.Itoa(req.Limit))

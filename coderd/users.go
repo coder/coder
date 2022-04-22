@@ -145,34 +145,25 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
+func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	var (
-		afterArg   = r.URL.Query().Get("created_after")
+		afterArg   = r.URL.Query().Get("after_user")
 		limitArg   = r.URL.Query().Get("limit")
 		offsetArg  = r.URL.Query().Get("offset")
 		searchName = r.URL.Query().Get("search_name")
 	)
 
-	var createdAfter time.Time
-	// Allow both the Golang default layout for timestamps, or unix time milli.
-	// TODO: We need to standardize how we receive time fields from the api. Until then,
-	// 	this function will accept the standard used in json.Marshal or a unix milli.
-	//	We want millisecond fidelity to ensure no 2 users share a created_at time
+	// createdAfter is a user uuid.
+	createdAfter := uuid.Nil
 	if afterArg != "" {
-		after, err := time.Parse(time.RFC3339Nano, afterArg)
+		after, err := uuid.Parse(afterArg)
 		if err != nil {
-			// Try it as a unix timestamp in ms
-			unixmilli, err := strconv.ParseInt(afterArg, 10, 64)
-			if err != nil {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("created_after should be a unix timestamp in milliseconds"),
-				})
-				return
-			}
-			createdAfter = time.UnixMilli(unixmilli)
-		} else {
-			createdAfter = after
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("after_user must be a valid uuid: %s", err.Error()),
+			})
+			return
 		}
+		createdAfter = after
 	}
 
 	pagerFields := codersdk.PagerFields{}
@@ -201,10 +192,10 @@ func (api *api) getPaginatedUsers(rw http.ResponseWriter, r *http.Request) {
 	pagerFields.Offset = offset
 
 	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
-		CreatedAfter: createdAfter,
-		OffsetOpt:    int32(pagerFields.Offset),
-		LimitOpt:     int32(pagerFields.Limit),
-		SearchName:   searchName,
+		AfterUser:  createdAfter,
+		OffsetOpt:  int32(pagerFields.Offset),
+		LimitOpt:   int32(pagerFields.Limit),
+		SearchName: searchName,
 	})
 
 	if err != nil {

@@ -1861,8 +1861,23 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $1 :: timestamp with time zone != '0001-01-01 00:00:00+00' THEN created_at > $1
-		ELSE true
+		WHEN $1 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		    	-- The pagination cursor is the last user of the previous page.
+		    	-- The query is ordered by the created_at field, so select all
+		    	-- users after the cursor. We also want to include any users
+		    	-- that share the created_at (super rare).
+				created_at >= (
+					SELECT
+						created_at
+					FROM
+						users
+					WHERE
+						id = $1
+				)
+				-- Omit the cursor from the final.
+				AND id != $1
+			)
+			ELSE true
 	END
 	AND CASE
 		WHEN $2 :: text != '' THEN (
@@ -1873,22 +1888,24 @@ WHERE
 		ELSE true
 	END
 ORDER BY
-	created_at ASC OFFSET $3
+    -- Deterministic and consistent ordering of all users, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+	(created_at, id) ASC OFFSET $3
 LIMIT
 	-- A null limit means "no limit", so -1 means return all
 	NULLIF($4 :: int, -1)
 `
 
 type GetUsersParams struct {
-	CreatedAfter time.Time `db:"created_after" json:"created_after"`
-	SearchName   string    `db:"search_name" json:"search_name"`
-	OffsetOpt    int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt     int32     `db:"limit_opt" json:"limit_opt"`
+	AfterUser  uuid.UUID `db:"after_user" json:"after_user"`
+	SearchName string    `db:"search_name" json:"search_name"`
+	OffsetOpt  int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt   int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
-		arg.CreatedAfter,
+		arg.AfterUser,
 		arg.SearchName,
 		arg.OffsetOpt,
 		arg.LimitOpt,

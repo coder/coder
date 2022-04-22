@@ -172,15 +172,23 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	users := q.users
 	// Database orders by created_at
 	sort.Slice(users, func(i, j int) bool {
+		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
+			// Technically the postgres database also orders by uuid. So match
+			// that behavior
+			return users[i].ID.String() < users[j].ID.String()
+		}
 		return users[i].CreatedAt.Before(users[j].CreatedAt)
 	})
 
-	if !params.CreatedAfter.IsZero() {
+	if params.AfterUser != uuid.Nil {
 		found := false
 		for i := range users {
-			if users[i].CreatedAt.After(params.CreatedAfter) {
-				// Only grab users after
-				users = users[i:]
+			if users[i].ID == params.AfterUser {
+				// We want to return all users after index i.
+				if i+1 >= len(users) {
+					return []database.User{}, nil
+				}
+				users = users[i+1:]
 				found = true
 				break
 			}

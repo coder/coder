@@ -62,8 +62,23 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00+00' THEN created_at > @created_after
-		ELSE true
+		WHEN @after_user :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		    	-- The pagination cursor is the last user of the previous page.
+		    	-- The query is ordered by the created_at field, so select all
+		    	-- users after the cursor. We also want to include any users
+		    	-- that share the created_at (super rare).
+				created_at >= (
+					SELECT
+						created_at
+					FROM
+						users
+					WHERE
+						id = @after_user
+				)
+				-- Omit the cursor from the final.
+				AND id != @after_user
+			)
+			ELSE true
 	END
 	AND CASE
 		WHEN @search_name :: text != '' THEN (
@@ -74,7 +89,9 @@ WHERE
 		ELSE true
 	END
 ORDER BY
-	created_at ASC OFFSET @offset_opt
+    -- Deterministic and consistent ordering of all users, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+	(created_at, id) ASC OFFSET @offset_opt
 LIMIT
 	-- A null limit means "no limit", so -1 means return all
 	NULLIF(@limit_opt :: int, -1);
