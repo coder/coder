@@ -13,40 +13,41 @@ func Empty[T Auditable]() T {
 	return t
 }
 
-func Diff[T Auditable](old, new T) DiffMap {
+// Diff compares two auditable resources and produces a map
+func Diff[T Auditable](left, right T) DiffMap {
 	// Values are equal, return an empty diff.
-	if reflect.DeepEqual(old, new) {
+	if reflect.DeepEqual(left, right) {
 		return DiffMap{}
 	}
 
-	return diffValues(old, new)
+	return diffValues(left, right, AuditableResources)
 }
 
-func diffValues[T any](old, new T) DiffMap {
+func diffValues[T any](left, right T, table Map) DiffMap {
 	var (
 		baseDiff = DiffMap{}
 
-		oldV = reflect.ValueOf(old)
+		leftV = reflect.ValueOf(left)
 
-		newV = reflect.ValueOf(new)
-		newT = reflect.TypeOf(new)
+		rightV = reflect.ValueOf(right)
+		rightT = reflect.TypeOf(right)
 
-		diffKey = AuditableResources[newT.Name()]
+		diffKey = table[rightT.Name()]
 	)
 
 	if diffKey == nil {
-		panic(fmt.Sprintf("dev error: type %T attempted audit but not auditable", new))
+		panic(fmt.Sprintf("dev error: type %q (type %T) attempted audit but not auditable", rightT.Name(), right))
 	}
 
-	for i := 0; i < newT.NumField(); i++ {
+	for i := 0; i < rightT.NumField(); i++ {
 		var (
-			oldF = oldV.Field(i)
-			newF = newV.Field(i)
+			leftF  = leftV.Field(i)
+			rightF = rightV.Field(i)
 
-			oldI = oldF.Interface()
-			newI = newF.Interface()
+			leftI  = leftF.Interface()
+			rightI = rightF.Interface()
 
-			diffName = newT.Field(i).Tag.Get("json")
+			diffName = rightT.Field(i).Tag.Get("json")
 		)
 
 		atype, ok := diffKey[diffName]
@@ -60,23 +61,23 @@ func diffValues[T any](old, new T) DiffMap {
 
 		// If the field is a pointer, dereference it. Nil pointers are coerced
 		// to the zero value of their underlying type.
-		if oldF.Kind() == reflect.Ptr && newF.Kind() == reflect.Ptr {
-			oldF, newF = derefPointer(oldF), derefPointer(newF)
-			oldI, newI = oldF.Interface(), newF.Interface()
+		if leftF.Kind() == reflect.Ptr && rightF.Kind() == reflect.Ptr {
+			leftF, rightF = derefPointer(leftF), derefPointer(rightF)
+			leftI, rightI = leftF.Interface(), rightF.Interface()
 		}
 
 		// Recursively walk up nested structs.
-		if newF.Kind() == reflect.Struct {
-			baseDiff[diffName] = diffValues(oldI, newI)
+		if rightF.Kind() == reflect.Struct {
+			baseDiff[diffName] = diffValues(leftI, rightI, table)
 			continue
 		}
 
-		if !reflect.DeepEqual(oldI, newI) {
+		if !reflect.DeepEqual(leftI, rightI) {
 			switch atype {
 			case ActionTrack:
-				baseDiff[diffName] = newI
+				baseDiff[diffName] = rightI
 			case ActionSecret:
-				baseDiff[diffName] = reflect.Zero(newF.Type()).Interface()
+				baseDiff[diffName] = reflect.Zero(rightF.Type()).Interface()
 			}
 		}
 	}

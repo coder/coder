@@ -113,6 +113,7 @@ require (
 	google.golang.org/api v0.75.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.38.0
+	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
 )
