@@ -1,7 +1,7 @@
 import React from "react"
-import { Navbar } from "../Navbar"
-import { Footer } from "../Page/Footer"
-import { RequireAuth } from "../Page/RequireAuth"
+import { Footer } from "../Footer/Footer"
+import { Navbar } from "../Navbar/Navbar"
+import { RequireAuth } from "../RequireAuth/RequireAuth"
 
 interface AuthAndFrameProps {
   children: JSX.Element

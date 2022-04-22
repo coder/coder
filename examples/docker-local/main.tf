@@ -37,7 +37,7 @@ resource "docker_volume" "coder_volume" {
 }
 
 resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
+  count   = data.coder_workspace.me.start_count
   image   = var.docker_image
   name    = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
   dns     = ["1.1.1.1"]

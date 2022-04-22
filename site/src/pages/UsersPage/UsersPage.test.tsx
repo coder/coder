@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { MockPager, render } from "../../test_helpers"
+import { MockPager, render } from "../../testHelpers"
 import { UsersPage } from "./UsersPage"
 import { Language } from "./UsersPageView"
 

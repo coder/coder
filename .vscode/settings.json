@@ -51,10 +51,12 @@
     "tcpip",
     "TCSETS",
     "tfexec",
+    "tfjson",
     "tfstate",
     "trimprefix",
     "unconvert",
     "Untar",
+    "VMID",
     "webrtc",
     "xerrors",
     "yamux"

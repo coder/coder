@@ -4,8 +4,11 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { CreateWorkspaceRequest, Template, Workspace } from "../api/types"
-import { LoadingButton } from "../components/Button"
-import { FormCloseButton, FormSection, FormTextField, FormTitle } from "../components/Form"
+import { FormCloseButton } from "../components/FormCloseButton/FormCloseButton"
+import { FormSection } from "../components/FormSection/FormSection"
+import { FormTextField } from "../components/FormTextField/FormTextField"
+import { FormTitle } from "../components/FormTitle/FormTitle"
+import { LoadingButton } from "../components/LoadingButton/LoadingButton"
 
 export interface CreateWorkspaceForm {
   template: Template

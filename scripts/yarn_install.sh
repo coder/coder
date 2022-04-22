@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Run "yarn install" with flags appropriate to the environment
 # (local development vs build system)

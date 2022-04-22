@@ -337,6 +337,93 @@ provider "coder" {
 				},
 			},
 		},
+	}, {
+		Name: "dryrun-resource-separated-from-agent",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {
+				os = "darwin"
+				arch = "amd64"
+			}
+			data "null_data_source" "values" {
+				inputs = {
+					script = coder_agent.A.init_script
+				}
+			}
+			resource "null_resource" "A" {
+				depends_on = [
+					data.null_data_source.values
+				]
+			}
+			`,
+		},
+		Request: &proto.Provision_Request{
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					Metadata: &proto.Provision_Metadata{},
+					DryRun:   true,
+				},
+			},
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agents: []*proto.Agent{{
+							Name:            "A",
+							OperatingSystem: "darwin",
+							Architecture:    "amd64",
+							Auth:            &proto.Agent_Token{},
+						}},
+					}},
+				},
+			},
+		},
+	}, {
+		Name: "resource-separated-from-agent",
+		Files: map[string]string{
+			"main.tf": provider + `
+			resource "coder_agent" "A" {
+				os = "darwin"
+				arch = "amd64"
+			}
+			data "null_data_source" "values" {
+				inputs = {
+					script = coder_agent.A.init_script
+				}
+			}
+			resource "null_resource" "A" {
+				depends_on = [
+					data.null_data_source.values
+				]
+			}
+			`,
+		},
+		Request: &proto.Provision_Request{
+			Type: &proto.Provision_Request_Start{
+				Start: &proto.Provision_Start{
+					Metadata: &proto.Provision_Metadata{},
+				},
+			},
+		},
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "A",
+						Type: "null_resource",
+						Agents: []*proto.Agent{{
+							Name:            "A",
+							OperatingSystem: "darwin",
+							Architecture:    "amd64",
+							Auth:            &proto.Agent_Token{},
+						}},
+					}},
+				},
+			},
+		},
 	}} {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {

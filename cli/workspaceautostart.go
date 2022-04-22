@@ -22,7 +22,7 @@ func workspaceAutostart() *cobra.Command {
 		Short:   "schedule a workspace to automatically start at a regular time",
 		Long:    autostartDescriptionLong,
 		Example: "coder workspaces autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Europe/Dublin",
-		Hidden:  true, // TODO(cian): un-hide when autostart scheduling implemented
+		Hidden:  true,
 	}
 
 	autostartCmd.AddCommand(workspaceAutostartEnable())

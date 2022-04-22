@@ -52,6 +52,7 @@ require (
 	github.com/fatedier/frp v0.36.2-0.20220414032436-21240ed96251
 	github.com/fatedier/golib v0.1.1-0.20220321042308-c306138b83ac
 	github.com/fatih/color v1.13.0
+	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gliderlabs/ssh v0.3.3
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/httprate v0.5.3
@@ -66,6 +67,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.11.1
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
+	github.com/hashicorp/terraform-json v0.13.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/jedib0t/go-pretty/v6 v6.3.1
 	github.com/justinas/nosurf v1.1.1
@@ -79,6 +81,7 @@ require (
 	github.com/pion/datachannel v1.5.2
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
+	github.com/pion/turn/v2 v2.0.8
 	github.com/pion/webrtc/v3 v3.1.29
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/sftp v1.13.4
@@ -89,11 +92,13 @@ require (
 	github.com/stretchr/testify v1.7.1
 	github.com/tabbed/pqtype v0.1.1
 	github.com/unrolled/secure v1.10.0
+	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
 	golang.org/x/exp v0.0.0-20220414153411-bcd21879b8fd
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
+	golang.org/x/net v0.0.0-20220401154927-543a649e0bdd
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220328115105-d36c6a25d886
@@ -158,7 +163,6 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/hashicorp/terraform-json v0.13.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -186,7 +190,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.0-beta.7.0.20220408132554-2377ac4bc04c // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pion/dtls/v2 v2.1.3 // indirect
-	github.com/pion/ice/v2 v2.2.3 // indirect
+	github.com/pion/ice/v2 v2.2.4 // indirect
 	github.com/pion/interceptor v0.1.10 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
@@ -196,7 +200,6 @@ require (
 	github.com/pion/sdp/v3 v3.0.4 // indirect
 	github.com/pion/srtp/v2 v2.0.5 // indirect
 	github.com/pion/stun v0.3.5 // indirect
-	github.com/pion/turn/v2 v2.0.8 // indirect
 	github.com/pion/udp v0.1.1 // indirect
 	github.com/pires/go-proxyproto v0.5.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -219,7 +222,6 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/net v0.0.0-20220401154927-543a649e0bdd // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
