@@ -73,8 +73,8 @@ export interface TemplateVersion {
 // From codersdk/users.go:17:6.
 export interface UsersRequest {
   readonly search: string
-  readonly limit: int
-  readonly offset: int
+  readonly limit: number
+  readonly offset: number
 }
 
 // From codersdk/users.go:32:6.
