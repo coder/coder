@@ -28,16 +28,6 @@ type UsersRequest struct {
 	Offset int `json:"offset"`
 }
 
-type PagerFields struct {
-	Limit  int `json:"limit"`
-	Offset int `json:"offset"`
-}
-
-type PaginatedUsers struct {
-	Pager PagerFields `json:"pager"`
-	Page  []User      `json:"page"`
-}
-
 // User represents a user in Coder.
 type User struct {
 	ID        uuid.UUID `json:"id" validate:"required"`

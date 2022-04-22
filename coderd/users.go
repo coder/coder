@@ -166,10 +166,8 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		createdAfter = after
 	}
 
-	pagerFields := codersdk.PagerFields{}
-
 	// Default to no limit and return all users.
-	pagerFields.Limit = -1
+	pageLimit := -1
 	if limitArg != "" {
 		limit, err := strconv.Atoi(limitArg)
 		if err != nil {
@@ -178,7 +176,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		pagerFields.Limit = limit
+		pageLimit = limit
 	}
 
 	// The default for empty string is 0.
@@ -189,12 +187,11 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	pagerFields.Offset = offset
 
 	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
 		AfterUser: createdAfter,
-		OffsetOpt: int32(pagerFields.Offset),
-		LimitOpt:  int32(pagerFields.Limit),
+		OffsetOpt: int32(offset),
+		LimitOpt:  int32(pageLimit),
 		Search:    searchName,
 	})
 
