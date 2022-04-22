@@ -7,7 +7,7 @@ import { UsersTable } from "../../components/UsersTable/UsersTable"
 export const Language = {
   pageTitle: "Users",
   pageSubtitle: (pager: Pager | undefined): string => (pager ? `${pager.total} total` : ""),
-  newUserButton: "New User"
+  newUserButton: "New User",
 }
 
 export interface UsersPageViewProps {
@@ -21,7 +21,11 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({ users, pager, open
 
   return (
     <div className={styles.flexColumn}>
-      <Header title={Language.pageTitle} subTitle={Language.pageSubtitle(pager)} action={{ text: Language.newUserButton, onClick: openUserCreationDialog}}/>
+      <Header
+        title={Language.pageTitle}
+        subTitle={Language.pageSubtitle(pager)}
+        action={{ text: Language.newUserButton, onClick: openUserCreationDialog }}
+      />
       <UsersTable users={users} />
     </div>
   )

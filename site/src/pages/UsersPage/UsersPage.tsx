@@ -14,6 +14,14 @@ export const UsersPage: React.FC = () => {
   if (usersState.matches("error")) {
     return <ErrorSummary error={getUsersError} />
   } else {
-    return <UsersPageView users={users} pager={pager} openUserCreationDialog={() => {navigate("/users/create")}} />
+    return (
+      <UsersPageView
+        users={users}
+        pager={pager}
+        openUserCreationDialog={() => {
+          navigate("/users/create")
+        }}
+      />
+    )
   }
 }

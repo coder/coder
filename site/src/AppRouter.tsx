@@ -77,7 +77,7 @@ export const AppRouter: React.FC = () => (
         />
       </Route>
 
-      <Route path="users" >
+      <Route path="users">
         <Route
           index
           element={

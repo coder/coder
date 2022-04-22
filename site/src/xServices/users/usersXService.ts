@@ -6,7 +6,7 @@ import { displayError } from "../../components/GlobalSnackbar/utils"
 
 const Language = {
   createUserError: "Unable to create user",
-  createUserSuccess: "Successfully created user"
+  createUserSuccess: "Successfully created user",
 }
 
 export interface UsersContext {
@@ -16,7 +16,7 @@ export interface UsersContext {
   createUserError?: Error | unknown
 }
 
-export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE", user: GenTypes.CreateUserRequest }
+export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: GenTypes.CreateUserRequest }
 
 export const usersMachine = createMachine(
   {
@@ -27,7 +27,7 @@ export const usersMachine = createMachine(
       services: {} as {
         getUsers: {
           data: Types.PagedUsers
-        },
+        }
         createUser: {
           data: GenTypes.User
         }
@@ -42,7 +42,7 @@ export const usersMachine = createMachine(
       idle: {
         on: {
           GET_USERS: "gettingUsers",
-          CREATE: "creatingUser"
+          CREATE: "creatingUser",
         },
       },
       gettingUsers: {
@@ -70,14 +70,14 @@ export const usersMachine = createMachine(
           id: "createUser",
           onDone: {
             target: "gettingUsers",
-            actions: "displayCreateUserSuccess"
+            actions: "displayCreateUserSuccess",
           },
           onError: {
             target: "idle",
-            actions: "displayCreateUserError"
-          }
+            actions: "displayCreateUserError",
+          },
         },
-        tags: "loading"
+        tags: "loading",
       },
       error: {
         on: {
@@ -89,9 +89,7 @@ export const usersMachine = createMachine(
   {
     services: {
       getUsers: API.getUsers,
-      createUser: (_, event) => (
-        API.createUser(event.user)
-      )
+      createUser: (_, event) => API.createUser(event.user),
     },
     actions: {
       assignUsers: assign({
@@ -110,7 +108,7 @@ export const usersMachine = createMachine(
       },
       displayCreateUserSuccess: () => {
         displayError(Language.createUserSuccess)
-      }
+      },
     },
   },
 )
