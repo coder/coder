@@ -54,6 +54,26 @@ func TestCliflag(t *testing.T) {
 		require.NotContains(t, flagset.FlagUsages(), " - consumes")
 	})
 
+	t.Run("StringArrayDefault", func(t *testing.T) {
+		var ptr []string
+		flagset, name, shorthand, env, usage := randomFlag()
+		def := []string{"hello"}
+		cliflag.StringArrayVarP(flagset, &ptr, name, shorthand, env, def, usage)
+		got, err := flagset.GetStringArray(name)
+		require.NoError(t, err)
+		require.Equal(t, def, got)
+	})
+
+	t.Run("StringArrayEnvVar", func(t *testing.T) {
+		var ptr []string
+		flagset, name, shorthand, env, usage := randomFlag()
+		t.Setenv(env, "wow,test")
+		cliflag.StringArrayVarP(flagset, &ptr, name, shorthand, env, nil, usage)
+		got, err := flagset.GetStringArray(name)
+		require.NoError(t, err)
+		require.Equal(t, []string{"wow", "test"}, got)
+	})
+
 	t.Run("IntDefault", func(t *testing.T) {
 		var ptr uint8
 		flagset, name, shorthand, env, usage := randomFlag()

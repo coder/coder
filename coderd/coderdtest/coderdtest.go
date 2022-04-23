@@ -53,6 +53,7 @@ import (
 type Options struct {
 	AWSCertificates      awsidentity.Certificates
 	AzureCertificates    x509.VerifyOptions
+	GithubOAuth2Config   *coderd.GithubOAuth2Config
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
@@ -123,6 +124,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 		AWSCertificates:      options.AWSCertificates,
 		AzureCertificates:    options.AzureCertificates,
+		GithubOAuth2Config:   options.GithubOAuth2Config,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,

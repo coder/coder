@@ -241,13 +241,14 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		existentUser, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		existentUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@coder.com",
 			Username:       "bruno",
 			Password:       "password",
 			OrganizationID: user.OrganizationID,
 		})
-		_, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
+		require.NoError(t, err)
+		_, err = client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
 			Username: existentUser.Username,
 			Email:    "newemail@coder.com",
 		})
