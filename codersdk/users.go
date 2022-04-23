@@ -34,7 +34,6 @@ type User struct {
 	Email     string    `json:"email" validate:"required"`
 	CreatedAt time.Time `json:"created_at" validate:"required"`
 	Username  string    `json:"username" validate:"required"`
-	Name      string    `json:"name"`
 }
 
 type CreateFirstUserRequest struct {
@@ -58,9 +57,8 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserProfileRequest struct {
-	Email    string  `json:"email" validate:"required,email"`
-	Username string  `json:"username" validate:"required,username"`
-	Name     *string `json:"name"`
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,username"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.

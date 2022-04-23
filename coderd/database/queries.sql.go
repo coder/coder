@@ -1777,7 +1777,7 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+	id, email, username, hashed_password, created_at, updated_at
 FROM
 	users
 WHERE
@@ -1798,20 +1798,17 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
-		&i.Name,
-		&i.Revoked,
-		&i.LoginType,
+		&i.Username,
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Username,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+	id, email, username, hashed_password, created_at, updated_at
 FROM
 	users
 WHERE
@@ -1826,13 +1823,10 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
-		&i.Name,
-		&i.Revoked,
-		&i.LoginType,
+		&i.Username,
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Username,
 	)
 	return i, err
 }
@@ -1853,7 +1847,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+	id, email, username, hashed_password, created_at, updated_at
 FROM
 	users
 WHERE
@@ -1883,7 +1877,6 @@ WHERE
 		WHEN $2 :: text != '' THEN (
 			email LIKE concat('%', $2, '%')
 			OR username LIKE concat('%', $2, '%')
-			OR 'name' LIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END
@@ -1920,13 +1913,10 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
-			&i.Name,
-			&i.Revoked,
-			&i.LoginType,
+			&i.Username,
 			&i.HashedPassword,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Username,
 		); err != nil {
 			return nil, err
 		}
@@ -1946,51 +1936,41 @@ INSERT INTO
 	users (
 		id,
 		email,
-		"name",
-		login_type,
-		revoked,
+		username,
 		hashed_password,
 		created_at,
-		updated_at,
-		username
+		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, FALSE, $5, $6, $7, $8) RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+	($1, $2, $3, $4, $5, $6) RETURNING id, email, username, hashed_password, created_at, updated_at
 `
 
 type InsertUserParams struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	Email          string    `db:"email" json:"email"`
-	Name           string    `db:"name" json:"name"`
-	LoginType      LoginType `db:"login_type" json:"login_type"`
+	Username       string    `db:"username" json:"username"`
 	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	Username       string    `db:"username" json:"username"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, insertUser,
 		arg.ID,
 		arg.Email,
-		arg.Name,
-		arg.LoginType,
+		arg.Username,
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,
-		arg.Username,
 	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
-		&i.Name,
-		&i.Revoked,
-		&i.LoginType,
+		&i.Username,
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Username,
 	)
 	return i, err
 }
@@ -2000,17 +1980,15 @@ UPDATE
 	users
 SET
 	email = $2,
-	"name" = $3,
-	username = $4,
-	updated_at = $5
+	username = $3,
+	updated_at = $4
 WHERE
-	id = $1 RETURNING id, email, name, revoked, login_type, hashed_password, created_at, updated_at, username
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at
 `
 
 type UpdateUserProfileParams struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	Email     string    `db:"email" json:"email"`
-	Name      string    `db:"name" json:"name"`
 	Username  string    `db:"username" json:"username"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -2019,7 +1997,6 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 	row := q.db.QueryRowContext(ctx, updateUserProfile,
 		arg.ID,
 		arg.Email,
-		arg.Name,
 		arg.Username,
 		arg.UpdatedAt,
 	)
@@ -2027,13 +2004,10 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
-		&i.Name,
-		&i.Revoked,
-		&i.LoginType,
+		&i.Username,
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Username,
 	)
 	return i, err
 }

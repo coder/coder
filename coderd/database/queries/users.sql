@@ -30,25 +30,21 @@ INSERT INTO
 	users (
 		id,
 		email,
-		"name",
-		login_type,
-		revoked,
+		username,
 		hashed_password,
 		created_at,
-		updated_at,
-		username
+		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, FALSE, $5, $6, $7, $8) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE
 	users
 SET
 	email = $2,
-	"name" = $3,
-	username = $4,
-	updated_at = $5
+	username = $3,
+	updated_at = $4
 WHERE
 	id = $1 RETURNING *;
 
@@ -84,7 +80,6 @@ WHERE
 		WHEN @search :: text != '' THEN (
 			email LIKE concat('%', @search, '%')
 			OR username LIKE concat('%', @search, '%')
-			OR 'name' LIKE concat('%', @search, '%')
 		)
 		ELSE true
 	END
