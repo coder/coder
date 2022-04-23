@@ -56,9 +56,8 @@ func (e *LogSource) Scan(src interface{}) error {
 type LoginType string
 
 const (
-	LoginTypeBuiltIn LoginType = "built-in"
-	LoginTypeSaml    LoginType = "saml"
-	LoginTypeOIDC    LoginType = "oidc"
+	LoginTypePassword LoginType = "password"
+	LoginTypeGithub   LoginType = "github"
 )
 
 func (e *LoginType) Scan(src interface{}) error {
@@ -230,21 +229,18 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 }
 
 type APIKey struct {
-	ID               string    `db:"id" json:"id"`
-	HashedSecret     []byte    `db:"hashed_secret" json:"hashed_secret"`
-	UserID           uuid.UUID `db:"user_id" json:"user_id"`
-	Application      bool      `db:"application" json:"application"`
-	Name             string    `db:"name" json:"name"`
-	LastUsed         time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt        time.Time `db:"expires_at" json:"expires_at"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	LoginType        LoginType `db:"login_type" json:"login_type"`
-	OIDCAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
-	OIDCRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
-	OIDCIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
-	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
-	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
+	ID                string    `db:"id" json:"id"`
+	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	LastUsed          time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	LoginType         LoginType `db:"login_type" json:"login_type"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 type File struct {

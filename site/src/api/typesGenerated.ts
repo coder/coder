@@ -132,6 +132,12 @@ export interface CreateWorkspaceRequest {
   readonly name: string
 }
 
+// From codersdk/users.go:96:6.
+export interface AuthMethods {
+  readonly password: boolean
+  readonly github: boolean
+}
+
 // From codersdk/workspaceagents.go:31:6.
 export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string

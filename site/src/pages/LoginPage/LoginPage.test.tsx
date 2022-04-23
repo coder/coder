@@ -23,7 +23,7 @@ describe("LoginPage", () => {
     render(<LoginPage />)
 
     // Then
-    await screen.findByText(Language.signIn)
+    await screen.findByText(Language.passwordSignIn)
   })
 
   it("shows an error message if SignIn fails", async () => {
@@ -42,12 +42,51 @@ describe("LoginPage", () => {
     await userEvent.type(email, "test@coder.com")
     await userEvent.type(password, "password")
     // Click sign-in
-    const signInButton = await screen.findByText(Language.signIn)
+    const signInButton = await screen.findByText(Language.passwordSignIn)
     act(() => signInButton.click())
 
     // Then
     const errorMessage = await screen.findByText(Language.authErrorMessage)
     expect(errorMessage).toBeDefined()
     expect(history.location.pathname).toEqual("/login")
+  })
+
+  it("shows an error if fetching auth methods fails", async () => {
+    // Given
+    server.use(
+      // Make login fail
+      rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
+        return res(ctx.status(500), ctx.json({ message: "nope" }))
+      }),
+    )
+
+    // When
+    render(<LoginPage />)
+
+    // Then
+    const errorMessage = await screen.findByText(Language.methodsErrorMessage)
+    expect(errorMessage).toBeDefined()
+  })
+
+  it("shows github authentication when enabled", async () => {
+    // Given
+    server.use(
+      rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            password: true,
+            github: true,
+          }),
+        )
+      }),
+    )
+
+    // When
+    render(<LoginPage />)
+
+    // Then
+    await screen.findByText(Language.passwordSignIn)
+    await screen.findByText(Language.githubSignIn)
   })
 })

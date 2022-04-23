@@ -14,9 +14,8 @@ CREATE TYPE log_source AS ENUM (
 );
 
 CREATE TYPE login_type AS ENUM (
-    'built-in',
-    'saml',
-    'oidc'
+    'password',
+    'github'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -67,18 +66,15 @@ CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
     user_id uuid NOT NULL,
-    application boolean NOT NULL,
-    name text NOT NULL,
     last_used timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     login_type login_type NOT NULL,
-    oidc_access_token text DEFAULT ''::text NOT NULL,
-    oidc_refresh_token text DEFAULT ''::text NOT NULL,
-    oidc_id_token text DEFAULT ''::text NOT NULL,
-    oidc_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    devurl_token boolean DEFAULT false NOT NULL
+    oauth_access_token text DEFAULT ''::text NOT NULL,
+    oauth_refresh_token text DEFAULT ''::text NOT NULL,
+    oauth_id_token text DEFAULT ''::text NOT NULL,
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE files (

@@ -40,7 +40,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			ID:             userID,
 			Email:          "testaccount@coder.com",
 			Name:           "example",
-			LoginType:      database.LoginTypeBuiltIn,
+			LoginType:      database.LoginTypePassword,
 			HashedPassword: hashed[:],
 			Username:       username,
 			CreatedAt:      database.Now(),

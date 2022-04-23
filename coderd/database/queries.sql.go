@@ -15,7 +15,7 @@ import (
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
 FROM
 	api_keys
 WHERE
@@ -31,18 +31,15 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.ID,
 		&i.HashedSecret,
 		&i.UserID,
-		&i.Application,
-		&i.Name,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LoginType,
-		&i.OIDCAccessToken,
-		&i.OIDCRefreshToken,
-		&i.OIDCIDToken,
-		&i.OIDCExpiry,
-		&i.DevurlToken,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthIDToken,
+		&i.OAuthExpiry,
 	)
 	return i, err
 }
@@ -53,55 +50,33 @@ INSERT INTO
 		id,
 		hashed_secret,
 		user_id,
-		application,
-		"name",
 		last_used,
 		expires_at,
 		created_at,
 		updated_at,
 		login_type,
-		oidc_access_token,
-		oidc_refresh_token,
-		oidc_id_token,
-		oidc_expiry,
-		devurl_token
+		oauth_access_token,
+		oauth_refresh_token,
+		oauth_id_token,
+		oauth_expiry
 	)
 VALUES
-	(
-		$1,
-		$2,
-		$3,
-		$4,
-		$5,
-		$6,
-		$7,
-		$8,
-		$9,
-		$10,
-		$11,
-		$12,
-		$13,
-		$14,
-		$15
-	) RETURNING id, hashed_secret, user_id, application, name, last_used, expires_at, created_at, updated_at, login_type, oidc_access_token, oidc_refresh_token, oidc_id_token, oidc_expiry, devurl_token
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, oauth_access_token, oauth_refresh_token, oauth_id_token, oauth_expiry
 `
 
 type InsertAPIKeyParams struct {
-	ID               string    `db:"id" json:"id"`
-	HashedSecret     []byte    `db:"hashed_secret" json:"hashed_secret"`
-	UserID           uuid.UUID `db:"user_id" json:"user_id"`
-	Application      bool      `db:"application" json:"application"`
-	Name             string    `db:"name" json:"name"`
-	LastUsed         time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt        time.Time `db:"expires_at" json:"expires_at"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	LoginType        LoginType `db:"login_type" json:"login_type"`
-	OIDCAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
-	OIDCRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
-	OIDCIDToken      string    `db:"oidc_id_token" json:"oidc_id_token"`
-	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
-	DevurlToken      bool      `db:"devurl_token" json:"devurl_token"`
+	ID                string    `db:"id" json:"id"`
+	HashedSecret      []byte    `db:"hashed_secret" json:"hashed_secret"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	LastUsed          time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	LoginType         LoginType `db:"login_type" json:"login_type"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthIDToken      string    `db:"oauth_id_token" json:"oauth_id_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -109,36 +84,30 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.ID,
 		arg.HashedSecret,
 		arg.UserID,
-		arg.Application,
-		arg.Name,
 		arg.LastUsed,
 		arg.ExpiresAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.LoginType,
-		arg.OIDCAccessToken,
-		arg.OIDCRefreshToken,
-		arg.OIDCIDToken,
-		arg.OIDCExpiry,
-		arg.DevurlToken,
+		arg.OAuthAccessToken,
+		arg.OAuthRefreshToken,
+		arg.OAuthIDToken,
+		arg.OAuthExpiry,
 	)
 	var i APIKey
 	err := row.Scan(
 		&i.ID,
 		&i.HashedSecret,
 		&i.UserID,
-		&i.Application,
-		&i.Name,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LoginType,
-		&i.OIDCAccessToken,
-		&i.OIDCRefreshToken,
-		&i.OIDCIDToken,
-		&i.OIDCExpiry,
-		&i.DevurlToken,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthIDToken,
+		&i.OAuthExpiry,
 	)
 	return i, err
 }
@@ -149,20 +118,20 @@ UPDATE
 SET
 	last_used = $2,
 	expires_at = $3,
-	oidc_access_token = $4,
-	oidc_refresh_token = $5,
-	oidc_expiry = $6
+	oauth_access_token = $4,
+	oauth_refresh_token = $5,
+	oauth_expiry = $6
 WHERE
 	id = $1
 `
 
 type UpdateAPIKeyByIDParams struct {
-	ID               string    `db:"id" json:"id"`
-	LastUsed         time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt        time.Time `db:"expires_at" json:"expires_at"`
-	OIDCAccessToken  string    `db:"oidc_access_token" json:"oidc_access_token"`
-	OIDCRefreshToken string    `db:"oidc_refresh_token" json:"oidc_refresh_token"`
-	OIDCExpiry       time.Time `db:"oidc_expiry" json:"oidc_expiry"`
+	ID                string    `db:"id" json:"id"`
+	LastUsed          time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt         time.Time `db:"expires_at" json:"expires_at"`
+	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error {
@@ -170,9 +139,9 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 		arg.ID,
 		arg.LastUsed,
 		arg.ExpiresAt,
-		arg.OIDCAccessToken,
-		arg.OIDCRefreshToken,
-		arg.OIDCExpiry,
+		arg.OAuthAccessToken,
+		arg.OAuthRefreshToken,
+		arg.OAuthExpiry,
 	)
 	return err
 }
@@ -451,6 +420,42 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getOrganizations = `-- name: GetOrganizations :many
+SELECT
+	id, name, description, created_at, updated_at
+FROM
+	organizations
+`
+
+func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Organization
+	for rows.Next() {
+		var i Organization
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many

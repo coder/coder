@@ -92,6 +92,12 @@ type CreateWorkspaceRequest struct {
 	ParameterValues []CreateParameterRequest `json:"parameter_values"`
 }
 
+// AuthMethods contains whether authentication types are enabled or not.
+type AuthMethods struct {
+	Password bool `json:"password"`
+	Github   bool `json:"github"`
+}
+
 // HasFirstUser returns whether the first user has been created.
 func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 	res, err := c.request(ctx, http.MethodGet, "/api/v2/users/first", nil)
@@ -328,6 +334,22 @@ func (c *Client) WorkspaceByName(ctx context.Context, userID uuid.UUID, name str
 
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// AuthMethods returns types of authentication available to the user.
+func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/users/authmethods", nil)
+	if err != nil {
+		return AuthMethods{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AuthMethods{}, readBodyAsError(res)
+	}
+
+	var userAuth AuthMethods
+	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
 
 // uuidOrMe returns the provided uuid as a string if it's valid, ortherwise
