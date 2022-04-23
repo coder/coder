@@ -3,6 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"strings"
 	"sync"
 
@@ -164,11 +165,72 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) GetUsers(_ context.Context) ([]database.User, error) {
+func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.users, nil
+	users := q.users
+	// Database orders by created_at
+	sort.Slice(users, func(i, j int) bool {
+		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
+			// Technically the postgres database also orders by uuid. So match
+			// that behavior
+			return users[i].ID.String() < users[j].ID.String()
+		}
+		return users[i].CreatedAt.Before(users[j].CreatedAt)
+	})
+
+	if params.AfterUser != uuid.Nil {
+		found := false
+		for i := range users {
+			if users[i].ID == params.AfterUser {
+				// We want to return all users after index i.
+				if i+1 >= len(users) {
+					return []database.User{}, nil
+				}
+				users = users[i+1:]
+				found = true
+				break
+			}
+		}
+
+		// If no users after the time, then we return an empty list.
+		if !found {
+			return []database.User{}, nil
+		}
+	}
+
+	if params.Search != "" {
+		tmp := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if strings.Contains(user.Email, params.Search) {
+				tmp = append(tmp, users[i])
+			} else if strings.Contains(user.Username, params.Search) {
+				tmp = append(tmp, users[i])
+			} else if strings.Contains(user.Name, params.Search) {
+				tmp = append(tmp, users[i])
+			}
+		}
+		users = tmp
+	}
+
+	if params.OffsetOpt > 0 {
+		if int(params.OffsetOpt) > len(users)-1 {
+			return []database.User{}, nil
+		}
+		users = users[params.OffsetOpt:]
+	}
+
+	if params.LimitOpt > 0 {
+		if int(params.LimitOpt) > len(users) {
+			params.LimitOpt = int32(len(users))
+		}
+		users = users[:params.LimitOpt]
+	}
+	tmp := make([]database.User, len(users))
+	copy(tmp, users)
+
+	return tmp, nil
 }
 
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/awalterschulze/gographviz"
 	"github.com/hashicorp/terraform-exec/tfexec"
+	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
@@ -88,15 +89,24 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			})
 		}
 	}()
+	terraformEnv := map[string]string{}
+	// Required for "terraform init" to find "git" to
+	// clone Terraform modules.
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		terraformEnv[parts[0]] = parts[1]
+	}
 	// Only Linux reliably works with the Terraform plugin
 	// cache directory. It's unknown why this is.
 	if t.cachePath != "" && runtime.GOOS == "linux" {
-		err = terraform.SetEnv(map[string]string{
-			"TF_PLUGIN_CACHE_DIR": t.cachePath,
-		})
-		if err != nil {
-			return xerrors.Errorf("set terraform plugin cache dir: %w", err)
-		}
+		terraformEnv["TF_PLUGIN_CACHE_DIR"] = t.cachePath
+	}
+	err = terraform.SetEnv(terraformEnv)
+	if err != nil {
+		return xerrors.Errorf("set terraform env: %w", err)
 	}
 	terraform.SetStdout(writer)
 	t.logger.Debug(shutdown, "running initialization")
@@ -320,40 +330,22 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 				agent.StartupScript = startupScript
 			}
 		}
-		if _, has := resource.Expressions["instance_id"]; has {
-			// This is a dynamic value. If it's expressed, we know
-			// it's at least an instance ID, which is better than nothing.
-			agent.Auth = &proto.Agent_InstanceId{
-				InstanceId: "",
-			}
-		}
 
 		agents[resource.Address] = agent
 	}
+
 	for _, resource := range plan.PlannedValues.RootModule.Resources {
-		if resource.Type == "coder_agent" {
+		if resource.Mode == tfjson.DataResourceMode {
+			continue
+		}
+		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" {
 			continue
 		}
 		resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
-		resourceNode, exists := resourceDependencies[resourceKey]
-		if !exists {
-			continue
-		}
-		// Associate resources that depend on an agent.
-		resourceAgents := make([]*proto.Agent, 0)
-		for _, dep := range resourceNode {
-			var has bool
-			agent, has := agents[dep]
-			if !has {
-				continue
-			}
-			resourceAgents = append(resourceAgents, agent)
-		}
-
 		resources = append(resources, &proto.Resource{
 			Name:   resource.Name,
 			Type:   resource.Type,
-			Agents: resourceAgents,
+			Agents: findAgents(resourceDependencies, agents, resourceKey),
 		})
 	}
 
@@ -460,32 +452,25 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 		}
 
 		for _, resource := range state.Values.RootModule.Resources {
+			if resource.Mode == tfjson.DataResourceMode {
+				continue
+			}
 			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" {
 				continue
 			}
 			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
-			resourceNode, exists := resourceDependencies[resourceKey]
-			if !exists {
-				continue
-			}
-			// Associate resources that depend on an agent.
-			resourceAgents := make([]*proto.Agent, 0)
-			for _, dep := range resourceNode {
-				var has bool
-				agent, has := agents[dep]
-				if !has {
-					continue
-				}
-				resourceAgents = append(resourceAgents, agent)
-
+			resourceAgents := findAgents(resourceDependencies, agents, resourceKey)
+			for _, agent := range resourceAgents {
 				// Didn't use instance identity.
 				if agent.GetToken() != "" {
 					continue
 				}
 
 				key, isValid := map[string]string{
-					"google_compute_instance": "instance_id",
-					"aws_instance":            "id",
+					"google_compute_instance":         "instance_id",
+					"aws_instance":                    "id",
+					"azurerm_linux_virtual_machine":   "id",
+					"azurerm_windows_virtual_machine": "id",
 				}[resource.Type]
 				if !isValid {
 					// The resource type doesn't support
@@ -571,21 +556,50 @@ func findDirectDependencies(rawGraph string) (map[string][]string, error) {
 			continue
 		}
 		label = strings.Trim(label, `"`)
-
-		dependencies := make([]string, 0)
-		for destination := range graph.Edges.SrcToDsts[node.Name] {
-			dependencyNode, exists := graph.Nodes.Lookup[destination]
-			if !exists {
-				continue
-			}
-			label, exists := dependencyNode.Attrs["label"]
-			if !exists {
-				continue
-			}
-			label = strings.Trim(label, `"`)
-			dependencies = append(dependencies, label)
-		}
-		direct[label] = dependencies
+		direct[label] = findDependenciesWithLabels(graph, node.Name)
 	}
+
 	return direct, nil
+}
+
+// findDependenciesWithLabels recursively finds nodes with labels (resource and data nodes)
+// to build a dependency tree.
+func findDependenciesWithLabels(graph *gographviz.Graph, nodeName string) []string {
+	dependencies := make([]string, 0)
+	for destination := range graph.Edges.SrcToDsts[nodeName] {
+		dependencyNode, exists := graph.Nodes.Lookup[destination]
+		if !exists {
+			continue
+		}
+		label, exists := dependencyNode.Attrs["label"]
+		if !exists {
+			dependencies = append(dependencies, findDependenciesWithLabels(graph, dependencyNode.Name)...)
+			continue
+		}
+		label = strings.Trim(label, `"`)
+		dependencies = append(dependencies, label)
+	}
+	return dependencies
+}
+
+// findAgents recursively searches through resource dependencies
+// to find associated agents. Nested is required for indirect
+// dependency matching.
+func findAgents(resourceDependencies map[string][]string, agents map[string]*proto.Agent, resourceKey string) []*proto.Agent {
+	resourceNode, exists := resourceDependencies[resourceKey]
+	if !exists {
+		return []*proto.Agent{}
+	}
+	// Associate resources that depend on an agent.
+	resourceAgents := make([]*proto.Agent, 0)
+	for _, dep := range resourceNode {
+		var has bool
+		agent, has := agents[dep]
+		if !has {
+			resourceAgents = append(resourceAgents, findAgents(resourceDependencies, agents, dep)...)
+			continue
+		}
+		resourceAgents = append(resourceAgents, agent)
+	}
+	return resourceAgents
 }

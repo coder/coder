@@ -49,7 +49,7 @@ require (
 	github.com/coder/retry v1.3.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
-	github.com/fatedier/frp v0.36.2-0.20220414032436-21240ed96251
+	github.com/fatedier/frp v0.42.0
 	github.com/fatedier/golib v0.1.1-0.20220321042308-c306138b83ac
 	github.com/fatih/color v1.13.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
@@ -68,6 +68,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.11.1
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
+	github.com/hashicorp/terraform-json v0.13.0
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/jedib0t/go-pretty/v6 v6.3.1
 	github.com/justinas/nosurf v1.1.1
@@ -164,7 +165,6 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/hashicorp/terraform-json v0.13.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -203,7 +203,7 @@ require (
 	github.com/pion/srtp/v2 v2.0.5 // indirect
 	github.com/pion/stun v0.3.5 // indirect
 	github.com/pion/udp v0.1.1 // indirect
-	github.com/pires/go-proxyproto v0.5.0 // indirect
+	github.com/pires/go-proxyproto v0.6.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect

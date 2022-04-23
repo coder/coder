@@ -46,7 +46,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func start() *cobra.Command {
+func server() *cobra.Command {
 	var (
 		accessURL   string
 		address     string
@@ -74,7 +74,7 @@ func start() *cobra.Command {
 	)
 
 	root := &cobra.Command{
-		Use: "start",
+		Use: "server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			if traceDatadog {
