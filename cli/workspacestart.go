@@ -20,7 +20,11 @@ func workspaceStart() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, args[0])
+			organization, err := currentOrganization(cmd, client)
+			if err != nil {
+				return err
+			}
+			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}

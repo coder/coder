@@ -41,7 +41,7 @@ func workspaceCreate() *cobra.Command {
 				workspaceName, err = cliui.Prompt(cmd, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
-						_, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceName)
+						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
 						if err == nil {
 							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 						}
@@ -53,7 +53,7 @@ func workspaceCreate() *cobra.Command {
 				}
 			}
 
-			_, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceName)
+			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceName)
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
@@ -162,7 +162,7 @@ func workspaceCreate() *cobra.Command {
 			}
 
 			before := time.Now()
-			workspace, err := client.CreateWorkspace(cmd.Context(), codersdk.Me, codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.CreateWorkspaceRequest{
 				TemplateID:      template.ID,
 				Name:            workspaceName,
 				ParameterValues: parameters,

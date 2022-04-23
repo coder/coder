@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -348,6 +349,71 @@ func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+}
+
+func convertWorkspaces(ctx context.Context, db database.Store, workspaces []database.Workspace) ([]codersdk.Workspace, error) {
+	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
+	templateIDs := make([]uuid.UUID, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		workspaceIDs = append(workspaceIDs, workspace.ID)
+		templateIDs = append(templateIDs, workspace.TemplateID)
+	}
+	workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx, workspaceIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace builds: %w", err)
+	}
+	templates, err := db.GetTemplatesByIDs(ctx, templateIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get templates: %w", err)
+	}
+	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		jobIDs = append(jobIDs, build.JobID)
+	}
+	jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get provisioner jobs: %w", err)
+	}
+
+	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
+	for _, workspaceBuild := range workspaceBuilds {
+		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
+	}
+	templateByID := map[uuid.UUID]database.Template{}
+	for _, template := range templates {
+		templateByID[template.ID] = template
+	}
+	jobByID := map[uuid.UUID]database.ProvisionerJob{}
+	for _, job := range jobs {
+		jobByID[job.ID] = job
+	}
+	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		build, exists := buildByWorkspaceID[workspace.ID]
+		if !exists {
+			return nil, xerrors.Errorf("build not found for workspace %q", workspace.Name)
+		}
+		template, exists := templateByID[workspace.TemplateID]
+		if !exists {
+			return nil, xerrors.Errorf("template not found for workspace %q", workspace.Name)
+		}
+		job, exists := jobByID[build.JobID]
+		if !exists {
+			return nil, xerrors.Errorf("build job not found for workspace: %q", err)
+		}
+		apiWorkspaces = append(apiWorkspaces,
+			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
+	}
+	return apiWorkspaces, nil
 }
 
 func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template) codersdk.Workspace {

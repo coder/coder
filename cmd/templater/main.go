@@ -171,7 +171,7 @@ func parse(cmd *cobra.Command, parameters []codersdk.CreateParameterRequest) err
 		return err
 	}
 
-	workspace, err := client.CreateWorkspace(cmd.Context(), created.UserID, codersdk.CreateWorkspaceRequest{
+	workspace, err := client.CreateWorkspace(cmd.Context(), created.OrganizationID, codersdk.CreateWorkspaceRequest{
 		TemplateID: template.ID,
 		Name:       "example",
 	})

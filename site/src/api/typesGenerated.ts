@@ -34,6 +34,11 @@ export interface CreateTemplateRequest {
   readonly name: string
 }
 
+// From codersdk/organizations.go:52:6.
+export interface CreateWorkspaceRequest {
+  readonly name: string
+}
+
 // From codersdk/parameters.go:26:6.
 export interface Parameter {
   readonly scope: ParameterScope
@@ -124,11 +129,6 @@ export interface GenerateAPIKeyResponse {
 
 // From codersdk/users.go:82:6.
 export interface CreateOrganizationRequest {
-  readonly name: string
-}
-
-// From codersdk/users.go:87:6.
-export interface CreateWorkspaceRequest {
   readonly name: string
 }
 

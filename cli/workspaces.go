@@ -32,7 +32,11 @@ func validArgsWorkspaceName(cmd *cobra.Command, _ []string, toComplete string) (
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
-	workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
+	organization, err := currentOrganization(cmd, client)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	workspaces, err := client.WorkspacesByOwner(cmd.Context(), organization.ID, codersdk.Me)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
