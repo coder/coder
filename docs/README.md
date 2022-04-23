@@ -17,14 +17,14 @@ Install [the latest release](https://github.com/coder/coder/releases).
 To tinker, start with dev-mode (all data is in-memory, and is destroyed on exit):
 
 ```bash
-$ coder start --dev
+$ coder server --dev
 ```
 
 To run a production deployment with PostgreSQL:
 
 ```bash
 $ CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
-    coder start
+    coder server
 ```
 
 To run as a system service, install with `.deb` or `.rpm`:

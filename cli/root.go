@@ -43,7 +43,7 @@ func Root() *cobra.Command {
 `,
 		Example: cliui.Styles.Paragraph.Render(`Start Coder in "dev" mode. This dev-mode requires no further setup, and your local `+cliui.Styles.Code.Render("coder")+` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.`) + `
 
-    ` + cliui.Styles.Code.Render("$ coder start --dev") + `
+    ` + cliui.Styles.Code.Render("$ coder server --dev") + `
 	` + cliui.Styles.Paragraph.Render("Get started by creating a template from an example.") + `
 
     ` + cliui.Styles.Code.Render("$ coder templates init"),
@@ -63,7 +63,7 @@ func Root() *cobra.Command {
 
 	cmd.AddCommand(
 		configSSH(),
-		start(),
+		server(),
 		login(),
 		parameters(),
 		templates(),
