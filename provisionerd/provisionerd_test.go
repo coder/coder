@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
@@ -126,6 +127,7 @@ func TestProvisionerd(t *testing.T) {
 		// Ensures tars with "../../../etc/passwd" as the path
 		// are not allowed to run, and will fail the job.
 		t.Parallel()
+		var complete sync.Once
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
@@ -145,7 +147,9 @@ func TestProvisionerd(t *testing.T) {
 				},
 				updateJob: noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
-					close(completeChan)
+					complete.Do(func() {
+						close(completeChan)
+					})
 					return &proto.Empty{}, nil
 				},
 			}), nil
@@ -158,6 +162,7 @@ func TestProvisionerd(t *testing.T) {
 
 	t.Run("RunningPeriodicUpdate", func(t *testing.T) {
 		t.Parallel()
+		var complete sync.Once
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
@@ -176,11 +181,9 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-					select {
-					case <-completeChan:
-					default:
+					complete.Do(func() {
 						close(completeChan)
-					}
+					})
 					return &proto.UpdateJobResponse{}, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
@@ -492,6 +495,7 @@ func TestProvisionerd(t *testing.T) {
 
 	t.Run("ShutdownFromJob", func(t *testing.T) {
 		t.Parallel()
+		var updated sync.Once
 		updateChan := make(chan struct{})
 		completeChan := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
@@ -513,7 +517,9 @@ func TestProvisionerd(t *testing.T) {
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					if len(update.Logs) > 0 && update.Logs[0].Source == proto.LogSource_PROVISIONER {
 						// Close on a log so we know when the job is in progress!
-						close(updateChan)
+						updated.Do(func() {
+							close(updateChan)
+						})
 					}
 					return &proto.UpdateJobResponse{
 						Canceled: true,
@@ -555,6 +561,139 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		<-updateChan
+		<-completeChan
+		require.NoError(t, server.Close())
+	})
+
+	t.Run("ReconnectAndFail", func(t *testing.T) {
+		t.Parallel()
+		var second atomic.Bool
+		failChan := make(chan struct{})
+		failedChan := make(chan struct{})
+		completeChan := make(chan struct{})
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			client := createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					if second.Load() {
+						return &proto.AcquiredJob{}, nil
+					}
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						TemplateSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
+						},
+					}, nil
+				},
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					return &proto.UpdateJobResponse{}, nil
+				},
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+					if second.Load() {
+						close(completeChan)
+						return &proto.Empty{}, nil
+					}
+					close(failChan)
+					<-failedChan
+					return &proto.Empty{}, nil
+				},
+			})
+			if !second.Load() {
+				go func() {
+					<-failChan
+					_ = client.DRPCConn().Close()
+					second.Store(true)
+					close(failedChan)
+				}()
+			}
+			return client, nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					// Ignore the first provision message!
+					_, _ = stream.Recv()
+					return stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{
+								Error: "some error",
+							},
+						},
+					})
+				},
+			}),
+		})
+		<-completeChan
+		require.NoError(t, server.Close())
+	})
+
+	t.Run("ReconnectAndComplete", func(t *testing.T) {
+		t.Parallel()
+		var second atomic.Bool
+		failChan := make(chan struct{})
+		failedChan := make(chan struct{})
+		completeChan := make(chan struct{})
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			client := createProvisionerDaemonClient(t, provisionerDaemonTestServer{
+				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+					if second.Load() {
+						close(completeChan)
+						return &proto.AcquiredJob{}, nil
+					}
+					return &proto.AcquiredJob{
+						JobId:       "test",
+						Provisioner: "someprovisioner",
+						TemplateSourceArchive: createTar(t, map[string]string{
+							"test.txt": "content",
+						}),
+						Type: &proto.AcquiredJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
+								Metadata: &sdkproto.Provision_Metadata{},
+							},
+						},
+					}, nil
+				},
+				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
+					return nil, yamux.ErrSessionShutdown
+				},
+				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+					return &proto.UpdateJobResponse{}, nil
+				},
+				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
+					if second.Load() {
+						return &proto.Empty{}, nil
+					}
+					close(failChan)
+					<-failedChan
+					return &proto.Empty{}, nil
+				},
+			})
+			if !second.Load() {
+				go func() {
+					<-failChan
+					_ = client.DRPCConn().Close()
+					second.Store(true)
+					close(failedChan)
+				}()
+			}
+			return client, nil
+		}, provisionerd.Provisioners{
+			"someprovisioner": createProvisionerClient(t, provisionerTestServer{
+				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
+					// Ignore the first provision message!
+					_, _ = stream.Recv()
+					return stream.Send(&sdkproto.Provision_Response{
+						Type: &sdkproto.Provision_Response_Complete{
+							Complete: &sdkproto.Provision_Complete{},
+						},
+					})
+				},
+			}),
+		})
 		<-completeChan
 		require.NoError(t, server.Close())
 	})

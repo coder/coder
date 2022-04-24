@@ -70,8 +70,8 @@ func (c *Client) ListenProvisionerDaemon(ctx context.Context) (proto.DRPCProvisi
 		}
 		return nil, readBodyAsError(res)
 	}
-	// Allow _somewhat_ large payloads.
-	conn.SetReadLimit((1 << 20) * 2)
+	// Align with the frame size of yamux.
+	conn.SetReadLimit(256 * 1024)
 
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
