@@ -7,7 +7,7 @@ Coder admins manage *templates* to define the infrastructure behind workspaces. 
 ### ex. "Frontend" Template
 
 | Resource name           | Status     |
-| ----------------------- | ---------- |
+| :---------------------- | :--------- |
 | Kubernetes pod (NodeJS) | ephemeral  |
 | API token (Backend)     | ephemeral  |
 | Disk (Source code)      | persistant |
@@ -15,21 +15,21 @@ Coder admins manage *templates* to define the infrastructure behind workspaces. 
 ### ex. "Data Science" Template
 
 | Resource name                          | Status     |
-| -------------------------------------- | ---------- |
+| :------------------------------------- | :--------- |
 | Kubernetes pod (pyCharm + JupyterLab)  | ephemeral  |
 | Readonly volume mount (shared dataset) | persistant |
 
 ### ex. "MacOS" Template
 
 | Resource name      | Status     |
-| ------------------ | ---------- |
+| :----------------- | :--------- |
 | MacOS VM           | ephemeral  |
 | Disk (source code) | persistant |
 
 ### ex. "Linux Debugging" Template
 
 | Resource name            | Status     |
-| ------------------------ | ---------- |
+| :----------------------- | :--------- |
 | EC2 VM (Debian 11.3 AMI) | persistant |
 
 ### Templates are managed via the CLI
