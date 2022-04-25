@@ -197,7 +197,8 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/", api.workspaceAgentListen)
+				r.Get("/", api.workspaceAgentMe)
+				r.Get("/listen", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)

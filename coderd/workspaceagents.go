@@ -88,6 +88,18 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (api *api) workspaceAgentMe(rw http.ResponseWriter, r *http.Request) {
+	agent := httpmw.WorkspaceAgent(r)
+	apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspace agent: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, apiAgent)
+}
+
 func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
 	api.websocketWaitGroup.Add(1)

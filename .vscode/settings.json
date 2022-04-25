@@ -16,6 +16,7 @@
     "gographviz",
     "goleak",
     "gossh",
+    "gsyslog",
     "hashicorp",
     "hclsyntax",
     "httpmw",
