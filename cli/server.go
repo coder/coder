@@ -293,7 +293,7 @@ func server() *cobra.Command {
 				if !hasFirstUser && err == nil {
 					// This could fail for a variety of TLS-related reasons.
 					// This is a helpful starter message, and not critical for user interaction.
-					_, _ = fmt.Fprint(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+client.URL.String())+" in a new terminal to get started.\n")))
+					_, _ = fmt.Fprint(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+accessURL)+" in a new terminal to get started.\n")))
 				}
 			}
 
