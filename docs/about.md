@@ -2,7 +2,7 @@
 
 Coder is an open source platform for creating and managing developer workspaces on your preferred clouds and servers.
 
-By building on top of common development inferfaces (SSH) and infrastructure tools (Terraform), Coder aims to make the process of **provisioning** and **accessing** remote workspaces approachable for organizations of various sizes and stages of cloud-native maturity.
+By building on top of common development interfaces (SSH) and infrastructure tools (Terraform), Coder aims to make the process of **provisioning** and **accessing** remote workspaces approachable for organizations of various sizes and stages of cloud-native maturity.
 
 > ⚠️ Coder v2 is in alpha and not ready for production use. You may be interested in [Coder v1](https://coder.com/docs) or [code-server](https://github.com/cdr/code-server).
 
@@ -10,13 +10,13 @@ By building on top of common development inferfaces (SSH) and infrastructure too
 
 Migrating from local developer machines to remote servers is an increasingly common solution for developers[^1] and organizations[^2] alike. Remote development has a number of benefits:
 
-- Speed: Server-grade compute speeds up operations in software development such as IDE loads, compiles, builds, and running large apps (monolyths or many microservices). 
+- Speed: Server-grade compute speeds up operations in software development such as IDE loads, compiles, builds, and running large workloads (monolyth or microservice applications). 
 
 - Environment management: Onboarding & troubleshooting development environments is automated using tools such as Terraform, nix, Docker, devcontainers, etc.
 
 - Security: Source code and other data can be centralized on private servers or cloud, instead of local developer machines.
 
-- Compatability: Remote workspaces share infrastructure configuration with other developer, staging, and production environments, reducing configuration drift.
+- Compatibility: Remote workspaces share infrastructure configuration with other developer, staging, and production environments, reducing configuration drift.
 
 - Accessibility: Devices such as light notebooks, Chromebooks, and iPads connect to remote workspaces via browser-based IDEs or remote IDE extensions.
 
@@ -27,9 +27,9 @@ The added layer of infrastructure control is a key differentiator from Coder v1 
 - support ARM, Windows, Linux, and MacOS workspaces
 - modify pod/container spec: add disks, manage network policy, environment variables
 - use VM/dedicated workspaces: develop with Kernel features, container knowledge not required
-- enable persistant workspaces: just like a local machine, but faster and in the cloud
+- enable persistent workspaces: just like a local machine, but faster and in the cloud
 
-Coder includes [production-ready templates](./examples) for use on Kubernetes, AWS EC2, Google Cloud, Azure, and more.
+Coder includes [production-ready templates](../examples) for use on Kubernetes, AWS EC2, Google Cloud, Azure, and more.
 
 ## What Coder is not
 
