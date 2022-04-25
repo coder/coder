@@ -22,8 +22,8 @@ func TestExample(t *testing.T) {
 	user := subject{
 		UserID: "alice",
 		Roles: []rbac.Role{
-			rbac.RoleOrgAdmin("default"),
-			rbac.RoleMember,
+			must(rbac.RoleByName(rbac.Member)),
+			must(rbac.RoleByName(rbac.RoleName(rbac.OrganizationMember, "default"))),
 		},
 	}
 
@@ -51,4 +51,11 @@ func TestExample(t *testing.T) {
 		err = authorizer.Authorize(ctx, user.UserID, user.Roles, rbac.ActionRead, rbac.ResourceWorkspace.InOrg("default").WithOwner(user.UserID).WithID("1234"))
 		require.NoError(t, err, "this user can read workspace '1234'")
 	})
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
