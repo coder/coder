@@ -692,8 +692,6 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 func sortUsers(users []codersdk.User) {
 	sort.Slice(users, func(i, j int) bool {
 		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
-			// Technically the postgres database also orders by uuid. So match
-			// that behavior
 			return users[i].ID.String() < users[j].ID.String()
 		}
 		return users[i].CreatedAt.Before(users[j].CreatedAt)
