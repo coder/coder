@@ -3,6 +3,11 @@ import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 
+const Language = {
+  cancelLabel: "Cancel",
+  defaultSubmitLabel: "Submit",
+}
+
 export interface FormFooterProps {
   onCancel: () => void
   isLoading: boolean
@@ -22,12 +27,16 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
-export const FormFooter: React.FC<FormFooterProps> = ({ onCancel, isLoading, submitLabel = "Submit" }) => {
+export const FormFooter: React.FC<FormFooterProps> = ({
+  onCancel,
+  isLoading,
+  submitLabel = Language.defaultSubmitLabel,
+}) => {
   const styles = useStyles()
   return (
     <div className={styles.footer}>
       <Button className={styles.button} onClick={onCancel} variant="outlined">
-        Cancel
+        {Language.cancelLabel}
       </Button>
       <LoadingButton loading={isLoading} className={styles.button} variant="contained" color="primary" type="submit">
         {submitLabel}
