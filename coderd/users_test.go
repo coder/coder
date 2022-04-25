@@ -274,15 +274,29 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		me, _ := client.User(context.Background(), codersdk.Me)
-		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: me.Username,
-			Email:    "newemail@coder.com",
+		user := coderdtest.CreateFirstUser(t, client)
+		anotherUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "bruno@coder.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
 		})
+		suspendedUser, err := client.SuspendUser(context.Background(), anotherUser.ID)
 		require.NoError(t, err)
-		require.Equal(t, userProfile.Username, me.Username)
-		require.Equal(t, userProfile.Email, "newemail@coder.com")
+		require.Equal(t, suspendedUser.Suspended, true)
 	})
+}
+
+func TestPutUserSuspend(t *testing.T) {
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
+		Username: "newusername",
+		Email:    "newemail@coder.com",
+	})
+	require.NoError(t, err)
+	require.Equal(t, userProfile.Username, "newusername")
+	require.Equal(t, userProfile.Email, "newemail@coder.com")
 }
 
 func TestUserByName(t *testing.T) {

@@ -283,6 +283,25 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile))
 }
 
+func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	suspendedUser, err := api.Database.UpdateUserSuspended(r.Context(), database.UpdateUserSuspendedParams{
+		ID:        user.ID,
+		Suspended: sql.NullBool{Bool: true},
+		UpdatedAt: database.Now(),
+	})
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("put user suspended: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser))
+}
+
 // Returns organizations the parameterized user has access to.
 func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
