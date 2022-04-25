@@ -134,6 +134,19 @@ func ssh() *cobra.Command {
 				defer func() {
 					_ = term.Restore(int(os.Stdin.Fd()), state)
 				}()
+
+				windowChange := listenWindowSize(cmd.Context())
+				go func() {
+					for {
+						select {
+						case <-cmd.Context().Done():
+							return
+						case <-windowChange:
+						}
+						width, height, _ := term.GetSize(int(stdoutFile.Fd()))
+						_ = sshSession.WindowChange(height, width)
+					}
+				}()
 			}
 
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
