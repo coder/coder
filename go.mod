@@ -61,7 +61,7 @@ require (
 	github.com/go-chi/httprate v0.5.3
 	github.com/go-chi/render v1.0.1
 	github.com/go-playground/validator/v10 v10.10.1
-	github.com/gohugoio/hugo v0.97.2
+	github.com/gohugoio/hugo v0.97.3
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
