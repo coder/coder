@@ -5,9 +5,9 @@ import { FormFooter, FormFooterProps } from "./FormFooter"
 export default {
   title: "components/FormFooter",
   component: FormFooter,
-  argTypes:{
-    onCancel: { action: "cancel" }
-  }
+  argTypes: {
+    onCancel: { action: "cancel" },
+  },
 } as ComponentMeta<typeof FormFooter>
 
 const Template: Story<FormFooterProps> = (args) => <FormFooter {...args} />
