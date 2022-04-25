@@ -1,0 +1,21 @@
+version: "3.9"
+services:
+  coder:
+    build: .
+    ports:
+      - "7080:3000"
+    environment:
+      CODER_PG_CONNECTION_URL: "postgresql://username:password@database/coder?sslmode=disable"
+      CODER_ACCESS_URL: "http://localhost:7080"
+    depends_on:
+      - database
+  database:
+    image: "postgres:latest"
+    environment:
+      POSTGRES_USER: username # The PostgreSQL user (useful to connect to the database)
+      POSTGRES_PASSWORD: password # The PostgreSQL password (useful to connect to the database)
+      POSTGRES_DB: coder # The PostgreSQL default database (automatically created at first launch)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
