@@ -175,6 +175,9 @@ func TestAgent(t *testing.T) {
 			if err != nil {
 				return false
 			}
+			if len(content) == 0 {
+				return false
+			}
 			if runtime.GOOS == "windows" {
 				// Windows uses UTF16! 🪟🪟🪟
 				content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
