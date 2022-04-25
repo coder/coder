@@ -17,6 +17,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
@@ -47,6 +49,8 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	// Align with the frame size of yamux.
+	conn.SetReadLimit(256 * 1024)
 
 	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
@@ -82,9 +86,17 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
 		return
 	}
-	server := drpcserver.New(mux)
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) {
+				return
+			}
+			api.Logger.Debug(r.Context(), "drpc server error", slog.Error(err))
+		},
+	})
 	err = server.Serve(r.Context(), session)
 	if err != nil {
+		api.Logger.Debug(r.Context(), "provisioner daemon disconnected", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}
@@ -252,6 +264,9 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 		protoJob.TemplateSourceArchive = file.Data
 	default:
 		return nil, failJob(fmt.Sprintf("unsupported storage method: %s", job.StorageMethod))
+	}
+	if protobuf.Size(protoJob) > provisionersdk.MaxMessageSize {
+		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), provisionersdk.MaxMessageSize))
 	}
 
 	return protoJob, err

@@ -68,8 +68,8 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		clientDialer: clientDialer,
 		opts:         opts,
 
-		closeCancel: ctxCancel,
-		closed:      make(chan struct{}),
+		closeContext: ctx,
+		closeCancel:  ctxCancel,
 
 		shutdown: make(chan struct{}),
 
@@ -87,13 +87,13 @@ type Server struct {
 	opts *Options
 
 	clientDialer Dialer
-	client       proto.DRPCProvisionerDaemonClient
+	clientValue  atomic.Value
 
 	// Locked when closing the daemon.
-	closeMutex  sync.Mutex
-	closeCancel context.CancelFunc
-	closed      chan struct{}
-	closeError  error
+	closeMutex   sync.Mutex
+	closeContext context.Context
+	closeCancel  context.CancelFunc
+	closeError   error
 
 	shutdownMutex sync.Mutex
 	shutdown      chan struct{}
@@ -108,11 +108,10 @@ type Server struct {
 
 // Connect establishes a connection to coderd.
 func (p *Server) connect(ctx context.Context) {
-	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		p.client, err = p.clientDialer(ctx)
+		client, err := p.clientDialer(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -126,6 +125,7 @@ func (p *Server) connect(ctx context.Context) {
 			p.closeMutex.Unlock()
 			continue
 		}
+		p.clientValue.Store(client)
 		p.opts.Logger.Debug(context.Background(), "connected")
 		break
 	}
@@ -139,10 +139,14 @@ func (p *Server) connect(ctx context.Context) {
 		if p.isClosed() {
 			return
 		}
-		select {
-		case <-p.closed:
+		client, ok := p.client()
+		if !ok {
 			return
-		case <-p.client.DRPCConn().Closed():
+		}
+		select {
+		case <-p.closeContext.Done():
+			return
+		case <-client.DRPCConn().Closed():
 			// We use the update stream to detect when the connection
 			// has been interrupted. This works well, because logs need
 			// to buffer if a job is running in the background.
@@ -158,16 +162,29 @@ func (p *Server) connect(ctx context.Context) {
 		ticker := time.NewTicker(p.opts.PollInterval)
 		defer ticker.Stop()
 		for {
-			select {
-			case <-p.closed:
+			client, ok := p.client()
+			if !ok {
 				return
-			case <-p.client.DRPCConn().Closed():
+			}
+			select {
+			case <-p.closeContext.Done():
+				return
+			case <-client.DRPCConn().Closed():
 				return
 			case <-ticker.C:
 				p.acquireJob(ctx)
 			}
 		}
 	}()
+}
+
+func (p *Server) client() (proto.DRPCProvisionerDaemonClient, bool) {
+	rawClient := p.clientValue.Load()
+	if rawClient == nil {
+		return nil, false
+	}
+	client, ok := rawClient.(proto.DRPCProvisionerDaemonClient)
+	return client, ok
 }
 
 func (p *Server) isRunningJob() bool {
@@ -195,7 +212,11 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	var err error
-	job, err := p.client.AcquireJob(ctx, &proto.Empty{})
+	client, ok := p.client()
+	if !ok {
+		return
+	}
+	job, err := client.AcquireJob(ctx, &proto.Empty{})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return
@@ -231,7 +252,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-p.closed:
+			case <-p.closeContext.Done():
 				return
 			case <-ctx.Done():
 				return
@@ -241,9 +262,16 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 				return
 			case <-ticker.C:
 			}
-			resp, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+			client, ok := p.client()
+			if !ok {
+				continue
+			}
+			resp, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 			})
+			if errors.Is(err, yamux.ErrSessionShutdown) || errors.Is(err, io.EOF) {
+				continue
+			}
 			if err != nil {
 				p.failActiveJobf("send periodic update: %s", err)
 				return
@@ -297,7 +325,12 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		return
 	}
 
-	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+	client, ok := p.client()
+	if !ok {
+		p.failActiveJobf("client disconnected")
+		return
+	}
+	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -387,10 +420,14 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		return
 	}
 
+	client, ok = p.client()
+	if !ok {
+		return
+	}
 	// Ensure the job is still running to output.
 	// It's possible the job has failed.
 	if p.isRunningJob() {
-		_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: job.GetJobId(),
 			Logs: []*proto.Log{{
 				Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -409,7 +446,12 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 }
 
 func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) {
-	_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+	client, ok := p.client()
+	if !ok {
+		p.failActiveJobf("client disconnected")
+		return
+	}
+	_, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -429,7 +471,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		return
 	}
 
-	updateResponse, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+	updateResponse, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId:            job.JobId,
 		ParameterSchemas: parameterSchemas,
 	})
@@ -450,7 +492,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		}
 	}
 
-	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -471,7 +513,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		p.failActiveJobf("template import provision for start: %s", err)
 		return
 	}
-	_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -493,7 +535,7 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 		return
 	}
 
-	_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
+	p.completeJob(&proto.CompletedJob{
 		JobId: job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
 			TemplateImport: &proto.CompletedJob_TemplateImport{
@@ -502,14 +544,14 @@ func (p *Server) runTemplateImport(ctx, shutdown context.Context, provisioner sd
 			},
 		},
 	})
-	if err != nil {
-		p.failActiveJobf("complete job: %s", err)
-		return
-	}
 }
 
 // Parses parameter schemas from source.
 func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkproto.DRPCProvisionerClient, job *proto.AcquiredJob) ([]*sdkproto.ParameterSchema, error) {
+	client, ok := p.client()
+	if !ok {
+		return nil, xerrors.New("client disconnected")
+	}
 	stream, err := provisioner.Parse(ctx, &sdkproto.Parse_Request{
 		Directory: p.opts.WorkDirectory,
 	})
@@ -529,7 +571,7 @@ func (p *Server) runTemplateImportParse(ctx context.Context, provisioner sdkprot
 				slog.F("output", msgType.Log.Output),
 			)
 
-			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+			_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
@@ -599,8 +641,11 @@ func (p *Server) runTemplateImportProvision(ctx, shutdown context.Context, provi
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
-
-			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+			client, ok := p.client()
+			if !ok {
+				continue
+			}
+			_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
@@ -638,7 +683,12 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 		stage = "Destroying workspace"
 	}
 
-	_, err := p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+	client, ok := p.client()
+	if !ok {
+		p.failActiveJobf("client disconnected")
+		return
+	}
+	_, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
 		JobId: job.GetJobId(),
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
@@ -699,7 +749,7 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 				slog.F("workspace_build_id", job.GetWorkspaceBuild().WorkspaceBuildId),
 			)
 
-			_, err = p.client.UpdateJob(ctx, &proto.UpdateJobRequest{
+			_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
 				JobId: job.JobId,
 				Logs: []*proto.Log{{
 					Source:    proto.LogSource_PROVISIONER,
@@ -729,15 +779,7 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 				return
 			}
 
-			p.opts.Logger.Info(context.Background(), "provision successful; marking job as complete",
-				slog.F("resource_count", len(msgType.Complete.Resources)),
-				slog.F("resources", msgType.Complete.Resources),
-				slog.F("state_length", len(msgType.Complete.State)),
-			)
-
-			// Complete job may need to be async if we disconnected...
-			// When we reconnect we can flush any of these cached values.
-			_, err = p.client.CompleteJob(ctx, &proto.CompletedJob{
+			p.completeJob(&proto.CompletedJob{
 				JobId: job.JobId,
 				Type: &proto.CompletedJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
@@ -746,16 +788,37 @@ func (p *Server) runWorkspaceBuild(ctx, shutdown context.Context, provisioner sd
 					},
 				},
 			})
-			if err != nil {
-				p.failActiveJobf("complete job: %s", err)
-				return
-			}
-			// Return so we stop looping!
+			p.opts.Logger.Info(context.Background(), "provision successful; marked job as complete",
+				slog.F("resource_count", len(msgType.Complete.Resources)),
+				slog.F("resources", msgType.Complete.Resources),
+				slog.F("state_length", len(msgType.Complete.State)),
+			)
+			// Stop looping!
 			return
 		default:
 			p.failActiveJobf("invalid message type %T received from provisioner", msg.Type)
 			return
 		}
+	}
+}
+
+func (p *Server) completeJob(job *proto.CompletedJob) {
+	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(p.closeContext); {
+		client, ok := p.client()
+		if !ok {
+			continue
+		}
+		// Complete job may need to be async if we disconnected...
+		// When we reconnect we can flush any of these cached values.
+		_, err := client.CompleteJob(p.closeContext, job)
+		if xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) {
+			continue
+		}
+		if err != nil {
+			p.opts.Logger.Warn(p.closeContext, "failed to complete job", slog.Error(err))
+			return
+		}
+		break
 	}
 }
 
@@ -786,18 +849,31 @@ func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
 		slog.F("job_id", p.jobID),
 	)
 	failedJob.JobId = p.jobID
-	_, err := p.client.FailJob(context.Background(), failedJob)
-	if err != nil {
-		p.opts.Logger.Warn(context.Background(), "failed to notify of error; job is no longer running", slog.Error(err))
+	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(p.closeContext); {
+		client, ok := p.client()
+		if !ok {
+			continue
+		}
+		_, err := client.FailJob(p.closeContext, failedJob)
+		if xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) {
+			continue
+		}
+		if err != nil {
+			if p.isClosed() {
+				return
+			}
+			p.opts.Logger.Warn(context.Background(), "failed to notify of error; job is no longer running", slog.Error(err))
+			return
+		}
+		p.opts.Logger.Debug(context.Background(), "marked running job as failed")
 		return
 	}
-	p.opts.Logger.Debug(context.Background(), "marked running job as failed")
 }
 
 // isClosed returns whether the API is closed or not.
 func (p *Server) isClosed() bool {
 	select {
-	case <-p.closed:
+	case <-p.closeContext.Done():
 		return true
 	default:
 		return false
@@ -847,7 +923,6 @@ func (p *Server) closeWithError(err error) error {
 		return p.closeError
 	}
 	p.closeError = err
-	close(p.closed)
 
 	errMsg := "provisioner daemon was shutdown gracefully"
 	if err != nil {
