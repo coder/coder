@@ -104,11 +104,11 @@ export const usersMachine = createMachine(
         getUsersError: undefined,
       })),
       assignCreateUserError: assign({
-        createUserError: (_, event) => event.data
+        createUserError: (_, event) => event.data,
       }),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
-        createUserError: undefined
+        createUserError: undefined,
       })),
       displayCreateUserError: (_, event) => {
         displayError(Language.createUserError)

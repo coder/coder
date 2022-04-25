@@ -11,7 +11,7 @@ export const UsersPage: React.FC = () => {
   const { users, pager, getUsersError } = usersState.context
   const navigate = useNavigate()
 
-  /** 
+  /**
    * Fetch users on component mount
    */
   useEffect(() => {
