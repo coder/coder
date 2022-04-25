@@ -2686,7 +2686,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 FROM
 	workspaces
 WHERE
@@ -2703,6 +2703,7 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OwnerID,
+		&i.OrganizationID,
 		&i.TemplateID,
 		&i.Deleted,
 		&i.Name,
@@ -2712,9 +2713,9 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 	return i, err
 }
 
-const getWorkspaceByUserIDAndName = `-- name: GetWorkspaceByUserIDAndName :one
+const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 FROM
 	workspaces
 WHERE
@@ -2723,20 +2724,21 @@ WHERE
 	AND LOWER("name") = LOWER($3)
 `
 
-type GetWorkspaceByUserIDAndNameParams struct {
+type GetWorkspaceByOwnerIDAndNameParams struct {
 	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
 	Deleted bool      `db:"deleted" json:"deleted"`
 	Name    string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetWorkspaceByUserIDAndName(ctx context.Context, arg GetWorkspaceByUserIDAndNameParams) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceByUserIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OwnerID,
+		&i.OrganizationID,
 		&i.TemplateID,
 		&i.Deleted,
 		&i.Name,
@@ -2787,9 +2789,101 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 	return items, nil
 }
 
+const getWorkspacesByOrganizationID = `-- name: GetWorkspacesByOrganizationID :many
+SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule FROM workspaces WHERE organization_id = $1 AND deleted = $2
+`
+
+type GetWorkspacesByOrganizationIDParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Deleted        bool      `db:"deleted" json:"deleted"`
+}
+
+func (q *sqlQuerier) GetWorkspacesByOrganizationID(ctx context.Context, arg GetWorkspacesByOrganizationIDParams) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesByOrganizationID, arg.OrganizationID, arg.Deleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesByOwnerID = `-- name: GetWorkspacesByOwnerID :many
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+FROM
+	workspaces
+WHERE
+	owner_id = $1
+	AND deleted = $2
+`
+
+type GetWorkspacesByOwnerIDParams struct {
+	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+	Deleted bool      `db:"deleted" json:"deleted"`
+}
+
+func (q *sqlQuerier) GetWorkspacesByOwnerID(ctx context.Context, arg GetWorkspacesByOwnerIDParams) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesByOwnerID, arg.OwnerID, arg.Deleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspacesByTemplateID = `-- name: GetWorkspacesByTemplateID :many
 SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 FROM
 	workspaces
 WHERE
@@ -2816,54 +2910,7 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorks
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.OwnerID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.AutostopSchedule,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspacesByUserID = `-- name: GetWorkspacesByUserID :many
-SELECT
-	id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
-FROM
-	workspaces
-WHERE
-	owner_id = $1
-	AND deleted = $2
-`
-
-type GetWorkspacesByUserIDParams struct {
-	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
-	Deleted bool      `db:"deleted" json:"deleted"`
-}
-
-func (q *sqlQuerier) GetWorkspacesByUserID(ctx context.Context, arg GetWorkspacesByUserIDParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesByUserID, arg.OwnerID, arg.Deleted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Workspace
-	for rows.Next() {
-		var i Workspace
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
+			&i.OrganizationID,
 			&i.TemplateID,
 			&i.Deleted,
 			&i.Name,
@@ -2890,20 +2937,22 @@ INSERT INTO
 		created_at,
 		updated_at,
 		owner_id,
+		organization_id,
 		template_id,
 		name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, created_at, updated_at, owner_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
 `
 
 type InsertWorkspaceParams struct {
-	ID         uuid.UUID `db:"id" json:"id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	Name       string    `db:"name" json:"name"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+	Name           string    `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
@@ -2912,6 +2961,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.OwnerID,
+		arg.OrganizationID,
 		arg.TemplateID,
 		arg.Name,
 	)
@@ -2921,6 +2971,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OwnerID,
+		&i.OrganizationID,
 		&i.TemplateID,
 		&i.Deleted,
 		&i.Name,

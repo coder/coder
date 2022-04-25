@@ -327,7 +327,11 @@ func server() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+cliui.Styles.Bold.Render("Interrupt caught. Gracefully exiting..."))
 
 			if dev {
-				workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
+				organizations, err := client.OrganizationsByUser(cmd.Context(), codersdk.Me)
+				if err != nil {
+					return xerrors.Errorf("get organizations: %w", err)
+				}
+				workspaces, err := client.WorkspacesByOwner(cmd.Context(), organizations[0].ID, codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("get workspaces: %w", err)
 				}
