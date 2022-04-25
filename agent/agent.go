@@ -331,6 +331,10 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
+		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
+		if err != nil {
+			return xerrors.Errorf("resize ptty: %w", err)
+		}
 		go func() {
 			for win := range windowSize {
 				err = ptty.Resize(uint16(win.Height), uint16(win.Width))
