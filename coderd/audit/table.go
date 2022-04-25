@@ -27,9 +27,9 @@ const (
 	ActionSecret = "secret"
 )
 
-// Map is a map of struct names to a map of field names that indicate that
+// Table is a map of struct names to a map of field names that indicate that
 // field's AuditType.
-type Map map[string]map[string]Action
+type Table map[string]map[string]Action
 
 // AuditableResources contains a definitive list of all auditable resources and
 // which fields are auditable.
@@ -37,13 +37,10 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 	&database.User{}: {
 		"id":              ActionIgnore, // Never changes.
 		"email":           ActionTrack,  // A user can edit their email.
-		"name":            ActionTrack,  // A user can edit their name.
-		"revoked":         ActionTrack,  // An admin can revoke a user. This is different from deletion, which is implicit.
-		"login_type":      ActionTrack,  // An admin can update the login type of a user.
+		"username":        ActionIgnore, // A user cannot change their username.
 		"hashed_password": ActionSecret, // A user can change their own password.
 		"created_at":      ActionIgnore, // Never changes.
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"username":        ActionIgnore, // A user cannot change their username.
 	},
 	&database.Workspace{}: {
 		"id":                 ActionIgnore, // Never changes.
@@ -61,11 +58,11 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 // auditMap converts a map of struct pointers to a map of struct names as
 // strings. It's a convenience wrapper so that structs can be passed in by value
 // instead of manually typing struct names as strings.
-func auditMap(m map[any]map[string]Action) Map {
-	out := make(Map, len(m))
+func auditMap(m map[any]map[string]Action) Table {
+	out := make(Table, len(m))
 
 	for k, v := range m {
-		out[reflect.TypeOf(k).Elem().Name()] = v
+		out[structName(reflect.TypeOf(k).Elem())] = v
 	}
 
 	return out

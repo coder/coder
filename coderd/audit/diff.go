@@ -6,33 +6,38 @@ import (
 )
 
 // TODO: this might need to be in the database package.
-type DiffMap map[string]interface{}
+type Map map[string]interface{}
 
 func Empty[T Auditable]() T {
 	var t T
 	return t
 }
 
-// Diff compares two auditable resources and produces a map
-func Diff[T Auditable](left, right T) DiffMap {
+// Diff compares two auditable resources and produces a Map of the changed
+// values.
+func Diff[T Auditable](left, right T) Map {
 	// Values are equal, return an empty diff.
 	if reflect.DeepEqual(left, right) {
-		return DiffMap{}
+		return Map{}
 	}
 
 	return diffValues(left, right, AuditableResources)
 }
 
-func diffValues[T any](left, right T, table Map) DiffMap {
+func structName(t reflect.Type) string {
+	return t.PkgPath() + "." + t.Name()
+}
+
+func diffValues[T any](left, right T, table Table) Map {
 	var (
-		baseDiff = DiffMap{}
+		baseDiff = Map{}
 
 		leftV = reflect.ValueOf(left)
 
 		rightV = reflect.ValueOf(right)
 		rightT = reflect.TypeOf(right)
 
-		diffKey = table[rightT.Name()]
+		diffKey = table[structName(rightT)]
 	)
 
 	if diffKey == nil {

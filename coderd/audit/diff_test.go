@@ -18,24 +18,22 @@ func TestDiff(t *testing.T) {
 		runDiffTests(t, []diffTest[database.User]{
 			{
 				name: "LeftEmpty",
-				left: audit.Empty[database.User](), right: database.User{Name: "colin", Email: "colin@coder.com"},
-				exp: audit.DiffMap{
-					"name":  "colin",
+				left: audit.Empty[database.User](), right: database.User{Username: "colin", Email: "colin@coder.com"},
+				exp: audit.Map{
 					"email": "colin@coder.com",
 				},
 			},
 			{
 				name: "RightEmpty",
-				left: database.User{Name: "colin", Email: "colin@coder.com"}, right: audit.Empty[database.User](),
-				exp: audit.DiffMap{
-					"name":  "",
+				left: database.User{Username: "colin", Email: "colin@coder.com"}, right: audit.Empty[database.User](),
+				exp: audit.Map{
 					"email": "",
 				},
 			},
 			{
 				name: "NoChange",
 				left: audit.Empty[database.User](), right: audit.Empty[database.User](),
-				exp: audit.DiffMap{},
+				exp: audit.Map{},
 			},
 		})
 	})
@@ -44,7 +42,7 @@ func TestDiff(t *testing.T) {
 type diffTest[T audit.Auditable] struct {
 	name        string
 	left, right T
-	exp         audit.DiffMap
+	exp         audit.Map
 }
 
 func runDiffTests[T audit.Auditable](t *testing.T, tests []diffTest[T]) {

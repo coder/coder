@@ -29,7 +29,7 @@ func Test_diffValues(t *testing.T) {
 			{
 				name: "LeftEmpty",
 				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "bar", Baz: 10},
-				exp: DiffMap{
+				exp: Map{
 					"bar": "bar",
 					"baz": int64(10),
 				},
@@ -37,7 +37,7 @@ func Test_diffValues(t *testing.T) {
 			{
 				name: "RightEmpty",
 				left: foo{Bar: "Bar", Baz: 10}, right: foo{Bar: "", Baz: 0},
-				exp: DiffMap{
+				exp: Map{
 					"bar": "",
 					"baz": int64(0),
 				},
@@ -45,12 +45,12 @@ func Test_diffValues(t *testing.T) {
 			{
 				name: "NoChange",
 				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "", Baz: 0},
-				exp: DiffMap{},
+				exp: Map{},
 			},
 			{
 				name: "SingleFieldChange",
 				left: foo{Bar: "", Baz: 0}, right: foo{Bar: "Bar", Baz: 0},
-				exp: DiffMap{
+				exp: Map{
 					"bar": "Bar",
 				},
 			},
@@ -74,12 +74,12 @@ func Test_diffValues(t *testing.T) {
 			{
 				name: "LeftNil",
 				left: foo{Bar: nil}, right: foo{Bar: pointer.StringPtr("baz")},
-				exp: DiffMap{"bar": "baz"},
+				exp: Map{"bar": "baz"},
 			},
 			{
 				name: "RightNil",
 				left: foo{Bar: pointer.StringPtr("baz")}, right: foo{Bar: nil},
-				exp: DiffMap{"bar": ""},
+				exp: Map{"bar": ""},
 			},
 		})
 	})
@@ -108,8 +108,8 @@ func Test_diffValues(t *testing.T) {
 			{
 				name: "LeftEmpty",
 				left: foo{Bar: &bar{}}, right: foo{Bar: &bar{Baz: "baz"}},
-				exp: DiffMap{
-					"bar": DiffMap{
+				exp: Map{
+					"bar": Map{
 						"baz": "baz",
 					},
 				},
@@ -117,8 +117,8 @@ func Test_diffValues(t *testing.T) {
 			{
 				name: "RightEmpty",
 				left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: &bar{}},
-				exp: DiffMap{
-					"bar": DiffMap{
+				exp: Map{
+					"bar": Map{
 						"baz": "",
 					},
 				},
@@ -126,15 +126,15 @@ func Test_diffValues(t *testing.T) {
 			{
 				name: "LeftNil",
 				left: foo{Bar: nil}, right: foo{Bar: &bar{}},
-				exp: DiffMap{
-					"bar": DiffMap{},
+				exp: Map{
+					"bar": Map{},
 				},
 			},
 			{
 				name: "RightNil",
 				left: foo{Bar: &bar{Baz: "baz"}}, right: foo{Bar: nil},
-				exp: DiffMap{
-					"bar": DiffMap{
+				exp: Map{
+					"bar": Map{
 						"baz": "",
 					},
 				},
@@ -149,7 +149,7 @@ type diffTest struct {
 	exp         any
 }
 
-func runDiffTests(t *testing.T, table Map, tests []diffTest) {
+func runDiffTests(t *testing.T, table Table, tests []diffTest) {
 	t.Helper()
 
 	for _, test := range tests {
