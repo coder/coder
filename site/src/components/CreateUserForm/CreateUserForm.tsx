@@ -1,11 +1,12 @@
-import Button from "@material-ui/core/Button"
+import FormHelperText from "@material-ui/core/FormHelperText"
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { CreateUserRequest } from "../../api/typesGenerated"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
-import { LoadingButton } from "../LoadingButton/LoadingButton"
+import { FormFooter } from "../FormFooter/FormFooter"
+import { FullPageForm } from "../FullPageForm/FullPageForm"
 
 const Language = {
   emailLabel: "Email",
@@ -23,6 +24,8 @@ export interface CreateUserFormProps {
   onSubmit: (user: CreateUserRequest) => void
   onCancel: () => void
   formErrors?: FormikErrors<CreateUserRequest>
+  isLoading: boolean
+  error?: string
 }
 
 const validationSchema = Yup.object({
@@ -31,7 +34,7 @@ const validationSchema = Yup.object({
   username: Yup.string().required(),
 })
 
-export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel, formErrors }) => {
+export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel, formErrors, isLoading, error }) => {
   const form: FormikContextType<CreateUserRequest> = useFormik<CreateUserRequest>({
     initialValues: {
       email: "",
@@ -42,42 +45,39 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCanc
     onSubmit,
   })
   const getFieldHelpers = getFormHelpers<CreateUserRequest>(form, formErrors)
+  console.log(getFieldHelpers("email"))
 
   return (
-    <form onSubmit={form.handleSubmit}>
-      <TextField
-        {...getFieldHelpers("username")}
-        onChange={onChangeTrimmed(form)}
-        autoFocus
-        autoComplete="username"
-        fullWidth
-        label={Language.usernameLabel}
-        variant="outlined"
-      />
-      <TextField
-        {...getFieldHelpers("email")}
-        onChange={onChangeTrimmed(form)}
-        autoFocus
-        autoComplete="email"
-        fullWidth
-        label={Language.emailLabel}
-        variant="outlined"
-      />
-      <TextField
-        {...getFieldHelpers("password")}
-        autoComplete="current-password"
-        fullWidth
-        id="password"
-        label={Language.passwordLabel}
-        type="password"
-        variant="outlined"
-      />
-      <div>
-        <Button onClick={onCancel}>{Language.cancel}</Button>
-        <LoadingButton color="primary" type="submit" variant="contained">
-          {Language.createUser}
-        </LoadingButton>
-      </div>
-    </form>
+    <FullPageForm title="Create user" detail="" onCancel={onCancel}>
+      <form onSubmit={form.handleSubmit}>
+        <TextField
+          {...getFieldHelpers("username")}
+          onChange={onChangeTrimmed(form)}
+          autoComplete="username"
+          fullWidth
+          label={Language.usernameLabel}
+          variant="outlined"
+        />
+        <TextField
+          {...getFieldHelpers("email")}
+          onChange={onChangeTrimmed(form)}
+          autoComplete="email"
+          fullWidth
+          label={Language.emailLabel}
+          variant="outlined"
+        />
+        <TextField
+          {...getFieldHelpers("password")}
+          autoComplete="current-password"
+          fullWidth
+          id="password"
+          label={Language.passwordLabel}
+          type="password"
+          variant="outlined"
+        />
+        {error && <FormHelperText error>{error}</FormHelperText>}
+        <FormFooter onCancel={onCancel} isLoading={isLoading} />
+      </form>
+    </FullPageForm>
   )
 }

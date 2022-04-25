@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import React from "react"
 import { CreateUserForm, CreateUserFormProps } from "./CreateUserForm"
@@ -5,18 +6,38 @@ import { CreateUserForm, CreateUserFormProps } from "./CreateUserForm"
 export default {
   title: "components/CreateUserForm",
   component: CreateUserForm,
-  argTypes: {
-    isLoading: "boolean",
-    authErrorMessage: "string",
-    onSubmit: { action: "Submit" },
-  },
 }
 
 const Template: Story<CreateUserFormProps> = (args: CreateUserFormProps) => <CreateUserForm {...args} />
 
-export const Example = Template.bind({})
-Example.args = {
-  onSubmit: () => {
-    return Promise.resolve()
-  },
+export const Ready = Template.bind({})
+Ready.args = {
+  onCancel: action('cancel'),
+  onSubmit: action('submit'),
+  isLoading: false,
+}
+
+export const UnknownError = Template.bind({})
+UnknownError.args = {
+  onCancel: action('cancel'),
+  onSubmit: action('submit'),
+  isLoading: false,
+  error: "Something went wrong"
+}
+
+export const FormError = Template.bind({})
+FormError.args = {
+  onCancel: action('cancel'),
+  onSubmit: action('submit'),
+  isLoading: false,
+  formErrors: {
+    email: "Bad email address"
+  }
+}
+
+export const Loading = Template.bind({})
+Loading.args = {
+  onCancel: action('cancel'),
+  onSubmit: action('submit'),
+  isLoading: true,
 }
