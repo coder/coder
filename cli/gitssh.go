@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"net/url"
 	"os"
 	"os/exec"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
@@ -14,15 +16,20 @@ func gitssh() *cobra.Command {
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
 			cfg := createConfig(cmd)
+			rawURL, err := cfg.URL().Read()
+			if err != nil {
+				return xerrors.Errorf("read agent url from config: %w", err)
+			}
+			parsedURL, err := url.Parse(rawURL)
+			if err != nil {
+				return xerrors.Errorf("parse agent url from config: %w", err)
+			}
 			session, err := cfg.AgentSession().Read()
 			if err != nil {
 				return xerrors.Errorf("read agent session from config: %w", err)
 			}
+			client := codersdk.New(parsedURL)
 			client.SessionToken = session
 
 			key, err := client.AgentGitSSHKey(cmd.Context())
