@@ -1,7 +1,7 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
-import * as GenTypes from "../../api/typesGenerated"
+import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 
 const Language = {
@@ -16,7 +16,7 @@ export interface UsersContext {
   createUserError?: Error | unknown
 }
 
-export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: GenTypes.CreateUserRequest }
+export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: TypesGen.CreateUserRequest }
 
 export const usersMachine = createMachine(
   {
@@ -29,7 +29,7 @@ export const usersMachine = createMachine(
           data: Types.PagedUsers
         }
         createUser: {
-          data: GenTypes.User
+          data: TypesGen.User
         }
       },
     },
