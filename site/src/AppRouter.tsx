@@ -34,7 +34,14 @@ export const AppRouter: React.FC = () => (
 
       <Route path="login" element={<LoginPage />} />
       <Route path="healthz" element={<HealthzPage />} />
-      <Route path="cli-auth" element={<CliAuthenticationPage />} />
+      <Route
+        path="cli-auth"
+        element={
+          <RequireAuth>
+            <CliAuthenticationPage />
+          </RequireAuth>
+        }
+      />
 
       <Route path="templates">
         <Route
