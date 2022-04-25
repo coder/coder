@@ -166,7 +166,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	priorHistory, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
 	if err == nil {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.JobID)
-		if err == nil && !priorJob.CompletedAt.Valid {
+		if err == nil && convertProvisionerJob(priorJob).Status.Active() {
 			httpapi.Write(rw, http.StatusConflict, httpapi.Response{
 				Message: "a workspace build is already active",
 			})

@@ -46,13 +46,13 @@ export interface CreateParameterRequest {
   readonly source_value: string
 }
 
-// From codersdk/provisionerdaemons.go:37:6.
+// From codersdk/provisionerdaemons.go:46:6.
 export interface ProvisionerJob {
   readonly error: string
   readonly status: ProvisionerJobStatus
 }
 
-// From codersdk/provisionerdaemons.go:47:6.
+// From codersdk/provisionerdaemons.go:56:6.
 export interface ProvisionerJobLog {
   readonly stage: string
   readonly output: string
