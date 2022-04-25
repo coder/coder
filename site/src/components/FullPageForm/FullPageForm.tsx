@@ -5,7 +5,7 @@ import { FormTitle } from "../FormTitle/FormTitle"
 
 export interface FullPageFormProps {
   title: string
-  detail: React.ReactNode
+  detail?: React.ReactNode
   onCancel: () => void
 }
 
