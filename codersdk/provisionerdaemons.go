@@ -25,6 +25,15 @@ type ProvisionerDaemon database.ProvisionerDaemon
 // ProvisionerJobStaus represents the at-time state of a job.
 type ProvisionerJobStatus string
 
+// Active returns whether the job is still active or not.
+// It returns true if canceling as well, since the job isn't
+// in an entirely inactive state yet.
+func (p ProvisionerJobStatus) Active() bool {
+	return p == ProvisionerJobPending ||
+		p == ProvisionerJobRunning ||
+		p == ProvisionerJobCanceling
+}
+
 const (
 	ProvisionerJobPending   ProvisionerJobStatus = "pending"
 	ProvisionerJobRunning   ProvisionerJobStatus = "running"
