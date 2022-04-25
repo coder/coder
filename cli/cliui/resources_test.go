@@ -17,6 +17,7 @@ func TestWorkspaceResources(t *testing.T) {
 	t.Run("SingleAgentSSH", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
+		done := make(chan struct{})
 		go func() {
 			err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
 				Type:       "google_compute_instance",
@@ -32,14 +33,17 @@ func TestWorkspaceResources(t *testing.T) {
 				WorkspaceName: "example",
 			})
 			require.NoError(t, err)
+			close(done)
 		}()
 		ptty.ExpectMatch("coder ssh example")
+		<-done
 	})
 
 	t.Run("MultipleStates", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
 		disconnected := database.Now().Add(-4 * time.Second)
+		done := make(chan struct{})
 		go func() {
 			err := cliui.WorkspaceResources(ptty.Output(), []codersdk.WorkspaceResource{{
 				Transition: database.WorkspaceTransitionStart,
@@ -82,9 +86,11 @@ func TestWorkspaceResources(t *testing.T) {
 				HideAccess:     false,
 			})
 			require.NoError(t, err)
+			close(done)
 		}()
 		ptty.ExpectMatch("google_compute_disk.root")
 		ptty.ExpectMatch("google_compute_instance.dev")
 		ptty.ExpectMatch("coder ssh dev.postgres")
+		<-done
 	})
 }

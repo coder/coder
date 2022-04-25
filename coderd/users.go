@@ -152,7 +152,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new user.
-func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	var createUser codersdk.CreateUserRequest
