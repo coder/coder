@@ -12,12 +12,15 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -37,7 +40,7 @@ func TestAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("SessionExec", func(t *testing.T) {
 		t.Parallel()
-		session := setupSSHSession(t)
+		session := setupSSHSession(t, nil)
 
 		command := "echo test"
 		if runtime.GOOS == "windows" {
@@ -50,7 +53,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("GitSSH", func(t *testing.T) {
 		t.Parallel()
-		session := setupSSHSession(t)
+		session := setupSSHSession(t, nil)
 		command := "sh -c 'echo $GIT_SSH_COMMAND'"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
@@ -68,7 +71,7 @@ func TestAgent(t *testing.T) {
 			// it seems like it could be either.
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
-		session := setupSSHSession(t)
+		session := setupSSHSession(t, nil)
 		command := "bash"
 		if runtime.GOOS == "windows" {
 			command = "cmd.exe"
@@ -128,7 +131,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("SFTP", func(t *testing.T) {
 		t.Parallel()
-		sshClient, err := setupAgent(t).SSHClient()
+		sshClient, err := setupAgent(t, nil).SSHClient()
 		require.NoError(t, err)
 		client, err := sftp.NewClient(sshClient)
 		require.NoError(t, err)
@@ -140,10 +143,52 @@ func TestAgent(t *testing.T) {
 		_, err = os.Stat(tempFile)
 		require.NoError(t, err)
 	})
+
+	t.Run("EnvironmentVariables", func(t *testing.T) {
+		t.Parallel()
+		key := "EXAMPLE"
+		value := "value"
+		session := setupSSHSession(t, &agent.Options{
+			EnvironmentVariables: map[string]string{
+				key: value,
+			},
+		})
+		command := "sh -c 'echo $" + key + "'"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c echo %" + key + "%"
+		}
+		output, err := session.Output(command)
+		require.NoError(t, err)
+		require.Equal(t, value, strings.TrimSpace(string(output)))
+	})
+
+	t.Run("StartupScript", func(t *testing.T) {
+		t.Parallel()
+		tempPath := filepath.Join(os.TempDir(), "content.txt")
+		content := "somethingnice"
+		setupAgent(t, &agent.Options{
+			StartupScript: "echo " + content + " > " + tempPath,
+		})
+		var gotContent string
+		require.Eventually(t, func() bool {
+			content, err := os.ReadFile(tempPath)
+			if err != nil {
+				return false
+			}
+			if runtime.GOOS == "windows" {
+				// Windows uses UTF16! 🪟🪟🪟
+				content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
+				require.NoError(t, err)
+			}
+			gotContent = string(content)
+			return true
+		}, 15*time.Second, 100*time.Millisecond)
+		require.Equal(t, content, strings.TrimSpace(gotContent))
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
-	agentConn := setupAgent(t)
+	agentConn := setupAgent(t, nil)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	go func() {
@@ -171,18 +216,22 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	return exec.Command("ssh", args...)
 }
 
-func setupSSHSession(t *testing.T) *ssh.Session {
-	sshClient, err := setupAgent(t).SSHClient()
+func setupSSHSession(t *testing.T, options *agent.Options) *ssh.Session {
+	sshClient, err := setupAgent(t, options).SSHClient()
 	require.NoError(t, err)
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	return session
 }
 
-func setupAgent(t *testing.T) *agent.Conn {
+func setupAgent(t *testing.T, options *agent.Options) *agent.Conn {
+	if options == nil {
+		options = &agent.Options{}
+	}
 	client, server := provisionersdk.TransportPipe()
-	closer := agent.New(func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
-		return peerbroker.Listen(server, nil)
+	closer := agent.New(func(ctx context.Context, logger slog.Logger) (*agent.Options, *peerbroker.Listener, error) {
+		listener, err := peerbroker.Listen(server, nil)
+		return options, listener, err
 	}, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	t.Cleanup(func() {
 		_ = client.Close()

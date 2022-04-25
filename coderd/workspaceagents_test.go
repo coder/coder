@@ -102,6 +102,8 @@ func TestWorkspaceAgentListen(t *testing.T) {
 	})
 	_, err = conn.Ping()
 	require.NoError(t, err)
+	_, err = agentClient.WorkspaceAgent(context.Background(), codersdk.Me)
+	require.NoError(t, err)
 }
 
 func TestWorkspaceAgentTURN(t *testing.T) {
