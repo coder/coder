@@ -110,7 +110,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	google.golang.org/api v0.74.0
 	google.golang.org/protobuf v1.28.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.37.1
+	gopkg.in/DataDog/dd-trace-go.v1 v1.38.0
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
 )
