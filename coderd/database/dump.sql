@@ -14,9 +14,8 @@ CREATE TYPE log_source AS ENUM (
 );
 
 CREATE TYPE login_type AS ENUM (
-    'built-in',
-    'saml',
-    'oidc'
+    'password',
+    'github'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -67,18 +66,15 @@ CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
     user_id uuid NOT NULL,
-    application boolean NOT NULL,
-    name text NOT NULL,
     last_used timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     login_type login_type NOT NULL,
-    oidc_access_token text DEFAULT ''::text NOT NULL,
-    oidc_refresh_token text DEFAULT ''::text NOT NULL,
-    oidc_id_token text DEFAULT ''::text NOT NULL,
-    oidc_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    devurl_token boolean DEFAULT false NOT NULL
+    oauth_access_token text DEFAULT ''::text NOT NULL,
+    oauth_refresh_token text DEFAULT ''::text NOT NULL,
+    oauth_id_token text DEFAULT ''::text NOT NULL,
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE files (
@@ -222,13 +218,10 @@ CREATE TABLE templates (
 CREATE TABLE users (
     id uuid NOT NULL,
     email text NOT NULL,
-    name text NOT NULL,
-    revoked boolean NOT NULL,
-    login_type login_type NOT NULL,
+    username text DEFAULT ''::text NOT NULL,
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    username text DEFAULT ''::text NOT NULL
+    updated_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -347,9 +340,6 @@ ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agents
-    ADD CONSTRAINT workspace_agents_auth_token_key UNIQUE (auth_token);
-
-ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_builds
@@ -383,13 +373,11 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
-CREATE UNIQUE INDEX idx_workspaces_name_lower ON workspaces USING btree (lower((name)::text));
-
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, name) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
 
-CREATE UNIQUE INDEX workspaces_owner_id_name_idx ON workspaces USING btree (owner_id, name) WHERE (deleted = false);
+CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

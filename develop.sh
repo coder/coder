@@ -14,6 +14,6 @@ cd "${PROJECT_ROOT}"
 (
   trap 'kill 0' SIGINT
   CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
-  go run cmd/coder/main.go start --dev --skip-tunnel &
+  go run cmd/coder/main.go server --dev --skip-tunnel &
   wait
 )

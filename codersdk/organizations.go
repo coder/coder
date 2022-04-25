@@ -216,6 +216,7 @@ func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID, userID u
 	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
+// WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
 func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, organization, owner uuid.UUID, name string) (Workspace, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s/%s", organization, uuidOrMe(owner), name), nil)
 	if err != nil {

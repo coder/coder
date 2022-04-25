@@ -2,6 +2,7 @@ import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
 import { MockPager, MockUser, MockUser2 } from "../testHelpers/entities"
 import * as Types from "./types"
+import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
@@ -62,6 +63,11 @@ export const logout = async (): Promise<void> => {
 
 export const getUser = async (): Promise<Types.UserResponse> => {
   const response = await axios.get<Types.UserResponse>("/api/v2/users/me")
+  return response.data
+}
+
+export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
+  const response = await axios.get<TypesGen.AuthMethods>("/api/v2/users/authmethods")
   return response.data
 }
 

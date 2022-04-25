@@ -207,8 +207,6 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 				tmp = append(tmp, users[i])
 			} else if strings.Contains(user.Username, params.Search) {
 				tmp = append(tmp, users[i])
-			} else if strings.Contains(user.Name, params.Search) {
-				tmp = append(tmp, users[i])
 			}
 		}
 		users = tmp
@@ -452,6 +450,16 @@ func (q *fakeQuerier) GetWorkspacesByOwnerID(_ context.Context, req database.Get
 		return nil, sql.ErrNoRows
 	}
 	return workspaces, nil
+}
+
+func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if len(q.organizations) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return q.organizations, nil
 }
 
 func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
@@ -876,21 +884,18 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 
 	//nolint:gosimple
 	key := database.APIKey{
-		ID:               arg.ID,
-		HashedSecret:     arg.HashedSecret,
-		UserID:           arg.UserID,
-		Application:      arg.Application,
-		Name:             arg.Name,
-		LastUsed:         arg.LastUsed,
-		ExpiresAt:        arg.ExpiresAt,
-		CreatedAt:        arg.CreatedAt,
-		UpdatedAt:        arg.UpdatedAt,
-		LoginType:        arg.LoginType,
-		OIDCAccessToken:  arg.OIDCAccessToken,
-		OIDCRefreshToken: arg.OIDCRefreshToken,
-		OIDCIDToken:      arg.OIDCIDToken,
-		OIDCExpiry:       arg.OIDCExpiry,
-		DevurlToken:      arg.DevurlToken,
+		ID:                arg.ID,
+		HashedSecret:      arg.HashedSecret,
+		UserID:            arg.UserID,
+		ExpiresAt:         arg.ExpiresAt,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		LastUsed:          arg.LastUsed,
+		LoginType:         arg.LoginType,
+		OAuthAccessToken:  arg.OAuthAccessToken,
+		OAuthRefreshToken: arg.OAuthRefreshToken,
+		OAuthIDToken:      arg.OAuthIDToken,
+		OAuthExpiry:       arg.OAuthExpiry,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
@@ -1129,8 +1134,6 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	user := database.User{
 		ID:             arg.ID,
 		Email:          arg.Email,
-		Name:           arg.Name,
-		LoginType:      arg.LoginType,
 		HashedPassword: arg.HashedPassword,
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
@@ -1148,7 +1151,6 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		if user.ID != arg.ID {
 			continue
 		}
-		user.Name = arg.Name
 		user.Email = arg.Email
 		user.Username = arg.Username
 		q.users[index] = user
@@ -1206,9 +1208,9 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		}
 		apiKey.LastUsed = arg.LastUsed
 		apiKey.ExpiresAt = arg.ExpiresAt
-		apiKey.OIDCAccessToken = arg.OIDCAccessToken
-		apiKey.OIDCRefreshToken = arg.OIDCRefreshToken
-		apiKey.OIDCExpiry = arg.OIDCExpiry
+		apiKey.OAuthAccessToken = arg.OAuthAccessToken
+		apiKey.OAuthRefreshToken = arg.OAuthRefreshToken
+		apiKey.OAuthExpiry = arg.OAuthExpiry
 		q.apiKeys[index] = apiKey
 		return nil
 	}

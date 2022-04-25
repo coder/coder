@@ -34,7 +34,6 @@ type User struct {
 	Email     string    `json:"email" validate:"required"`
 	CreatedAt time.Time `json:"created_at" validate:"required"`
 	Username  string    `json:"username" validate:"required"`
-	Name      string    `json:"name"`
 }
 
 type CreateFirstUserRequest struct {
@@ -58,9 +57,8 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserProfileRequest struct {
-	Email    string  `json:"email" validate:"required,email"`
-	Username string  `json:"username" validate:"required,username"`
-	Name     *string `json:"name"`
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,username"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -81,6 +79,12 @@ type GenerateAPIKeyResponse struct {
 
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
+}
+
+// AuthMethods contains whether authentication types are enabled or not.
+type AuthMethods struct {
+	Password bool `json:"password"`
+	Github   bool `json:"github"`
 }
 
 // HasFirstUser returns whether the first user has been created.
@@ -272,6 +276,22 @@ func (c *Client) CreateOrganization(ctx context.Context, userID uuid.UUID, req C
 
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
+}
+
+// AuthMethods returns types of authentication available to the user.
+func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/users/authmethods", nil)
+	if err != nil {
+		return AuthMethods{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AuthMethods{}, readBodyAsError(res)
+	}
+
+	var userAuth AuthMethods
+	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
 
 // uuidOrMe returns the provided uuid as a string if it's valid, ortherwise

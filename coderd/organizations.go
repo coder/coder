@@ -395,16 +395,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Ensure the workspace is part of the organization!
-	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template: %s", err),
-		})
-		return
-	}
-
-	if template.OrganizationID != organization.ID {
+	if workspace.OrganizationID != organization.ID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("workspace is not owned by organization %q", organization.Name),
 		})
@@ -422,6 +413,13 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template: %s", err),
 		})
 		return
 	}

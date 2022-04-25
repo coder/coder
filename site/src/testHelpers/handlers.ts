@@ -42,6 +42,9 @@ export const handlers = [
   rest.get("/api/v2/users/me/keys", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAPIKey))
   }),
+  rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockAuthMethods))
+  }),
 
   // workspaces
   rest.get("/api/v2/workspaces/:workspaceId", async (req, res, ctx) => {
