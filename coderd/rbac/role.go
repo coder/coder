@@ -2,6 +2,7 @@ package rbac
 
 import "fmt"
 
+// Permission is the format passed into the rego.
 type Permission struct {
 	// Negate makes this a negative permission
 	Negate       bool   `json:"negate"`
@@ -57,7 +58,7 @@ var (
 
 func RoleOrgDenyAll(orgID string) Role {
 	return Role{
-		Name: "org-deny-" + orgID,
+		Name: RoleName("org-deny", orgID),
 		Org: map[string][]Permission{
 			orgID: {
 				{
@@ -75,7 +76,7 @@ func RoleOrgDenyAll(orgID string) Role {
 // organization scope.
 func RoleOrgAdmin(orgID string) Role {
 	return Role{
-		Name: "org-admin-" + orgID,
+		Name: RoleName("org-admin:", orgID)
 		Org: map[string][]Permission{
 			orgID: {
 				{
@@ -93,7 +94,7 @@ func RoleOrgAdmin(orgID string) Role {
 // organization scope.
 func RoleOrgMember(orgID string) Role {
 	return Role{
-		Name: "org-member-" + orgID,
+		Name: RoleName("org-member:" , orgID),
 		Org: map[string][]Permission{
 			orgID: {},
 		},
