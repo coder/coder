@@ -9,6 +9,7 @@ import {
   Workspace,
   WorkspaceAutostartRequest,
 } from "../api/types"
+import { AuthMethods } from "../api/typesGenerated"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
@@ -96,4 +97,9 @@ export const MockUserAgent: UserAgent = {
   device: "Other",
   ip_address: "11.22.33.44",
   os: "Windows 10",
+}
+
+export const MockAuthMethods: AuthMethods = {
+  password: true,
+  github: false,
 }

@@ -16,6 +16,7 @@ export interface GitSSHKey {
 
 // From codersdk/gitsshkey.go:21:6.
 export interface AgentGitSSHKey {
+  readonly public_key: string
   readonly private_key: string
 }
 
@@ -46,13 +47,13 @@ export interface CreateParameterRequest {
   readonly source_value: string
 }
 
-// From codersdk/provisionerdaemons.go:37:6.
+// From codersdk/provisionerdaemons.go:46:6.
 export interface ProvisionerJob {
   readonly error: string
   readonly status: ProvisionerJobStatus
 }
 
-// From codersdk/provisionerdaemons.go:47:6.
+// From codersdk/provisionerdaemons.go:56:6.
 export interface ProvisionerJobLog {
   readonly stage: string
   readonly output: string
@@ -71,13 +72,19 @@ export interface TemplateVersion {
 }
 
 // From codersdk/users.go:17:6.
+export interface UsersRequest {
+  readonly search: string
+  readonly limit: number
+  readonly offset: number
+}
+
+// From codersdk/users.go:32:6.
 export interface User {
   readonly email: string
   readonly username: string
-  readonly name: string
 }
 
-// From codersdk/users.go:25:6.
+// From codersdk/users.go:39:6.
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -85,44 +92,49 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:38:6.
+// From codersdk/users.go:52:6.
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
 }
 
-// From codersdk/users.go:45:6.
+// From codersdk/users.go:59:6.
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
-  readonly name?: string
 }
 
-// From codersdk/users.go:52:6.
+// From codersdk/users.go:65:6.
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:58:6.
+// From codersdk/users.go:71:6.
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
-// From codersdk/users.go:63:6.
+// From codersdk/users.go:76:6.
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
-// From codersdk/users.go:67:6.
+// From codersdk/users.go:80:6.
 export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/users.go:72:6.
+// From codersdk/users.go:85:6.
 export interface CreateWorkspaceRequest {
   readonly name: string
+}
+
+// From codersdk/users.go:94:6.
+export interface AuthMethods {
+  readonly password: boolean
+  readonly github: boolean
 }
 
 // From codersdk/workspaceagents.go:31:6.

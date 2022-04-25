@@ -18,8 +18,12 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
+	"github.com/google/go-github/v43/github"
 	"github.com/pion/turn/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
+	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -43,7 +47,8 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func start() *cobra.Command {
+// nolint:gocyclo
+func server() *cobra.Command {
 	var (
 		accessURL   string
 		address     string
@@ -51,23 +56,28 @@ func start() *cobra.Command {
 		dev         bool
 		postgresURL string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
-		provisionerDaemonCount uint8
-		tlsCertFile            string
-		tlsClientCAFile        string
-		tlsClientAuth          string
-		tlsEnable              bool
-		tlsKeyFile             string
-		tlsMinVersion          string
-		turnRelayAddress       string
-		skipTunnel             bool
-		traceDatadog           bool
-		secureAuthCookie       bool
-		sshKeygenAlgorithmRaw  string
-		spooky                 bool
+		provisionerDaemonCount           uint8
+		oauth2GithubClientID             string
+		oauth2GithubClientSecret         string
+		oauth2GithubAllowedOrganizations []string
+		oauth2GithubAllowSignups         bool
+		tlsCertFile                      string
+		tlsClientCAFile                  string
+		tlsClientAuth                    string
+		tlsEnable                        bool
+		tlsKeyFile                       string
+		tlsMinVersion                    string
+		turnRelayAddress                 string
+		skipTunnel                       bool
+		stunServers                      []string
+		traceDatadog                     bool
+		secureAuthCookie                 bool
+		sshKeygenAlgorithmRaw            string
+		spooky                           bool
 	)
 
 	root := &cobra.Command{
-		Use: "start",
+		Use: "server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			if traceDatadog {
@@ -169,8 +179,15 @@ func start() *cobra.Command {
 				return xerrors.Errorf("create turn server: %w", err)
 			}
 
+			iceServers := make([]webrtc.ICEServer, 0)
+			for _, stunServer := range stunServers {
+				iceServers = append(iceServers, webrtc.ICEServer{
+					URLs: []string{stunServer},
+				})
+			}
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
+				ICEServers:           iceServers,
 				Logger:               logger.Named("coderd"),
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
@@ -178,6 +195,13 @@ func start() *cobra.Command {
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 				TURNServer:           turnServer,
+			}
+
+			if oauth2GithubClientSecret != "" {
+				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed, oauth2GithubClientID, oauth2GithubClientSecret, oauth2GithubAllowSignups, oauth2GithubAllowedOrganizations)
+				if err != nil {
+					return xerrors.Errorf("configure github oauth2: %w", err)
+				}
 			}
 
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "access-url: %s\n", accessURL)
@@ -373,6 +397,14 @@ func start() *cobra.Command {
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
+	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
+		"Specifies a client ID to use for oauth2 with GitHub.")
+	cliflag.StringVarP(root.Flags(), &oauth2GithubClientSecret, "oauth2-github-client-secret", "", "CODER_OAUTH2_GITHUB_CLIENT_SECRET", "",
+		"Specifies a client secret to use for oauth2 with GitHub.")
+	cliflag.StringArrayVarP(root.Flags(), &oauth2GithubAllowedOrganizations, "oauth2-github-allowed-orgs", "", "CODER_OAUTH2_GITHUB_ALLOWED_ORGS", nil,
+		"Specifies organizations the user must be a member of to authenticate with GitHub.")
+	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
+		"Specifies whether new users can sign up with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
 	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
@@ -389,6 +421,9 @@ func start() *cobra.Command {
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &skipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
 	_ = root.Flags().MarkHidden("skip-tunnel")
+	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
+		"stun:stun.l.google.com:19302",
+	}, "Specify URLs for STUN servers to enable P2P connections.")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
 		"Specifies the address to bind TURN connections.")
@@ -570,6 +605,42 @@ func configureTLS(listener net.Listener, tlsMinVersion, tlsClientAuth, tlsCertFi
 	}
 
 	return tls.NewListener(listener, tlsConfig), nil
+}
+
+func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups bool, allowOrgs []string) (*coderd.GithubOAuth2Config, error) {
+	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
+	if err != nil {
+		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
+	}
+	return &coderd.GithubOAuth2Config{
+		OAuth2Config: &oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Endpoint:     xgithub.Endpoint,
+			RedirectURL:  redirectURL.String(),
+			Scopes: []string{
+				"read:user",
+				"read:org",
+				"user:email",
+			},
+		},
+		AllowSignups:       allowSignups,
+		AllowOrganizations: allowOrgs,
+		AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+			user, _, err := github.NewClient(client).Users.Get(ctx, "")
+			return user, err
+		},
+		ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+			emails, _, err := github.NewClient(client).Users.ListEmails(ctx, &github.ListOptions{})
+			return emails, err
+		},
+		ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+			memberships, _, err := github.NewClient(client).Organizations.ListOrgMemberships(ctx, &github.ListOrgMembershipsOptions{
+				State: "active",
+			})
+			return memberships, err
+		},
+	}, nil
 }
 
 type datadogLogger struct {

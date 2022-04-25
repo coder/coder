@@ -20,12 +20,6 @@ import (
 // AuthCookie represents the name of the cookie the API key is stored in.
 const AuthCookie = "session_token"
 
-// OAuth2Config contains a subset of functions exposed from oauth2.Config.
-// It is abstracted for simple testing.
-type OAuth2Config interface {
-	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
-}
-
 type apiKeyContextKey struct{}
 
 // APIKey returns the API key from the ExtractAPIKey handler.
@@ -37,10 +31,16 @@ func APIKey(r *http.Request) database.APIKey {
 	return apiKey
 }
 
+// OAuth2Configs is a collection of configurations for OAuth-based authentication.
+// This should be extended to support other authentication types in the future.
+type OAuth2Configs struct {
+	Github OAuth2Config
+}
+
 // ExtractAPIKey requires authentication using a valid API key.
 // It handles extending an API key if it comes close to expiry,
 // updating the last used time in the database.
-func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handler) http.Handler {
+func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(AuthCookie)
@@ -99,14 +99,24 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 			// Tracks if the API key has properties updated!
 			changed := false
 
-			if key.LoginType == database.LoginTypeOIDC {
-				// Check if the OIDC token is expired!
-				if key.OIDCExpiry.Before(now) && !key.OIDCExpiry.IsZero() {
+			if key.LoginType != database.LoginTypePassword {
+				// Check if the OAuth token is expired!
+				if key.OAuthExpiry.Before(now) && !key.OAuthExpiry.IsZero() {
+					var oauthConfig OAuth2Config
+					switch key.LoginType {
+					case database.LoginTypeGithub:
+						oauthConfig = oauth.Github
+					default:
+						httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+							Message: fmt.Sprintf("unexpected authentication type %q", key.LoginType),
+						})
+						return
+					}
 					// If it is, let's refresh it from the provided config!
 					token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
-						AccessToken:  key.OIDCAccessToken,
-						RefreshToken: key.OIDCRefreshToken,
-						Expiry:       key.OIDCExpiry,
+						AccessToken:  key.OAuthAccessToken,
+						RefreshToken: key.OAuthRefreshToken,
+						Expiry:       key.OAuthExpiry,
 					}).Token()
 					if err != nil {
 						httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
@@ -114,9 +124,9 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 						})
 						return
 					}
-					key.OIDCAccessToken = token.AccessToken
-					key.OIDCRefreshToken = token.RefreshToken
-					key.OIDCExpiry = token.Expiry
+					key.OAuthAccessToken = token.AccessToken
+					key.OAuthRefreshToken = token.RefreshToken
+					key.OAuthExpiry = token.Expiry
 					key.ExpiresAt = token.Expiry
 					changed = true
 				}
@@ -136,21 +146,20 @@ func ExtractAPIKey(db database.Store, oauthConfig OAuth2Config) func(http.Handle
 				changed = true
 			}
 			// Only update the ExpiresAt once an hour to prevent database spam.
-			// We extend the ExpiresAt to reduce reauthentication.
+			// We extend the ExpiresAt to reduce re-authentication.
 			apiKeyLifetime := 24 * time.Hour
 			if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
 				key.ExpiresAt = now.Add(apiKeyLifetime)
 				changed = true
 			}
-
 			if changed {
 				err := db.UpdateAPIKeyByID(r.Context(), database.UpdateAPIKeyByIDParams{
-					ID:               key.ID,
-					ExpiresAt:        key.ExpiresAt,
-					LastUsed:         key.LastUsed,
-					OIDCAccessToken:  key.OIDCAccessToken,
-					OIDCRefreshToken: key.OIDCRefreshToken,
-					OIDCExpiry:       key.OIDCExpiry,
+					ID:                key.ID,
+					LastUsed:          key.LastUsed,
+					ExpiresAt:         key.ExpiresAt,
+					OAuthAccessToken:  key.OAuthAccessToken,
+					OAuthRefreshToken: key.OAuthRefreshToken,
+					OAuthExpiry:       key.OAuthExpiry,
 				})
 				if err != nil {
 					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

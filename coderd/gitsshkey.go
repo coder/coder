@@ -105,6 +105,7 @@ func (api *api) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusOK, codersdk.AgentGitSSHKey{
+		PublicKey:  gitSSHKey.PublicKey,
 		PrivateKey: gitSSHKey.PrivateKey,
 	})
 }

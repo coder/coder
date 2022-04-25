@@ -2,7 +2,7 @@ import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
 import { MockPager, MockUser, MockUser2 } from "../testHelpers/entities"
 import * as Types from "./types"
-import * as GenTypes from "./typesGenerated"
+import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
@@ -66,6 +66,11 @@ export const getUser = async (): Promise<Types.UserResponse> => {
   return response.data
 }
 
+export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
+  const response = await axios.get<TypesGen.AuthMethods>("/api/v2/users/authmethods")
+  return response.data
+}
+
 export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
   const response = await axios.post<Types.APIKeyResponse>("/api/v2/users/me/keys")
   return response.data
@@ -80,8 +85,8 @@ export const getUsers = async (): Promise<Types.PagedUsers> => {
   })
 }
 
-export const createUser = async (user: GenTypes.CreateUserRequest): Promise<GenTypes.User> => {
-  const response = await axios.post<GenTypes.User>("/api/v2/users/", user)
+export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
+  const response = await axios.post<TypesGen.User>("/api/v2/users/", user)
   return response.data
 }
 

@@ -71,7 +71,7 @@ func workspaceList() *cobra.Command {
 					workspace.Outdated,
 				})
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), tableWriter.Render())
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())
 			return err
 		},
 	}

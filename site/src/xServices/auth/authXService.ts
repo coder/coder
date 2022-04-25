@@ -1,16 +1,20 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   successProfileUpdate: "Updated preferences.",
 }
+
 export interface AuthContext {
   getUserError?: Error | unknown
+  getMethodsError?: Error | unknown
   authError?: Error | unknown
   updateProfileError?: Error | unknown
   me?: Types.UserResponse
+  methods?: TypesGen.AuthMethods
 }
 
 export type AuthEvent =
@@ -19,10 +23,17 @@ export type AuthEvent =
   | { type: "UPDATE_PROFILE"; data: Types.UpdateProfileRequest }
 
 export const authMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogCMABgCcAFkLyZAVilS5GgEwAOAMwA2ADQgAnogDsa5YcOXD2y7oWH92-QF9PptFlz4RKQUJORQDOS0ECJEoQBufADWQWTkEWL8gsKiSBKI7kraqpZSuh7aUvpy6vqmFghlcoT6qgb6GsUlctrevhg4eATEqaHhkWAAThN8E4Q8ADb4AGYzALbDFOm5mSRCImKSCLKKynJqGlpSekZ1iIaltvaOzq4FvSB+A4GEMOhCYQBVWCTKIxQjxJJEX4AWTAGQEu2yB0QrikhG0Mn0+l0ulUWJkhlatXMKKqynkCn0lOscnsUnenwCQ1+-ygQJBk2mswWyzWPzA6Fh8Ky+1yh202iacip2I8hjU9m0twQ1lUzSk9hkHlUCjU2kMDP6TJSFEgETm0yWJHmsQgNtoAIACgARACCABUAKJsR0AJSoADEGAAZT3CxGi0CHGTKmSG-yDE2UCDmniW61EVA8CD4UaO9P26KUcHkBLJQiMxMbZOpguZ7O5sL5vhWm0ICEAY1zIgA2jIALrhvY5KPSKSWNWKWQeaUKSXj5UY3SEUrdKqExy08fxr5DYI18gWlsZwhZnOs5utsC0TkzOaLdArCbrSvffdmw9p48208Ni919tSz4Lthz7QdtgRYdkQaLRCF0SxtAUcdpQnRxdGVXV9EIKdFBkGRdDkSxFGKHdjWrD96GYdgqABd0hyRMVpCxdFaSxVQZEsIxx0sSxlUI9Eql1DUJQnRQ5FIqt91GGh0FBYsIXLfcZPoyM8gQdwsIQuRdEMSlSm1DxlR1Zc1AIhDdJwrwfA+I1JJGMIZJvKY7x5R8+SUjAVJHNSijVdwCIUdQriJfReJJBAihkZpLAUJDikigwJW8azyD4CA4DEV891SahPIgkVvMOdRDEINxqTUbFCW05UJywhQDFUNd2gxQxxOsrKk1GLZeEghjRyOfUoqkPEOOlQj2mVVrtDgjUEPYkpcT0CTvhZUZ2QmLzoLnZVdA1OCiS0TjcU0VRluy00U0-OtwTtIhUs9ZyNvyiNCrHHi4InPCFE4wktQwvbQtiloWu0jFLDOpMPyPK8bp-W8np6groI0d74PYmRvqMdilXC1wSvYxRYsIwbrHB9rbLfHLLuhk8SFuzbGKOYasLRr6fux5UZWi2KCclXarL6BNKYu2tv3rc88zrBn+pxTTGsqULp2xKRlRO0qCJnDdJXuMnBd3SHqa-K9pbUgBaRDlVNzjyTwjpOM+1QDXJoXzoPE3DlN+rLakVwba1dpvvYjQIeraS8sRl7oPcQgicQicihxGQfaM9jlFaWdSgJDR6Wd-X3cQZdY8DhPdCThRLY8dUOPsBwDE4wjdGSzwgA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogDsABgCshOQA4AzABY5ARgBMUgJxrtcgDQgAnok0zNSwkpkrNKvQDY3aqS6kBfb6bRYuPhEpBQk5FAM5LQQIkThAG58ANYhZORRYvyCwqJIEohyMlKE2mrFKo7aLq5SJuaILtq2mjZqrboy2s4+fiABOHgExOnhkdFgAE6TfJOEPAA2+ABmswC2IxSZ+dkkQiJikgiyCsrqWroGRqYWCHoq2oQyDpouXa1qGmq+-hiDwYQYOghBEAKqwKYxOKERIpIhAgCyYCyAj2uUOiF0mieTik3UqMhqSleN0QhgUOhUbzUKhk9jKch+-T+QWGQJBUHBkKmMzmixW60BYHQSJROQO+SOUmxVKUniUcjkUgVLjlpOOCqecj0LyKmmVeiUTIGrPhwo5SKwfAgsChlBh5CSqSFIuFmGt8B2qP2eVARxUeNKCo02k0cllTRc6qUalsCtU731DikvV+gSGZuBY0t7pttB5s3mS3Qq0mG0Rbo9YrREr9iHUMkIUnKHSklQVKnqtz0BkImjUbmeShcVmejL6Jozm0oECi8xmyxIC3iEGXtFBAAUACIAQQAKgBRNgbgBKVAAYgwADIH6s+jEIOV6Qgj1oxnTBkfq7qNlxyT4aC4saaPcVLGiyU6hDOc48AuS5EKgPAQPgYwbnBa6xPasLOpOAJQZAMHoQhSEoREaF8Iuy4ILCADGKEiAA2jIAC6d7opKiBPi+rRtB+-5fg0CDqM+YafG8+jWLI2jgemeHpAR5DzhR8GEIhyEcuRlFgPm0yFvyJaCrhwz4bOimwcpy6qSRGlEdRjp8HRPpMaxXrir6BSPvo3Fvu0zT8Zo6oDmoTb-p8cjaFcsjqDJ-zGfJpn0Mw7BUKCe5sbWHm6CU2jWKGnhaFSeLqv2jZKMOehOE49i0v+MWmtOYw0OgdrxPZzpQU16XuUcAC0-aPGGSgVQOTS4ko2jfjGhC0gB1WeDIBguHVkGjBETU6byRYCmW06da5NbdZiKalLl+p-k4XgTYJNhxuVNKGCB77fEy5DWnAYhGWkFDUBgXUPoqLiKOoxIqGVejNKoxXPCUMgjZ8zj6sORoThBclhBE2y8N67F1o+xIvhoejavqEX-gFgl6IGFWOC2bzWNqy0AuyYxcpMf0cQghjqn+JT6GJeJynIqrI2msWZhalY2uzuN9dojwpn+epDvqHjRkUL7KBDEljiLzKyXF32mUpWkwquRCvQeuls-t94c606s8c0A5C00UjqqDja5cUXQRXiDiMwb0FmURpuWQW1tY25D7242jsxn+bi6IFhh2K4qjKP+fsqAHX1B8bKkkGb0seR0gNx87idu4JtIwzoxTdELzbheOov1SZhEWcR6moURxdHCOgPhsBoNDRDKju84hCfHS4ZAXPqg59OCn58ufeFODQPD2DY-FUqGsASmdShgvKP67nClrwgQu2EPIPb2V4+CVNf7w5TOphs22en2LDVrb9Ns4w8j1coU8iafDKJVWQagDDqmOsOKBVhXDgweNJb+ppL59TcH2ZQw1E5jSurcYK8CHCODfE0B4vRfBAA */
   createMachine(
     {
-      context: { me: undefined, getUserError: undefined, authError: undefined, updateProfileError: undefined },
+      context: {
+        me: undefined,
+        getUserError: undefined,
+        authError: undefined,
+        updateProfileError: undefined,
+        methods: undefined,
+        getMethodsError: undefined,
+      },
       tsTypes: {} as import("./authXService.typegen").Typegen0,
       schema: {
         context: {} as AuthContext,
@@ -30,6 +41,9 @@ export const authMachine =
         services: {} as {
           getMe: {
             data: Types.UserResponse
+          }
+          getMethods: {
+            data: TypesGen.AuthMethods
           }
           signIn: {
             data: Types.LoginResponse
@@ -81,6 +95,25 @@ export const authMachine =
             onError: [
               {
                 actions: "assignGetUserError",
+                target: "gettingMethods",
+              },
+            ],
+          },
+          tags: "loading",
+        },
+        gettingMethods: {
+          invoke: {
+            src: "getMethods",
+            id: "getMethods",
+            onDone: [
+              {
+                actions: ["assignMethods", "clearGetMethodsError"],
+                target: "signedOut",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignGetMethodsError",
                 target: "signedOut",
               },
             ],
@@ -139,7 +172,7 @@ export const authMachine =
             onDone: [
               {
                 actions: ["unassignMe", "clearAuthError"],
-                target: "signedOut",
+                target: "gettingMethods",
               },
             ],
             onError: [
@@ -160,6 +193,7 @@ export const authMachine =
         },
         signOut: API.logout,
         getMe: API.getUser,
+        getMethods: API.getAuthMethods,
         updateProfile: async (context, event) => {
           if (!context.me) {
             throw new Error("No current user found")
@@ -175,6 +209,16 @@ export const authMachine =
         unassignMe: assign((context: AuthContext) => ({
           ...context,
           me: undefined,
+        })),
+        assignMethods: assign({
+          methods: (_, event) => event.data,
+        }),
+        assignGetMethodsError: assign({
+          getMethodsError: (_, event) => event.data,
+        }),
+        clearGetMethodsError: assign((context: AuthContext) => ({
+          ...context,
+          getMethodsError: undefined,
         })),
         assignGetUserError: assign({
           getUserError: (_, event) => event.data,
