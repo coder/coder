@@ -74,16 +74,15 @@ Some pages are coming soon. Contributions welcome!
   - [Why Coder](about.md#why-coder)
   - [What Coder is not](about.md#what-coder-is-not)
 - [Templates](./templates.md)
-  - [Managing templates](./templates.md#managing-templates)
-  - [Persistant and ephemeral resources](./templates.md#persistant-and-ephemeral-resources)
+  - [Manage templates](./templates.md#manage-templates)
+  - [Persistent and ephemeral resources](./templates.md#persistent-and-ephemeral-resources)
   - [Variables](./templates.md#variables)
 - [Workspaces](./workspaces.md)
-  - [Managing workspaces](./workspaces.md)
+  - [Create workspaces](./workspaces.md#create-workspaces)
+  - [Connect with SSH](./workspaces.md#connect-with-ssh)
   - [Editors and IDEs](./workspaces.md#editors-and-ides)
-- Guides
-  - Using the Coder CLI
-  - Install Coder on a VM with Caddy + LetsEncrypt
-  - Building templates in Coder
+  - [Workspace lifecycle](./workspaces.md#workspace-lifecycle)
+  - [Updating workspaces](./workspaces.md#updating-workspaces)
 
 ## Contributing
 
