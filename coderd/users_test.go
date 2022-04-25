@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"testing"
 
 	"github.com/google/uuid"
@@ -576,6 +577,13 @@ func TestPaginatedUsers(t *testing.T) {
 		}
 	}
 
+	// Sorting the users will sort by (created_at, uuid). This is to handle
+	// the off case that created_at is identical for 2 users.
+	// This is a really rare case in production, but does happen in unit tests
+	// due to the fake database being in memory and exceptionally quick.
+	sortUsers(allUsers)
+	sortUsers(specialUsers)
+
 	assertPagination(ctx, t, client, 10, allUsers, nil)
 	assertPagination(ctx, t, client, 5, allUsers, nil)
 	assertPagination(ctx, t, client, 3, allUsers, nil)
@@ -657,4 +665,14 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		require.Equal(t, allUsers[count-limit:count], prevPage, "prev users")
 		count += len(page)
 	}
+}
+
+// sortUsers sorts by (created_at, id)
+func sortUsers(users []codersdk.User) {
+	sort.Slice(users, func(i, j int) bool {
+		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
+			return users[i].ID.String() < users[j].ID.String()
+		}
+		return users[i].CreatedAt.Before(users[j].CreatedAt)
+	})
 }
