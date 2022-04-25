@@ -98,7 +98,7 @@ Read the [contributing docs](./CONTRIBUTING.md).
 
 # Contributors
 
-<!--- Add your row by date, most recent date at end of list --->
+<!--- Add your row by date (mm/dd/yyyy), most recent date at end of list --->
 
 | Name          | Start Date | First PR Date |Organization|                GitHub User Link |
 | ------------- | :--------: | :-----------: |:----------:| ------------------------------: |
