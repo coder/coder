@@ -210,12 +210,15 @@ func TestProvisionerd(t *testing.T) {
 			didAcquireJob atomic.Bool
 			didDryRun     atomic.Bool
 		)
+		var complete sync.Once
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if didAcquireJob.Load() {
-						close(completeChan)
+						complete.Do(func() {
+							close(completeChan)
+						})
 						return &proto.AcquiredJob{}, nil
 					}
 					didAcquireJob.Store(true)
