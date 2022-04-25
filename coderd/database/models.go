@@ -372,12 +372,13 @@ type TemplateVersion struct {
 }
 
 type User struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	Email          string    `db:"email" json:"email"`
-	Username       string    `db:"username" json:"username"`
-	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID    `db:"id" json:"id"`
+	Email          string       `db:"email" json:"email"`
+	Username       string       `db:"username" json:"username"`
+	HashedPassword []byte       `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time    `db:"updated_at" json:"updated_at"`
+	Suspended      sql.NullBool `db:"suspended" json:"suspended"`
 }
 
 type Workspace struct {

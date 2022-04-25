@@ -1,0 +1,2 @@
+ALTER TABLE ONLY users
+    ADD COLUMN IF NOT EXISTS suspended boolean DEFAULT FALSE;
