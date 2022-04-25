@@ -339,9 +339,6 @@ ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agents
-    ADD CONSTRAINT workspace_agents_auth_token_key UNIQUE (auth_token);
-
-ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_builds
