@@ -69,7 +69,7 @@ export const usersMachine = createMachine(
           src: "createUser",
           id: "createUser",
           onDone: {
-            target: "gettingUsers",
+            target: "idle",
             actions: "displayCreateUserSuccess",
           },
           onError: {
