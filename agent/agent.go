@@ -33,12 +33,14 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type Options struct {
-	EnvironmentVariables map[string]string
-	StartupScript        string
+type Metadata struct {
+	OwnerEmail           string            `json:"owner_email"`
+	OwnerUsername        string            `json:"owner_username"`
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	StartupScript        string            `json:"startup_script"`
 }
 
-type Dialer func(ctx context.Context, logger slog.Logger) (*Options, *peerbroker.Listener, error)
+type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
 
 func New(dialer Dialer, logger slog.Logger) io.Closer {
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -62,14 +64,16 @@ type agent struct {
 	closed        chan struct{}
 
 	// Environment variables sent by Coder to inject for shell sessions.
-	// This is atomic because values can change after reconnect.
+	// These are atomic because values can change after reconnect.
 	envVars       atomic.Value
+	ownerEmail    atomic.String
+	ownerUsername atomic.String
 	startupScript atomic.Bool
 	sshServer     *ssh.Server
 }
 
 func (a *agent) run(ctx context.Context) {
-	var options *Options
+	var options Metadata
 	var peerListener *peerbroker.Listener
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
@@ -95,6 +99,8 @@ func (a *agent) run(ctx context.Context) {
 	default:
 	}
 	a.envVars.Store(options.EnvironmentVariables)
+	a.ownerEmail.Store(options.OwnerEmail)
+	a.ownerUsername.Store(options.OwnerUsername)
 
 	if a.startupScript.CAS(false, true) {
 		// The startup script has not ran yet!
@@ -303,8 +309,20 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	}
 	cmd := exec.CommandContext(session.Context(), shell, caller, command)
 	cmd.Env = append(os.Environ(), session.Environ()...)
+	executablePath, err := os.Executable()
+	if err != nil {
+		return xerrors.Errorf("getting os executable: %w", err)
+	}
+	// Git on Windows resolves with UNIX-style paths.
+	// If using backslashes, it's unable to find the executable.
+	executablePath = strings.ReplaceAll(executablePath, "\\", "/")
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
+	// These prevent the user from having to specify _anything_ to successfully commit.
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_EMAIL=%s`, a.ownerEmail.Load()))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_NAME=%s`, a.ownerUsername.Load()))
 
 	// Load environment variables passed via the agent.
+	// These should override all variables we manually specify.
 	envVars := a.envVars.Load()
 	if envVars != nil {
 		envVarMap, ok := envVars.(map[string]string)
@@ -314,15 +332,6 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 			}
 		}
 	}
-
-	executablePath, err := os.Executable()
-	if err != nil {
-		return xerrors.Errorf("getting os executable: %w", err)
-	}
-	// Git on Windows resolves with UNIX-style paths.
-	// If using backslashes, it's unable to find the executable.
-	executablePath = strings.ReplaceAll(executablePath, "\\", "/")
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
