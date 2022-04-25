@@ -99,6 +99,9 @@ func configSSH() *cobra.Command {
 								"\tHostName coder."+hostname,
 								"\tConnectTimeout=0",
 								"\tStrictHostKeyChecking=no",
+								// Without this, the "REMOTE HOST IDENTITY CHANGED"
+								// message will appear.
+								"\tUserKnownHostsFile=/dev/null",
 							)
 							if !skipProxyCommand {
 								configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))

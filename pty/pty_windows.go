@@ -82,7 +82,11 @@ func (p *ptyWindows) Input() io.ReadWriter {
 }
 
 func (p *ptyWindows) Resize(cols uint16, rows uint16) error {
-	ret, _, err := procResizePseudoConsole.Call(uintptr(p.console), uintptr(cols)+(uintptr(rows)<<16))
+	// Taken from: https://github.com/microsoft/hcsshim/blob/54a5ad86808d761e3e396aff3e2022840f39f9a8/internal/winapi/zsyscall_windows.go#L144
+	ret, _, err := procResizePseudoConsole.Call(uintptr(p.console), uintptr(*((*uint32)(unsafe.Pointer(&windows.Coord{
+		X: int16(rows),
+		Y: int16(cols),
+	})))))
 	if ret != 0 {
 		return err
 	}

@@ -37,30 +37,53 @@ const form = {
 
 describe("form util functions", () => {
   describe("getFormHelpers", () => {
-    const untouchedGoodResult = getFormHelpers<TestType>(form, "untouchedGoodField")
-    const untouchedBadResult = getFormHelpers<TestType>(form, "untouchedBadField")
-    const touchedGoodResult = getFormHelpers<TestType>(form, "touchedGoodField")
-    const touchedBadResult = getFormHelpers<TestType>(form, "touchedBadField")
-    it("populates the 'field props'", () => {
-      expect(untouchedGoodResult.name).toEqual("untouchedGoodField")
-      expect(untouchedGoodResult.onBlur).toBeDefined()
-      expect(untouchedGoodResult.onChange).toBeDefined()
-      expect(untouchedGoodResult.value).toBeDefined()
+    describe("without API errors", () => {
+      const getFieldHelpers = getFormHelpers<TestType>(form)
+      const untouchedGoodResult = getFieldHelpers("untouchedGoodField")
+      const untouchedBadResult = getFieldHelpers("untouchedBadField")
+      const touchedGoodResult = getFieldHelpers("touchedGoodField")
+      const touchedBadResult = getFieldHelpers("touchedBadField")
+      it("populates the 'field props'", () => {
+        expect(untouchedGoodResult.name).toEqual("untouchedGoodField")
+        expect(untouchedGoodResult.onBlur).toBeDefined()
+        expect(untouchedGoodResult.onChange).toBeDefined()
+        expect(untouchedGoodResult.value).toBeDefined()
+      })
+      it("sets the id to the name", () => {
+        expect(untouchedGoodResult.id).toEqual("untouchedGoodField")
+      })
+      it("sets error to true if touched and invalid", () => {
+        expect(untouchedGoodResult.error).toBeFalsy
+        expect(untouchedBadResult.error).toBeFalsy
+        expect(touchedGoodResult.error).toBeFalsy
+        expect(touchedBadResult.error).toBeTruthy
+      })
+      it("sets helperText to the error message if touched and invalid", () => {
+        expect(untouchedGoodResult.helperText).toBeUndefined
+        expect(untouchedBadResult.helperText).toBeUndefined
+        expect(touchedGoodResult.helperText).toBeUndefined
+        expect(touchedBadResult.helperText).toEqual("oops!")
+      })
     })
-    it("sets the id to the name", () => {
-      expect(untouchedGoodResult.id).toEqual("untouchedGoodField")
-    })
-    it("sets error to true if touched and invalid", () => {
-      expect(untouchedGoodResult.error).toBeFalsy
-      expect(untouchedBadResult.error).toBeFalsy
-      expect(touchedGoodResult.error).toBeFalsy
-      expect(touchedBadResult.error).toBeTruthy
-    })
-    it("sets helperText to the error message if touched and invalid", () => {
-      expect(untouchedGoodResult.helperText).toBeUndefined
-      expect(untouchedBadResult.helperText).toBeUndefined
-      expect(touchedGoodResult.helperText).toBeUndefined
-      expect(touchedBadResult.helperText).toEqual("oops!")
+    describe("with API errors", () => {
+      it("shows an error if there is only an API error", () => {
+        const getFieldHelpers = getFormHelpers<TestType>(form, { touchedGoodField: "API error!" })
+        const result = getFieldHelpers("touchedGoodField")
+        expect(result.error).toBeTruthy
+        expect(result.helperText).toEqual("API error!")
+      })
+      it("shows an error if there is only a validation error", () => {
+        const getFieldHelpers = getFormHelpers<TestType>(form, {})
+        const result = getFieldHelpers("touchedBadField")
+        expect(result.error).toBeTruthy
+        expect(result.helperText).toEqual("oops!")
+      })
+      it("shows the API error if both are present", () => {
+        const getFieldHelpers = getFormHelpers<TestType>(form, { touchedBadField: "API error!" })
+        const result = getFieldHelpers("touchedBadField")
+        expect(result.error).toBeTruthy
+        expect(result.helperText).toEqual("API error!")
+      })
     })
   })
 

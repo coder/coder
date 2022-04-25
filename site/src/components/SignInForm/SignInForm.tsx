@@ -76,13 +76,14 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     validationSchema,
     onSubmit,
   })
+  const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(form)
 
   return (
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
         <TextField
-          {...getFormHelpers<BuiltInAuthFormValues>(form, "email")}
+          {...getFieldHelpers("email")}
           onChange={onChangeTrimmed(form)}
           autoFocus
           autoComplete="email"
@@ -93,7 +94,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
           variant="outlined"
         />
         <TextField
-          {...getFormHelpers<BuiltInAuthFormValues>(form, "password")}
+          {...getFieldHelpers("password")}
           autoComplete="current-password"
           className={styles.loginTextField}
           fullWidth
