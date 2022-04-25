@@ -43,6 +43,10 @@ Coder includes [production-ready templates](./examples) for use on Kubernetes, A
 
 - Coder is not SaaS/fully-managed. Install Coder on your cloud (AWS, GCP, Azure) or datacenter.
 
+---
+
+Next: [Templates](./templates.md)
+
 [^1]: alexellis.io: [The Internet is my computer](https://blog.alexellis.io/the-internet-is-my-computer/)
 
 [^2]: slack.engineering: [Development environments at Slack](https://slack.engineering/development-environments-at-slack)
