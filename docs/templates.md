@@ -1,6 +1,6 @@
 # Templates
 
-Coder admins manage *templates* to define the infrastructure behind workspaces. A Coder deployment can have templates for different workloads.
+Coder admins manage *templates* to define the infrastructure behind workspaces. A Coder deployment can have multiple templates for different workloads, such as "frontend development," "windows development," etc.
 
 ## Managing templates
 
@@ -40,3 +40,6 @@ Templates often contain *variables*. In Coder, there are two types of variables.
 
 **User variables** are set when a user creates a workspace. They are unique to each workspace, often personalization settings such as preferred region or workspace image.
 
+---
+
+Next: [Workspaces](./workspaces.md)

@@ -77,8 +77,9 @@ Some pages are coming soon. Contributions welcome!
   - [Managing templates](./templates.md#managing-templates)
   - [Persistant and ephemeral resources](./templates.md#persistant-and-ephemeral-resources)
   - [Variables](./templates.md#variables)
-- Workspaces
-- 
+- [Workspaces](./workspaces.md)
+  - [Managing workspaces](./workspaces.md)
+  - [Editors and IDEs](./workspaces.md#editors-and-ides)
 - Guides
   - Using the Coder CLI
   - Install Coder on a VM with Caddy + LetsEncrypt
