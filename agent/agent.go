@@ -333,7 +333,7 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		}
 		go func() {
 			for win := range windowSize {
-				err = ptty.Resize(uint16(win.Width), uint16(win.Height))
+				err = ptty.Resize(uint16(win.Height), uint16(win.Width))
 				if err != nil {
 					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
 				}

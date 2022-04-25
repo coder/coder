@@ -111,6 +111,15 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.templatesByOrganization)
 				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})
+			r.Route("/workspaces", func(r chi.Router) {
+				r.Post("/", api.postWorkspacesByOrganization)
+				r.Get("/", api.workspacesByOrganization)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Get("/{workspace}", api.workspaceByOwnerAndName)
+					r.Get("/", api.workspacesByOwner)
+				})
+			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -180,11 +189,6 @@ func New(options *Options) (http.Handler, func()) {
 						r.Post("/", api.postOrganizationsByUser)
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
-					})
-					r.Route("/workspaces", func(r chi.Router) {
-						r.Post("/", api.postWorkspacesByUser)
-						r.Get("/", api.workspacesByUser)
-						r.Get("/{workspacename}", api.workspaceByUserAndName)
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)

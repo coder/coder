@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 )
-
-const UserKey = "user"
 
 type userParamContextKey struct{}
 
@@ -26,9 +27,15 @@ func UserParam(r *http.Request) database.User {
 func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			userID, ok := parseUUID(rw, r, UserKey)
-			if !ok {
-				return
+			var userID uuid.UUID
+			if chi.URLParam(r, "user") == "me" {
+				userID = APIKey(r).UserID
+			} else {
+				var ok bool
+				userID, ok = parseUUID(rw, r, "user")
+				if !ok {
+					return
+				}
 			}
 
 			apiKey := APIKey(r)

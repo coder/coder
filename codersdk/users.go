@@ -81,15 +81,6 @@ type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }
 
-// CreateWorkspaceRequest provides options for creating a new workspace.
-type CreateWorkspaceRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required"`
-	Name       string    `json:"name" validate:"username,required"`
-	// ParameterValues allows for additional parameters to be provided
-	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
-}
-
 // AuthMethods contains whether authentication types are enabled or not.
 type AuthMethods struct {
 	Password bool `json:"password"`
@@ -285,53 +276,6 @@ func (c *Client) CreateOrganization(ctx context.Context, userID uuid.UUID, req C
 
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
-}
-
-// CreateWorkspace creates a new workspace for the template specified.
-func (c *Client) CreateWorkspace(ctx context.Context, userID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), request)
-	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, readBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
-}
-
-// WorkspacesByUser returns all workspaces the specified user has access to.
-func (c *Client) WorkspacesByUser(ctx context.Context, userID uuid.UUID) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
-
-func (c *Client) WorkspaceByName(ctx context.Context, userID uuid.UUID, name string) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces/%s", uuidOrMe(userID), name), nil)
-	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return Workspace{}, readBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
 // AuthMethods returns types of authentication available to the user.

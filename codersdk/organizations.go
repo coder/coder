@@ -48,6 +48,15 @@ type CreateTemplateRequest struct {
 	ParameterValues []CreateParameterRequest `json:"parameter_values"`
 }
 
+// CreateWorkspaceRequest provides options for creating a new workspace.
+type CreateWorkspaceRequest struct {
+	TemplateID uuid.UUID `json:"template_id" validate:"required"`
+	Name       string    `json:"name" validate:"username,required"`
+	// ParameterValues allows for additional parameters to be provided
+	// during the initial provision.
+	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+}
+
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s", id.String()), nil)
 	if err != nil {
@@ -157,4 +166,68 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 
 	var template Template
 	return template, json.NewDecoder(res.Body).Decode(&template)
+}
+
+// CreateWorkspace creates a new workspace for the template specified.
+func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), request)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return Workspace{}, readBodyAsError(res)
+	}
+
+	var workspace Workspace
+	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// WorkspacesByOrganization returns all workspaces in the specified organization.
+func (c *Client) WorkspacesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var workspaces []Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}
+
+// WorkspacesByOwner returns all workspaces contained in the organization owned by the user.
+func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID, userID uuid.UUID) ([]Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s", organizationID, uuidOrMe(userID)), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var workspaces []Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}
+
+// WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, organization, owner uuid.UUID, name string) (Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s/%s", organization, uuidOrMe(owner), name), nil)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return Workspace{}, readBodyAsError(res)
+	}
+
+	var workspace Workspace
+	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }

@@ -43,7 +43,7 @@ fmt: fmt/prettier fmt/terraform
 gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto apitypings/generate
 .PHONY: gen
 
-install: bin
+install: build
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
 	cp -r ./dist/coder-$(GOOS)_$(GOOS)_$(GOARCH)*/* $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"

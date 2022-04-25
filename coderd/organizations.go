@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -321,6 +322,303 @@ func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	}
 
 	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
+}
+
+func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	workspaces, err := api.Database.GetWorkspacesByOrganizationID(r.Context(), database.GetWorkspacesByOrganizationIDParams{
+		OrganizationID: organization.ID,
+		Deleted:        false,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces: %s", err),
+		})
+		return
+	}
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspaces: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
+}
+
+func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
+	owner := httpmw.UserParam(r)
+	workspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
+		OwnerID: owner.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces: %s", err),
+		})
+		return
+	}
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspaces: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
+}
+
+func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
+	owner := httpmw.UserParam(r)
+	organization := httpmw.OrganizationParam(r)
+	workspaceName := chi.URLParam(r, "workspace")
+
+	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
+		OwnerID: owner.ID,
+		Name:    workspaceName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("no workspace found by name %q", workspaceName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace by name: %s", err),
+		})
+		return
+	}
+
+	if workspace.OrganizationID != organization.ID {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: fmt.Sprintf("workspace is not owned by organization %q", organization.Name),
+		})
+		return
+	}
+
+	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build: %s", err),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace,
+		convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
+}
+
+// Create a new workspace for the currently authenticated user.
+func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	var createWorkspace codersdk.CreateWorkspaceRequest
+	if !httpapi.Read(rw, r, &createWorkspace) {
+		return
+	}
+	apiKey := httpmw.APIKey(r)
+	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("template %q doesn't exist", createWorkspace.TemplateID.String()),
+			Errors: []httpapi.Error{{
+				Field:  "template_id",
+				Detail: "template not found",
+			}},
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template: %s", err),
+		})
+		return
+	}
+	organization := httpmw.OrganizationParam(r)
+	if organization.ID != template.OrganizationID {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: fmt.Sprintf("template is not in organization %q", organization.Name),
+		})
+		return
+	}
+	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
+		OrganizationID: template.OrganizationID,
+		UserID:         apiKey.UserID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "you aren't allowed to access templates in that organization",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization member: %s", err),
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
+		OwnerID: apiKey.UserID,
+		Name:    createWorkspace.Name,
+	})
+	if err == nil {
+		// If the workspace already exists, don't allow creation.
+		template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("find template for conflicting workspace name %q: %s", createWorkspace.Name, err),
+			})
+			return
+		}
+		// The template is fetched for clarity to the user on where the conflicting name may be.
+		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
+			Errors: []httpapi.Error{{
+				Field:  "name",
+				Detail: "this value is already in use and should be unique",
+			}},
+		})
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace by name: %s", err.Error()),
+		})
+		return
+	}
+
+	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), template.ActiveVersionID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template version: %s", err),
+		})
+		return
+	}
+	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template version job: %s", err),
+		})
+		return
+	}
+	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
+	switch templateVersionJobStatus {
+	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
+		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
+			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
+		})
+		return
+	case codersdk.ProvisionerJobFailed:
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: fmt.Sprintf("The provided template version %q has failed to import. You cannot create workspaces using it!", templateVersion.Name),
+		})
+		return
+	case codersdk.ProvisionerJobCanceled:
+		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
+			Message: "The provided template version was canceled during import. You cannot create workspaces using it!",
+		})
+		return
+	}
+
+	var provisionerJob database.ProvisionerJob
+	var workspaceBuild database.WorkspaceBuild
+	err = api.Database.InTx(func(db database.Store) error {
+		workspaceBuildID := uuid.New()
+		// Workspaces are created without any versions.
+		workspace, err = db.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
+			ID:             uuid.New(),
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			OwnerID:        apiKey.UserID,
+			OrganizationID: template.OrganizationID,
+			TemplateID:     template.ID,
+			Name:           createWorkspace.Name,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace: %w", err)
+		}
+		for _, parameterValue := range createWorkspace.ParameterValues {
+			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              parameterValue.Name,
+				CreatedAt:         database.Now(),
+				UpdatedAt:         database.Now(),
+				Scope:             database.ParameterScopeWorkspace,
+				ScopeID:           workspace.ID,
+				SourceScheme:      parameterValue.SourceScheme,
+				SourceValue:       parameterValue.SourceValue,
+				DestinationScheme: parameterValue.DestinationScheme,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert parameter value: %w", err)
+			}
+		}
+
+		input, err := json.Marshal(workspaceProvisionJob{
+			WorkspaceBuildID: workspaceBuildID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal provision job: %w", err)
+		}
+		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+			ID:             uuid.New(),
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			InitiatorID:    apiKey.UserID,
+			OrganizationID: template.OrganizationID,
+			Provisioner:    template.Provisioner,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod:  templateVersionJob.StorageMethod,
+			StorageSource:  templateVersionJob.StorageSource,
+			Input:          input,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
+		}
+		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
+			ID:                workspaceBuildID,
+			CreatedAt:         database.Now(),
+			UpdatedAt:         database.Now(),
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			Name:              namesgenerator.GetRandomName(1),
+			InitiatorID:       apiKey.UserID,
+			Transition:        database.WorkspaceTransitionStart,
+			JobID:             provisionerJob.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("create workspace: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace,
+		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template))
 }
 
 // convertOrganization consumes the database representation and outputs an API friendly representation.

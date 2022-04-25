@@ -263,7 +263,7 @@ func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (databas
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceByUserIDAndName(_ context.Context, arg database.GetWorkspaceByUserIDAndNameParams) (database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -412,7 +412,27 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetWorkspacesByUserIDParams) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesByOrganizationID(_ context.Context, req database.GetWorkspacesByOrganizationIDParams) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if workspace.OrganizationID != req.OrganizationID {
+			continue
+		}
+		if workspace.Deleted != req.Deleted {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	if len(workspaces) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaces, nil
+}
+
+func (q *fakeQuerier) GetWorkspacesByOwnerID(_ context.Context, req database.GetWorkspacesByOwnerIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1145,12 +1165,13 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 
 	//nolint:gosimple
 	workspace := database.Workspace{
-		ID:         arg.ID,
-		CreatedAt:  arg.CreatedAt,
-		UpdatedAt:  arg.UpdatedAt,
-		OwnerID:    arg.OwnerID,
-		TemplateID: arg.TemplateID,
-		Name:       arg.Name,
+		ID:             arg.ID,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		OwnerID:        arg.OwnerID,
+		OrganizationID: arg.OrganizationID,
+		TemplateID:     arg.TemplateID,
+		Name:           arg.Name,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil

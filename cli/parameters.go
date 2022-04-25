@@ -53,7 +53,7 @@ func parseScopeAndID(ctx context.Context, client *codersdk.Client, organization 
 		}
 		scopeID = user.ID
 	case codersdk.ParameterWorkspace:
-		workspace, err := client.WorkspaceByName(ctx, codersdk.Me, name)
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, organization.ID, codersdk.Me, name)
 		if err != nil {
 			return scope, uuid.Nil, err
 		}
