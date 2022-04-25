@@ -230,6 +230,9 @@ func (p *Server) acquireJob(ctx context.Context) {
 	if job.JobId == "" {
 		return
 	}
+	if p.isClosed() {
+		return
+	}
 	ctx, p.jobCancel = context.WithCancel(ctx)
 	p.jobRunning = make(chan struct{})
 	p.jobFailed.Store(false)
