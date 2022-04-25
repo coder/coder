@@ -1,6 +1,6 @@
 import Button from "@material-ui/core/Button"
 import TextField from "@material-ui/core/TextField"
-import { FormikContextType, useFormik } from "formik"
+import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { CreateUserRequest } from "../../api/typesGenerated"
@@ -22,6 +22,7 @@ const Language = {
 export interface CreateUserFormProps {
   onSubmit: (user: CreateUserRequest) => void
   onCancel: () => void
+  formErrors?: FormikErrors<CreateUserRequest>
 }
 
 const validationSchema = Yup.object({
@@ -30,7 +31,7 @@ const validationSchema = Yup.object({
   username: Yup.string().required(),
 })
 
-export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel }) => {
+export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel, formErrors }) => {
   const form: FormikContextType<CreateUserRequest> = useFormik<CreateUserRequest>({
     initialValues: {
       email: "",
@@ -40,11 +41,12 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCanc
     validationSchema,
     onSubmit,
   })
+  const getFieldHelpers = getFormHelpers<CreateUserRequest>(form, formErrors)
 
   return (
     <form onSubmit={form.handleSubmit}>
       <TextField
-        {...getFormHelpers<CreateUserRequest>(form, "username")}
+        {...getFieldHelpers("username")}
         onChange={onChangeTrimmed(form)}
         autoFocus
         autoComplete="username"
@@ -53,7 +55,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCanc
         variant="outlined"
       />
       <TextField
-        {...getFormHelpers<CreateUserRequest>(form, "email")}
+        {...getFieldHelpers("email")}
         onChange={onChangeTrimmed(form)}
         autoFocus
         autoComplete="email"
@@ -62,7 +64,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCanc
         variant="outlined"
       />
       <TextField
-        {...getFormHelpers<CreateUserRequest>(form, "password")}
+        {...getFieldHelpers("password")}
         autoComplete="current-password"
         fullWidth
         id="password"

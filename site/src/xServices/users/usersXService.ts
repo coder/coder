@@ -70,11 +70,11 @@ export const usersMachine = createMachine(
           id: "createUser",
           onDone: {
             target: "idle",
-            actions: "displayCreateUserSuccess",
+            actions: ["displayCreateUserSuccess", "clearCreateUserError"],
           },
           onError: {
             target: "idle",
-            actions: "displayCreateUserError",
+            actions: ["assignCreateUserError", "displayCreateUserError"],
           },
         },
         tags: "loading",
@@ -103,7 +103,14 @@ export const usersMachine = createMachine(
         ...context,
         getUsersError: undefined,
       })),
-      displayCreateUserError: () => {
+      assignCreateUserError: assign({
+        createUserError: (_, event) => event.data
+      }),
+      clearCreateUserError: assign((context: UsersContext) => ({
+        ...context,
+        createUserError: undefined
+      })),
+      displayCreateUserError: (_, event) => {
         displayError(Language.createUserError)
       },
       displayCreateUserSuccess: () => {
