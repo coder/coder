@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/user"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -318,6 +319,9 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	if err != nil {
 		return xerrors.Errorf("getting os executable: %w", err)
 	}
+	// Git on Windows resolves with UNIX-style paths.
+	// If using backslashes, it's unable to find the executable.
+	executablePath = strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
 
 	sshPty, windowSize, isPty := session.Pty()
