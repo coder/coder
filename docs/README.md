@@ -67,8 +67,6 @@ $ coder templates update gcp-linux
 
 ## Documentation
 
-Some pages are coming soon. Contributions welcome!
-
 - [About Coder](./about.md#about-coder)
   - [Why remote development](about.md#why-remote-development)
   - [Why Coder](about.md#why-coder)
