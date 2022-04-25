@@ -82,9 +82,10 @@ export interface UsersRequest {
 export interface User {
   readonly email: string
   readonly username: string
+  readonly suspended: boolean
 }
 
-// From codersdk/users.go:39:6.
+// From codersdk/users.go:40:6.
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -92,46 +93,46 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:52:6.
+// From codersdk/users.go:53:6.
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
 }
 
-// From codersdk/users.go:59:6.
+// From codersdk/users.go:60:6.
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
 }
 
-// From codersdk/users.go:65:6.
+// From codersdk/users.go:66:6.
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:71:6.
+// From codersdk/users.go:72:6.
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
-// From codersdk/users.go:76:6.
+// From codersdk/users.go:77:6.
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
-// From codersdk/users.go:80:6.
+// From codersdk/users.go:81:6.
 export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/users.go:85:6.
+// From codersdk/users.go:86:6.
 export interface CreateWorkspaceRequest {
   readonly name: string
 }
 
-// From codersdk/users.go:94:6.
+// From codersdk/users.go:95:6.
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean

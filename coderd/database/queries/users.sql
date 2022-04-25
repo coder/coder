@@ -91,11 +91,11 @@ LIMIT
 	-- A null limit means "no limit", so -1 means return all
 	NULLIF(@limit_opt :: int, -1);
 
--- name: UpdateUserSuspended :one
+-- name: UpdateUserStatus :one
 UPDATE
 	users
 SET
-	suspended = $2,
+	status = $2,
 	updated_at = $3
 WHERE
 	id = $1 RETURNING *;

@@ -208,6 +208,25 @@ func (e *ProvisionerType) Scan(src interface{}) error {
 	return nil
 }
 
+type UserStatusType string
+
+const (
+	UserStatusTypeActive    UserStatusType = "active"
+	UserStatusTypeSuspended UserStatusType = "suspended"
+)
+
+func (e *UserStatusType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserStatusType(s)
+	case string:
+		*e = UserStatusType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserStatusType: %T", src)
+	}
+	return nil
+}
+
 type WorkspaceTransition string
 
 const (
@@ -372,13 +391,13 @@ type TemplateVersion struct {
 }
 
 type User struct {
-	ID             uuid.UUID    `db:"id" json:"id"`
-	Email          string       `db:"email" json:"email"`
-	Username       string       `db:"username" json:"username"`
-	HashedPassword []byte       `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time    `db:"updated_at" json:"updated_at"`
-	Suspended      sql.NullBool `db:"suspended" json:"suspended"`
+	ID             uuid.UUID      `db:"id" json:"id"`
+	Email          string         `db:"email" json:"email"`
+	Username       string         `db:"username" json:"username"`
+	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+	Status         UserStatusType `db:"status" json:"status"`
 }
 
 type Workspace struct {

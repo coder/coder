@@ -274,29 +274,47 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		user := coderdtest.CreateFirstUser(t, client)
-		anotherUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-			Email:          "bruno@coder.com",
-			Username:       "bruno",
-			Password:       "password",
-			OrganizationID: user.OrganizationID,
+		me, _ := client.User(context.Background(), codersdk.Me)
+		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Username: me.Username,
+			Email:    "newemail@coder.com",
 		})
-		suspendedUser, err := client.SuspendUser(context.Background(), anotherUser.ID)
 		require.NoError(t, err)
-		require.Equal(t, suspendedUser.Suspended, true)
+		require.Equal(t, userProfile.Username, me.Username)
+		require.Equal(t, userProfile.Email, "newemail@coder.com")
 	})
 }
 
 func TestPutUserSuspend(t *testing.T) {
-	client := coderdtest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
-	userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-		Username: "newusername",
-		Email:    "newemail@coder.com",
+	t.Parallel()
+
+	t.Run("SuspendAnotherUser", func(t *testing.T) {
+		t.Skip()
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		me := coderdtest.CreateFirstUser(t, client)
+		client.User(context.Background(), codersdk.Me)
+		user, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "bruno@coder.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: me.OrganizationID,
+		})
+		user, err = client.SuspendUser(context.Background(), user.ID)
+		require.NoError(t, err)
+		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
 	})
-	require.NoError(t, err)
-	require.Equal(t, userProfile.Username, "newusername")
-	require.Equal(t, userProfile.Email, "newemail@coder.com")
+
+	t.Run("SuspendItSelf", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		client.User(context.Background(), codersdk.Me)
+		suspendedUser, err := client.SuspendUser(context.Background(), codersdk.Me)
+
+		require.NoError(t, err)
+		require.Equal(t, suspendedUser.Status, codersdk.UserStatusSuspended)
+	})
 }
 
 func TestUserByName(t *testing.T) {

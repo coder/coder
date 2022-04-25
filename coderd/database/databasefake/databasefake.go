@@ -1118,6 +1118,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
+		Status:         database.UserStatusTypeActive,
 	}
 	q.users = append(q.users, user)
 	return user, nil
@@ -1139,7 +1140,7 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserSuspended(_ context.Context, arg database.UpdateUserSuspendedParams) (database.User, error) {
+func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1147,7 +1148,7 @@ func (q *fakeQuerier) UpdateUserSuspended(_ context.Context, arg database.Update
 		if user.ID != arg.ID {
 			continue
 		}
-		user.Suspended = arg.Suspended
+		user.Status = arg.Status
 		user.UpdatedAt = arg.UpdatedAt
 		q.users[index] = user
 		return user, nil

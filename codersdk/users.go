@@ -28,13 +28,20 @@ type UsersRequest struct {
 	Offset int `json:"offset"`
 }
 
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
 // User represents a user in Coder.
 type User struct {
-	ID        uuid.UUID `json:"id" validate:"required"`
-	Email     string    `json:"email" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required"`
-	Username  string    `json:"username" validate:"required"`
-	Suspended bool      `json:"suspended"`
+	ID        uuid.UUID  `json:"id" validate:"required"`
+	Email     string     `json:"email" validate:"required"`
+	CreatedAt time.Time  `json:"created_at" validate:"required"`
+	Username  string     `json:"username" validate:"required"`
+	Status    UserStatus `json:"status"`
 }
 
 type CreateFirstUserRequest struct {

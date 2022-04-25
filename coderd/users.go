@@ -286,9 +286,9 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	suspendedUser, err := api.Database.UpdateUserSuspended(r.Context(), database.UpdateUserSuspendedParams{
+	suspendedUser, err := api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
 		ID:        user.ID,
-		Suspended: sql.NullBool{Bool: true},
+		Status:    database.UserStatusTypeSuspended,
 		UpdatedAt: database.Now(),
 	})
 
@@ -961,6 +961,7 @@ func convertUser(user database.User) codersdk.User {
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		Username:  user.Username,
+		Status:    codersdk.UserStatus(user.Status),
 	}
 }
 
