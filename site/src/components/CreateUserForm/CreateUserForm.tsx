@@ -48,7 +48,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCanc
   console.log(getFieldHelpers("email"))
 
   return (
-    <FullPageForm title="Create user" detail="" onCancel={onCancel}>
+    <FullPageForm title="Create user" onCancel={onCancel}>
       <form onSubmit={form.handleSubmit}>
         <TextField
           {...getFieldHelpers("username")}
