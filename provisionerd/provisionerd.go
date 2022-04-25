@@ -247,6 +247,9 @@ func (p *Server) acquireJob(ctx context.Context) {
 func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	shutdown, shutdownCancel := context.WithCancel(ctx)
 	defer shutdownCancel()
+
+	complete, completeCancel := context.WithCancel(ctx)
+	defer completeCancel()
 	go func() {
 		ticker := time.NewTicker(p.opts.UpdateInterval)
 		defer ticker.Stop()
@@ -255,6 +258,8 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			case <-p.closeContext.Done():
 				return
 			case <-ctx.Done():
+				return
+			case <-complete.Done():
 				return
 			case <-p.shutdown:
 				p.opts.Logger.Info(ctx, "attempting graceful cancelation")
@@ -816,6 +821,7 @@ func (p *Server) completeJob(job *proto.CompletedJob) {
 		}
 		if err != nil {
 			p.opts.Logger.Warn(p.closeContext, "failed to complete job", slog.Error(err))
+			p.failActiveJobf(err.Error())
 			return
 		}
 		break
