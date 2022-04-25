@@ -16,6 +16,7 @@ export interface GitSSHKey {
 
 // From codersdk/gitsshkey.go:21:6.
 export interface AgentGitSSHKey {
+  readonly public_key: string
   readonly private_key: string
 }
 

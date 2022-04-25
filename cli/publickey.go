@@ -30,11 +30,11 @@ func publickey() *cobra.Command {
 					"Coder. All clones with SSH will be authenticated automatically 🪄.",
 			))
 			cmd.Println()
+			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey)))
+			cmd.Println()
 			cmd.Println("Add to GitHub and GitLab:")
 			cmd.Println(cliui.Styles.Prompt.String() + "https://github.com/settings/ssh/new")
 			cmd.Println(cliui.Styles.Prompt.String() + "https://gitlab.com/-/profile/keys")
-			cmd.Println()
-			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey)))
 
 			return nil
 		},
