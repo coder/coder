@@ -60,7 +60,7 @@
     "@types/react": "17.0.44",
     "@types/react-dom": "17.0.15",
     "@types/superagent": "4.1.15",
-    "@typescript-eslint/eslint-plugin": "5.19.0",
+    "@typescript-eslint/eslint-plugin": "5.21.0",
     "@typescript-eslint/parser": "5.19.0",
     "@xstate/cli": "0.1.6",
     "chromatic": "6.5.4",
