@@ -27,7 +27,7 @@ export const Footer: React.FC = ({ children }) => {
       </div>
       {buildInfoState.context.buildInfo && (
         <div className={styles.buildInfo}>
-          <Link variant="caption" href={buildInfoState.context.buildInfo.external_url}>
+          <Link variant="caption" target="_blank" href={buildInfoState.context.buildInfo.external_url}>
             {Language.buildInfoText(buildInfoState.context.buildInfo)}
           </Link>
         </div>
