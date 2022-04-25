@@ -501,6 +501,7 @@ func TestProvisionerd(t *testing.T) {
 
 	t.Run("ShutdownFromJob", func(t *testing.T) {
 		t.Parallel()
+		var completed sync.Once
 		var updated sync.Once
 		updateChan := make(chan struct{})
 		completeChan := make(chan struct{})
@@ -532,7 +533,9 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
-					close(completeChan)
+					completed.Do(func() {
+						close(completeChan)
+					})
 					return &proto.Empty{}, nil
 				},
 			}), nil
