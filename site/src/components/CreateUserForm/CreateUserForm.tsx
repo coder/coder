@@ -21,6 +21,7 @@ const Language = {
 
 export interface CreateUserFormProps {
   onSubmit: (user: CreateUserRequest) => void
+  onCancel: () => void
 }
 
 const validationSchema = Yup.object({
@@ -29,7 +30,7 @@ const validationSchema = Yup.object({
   username: Yup.string().required(),
 })
 
-export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit }) => {
+export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel }) => {
   const form: FormikContextType<CreateUserRequest> = useFormik<CreateUserRequest>({
     initialValues: {
       email: "",
@@ -70,10 +71,10 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit }) => {
         variant="outlined"
       />
       <div>
+        <Button onClick={onCancel}>{Language.cancel}</Button>
         <LoadingButton color="primary" type="submit" variant="contained">
           {Language.createUser}
         </LoadingButton>
-        <Button>{Language.cancel}</Button>
       </div>
     </form>
   )
