@@ -33,7 +33,7 @@ Coder includes [production-ready templates](../examples) for use on Kubernetes, 
 
 ## What Coder is not
 
-- Coder is an infrastructure as code (IaC) platform. Terraform is the first IaC *provisioner* in Coder. As a result, Coder admins can define any Terraform resources can as Coder workspaces. 
+- Coder is not an infrastructure as code (IaC) platform. Terraform is the first IaC *provisioner* in Coder. As a result, Coder admins can define any Terraform resources can as Coder workspaces. 
 
 - Coder is not a DevOps/CI platform. Coder workspaces can follow best practices for cloud workloads, but Coder is not responsible for how you define or deploy the software you write.
 

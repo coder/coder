@@ -40,7 +40,7 @@ Reference `coder start --help` for a complete list of flags and environment vari
 
 ### Your First Workspace
 
-In a new terminal, create a new template (eg. Develop in Linux on Google Cloud):
+In a new terminal, create a template (eg. Develop in Linux on Google Cloud):
 
 ```
 $ coder templates init

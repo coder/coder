@@ -23,7 +23,7 @@ If you are commonly editing templates, we recommend source-controlling template 
 
 ## Persistent and ephemeral resources
 
-Coder supports ephemeral and persistent resources in workspaces. Ephemeral resources are be destroyed when a workspace is not in use (stopped). persistent resources remain. See how this works for an example "frontend" template:
+Coder supports ephemeral and persistent resources in workspaces. Ephemeral resources are destroyed when a workspace is not in use (stopped). persistent resources remain. See how this works for an example "frontend" template:
 
 | Resource                     | Type       |
 | :--------------------------- | :--------- |
@@ -32,7 +32,7 @@ Coder supports ephemeral and persistent resources in workspaces. Ephemeral resou
 | └─ nodejs (linux, amd64)     |            |
 | api_token.backend            | ephemeral  |
 
-When a workspace is deleted, all related resources are destroyed.
+When a workspace is deleted, all resources are destroyed.
 
 ## Variables
 
