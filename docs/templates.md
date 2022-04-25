@@ -2,6 +2,8 @@
 
 Coder admins manage *templates* to define the infrastructure behind workspaces. A Coder deployment can have multiple templates for different workloads, such as "frontend development," "windows development," etc.
 
+Templates are shared and updates can be rolled out, or users can manually update their workspaces.
+
 ## Managing templates
 
 Coder provides production-ready template [examples](../examples/), but they can be modified with Terraform.
