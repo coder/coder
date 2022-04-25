@@ -375,13 +375,11 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username);
 
-CREATE UNIQUE INDEX idx_workspaces_name_lower ON workspaces USING btree (lower((name)::text));
-
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, name) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username));
 
-CREATE UNIQUE INDEX workspaces_owner_id_name_idx ON workspaces USING btree (owner_id, name) WHERE (deleted = false);
+CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
