@@ -20,6 +20,7 @@ import (
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/google/go-github/v43/github"
 	"github.com/pion/turn/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
@@ -46,6 +47,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+// nolint:gocyclo
 func server() *cobra.Command {
 	var (
 		accessURL   string
@@ -67,6 +69,7 @@ func server() *cobra.Command {
 		tlsMinVersion                    string
 		turnRelayAddress                 string
 		skipTunnel                       bool
+		stunServers                      []string
 		traceDatadog                     bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
@@ -176,8 +179,15 @@ func server() *cobra.Command {
 				return xerrors.Errorf("create turn server: %w", err)
 			}
 
+			iceServers := make([]webrtc.ICEServer, 0)
+			for _, stunServer := range stunServers {
+				iceServers = append(iceServers, webrtc.ICEServer{
+					URLs: []string{stunServer},
+				})
+			}
 			options := &coderd.Options{
 				AccessURL:            accessURLParsed,
+				ICEServers:           iceServers,
 				Logger:               logger.Named("coderd"),
 				Database:             databasefake.New(),
 				Pubsub:               database.NewPubsubInMemory(),
@@ -411,6 +421,9 @@ func server() *cobra.Command {
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
 	cliflag.BoolVarP(root.Flags(), &skipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
 	_ = root.Flags().MarkHidden("skip-tunnel")
+	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
+		"stun:stun.l.google.com:19302",
+	}, "Specify URLs for STUN servers to enable P2P connections.")
 	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
 		"Specifies the address to bind TURN connections.")
