@@ -1139,6 +1139,22 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateUserSuspended(_ context.Context, arg database.UpdateUserSuspendedParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.Suspended = arg.Suspended
+		user.UpdatedAt = arg.UpdatedAt
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
