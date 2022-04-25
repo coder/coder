@@ -4,7 +4,7 @@ Coder admins manage *templates* to define the infrastructure behind workspaces. 
 
 Templates are shared and updates can be rolled out, or users can manually update their workspaces.
 
-## Managing templates
+## Manage templates
 
 Coder provides production-ready template [examples](../examples/), but they can be modified with Terraform.
 
@@ -21,9 +21,9 @@ coder templates <create/update> <template-name>
 
 If you are commonly editing templates, we recommend source-controlling template code using GitOps/CI pipelines to make changes.
 
-## Persistant and ephemeral resources
+## Persistent and ephemeral resources
 
-Coder supports ephemeral and persistant resources in workspaces. Ephemeral resources are be destroyed when a workspace is not in use (stopped). Persistant resources remain. See how this works for an example "frontend" template:
+Coder supports ephemeral and persistent resources in workspaces. Ephemeral resources are be destroyed when a workspace is not in use (stopped). persistent resources remain. See how this works for an example "frontend" template:
 
 | Resource                     | Type       |
 | :--------------------------- | :--------- |
