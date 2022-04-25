@@ -39,8 +39,6 @@ func TestTemplateParam(t *testing.T) {
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             userID,
 			Email:          "testaccount@coder.com",
-			Name:           "example",
-			LoginType:      database.LoginTypePassword,
 			HashedPassword: hashed[:],
 			Username:       username,
 			CreatedAt:      database.Now(),

@@ -283,28 +283,6 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Equal(t, userProfile.Username, me.Username)
 		require.Equal(t, userProfile.Email, "newemail@coder.com")
 	})
-
-	t.Run("KeepUserName", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-		me, _ := client.User(context.Background(), codersdk.Me)
-		newName := "New Name"
-		firstProfile, _ := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: me.Username,
-			Email:    me.Email,
-			Name:     &newName,
-		})
-		t.Log(firstProfile)
-		userProfile, err := client.UpdateUserProfile(context.Background(), codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: "newusername",
-			Email:    "newemail@coder.com",
-		})
-		require.NoError(t, err)
-		require.Equal(t, userProfile.Username, "newusername")
-		require.Equal(t, userProfile.Email, "newemail@coder.com")
-		require.Equal(t, userProfile.Name, newName)
-	})
 }
 
 func TestUserByName(t *testing.T) {

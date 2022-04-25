@@ -218,13 +218,10 @@ CREATE TABLE templates (
 CREATE TABLE users (
     id uuid NOT NULL,
     email text NOT NULL,
-    name text NOT NULL,
-    revoked boolean NOT NULL,
-    login_type login_type NOT NULL,
+    username text DEFAULT ''::text NOT NULL,
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    username text DEFAULT ''::text NOT NULL
+    updated_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (

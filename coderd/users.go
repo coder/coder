@@ -233,11 +233,6 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
-
-	if params.Name == nil {
-		params.Name = &user.Name
-	}
-
 	existentUser, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
 		Email:    params.Email,
 		Username: params.Username,
@@ -273,7 +268,6 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 
 	updatedUserProfile, err := api.Database.UpdateUserProfile(r.Context(), database.UpdateUserProfileParams{
 		ID:        user.ID,
-		Name:      *params.Name,
 		Email:     params.Email,
 		Username:  params.Username,
 		UpdatedAt: database.Now(),
@@ -896,7 +890,6 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			ID:        uuid.New(),
 			Email:     req.Email,
 			Username:  req.Username,
-			LoginType: database.LoginTypePassword,
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 		}
@@ -949,7 +942,6 @@ func convertUser(user database.User) codersdk.User {
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		Username:  user.Username,
-		Name:      user.Name,
 	}
 }
 

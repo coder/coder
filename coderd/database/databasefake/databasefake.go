@@ -207,8 +207,6 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 				tmp = append(tmp, users[i])
 			} else if strings.Contains(user.Username, params.Search) {
 				tmp = append(tmp, users[i])
-			} else if strings.Contains(user.Name, params.Search) {
-				tmp = append(tmp, users[i])
 			}
 		}
 		users = tmp
@@ -1116,8 +1114,6 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	user := database.User{
 		ID:             arg.ID,
 		Email:          arg.Email,
-		Name:           arg.Name,
-		LoginType:      arg.LoginType,
 		HashedPassword: arg.HashedPassword,
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
@@ -1135,7 +1131,6 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		if user.ID != arg.ID {
 			continue
 		}
-		user.Name = arg.Name
 		user.Email = arg.Email
 		user.Username = arg.Username
 		q.users[index] = user

@@ -6,5 +6,6 @@ func users() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "users",
 	}
+	cmd.AddCommand(userCreate(), userList())
 	return cmd
 }
