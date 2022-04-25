@@ -8,12 +8,30 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/azureidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/mitchellh/mapstructure"
 )
+
+// Azure supports instance identity verification:
+// https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
+func (api *api) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
+	var req codersdk.AzureInstanceIdentityToken
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, api.AzureCertificates)
+	if err != nil {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: fmt.Sprintf("validate: %s", err),
+		})
+		return
+	}
+	api.handleAuthInstanceID(rw, r, instanceID)
+}
 
 // AWS supports instance identity verification:
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html

@@ -3,6 +3,7 @@ package databasefake
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"strings"
 	"sync"
 
@@ -164,11 +165,70 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return int64(len(q.users)), nil
 }
 
-func (q *fakeQuerier) GetUsers(_ context.Context) ([]database.User, error) {
+func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.users, nil
+	users := q.users
+	// Database orders by created_at
+	sort.Slice(users, func(i, j int) bool {
+		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
+			// Technically the postgres database also orders by uuid. So match
+			// that behavior
+			return users[i].ID.String() < users[j].ID.String()
+		}
+		return users[i].CreatedAt.Before(users[j].CreatedAt)
+	})
+
+	if params.AfterUser != uuid.Nil {
+		found := false
+		for i := range users {
+			if users[i].ID == params.AfterUser {
+				// We want to return all users after index i.
+				if i+1 >= len(users) {
+					return []database.User{}, nil
+				}
+				users = users[i+1:]
+				found = true
+				break
+			}
+		}
+
+		// If no users after the time, then we return an empty list.
+		if !found {
+			return []database.User{}, nil
+		}
+	}
+
+	if params.Search != "" {
+		tmp := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if strings.Contains(user.Email, params.Search) {
+				tmp = append(tmp, users[i])
+			} else if strings.Contains(user.Username, params.Search) {
+				tmp = append(tmp, users[i])
+			}
+		}
+		users = tmp
+	}
+
+	if params.OffsetOpt > 0 {
+		if int(params.OffsetOpt) > len(users)-1 {
+			return []database.User{}, nil
+		}
+		users = users[params.OffsetOpt:]
+	}
+
+	if params.LimitOpt > 0 {
+		if int(params.LimitOpt) > len(users) {
+			params.LimitOpt = int32(len(users))
+		}
+		users = users[:params.LimitOpt]
+	}
+	tmp := make([]database.User, len(users))
+	copy(tmp, users)
+
+	return tmp, nil
 }
 
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
@@ -370,6 +430,16 @@ func (q *fakeQuerier) GetWorkspacesByUserID(_ context.Context, req database.GetW
 		return nil, sql.ErrNoRows
 	}
 	return workspaces, nil
+}
+
+func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if len(q.organizations) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return q.organizations, nil
 }
 
 func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
@@ -794,21 +864,18 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 
 	//nolint:gosimple
 	key := database.APIKey{
-		ID:               arg.ID,
-		HashedSecret:     arg.HashedSecret,
-		UserID:           arg.UserID,
-		Application:      arg.Application,
-		Name:             arg.Name,
-		LastUsed:         arg.LastUsed,
-		ExpiresAt:        arg.ExpiresAt,
-		CreatedAt:        arg.CreatedAt,
-		UpdatedAt:        arg.UpdatedAt,
-		LoginType:        arg.LoginType,
-		OIDCAccessToken:  arg.OIDCAccessToken,
-		OIDCRefreshToken: arg.OIDCRefreshToken,
-		OIDCIDToken:      arg.OIDCIDToken,
-		OIDCExpiry:       arg.OIDCExpiry,
-		DevurlToken:      arg.DevurlToken,
+		ID:                arg.ID,
+		HashedSecret:      arg.HashedSecret,
+		UserID:            arg.UserID,
+		ExpiresAt:         arg.ExpiresAt,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
+		LastUsed:          arg.LastUsed,
+		LoginType:         arg.LoginType,
+		OAuthAccessToken:  arg.OAuthAccessToken,
+		OAuthRefreshToken: arg.OAuthRefreshToken,
+		OAuthIDToken:      arg.OAuthIDToken,
+		OAuthExpiry:       arg.OAuthExpiry,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
@@ -1047,8 +1114,6 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	user := database.User{
 		ID:             arg.ID,
 		Email:          arg.Email,
-		Name:           arg.Name,
-		LoginType:      arg.LoginType,
 		HashedPassword: arg.HashedPassword,
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
@@ -1066,7 +1131,6 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		if user.ID != arg.ID {
 			continue
 		}
-		user.Name = arg.Name
 		user.Email = arg.Email
 		user.Username = arg.Username
 		q.users[index] = user
@@ -1123,9 +1187,9 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		}
 		apiKey.LastUsed = arg.LastUsed
 		apiKey.ExpiresAt = arg.ExpiresAt
-		apiKey.OIDCAccessToken = arg.OIDCAccessToken
-		apiKey.OIDCRefreshToken = arg.OIDCRefreshToken
-		apiKey.OIDCExpiry = arg.OIDCExpiry
+		apiKey.OAuthAccessToken = arg.OAuthAccessToken
+		apiKey.OAuthRefreshToken = arg.OAuthRefreshToken
+		apiKey.OAuthExpiry = arg.OAuthExpiry
 		q.apiKeys[index] = apiKey
 		return nil
 	}

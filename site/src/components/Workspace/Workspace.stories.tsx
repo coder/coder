@@ -1,10 +1,10 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { MockOrganization, MockTemplate, MockWorkspace } from "../../test_helpers"
+import { MockOrganization, MockTemplate, MockWorkspace } from "../../testHelpers"
 import { Workspace, WorkspaceProps } from "./Workspace"
 
 export default {
-  title: "Workspaces/Workspace",
+  title: "components/Workspace",
   component: Workspace,
   argTypes: {},
 }

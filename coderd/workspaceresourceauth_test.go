@@ -13,6 +13,43 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
+	t.Parallel()
+	instanceID := "instanceidentifier"
+	certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
+	client := coderdtest.New(t, &coderdtest.Options{
+		AzureCertificates: certificates,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "somename",
+						Type: "someinstance",
+						Agents: []*proto.Agent{{
+							Auth: &proto.Agent_InstanceId{
+								InstanceId: instanceID,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	client.HTTPClient = metadataClient
+	_, err := client.AuthWorkspaceAzureInstanceIdentity(context.Background())
+	require.NoError(t, err)
+}
+
 func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
@@ -20,7 +57,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
-			AWSInstanceIdentity: certificates,
+			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
@@ -60,7 +97,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		instanceID := "instanceidentifier"
 		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, true)
 		client := coderdtest.New(t, &coderdtest.Options{
-			GoogleInstanceIdentity: validator,
+			GoogleTokenValidator: validator,
 		})
 		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
 		var apiErr *codersdk.Error
@@ -73,7 +110,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		instanceID := "instanceidentifier"
 		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
 		client := coderdtest.New(t, &coderdtest.Options{
-			GoogleInstanceIdentity: validator,
+			GoogleTokenValidator: validator,
 		})
 		_, err := client.AuthWorkspaceGoogleInstanceIdentity(context.Background(), "", metadata)
 		var apiErr *codersdk.Error
@@ -86,7 +123,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		instanceID := "instanceidentifier"
 		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
 		client := coderdtest.New(t, &coderdtest.Options{
-			GoogleInstanceIdentity: validator,
+			GoogleTokenValidator: validator,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)

@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -34,12 +35,18 @@ type Options struct {
 	Pubsub    database.Pubsub
 
 	AgentConnectionUpdateFrequency time.Duration
-	AWSCertificates                awsidentity.Certificates
-	GoogleTokenValidator           *idtoken.Validator
-	ICEServers                     []webrtc.ICEServer
-	SecureAuthCookie               bool
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	TURNServer                     *turnconn.Server
+	// APIRateLimit is the minutely throughput rate limit per user or ip.
+	// Setting a rate limit <0 will disable the rate limiter across the entire
+	// app. Specific routes may have their own limiters.
+	APIRateLimit         int
+	AWSCertificates      awsidentity.Certificates
+	AzureCertificates    x509.VerifyOptions
+	GoogleTokenValidator *idtoken.Validator
+	GithubOAuth2Config   *GithubOAuth2Config
+	ICEServers           []webrtc.ICEServer
+	SecureAuthCookie     bool
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	TURNServer           *turnconn.Server
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -50,16 +57,22 @@ func New(options *Options) (http.Handler, func()) {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
+	if options.APIRateLimit == 0 {
+		options.APIRateLimit = 512
+	}
 	api := &api{
 		Options: options,
 	}
+	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
+		Github: options.GithubOAuth2Config,
+	})
 
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
 		r.Use(
 			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
-			httpmw.RateLimitPerMinute(512),
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +90,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
@@ -87,7 +100,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.organization)
@@ -100,7 +113,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Use(apiKeyMiddleware)
 			r.Post("/", api.postParameter)
 			r.Get("/", api.parameters)
 			r.Route("/{name}", func(r chi.Router) {
@@ -109,7 +122,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
@@ -123,7 +136,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
@@ -145,8 +158,15 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)
 			r.Post("/logout", api.postLogout)
+			r.Get("/authmethods", api.userAuthMethods)
+			r.Route("/oauth2", func(r chi.Router) {
+				r.Route("/github", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config))
+					r.Get("/callback", api.userOAuth2Github)
+				})
+			})
 			r.Group(func(r chi.Router) {
-				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+				r.Use(apiKeyMiddleware)
 				r.Post("/", api.postUsers)
 				r.Get("/", api.users)
 				r.Route("/{user}", func(r chi.Router) {
@@ -172,6 +192,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		})
 		r.Route("/workspaceagents", func(r chi.Router) {
+			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
@@ -183,7 +204,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractAPIKey(options.Database, nil),
+					apiKeyMiddleware,
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
@@ -194,7 +215,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractWorkspaceResourceParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -202,7 +223,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspaces/{workspace}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
 			r.Get("/", api.workspace)
@@ -220,7 +241,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)

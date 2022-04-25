@@ -189,7 +189,6 @@ func TestAPIKey(t *testing.T) {
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			HashedSecret: hashed[:],
-			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 		})
 		require.NoError(t, err)
@@ -207,7 +206,6 @@ func TestAPIKey(t *testing.T) {
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
 		require.NoError(t, err)
 
-		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
@@ -277,7 +275,7 @@ func TestAPIKey(t *testing.T) {
 		require.NotEqual(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
-	t.Run("OIDCNotExpired", func(t *testing.T) {
+	t.Run("OAuthNotExpired", func(t *testing.T) {
 		t.Parallel()
 		var (
 			db         = databasefake.New()
@@ -294,7 +292,7 @@ func TestAPIKey(t *testing.T) {
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			HashedSecret: hashed[:],
-			LoginType:    database.LoginTypeOIDC,
+			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
 			ExpiresAt:    database.Now().AddDate(0, 0, 1),
 		})
@@ -311,7 +309,7 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
-	t.Run("OIDCRefresh", func(t *testing.T) {
+	t.Run("OAuthRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
 			db         = databasefake.New()
@@ -328,9 +326,9 @@ func TestAPIKey(t *testing.T) {
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			HashedSecret: hashed[:],
-			LoginType:    database.LoginTypeOIDC,
+			LoginType:    database.LoginTypeGithub,
 			LastUsed:     database.Now(),
-			OIDCExpiry:   database.Now().AddDate(0, 0, -1),
+			OAuthExpiry:  database.Now().AddDate(0, 0, -1),
 		})
 		require.NoError(t, err)
 		token := &oauth2.Token{
@@ -338,11 +336,11 @@ func TestAPIKey(t *testing.T) {
 			RefreshToken: "moo",
 			Expiry:       database.Now().AddDate(0, 0, 1),
 		}
-		httpmw.ExtractAPIKey(db, &oauth2Config{
-			tokenSource: &oauth2TokenSource{
-				token: func() (*oauth2.Token, error) {
+		httpmw.ExtractAPIKey(db, &httpmw.OAuth2Configs{
+			Github: &oauth2Config{
+				tokenSource: oauth2TokenSource(func() (*oauth2.Token, error) {
 					return token, nil
-				},
+				}),
 			},
 		})(successHandler).ServeHTTP(rw, r)
 		res := rw.Result()
@@ -354,22 +352,28 @@ func TestAPIKey(t *testing.T) {
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, token.Expiry, gotAPIKey.ExpiresAt)
-		require.Equal(t, token.AccessToken, gotAPIKey.OIDCAccessToken)
+		require.Equal(t, token.AccessToken, gotAPIKey.OAuthAccessToken)
 	})
 }
 
 type oauth2Config struct {
-	tokenSource *oauth2TokenSource
+	tokenSource oauth2TokenSource
 }
 
-func (o *oauth2Config) TokenSource(_ context.Context, _ *oauth2.Token) oauth2.TokenSource {
+func (o *oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
 	return o.tokenSource
 }
 
-type oauth2TokenSource struct {
-	token func() (*oauth2.Token, error)
+func (*oauth2Config) AuthCodeURL(string, ...oauth2.AuthCodeOption) string {
+	return ""
 }
 
-func (o *oauth2TokenSource) Token() (*oauth2.Token, error) {
-	return o.token()
+func (*oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	return &oauth2.Token{}, nil
+}
+
+type oauth2TokenSource func() (*oauth2.Token, error)
+
+func (o oauth2TokenSource) Token() (*oauth2.Token, error) {
+	return o()
 }

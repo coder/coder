@@ -76,6 +76,11 @@ func TestAgent(t *testing.T) {
 		session.Stdin = ptty.Input()
 		err = session.Start(command)
 		require.NoError(t, err)
+		caret := "$"
+		if runtime.GOOS == "windows" {
+			caret = ">"
+		}
+		ptty.ExpectMatch(caret)
 		ptty.WriteLine("echo test")
 		ptty.ExpectMatch("test")
 		ptty.WriteLine("exit")

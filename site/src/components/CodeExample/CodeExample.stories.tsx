@@ -5,7 +5,7 @@ import { CodeExample, CodeExampleProps } from "./CodeExample"
 const sampleCode = `echo "Hello, world"`
 
 export default {
-  title: "CodeBlock/CodeExample",
+  title: "components/CodeExample",
   component: CodeExample,
   argTypes: {
     code: { control: "string", defaultValue: sampleCode },
