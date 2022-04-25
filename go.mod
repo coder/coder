@@ -86,7 +86,7 @@ require (
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
 	github.com/pion/turn/v2 v2.0.8
-	github.com/pion/webrtc/v3 v3.1.29
+	github.com/pion/webrtc/v3 v3.1.34
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/sftp v1.13.4
 	github.com/quasilyte/go-ruleguard/dsl v0.3.19
@@ -99,7 +99,7 @@ require (
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.uber.org/atomic v1.9.0
 	go.uber.org/goleak v1.1.12
-	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
+	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
 	golang.org/x/exp v0.0.0-20220414153411-bcd21879b8fd
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
 	golang.org/x/net v0.0.0-20220412020605-290c469a71a5
@@ -195,7 +195,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.0-beta.7.0.20220408132554-2377ac4bc04c // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pion/dtls/v2 v2.1.3 // indirect
-	github.com/pion/ice/v2 v2.2.4 // indirect
+	github.com/pion/ice/v2 v2.2.6 // indirect
 	github.com/pion/interceptor v0.1.10 // indirect
 	github.com/pion/mdns v0.0.5 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
