@@ -73,10 +73,12 @@ Some pages are coming soon. Contributions welcome!
   - [Why remote development](about.md#why-remote-development)
   - [Why Coder](about.md#why-coder)
   - [What Coder is not](about.md#what-coder-is-not)
-- Concepts
-  - Templates
-  - Workspaces
-  - Users and Organizations
+- [Templates](./templates.md)
+  - [Managing templates](./templates.md#managing-templates)
+  - [Persistant and ephemeral resources](./templates.md#persistant-and-ephemeral-resources)
+  - [Variables](./templates.md#variables)
+- Workspaces
+- 
 - Guides
   - Using the Coder CLI
   - Install Coder on a VM with Caddy + LetsEncrypt
