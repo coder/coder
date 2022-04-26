@@ -1118,7 +1118,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
-		Status:         database.UserStatusTypeActive,
+		Status:         database.UserStatusActive,
 	}
 	q.users = append(q.users, user)
 	return user, nil

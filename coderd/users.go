@@ -288,7 +288,7 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 
 	suspendedUser, err := api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
 		ID:        user.ID,
-		Status:    database.UserStatusTypeSuspended,
+		Status:    database.UserStatusSuspended,
 		UpdatedAt: database.Now(),
 	})
 
