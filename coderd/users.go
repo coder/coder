@@ -24,6 +24,8 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
+type OrganizationsByUserId = map[string][]database.Organization
+
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
@@ -145,8 +147,14 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	organizationsByUserId := OrganizationsByUserId{}
+	for _, user := range users {
+		userOrganizations := getUserOrganizations(api, rw, r, user)
+		organizationsByUserId[user.ID.String()] = userOrganizations
+	}
+
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUsers(users))
+	render.JSON(rw, r, convertUsers(users, organizationsByUserId))
 }
 
 // Creates a new user.
@@ -213,15 +221,17 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertUser(user))
+	organizations := getUserOrganizations(api, rw, r, user)
+
+	httpapi.Write(rw, http.StatusCreated, convertUser(user, organizations))
 }
 
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
-func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
+func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-
-	httpapi.Write(rw, http.StatusOK, convertUser(user))
+	organizations := getUserOrganizations(api, rw, r, user)
+	httpapi.Write(rw, http.StatusOK, convertUser(user, organizations))
 }
 
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
@@ -278,7 +288,9 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile))
+	organizations := getUserOrganizations(api, rw, r, user)
+
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizations))
 }
 
 func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
@@ -297,7 +309,9 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser))
+	organizations := getUserOrganizations(api, rw, r, user)
+
+	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
 
 // Returns organizations the parameterized user has access to.
@@ -626,20 +640,42 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 	})
 }
 
-func convertUser(user database.User) codersdk.User {
+func convertUser(user database.User, organizations []database.Organization) codersdk.User {
+	orgIds := make([]uuid.UUID, 0, len(organizations))
+	for _, o := range organizations {
+		orgIds = append(orgIds, o.ID)
+	}
+
 	return codersdk.User{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		Username:  user.Username,
-		Status:    codersdk.UserStatus(user.Status),
+		ID:              user.ID,
+		Email:           user.Email,
+		CreatedAt:       user.CreatedAt,
+		Username:        user.Username,
+		Status:          codersdk.UserStatus(user.Status),
+		OrganizationIds: orgIds,
 	}
 }
 
-func convertUsers(users []database.User) []codersdk.User {
+func convertUsers(users []database.User, organizationsByUserId OrganizationsByUserId) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
-		converted = append(converted, convertUser(u))
+		userOrganizations := organizationsByUserId[u.ID.String()]
+		converted = append(converted, convertUser(u, userOrganizations))
 	}
 	return converted
+}
+
+func getUserOrganizations(api *api, rw http.ResponseWriter, r *http.Request, user database.User) []database.Organization {
+	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+		organizations = []database.Organization{}
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organizations: %s", err.Error()),
+		})
+		return []database.Organization{}
+	}
+	return organizations
 }

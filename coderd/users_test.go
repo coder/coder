@@ -321,9 +321,11 @@ func TestPutUserSuspend(t *testing.T) {
 func TestUserByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	_, err := client.User(context.Background(), codersdk.Me)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	user, err := client.User(context.Background(), codersdk.Me)
+
 	require.NoError(t, err)
+	require.Equal(t, firstUser.OrganizationID, user.OrganizationIds[0])
 }
 
 func TestGetUsers(t *testing.T) {
@@ -340,6 +342,7 @@ func TestGetUsers(t *testing.T) {
 	users, err := client.Users(context.Background(), codersdk.UsersRequest{})
 	require.NoError(t, err)
 	require.Len(t, users, 2)
+	require.Len(t, users[0].OrganizationIds, 1)
 }
 
 func TestOrganizationsByUser(t *testing.T) {
