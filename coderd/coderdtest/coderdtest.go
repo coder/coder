@@ -59,7 +59,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
-	Ticker               <-chan time.Time
+	LifecycleTicker      <-chan time.Time
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -75,10 +75,10 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
 	}
-	if options.Ticker == nil {
-		ticker := time.NewTicker(time.Second)
-		options.Ticker = ticker.C
-		t.Cleanup(ticker.Stop)
+	if options.LifecycleTicker == nil {
+		ticker := make(chan time.Time)
+		options.LifecycleTicker = ticker
+		t.Cleanup(func() { close(ticker) })
 	}
 
 	// This can be hotswapped for a live database instance.
@@ -109,7 +109,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		ctx,
 		db,
 		slogtest.Make(t, nil).Named("lifecycle.executor").Leveled(slog.LevelDebug),
-		options.Ticker,
+		options.LifecycleTicker,
 	)
 	go lifecycleExecutor.Run()
 

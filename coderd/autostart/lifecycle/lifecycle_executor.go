@@ -53,16 +53,12 @@ func (e *Executor) Run() error {
 func (e *Executor) runOnce(t time.Time) error {
 	currentTick := t.Round(time.Minute)
 	return e.db.InTx(func(db database.Store) error {
-		allWorkspaces, err := db.GetWorkspaces(e.ctx)
+		autostartWorkspaces, err := db.GetWorkspacesAutostart(e.ctx)
 		if err != nil {
 			return xerrors.Errorf("get all workspaces: %w", err)
 		}
 
-		for _, ws := range allWorkspaces {
-			// We only care about workspaces with autostart enabled.
-			if ws.AutostartSchedule.String == "" {
-				continue
-			}
+		for _, ws := range autostartWorkspaces {
 			sched, err := schedule.Weekly(ws.AutostartSchedule.String)
 			if err != nil {
 				e.log.Warn(e.ctx, "workspace has invalid autostart schedule",
@@ -73,7 +69,6 @@ func (e *Executor) runOnce(t time.Time) error {
 			}
 
 			// Determine the workspace state based on its latest build. We expect it to be stopped.
-			// TODO(cian): is this **guaranteed** to be the latest build???
 			latestBuild, err := db.GetWorkspaceBuildByWorkspaceIDWithoutAfter(e.ctx, ws.ID)
 			if err != nil {
 				return xerrors.Errorf("get latest build for workspace %q: %w", ws.ID, err)

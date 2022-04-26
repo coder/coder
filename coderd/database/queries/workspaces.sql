@@ -22,6 +22,17 @@ FROM
 WHERE
 	deleted = false;
 
+-- name: GetWorkspacesAutostart :many
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	deleted = false
+AND
+	autostart_schedule <> ''
+;
+
 -- name: GetWorkspacesByTemplateID :many
 SELECT
 	*
