@@ -1,10 +1,11 @@
 # About Coder
 
-Coder is an open-source platform that makes it easy for organizations of all
-sizes to provision, manage, and access remote developer workspaces that are
-hosted using the cloud service of their choice.
+Coder is an open source platform for creating and managing developer workspaces
+on your preferred clouds and servers.
 
-> ⚠️ Coder v2 is in **alpha** state and is *not* ready for production use. For
+By building on top of common development interfaces (SSH) and infrastructure tools (Terraform), Coder aims to make the process of **provisioning** and **accessing** remote workspaces approachable for organizations of various sizes and stages of cloud-native maturity.
+
+> ⚠️ Coder v2 is in **alpha** state and is not ready for production use. For
 > production environments, please consider [Coder v1](https://coder.com/docs) or
 > [code-server](https://github.com/cdr/code-server).
 
@@ -66,15 +67,13 @@ Azure, Google Cloud, Kubernetes, and more.
 - Coder is not a collaboration platform. You can use git and dedicated IDE
   extensions for pull requests, code reviews, and pair programming.
 
-- Coder is not a software-as-a-service/fully-managed offering. You must host
+- Coder is not a SaaS/fully-managed offering. You must host
   Coder on a cloud service (AWS, Azure, GCP) or your private data center.
 
 ---
 
 Next: [Templates](./templates.md)
 
-[^1]: alexellis.io: [The Internet is my
-    computer](https://blog.alexellis.io/the-internet-is-my-computer/)
+[^1]: alexellis.io: [The Internet is my computer](https://blog.alexellis.io/the-internet-is-my-computer/)
 
-[^2]: slack.engineering: [Development environments at
-    Slack](https://slack.engineering/development-environments-at-slack)
+[^2]: slack.engineering: [Development environments at Slack](https://slack.engineering/development-environments-at-slack)

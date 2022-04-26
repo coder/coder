@@ -4,7 +4,7 @@ Templates define the infrastructure underlying workspaces. Each Coder deployment
 can have multiple templates for different workloads, such as ones for front-end
 development, Windows development, and so on.
 
-Admins of Coder manage templates, including sharing them and rolling out updates
+Coder manage templates, including sharing them and rolling out updates
 to everybody. Users can also manually update their workspaces.
 
 ## Manage templates
@@ -50,8 +50,8 @@ Templates often contain *parameters*. In Coder, there are two types of parameter
   with `sensitive =  true` in the template code.
 
 **User parameters** are set when a user creates a workspace. They are unique to
-each workspace, and they are often personalization settings such as preferred
-region or workspace image.
+each workspace, often personalization settings such as "preferred
+region" or "workspace image".
 
 ---
 
