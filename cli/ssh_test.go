@@ -69,7 +69,9 @@ func TestSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		agentClient := codersdk.New(client.URL)
 		agentClient.SessionToken = agentToken
-		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		})
 		t.Cleanup(func() {
 			_ = agentCloser.Close()
 		})
@@ -112,7 +114,9 @@ func TestSSH(t *testing.T) {
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 			agentClient := codersdk.New(client.URL)
 			agentClient.SessionToken = agentToken
-			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			})
 			t.Cleanup(func() {
 				_ = agentCloser.Close()
 			})

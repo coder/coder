@@ -216,6 +216,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.workspaceAgent)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.workspaceAgentTurn)
+				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 			})
 		})

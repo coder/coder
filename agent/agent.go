@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,9 +13,13 @@ import (
 	"os/exec"
 	"os/user"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/smallnest/ringbuffer"
 
 	gsyslog "github.com/hashicorp/go-syslog"
 	"go.uber.org/atomic"
@@ -33,6 +38,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type Options struct {
+	ReconnectingPTYTimeout time.Duration
+	Logger                 slog.Logger
+}
+
 type Metadata struct {
 	OwnerEmail           string            `json:"owner_email"`
 	OwnerUsername        string            `json:"owner_username"`
@@ -42,13 +52,20 @@ type Metadata struct {
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
 
-func New(dialer Dialer, logger slog.Logger) io.Closer {
+func New(dialer Dialer, options *Options) io.Closer {
+	if options == nil {
+		options = &Options{}
+	}
+	if options.ReconnectingPTYTimeout == 0 {
+		options.ReconnectingPTYTimeout = 5 * time.Minute
+	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	server := &agent{
-		dialer:      dialer,
-		logger:      logger,
-		closeCancel: cancelFunc,
-		closed:      make(chan struct{}),
+		dialer:                 dialer,
+		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
+		logger:                 options.Logger,
+		closeCancel:            cancelFunc,
+		closed:                 make(chan struct{}),
 	}
 	server.init(ctx)
 	return server
@@ -57,6 +74,9 @@ func New(dialer Dialer, logger slog.Logger) io.Closer {
 type agent struct {
 	dialer Dialer
 	logger slog.Logger
+
+	reconnectingPTYs       sync.Map
+	reconnectingPTYTimeout time.Duration
 
 	connCloseWait sync.WaitGroup
 	closeCancel   context.CancelFunc
@@ -196,6 +216,8 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 		switch channel.Protocol() {
 		case "ssh":
 			go a.sshServer.HandleConn(channel.NetConn())
+		case "reconnecting-pty":
+			go a.handleReconnectingPTY(ctx, channel.Label(), channel.NetConn())
 		default:
 			a.logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
@@ -282,22 +304,25 @@ func (a *agent) init(ctx context.Context) {
 	go a.run(ctx)
 }
 
-func (a *agent) handleSSHSession(session ssh.Session) error {
+// createCommand processes raw command input with OpenSSH-like behavior.
+// If the rawCommand provided is empty, it will default to the users shell.
+// This injects environment variables specified by the user at launch too.
+func (a *agent) createCommand(ctx context.Context, rawCommand string, env []string) (*exec.Cmd, error) {
 	currentUser, err := user.Current()
 	if err != nil {
-		return xerrors.Errorf("get current user: %w", err)
+		return nil, xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
 	shell, err := usershell.Get(username)
 	if err != nil {
-		return xerrors.Errorf("get user shell: %w", err)
+		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
-	command := session.RawCommand()
-	if len(session.Command()) == 0 {
+	command := rawCommand
+	if len(command) == 0 {
 		command = shell
 	}
 
@@ -307,11 +332,11 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
-	cmd := exec.CommandContext(session.Context(), shell, caller, command)
-	cmd.Env = append(os.Environ(), session.Environ()...)
+	cmd := exec.CommandContext(ctx, shell, caller, command)
+	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
 	if err != nil {
-		return xerrors.Errorf("getting os executable: %w", err)
+		return nil, xerrors.Errorf("getting os executable: %w", err)
 	}
 	// Git on Windows resolves with UNIX-style paths.
 	// If using backslashes, it's unable to find the executable.
@@ -331,6 +356,14 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 				cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 			}
 		}
+	}
+	return cmd, nil
+}
+
+func (a *agent) handleSSHSession(session ssh.Session) error {
+	cmd, err := a.createCommand(session.Context(), session.RawCommand(), session.Environ())
+	if err != nil {
+		return err
 	}
 
 	sshPty, windowSize, isPty := session.Pty()
@@ -381,6 +414,144 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 	return cmd.Wait()
 }
 
+func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn net.Conn) {
+	defer conn.Close()
+
+	idParts := strings.Split(rawID, ":")
+	if len(idParts) != 3 {
+		a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
+		return
+	}
+	id := idParts[0]
+	// Enforce a consistent format for IDs.
+	_, err := uuid.Parse(id)
+	if err != nil {
+		a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
+		return
+	}
+	height, err := strconv.Atoi(idParts[1])
+	if err != nil {
+		a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
+		return
+	}
+	width, err := strconv.Atoi(idParts[2])
+	if err != nil {
+		a.logger.Warn(ctx, "client sent invalid width", slog.F("id", id), slog.F("width", idParts[2]))
+		return
+	}
+
+	var rpty *reconnectingPTY
+	rawRPTY, ok := a.reconnectingPTYs.Load(id)
+	if ok {
+		rpty, ok = rawRPTY.(*reconnectingPTY)
+		if !ok {
+			a.logger.Warn(ctx, "found invalid type in reconnecting pty map", slog.F("id", id))
+		}
+	} else {
+		// Empty command will default to the users shell!
+		cmd, err := a.createCommand(ctx, "", nil)
+		if err != nil {
+			a.logger.Warn(ctx, "create reconnecting pty command", slog.Error(err))
+			return
+		}
+		ptty, _, err := pty.Start(cmd)
+		if err != nil {
+			a.logger.Warn(ctx, "start reconnecting pty command", slog.F("id", id))
+		}
+
+		a.closeMutex.Lock()
+		a.connCloseWait.Add(1)
+		a.closeMutex.Unlock()
+		rpty = &reconnectingPTY{
+			activeConns: make(map[string]net.Conn),
+			ptty:        ptty,
+			timeout:     time.NewTimer(a.reconnectingPTYTimeout),
+			// Default to buffer 1MB.
+			ringBuffer: ringbuffer.New(1 << 20),
+		}
+		a.reconnectingPTYs.Store(id, rpty)
+		go func() {
+			// Close if the inactive timeout occurs, or the context ends.
+			select {
+			case <-rpty.timeout.C:
+				a.logger.Info(ctx, "killing reconnecting pty due to inactivity", slog.F("id", id))
+			case <-ctx.Done():
+			}
+			rpty.Close()
+		}()
+		go func() {
+			buffer := make([]byte, 32*1024)
+			for {
+				read, err := rpty.ptty.Output().Read(buffer)
+				if err != nil {
+					rpty.Close()
+					break
+				}
+				part := buffer[:read]
+				_, err = rpty.ringBuffer.Write(part)
+				if err != nil {
+					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", id))
+					break
+				}
+				rpty.activeConnsMutex.Lock()
+				for _, conn := range rpty.activeConns {
+					_, _ = conn.Write(part)
+				}
+				rpty.activeConnsMutex.Unlock()
+			}
+			// If we break from the loop, the reconnecting PTY ended.
+			a.reconnectingPTYs.Delete(id)
+			a.connCloseWait.Done()
+		}()
+	}
+	err = rpty.ptty.Resize(uint16(height), uint16(width))
+	if err != nil {
+		// We can continue after this, it's not fatal!
+		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
+	}
+
+	_, err = conn.Write(rpty.ringBuffer.Bytes())
+	if err != nil {
+		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", id), slog.Error(err))
+		return
+	}
+	connectionID := uuid.NewString()
+	rpty.activeConnsMutex.Lock()
+	rpty.activeConns[connectionID] = conn
+	rpty.activeConnsMutex.Unlock()
+	defer func() {
+		rpty.activeConnsMutex.Lock()
+		delete(rpty.activeConns, connectionID)
+		rpty.activeConnsMutex.Unlock()
+	}()
+	decoder := json.NewDecoder(conn)
+	var req ReconnectingPTYRequest
+	for {
+		err = decoder.Decode(&req)
+		if xerrors.Is(err, io.EOF) {
+			return
+		}
+		if err != nil {
+			a.logger.Warn(ctx, "reconnecting pty buffer read error", slog.F("id", id), slog.Error(err))
+			return
+		}
+		_, err = rpty.ptty.Input().Write([]byte(req.Data))
+		if err != nil {
+			a.logger.Warn(ctx, "write to reconnecting pty", slog.F("id", id), slog.Error(err))
+			return
+		}
+		// Check if a resize needs to happen!
+		if req.Height == 0 || req.Width == 0 {
+			continue
+		}
+		err = rpty.ptty.Resize(req.Height, req.Width)
+		if err != nil {
+			// We can continue after this, it's not fatal!
+			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
+		}
+	}
+}
+
 // isClosed returns whether the API is closed or not.
 func (a *agent) isClosed() bool {
 	select {
@@ -402,4 +573,23 @@ func (a *agent) Close() error {
 	_ = a.sshServer.Close()
 	a.connCloseWait.Wait()
 	return nil
+}
+
+type reconnectingPTY struct {
+	activeConnsMutex sync.Mutex
+	activeConns      map[string]net.Conn
+
+	ringBuffer *ringbuffer.RingBuffer
+	timeout    *time.Timer
+	ptty       pty.PTY
+}
+
+func (r *reconnectingPTY) Close() {
+	r.activeConnsMutex.Lock()
+	defer r.activeConnsMutex.Unlock()
+	for _, conn := range r.activeConns {
+		_ = conn.Close()
+	}
+	_ = r.ptty.Close()
+	r.ringBuffer.Reset()
 }

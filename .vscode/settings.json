@@ -47,6 +47,7 @@
     "ptty",
     "ptytest",
     "retrier",
+    "rpty",
     "sdkproto",
     "Signup",
     "stretchr",

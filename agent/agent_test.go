@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
@@ -188,6 +190,44 @@ func TestAgent(t *testing.T) {
 		}, 15*time.Second, 100*time.Millisecond)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
+
+	t.Run("ReconnectingPTY", func(t *testing.T) {
+		t.Parallel()
+		conn := setupAgent(t, agent.Metadata{})
+		id := uuid.NewString()
+		netConn, err := conn.ReconnectingPTY(id, 100, 100)
+		require.NoError(t, err)
+
+		data, err := json.Marshal(agent.ReconnectingPTYRequest{
+			Data: "echo test\r\n",
+		})
+		require.NoError(t, err)
+		_, err = netConn.Write(data)
+		require.NoError(t, err)
+
+		findEcho := func() {
+			for {
+				read, err := netConn.Read(data)
+				require.NoError(t, err)
+				if strings.Contains(string(data[:read]), "test") {
+					break
+				}
+			}
+		}
+
+		// Once for typing the command...
+		findEcho()
+		// And another time for the actual output.
+		findEcho()
+
+		_ = netConn.Close()
+		netConn, err = conn.ReconnectingPTY(id, 100, 100)
+		require.NoError(t, err)
+
+		// Same output again!
+		findEcho()
+		findEcho()
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
@@ -227,12 +267,14 @@ func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
 	return session
 }
 
-func setupAgent(t *testing.T, options agent.Metadata) *agent.Conn {
+func setupAgent(t *testing.T, metadata agent.Metadata) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
 		listener, err := peerbroker.Listen(server, nil)
-		return options, listener, err
-	}, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		return metadata, listener, err
+	}, &agent.Options{
+		Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+	})
 	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()
