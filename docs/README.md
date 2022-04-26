@@ -18,8 +18,8 @@ Provision remote development environments with Terraform.
 
 ## Installing Coder
 
-Install [the latest release](https://github.com/coder/coder/releases) on a
-system with at least 2 CPU cores and 2 GB RAM.
+Install [the latest release](https://github.com/coder/coder/releases) on a system with
+at least 1 CPU core and 2 GB RAM.
 
 To test, start with dev mode (all data is in-memory and is destroyed on exit):
 
@@ -95,4 +95,3 @@ coder templates update gcp-linux
 ## Contributing
 
 Read the [contributing docs](./CONTRIBUTING.md).
-

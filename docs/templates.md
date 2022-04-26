@@ -39,17 +39,17 @@ template:
 | └─ nodejs (linux, amd64)     |            |
 | api_token.backend            | ephemeral  |
 
-When a workspace is deleted, all related resources are destroyed.
+When a workspace is deleted, all resources are destroyed.
 
-## Variables
+## Parameters
 
-Templates often contain *variables*. In Coder, there are two types of variables:
+Templates often contain *parameters*. In Coder, there are two types of parameters:
 
-- **Admin variables** are set when a template is created/updated. These values
+- **Admin parameters** are set when a template is created/updated. These values
   are often cloud secrets, such as a `ServiceAccount` token, and are annotated
   with `sensitive =  true` in the template code.
 
-**User variables** are set when a user creates a workspace. They are unique to
+**User parameters** are set when a user creates a workspace. They are unique to
 each workspace, and they are often personalization settings such as preferred
 region or workspace image.
 
