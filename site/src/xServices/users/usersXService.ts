@@ -2,10 +2,9 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
-import { displayError } from "../../components/GlobalSnackbar/utils"
+import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
-const Language = {
-  createUserError: "Unable to create user",
+export const Language = {
   createUserSuccess: "Successfully created user",
 }
 
@@ -74,7 +73,7 @@ export const usersMachine = createMachine(
           },
           onError: {
             target: "idle",
-            actions: ["assignCreateUserError", "displayCreateUserError"],
+            actions: ["assignCreateUserError"],
           },
         },
         tags: "loading",
@@ -110,11 +109,8 @@ export const usersMachine = createMachine(
         ...context,
         createUserError: undefined,
       })),
-      displayCreateUserError: (_, event) => {
-        displayError(Language.createUserError)
-      },
       displayCreateUserSuccess: () => {
-        displayError(Language.createUserSuccess)
+        displaySuccess(Language.createUserSuccess)
       },
     },
   },

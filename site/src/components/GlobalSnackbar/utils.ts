@@ -60,7 +60,3 @@ export const displayMsg = (msg: string, additionalMsg?: string): void => {
 export const displaySuccess = (msg: string, additionalMsg?: string): void => {
   dispatchNotificationEvent(MsgType.Success, msg, additionalMsg ? [additionalMsg] : undefined)
 }
-
-export const displayError = (msg: string, additionalMsg?: string): void => {
-  dispatchNotificationEvent(MsgType.Error, msg, additionalMsg ? [additionalMsg] : undefined)
-}
