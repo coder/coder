@@ -15,7 +15,6 @@ export interface UserResponse {
   readonly username: string
   readonly email: string
   readonly created_at: string
-  readonly name: string
 }
 
 /**
@@ -100,5 +99,4 @@ export interface WorkspaceAutostopRequest {
 export interface UpdateProfileRequest {
   readonly username: string
   readonly email: string
-  readonly name: string
 }
