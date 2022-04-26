@@ -24,8 +24,6 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-type OrganizationsByUserId = map[string][]database.Organization
-
 // Returns whether the initial user has been created or not.
 func (api *api) firstUser(rw http.ResponseWriter, r *http.Request) {
 	userCount, err := api.Database.GetUserCount(r.Context())
@@ -147,9 +145,9 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizationsByUserId := OrganizationsByUserId{}
+	organizationsByUserId := map[string][]database.Organization{}
 	for _, user := range users {
-		userOrganizations := getUserOrganizations(api, rw, r, user)
+		userOrganizations := userOrganizations(api, rw, r, user)
 		organizationsByUserId[user.ID.String()] = userOrganizations
 	}
 
@@ -221,7 +219,7 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizations := getUserOrganizations(api, rw, r, user)
+	organizations := userOrganizations(api, rw, r, user)
 
 	httpapi.Write(rw, http.StatusCreated, convertUser(user, organizations))
 }
@@ -230,7 +228,7 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 // is completed in the middleware for this route.
 func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	organizations := getUserOrganizations(api, rw, r, user)
+	organizations := userOrganizations(api, rw, r, user)
 	httpapi.Write(rw, http.StatusOK, convertUser(user, organizations))
 }
 
@@ -288,7 +286,7 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizations := getUserOrganizations(api, rw, r, user)
+	organizations := userOrganizations(api, rw, r, user)
 
 	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizations))
 }
@@ -309,7 +307,7 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizations := getUserOrganizations(api, rw, r, user)
+	organizations := userOrganizations(api, rw, r, user)
 
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
@@ -652,11 +650,11 @@ func convertUser(user database.User, organizations []database.Organization) code
 		CreatedAt:       user.CreatedAt,
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
-		OrganizationIds: orgIds,
+		OrganizationIDs: orgIds,
 	}
 }
 
-func convertUsers(users []database.User, organizationsByUserId OrganizationsByUserId) []codersdk.User {
+func convertUsers(users []database.User, organizationsByUserId map[string][]database.Organization) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
 		userOrganizations := organizationsByUserId[u.ID.String()]
@@ -665,7 +663,7 @@ func convertUsers(users []database.User, organizationsByUserId OrganizationsByUs
 	return converted
 }
 
-func getUserOrganizations(api *api, rw http.ResponseWriter, r *http.Request, user database.User) []database.Organization {
+func userOrganizations(api *api, rw http.ResponseWriter, r *http.Request, user database.User) []database.Organization {
 	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil

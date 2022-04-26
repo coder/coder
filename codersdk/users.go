@@ -42,7 +42,7 @@ type User struct {
 	CreatedAt       time.Time   `json:"created_at" validate:"required"`
 	Username        string      `json:"username" validate:"required"`
 	Status          UserStatus  `json:"status"`
-	OrganizationIds []uuid.UUID `json:"organization_ids"`
+	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 }
 
 type CreateFirstUserRequest struct {
