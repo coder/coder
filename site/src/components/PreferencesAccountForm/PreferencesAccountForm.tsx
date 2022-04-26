@@ -8,7 +8,6 @@ import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { Stack } from "../Stack/Stack"
 
 interface AccountFormValues {
-  name: string
   email: string
   username: string
 }
