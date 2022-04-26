@@ -59,9 +59,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
-	Store                database.Store
-	Pubsub               database.Pubsub
-	LifecycleExecutor    *lifecycle.Executor
+	Ticker               <-chan time.Time
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -79,14 +77,8 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	}
 
 	// This can be hotswapped for a live database instance.
-	db := options.Store
-	pubsub := options.Pubsub
-	if db == nil {
-		db = databasefake.New()
-	}
-	if pubsub == nil {
-		pubsub = database.NewPubsubInMemory()
-	}
+	db := databasefake.New()
+	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
 		connectionURL, close, err := postgres.Open()
 		require.NoError(t, err)
@@ -107,12 +99,16 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		})
 	}
 
-	if options.LifecycleExecutor == nil {
-		options.LifecycleExecutor = &lifecycle.Executor{}
-	}
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	lifecycleExecutor := lifecycle.NewExecutor(
+		ctx,
+		db,
+		slogtest.Make(t, nil).Named("lifecycle.executor").Leveled(slog.LevelDebug),
+		options.Ticker,
+	)
+	go lifecycleExecutor.Run()
 
 	srv := httptest.NewUnstartedServer(nil)
-	ctx, cancelFunc := context.WithCancel(context.Background())
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}

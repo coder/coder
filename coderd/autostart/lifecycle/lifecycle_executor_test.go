@@ -33,8 +33,7 @@ func Test_Executor_Run(t *testing.T) {
 			db                = databasefake.New()
 			le                = lifecycle.NewExecutor(cancelCtx, db, log, tickCh)
 			client            = coderdtest.New(t, &coderdtest.Options{
-				LifecycleExecutor: le,
-				Store:             db,
+				Ticker: tickCh,
 			})
 			// Given: we have a user with a workspace
 			_         = coderdtest.NewProvisionerDaemon(t, client)
@@ -96,8 +95,7 @@ func Test_Executor_Run(t *testing.T) {
 			db                = databasefake.New()
 			le                = lifecycle.NewExecutor(cancelCtx, db, log, tickCh)
 			client            = coderdtest.New(t, &coderdtest.Options{
-				LifecycleExecutor: le,
-				Store:             db,
+				Ticker: tickCh,
 			})
 			// Given: we have a user with a workspace
 			_         = coderdtest.NewProvisionerDaemon(t, client)
