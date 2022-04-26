@@ -182,6 +182,7 @@ func New(options *Options) (http.Handler, func()) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
+					r.Put("/suspend", api.putUserSuspend)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					r.Post("/keys", api.postAPIKey)
