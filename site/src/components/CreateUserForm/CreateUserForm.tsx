@@ -54,6 +54,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCanc
           {...getFieldHelpers("username")}
           onChange={onChangeTrimmed(form)}
           autoComplete="username"
+          autoFocus
           fullWidth
           label={Language.usernameLabel}
           variant="outlined"
