@@ -208,21 +208,21 @@ func (e *ProvisionerType) Scan(src interface{}) error {
 	return nil
 }
 
-type UserStatusType string
+type UserStatus string
 
 const (
-	UserStatusTypeActive    UserStatusType = "active"
-	UserStatusTypeSuspended UserStatusType = "suspended"
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
 )
 
-func (e *UserStatusType) Scan(src interface{}) error {
+func (e *UserStatus) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = UserStatusType(s)
+		*e = UserStatus(s)
 	case string:
-		*e = UserStatusType(s)
+		*e = UserStatus(s)
 	default:
-		return fmt.Errorf("unsupported scan type for UserStatusType: %T", src)
+		return fmt.Errorf("unsupported scan type for UserStatus: %T", src)
 	}
 	return nil
 }
@@ -391,13 +391,13 @@ type TemplateVersion struct {
 }
 
 type User struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	Email          string         `db:"email" json:"email"`
-	Username       string         `db:"username" json:"username"`
-	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
-	Status         UserStatusType `db:"status" json:"status"`
+	ID             uuid.UUID  `db:"id" json:"id"`
+	Email          string     `db:"email" json:"email"`
+	Username       string     `db:"username" json:"username"`
+	HashedPassword []byte     `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
+	Status         UserStatus `db:"status" json:"status"`
 }
 
 type Workspace struct {

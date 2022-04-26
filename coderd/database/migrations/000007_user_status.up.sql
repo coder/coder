@@ -1,4 +1,4 @@
-CREATE TYPE user_status_type AS ENUM ('active', 'suspended');
+CREATE TYPE user_status AS ENUM ('active', 'suspended');
 
 ALTER TABLE ONLY users
-    ADD COLUMN IF NOT EXISTS status user_status_type NOT NULL DEFAULT 'active';
+    ADD COLUMN IF NOT EXISTS status user_status NOT NULL DEFAULT 'active';

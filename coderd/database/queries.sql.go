@@ -2033,9 +2033,9 @@ WHERE
 `
 
 type UpdateUserStatusParams struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Status    UserStatusType `db:"status" json:"status"`
-	UpdatedAt time.Time      `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	Status    UserStatus `db:"status" json:"status"`
+	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error) {
