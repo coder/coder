@@ -8,7 +8,7 @@ import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 
-const Language = {
+export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   usernameLabel: "Username",
@@ -45,7 +45,6 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCanc
     onSubmit,
   })
   const getFieldHelpers = getFormHelpers<CreateUserRequest>(form, formErrors)
-  console.log(getFieldHelpers("email"))
 
   return (
     <FullPageForm title="Create user" onCancel={onCancel}>

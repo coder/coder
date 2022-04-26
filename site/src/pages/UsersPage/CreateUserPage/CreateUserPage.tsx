@@ -6,7 +6,7 @@ import { CreateUserRequest } from "../../../api/typesGenerated"
 import { CreateUserForm } from "../../../components/CreateUserForm/CreateUserForm"
 import { XServiceContext } from "../../../xServices/StateContext"
 
-const Language = {
+export const Language = {
   unknownError: "Oops, an unknown error occurred.",
 }
 

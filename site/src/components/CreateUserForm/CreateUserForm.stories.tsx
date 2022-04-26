@@ -12,32 +12,32 @@ const Template: Story<CreateUserFormProps> = (args: CreateUserFormProps) => <Cre
 
 export const Ready = Template.bind({})
 Ready.args = {
-  onCancel: action('cancel'),
-  onSubmit: action('submit'),
+  onCancel: action("cancel"),
+  onSubmit: action("submit"),
   isLoading: false,
 }
 
 export const UnknownError = Template.bind({})
 UnknownError.args = {
-  onCancel: action('cancel'),
-  onSubmit: action('submit'),
+  onCancel: action("cancel"),
+  onSubmit: action("submit"),
   isLoading: false,
-  error: "Something went wrong"
+  error: "Something went wrong",
 }
 
 export const FormError = Template.bind({})
 FormError.args = {
-  onCancel: action('cancel'),
-  onSubmit: action('submit'),
+  onCancel: action("cancel"),
+  onSubmit: action("submit"),
   isLoading: false,
   formErrors: {
-    email: "Bad email address"
-  }
+    email: "Bad email address",
+  },
 }
 
 export const Loading = Template.bind({})
 Loading.args = {
-  onCancel: action('cancel'),
-  onSubmit: action('submit'),
+  onCancel: action("cancel"),
+  onSubmit: action("submit"),
   isLoading: true,
 }
