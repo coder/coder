@@ -294,13 +294,13 @@ func TestPutUserSuspend(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		me := coderdtest.CreateFirstUser(t, client)
 		client.User(context.Background(), codersdk.Me)
-		user, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		user, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@coder.com",
 			Username:       "bruno",
 			Password:       "password",
 			OrganizationID: me.OrganizationID,
 		})
-		user, err = client.SuspendUser(context.Background(), user.ID)
+		user, err := client.SuspendUser(context.Background(), user.ID)
 		require.NoError(t, err)
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
 	})

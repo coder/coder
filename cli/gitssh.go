@@ -7,10 +7,11 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func gitssh() *cobra.Command {
