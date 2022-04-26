@@ -10,7 +10,8 @@ By building on top of common development interfaces (SSH) and infrastructure too
 
 Migrating from local developer machines to remote servers is an increasingly common solution for developers[^1] and organizations[^2] alike. Remote development has a number of benefits:
 
-- Speed: Server-grade compute speeds up operations in software development such as IDE loads, compiles, builds, and running large workloads (monolyth or microservice applications). 
+- Speed: Server-grade compute speeds up operations in software development such as IDE loads, compiles, builds, and running large workloads (monolith or microservice applications). 
+
 - Environment management: Onboarding & troubleshooting development environments is automated using tools such as Terraform, nix, Docker, devcontainers, etc.
 - Security: Source code and other data can be centralized on private servers or cloud, instead of local developer machines.
 - Compatibility: Remote workspaces share infrastructure configuration with other developer, staging, and production environments, reducing configuration drift.
