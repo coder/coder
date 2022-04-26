@@ -34,13 +34,13 @@ Coder supports ephemeral and persistent resources in workspaces. Ephemeral resou
 
 When a workspace is deleted, all resources are destroyed.
 
-## Variables
+## Parameters
 
-Templates often contain *variables*. In Coder, there are two types of variables.
+Templates often contain *parameters*. In Coder, there are two types of parameters.
 
-**Admin variables** are set when a template is being created/updated. These are often cloud secrets, such as a ServiceAccount token. These are annotated with `sensitive =  true` in the template code.
+**Admin parameters** are set when a template is being created/updated. These are often cloud secrets, such as a ServiceAccount token. These are annotated with `sensitive =  true` in the template code.
 
-**User variables** are set when a user creates a workspace. They are unique to each workspace, often personalization settings such as preferred region or workspace image.
+**User parameters** are set when a user creates a workspace. They are unique to each workspace, often personalization settings such as preferred region or workspace image.
 
 ---
 
