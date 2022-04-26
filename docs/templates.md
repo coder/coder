@@ -1,12 +1,16 @@
 # Templates
 
-Coder admins manage *templates* to define the infrastructure behind workspaces. A Coder deployment can have multiple templates for different workloads, such as "frontend development," "windows development," etc.
+Templates define the infrastructure underlying workspaces. Each Coder deployment
+can have multiple templates for different workloads, such as ones for front-end
+development, Windows development, and so on.
 
-Templates are shared and updates can be rolled out, or users can manually update their workspaces.
+Admins of Coder manage templates, including sharing them and rolling out updates
+to everybody. Users can also manually update their workspaces.
 
 ## Manage templates
 
-Coder provides production-ready template [examples](../examples/), but they can be modified with Terraform.
+Coder provides production-ready [sample template](../examples/), but you can
+modify the templates with Terraform.
 
 ```sh
 # start from an example
@@ -19,11 +23,14 @@ vim <template-name>/main.tf
 coder templates <create/update> <template-name>
 ```
 
-If you are commonly editing templates, we recommend source-controlling template code using GitOps/CI pipelines to make changes.
+> We recommend source controlling your templates.
 
 ## Persistent and ephemeral resources
 
-Coder supports ephemeral and persistent resources in workspaces. Ephemeral resources are be destroyed when a workspace is not in use (stopped). persistent resources remain. See how this works for an example "frontend" template:
+Coder supports both ephemeral and persistent resources in workspaces. Ephemeral
+resources are destroyed when a workspace is not in use (e.g., when it is
+stopped). Persistent resources remain. See how this works for a sample front-end
+template:
 
 | Resource                     | Type       |
 | :--------------------------- | :--------- |
@@ -36,11 +43,15 @@ When a workspace is deleted, all related resources are destroyed.
 
 ## Variables
 
-Templates often contain *variables*. In Coder, there are two types of variables.
+Templates often contain *variables*. In Coder, there are two types of variables:
 
-**Admin variables** are set when a template is being created/updated. These are often cloud secrets, such as a ServiceAccount token. These are annotated with `sensitive =  true` in the template code.
+- **Admin variables** are set when a template is created/updated. These values
+  are often cloud secrets, such as a `ServiceAccount` token, and are annotated
+  with `sensitive =  true` in the template code.
 
-**User variables** are set when a user creates a workspace. They are unique to each workspace, often personalization settings such as preferred region or workspace image.
+**User variables** are set when a user creates a workspace. They are unique to
+each workspace, and they are often personalization settings such as preferred
+region or workspace image.
 
 ---
 
