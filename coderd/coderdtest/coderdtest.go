@@ -75,6 +75,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
 	}
+	if options.Ticker == nil {
+		ticker := time.NewTicker(time.Second)
+		options.Ticker = ticker.C
+		t.Cleanup(ticker.Stop)
+	}
 
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
