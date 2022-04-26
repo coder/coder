@@ -10,146 +10,254 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Executor_Run(t *testing.T) {
+func Test_Executor_Autostart_OK(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx    = context.Background()
-			err    error
-			tickCh = make(chan time.Time)
-			client = coderdtest.New(t, &coderdtest.Options{
-				LifecycleTicker: tickCh,
-			})
-			// Given: we have a user with a workspace
-			_         = coderdtest.NewProvisionerDaemon(t, client)
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		)
-		// Given: workspace is stopped
-		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Transition:        database.WorkspaceTransitionStop,
+	var (
+		ctx    = context.Background()
+		err    error
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
 		})
-		require.NoError(t, err, "stop workspace")
-		// Given: we wait for the stop to complete
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		// Given: we have a user with a workspace
+		workspace = MustProvisionWorkspace(t, client)
+	)
+	// Given: workspace is stopped
+	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-		// Given: we update the workspace with its new state
-		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
-		// Given: we ensure the workspace is now in a stopped state
-		require.Equal(t, database.WorkspaceTransitionStop, workspace.LatestBuild.Transition)
+	// Given: the workspace initially has autostart disabled
+	require.Empty(t, workspace.AutostartSchedule)
 
-		// Given: the workspace initially has autostart disabled
-		require.Empty(t, workspace.AutostartSchedule)
+	// When: we enable workspace autostart
+	sched, err := schedule.Weekly("* * * * *")
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+		Schedule: sched.String(),
+	}))
 
-		// When: we enable workspace autostart
-		sched, err := schedule.Weekly("* * * * *")
-		require.NoError(t, err)
-		require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-			Schedule: sched.String(),
-		}))
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+	}()
 
-		// When: the lifecycle executor ticks
-		go func() {
-			tickCh <- time.Now().UTC().Add(time.Minute)
-		}()
+	// Then: the workspace should be started
+	require.Eventually(t, func() bool {
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded &&
+			ws.LatestBuild.Transition == database.WorkspaceTransitionStart
+	}, 5*time.Second, 250*time.Millisecond)
+}
 
-		// Then: the workspace should be started
-		require.Eventually(t, func() bool {
-			ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-			return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded &&
-				ws.LatestBuild.Transition == database.WorkspaceTransitionStart
-		}, 5*time.Second, 250*time.Millisecond)
+func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		err    error
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = MustProvisionWorkspace(t, client)
+	)
+
+	// Given: we ensure the workspace is running
+	require.Equal(t, database.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+
+	// Given: the workspace initially has autostart disabled
+	require.Empty(t, workspace.AutostartSchedule)
+
+	// When: we enable workspace autostart
+	sched, err := schedule.Weekly("* * * * *")
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+		Schedule: sched.String(),
+	}))
+
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+	}()
+
+	// Then: the workspace should not be started.
+	require.Never(t, func() bool {
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
+	}, 5*time.Second, 250*time.Millisecond)
+}
+
+func Test_Executor_Autostart_NotEnabled(t *testing.T) {
+	t.Parallel()
+
+	var (
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = MustProvisionWorkspace(t, client)
+	)
+
+	// Given: workspace is stopped
+	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// Given: the workspace has autostart disabled
+	require.Empty(t, workspace.AutostartSchedule)
+
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+	}()
+
+	// Then: the workspace should not be started.
+	require.Never(t, func() bool {
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
+	}, 5*time.Second, 250*time.Millisecond)
+}
+
+func Test_Executor_Autostop_OK(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		err    error
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = MustProvisionWorkspace(t, client)
+	)
+	// Given: workspace is running
+	require.Equal(t, database.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+
+	// Given: the workspace initially has autostop disabled
+	require.Empty(t, workspace.AutostopSchedule)
+
+	// When: we enable workspace autostop
+	sched, err := schedule.Weekly("* * * * *")
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
+		Schedule: sched.String(),
+	}))
+
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+	}()
+
+	// Then: the workspace should be started
+	require.Eventually(t, func() bool {
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
+	}, 5*time.Second, 250*time.Millisecond)
+}
+func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		err    error
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = MustProvisionWorkspace(t, client)
+	)
+
+	// Given: workspace is stopped
+	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// Given: the workspace initially has autostart disabled
+	require.Empty(t, workspace.AutostopSchedule)
+
+	// When: we enable workspace autostart
+	sched, err := schedule.Weekly("* * * * *")
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
+		Schedule: sched.String(),
+	}))
+
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+	}()
+
+	// Then: the workspace should not be stopped.
+	require.Never(t, func() bool {
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.ID == workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
+	}, 5*time.Second, 250*time.Millisecond)
+}
+
+func Test_Executor_Autostop_NotEnabled(t *testing.T) {
+	t.Parallel()
+
+	var (
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = MustProvisionWorkspace(t, client)
+	)
+
+	// Given: workspace is running
+	require.Equal(t, database.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+
+	// Given: the workspace has autostop disabled
+	require.Empty(t, workspace.AutostopSchedule)
+
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+	}()
+
+	// Then: the workspace should not be stopped.
+	require.Never(t, func() bool {
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.ID == workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
+	}, 5*time.Second, 250*time.Millisecond)
+}
+
+func MustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
+	t.Helper()
+	coderdtest.NewProvisionerDaemon(t, client)
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+	return coderdtest.MustWorkspace(t, client, ws.ID)
+}
+
+func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) {
+	t.Helper()
+	ctx := context.Background()
+	workspace, err := client.Workspace(ctx, workspaceID)
+	require.NoError(t, err, "unexpected error fetching workspace")
+	require.Equal(t, workspace.LatestBuild.Transition, from, "expected workspace state: %s got: %s", from, workspace.LatestBuild.Transition)
+
+	template, err := client.Template(ctx, workspace.TemplateID)
+	require.NoError(t, err, "fetch workspace template")
+
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: template.ActiveVersionID,
+		Transition:        to,
 	})
+	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
-	t.Run("AlreadyRunning", func(t *testing.T) {
-		t.Parallel()
+	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
-		var (
-			ctx    = context.Background()
-			err    error
-			tickCh = make(chan time.Time)
-			client = coderdtest.New(t, &coderdtest.Options{
-				LifecycleTicker: tickCh,
-			})
-			// Given: we have a user with a workspace
-			_         = coderdtest.NewProvisionerDaemon(t, client)
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		)
-
-		// Given: we ensure the workspace is now in a stopped state
-		require.Equal(t, database.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
-
-		// Given: the workspace initially has autostart disabled
-		require.Empty(t, workspace.AutostartSchedule)
-
-		// When: we enable workspace autostart
-		sched, err := schedule.Weekly("* * * * *")
-		require.NoError(t, err)
-		require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-			Schedule: sched.String(),
-		}))
-
-		// When: the lifecycle executor ticks
-		go func() {
-			tickCh <- time.Now().UTC().Add(time.Minute)
-		}()
-
-		// Then: the workspace should not be started.
-		require.Never(t, func() bool {
-			ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-			return ws.LatestBuild.ID != workspace.LatestBuild.ID
-		}, 5*time.Second, 250*time.Millisecond)
-	})
-
-	t.Run("NotEnabled", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			tickCh = make(chan time.Time)
-			client = coderdtest.New(t, &coderdtest.Options{
-				LifecycleTicker: tickCh,
-			})
-			// Given: we have a user with a workspace
-			_         = coderdtest.NewProvisionerDaemon(t, client)
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		)
-
-		// Given: we ensure the workspace is now in a stopped state
-		require.Equal(t, database.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
-
-		// Given: the workspace has autostart disabled
-		require.Empty(t, workspace.AutostartSchedule)
-
-		// When: the lifecycle executor ticks
-		go func() {
-			tickCh <- time.Now().UTC().Add(time.Minute)
-		}()
-
-		// Then: the workspace should not be started.
-		require.Never(t, func() bool {
-			ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-			return ws.LatestBuild.ID != workspace.LatestBuild.ID
-		}, 5*time.Second, 250*time.Millisecond)
-	})
+	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
+	require.Equal(t, to, updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
 }
