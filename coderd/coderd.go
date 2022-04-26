@@ -111,6 +111,15 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.templatesByOrganization)
 				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})
+			r.Route("/workspaces", func(r chi.Router) {
+				r.Post("/", api.postWorkspacesByOrganization)
+				r.Get("/", api.workspacesByOrganization)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Get("/{workspace}", api.workspaceByOwnerAndName)
+					r.Get("/", api.workspacesByOwner)
+				})
+			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -167,7 +176,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
-				r.Post("/", api.postUsers)
+				r.Post("/", api.postUser)
 				r.Get("/", api.users)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
@@ -182,11 +191,6 @@ func New(options *Options) (http.Handler, func()) {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
-					r.Route("/workspaces", func(r chi.Router) {
-						r.Post("/", api.postWorkspacesByUser)
-						r.Get("/", api.workspacesByUser)
-						r.Get("/{workspacename}", api.workspaceByUserAndName)
-					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 				})
@@ -198,7 +202,8 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/", api.workspaceAgentListen)
+				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Get("/listen", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)

@@ -105,7 +105,7 @@ func TestAgentGitSSHKey(t *testing.T) {
 	})
 	project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 

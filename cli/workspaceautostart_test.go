@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
 )
 
 func TestWorkspaceAutostart(t *testing.T) {
@@ -28,7 +27,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			tz        = "Europe/Dublin"
 			cmdArgs   = []string{"workspaces", "autostart", "enable", workspace.Name, "--minute", "30", "--hour", "9", "--days", "1-5", "--tz", tz}
 			sched     = "CRON_TZ=Europe/Dublin 30 9 * * 1-5"
@@ -110,7 +109,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, codersdk.Me, project.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 		)
 
 		// check current TZ env var

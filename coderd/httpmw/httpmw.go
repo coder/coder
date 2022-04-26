@@ -20,12 +20,6 @@ func parseUUID(rw http.ResponseWriter, r *http.Request, param string) (uuid.UUID
 		return uuid.UUID{}, false
 	}
 
-	// Automatically set uuid.Nil to the acting users id.
-	if param == UserKey && rawID == "me" {
-		key := APIKey(r)
-		return key.UserID, true
-	}
-
 	parsed, err := uuid.Parse(rawID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
