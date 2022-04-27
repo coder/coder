@@ -4,9 +4,9 @@ import { rest } from "msw"
 import React from "react"
 import { Language as FormLanguage } from "../../../components/CreateUserForm/CreateUserForm"
 import { Language as FooterLanguage } from "../../../components/FormFooter/FormFooter"
-import { Language as UserLanguage } from "../../../xServices/users/usersXService"
 import { history, render } from "../../../testHelpers"
 import { server } from "../../../testHelpers/server"
+import { Language as UserLanguage } from "../../../xServices/users/usersXService"
 import { CreateUserPage, Language } from "./CreateUserPage"
 
 const fillForm = async ({
@@ -54,13 +54,18 @@ describe("Create User Page", () => {
     const fieldErrorMessage = "username already in use"
     server.use(
       rest.post("/api/v2/users", (req, res, ctx) => {
-        return res(ctx.status(400), ctx.json({
-          message: "invalid field",
-          errors: [{
-            detail: fieldErrorMessage,
-            field: "username"
-          }]
-        }))
+        return res(
+          ctx.status(400),
+          ctx.json({
+            message: "invalid field",
+            errors: [
+              {
+                detail: fieldErrorMessage,
+                field: "username",
+              },
+            ],
+          }),
+        )
       }),
     )
     render(<CreateUserPage />)

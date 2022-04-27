@@ -11,7 +11,7 @@ interface FieldError {
   detail: string
 }
 
-type FieldErrors = Record<FieldError["field"], FieldError["detail"]>
+export type FieldErrors = Record<FieldError["field"], FieldError["detail"]>
 
 export interface ApiErrorResponse {
   message: string
