@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -18,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -77,6 +79,8 @@ func TestServer(t *testing.T) {
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 		}()
+		var stdoutBuf bytes.Buffer
+		root.SetOutput(&stdoutBuf)
 		var token string
 		require.Eventually(t, func() bool {
 			var err error
@@ -88,6 +92,9 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		parsed, err := url.Parse(accessURL)
 		require.NoError(t, err)
+		// Verify that credentials were output to the terminal.
+		assert.Contains(t, stdoutBuf.String(), "email: admin@coder.com", "unexpected output")
+		assert.Contains(t, stdoutBuf.String(), "password: password", "unexpected output")
 		client := codersdk.New(parsed)
 		client.SessionToken = token
 		_, err = client.User(ctx, codersdk.Me)
