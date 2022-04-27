@@ -78,7 +78,6 @@ describe("Create User Page", () => {
     await fillForm({})
     const successMessage = screen.findByText(UserLanguage.createUserSuccess)
     expect(successMessage).toBeDefined()
-    expect(history.location.pathname).toEqual("/users")
   })
   it("redirects to users page on cancel", async () => {
     render(<CreateUserPage />)

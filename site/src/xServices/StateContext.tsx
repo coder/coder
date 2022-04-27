@@ -24,12 +24,14 @@ export const XServiceContext = createContext({} as XServiceContextType)
 
 export const XServiceProvider: React.FC = ({ children }) => {
   const navigate = useNavigate()
+  const redirectToUsersPage = () => { navigate("users") }
+
   return (
     <XServiceContext.Provider
       value={{
         authXService: useInterpret(authMachine),
         buildInfoXService: useInterpret(buildInfoMachine),
-        usersXService: useInterpret(usersMachine.withContext({ users: [], navigate })),
+        usersXService: useInterpret(usersMachine.withConfig({ actions: { redirectToUsersPage } })),
       }}
     >
       {children}

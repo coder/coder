@@ -16,7 +16,6 @@ export interface UsersContext {
   getUsersError?: Error | unknown
   createUserError?: Error | unknown
   createUserFormErrors?: FieldErrors
-  navigate?: NavigateFunction
 }
 
 export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: TypesGen.CreateUserRequest }
@@ -129,9 +128,6 @@ export const usersMachine = createMachine(
       })),
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
-      },
-      redirectToUsersPage: (context) => {
-        context.navigate && context.navigate("/users")
       },
     },
   },
