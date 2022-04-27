@@ -75,7 +75,7 @@ export const usersMachine = createMachine(
           idle: {
             on: {
               CREATE: "creatingUser",
-              EXIT_CREATION_MODE: "#usersState.idle"
+              EXIT_CREATION_MODE: "#usersState.idle",
             },
           },
           creatingUser: {

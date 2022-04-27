@@ -20,7 +20,6 @@ export const UsersPage: React.FC = () => {
   if (usersState.matches("error")) {
     return <ErrorSummary error={getUsersError} />
   } else if (usersState.matches("creationMode")) {
-    console.log("loop")
     return <Navigate to="/users/create" />
   } else {
     return (

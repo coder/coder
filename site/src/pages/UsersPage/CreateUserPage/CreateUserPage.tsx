@@ -16,16 +16,20 @@ export const CreateUserPage = () => {
   // There is no field for organization id in Community Edition, so handle its field error like a generic error
   const genericError = createUserError || createUserFormErrors?.organization_id ? Language.unknownError : undefined
 
-  if (usersState.matches("creationMode")){
-    return <CreateUserForm
-      formErrors={createUserFormErrors}
-      onSubmit={(user: CreateUserRequest) => usersSend({ type: "CREATE", user })}
-      onCancel={() => {usersSend("EXIT_CREATION_MODE")}}
-      isLoading={usersState.hasTag("loading")}
-      error={genericError}
-    />
+  if (usersState.matches("creationMode")) {
+    return (
+      <CreateUserForm
+        formErrors={createUserFormErrors}
+        onSubmit={(user: CreateUserRequest) => usersSend({ type: "CREATE", user })}
+        onCancel={() => {
+          usersSend("EXIT_CREATION_MODE")
+        }}
+        isLoading={usersState.hasTag("loading")}
+        error={genericError}
+      />
+    )
   } else {
     // on cancel or success, redirect
-    return <Navigate to="/users"/>
+    return <Navigate to="/users" />
   }
 }
