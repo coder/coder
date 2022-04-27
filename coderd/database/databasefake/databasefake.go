@@ -1144,6 +1144,36 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
+func (q *fakeQuerier) GrantUserRole(ctx context.Context, arg database.GrantUserRoleParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+
+		// Append the new roles
+		user.RbacRoles = append(user.RbacRoles, arg.GrantedRoles...)
+		// Remove duplicates and sort
+		uniqueRoles := make([]string, 0, len(user.RbacRoles))
+		exist := make(map[string]struct{})
+		for _, r := range user.RbacRoles {
+			if _, ok := exist[r]; ok {
+				continue
+			}
+			exist[r] = struct{}{}
+			uniqueRoles = append(uniqueRoles, r)
+		}
+		sort.Strings(uniqueRoles)
+		user.RbacRoles = uniqueRoles
+
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

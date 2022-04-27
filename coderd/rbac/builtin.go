@@ -206,9 +206,13 @@ func roleName(name string, scopeID string) string {
 }
 
 func roleSplit(role string) (name string, scopeID string, err error) {
-	arr := strings.Split(name, ":")
+	arr := strings.Split(role, ":")
 	if len(arr) > 2 {
 		return "", "", xerrors.Errorf("too many colons in role name")
+	}
+
+	if arr[0] == "" {
+		return "", "", xerrors.Errorf("role cannot be the empty string")
 	}
 
 	if len(arr) == 2 {

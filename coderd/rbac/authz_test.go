@@ -28,6 +28,7 @@ type subject struct {
 func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
 	defOrg := uuid.New()
+	unuseID := uuid.New()
 	wrkID := "1234"
 
 	user := subject{
@@ -53,10 +54,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: false},
 
 		// Other org + other user + id
 		{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: false},
@@ -66,10 +67,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Other org + other use + other id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: false},
 
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
@@ -108,10 +109,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: false},
 
 		// Other org + other user + id
 		{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: false},
@@ -121,10 +122,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Other org + other use + other id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: false},
 
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
@@ -155,10 +156,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.All(), actions: allActions(), allow: false},
 
 		// Other org + me + id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: false},
 
 		// Other org + other user + id
 		{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: true},
@@ -168,10 +169,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
 
 		// Other org + other use + other id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: false},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id"), actions: allActions(), allow: false},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: false},
 
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: false},
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: false},
@@ -202,10 +203,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.All(), actions: allActions(), allow: true},
 
 		// Other org + me + id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: true},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID), actions: allActions(), allow: true},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID), actions: allActions(), allow: true},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: true},
 
 		// Other org + other user + id
 		{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), actions: allActions(), allow: true},
@@ -215,10 +216,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: true},
 
 		// Other org + other use + other id
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: true},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me"), actions: allActions(), allow: true},
-		{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id"), actions: allActions(), allow: true},
-		{resource: rbac.ResourceWorkspace.InOrg("other"), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id"), actions: allActions(), allow: true},
+		{resource: rbac.ResourceWorkspace.InOrg(unuseID), actions: allActions(), allow: true},
 
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), actions: allActions(), allow: true},
 		{resource: rbac.ResourceWorkspace.WithOwner("not-me"), actions: allActions(), allow: true},
@@ -266,10 +267,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.All(), allow: false},
 
 			// Other org + me + id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID), allow: true},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID), allow: true},
-			{resource: rbac.ResourceWorkspace.InOrg("other"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID), allow: true},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID), allow: true},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID), allow: false},
 
 			// Other org + other user + id
 			{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), allow: true},
@@ -279,10 +280,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me"), allow: false},
 
 			// Other org + other use + other id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID), allow: false},
 
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), allow: false},
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me"), allow: false},
@@ -309,10 +310,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.All()},
 
 			// Other org + me + id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID)},
 
 			// Other org + other user + id
 			{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID)},
@@ -322,10 +323,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me")},
 
 			// Other org + other use + other id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id")},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me")},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id")},
-			{resource: rbac.ResourceWorkspace.InOrg("other")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID)},
 
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id")},
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me")},
@@ -342,7 +343,7 @@ func TestAuthorizeDomain(t *testing.T) {
 				Name: "ReadOnlyOrgAndUser",
 				Site: []rbac.Permission{},
 				Org: map[string][]rbac.Permission{
-					defOrg: {{
+					defOrg.String(): {{
 						Negate:       false,
 						ResourceType: "*",
 						ResourceID:   "*",
@@ -381,10 +382,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.All(), allow: false},
 
 			// Other org + me + id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID), allow: false},
 
 			// Other org + other user + id
 			{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), allow: true},
@@ -394,10 +395,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me"), allow: false},
 
 			// Other org + other use + other id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID), allow: false},
 
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), allow: false},
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me"), allow: false},
@@ -426,10 +427,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.All()},
 
 			// Other org + me + id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID).WithID(wrkID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner(user.UserID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID(wrkID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID)},
 
 			// Other org + other user + id
 			{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID)},
@@ -439,10 +440,10 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me")},
 
 			// Other org + other use + other id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id")},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me")},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id")},
-			{resource: rbac.ResourceWorkspace.InOrg("other")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me").WithID("not-id")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithOwner("not-me")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID).WithID("not-id")},
+			{resource: rbac.ResourceWorkspace.InOrg(unuseID)},
 
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id")},
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me")},
@@ -454,7 +455,8 @@ func TestAuthorizeDomain(t *testing.T) {
 // TestAuthorizeLevels ensures level overrides are acting appropriately
 //nolint:paralleltest
 func TestAuthorizeLevels(t *testing.T) {
-	defOrg := "default"
+	defOrg := uuid.New()
+	unusedID := uuid.New()
 	wrkID := "1234"
 
 	user := subject{
@@ -462,9 +464,9 @@ func TestAuthorizeLevels(t *testing.T) {
 		Roles: []rbac.Role{
 			must(rbac.RoleByName(rbac.RoleAdmin())),
 			{
-				Name: "org-deny" + defOrg,
+				Name: "org-deny:" + defOrg.String(),
 				Org: map[string][]rbac.Permission{
-					defOrg: {
+					defOrg.String(): {
 						{
 							Negate:       true,
 							ResourceType: "*",
@@ -509,10 +511,10 @@ func TestAuthorizeLevels(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.All()},
 
 			// Other org + me + id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID)},
-			{resource: rbac.ResourceWorkspace.InOrg("other")},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID).WithID(wrkID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithID(wrkID)},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID)},
 
 			// Other org + other user + id
 			{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID)},
@@ -522,10 +524,10 @@ func TestAuthorizeLevels(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me")},
 
 			// Other org + other use + other id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id")},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me")},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id")},
-			{resource: rbac.ResourceWorkspace.InOrg("other")},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner("not-me").WithID("not-id")},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithID("not-id")},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID)},
 
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id")},
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me")},
@@ -582,10 +584,10 @@ func TestAuthorizeLevels(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.All(), allow: false},
 
 			// Other org + me + id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID).WithID(wrkID), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner(user.UserID), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID(wrkID), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID).WithID(wrkID), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithID(wrkID), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID), allow: false},
 
 			// Other org + other user + id
 			{resource: rbac.ResourceWorkspace.InOrg(defOrg).WithOwner("not-me").WithID(wrkID), allow: true},
@@ -595,10 +597,10 @@ func TestAuthorizeLevels(t *testing.T) {
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me"), allow: false},
 
 			// Other org + other use + other id
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me").WithID("not-id"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithOwner("not-me"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other").WithID("not-id"), allow: false},
-			{resource: rbac.ResourceWorkspace.InOrg("other"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner("not-me").WithID("not-id"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID).WithID("not-id"), allow: false},
+			{resource: rbac.ResourceWorkspace.InOrg(unusedID), allow: false},
 
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me").WithID("not-id"), allow: false},
 			{resource: rbac.ResourceWorkspace.WithOwner("not-me"), allow: false},
