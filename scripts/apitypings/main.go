@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"golang.org/x/xerrors"
 )
@@ -19,9 +22,23 @@ const (
 )
 
 func main() {
-	err := run()
+	ctx := context.Background()
+	log := slog.Make(sloghuman.Sink(os.Stderr))
+	g := Generator{log: log}
+	err := g.parsePackage(ctx, "./codersdk")
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
+	}
+	//err = g.generate("ProvisionerJob")
+	err = g.generateAll()
+	if err != nil {
+		panic(err)
+	}
+	return
+
+	err = run()
+	if err != nil {
+		log.Fatal(ctx, err.Error())
 	}
 }
 
@@ -180,6 +197,7 @@ func getIdent(e ast.Expr) (*ast.Ident, string, error) {
 }
 
 func toTsType(fieldType string) string {
+	fmt.Println(fieldType)
 	switch fieldType {
 	case "bool":
 		return "boolean"
