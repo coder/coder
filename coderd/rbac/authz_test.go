@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"golang.org/x/xerrors"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +27,7 @@ type subject struct {
 // TestAuthorizeDomain test the very basic roles that are commonly used.
 func TestAuthorizeDomain(t *testing.T) {
 	t.Parallel()
-	defOrg := "default"
+	defOrg := uuid.New()
 	wrkID := "1234"
 
 	user := subject{
