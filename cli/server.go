@@ -47,6 +47,13 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+var defaultDevUser = codersdk.CreateFirstUserRequest{
+	Email:            "admin@coder.com",
+	Username:         "developer",
+	Password:         "password",
+	OrganizationName: "acme-corp",
+}
+
 // nolint:gocyclo
 func server() *cobra.Command {
 	var (
@@ -275,6 +282,9 @@ func server() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
 				}
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", defaultDevUser.Email)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", defaultDevUser.Password)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+
 					cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`)+"\n\n")
@@ -441,18 +451,13 @@ func server() *cobra.Command {
 }
 
 func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root) error {
-	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-		Email:            "admin@coder.com",
-		Username:         "developer",
-		Password:         "password",
-		OrganizationName: "acme-corp",
-	})
+	_, err := client.CreateFirstUser(cmd.Context(), defaultDevUser)
 	if err != nil {
 		return xerrors.Errorf("create first user: %w", err)
 	}
 	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
-		Email:    "admin@coder.com",
-		Password: "password",
+		Email:    defaultDevUser.Email,
+		Password: defaultDevUser.Password,
 	})
 	if err != nil {
 		return xerrors.Errorf("login with first user: %w", err)
