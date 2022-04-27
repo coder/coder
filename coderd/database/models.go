@@ -378,6 +378,7 @@ type User struct {
 	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	RbacRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
 }
 
 type Workspace struct {

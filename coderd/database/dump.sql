@@ -221,7 +221,8 @@ CREATE TABLE users (
     username text DEFAULT ''::text NOT NULL,
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
+    updated_at timestamp with time zone NOT NULL,
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL
 );
 
 CREATE TABLE workspace_agents (
