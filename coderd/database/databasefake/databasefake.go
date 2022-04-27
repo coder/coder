@@ -1212,12 +1212,13 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 
 	//nolint:gosimple
 	workspace := database.Workspace{
-		ID:         arg.ID,
-		CreatedAt:  arg.CreatedAt,
-		UpdatedAt:  arg.UpdatedAt,
-		OwnerID:    arg.OwnerID,
-		TemplateID: arg.TemplateID,
-		Name:       arg.Name,
+		ID:             arg.ID,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		OwnerID:        arg.OwnerID,
+		OrganizationID: arg.OrganizationID,
+		TemplateID:     arg.TemplateID,
+		Name:           arg.Name,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
