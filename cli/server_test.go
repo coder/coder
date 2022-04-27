@@ -75,12 +75,12 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
+		var stdoutBuf bytes.Buffer
+		root.SetOutput(&stdoutBuf)
 		go func() {
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 		}()
-		var stdoutBuf bytes.Buffer
-		root.SetOutput(&stdoutBuf)
 		var token string
 		require.Eventually(t, func() bool {
 			var err error
