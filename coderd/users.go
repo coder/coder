@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
@@ -74,6 +76,21 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		Email:    createUser.Email,
 		Username: createUser.Username,
 		Password: createUser.Password,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// TODO: @emyrk this currently happens outside the database tx used to create
+	// 	the user. Maybe I add this ability to grant roles in the createUser api
+	//	and add some rbac bypass when calling api functions this way??
+	// Add the admin role to this first user
+	_, err = api.Database.GrantUserRole(r.Context(), database.GrantUserRoleParams{
+		GrantedRoles: []string{rbac.RoleAdmin()},
+		ID:           user.ID,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -582,6 +599,8 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			Username:  req.Username,
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
+			// All new users are defaulted to members of the site.
+			RbacRoles: []string{rbac.RoleMember()},
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
@@ -617,7 +636,8 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			UserID:         user.ID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
-			Roles:          []string{},
+			// By default give them membership to the organization
+			Roles: []string{rbac.RoleOrgMember(req.OrganizationID)},
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization member: %w", err)

@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"github.com/google/uuid"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -30,12 +31,12 @@ func RoleMember() string {
 	return roleName(member, "")
 }
 
-func RoleOrgAdmin(organizationID string) RoleName {
-	return roleName(orgAdmin, organizationID)
+func RoleOrgAdmin(organizationID uuid.UUID) RoleName {
+	return roleName(orgAdmin, organizationID.String())
 }
 
-func RoleOrgMember(organizationID string) RoleName {
-	return roleName(orgMember, organizationID)
+func RoleOrgMember(organizationID uuid.UUID) RoleName {
+	return roleName(orgMember, organizationID.String())
 }
 
 var (
