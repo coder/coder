@@ -709,7 +709,7 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetOrganizationIDsByMemberIDs(c context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
+func (q *fakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

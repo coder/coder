@@ -235,7 +235,7 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 // is completed in the middleware for this route.
 func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	organizationIDs, err := userOrganizationIDs(api, rw, r, user)
+	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -301,7 +301,7 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizationIDs, err := userOrganizationIDs(api, rw, r, user)
+	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
@@ -328,7 +328,7 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizations, err := userOrganizationIDs(api, rw, r, user)
+	organizations, err := userOrganizationIDs(r.Context(), api, user)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
@@ -685,8 +685,8 @@ func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][
 	return converted
 }
 
-func userOrganizationIDs(api *api, rw http.ResponseWriter, r *http.Request, user database.User) ([]uuid.UUID, error) {
-	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), []uuid.UUID{user.ID})
+func userOrganizationIDs(ctx context.Context, api *api, user database.User) ([]uuid.UUID, error) {
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{user.ID})
 	if errors.Is(err, sql.ErrNoRows) || len(organizationIDsByMemberIDsRows) == 0 {
 		return []uuid.UUID{}, nil
 	}
