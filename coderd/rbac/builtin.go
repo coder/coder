@@ -12,8 +12,9 @@ const (
 	member  string = "member"
 	auditor string = "auditor"
 
-	orgAdmin  string = "organization-admin"
-	orgMember string = "organization-member"
+	orgAdmin   string = "organization-admin"
+	orgMember  string = "organization-member"
+	orgManager string = "organization-manager"
 )
 
 // RoleName is a string that represents a registered rbac role. We want to store
@@ -23,11 +24,16 @@ const (
 // We use functions to retrieve the name incase we need to add a scope.
 type RoleName = string
 
-func RoleAdmin() string {
+// The functions below ONLY need to exist for roles that are "defaulted" in some way.
+// Any other roles (like auditor), can be listed and let the user select/assigned.
+// Once we have a database implementation, the "default" roles be be defined on the
+// site and orgs, and these functions can be removed.
+
+func RoleAdmin() RoleName {
 	return roleName(admin, "")
 }
 
-func RoleMember() string {
+func RoleMember() RoleName {
 	return roleName(member, "")
 }
 
@@ -35,6 +41,7 @@ func RoleOrgAdmin(organizationID uuid.UUID) RoleName {
 	return roleName(orgAdmin, organizationID.String())
 }
 
+// member:uuid
 func RoleOrgMember(organizationID uuid.UUID) RoleName {
 	return roleName(orgMember, organizationID.String())
 }
@@ -46,6 +53,9 @@ var (
 	// them such that the "org" permissions are dynamically changed by the
 	// scopeID passed in. This isn't a hard problem to solve, it's just easier
 	// as a function right now.
+	//
+	// This map will be replaced by database storage defined by this ticket.
+	// https://github.com/coder/coder/issues/1194
 	builtInRoles = map[string]func(scopeID string) Role{
 		// admin grants all actions to all resources.
 		admin: func(_ string) Role {
@@ -110,21 +120,63 @@ var (
 				},
 			}
 		},
+
+		orgManager: func(organizationID string) Role {
+			return Role{
+				Name: roleName(orgMember, organizationID),
+				Org: map[string][]Permission{
+					organizationID: permissions(map[Object][]Action{
+						ResourceWorkspace: {WildcardSymbol},
+					}),
+				},
+			}
+		},
 	}
 )
+
+// ListOrgRoles lists all roles that can be applied to an organization user
+// in the given organization.
+// Note: This should be a list in a database, but until then we build
+// 	the list from the builtins.
+func ListOrgRoles(organizationID uuid.UUID) []string {
+	var roles []string
+	for role, _ := range builtInRoles {
+		_, scope, err := roleSplit(role)
+		if err != nil {
+			// This should never happen
+			continue
+		}
+		if scope == organizationID.String() {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
+
+// ListSiteRoles lists all roles that can be applied to a user.
+// Note: This should be a list in a database, but until then we build
+// 	the list from the builtins.
+func ListSiteRoles() []string {
+	var roles []string
+	for role, _ := range builtInRoles {
+		_, scope, err := roleSplit(role)
+		if err != nil {
+			// This should never happen
+			continue
+		}
+		if scope == "" {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
 
 // RoleByName returns the permissions associated with a given role name.
 // This allows just the role names to be stored and expanded when required.
 func RoleByName(name string) (Role, error) {
-	arr := strings.Split(name, ":")
-	if len(arr) > 2 {
-		return Role{}, xerrors.Errorf("too many semicolons in role name")
-	}
-
-	roleName := arr[0]
-	var scopeID string
-	if len(arr) > 1 {
-		scopeID = arr[1]
+	roleName, scopeID, err := roleSplit(name)
+	if err != nil {
+		return Role{}, xerrors.Errorf(":%w", err)
 	}
 
 	roleFunc, ok := builtInRoles[roleName]
@@ -151,6 +203,18 @@ func roleName(name string, scopeID string) string {
 		return name
 	}
 	return name + ":" + scopeID
+}
+
+func roleSplit(role string) (name string, scopeID string, err error) {
+	arr := strings.Split(name, ":")
+	if len(arr) > 2 {
+		return "", "", xerrors.Errorf("too many colons in role name")
+	}
+
+	if len(arr) == 2 {
+		return arr[0], arr[1], nil
+	}
+	return arr[0], "", nil
 }
 
 // permissions is just a helper function to make building roles that list out resources
