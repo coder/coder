@@ -69,6 +69,14 @@ type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 }
 
+type GrantUserRoles struct {
+	Roles []string `json:"roles" validate:"required"`
+}
+
+type UserRoles struct {
+	Roles []string `json:"roles"`
+}
+
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
 	Email    string `json:"email" validate:"required,email"`
@@ -167,6 +175,35 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
+
+// GrantUserRoles grants the userID the specified roles
+func (c *Client) GrantUserRoles(ctx context.Context, userID uuid.UUID, req GrantUserRoles) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// GetUserRoles returns all roles the user has
+func (c *Client) GetUserRoles(ctx context.Context, userID uuid.UUID) (UserRoles, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", uuidOrMe(userID)), nil)
+	if err != nil {
+		return UserRoles{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserRoles{}, readBodyAsError(res)
+	}
+	var roles UserRoles
+	return roles, json.NewDecoder(res.Body).Decode(&roles)
+}
+
 
 // CreateAPIKey generates an API key for the user ID provided.
 func (c *Client) CreateAPIKey(ctx context.Context, userID uuid.UUID) (*GenerateAPIKeyResponse, error) {

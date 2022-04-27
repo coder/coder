@@ -4,23 +4,24 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -317,6 +318,69 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser))
 }
 
+func (api *api) getUserRoles(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	resp := codersdk.UserRoles{
+		Roles: user.RbacRoles,
+	}
+
+	memberships, err := api.Database.GetOrganizationMembershipsByUserID(r.Context(), user.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user memberships: %s", err),
+		})
+		return
+	}
+
+	for _, mem := range memberships {
+		resp.Roles = append(resp.Roles, mem.Roles...)
+	}
+
+	httpapi.Write(rw, http.StatusOK, resp)
+}
+
+func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
+	// User is the user to modify
+	// TODO: Until rbac authorize is implemented, only be able to change your
+	//		own roles. This also means you can grant yourself whatever roles you want.
+	user := httpmw.UserParam(r)
+	apiKey := httpmw.APIKey(r)
+	if apiKey.UserID != user.ID {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: fmt.Sprintf("modifying other users is not supported at this time"),
+		})
+		return
+	}
+
+	var params codersdk.GrantUserRoles
+	if !httpapi.Read(rw, r, &params) {
+		return
+	}
+
+	for _, r := range params.Roles {
+		if _, err := rbac.RoleByName(r); err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("%q is not a supported role", r),
+			})
+			return
+		}
+	}
+
+	updatedUser, err := api.Database.GrantUserRole(r.Context(), database.GrantUserRoleParams{
+		GrantedRoles: params.Roles,
+		ID:           user.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUser))
+}
+
 // Returns organizations the parameterized user has access to.
 func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
@@ -413,7 +477,11 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 			UserID:         user.ID,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
-			Roles:          []string{"organization-admin"},
+			Roles: []string{
+				// Also assign member role incase they get demoted from admin
+				rbac.RoleOrgMember(organization.ID),
+				rbac.RoleOrgAdmin(organization.ID),
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization member: %w", err)
@@ -579,6 +647,7 @@ func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) (database.User, uuid.UUID, error) {
 	var user database.User
 	return user, req.OrganizationID, api.Database.InTx(func(db database.Store) error {
+		var orgRoles []string
 		// If no organization is provided, create a new one for the user.
 		if req.OrganizationID == uuid.Nil {
 			organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
@@ -591,7 +660,10 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 				return xerrors.Errorf("create organization: %w", err)
 			}
 			req.OrganizationID = organization.ID
+			orgRoles = append(orgRoles, rbac.RoleOrgAdmin(req.OrganizationID))
 		}
+		// Always also be a member
+		orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
 
 		params := database.InsertUserParams{
 			ID:        uuid.New(),
@@ -637,7 +709,7 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			// By default give them membership to the organization
-			Roles: []string{rbac.RoleOrgMember(req.OrganizationID)},
+			Roles: orgRoles,
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization member: %w", err)

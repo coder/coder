@@ -709,6 +709,21 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var memberships []database.OrganizationMember
+	for _, organizationMember := range q.organizationMembers {
+		mem := organizationMember
+		if mem.UserID != userID {
+			continue
+		}
+		memberships = append(memberships, mem)
+	}
+	return memberships, nil
+}
+
 func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1139,6 +1154,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
 		Status:         database.UserStatusActive,
+		RbacRoles:      arg.RbacRoles,
 	}
 	q.users = append(q.users, user)
 	return user, nil
@@ -1190,35 +1206,18 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, user := range q.users {
-		if user.ID != arg.ID {
-			continue
-		}
-		user.Status = arg.Status
-		user.UpdatedAt = arg.UpdatedAt
-		q.users[index] = user
-		return user, nil
-	}
-	return database.User{}, sql.ErrNoRows
-}
-
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
 	workspace := database.Workspace{
-		ID:             arg.ID,
-		CreatedAt:      arg.CreatedAt,
-		UpdatedAt:      arg.UpdatedAt,
-		OwnerID:        arg.OwnerID,
-		OrganizationID: arg.OrganizationID,
-		TemplateID:     arg.TemplateID,
-		Name:           arg.Name,
+		ID:         arg.ID,
+		CreatedAt:  arg.CreatedAt,
+		UpdatedAt:  arg.UpdatedAt,
+		OwnerID:    arg.OwnerID,
+		TemplateID: arg.TemplateID,
+		Name:       arg.Name,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil

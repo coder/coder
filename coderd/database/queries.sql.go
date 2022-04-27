@@ -336,6 +336,44 @@ func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetO
 	return i, err
 }
 
+const getOrganizationMembershipsByUserID = `-- name: GetOrganizationMembershipsByUserID :many
+SELECT
+	user_id, organization_id, created_at, updated_at, roles
+FROM
+	organization_members
+WHERE
+  user_id = $1
+`
+
+func (q *sqlQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]OrganizationMember, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationMembershipsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrganizationMember
+	for rows.Next() {
+		var i OrganizationMember
+		if err := rows.Scan(
+			&i.UserID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			pq.Array(&i.Roles),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertOrganizationMember = `-- name: InsertOrganizationMember :one
 INSERT INTO
 	organization_members (
@@ -1970,7 +2008,7 @@ SET
 	-- Append new roles and remove duplicates just to keep things clean.
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(rbac_roles || $1 :: text[]))
 WHERE
-    id = $2
+ 	id = $2
 RETURNING id, email, username, hashed_password, created_at, updated_at, rbac_roles
 `
 

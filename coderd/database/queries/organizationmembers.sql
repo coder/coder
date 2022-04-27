@@ -20,3 +20,12 @@ INSERT INTO
 	)
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
+
+
+-- name: GetOrganizationMembershipsByUserID :many
+SELECT
+	*
+FROM
+	organization_members
+WHERE
+  user_id = $1;

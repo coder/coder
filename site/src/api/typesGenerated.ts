@@ -133,6 +133,14 @@ export interface CreateOrganizationRequest {
 }
 
 // From codersdk/users.go:93:6.
+<<<<<<< HEAD
+=======
+export interface CreateWorkspaceRequest {
+  readonly name: string
+}
+
+// From codersdk/users.go:102:6.
+>>>>>>> Add endpoints to grant new roles to a user
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
