@@ -56,7 +56,7 @@ SET
 	-- Append new roles and remove duplicates just to keep things clean.
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(rbac_roles || @granted_roles :: text[]))
 WHERE
-    id = @id
+ 	id = @id
 RETURNING *;
 
 -- name: GetUsers :many
