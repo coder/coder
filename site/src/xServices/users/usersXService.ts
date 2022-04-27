@@ -1,3 +1,4 @@
+import { NavigateFunction } from "react-router"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
@@ -13,6 +14,7 @@ export interface UsersContext {
   pager?: Types.Pager
   getUsersError?: Error | unknown
   createUserError?: Error | unknown
+  navigate?: NavigateFunction
 }
 
 export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: TypesGen.CreateUserRequest }
@@ -69,7 +71,7 @@ export const usersMachine = createMachine(
           id: "createUser",
           onDone: {
             target: "idle",
-            actions: ["displayCreateUserSuccess", "clearCreateUserError"],
+            actions: ["displayCreateUserSuccess", "redirectToUsersPage", "clearCreateUserError"],
           },
           onError: {
             target: "idle",
@@ -112,6 +114,9 @@ export const usersMachine = createMachine(
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
       },
+      redirectToUsersPage: (context) => {
+        context.navigate && context.navigate("/users")
+      }
     },
   },
 )
