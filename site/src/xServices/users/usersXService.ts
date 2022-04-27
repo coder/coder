@@ -1,3 +1,4 @@
+import { NavigateFunction } from "react-router"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
@@ -15,13 +16,10 @@ export interface UsersContext {
   getUsersError?: Error | unknown
   createUserError?: Error | unknown
   createUserFormErrors?: FieldErrors
+  navigate?: NavigateFunction
 }
 
-export type UsersEvent =
-  | { type: "GET_USERS" }
-  | { type: "ENTER_CREATION_MODE" }
-  | { type: "EXIT_CREATION_MODE" }
-  | { type: "CREATE"; user: TypesGen.CreateUserRequest }
+export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: TypesGen.CreateUserRequest }
 
 export const usersMachine = createMachine(
   {
@@ -47,7 +45,7 @@ export const usersMachine = createMachine(
       idle: {
         on: {
           GET_USERS: "gettingUsers",
-          ENTER_CREATION_MODE: "creationMode",
+          CREATE: "creatingUser",
         },
       },
       gettingUsers: {
@@ -69,40 +67,28 @@ export const usersMachine = createMachine(
         },
         tags: "loading",
       },
-      creationMode: {
-        initial: "idle",
-        states: {
-          idle: {
-            on: {
-              CREATE: "creatingUser",
-              EXIT_CREATION_MODE: "#usersState.idle",
-            },
+      creatingUser: {
+        invoke: {
+          src: "createUser",
+          id: "createUser",
+          onDone: {
+            target: "idle",
+            actions: ["displayCreateUserSuccess", "redirectToUsersPage", "clearCreateUserError"],
           },
-          creatingUser: {
-            invoke: {
-              src: "createUser",
-              id: "createUser",
-              onDone: {
-                target: "#usersState.idle",
-                actions: ["displayCreateUserSuccess", "clearCreateUserError"],
-              },
-              onError: [
-                {
-                  target: "idle",
-                  cond: "isFormError",
-                  actions: ["assignCreateUserFormErrors"],
-                },
-                {
-                  target: "idle",
-                  actions: ["assignCreateUserError"],
-                },
-              ],
+          onError: [
+            {
+              target: "idle",
+              cond: "isFormError",
+              actions: ["assignCreateUserFormErrors"],
             },
-            tags: "loading",
-          },
+            {
+              target: "idle",
+              actions: ["assignCreateUserError"],
+            },
+          ],
         },
+        tags: "loading",
       },
-
       error: {
         on: {
           GET_USERS: "gettingUsers",
@@ -116,7 +102,7 @@ export const usersMachine = createMachine(
       createUser: (_, event) => API.createUser(event.user),
     },
     guards: {
-      isFormError: (_, event) => isApiError(event.data),
+      isFormError: (_, event) => isApiError(event.data)
     },
     actions: {
       assignUsers: assign({
@@ -135,7 +121,7 @@ export const usersMachine = createMachine(
       }),
       assignCreateUserFormErrors: assign({
         // the guard ensures it is ApiError
-        createUserFormErrors: (_, event) => mapApiErrorToFieldErrors((event.data as ApiError).response.data),
+        createUserFormErrors: (_, event) => mapApiErrorToFieldErrors((event.data as ApiError).response.data)
       }),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
@@ -143,6 +129,9 @@ export const usersMachine = createMachine(
       })),
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
+      },
+      redirectToUsersPage: (context) => {
+        context.navigate && context.navigate("/users")
       },
     },
   },
