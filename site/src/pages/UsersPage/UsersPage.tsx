@@ -15,7 +15,7 @@ export const UsersPage: React.FC = () => {
    */
   useEffect(() => {
     usersSend("GET_USERS")
-  }, [])
+  }, [usersSend])
 
   if (usersState.matches("error")) {
     return <ErrorSummary error={getUsersError} />
