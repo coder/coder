@@ -726,7 +726,10 @@ func (q *fakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 			OrganizationIDs: userOrganizationIDs,
 		})
 	}
-	return getOrganizationIDsByMemberIDRows, sql.ErrNoRows
+	if len(getOrganizationIDsByMemberIDRows) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return getOrganizationIDsByMemberIDRows, nil
 }
 
 func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
