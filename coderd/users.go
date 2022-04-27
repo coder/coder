@@ -137,7 +137,6 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		LimitOpt:  int32(pageLimit),
 		Search:    searchName,
 	})
-
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
@@ -145,14 +144,24 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizationsByUserId := map[string][]database.Organization{}
+	userIDs := make([]uuid.UUID, 0, len(users))
 	for _, user := range users {
-		userOrganizations := userOrganizations(api, rw, r, user)
-		organizationsByUserId[user.ID.String()] = userOrganizations
+		userIDs = append(userIDs, user.ID)
+	}
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+	organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
+	for _, organizationIDsByMemberIDsRow := range organizationIDsByMemberIDsRows {
+		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUsers(users, organizationsByUserId))
+	render.JSON(rw, r, convertUsers(users, organizationIDsByUserID))
 }
 
 // Creates a new user.
@@ -219,17 +228,23 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizations := userOrganizations(api, rw, r, user)
-
-	httpapi.Write(rw, http.StatusCreated, convertUser(user, organizations))
+	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{createUser.OrganizationID}))
 }
 
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
 func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	organizations := userOrganizations(api, rw, r, user)
-	httpapi.Write(rw, http.StatusOK, convertUser(user, organizations))
+	organizationIDs, err := userOrganizationIDs(api, rw, r, user)
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(user, organizationIDs))
 }
 
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
@@ -286,9 +301,15 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizations := userOrganizations(api, rw, r, user)
+	organizationIDs, err := userOrganizationIDs(api, rw, r, user)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizations))
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
 }
 
 func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
@@ -307,7 +328,13 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organizations := userOrganizations(api, rw, r, user)
+	organizations, err := userOrganizationIDs(api, rw, r, user)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
 
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
@@ -638,42 +665,34 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 	})
 }
 
-func convertUser(user database.User, organizations []database.Organization) codersdk.User {
-	orgIds := make([]uuid.UUID, 0, len(organizations))
-	for _, o := range organizations {
-		orgIds = append(orgIds, o.ID)
-	}
-
+func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	return codersdk.User{
 		ID:              user.ID,
 		Email:           user.Email,
 		CreatedAt:       user.CreatedAt,
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
-		OrganizationIDs: orgIds,
+		OrganizationIDs: organizationIDs,
 	}
 }
 
-func convertUsers(users []database.User, organizationsByUserId map[string][]database.Organization) []codersdk.User {
+func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
-		userOrganizations := organizationsByUserId[u.ID.String()]
-		converted = append(converted, convertUser(u, userOrganizations))
+		userOrganizationIDs := organizationIDsByUserID[u.ID]
+		converted = append(converted, convertUser(u, userOrganizationIDs))
 	}
 	return converted
 }
 
-func userOrganizations(api *api, rw http.ResponseWriter, r *http.Request, user database.User) []database.Organization {
-	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-		organizations = []database.Organization{}
+func userOrganizationIDs(api *api, rw http.ResponseWriter, r *http.Request, user database.User) ([]uuid.UUID, error) {
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), []uuid.UUID{user.ID})
+	if errors.Is(err, sql.ErrNoRows) || len(organizationIDsByMemberIDsRows) == 0 {
+		return []uuid.UUID{}, nil
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organizations: %s", err.Error()),
-		})
-		return []database.Organization{}
+		return []uuid.UUID{}, err
 	}
-	return organizations
+	member := organizationIDsByMemberIDsRows[0]
+	return member.OrganizationIDs, nil
 }
