@@ -182,6 +182,7 @@ func New(options *Options) (http.Handler, func()) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
+					r.Put("/suspend", api.putUserSuspend)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					r.Post("/keys", api.postAPIKey)
@@ -201,7 +202,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/", api.workspaceAgentMe)
+				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Get("/listen", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)

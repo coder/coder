@@ -1782,7 +1782,7 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at
+	id, email, username, hashed_password, created_at, updated_at, status
 FROM
 	users
 WHERE
@@ -1807,13 +1807,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at
+	id, email, username, hashed_password, created_at, updated_at, status
 FROM
 	users
 WHERE
@@ -1832,6 +1833,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
@@ -1852,7 +1854,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at
+	id, email, username, hashed_password, created_at, updated_at, status
 FROM
 	users
 WHERE
@@ -1922,6 +1924,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.HashedPassword,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -1947,7 +1950,7 @@ INSERT INTO
 		updated_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, email, username, hashed_password, created_at, updated_at
+	($1, $2, $3, $4, $5, $6) RETURNING id, email, username, hashed_password, created_at, updated_at, status
 `
 
 type InsertUserParams struct {
@@ -1976,6 +1979,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }
@@ -1988,7 +1992,7 @@ SET
 	username = $3,
 	updated_at = $4
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status
 `
 
 type UpdateUserProfileParams struct {
@@ -2013,6 +2017,38 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Status,
+	)
+	return i, err
+}
+
+const updateUserStatus = `-- name: UpdateUserStatus :one
+UPDATE
+	users
+SET
+	status = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status
+`
+
+type UpdateUserStatusParams struct {
+	ID        uuid.UUID  `db:"id" json:"id"`
+	Status    UserStatus `db:"status" json:"status"`
+	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserStatus, arg.ID, arg.Status, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
 	)
 	return i, err
 }

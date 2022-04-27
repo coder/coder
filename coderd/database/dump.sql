@@ -56,6 +56,11 @@ CREATE TYPE provisioner_type AS ENUM (
     'terraform'
 );
 
+CREATE TYPE user_status AS ENUM (
+    'active',
+    'suspended'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -221,7 +226,8 @@ CREATE TABLE users (
     username text DEFAULT ''::text NOT NULL,
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
+    updated_at timestamp with time zone NOT NULL,
+    status user_status DEFAULT 'active'::public.user_status NOT NULL
 );
 
 CREATE TABLE workspace_agents (

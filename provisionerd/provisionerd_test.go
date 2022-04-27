@@ -84,6 +84,7 @@ func TestProvisionerd(t *testing.T) {
 	t.Run("CloseCancelsJob", func(t *testing.T) {
 		t.Parallel()
 		completeChan := make(chan struct{})
+		var completed sync.Once
 		var closer io.Closer
 		var closerMutex sync.Mutex
 		closerMutex.Lock()
@@ -105,7 +106,9 @@ func TestProvisionerd(t *testing.T) {
 				},
 				updateJob: noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
-					close(completeChan)
+					completed.Do(func() {
+						close(completeChan)
+					})
 					return &proto.Empty{}, nil
 				},
 			}), nil
@@ -432,6 +435,8 @@ func TestProvisionerd(t *testing.T) {
 
 	t.Run("Shutdown", func(t *testing.T) {
 		t.Parallel()
+		var updated sync.Once
+		var completed sync.Once
 		updateChan := make(chan struct{})
 		completeChan := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
@@ -453,12 +458,16 @@ func TestProvisionerd(t *testing.T) {
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 					if len(update.Logs) > 0 && update.Logs[0].Source == proto.LogSource_PROVISIONER {
 						// Close on a log so we know when the job is in progress!
-						close(updateChan)
+						updated.Do(func() {
+							close(updateChan)
+						})
 					}
 					return &proto.UpdateJobResponse{}, nil
 				},
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
-					close(completeChan)
+					completed.Do(func() {
+						close(completeChan)
+					})
 					return &proto.Empty{}, nil
 				},
 			}), nil
@@ -642,6 +651,7 @@ func TestProvisionerd(t *testing.T) {
 
 	t.Run("ReconnectAndComplete", func(t *testing.T) {
 		t.Parallel()
+		var completed sync.Once
 		var second atomic.Bool
 		failChan := make(chan struct{})
 		failedChan := make(chan struct{})
@@ -650,7 +660,9 @@ func TestProvisionerd(t *testing.T) {
 			client := createProvisionerDaemonClient(t, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if second.Load() {
-						close(completeChan)
+						completed.Do(func() {
+							close(completeChan)
+						})
 						return &proto.AcquiredJob{}, nil
 					}
 					return &proto.AcquiredJob{

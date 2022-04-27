@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -18,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -73,9 +75,17 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
+		var stdoutBuf bytes.Buffer
+		root.SetOutput(&stdoutBuf)
 		go func() {
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
+
+			// Verify that credentials were output to the terminal.
+			wantEmail := "email: admin@coder.com"
+			wantPassword := "password: password"
+			assert.Contains(t, stdoutBuf.String(), wantEmail, "expected output %q; got no match", wantEmail)
+			assert.Contains(t, stdoutBuf.String(), wantPassword, "expected output %q; got no match", wantPassword)
 		}()
 		var token string
 		require.Eventually(t, func() bool {

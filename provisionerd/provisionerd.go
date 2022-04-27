@@ -99,11 +99,12 @@ type Server struct {
 	shutdown      chan struct{}
 
 	// Locked when acquiring or failing a job.
-	jobMutex   sync.Mutex
-	jobID      string
-	jobRunning chan struct{}
-	jobFailed  atomic.Bool
-	jobCancel  context.CancelFunc
+	jobMutex        sync.Mutex
+	jobID           string
+	jobRunningMutex sync.Mutex
+	jobRunning      chan struct{}
+	jobFailed       atomic.Bool
+	jobCancel       context.CancelFunc
 }
 
 // Connect establishes a connection to coderd.
@@ -116,13 +117,10 @@ func (p *Server) connect(ctx context.Context) {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			p.closeMutex.Lock()
 			if p.isClosed() {
-				p.closeMutex.Unlock()
 				return
 			}
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
-			p.closeMutex.Unlock()
 			continue
 		}
 		p.clientValue.Store(client)
@@ -230,11 +228,10 @@ func (p *Server) acquireJob(ctx context.Context) {
 	if job.JobId == "" {
 		return
 	}
-	if p.isClosed() {
-		return
-	}
 	ctx, p.jobCancel = context.WithCancel(ctx)
+	p.jobRunningMutex.Lock()
 	p.jobRunning = make(chan struct{})
+	p.jobRunningMutex.Unlock()
 	p.jobFailed.Store(false)
 	p.jobID = job.JobId
 
@@ -938,7 +935,9 @@ func (p *Server) closeWithError(err error) error {
 		errMsg = err.Error()
 	}
 	p.failActiveJobf(errMsg)
+	p.jobRunningMutex.Lock()
 	<-p.jobRunning
+	p.jobRunningMutex.Unlock()
 	p.closeCancel()
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))

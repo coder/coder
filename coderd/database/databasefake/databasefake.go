@@ -1138,6 +1138,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
+		Status:         database.UserStatusActive,
 	}
 	q.users = append(q.users, user)
 	return user, nil
@@ -1153,6 +1154,22 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		}
 		user.Email = arg.Email
 		user.Username = arg.Username
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.Status = arg.Status
+		user.UpdatedAt = arg.UpdatedAt
 		q.users[index] = user
 		return user, nil
 	}

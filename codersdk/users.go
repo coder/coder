@@ -28,12 +28,20 @@ type UsersRequest struct {
 	Offset int `json:"offset"`
 }
 
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
 // User represents a user in Coder.
 type User struct {
-	ID        uuid.UUID `json:"id" validate:"required"`
-	Email     string    `json:"email" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required"`
-	Username  string    `json:"username" validate:"required"`
+	ID        uuid.UUID  `json:"id" validate:"required"`
+	Email     string     `json:"email" validate:"required"`
+	CreatedAt time.Time  `json:"created_at" validate:"required"`
+	Username  string     `json:"username" validate:"required"`
+	Status    UserStatus `json:"status"`
 }
 
 type CreateFirstUserRequest struct {
@@ -135,6 +143,20 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 // UpdateUserProfile enables callers to update profile information
 func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req UpdateUserProfileRequest) (User, error) {
 	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// SuspendUser enables callers to suspend a user
+func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/suspend", uuidOrMe(userID)), nil)
 	if err != nil {
 		return User{}, err
 	}

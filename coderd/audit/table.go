@@ -41,6 +41,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"hashed_password": ActionSecret, // A user can change their own password.
 		"created_at":      ActionIgnore, // Never changes.
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"status":          ActionTrack,  // A user can update another user status
 	},
 	&database.Workspace{}: {
 		"id":                 ActionIgnore, // Never changes.

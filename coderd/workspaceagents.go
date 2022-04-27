@@ -15,6 +15,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -25,8 +26,8 @@ import (
 )
 
 func (api *api) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
-	agent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspace agent: %s", err),
@@ -43,8 +44,8 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
-	agent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspace agent: %s", err),
@@ -78,7 +79,7 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = peerbroker.ProxyListen(r.Context(), session, peerbroker.ProxyOptions{
-		ChannelID: agent.ID.String(),
+		ChannelID: workspaceAgent.ID.String(),
 		Logger:    api.Logger.Named("peerbroker-proxy-dial"),
 		Pubsub:    api.Pubsub,
 	})
@@ -88,16 +89,49 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *api) workspaceAgentMe(rw http.ResponseWriter, r *http.Request) {
-	agent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+func (api *api) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspace agent: %s", err),
 		})
 		return
 	}
-	httpapi.Write(rw, http.StatusOK, apiAgent)
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace resource: %s", err),
+		})
+		return
+	}
+	build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), resource.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build: %s", err),
+		})
+		return
+	}
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), build.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build: %s", err),
+		})
+		return
+	}
+	owner, err := api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace build: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, agent.Metadata{
+		OwnerEmail:           owner.Email,
+		OwnerUsername:        owner.Username,
+		EnvironmentVariables: apiAgent.EnvironmentVariables,
+		StartupScript:        apiAgent.StartupScript,
+	})
 }
 
 func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
@@ -106,7 +140,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Unlock()
 	defer api.websocketWaitGroup.Done()
 
-	agent := httpmw.WorkspaceAgent(r)
+	workspaceAgent := httpmw.WorkspaceAgent(r)
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})
@@ -116,7 +150,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
+	resource, err := api.Database.GetWorkspaceResourceByID(r.Context(), workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("accept websocket: %s", err),
@@ -135,7 +169,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	closer, err := peerbroker.ProxyDial(proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(session)), peerbroker.ProxyOptions{
-		ChannelID: agent.ID.String(),
+		ChannelID: workspaceAgent.ID.String(),
 		Pubsub:    api.Pubsub,
 		Logger:    api.Logger.Named("peerbroker-proxy-listen"),
 	})
@@ -144,7 +178,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closer.Close()
-	firstConnectedAt := agent.FirstConnectedAt
+	firstConnectedAt := workspaceAgent.FirstConnectedAt
 	if !firstConnectedAt.Valid {
 		firstConnectedAt = sql.NullTime{
 			Time:  database.Now(),
@@ -155,10 +189,10 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		Time:  database.Now(),
 		Valid: true,
 	}
-	disconnectedAt := agent.DisconnectedAt
+	disconnectedAt := workspaceAgent.DisconnectedAt
 	updateConnectionTimes := func() error {
 		err = api.Database.UpdateWorkspaceAgentConnectionByID(r.Context(), database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID:               agent.ID,
+			ID:               workspaceAgent.ID,
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
 			DisconnectedAt:   disconnectedAt,
@@ -205,7 +239,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", agent))
+	api.Logger.Info(r.Context(), "accepting agent", slog.F("resource", resource), slog.F("agent", workspaceAgent))
 
 	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
 	defer ticker.Stop()
@@ -294,7 +328,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal: %w", err)
 		}
 	}
-	agent := codersdk.WorkspaceAgent{
+	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                   dbAgent.ID,
 		CreatedAt:            dbAgent.CreatedAt,
 		UpdatedAt:            dbAgent.UpdatedAt,
@@ -307,31 +341,31 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 		EnvironmentVariables: envs,
 	}
 	if dbAgent.FirstConnectedAt.Valid {
-		agent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time
+		workspaceAgent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time
 	}
 	if dbAgent.LastConnectedAt.Valid {
-		agent.LastConnectedAt = &dbAgent.LastConnectedAt.Time
+		workspaceAgent.LastConnectedAt = &dbAgent.LastConnectedAt.Time
 	}
 	if dbAgent.DisconnectedAt.Valid {
-		agent.DisconnectedAt = &dbAgent.DisconnectedAt.Time
+		workspaceAgent.DisconnectedAt = &dbAgent.DisconnectedAt.Time
 	}
 	switch {
 	case !dbAgent.FirstConnectedAt.Valid:
 		// If the agent never connected, it's waiting for the compute
 		// to start up.
-		agent.Status = codersdk.WorkspaceAgentConnecting
+		workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
 	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
-		agent.Status = codersdk.WorkspaceAgentDisconnected
+		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
 	case agentUpdateFrequency*2 >= database.Now().Sub(dbAgent.LastConnectedAt.Time):
 		// The connection updated it's timestamp within the update frequency.
 		// We multiply by two to allow for some lag.
-		agent.Status = codersdk.WorkspaceAgentConnected
+		workspaceAgent.Status = codersdk.WorkspaceAgentConnected
 	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentUpdateFrequency*2:
 		// The connection died without updating the last connected.
-		agent.Status = codersdk.WorkspaceAgentDisconnected
+		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
 	}
 
-	return agent, nil
+	return workspaceAgent, nil
 }
