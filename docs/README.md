@@ -96,7 +96,7 @@ coder templates update gcp-linux
 
 Read the [contributing docs](./CONTRIBUTING.md).
 
-# Contributors
+## Contributors
 
 <!--- Add your row by date (mm/dd/yyyy), most recent date at end of list --->
 
