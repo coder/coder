@@ -41,7 +41,7 @@ describe("Create User Page", () => {
   })
   it("shows generic error message", async () => {
     server.use(
-      rest.post("/api/v2/users", (req, res, ctx) => {
+      rest.post("/api/v2/users", () => {
         Promise.reject("something went wrong")
       }),
     )

@@ -9,7 +9,7 @@ export const Language = {
   unknownError: "Oops, an unknown error occurred.",
 }
 
-export const CreateUserPage = () => {
+export const CreateUserPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
   const { createUserError, createUserFormErrors } = usersState.context

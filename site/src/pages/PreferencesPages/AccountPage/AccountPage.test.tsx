@@ -36,6 +36,7 @@ describe("AccountPage", () => {
           id: userId,
           ...data,
           created_at: new Date().toString(),
+          status: "active"
         }),
       )
       const { user } = renderPage()
