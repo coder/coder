@@ -45,7 +45,7 @@
     "yup": "0.32.11"
   },
   "devDependencies": {
-    "@playwright/test": "1.21.0",
+    "@playwright/test": "1.21.1",
     "@pmmmwh/react-refresh-webpack-plugin": "0.5.5",
     "@react-theming/storybook-addon": "1.1.5",
     "@storybook/addon-actions": "6.4.22",
