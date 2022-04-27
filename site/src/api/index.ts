@@ -86,8 +86,9 @@ export const getUsers = async (): Promise<Types.PagedUsers> => {
 }
 
 export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
-  const response = await axios.post<TypesGen.User>("/api/v2/users", user)
-  return response.data
+  // const response = await axios.post<TypesGen.User>("/api/v2/users", user)
+  // return response.data
+  return Promise.resolve(MockUser)
 }
 
 export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
