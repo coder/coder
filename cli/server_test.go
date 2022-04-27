@@ -93,8 +93,10 @@ func TestServer(t *testing.T) {
 		parsed, err := url.Parse(accessURL)
 		require.NoError(t, err)
 		// Verify that credentials were output to the terminal.
-		assert.Contains(t, stdoutBuf.String(), "email: admin@coder.com", "unexpected output")
-		assert.Contains(t, stdoutBuf.String(), "password: password", "unexpected output")
+		wantEmail := "email: admin@coder.com"
+		wantPassword := "password: password"
+		assert.Contains(t, stdoutBuf.String(), wantEmail, "expected output %q; got no match", wantEmail)
+		assert.Contains(t, stdoutBuf.String(), wantPassword, "expected output %q; got no match", wantPassword)
 		client := codersdk.New(parsed)
 		client.SessionToken = token
 		_, err = client.User(ctx, codersdk.Me)
