@@ -149,6 +149,9 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		userIDs = append(userIDs, user.ID)
 	}
 	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),

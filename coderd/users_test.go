@@ -454,14 +454,12 @@ func TestPaginatedUsers(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 	me, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err)
+	orgID := me.OrganizationIDs[0]
 
 	allUsers := make([]codersdk.User, 0)
 	allUsers = append(allUsers, me)
 	specialUsers := make([]codersdk.User, 0)
 
-	org, err := client.CreateOrganization(ctx, me.ID, codersdk.CreateOrganizationRequest{
-		Name: "default",
-	})
 	require.NoError(t, err)
 
 	// When 100 users exist
@@ -484,7 +482,7 @@ func TestPaginatedUsers(t *testing.T) {
 			Email:          email,
 			Username:       username,
 			Password:       "password",
-			OrganizationID: org.ID,
+			OrganizationID: orgID,
 		})
 		require.NoError(t, err)
 		allUsers = append(allUsers, newUser)
