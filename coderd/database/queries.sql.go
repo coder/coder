@@ -1939,6 +1939,37 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 	return items, nil
 }
 
+const grantUserRole = `-- name: GrantUserRole :one
+UPDATE
+    users
+SET
+	-- Append new roles and remove duplicates just to keep things clean.
+	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(rbac_roles || $1 :: text[]))
+WHERE
+    id = $2
+RETURNING id, email, username, hashed_password, created_at, updated_at, rbac_roles
+`
+
+type GrantUserRoleParams struct {
+	GrantedRoles []string  `db:"granted_roles" json:"granted_roles"`
+	ID           uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) GrantUserRole(ctx context.Context, arg GrantUserRoleParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, grantUserRole, pq.Array(arg.GrantedRoles), arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		pq.Array(&i.RbacRoles),
+	)
+	return i, err
+}
+
 const insertUser = `-- name: InsertUser :one
 INSERT INTO
 	users (
@@ -1947,10 +1978,11 @@ INSERT INTO
 		username,
 		hashed_password,
 		created_at,
-		updated_at
+		updated_at,
+		rbac_roles
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, email, username, hashed_password, created_at, updated_at, rbac_roles
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, email, username, hashed_password, created_at, updated_at, rbac_roles
 `
 
 type InsertUserParams struct {
@@ -1960,6 +1992,7 @@ type InsertUserParams struct {
 	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	RbacRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
@@ -1970,6 +2003,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		pq.Array(arg.RbacRoles),
 	)
 	var i User
 	err := row.Scan(

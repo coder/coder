@@ -57,6 +57,7 @@ type querier interface {
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspacesByTemplateID(ctx context.Context, arg GetWorkspacesByTemplateIDParams) ([]Workspace, error)
 	GetWorkspacesByUserID(ctx context.Context, arg GetWorkspacesByUserIDParams) ([]Workspace, error)
+	GrantUserRole(ctx context.Context, arg GrantUserRoleParams) (User, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
