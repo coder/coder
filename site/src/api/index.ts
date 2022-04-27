@@ -85,6 +85,21 @@ export const getUsers = async (): Promise<Types.PagedUsers> => {
   })
 }
 
+export const getOrganizations = async (): Promise<Types.Organization[]> => {
+  const response = await axios.get<Types.Organization[]>("/api/v2/users/me/organizations")
+  return response.data
+}
+
+export const getWorkspace = async (organizationID: string, workspaceName: string): Promise<Types.Workspace> => {
+  const response = await axios.get<Types.Workspace>(`/api/v2/organizations/${organizationID}/workspaces/me/${workspaceName}`)
+  return response.data
+}
+
+export const getWorkspaceResources = async (workspaceBuildID: string): Promise<Types.WorkspaceResource[]> => {
+  const response = await axios.get<Types.WorkspaceResource[]>(`/api/v2/workspacebuilds/${workspaceBuildID}/resources`)
+  return response.data
+}
+
 export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
   const response = await axios.get("/api/v2/buildinfo")
   return response.data

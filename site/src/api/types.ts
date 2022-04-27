@@ -55,9 +55,10 @@ export interface CreateWorkspaceRequest {
   template_id: string
 }
 
-/**
- * @remarks Keep in sync with codersdk/workspaces.go
- */
+export interface WorkspaceBuild {
+  id: string
+}
+
 export interface Workspace {
   id: string
   created_at: string
@@ -67,6 +68,17 @@ export interface Workspace {
   name: string
   autostart_schedule: string
   autostop_schedule: string
+  latest_build: WorkspaceBuild
+}
+
+export interface WorkspaceResource {
+  id: string
+  agents: WorkspaceAgent[]
+}
+
+export interface WorkspaceAgent {
+  id: string
+  name: string
 }
 
 export interface APIKeyResponse {
@@ -101,4 +113,10 @@ export interface UpdateProfileRequest {
   readonly username: string
   readonly email: string
   readonly name: string
+}
+
+export interface ReconnectingPTYRequest {
+  readonly data: string
+  readonly height: number
+  readonly width: number
 }
