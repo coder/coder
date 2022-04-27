@@ -391,7 +391,6 @@ type TemplateVersion struct {
 }
 
 type User struct {
-<<<<<<< HEAD
 	ID             uuid.UUID  `db:"id" json:"id"`
 	Email          string     `db:"email" json:"email"`
 	Username       string     `db:"username" json:"username"`
@@ -399,15 +398,7 @@ type User struct {
 	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
 	Status         UserStatus `db:"status" json:"status"`
-=======
-	ID             uuid.UUID `db:"id" json:"id"`
-	Email          string    `db:"email" json:"email"`
-	Username       string    `db:"username" json:"username"`
-	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	RbacRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
->>>>>>> Make gen
+	RbacRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
 }
 
 type Workspace struct {

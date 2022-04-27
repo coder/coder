@@ -111,36 +111,28 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/users.go:73:6.
+// From codersdk/users.go:81:6.
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:79:6.
+// From codersdk/users.go:87:6.
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
-// From codersdk/users.go:84:6.
+// From codersdk/users.go:92:6.
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
-// From codersdk/users.go:88:6.
+// From codersdk/users.go:96:6.
 export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/users.go:93:6.
-<<<<<<< HEAD
-=======
-export interface CreateWorkspaceRequest {
-  readonly name: string
-}
-
-// From codersdk/users.go:102:6.
->>>>>>> Add endpoints to grant new roles to a user
+// From codersdk/users.go:101:6.
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
