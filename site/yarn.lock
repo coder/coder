@@ -3666,14 +3666,14 @@
   resolved "https://registry.yarnpkg.com/@xmldom/xmldom/-/xmldom-0.7.5.tgz#09fa51e356d07d0be200642b0e4f91d8e6dd408d"
   integrity sha512-V3BIhmY36fXZ1OtVcI9W+FxQqxVLsPKcNjWigIaa81dLC9IolJl5Mt4Cvhmr0flUnjSpTdrbMTSbXqYqV5dT6A==
 
-"@xstate/cli@0.1.6":
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/@xstate/cli/-/cli-0.1.6.tgz#1ee6bb4897a8bb4b94155c7715b00a90aadedaa4"
-  integrity sha512-npDPm9kRGFgWLPfyCsn2MBzmiV/Mx3R8sGNPKQEbBnmRiXD2c2hGqoYwrWiittk+pFOJmc7tm9eT8NUbxND0/g==
+"@xstate/cli@0.1.7":
+  version "0.1.7"
+  resolved "https://registry.yarnpkg.com/@xstate/cli/-/cli-0.1.7.tgz#2e20e1ba44a14894320e76544c51cea8ccff663d"
+  integrity sha512-BE2EumZoivO19PWXLPAx/gzOAQHrEWrp/T8L7u0LigbUODoAmZwKCuF94IYmRipUYKeyjhYUX2jstoHXg/7Asg==
   dependencies:
     "@babel/core" "^7.12.10"
-    "@xstate/machine-extractor" "0.6.3"
-    "@xstate/tools-shared" "1.1.4"
+    "@xstate/machine-extractor" "0.6.4"
+    "@xstate/tools-shared" "1.1.5"
     chokidar "^3.5.3"
     commander "^8.0.0"
     xstate "^4.29.0"
@@ -3685,10 +3685,10 @@
   dependencies:
     fast-safe-stringify "^2.1.1"
 
-"@xstate/machine-extractor@0.6.3":
-  version "0.6.3"
-  resolved "https://registry.yarnpkg.com/@xstate/machine-extractor/-/machine-extractor-0.6.3.tgz#c5922fbd6044085bb855016f76412c769aa0e4f1"
-  integrity sha512-PieLwCFiL+q4/fZczAv4/cl5J4ULDM5z6GoCliajTnHIAh0wHxxKiey6LsVvqWVzGw9fUlO87AqtWPsIcsy4jw==
+"@xstate/machine-extractor@0.6.4":
+  version "0.6.4"
+  resolved "https://registry.yarnpkg.com/@xstate/machine-extractor/-/machine-extractor-0.6.4.tgz#8aff092ecc06333190dc71faa9e7d9cf08dc4614"
+  integrity sha512-CTDHDdXbAdhS8XFOi0P/GF3zhh7rrcpycrM1Anlc1f0awILaNo+2kATBEVsL6k7nfFsGStjGeE8RwWeiUfYwag==
 
 "@xstate/react@3.0.0":
   version "3.0.0"
@@ -3698,12 +3698,12 @@
     use-isomorphic-layout-effect "^1.0.0"
     use-sync-external-store "^1.0.0"
 
-"@xstate/tools-shared@1.1.4":
-  version "1.1.4"
-  resolved "https://registry.yarnpkg.com/@xstate/tools-shared/-/tools-shared-1.1.4.tgz#dcaf161792df0ba16be0d7dd57efa844bf265039"
-  integrity sha512-gH1NdnQYbmM9JpKbD1Q3ybWzgwUArS5tgq5GZUSMtFVyghlG8JNWILx+s8XvshE9HCZB0jy3pFa4bUscbCLerw==
+"@xstate/tools-shared@1.1.5":
+  version "1.1.5"
+  resolved "https://registry.yarnpkg.com/@xstate/tools-shared/-/tools-shared-1.1.5.tgz#82f285279953a0f075caad3fbc8cf4f5ad041b8f"
+  integrity sha512-Gr9UMEMJxdrN16bEIb3eIys9pi08K4dAHK5ptIC3mBHy77JBGtgfYMTO619uy1pdmbBRVFWg7aPAcMIusqjq8w==
   dependencies:
-    "@xstate/machine-extractor" "0.6.3"
+    "@xstate/machine-extractor" "0.6.4"
 
 "@xtuc/ieee754@^1.2.0":
   version "1.2.0"
