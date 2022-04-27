@@ -80,6 +80,12 @@ func TestServer(t *testing.T) {
 		go func() {
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
+
+			// Verify that credentials were output to the terminal.
+			wantEmail := "email: admin@coder.com"
+			wantPassword := "password: password"
+			assert.Contains(t, stdoutBuf.String(), wantEmail, "expected output %q; got no match", wantEmail)
+			assert.Contains(t, stdoutBuf.String(), wantPassword, "expected output %q; got no match", wantPassword)
 		}()
 		var token string
 		require.Eventually(t, func() bool {
@@ -92,11 +98,6 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		parsed, err := url.Parse(accessURL)
 		require.NoError(t, err)
-		// Verify that credentials were output to the terminal.
-		wantEmail := "email: admin@coder.com"
-		wantPassword := "password: password"
-		assert.Contains(t, stdoutBuf.String(), wantEmail, "expected output %q; got no match", wantEmail)
-		assert.Contains(t, stdoutBuf.String(), wantPassword, "expected output %q; got no match", wantPassword)
 		client := codersdk.New(parsed)
 		client.SessionToken = token
 		_, err = client.User(ctx, codersdk.Me)
