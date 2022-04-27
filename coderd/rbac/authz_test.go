@@ -3,6 +3,7 @@ package rbac_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"golang.org/x/xerrors"
@@ -14,8 +15,11 @@ import (
 
 // subject is required because rego needs
 type subject struct {
-	UserID string      `json:"id"`
-	Roles  []rbac.Role `json:"roles"`
+	UserID string `json:"id"`
+	// For the unit test we want to pass in the roles directly, instead of just
+	// by name. This allows us to test custom roles that do not exist in the product,
+	// but test edge cases of the implementation.
+	Roles []rbac.Role `json:"roles"`
 }
 
 // TestAuthorizeDomain test the very basic roles that are commonly used.
@@ -26,7 +30,10 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user := subject{
 		UserID: "me",
-		Roles:  []rbac.Role{rbac.RoleMember, rbac.RoleOrgMember(defOrg)},
+		Roles: []rbac.Role{
+			must(rbac.RoleByName(rbac.RoleMember())),
+			must(rbac.RoleByName(rbac.RoleOrgMember(defOrg))),
+		},
 	}
 
 	testAuthorize(t, "Member", user, []authTestCase{
@@ -126,8 +133,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	user = subject{
 		UserID: "me",
 		Roles: []rbac.Role{
-			rbac.RoleOrgAdmin(defOrg),
-			rbac.RoleMember,
+			must(rbac.RoleByName(rbac.RoleOrgAdmin(defOrg))),
+			must(rbac.RoleByName(rbac.RoleMember())),
 		},
 	}
 
@@ -173,8 +180,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	user = subject{
 		UserID: "me",
 		Roles: []rbac.Role{
-			rbac.RoleAdmin,
-			rbac.RoleMember,
+			must(rbac.RoleByName(rbac.RoleAdmin())),
+			must(rbac.RoleByName(rbac.RoleMember())),
 		},
 	}
 
@@ -221,7 +228,19 @@ func TestAuthorizeDomain(t *testing.T) {
 	user = subject{
 		UserID: "me",
 		Roles: []rbac.Role{
-			rbac.RoleWorkspaceAgent(wrkID),
+			{
+				Name: fmt.Sprintf("agent-%s", wrkID),
+				// This is at the site level to prevent the token from losing access if the user
+				// is kicked from the org
+				Site: []rbac.Permission{
+					{
+						Negate:       false,
+						ResourceType: rbac.ResourceWorkspace.Type,
+						ResourceID:   wrkID,
+						Action:       rbac.ActionRead,
+					},
+				},
+			},
 		},
 	}
 
@@ -439,8 +458,20 @@ func TestAuthorizeLevels(t *testing.T) {
 	user := subject{
 		UserID: "me",
 		Roles: []rbac.Role{
-			rbac.RoleAdmin,
-			rbac.RoleOrgDenyAll(defOrg),
+			must(rbac.RoleByName(rbac.RoleAdmin())),
+			{
+				Name: "org-deny" + defOrg,
+				Org: map[string][]rbac.Permission{
+					defOrg: {
+						{
+							Negate:       true,
+							ResourceType: "*",
+							ResourceID:   "*",
+							Action:       "*",
+						},
+					},
+				},
+			},
 			{
 				Name: "user-deny-all",
 				// List out deny permissions explicitly
@@ -514,7 +545,7 @@ func TestAuthorizeLevels(t *testing.T) {
 					},
 				},
 			},
-			rbac.RoleOrgAdmin(defOrg),
+			must(rbac.RoleByName(rbac.RoleOrgAdmin(defOrg))),
 			{
 				Name: "user-deny-all",
 				// List out deny permissions explicitly

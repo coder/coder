@@ -22,8 +22,8 @@ func TestExample(t *testing.T) {
 	user := subject{
 		UserID: "alice",
 		Roles: []rbac.Role{
-			must(rbac.RoleByName(rbac.Member)),
-			must(rbac.RoleByName(rbac.RoleName(rbac.OrganizationMember, "default"))),
+			must(rbac.RoleByName(rbac.RoleMember())),
+			must(rbac.RoleByName(rbac.RoleOrgAdmin("default"))),
 		},
 	}
 
