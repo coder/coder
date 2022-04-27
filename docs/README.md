@@ -95,3 +95,11 @@ coder templates update gcp-linux
 ## Contributing
 
 Read the [contributing docs](./CONTRIBUTING.md).
+
+## Contributors
+
+<!--- Add your row by date (mm/dd/yyyy), most recent date at end of list --->
+
+| Name          | Start Date | First PR Date |Organization|                GitHub User Link |
+| ------------- | :--------: | :-----------: |:----------:| ------------------------------: |
+| Mathias Fredriksson | 04/25/2022 | 04/25/2022 | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri) |
