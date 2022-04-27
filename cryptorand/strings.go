@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 // Charsets
@@ -32,7 +34,7 @@ const (
 	Human = "23456789abcdefghjkmnpqrstuvwxyz"
 )
 
-// StringCharset generates a random string using the provided charset and size
+// StringCharset generates a random string using the provided charset and size.
 func StringCharset(charSetStr string, size int) (string, error) {
 	charSet := []rune(charSetStr)
 
@@ -67,9 +69,25 @@ func StringCharset(charSetStr string, size int) (string, error) {
 	return buf.String(), nil
 }
 
+// MustStringCharset generates a random string of the given length, using the
+// provided charset. It will panic if an error occurs.
+func MustStringCharset(charSet string, size int) string {
+	s, err := StringCharset(charSet, size)
+	must(err)
+	return s
+}
+
 // String returns a random string using Default.
 func String(size int) (string, error) {
 	return StringCharset(Default, size)
+}
+
+// MustString generates a random string of the given length, using
+// the Default charset. It will panic if an error occurs.
+func MustString(size int) string {
+	s, err := String(size)
+	must(err)
+	return s
 }
 
 // HexString returns a hexadecimal string of given length.
@@ -77,8 +95,32 @@ func HexString(size int) (string, error) {
 	return StringCharset(Hex, size)
 }
 
-// Sha1String returns a 40-character hexadecimal string, which matches
-// the length of a SHA-1 hash (160 bits).
+// MustHexString generates a random hexadecimal string of the given
+// length. It will panic if an error occurs.
+func MustHexString(size int) string {
+	s, err := HexString(size)
+	must(err)
+	return s
+}
+
+// Sha1String returns a 40-character hexadecimal string, which matches the
+// length of a SHA-1 hash (160 bits).
 func Sha1String() (string, error) {
 	return StringCharset(Hex, 40)
+}
+
+// MustSha1String returns a 40-character hexadecimal string, which matches the
+// length of a SHA-1 hash (160 bits). It will panic if an error occurs.
+func MustSha1String() string {
+	s, err := Sha1String()
+	must(err)
+	return s
+}
+
+// must is a utility function that panics with the given error if
+// err is non-nil.
+func must(err error) {
+	if err != nil {
+		panic(xerrors.Errorf("crand: %w", err))
+	}
 }
