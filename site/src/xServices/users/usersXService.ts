@@ -1,6 +1,7 @@
 import { NavigateFunction } from "react-router"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
+import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
 import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { displaySuccess } from "../../components/GlobalSnackbar/utils"
@@ -14,6 +15,7 @@ export interface UsersContext {
   pager?: Types.Pager
   getUsersError?: Error | unknown
   createUserError?: Error | unknown
+  createUserFormErrors?: FieldErrors
   navigate?: NavigateFunction
 }
 
@@ -73,10 +75,17 @@ export const usersMachine = createMachine(
             target: "idle",
             actions: ["displayCreateUserSuccess", "redirectToUsersPage", "clearCreateUserError"],
           },
-          onError: {
-            target: "idle",
-            actions: ["assignCreateUserError"],
-          },
+          onError: [
+            {
+              target: "idle",
+              cond: "isFormError",
+              actions: ["assignCreateUserFormErrors"],
+            },
+            {
+              target: "idle",
+              actions: ["assignCreateUserError"],
+            },
+          ],
         },
         tags: "loading",
       },
@@ -91,6 +100,9 @@ export const usersMachine = createMachine(
     services: {
       getUsers: API.getUsers,
       createUser: (_, event) => API.createUser(event.user),
+    },
+    guards: {
+      isFormError: (_, event) => isApiError(event.data)
     },
     actions: {
       assignUsers: assign({
@@ -107,6 +119,10 @@ export const usersMachine = createMachine(
       assignCreateUserError: assign({
         createUserError: (_, event) => event.data,
       }),
+      assignCreateUserFormErrors: assign({
+        // the guard ensures it is ApiError
+        createUserFormErrors: (_, event) => mapApiErrorToFieldErrors((event.data as ApiError).response.data)
+      }),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
         createUserError: undefined,
@@ -116,7 +132,7 @@ export const usersMachine = createMachine(
       },
       redirectToUsersPage: (context) => {
         context.navigate && context.navigate("/users")
-      }
+      },
     },
   },
 )
