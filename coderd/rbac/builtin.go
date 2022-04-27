@@ -12,9 +12,8 @@ const (
 	member  string = "member"
 	auditor string = "auditor"
 
-	orgAdmin   string = "organization-admin"
-	orgMember  string = "organization-member"
-	orgManager string = "organization-manager"
+	orgAdmin  string = "organization-admin"
+	orgMember string = "organization-member"
 )
 
 // RoleName is a string that represents a registered rbac role. We want to store
@@ -26,7 +25,7 @@ type RoleName = string
 
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
 // Any other roles (like auditor), can be listed and let the user select/assigned.
-// Once we have a database implementation, the "default" roles be be defined on the
+// Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
 
 func RoleAdmin() RoleName {
@@ -49,10 +48,9 @@ func RoleOrgMember(organizationID uuid.UUID) RoleName {
 var (
 	// builtInRoles are just a hard coded set for now. Ideally we store these in
 	// the database. Right now they are functions because the org id should scope
-	// certain roles. If we store them in the database, we will need to store
-	// them such that the "org" permissions are dynamically changed by the
-	// scopeID passed in. This isn't a hard problem to solve, it's just easier
-	// as a function right now.
+	// certain roles. When we store them in the database, each organization should
+	// create the roles that are assignable in the org. This isn't a hard problem to solve,
+	// it's just easier as a function right now.
 	//
 	// This map will be replaced by database storage defined by this ticket.
 	// https://github.com/coder/coder/issues/1194
@@ -117,17 +115,6 @@ var (
 				Name: roleName(orgMember, organizationID),
 				Org: map[string][]Permission{
 					organizationID: {},
-				},
-			}
-		},
-
-		orgManager: func(organizationID string) Role {
-			return Role{
-				Name: roleName(orgMember, organizationID),
-				Org: map[string][]Permission{
-					organizationID: permissions(map[Object][]Action{
-						ResourceWorkspace: {WildcardSymbol},
-					}),
 				},
 			}
 		},

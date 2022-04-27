@@ -689,6 +689,21 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var memberships []database.OrganizationMember
+	for _, organizationMember := range q.organizationMembers {
+		mem := organizationMember
+		if mem.UserID != userID {
+			continue
+		}
+		memberships = append(memberships, mem)
+	}
+	return memberships, nil
+}
+
 func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1118,6 +1133,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
+		RbacRoles:      arg.RbacRoles,
 	}
 	q.users = append(q.users, user)
 	return user, nil

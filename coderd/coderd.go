@@ -153,6 +153,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/listen", api.provisionerDaemonsListen)
 			})
 		})
+
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
@@ -173,6 +174,10 @@ func New(options *Options) (http.Handler, func()) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
+					// TODO: @emyrk Might want to move these to a /roles group instead of /user.
+					//		As we include more roles like org roles, it makes less sense to scope these here.
+					r.Put("/roles", api.putUserRoles)
+					r.Get("/roles", api.getUserRoles)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					r.Post("/keys", api.postAPIKey)

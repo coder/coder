@@ -7,6 +7,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -283,6 +285,61 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, me.Username)
 		require.Equal(t, userProfile.Email, "newemail@coder.com")
+	})
+}
+
+func TestGrantRoles(t *testing.T) {
+	t.Parallel()
+	t.Run("FirstUserRoles", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		roles, err := client.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleAdmin(),
+			rbac.RoleMember(),
+			rbac.RoleOrgMember(first.OrganizationID),
+			rbac.RoleOrgAdmin(first.OrganizationID),
+		}, "should be a member and admin")
+	})
+
+	t.Run("GrantAdmin", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		admin := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, admin)
+
+		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+		roles, err := member.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleMember(),
+			rbac.RoleOrgMember(first.OrganizationID),
+		}, "should be a member and admin")
+
+		// Grant
+		// TODO: @emyrk this should be 'admin.GrantUserRoles' once proper authz
+		//		is enforced.
+		_, err = member.GrantUserRoles(ctx, codersdk.Me, codersdk.GrantUserRoles{
+			Roles: []string{
+				rbac.RoleAdmin(),
+				rbac.RoleOrgAdmin(first.OrganizationID),
+			},
+		})
+		require.NoError(t, err, "grant member admin role")
+
+		roles, err = member.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleMember(),
+			rbac.RoleOrgMember(first.OrganizationID),
+
+			rbac.RoleAdmin(),
+			rbac.RoleOrgAdmin(first.OrganizationID),
+		}, "should be a member and admin")
 	})
 }
 
