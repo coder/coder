@@ -37,3 +37,4 @@ type InternalType struct {
 # Future Ideas
 
 - Should `omitempty` in the `json` tag indicate optional?
+- Use a yaml config for overriding certain types
