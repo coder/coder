@@ -1930,8 +1930,10 @@ WHERE
 	END
 	-- Filter by status
 	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
 		WHEN $3 :: text != '' THEN (
-			status = $3
+			status = $3 :: user_status
 		)
 		ELSE true
 	END
