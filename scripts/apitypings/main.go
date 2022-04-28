@@ -124,7 +124,6 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 	structs := make(map[string]string)
 	enums := make(map[string]types.Object)
 	enumConsts := make(map[string][]*types.Const)
-	//constants := make(map[string]string)
 
 	// Look for comments that indicate to ignore a type for typescript generation.
 	ignoredTypes := make(map[string]struct{})
@@ -167,7 +166,8 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 			}
 			switch named.Underlying().(type) {
 			case *types.Struct:
-				// Structs are obvious
+				// type <Name> struct
+				// Structs are obvious.
 				st := obj.Type().Underlying().(*types.Struct)
 				codeBlock, err := g.buildStruct(obj, st)
 				if err != nil {
@@ -175,6 +175,7 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 				}
 				structs[obj.Name()] = codeBlock
 			case *types.Basic:
+				// type <Name> string
 				// These are enums. Store to expand later.
 				enums[obj.Name()] = obj
 			}
@@ -293,9 +294,6 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 	case *types.Basic:
 		bs := ty.(*types.Basic)
 		// All basic literals (string, bool, int, etc).
-		// TODO: Actually ensure the golang names are ok, otherwise,
-		//		we want to put another switch to capture these types
-		//		and rename to typescript.
 		switch {
 		case bs.Info()&types.IsNumeric > 0:
 			return TypescriptType{ValueType: "number"}, nil
@@ -308,10 +306,15 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: bs.Name()}, nil
 		}
 	case *types.Struct:
-		// TODO: This kinda sucks right now. It just dumps the struct def
-		return TypescriptType{ValueType: ty.String(), Comment: "Unknown struct, this might not work"}, nil
+		// This handles anonymous structs. This should never happen really.
+		// Such as:
+		//  type Name struct {
+		//	  Embedded struct {
+		//		  Field string `json:"field"`
+		//	  }
+		//  }
+		return TypescriptType{ValueType: "any", Comment: "Embedded struct, please fix by naming it"}, nil
 	case *types.Map:
-		// TODO: Typescript dictionary??? Object?
 		// map[string][string] -> Record<string, string>
 		m := ty.(*types.Map)
 		keyType, err := g.typescriptType(m.Key())
@@ -360,7 +363,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: name}, nil
 		}
 
-		// These are special types that we handle uniquely.
+		// These are external named types that we handle uniquely.
 		switch n.String() {
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
@@ -379,11 +382,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 
 		// Defer to the underlying type.
-		return g.typescriptType(ty.Underlying())
+		ts, err := g.typescriptType(ty.Underlying())
+		if err != nil {
+			return TypescriptType{}, xerrors.Errorf("named underlying: %w", err)
+		}
+		ts.Comment = "This is likely an enum in an external package"
+		return ts, nil
 	case *types.Pointer:
 		// Dereference pointers.
-		// TODO: Nullable fields? We could say these fields can be null in the
-		//		typescript.
 		pt := ty.(*types.Pointer)
 		resp, err := g.typescriptType(pt.Elem())
 		if err != nil {
