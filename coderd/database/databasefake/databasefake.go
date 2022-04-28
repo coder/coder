@@ -229,7 +229,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	if params.Status != "" {
 		usersFilteredByStatus := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if user.Status == params.Status {
+			if params.Status == string(user.Status) {
 				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
 			}
 		}

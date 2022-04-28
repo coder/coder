@@ -1891,7 +1891,7 @@ WHERE
 	END
 	-- Filter by status
 	AND CASE
-		WHEN $3 :: user_status != '' THEN (
+		WHEN $3 :: text != '' THEN (
 			status = $3
 		)
 		ELSE true
@@ -1907,11 +1907,11 @@ LIMIT
 `
 
 type GetUsersParams struct {
-	AfterUser uuid.UUID  `db:"after_user" json:"after_user"`
-	Search    string     `db:"search" json:"search"`
-	Status    UserStatus `db:"status" json:"status"`
-	OffsetOpt int32      `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32      `db:"limit_opt" json:"limit_opt"`
+	AfterUser uuid.UUID `db:"after_user" json:"after_user"`
+	Search    string    `db:"search" json:"search"`
+	Status    string    `db:"status" json:"status"`
+	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {

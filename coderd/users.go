@@ -137,7 +137,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		OffsetOpt: int32(offset),
 		LimitOpt:  int32(pageLimit),
 		Search:    searchName,
-		Status:    database.UserStatus(statusFilter),
+		Status:    statusFilter,
 	})
 
 	if err != nil {

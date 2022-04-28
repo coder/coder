@@ -87,7 +87,7 @@ WHERE
 	END
 	-- Filter by status
 	AND CASE
-		WHEN @status :: user_status != '' THEN (
+		WHEN @status :: text != '' THEN (
 			status = @status
 		)
 		ELSE true
