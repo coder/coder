@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	salt   = []byte(cryptorand.MustString(16))
-	secret = []byte(cryptorand.MustString(24))
+	salt   = []byte(must(cryptorand.String(16)))
+	secret = []byte(must(cryptorand.String(24)))
 
 	resBcrypt []byte
 	resPbkdf2 []byte
@@ -59,4 +59,12 @@ func BenchmarkPbkdf2(b *testing.B) {
 	}
 
 	resPbkdf2 = r
+}
+
+func must(s string, err error) string {
+	if err != nil {
+		panic(err)
+	}
+
+	return s
 }

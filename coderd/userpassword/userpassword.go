@@ -13,8 +13,6 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/cryptorand"
 )
 
 var (
@@ -40,7 +38,7 @@ var (
 
 	// The simulated hash is used when trying to simulate password checks for
 	// users that don't exist.
-	simulatedHash, _ = Hash(cryptorand.MustString(10))
+	simulatedHash, _ = Hash("hunter2")
 )
 
 // Make password hashing much faster in tests.
