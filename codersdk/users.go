@@ -37,11 +37,12 @@ const (
 
 // User represents a user in Coder.
 type User struct {
-	ID        uuid.UUID  `json:"id" validate:"required"`
-	Email     string     `json:"email" validate:"required"`
-	CreatedAt time.Time  `json:"created_at" validate:"required"`
-	Username  string     `json:"username" validate:"required"`
-	Status    UserStatus `json:"status"`
+	ID              uuid.UUID   `json:"id" validate:"required"`
+	Email           string      `json:"email" validate:"required"`
+	CreatedAt       time.Time   `json:"created_at" validate:"required"`
+	Username        string      `json:"username" validate:"required"`
+	Status          UserStatus  `json:"status"`
+	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 }
 
 type CreateFirstUserRequest struct {

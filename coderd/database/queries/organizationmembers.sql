@@ -29,3 +29,13 @@ FROM
 	organization_members
 WHERE
   user_id = $1;
+
+-- name: GetOrganizationIDsByMemberIDs :many
+SELECT
+    user_id, array_agg(organization_id) :: uuid [ ] AS "organization_IDs"
+FROM
+    organization_members
+WHERE
+    user_id = ANY(@ids :: uuid [ ])
+GROUP BY
+    user_id;

@@ -709,6 +709,29 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	getOrganizationIDsByMemberIDRows := make([]database.GetOrganizationIDsByMemberIDsRow, 0, len(ids))
+	for _, userID := range ids {
+		userOrganizationIDs := make([]uuid.UUID, 0)
+		for _, membership := range q.organizationMembers {
+			if membership.UserID == userID {
+				userOrganizationIDs = append(userOrganizationIDs, membership.OrganizationID)
+			}
+		}
+		getOrganizationIDsByMemberIDRows = append(getOrganizationIDsByMemberIDRows, database.GetOrganizationIDsByMemberIDsRow{
+			UserID:          userID,
+			OrganizationIDs: userOrganizationIDs,
+		})
+	}
+	if len(getOrganizationIDsByMemberIDRows) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return getOrganizationIDsByMemberIDRows, nil
+}
+
 func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1190,22 +1213,6 @@ func (q *fakeQuerier) GrantUserRole(_ context.Context, arg database.GrantUserRol
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, user := range q.users {
-		if user.ID != arg.ID {
-			continue
-		}
-		user.Status = arg.Status
-		user.UpdatedAt = arg.UpdatedAt
-		q.users[index] = user
-		return user, nil
-	}
-	return database.User{}, sql.ErrNoRows
-}
-
 func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1216,6 +1223,22 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		}
 		user.Email = arg.Email
 		user.Username = arg.Username
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.Status = arg.Status
+		user.UpdatedAt = arg.UpdatedAt
 		q.users[index] = user
 		return user, nil
 	}
