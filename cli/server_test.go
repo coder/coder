@@ -17,6 +17,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,9 +82,10 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
 		var buf strings.Builder
 		root.SetOutput(&buf)
-		done := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
 		go func() {
-			defer close(done)
+			defer wg.Done()
 
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
@@ -116,7 +118,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cancelFunc()
-		<-done
+		wg.Wait()
 	})
 	// Duplicated test from "Development" above to test setting email/password via env.
 	// Cannot run parallel due to os.Setenv.
@@ -133,9 +135,10 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
 		var buf strings.Builder
 		root.SetOutput(&buf)
-		done := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
 		go func() {
-			defer close(done)
+			defer wg.Done()
 
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
@@ -161,7 +164,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 
 		cancelFunc()
-		<-done
+		wg.Wait()
 	})
 	t.Run("TLSBadVersion", func(t *testing.T) {
 		t.Parallel()
