@@ -85,7 +85,7 @@ export const getUsers = async (): Promise<Types.PagedUsers> => {
   })
 }
 
-export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
+export const createUser = async (user: Types.CreateUserRequest): Promise<TypesGen.User> => {
   const response = await axios.post<TypesGen.User>("/api/v2/users", user)
   return response.data
 }

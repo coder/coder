@@ -3,7 +3,7 @@ import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikErrors, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { CreateUserRequest } from "../../api/typesGenerated"
+import { CreateUserRequest } from "../../api/types"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
@@ -26,6 +26,7 @@ export interface CreateUserFormProps {
   formErrors?: FormikErrors<CreateUserRequest>
   isLoading: boolean
   error?: string
+  myOrgId: string
 }
 
 const validationSchema = Yup.object({
@@ -34,12 +35,13 @@ const validationSchema = Yup.object({
   username: Yup.string().required(Language.usernameRequired),
 })
 
-export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel, formErrors, isLoading, error }) => {
+export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel, formErrors, isLoading, error, myOrgId }) => {
   const form: FormikContextType<CreateUserRequest> = useFormik<CreateUserRequest>({
     initialValues: {
       email: "",
       password: "",
       username: "",
+      organization_id: myOrgId
     },
     validationSchema,
     onSubmit,

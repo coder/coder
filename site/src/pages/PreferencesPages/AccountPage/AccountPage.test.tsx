@@ -34,9 +34,10 @@ describe("AccountPage", () => {
       jest.spyOn(API, "updateProfile").mockImplementationOnce((userId, data) =>
         Promise.resolve({
           id: userId,
-          ...data,
           created_at: new Date().toString(),
-          status: "active"
+          status: "active",
+          organization_id: "123",
+          ...data,
         }),
       )
       const { user } = renderPage()

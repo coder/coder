@@ -1,4 +1,3 @@
-import { NavigateFunction } from "react-router"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
@@ -18,7 +17,7 @@ export interface UsersContext {
   createUserFormErrors?: FieldErrors
 }
 
-export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: TypesGen.CreateUserRequest }
+export type UsersEvent = { type: "GET_USERS" } | { type: "CREATE"; user: Types.CreateUserRequest }
 
 export const usersMachine = createMachine(
   {
