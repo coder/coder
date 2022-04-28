@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 
-const Language = {
+export const Language = {
   cancelLabel: "Cancel",
   defaultSubmitLabel: "Submit",
 }

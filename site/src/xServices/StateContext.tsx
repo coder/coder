@@ -1,5 +1,6 @@
 import { useInterpret } from "@xstate/react"
 import React, { createContext } from "react"
+import { useNavigate } from "react-router"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
@@ -22,12 +23,17 @@ interface XServiceContextType {
 export const XServiceContext = createContext({} as XServiceContextType)
 
 export const XServiceProvider: React.FC = ({ children }) => {
+  const navigate = useNavigate()
+  const redirectToUsersPage = () => {
+    navigate("users")
+  }
+
   return (
     <XServiceContext.Provider
       value={{
         authXService: useInterpret(authMachine),
         buildInfoXService: useInterpret(buildInfoMachine),
-        usersXService: useInterpret(usersMachine),
+        usersXService: useInterpret(() => usersMachine.withConfig({ actions: { redirectToUsersPage } })),
       }}
     >
       {children}
