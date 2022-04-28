@@ -118,6 +118,52 @@ func TestServer(t *testing.T) {
 		cancelFunc()
 		<-done
 	})
+	// Duplicated test from "Development" above to test setting email/password via env.
+	t.Run("Development with email and password from env", func(t *testing.T) {
+		// Cannot run parallell due to os.Setenv.
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		wantEmail := "myadmin@coder.com"
+		wantPassword := "testpass42"
+		os.Setenv("CODER_DEV_ADMIN_EMAIL", wantEmail)
+		defer os.Unsetenv("CODER_DEV_ADMIN_EMAIL")
+		os.Setenv("CODER_DEV_ADMIN_PASSWORD", wantPassword)
+		defer os.Unsetenv("CODER_DEV_ADMIN_PASSWORD")
+
+		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
+		var buf strings.Builder
+		root.SetOutput(&buf)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+
+			err := root.ExecuteContext(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+
+			// Verify that credentials were output to the terminal.
+			assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
+			assert.Contains(t, buf.String(), fmt.Sprintf("password: %s", wantPassword), "expected output %q; got no match", wantPassword)
+		}()
+		var token string
+		require.Eventually(t, func() bool {
+			var err error
+			token, err = cfg.Session().Read()
+			return err == nil
+		}, 15*time.Second, 25*time.Millisecond)
+		// Verify that authentication was properly set in dev-mode.
+		accessURL, err := cfg.URL().Read()
+		require.NoError(t, err)
+		parsed, err := url.Parse(accessURL)
+		require.NoError(t, err)
+		client := codersdk.New(parsed)
+		client.SessionToken = token
+		_, err = client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		cancelFunc()
+		<-done
+	})
 	t.Run("TLSBadVersion", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
