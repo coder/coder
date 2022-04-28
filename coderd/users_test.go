@@ -353,15 +353,15 @@ func TestGetUsers(t *testing.T) {
 			Password:       "password",
 			OrganizationID: user.OrganizationID,
 		})
-		suspendedUser, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@email.com",
 			Username:       "bruno",
 			Password:       "password",
 			OrganizationID: user.OrganizationID,
 		})
-		client.SuspendUser(context.Background(), suspendedUser.ID)
+		client.SuspendUser(context.Background(), user.UserID)
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{
-			Status: string(codersdk.UserStatusSuspended),
+			Status: string(codersdk.UserStatusActive),
 		})
 		require.NoError(t, err)
 		require.Len(t, users, 2)

@@ -166,6 +166,7 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 	if res.StatusCode != http.StatusOK {
 		return User{}, readBodyAsError(res)
 	}
+
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
