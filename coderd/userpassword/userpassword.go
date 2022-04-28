@@ -18,7 +18,7 @@ import (
 var (
 	// The base64 encoder used when producing the string representation of
 	// hashes.
-	base64Encoder = base64.RawStdEncoding
+	base64Encoding = base64.RawStdEncoding
 
 	// The number of iterations to use when generating the hash. This was chosen
 	// to make it about as fast as bcrypt hashes. Increasing this causes hashes
@@ -34,7 +34,7 @@ var (
 
 	// A salt size of 16 is the default in passlib. A minimum of 8 can be safely
 	// used.
-	saltSize = 16
+	defaultSaltSize = 16
 
 	// The simulated hash is used when trying to simulate password checks for
 	// users that don't exist.
@@ -84,7 +84,7 @@ func Compare(hashed string, password string) (bool, error) {
 	if err != nil {
 		return false, xerrors.Errorf("parse iter from hash: %w", err)
 	}
-	salt, err := base64Encoder.DecodeString(parts[3])
+	salt, err := base64Encoding.DecodeString(parts[3])
 	if err != nil {
 		return false, xerrors.Errorf("decode salt: %w", err)
 	}
@@ -99,7 +99,7 @@ func Compare(hashed string, password string) (bool, error) {
 // Hash generates a hash using pbkdf2.
 // See the Compare() comment for rationale.
 func Hash(password string) (string, error) {
-	salt := make([]byte, saltSize)
+	salt := make([]byte, defaultSaltSize)
 	_, err := rand.Read(salt)
 	if err != nil {
 		return "", xerrors.Errorf("read random bytes for salt: %w", err)
@@ -112,12 +112,12 @@ func Hash(password string) (string, error) {
 func hashWithSaltAndIter(password string, salt []byte, iter int) string {
 	var (
 		hash    = pbkdf2.Key([]byte(password), salt, iter, hashLength, sha256.New)
-		encHash = make([]byte, base64Encoder.EncodedLen(len(hash)))
-		encSalt = make([]byte, base64Encoder.EncodedLen(len(salt)))
+		encHash = make([]byte, base64Encoding.EncodedLen(len(hash)))
+		encSalt = make([]byte, base64Encoding.EncodedLen(len(salt)))
 	)
 
-	base64Encoder.Encode(encHash, hash)
-	base64Encoder.Encode(encSalt, salt)
+	base64Encoding.Encode(encHash, hash)
+	base64Encoding.Encode(encSalt, salt)
 
 	return fmt.Sprintf("$%s$%d$%s$%s", hashScheme, iter, encSalt, encHash)
 }
