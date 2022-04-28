@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -43,13 +44,26 @@ type TypescriptTypes struct {
 // String just combines all the codeblocks. I store them in a map for unit testing purposes
 func (t TypescriptTypes) String() string {
 	var s strings.Builder
-	for _, v := range t.Types {
+	sortedTypes := make([]string, 0, len(t.Types))
+	sortedEnums := make([]string, 0, len(t.Types))
+
+	for k := range t.Types {
+		sortedTypes = append(sortedTypes, k)
+	}
+	for k := range t.Enums {
+		sortedEnums = append(sortedEnums, k)
+	}
+
+	for _, k := range sortedTypes {
+		v := t.Types[k]
 		s.WriteString(v)
 		s.WriteRune('\n')
 	}
 
-	for _, v := range t.Enums {
+	for _, k := range sortedEnums {
+		v := t.Enums[k]
 		s.WriteString(v)
+		s.WriteRune('\n')
 	}
 	return s.String()
 }
@@ -104,19 +118,35 @@ func (g *Generator) parsePackage(ctx context.Context, patterns ...string) error 
 	return nil
 }
 
-type Generated struct {
-}
-
 // generateAll will generate for all types found in the pkg
 func (g *Generator) generateAll() (*TypescriptTypes, error) {
 	structs := make(map[string]string)
 	enums := make(map[string]types.Object)
 	constants := make(map[string][]*types.Const)
 
+	ignoredTypes := make(map[string]struct{})
+	ignoreRegex := regexp.MustCompile("@typescript-ignore:(?P<ignored_types>)")
+	for _, file := range g.pkg.Syntax {
+		for _, comment := range file.Comments {
+			matches := ignoreRegex.FindStringSubmatch(comment.Text())
+			ignored := ignoreRegex.SubexpIndex("ignored_types")
+			if len(matches) >= ignored && matches[ignored] != "" {
+				arr := strings.Split(matches[ignored], ",")
+				for _, s := range arr {
+					ignoredTypes[strings.TrimSpace(s)] = struct{}{}
+				}
+			}
+		}
+	}
+
 	for _, n := range g.pkg.Types.Scope().Names() {
 		obj := g.pkg.Types.Scope().Lookup(n)
 		if obj == nil || obj.Type() == nil {
 			// This would be weird, but it is if the package does not have the type def.
+			continue
+		}
+
+		if _, ok := ignoredTypes[obj.Name()]; ok {
 			continue
 		}
 

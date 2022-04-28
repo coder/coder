@@ -26,6 +26,7 @@ func New(serverURL *url.URL) *Client {
 }
 
 // Client is an HTTP caller for methods to the Coder API.
+// @typescript-ignore Client
 type Client struct {
 	HTTPClient   *http.Client
 	SessionToken string
