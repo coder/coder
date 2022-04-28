@@ -418,7 +418,15 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(updatedUser))
+	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUser, organizationIDs))
 }
 
 // Returns organizations the parameterized user has access to.

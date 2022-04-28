@@ -17,7 +17,7 @@ type Permission struct {
 // Users of this package should instead **only** use the role names, and
 // this package will expand the role names into their json payloads.
 type Role struct {
-	Name RoleName     `json:"name"`
+	Name string       `json:"name"`
 	Site []Permission `json:"site"`
 	// Org is a map of orgid to permissions. We represent orgid as a string.
 	// We scope the organizations in the role so we can easily combine all the
