@@ -81,7 +81,10 @@ func TestServer(t *testing.T) {
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
 		var buf strings.Builder
 		root.SetOutput(&buf)
+		done := make(chan struct{})
 		go func() {
+			defer close(done)
+
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 
@@ -111,6 +114,9 @@ func TestServer(t *testing.T) {
 		client.SessionToken = token
 		_, err = client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
+
+		cancelFunc()
+		<-done
 	})
 	t.Run("TLSBadVersion", func(t *testing.T) {
 		t.Parallel()
