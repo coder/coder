@@ -2,14 +2,6 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
 
-// TypeScript doesn't have the randomUUID type on Crypto yet. See:
-// https://github.com/denoland/deno/issues/12754#issuecomment-970386235
-declare global {
-  interface Crypto {
-    randomUUID: () => string
-  }
-}
-
 export interface TerminalContext {
   organizationsError?: Error | unknown
   organizations?: Types.Organization[]
@@ -17,25 +9,27 @@ export interface TerminalContext {
   workspace?: Types.Workspace
   workspaceAgent?: Types.WorkspaceAgent
   workspaceAgentError?: Error | unknown
-
-  reconnection: string
   websocket?: WebSocket
+  websocketError?: Error | unknown
+
+  // Assigned by connecting!
+  workspaceName?: string
+  reconnection?: string
 }
 
 export type TerminalEvent =
-  | { type: "CONNECT" }
-  | { type: "WRITE"; data: Types.ReconnectingPTYRequest }
-  | { type: "READ"; data: string }
+  | { type: "CONNECT"; reconnection?: string; workspaceName?: string }
+  | { type: "WRITE"; request: Types.ReconnectingPTYRequest }
+  | { type: "READ"; data: ArrayBuffer }
+  | { type: "DISCONNECT" }
 
 export const terminalMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QBcwCcC2BLAdgQwBsBlZPVAOhmWVygHk0o8csAvMrAex1gGIJuYcrgBunANZCqDJi3Y1u8JCAAOnWFgU5EoAB6IALAYAM5AwE5LANgAcAJgDsNqwGYrxqwBoQAT0QBWAEZTBysw8wc3W2NAg38AX3jvVExcQhIyKTBqWhlmNg5FXnQ0TjRyFQIyADMyjEpsvLlCnh1VdU0ubWV9BCNTC2t7J1d3L19EaPJIlzdzY39h20Tk9Gx8YlIKKhocKAB1MvFYFTwAYzB+QWEcMUkG5EO0Y9OLtrUNLTbe4ONzckClnMLjsBjcdg83j8CDc-jMszccRcCzsVgSSRAKXW6S2WRyeyeL3OlxKZQqVWQtUwD0JJ2J7w6Xx6iF+-0BlhBYKsEPG0P8BkC5BsCIMDgcBhsxkcdhWmLWaU2mQeuwORzpFwAgjAcMgrjghKIJHjaa8wFqwDqGZ8ut8WVZAnYhQ6LKKDFZrFDEHZkeR-AigsibGK7OYZRisQqMttsiqTcTzTrimhSuVKjU6jS1aaE8grZ1uLaEIF7Y6bM7zK73eZeYZjAMgUH7UHUeZZRGNlGhGduPqziq9QbbkbyN2cL3c8oPvnunovQ7HeYHe4bHFFjZ-J6i27yHXd-b5qN-OjVqkO7iRz2wH3aEmU+T09TR+O80zZwg7PPyIvUcYV0ebOum6ooK7h1oE4qBEEgLgW28pnkqT5XqgEC8PsABKACSAAqACiL42sy74uEY5AltybrulKDibvMX5AuY66-vYooOLBp44kqpJoLwADCdAAHL8ThPFYfhBaER+DHkHYjagi4K7ETYNE2Duu6-kxFj+BEiQYjgnAQHAbTthx0b4vQjD5PIXRKKAU6viAvQGHYm5WE55DybMcTCmEgQweGcEmXisZZvSk6MgRb4+TuoLVsCdigos1ETAgAY7mEti+X6aKWGx2KKqZwXPOqZrahOtnheJb4Og6Tqgg4gIOKiwoGJuLhHtMIqhC45j+E4uWRueiHXnsYkzg5LLrlY0zcv4riQQ6DjGC4QEgkKCJtX8s0uIEbj9fBFBDcho2Ft6bhCjNYrcqGqIbslgT2EKanVg48z2DYe2BeQEBYLAh2QMdhGxAY0keKi7oSrNELOclvUuO5wpRAxApBqx-nsflQhcQDb6nVNzh2L1oQhvFaKbgKU3dUCTiSo1LioyeeWdtj41Fkpd0OHRQJjEGgLOKjiRAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QBcwCcC2BLAdgQwBsBlZPVAOhmWVygHk0o8csAvMrAex1gGIJuYcrgBunANZCqDJi3Y1u8JCAAOnWFgU5EoAB6IA7AE4AzOSMBGAEwBWCyYAsANgs2bVgDQgAnohNGbcgsnEIcHCwAOBwAGCKMHAF8Er1RMXEISMikwaloZZjYORV50NE40chUCMgAzcoxKHPy5Ip4dVXVNLm1lfQQIiLMIpxMbQYjYo2jXL18EawtyAwGwk1HTMdGklPRsfGJSCioaHCgAdXLxWBU8AGMwfkFhHDFJRuQLtCub+-a1DS07T69icVnILisDhspiccQ2sz8y3INmiqNGsMcBmiNm2IFSewyh2yuVOn2+dwepXKlWqyDqmHeZOuFL+nUBvUQILBEKhMLhowRCAMTkCIzWDkcEyMBhsBlx+PSByy7xO50uzPuAEEYDhkI8cEJRBJiUyfmBtWBdayAd0gZyjCFyFZbKjnC4jKYLIK7GYYqirCYBk5olYDIlknjdorMkccqrTRSLbqSmgyhUqrV6oz1Wak8hrV1uHb5g6nE6XdE3RYPSYvT5EWCA2s7E4sbZhfKo-sY0JbtwDbdVfrDS9jeQ+zgB-nlP9Cz09IhIcLyCZIUYotEDCZNxEDN7peY1ms4gYrNNBp20t2ieP+2BB7QU2maZmGROpwX2QuEEuy6uHOuMRbjue71ggdiLPY4phiYMoWNYl4EkqFDvveqAQLwZwAEoAJIACoAKKfraHI-gYkTkCGAFYmG0TbnWcw2A4YKmGskJno44RWIh0Y3qhg6QLwWEEZqAAixFFqRobViusKngYMpWEGgpQmWUFsSEcSOHRPHXsq-Hobwok4UQADCdAAHIWQRpl4RJ84gH0SmtuQDgTNWMJTDKJgqUEq4RNCljTOs3ERgqekUBAWCwAZgnmVZNl2TObIkd+zplrEYanvY0SwrCESCs6BiuaidGrgGTgekYSQRjgnAQHA7ThYSyrHHkjAFPI3RKKAs5fo5iAxIEXHMSMErWNiTiFa4K6ldi1ayu4FjhjsV4tbGJJql8GpgPZxYWNMDiubBdh2Ju7pGIK-jFW6rYiq4bZOLp63EvGOaJjq069Slknfq4jrOii51udiMpXbC5ATKi1ghNEljNs9yG9neD6nHtUlnhErmgqeIyosKazejNZ7+qMi3BiYiM9rek5oZA6NpeR0ROmGpgnhT0qCmNSxHhKW4BiGERUzeUUxSj6EMwN4HM5ukLLXBViRKGNhXVj64etM0JOG5YTC1kktORlp7hA4CtK2DYEALQQ8M5Gm4rUymDpNVAA */
   createMachine(
     {
       tsTypes: {} as import("./terminalXService.typegen").Typegen0,
       schema: {
-        context: {
-          reconnection: crypto.randomUUID(),
-        } as TerminalContext,
+        context: {} as TerminalContext,
         events: {} as TerminalEvent,
         services: {} as {
           getOrganizations: {
@@ -53,7 +47,7 @@ export const terminalMachine =
         },
       },
       id: "terminalState",
-      initial: "gettingOrganizations",
+      initial: "disconnected",
       states: {
         gettingOrganizations: {
           invoke: {
@@ -68,7 +62,7 @@ export const terminalMachine =
             onError: [
               {
                 actions: "assignOrganizationsError",
-                target: "error",
+                target: "disconnected",
               },
             ],
           },
@@ -87,7 +81,7 @@ export const terminalMachine =
             onError: [
               {
                 actions: "assignWorkspaceError",
-                target: "error",
+                target: "disconnected",
               },
             ],
           },
@@ -105,7 +99,7 @@ export const terminalMachine =
             onError: [
               {
                 actions: "assignWorkspaceAgentError",
-                target: "error",
+                target: "disconnected",
               },
             ],
           },
@@ -123,7 +117,7 @@ export const terminalMachine =
             onError: [
               {
                 actions: "assignWebsocketError",
-                target: "error",
+                target: "disconnected",
               },
             ],
           },
@@ -133,12 +127,19 @@ export const terminalMachine =
             WRITE: {
               actions: "sendMessage",
             },
+            READ: {
+              actions: "readMessage",
+            },
+            DISCONNECT: {
+              actions: "disconnect",
+              target: "disconnected",
+            },
           },
         },
-        disconnected: {},
-        error: {
+        disconnected: {
           on: {
             CONNECT: {
+              actions: "assignConnection",
               target: "gettingOrganizations",
             },
           },
@@ -148,13 +149,22 @@ export const terminalMachine =
     {
       services: {
         getOrganizations: API.getOrganizations,
-        getWorkspace: (context: TerminalContext) => {
-          return API.getWorkspace(context.organizations![0].id, "")
+        getWorkspace: async (context: TerminalContext) => {
+          if (!context.organizations || !context.workspaceName) {
+            throw new Error("organizations or workspace not set")
+          }
+          return API.getWorkspace(context.organizations[0].id, context.workspaceName)
         },
         getWorkspaceAgent: async (context: TerminalContext) => {
-          const resources = await API.getWorkspaceResources(context.workspace!.latest_build.id)
+          if (!context.workspace) {
+            throw new Error("workspace is not set")
+          }
+          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
           for (let i = 0; i < resources.length; i++) {
             const resource = resources[i]
+            if (!resource.agents) {
+              continue
+            }
             if (resource.agents.length <= 0) {
               continue
             }
@@ -164,15 +174,31 @@ export const terminalMachine =
         },
         connect: (context: TerminalContext) => (send) => {
           return new Promise<WebSocket>((resolve, reject) => {
-            const socket = new WebSocket(`/api/v2/workspaceagents/${context.workspaceAgent!.id}/pty`)
+            if (!context.workspaceAgent) {
+              return reject("workspace agent is not set")
+            }
+            let proto = location.protocol
+            if (proto === "https:") {
+              proto = "wss:"
+            } else {
+              proto = "ws:"
+            }
+            const socket = new WebSocket(
+              `${proto}//${location.host}/api/v2/workspaceagents/${context.workspaceAgent.id}/pty?reconnect=${
+                context.reconnection
+              }`,
+            )
+            socket.binaryType = "arraybuffer"
             socket.addEventListener("open", () => {
               resolve(socket)
             })
-            socket.addEventListener("error", (event) => {
+            socket.addEventListener("error", () => {
               reject("socket errored")
             })
-            socket.addEventListener("close", (event) => {
-              reject(event.reason)
+            socket.addEventListener("close", () => {
+              send({
+                type: "DISCONNECT",
+              })
             })
             socket.addEventListener("message", (event) => {
               send({
@@ -184,13 +210,18 @@ export const terminalMachine =
         },
       },
       actions: {
+        assignConnection: assign((context, event) => ({
+          ...context,
+          reconnection: event.reconnection ?? context.reconnection,
+          workspaceName: event.workspaceName ?? context.workspaceName,
+        })),
         assignOrganizations: assign({
           organizations: (_, event) => event.data,
         }),
         assignOrganizationsError: assign({
           organizationsError: (_, event) => event.data,
         }),
-        clearOrganizationsError: assign((context: TerminalContext) => ({
+        clearOrganizationsError: assign((context) => ({
           ...context,
           organizationsError: undefined,
         })),
@@ -200,7 +231,7 @@ export const terminalMachine =
         assignWorkspaceError: assign({
           workspaceError: (_, event) => event.data,
         }),
-        clearWorkspaceError: assign((context: TerminalContext) => ({
+        clearWorkspaceError: assign((context) => ({
           ...context,
           workspaceError: undefined,
         })),
@@ -214,8 +245,28 @@ export const terminalMachine =
           ...context,
           workspaceAgentError: undefined,
         })),
+        assignWebsocket: assign({
+          websocket: (_, event) => event.data,
+        }),
+        assignWebsocketError: assign({
+          websocketError: (_, event) => event.data,
+        }),
+        clearWebsocketError: assign((context: TerminalContext) => ({
+          ...context,
+          webSocketError: undefined,
+        })),
         sendMessage: (context, event) => {
-          context.websocket!.send(JSON.stringify(event.data))
+          if (!context.websocket) {
+            throw new Error("websocket doesn't exist")
+          }
+          context.websocket.send(new TextEncoder().encode(JSON.stringify(event.request)))
+        },
+        readMessage: () => {
+          // Override this with the terminal writer!
+        },
+        disconnect: (context: TerminalContext) => {
+          // Code 1000 is a successful exit!
+          context.websocket?.close(1000)
         },
       },
     },

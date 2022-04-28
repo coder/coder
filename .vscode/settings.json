@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
+    "circbuf",
     "cliflag",
     "cliui",
     "coderd",
@@ -61,8 +62,10 @@
     "unconvert",
     "Untar",
     "VMID",
+    "weblinks",
     "webrtc",
     "xerrors",
+    "xstate",
     "yamux"
   ],
   "emeraldwalk.runonsave": {

@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armon/circbuf"
 	"github.com/google/uuid"
-	"github.com/smallnest/ringbuffer"
 
 	gsyslog "github.com/hashicorp/go-syslog"
 	"go.uber.org/atomic"
@@ -417,6 +417,8 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn net.Conn) {
 	defer conn.Close()
 
+	// The ID format is referenced in conn.go.
+	// <uuid>:<height>:<width>
 	idParts := strings.Split(rawID, ":")
 	if len(idParts) != 3 {
 		a.logger.Warn(ctx, "client sent invalid id format", slog.F("raw-id", rawID))
@@ -429,6 +431,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		a.logger.Warn(ctx, "client sent reconnection token that isn't a uuid", slog.F("id", id), slog.Error(err))
 		return
 	}
+	// Parse the initial terminal dimensions.
 	height, err := strconv.Atoi(idParts[1])
 	if err != nil {
 		a.logger.Warn(ctx, "client sent invalid height", slog.F("id", id), slog.F("height", idParts[1]))
@@ -454,41 +457,55 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 			a.logger.Warn(ctx, "create reconnecting pty command", slog.Error(err))
 			return
 		}
-		ptty, _, err := pty.Start(cmd)
+		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+
+		ptty, process, err := pty.Start(cmd)
 		if err != nil {
 			a.logger.Warn(ctx, "start reconnecting pty command", slog.F("id", id))
+		}
+
+		// Default to buffer 64KB.
+		circularBuffer, err := circbuf.NewBuffer(64 * 1024)
+		if err != nil {
+			a.logger.Warn(ctx, "create circular buffer", slog.Error(err))
+			return
 		}
 
 		a.closeMutex.Lock()
 		a.connCloseWait.Add(1)
 		a.closeMutex.Unlock()
+		ctx, cancelFunc := context.WithCancel(ctx)
 		rpty = &reconnectingPTY{
 			activeConns: make(map[string]net.Conn),
 			ptty:        ptty,
-			timeout:     time.NewTimer(a.reconnectingPTYTimeout),
-			// Default to buffer 1MB.
-			ringBuffer: ringbuffer.New(1 << 20),
+			// Timeouts created with an after func can be reset!
+			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancelFunc),
+			circularBuffer: circularBuffer,
 		}
 		a.reconnectingPTYs.Store(id, rpty)
 		go func() {
-			// Close if the inactive timeout occurs, or the context ends.
-			select {
-			case <-rpty.timeout.C:
-				a.logger.Info(ctx, "killing reconnecting pty due to inactivity", slog.F("id", id))
-			case <-ctx.Done():
-			}
+			// When the context has been completed either:
+			// 1. The timeout completed.
+			// 2. The parent context was cancelled.
+			<-ctx.Done()
+			_ = process.Kill()
+		}()
+		go func() {
+			// If the process dies randomly, we should
+			// close the pty.
+			_, _ = process.Wait()
 			rpty.Close()
 		}()
 		go func() {
-			buffer := make([]byte, 32*1024)
+			buffer := make([]byte, 1024)
 			for {
 				read, err := rpty.ptty.Output().Read(buffer)
 				if err != nil {
-					rpty.Close()
+					// When the PTY is closed, this is triggered.
 					break
 				}
 				part := buffer[:read]
-				_, err = rpty.ringBuffer.Write(part)
+				_, err = rpty.circularBuffer.Write(part)
 				if err != nil {
 					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", id))
 					break
@@ -499,27 +516,56 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 				}
 				rpty.activeConnsMutex.Unlock()
 			}
-			// If we break from the loop, the reconnecting PTY ended.
+
+			// Cleanup the process, PTY, and delete it's
+			// ID from memory.
+			_ = process.Kill()
+			rpty.Close()
 			a.reconnectingPTYs.Delete(id)
 			a.connCloseWait.Done()
 		}()
 	}
+	// Resize the PTY to initial height + width.
 	err = rpty.ptty.Resize(uint16(height), uint16(width))
 	if err != nil {
 		// We can continue after this, it's not fatal!
 		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
 	}
-
-	_, err = conn.Write(rpty.ringBuffer.Bytes())
+	// Write any previously stored data for the TTY.
+	_, err = conn.Write(rpty.circularBuffer.Bytes())
 	if err != nil {
 		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", id), slog.Error(err))
 		return
 	}
 	connectionID := uuid.NewString()
+	// Multiple connections to the same TTY are permitted.
+	// This could easily be used for terminal sharing, but
+	// we do it because it's a nice user experience to
+	// copy/paste a terminal URL and have it _just work_.
 	rpty.activeConnsMutex.Lock()
 	rpty.activeConns[connectionID] = conn
 	rpty.activeConnsMutex.Unlock()
+	// Resetting this timeout prevents the PTY from exiting.
+	rpty.timeout.Reset(a.reconnectingPTYTimeout)
+
+	heartbeat := time.NewTimer(a.reconnectingPTYTimeout / 2)
+	defer heartbeat.Stop()
+	go func() {
+		// Keep updating the activity while this
+		// connection is alive!
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-heartbeat.C:
+			}
+			rpty.timeout.Reset(a.reconnectingPTYTimeout)
+		}
+	}()
 	defer func() {
+		// After this connection ends, remove it from
+		// the PTYs active connections. If it isn't
+		// removed, all PTY data will be sent to it.
 		rpty.activeConnsMutex.Lock()
 		delete(rpty.activeConns, connectionID)
 		rpty.activeConnsMutex.Unlock()
@@ -579,11 +625,13 @@ type reconnectingPTY struct {
 	activeConnsMutex sync.Mutex
 	activeConns      map[string]net.Conn
 
-	ringBuffer *ringbuffer.RingBuffer
-	timeout    *time.Timer
-	ptty       pty.PTY
+	circularBuffer *circbuf.Buffer
+	timeout        *time.Timer
+	ptty           pty.PTY
 }
 
+// Close ends all connections to the reconnecting
+// PTY and clear the circular buffer.
 func (r *reconnectingPTY) Close() {
 	r.activeConnsMutex.Lock()
 	defer r.activeConnsMutex.Unlock()
@@ -591,5 +639,6 @@ func (r *reconnectingPTY) Close() {
 		_ = conn.Close()
 	}
 	_ = r.ptty.Close()
-	r.ringBuffer.Reset()
+	r.circularBuffer.Reset()
+	r.timeout.Stop()
 }

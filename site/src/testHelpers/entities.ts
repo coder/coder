@@ -90,6 +90,9 @@ export const MockWorkspace: Workspace = {
   owner_id: MockUser.id,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
+  latest_build: {
+    id: "test-workspace-build",
+  },
 }
 
 export const MockUserAgent: UserAgent = {

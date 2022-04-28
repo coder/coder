@@ -43,6 +43,7 @@ require (
 	cdr.dev/slog v1.4.1
 	cloud.google.com/go/compute v1.6.1
 	github.com/AlecAivazis/survey/v2 v2.3.4
+	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/bgentry/speakeasy v0.1.0
 	github.com/briandowns/spinner v1.18.1
@@ -92,7 +93,6 @@ require (
 	github.com/pkg/sftp v1.13.4
 	github.com/quasilyte/go-ruleguard/dsl v0.3.19
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/smallnest/ringbuffer v0.0.0-20210227121335-0a58434b36f2
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.1

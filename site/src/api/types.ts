@@ -73,7 +73,7 @@ export interface Workspace {
 
 export interface WorkspaceResource {
   id: string
-  agents: WorkspaceAgent[]
+  agents?: WorkspaceAgent[]
 }
 
 export interface WorkspaceAgent {
@@ -116,7 +116,7 @@ export interface UpdateProfileRequest {
 }
 
 export interface ReconnectingPTYRequest {
-  readonly data: string
-  readonly height: number
-  readonly width: number
+  readonly data?: string
+  readonly height?: number
+  readonly width?: number
 }

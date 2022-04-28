@@ -368,7 +368,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		}
 		return nil, readBodyAsError(res)
 	}
-	return websocket.NetConn(ctx, conn, websocket.MessageText), nil
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
 func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, path string) proxy.Dialer {

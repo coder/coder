@@ -375,7 +375,7 @@ func (api *api) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusNormalClosure, "ended")
 	}()
 	// Accept text connections, because it's more developer friendly.
-	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageText)
+	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
 	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
 	if err != nil {
 		return

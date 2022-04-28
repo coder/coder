@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
-import { Organization, Template, Workspace } from "../../../../api/types"
+import { Organization, Template, Workspace, WorkspaceBuild } from "../../../../api/types"
 import { EmptyState } from "../../../../components/EmptyState/EmptyState"
 import { ErrorSummary } from "../../../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../../../components/Header/Header"
@@ -64,7 +64,7 @@ export const TemplatePage: React.FC = () => {
     {
       key: "name",
       name: "Name",
-      renderer: (nameField: string, workspace: Workspace) => {
+      renderer: (nameField: string | WorkspaceBuild, workspace: Workspace) => {
         return <Link to={`/workspaces/${workspace.id}`}>{nameField}</Link>
       },
     },
