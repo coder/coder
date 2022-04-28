@@ -31,7 +31,7 @@ export const XServiceProvider: React.FC = ({ children }) => {
       value={{
         authXService: useInterpret(authMachine),
         buildInfoXService: useInterpret(buildInfoMachine),
-        usersXService: useInterpret(usersMachine.withConfig({ actions: { redirectToUsersPage } })),
+        usersXService: useInterpret(() => usersMachine.withConfig({ actions: { redirectToUsersPage } })),
       }}
     >
       {children}
