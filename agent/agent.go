@@ -486,7 +486,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		go func() {
 			// When the context has been completed either:
 			// 1. The timeout completed.
-			// 2. The parent context was cancelled.
+			// 2. The parent context was canceled.
 			<-ctx.Done()
 			_ = process.Kill()
 		}()
