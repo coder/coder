@@ -1880,16 +1880,23 @@ WHERE
 			)
 			ELSE true
 	END
+	-- Start filters
+	-- Filter by name, email or username
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email LIKE concat('%', $2, '%')
 			OR username LIKE concat('%', $2, '%')
 		)	
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
 		WHEN $3 :: user_status != '' THEN (
 			status = $3
 		)
 		ELSE true
 	END
+	-- End of filters
 ORDER BY
     -- Deterministic and consistent ordering of all users, even if they share
     -- a timestamp. This is to ensure consistent pagination.
