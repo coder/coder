@@ -53,6 +53,7 @@ const useStyles = makeStyles((theme) => ({
 
 export interface SignInFormProps {
   isLoading: boolean
+  redirectTo: string
   authErrorMessage?: string
   methodsErrorMessage?: string
   authMethods?: AuthMethods
@@ -61,6 +62,7 @@ export interface SignInFormProps {
 
 export const SignInForm: React.FC<SignInFormProps> = ({
   authMethods,
+  redirectTo,
   isLoading,
   authErrorMessage,
   methodsErrorMessage,
@@ -76,13 +78,14 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     validationSchema,
     onSubmit,
   })
+  const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(form)
 
   return (
     <>
       <Welcome />
       <form onSubmit={form.handleSubmit}>
         <TextField
-          {...getFormHelpers<BuiltInAuthFormValues>(form, "email")}
+          {...getFieldHelpers("email")}
           onChange={onChangeTrimmed(form)}
           autoFocus
           autoComplete="email"
@@ -93,7 +96,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
           variant="outlined"
         />
         <TextField
-          {...getFormHelpers<BuiltInAuthFormValues>(form, "password")}
+          {...getFieldHelpers("password")}
           autoComplete="current-password"
           className={styles.loginTextField}
           fullWidth
@@ -112,7 +115,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
       </form>
       {authMethods?.github && (
         <div className={styles.submitBtn}>
-          <Link href="/api/v2/users/oauth2/github/callback">
+          <Link href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(redirectTo)}`}>
             <Button color="primary" disabled={isLoading} fullWidth type="submit" variant="contained">
               {Language.githubSignIn}
             </Button>

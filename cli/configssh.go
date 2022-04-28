@@ -42,6 +42,10 @@ func configSSH() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			organization, err := currentOrganization(cmd, client)
+			if err != nil {
+				return err
+			}
 			if strings.HasPrefix(sshConfigFile, "~/") {
 				dirname, _ := os.UserHomeDir()
 				sshConfigFile = filepath.Join(dirname, sshConfigFile[2:])
@@ -55,7 +59,7 @@ func configSSH() *cobra.Command {
 				sshConfigContent = sshConfigContent[:startIndex-1] + sshConfigContent[endIndex+len(sshEndToken):]
 			}
 
-			workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
+			workspaces, err := client.WorkspacesByOwner(cmd.Context(), organization.ID, codersdk.Me)
 			if err != nil {
 				return err
 			}
@@ -99,6 +103,9 @@ func configSSH() *cobra.Command {
 								"\tHostName coder."+hostname,
 								"\tConnectTimeout=0",
 								"\tStrictHostKeyChecking=no",
+								// Without this, the "REMOTE HOST IDENTITY CHANGED"
+								// message will appear.
+								"\tUserKnownHostsFile=/dev/null",
 							)
 							if !skipProxyCommand {
 								configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))

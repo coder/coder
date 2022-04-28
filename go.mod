@@ -63,12 +63,13 @@ require (
 	github.com/go-playground/validator/v10 v10.10.1
 	github.com/gohugoio/hugo v0.97.3
 	github.com/golang-jwt/jwt v3.2.2+incompatible
-	github.com/golang-migrate/migrate/v4 v4.15.1
+	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/google/go-github/v43 v43.0.1-0.20220414155304-00e42332e405
 	github.com/google/uuid v1.3.0
+	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hashicorp/go-version v1.4.0
 	github.com/hashicorp/hc-install v0.3.1
-	github.com/hashicorp/hcl/v2 v2.11.1
+	github.com/hashicorp/hcl/v2 v2.12.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-exec v0.15.0
 	github.com/hashicorp/terraform-json v0.13.0
@@ -78,7 +79,7 @@ require (
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/lib/pq v1.10.5
 	github.com/mattn/go-isatty v0.0.14
-	github.com/mitchellh/mapstructure v1.4.3
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/moby v20.10.14+incompatible
 	github.com/open-policy-agent/opa v0.39.0
 	github.com/ory/dockertest/v3 v3.8.1
@@ -107,11 +108,13 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.10
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f
 	google.golang.org/api v0.75.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.38.0
+	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.30
 )
@@ -141,10 +144,8 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
-	github.com/dhui/dktest v0.3.9 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/docker/cli v20.10.13+incompatible // indirect
-	github.com/docker/distribution v2.8.0+incompatible // indirect
 	github.com/docker/docker v20.10.13+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
@@ -228,8 +229,7 @@ require (
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
-	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
+	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220421151946-72621c1f0bd3 // indirect
 	google.golang.org/grpc v1.45.0 // indirect

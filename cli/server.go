@@ -47,6 +47,13 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+var defaultDevUser = codersdk.CreateFirstUserRequest{
+	Email:            "admin@coder.com",
+	Username:         "developer",
+	Password:         "password",
+	OrganizationName: "acme-corp",
+}
+
 // nolint:gocyclo
 func server() *cobra.Command {
 	var (
@@ -275,6 +282,9 @@ func server() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
 				}
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", defaultDevUser.Email)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", defaultDevUser.Password)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+
 					cliui.Styles.Field.Render("ctrl+c")+` to clean up provisioned infrastructure.`)+"\n\n")
@@ -293,7 +303,7 @@ func server() *cobra.Command {
 				if !hasFirstUser && err == nil {
 					// This could fail for a variety of TLS-related reasons.
 					// This is a helpful starter message, and not critical for user interaction.
-					_, _ = fmt.Fprint(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+client.URL.String())+" in a new terminal to get started.\n")))
+					_, _ = fmt.Fprint(cmd.ErrOrStderr(), cliui.Styles.Paragraph.Render(cliui.Styles.Wrap.Render(cliui.Styles.FocusedPrompt.String()+`Run `+cliui.Styles.Code.Render("coder login "+accessURL)+" in a new terminal to get started.\n")))
 				}
 			}
 
@@ -327,7 +337,11 @@ func server() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+cliui.Styles.Bold.Render("Interrupt caught. Gracefully exiting..."))
 
 			if dev {
-				workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
+				organizations, err := client.OrganizationsByUser(cmd.Context(), codersdk.Me)
+				if err != nil {
+					return xerrors.Errorf("get organizations: %w", err)
+				}
+				workspaces, err := client.WorkspacesByOwner(cmd.Context(), organizations[0].ID, codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("get workspaces: %w", err)
 				}
@@ -396,7 +410,7 @@ func server() *cobra.Command {
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
-	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 1, "The amount of provisioner daemons to create on start.")
+	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3, "The amount of provisioner daemons to create on start.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
 		"Specifies a client ID to use for oauth2 with GitHub.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientSecret, "oauth2-github-client-secret", "", "CODER_OAUTH2_GITHUB_CLIENT_SECRET", "",
@@ -437,18 +451,13 @@ func server() *cobra.Command {
 }
 
 func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root) error {
-	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-		Email:            "admin@coder.com",
-		Username:         "developer",
-		Password:         "password",
-		OrganizationName: "acme-corp",
-	})
+	_, err := client.CreateFirstUser(cmd.Context(), defaultDevUser)
 	if err != nil {
 		return xerrors.Errorf("create first user: %w", err)
 	}
 	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
-		Email:    "admin@coder.com",
-		Password: "password",
+		Email:    defaultDevUser.Email,
+		Password: defaultDevUser.Password,
 	})
 	if err != nil {
 		return xerrors.Errorf("login with first user: %w", err)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -139,7 +137,6 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		LimitOpt:  int32(pageLimit),
 		Search:    searchName,
 	})
-
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
@@ -147,12 +144,31 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userIDs := make([]uuid.UUID, 0, len(users))
+	for _, user := range users {
+		userIDs = append(userIDs, user.ID)
+	}
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+	organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
+	for _, organizationIDsByMemberIDsRow := range organizationIDsByMemberIDsRows {
+		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
+	}
+
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUsers(users))
+	render.JSON(rw, r, convertUsers(users, organizationIDsByUserID))
 }
 
 // Creates a new user.
-func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	var createUser codersdk.CreateUserRequest
@@ -215,15 +231,23 @@ func (api *api) postUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertUser(user))
+	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{createUser.OrganizationID}))
 }
 
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
-func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
+func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
+	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 
-	httpapi.Write(rw, http.StatusOK, convertUser(user))
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(user, organizationIDs))
 }
 
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
@@ -280,7 +304,42 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile))
+	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
+}
+
+func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	suspendedUser, err := api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
+		ID:        user.ID,
+		Status:    database.UserStatusSuspended,
+		UpdatedAt: database.Now(),
+	})
+
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("put user suspended: %s", err.Error()),
+		})
+		return
+	}
+
+	organizations, err := userOrganizationIDs(r.Context(), api, user)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
 
 // Returns organizations the parameterized user has access to.
@@ -484,333 +543,6 @@ func (*api) postLogout(rw http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-// Create a new workspace for the currently authenticated user.
-func (api *api) postWorkspacesByUser(rw http.ResponseWriter, r *http.Request) {
-	var createWorkspace codersdk.CreateWorkspaceRequest
-	if !httpapi.Read(rw, r, &createWorkspace) {
-		return
-	}
-	apiKey := httpmw.APIKey(r)
-	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("template %q doesn't exist", createWorkspace.TemplateID.String()),
-			Errors: []httpapi.Error{{
-				Field:  "template_id",
-				Detail: "template not found",
-			}},
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template: %s", err),
-		})
-		return
-	}
-	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
-		OrganizationID: template.OrganizationID,
-		UserID:         apiKey.UserID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "you aren't allowed to access templates in that organization",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization member: %s", err),
-		})
-		return
-	}
-
-	workspace, err := api.Database.GetWorkspaceByUserIDAndName(r.Context(), database.GetWorkspaceByUserIDAndNameParams{
-		OwnerID: apiKey.UserID,
-		Name:    createWorkspace.Name,
-	})
-	if err == nil {
-		// If the workspace already exists, don't allow creation.
-		template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("find template for conflicting workspace name %q: %s", createWorkspace.Name, err),
-			})
-			return
-		}
-		// The template is fetched for clarity to the user on where the conflicting name may be.
-		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("workspace %q already exists in the %q template", createWorkspace.Name, template.Name),
-			Errors: []httpapi.Error{{
-				Field:  "name",
-				Detail: "this value is already in use and should be unique",
-			}},
-		})
-		return
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace by name: %s", err.Error()),
-		})
-		return
-	}
-
-	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), template.ActiveVersionID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version: %s", err),
-		})
-		return
-	}
-	templateVersionJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version job: %s", err),
-		})
-		return
-	}
-	templateVersionJobStatus := convertProvisionerJob(templateVersionJob).Status
-	switch templateVersionJobStatus {
-	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
-		httpapi.Write(rw, http.StatusNotAcceptable, httpapi.Response{
-			Message: fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
-		})
-		return
-	case codersdk.ProvisionerJobFailed:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: fmt.Sprintf("The provided template version %q has failed to import. You cannot create workspaces using it!", templateVersion.Name),
-		})
-		return
-	case codersdk.ProvisionerJobCanceled:
-		httpapi.Write(rw, http.StatusPreconditionFailed, httpapi.Response{
-			Message: "The provided template version was canceled during import. You cannot create workspaces using it!",
-		})
-		return
-	}
-
-	var provisionerJob database.ProvisionerJob
-	var workspaceBuild database.WorkspaceBuild
-	err = api.Database.InTx(func(db database.Store) error {
-		workspaceBuildID := uuid.New()
-		// Workspaces are created without any versions.
-		workspace, err = db.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
-			ID:         uuid.New(),
-			CreatedAt:  database.Now(),
-			UpdatedAt:  database.Now(),
-			OwnerID:    apiKey.UserID,
-			TemplateID: template.ID,
-			Name:       createWorkspace.Name,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace: %w", err)
-		}
-		for _, parameterValue := range createWorkspace.ParameterValues {
-			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
-				ID:                uuid.New(),
-				Name:              parameterValue.Name,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
-				Scope:             database.ParameterScopeWorkspace,
-				ScopeID:           workspace.ID,
-				SourceScheme:      parameterValue.SourceScheme,
-				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
-			}
-		}
-
-		input, err := json.Marshal(workspaceProvisionJob{
-			WorkspaceBuildID: workspaceBuildID,
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal provision job: %w", err)
-		}
-		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
-			ID:             uuid.New(),
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			InitiatorID:    apiKey.UserID,
-			OrganizationID: template.OrganizationID,
-			Provisioner:    template.Provisioner,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StorageMethod:  templateVersionJob.StorageMethod,
-			StorageSource:  templateVersionJob.StorageSource,
-			Input:          input,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
-			ID:                workspaceBuildID,
-			CreatedAt:         database.Now(),
-			UpdatedAt:         database.Now(),
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			Name:              namesgenerator.GetRandomName(1),
-			InitiatorID:       apiKey.UserID,
-			Transition:        database.WorkspaceTransitionStart,
-			JobID:             provisionerJob.ID,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace build: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("create workspace: %s", err),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace,
-		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template))
-}
-
-func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-	workspaces, err := api.Database.GetWorkspacesByUserID(r.Context(), database.GetWorkspacesByUserIDParams{
-		OwnerID: user.ID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces: %s", err),
-		})
-		return
-	}
-	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
-	templateIDs := make([]uuid.UUID, 0, len(workspaces))
-	for _, workspace := range workspaces {
-		workspaceIDs = append(workspaceIDs, workspace.ID)
-		templateIDs = append(templateIDs, workspace.TemplateID)
-	}
-	workspaceBuilds, err := api.Database.GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(r.Context(), workspaceIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace builds: %s", err),
-		})
-		return
-	}
-	templates, err := api.Database.GetTemplatesByIDs(r.Context(), templateIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get templates: %s", err),
-		})
-		return
-	}
-	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, build := range workspaceBuilds {
-		jobIDs = append(jobIDs, build.JobID)
-	}
-	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner jobs: %s", err),
-		})
-		return
-	}
-
-	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
-	for _, workspaceBuild := range workspaceBuilds {
-		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
-	}
-	templateByID := map[uuid.UUID]database.Template{}
-	for _, template := range templates {
-		templateByID[template.ID] = template
-	}
-	jobByID := map[uuid.UUID]database.ProvisionerJob{}
-	for _, job := range jobs {
-		jobByID[job.ID] = job
-	}
-	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
-	for _, workspace := range workspaces {
-		build, exists := buildByWorkspaceID[workspace.ID]
-		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("build not found for workspace %q", workspace.Name),
-			})
-			return
-		}
-		template, exists := templateByID[workspace.TemplateID]
-		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("template not found for workspace %q", workspace.Name),
-			})
-			return
-		}
-		job, exists := jobByID[build.JobID]
-		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("build job not found for workspace %q", workspace.Name),
-			})
-			return
-		}
-		apiWorkspaces = append(apiWorkspaces,
-			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
-	}
-
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
-}
-
-func (api *api) workspaceByUserAndName(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-	workspaceName := chi.URLParam(r, "workspacename")
-	workspace, err := api.Database.GetWorkspaceByUserIDAndName(r.Context(), database.GetWorkspaceByUserIDAndNameParams{
-		OwnerID: user.ID,
-		Name:    workspaceName,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("no workspace found by name %q", workspaceName),
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace by name: %s", err),
-		})
-		return
-	}
-	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build: %s", err),
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
-		})
-		return
-	}
-	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template: %s", err),
-		})
-		return
-	}
-
-	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace,
-		convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
-}
-
 // Generates a new ID and secret for an API key.
 func generateAPIKeyIDSecret() (id string, secret string, err error) {
 	// Length of an API Key ID.
@@ -936,19 +668,34 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 	})
 }
 
-func convertUser(user database.User) codersdk.User {
+func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	return codersdk.User{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		Username:  user.Username,
+		ID:              user.ID,
+		Email:           user.Email,
+		CreatedAt:       user.CreatedAt,
+		Username:        user.Username,
+		Status:          codersdk.UserStatus(user.Status),
+		OrganizationIDs: organizationIDs,
 	}
 }
 
-func convertUsers(users []database.User) []codersdk.User {
+func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
-		converted = append(converted, convertUser(u))
+		userOrganizationIDs := organizationIDsByUserID[u.ID]
+		converted = append(converted, convertUser(u, userOrganizationIDs))
 	}
 	return converted
+}
+
+func userOrganizationIDs(ctx context.Context, api *api, user database.User) ([]uuid.UUID, error) {
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{user.ID})
+	if errors.Is(err, sql.ErrNoRows) || len(organizationIDsByMemberIDsRows) == 0 {
+		return []uuid.UUID{}, nil
+	}
+	if err != nil {
+		return []uuid.UUID{}, err
+	}
+	member := organizationIDsByMemberIDsRows[0]
+	return member.OrganizationIDs, nil
 }

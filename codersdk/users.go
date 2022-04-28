@@ -28,12 +28,21 @@ type UsersRequest struct {
 	Offset int `json:"offset"`
 }
 
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
 // User represents a user in Coder.
 type User struct {
-	ID        uuid.UUID `json:"id" validate:"required"`
-	Email     string    `json:"email" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required"`
-	Username  string    `json:"username" validate:"required"`
+	ID              uuid.UUID   `json:"id" validate:"required"`
+	Email           string      `json:"email" validate:"required"`
+	CreatedAt       time.Time   `json:"created_at" validate:"required"`
+	Username        string      `json:"username" validate:"required"`
+	Status          UserStatus  `json:"status"`
+	OrganizationIDs []uuid.UUID `json:"organization_ids"`
 }
 
 type CreateFirstUserRequest struct {
@@ -79,15 +88,6 @@ type GenerateAPIKeyResponse struct {
 
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
-}
-
-// CreateWorkspaceRequest provides options for creating a new workspace.
-type CreateWorkspaceRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required"`
-	Name       string    `json:"name" validate:"username,required"`
-	// ParameterValues allows for additional parameters to be provided
-	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
 }
 
 // AuthMethods contains whether authentication types are enabled or not.
@@ -144,6 +144,20 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 // UpdateUserProfile enables callers to update profile information
 func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req UpdateUserProfileRequest) (User, error) {
 	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// SuspendUser enables callers to suspend a user
+func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/suspend", uuidOrMe(userID)), nil)
 	if err != nil {
 		return User{}, err
 	}
@@ -285,53 +299,6 @@ func (c *Client) CreateOrganization(ctx context.Context, userID uuid.UUID, req C
 
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
-}
-
-// CreateWorkspace creates a new workspace for the template specified.
-func (c *Client) CreateWorkspace(ctx context.Context, userID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), request)
-	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, readBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
-}
-
-// WorkspacesByUser returns all workspaces the specified user has access to.
-func (c *Client) WorkspacesByUser(ctx context.Context, userID uuid.UUID) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
-
-func (c *Client) WorkspaceByName(ctx context.Context, userID uuid.UUID, name string) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces/%s", uuidOrMe(userID), name), nil)
-	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return Workspace{}, readBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
 // AuthMethods returns types of authentication available to the user.

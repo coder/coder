@@ -208,6 +208,25 @@ func (e *ProvisionerType) Scan(src interface{}) error {
 	return nil
 }
 
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
+func (e *UserStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserStatus(s)
+	case string:
+		*e = UserStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserStatus: %T", src)
+	}
+	return nil
+}
+
 type WorkspaceTransition string
 
 const (
@@ -372,12 +391,13 @@ type TemplateVersion struct {
 }
 
 type User struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	Email          string    `db:"email" json:"email"`
-	Username       string    `db:"username" json:"username"`
-	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID  `db:"id" json:"id"`
+	Email          string     `db:"email" json:"email"`
+	Username       string     `db:"username" json:"username"`
+	HashedPassword []byte     `db:"hashed_password" json:"hashed_password"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
+	Status         UserStatus `db:"status" json:"status"`
 }
 
 type Workspace struct {
@@ -385,6 +405,7 @@ type Workspace struct {
 	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
 	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
 	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
 	Deleted           bool           `db:"deleted" json:"deleted"`
 	Name              string         `db:"name" json:"name"`

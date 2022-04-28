@@ -21,7 +21,6 @@ export const MockBuildInfo: BuildInfoResponse = {
 }
 
 export const MockUser: UserResponse = {
-  name: "Test User",
   id: "test-user",
   username: "TestUser",
   email: "test@coder.com",
@@ -30,7 +29,6 @@ export const MockUser: UserResponse = {
 
 export const MockUser2: UserResponse = {
   id: "test-user-2",
-  name: "Test User 2",
   username: "TestUser2",
   email: "test2@coder.com",
   created_at: "",

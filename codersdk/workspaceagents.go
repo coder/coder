@@ -178,14 +178,14 @@ func (c *Client) AuthWorkspaceAzureInstanceIdentity(ctx context.Context) (Worksp
 
 // ListenWorkspaceAgent connects as a workspace agent identifying with the session token.
 // On each inbound connection request, connection info is fetched.
-func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error) {
-	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me")
+func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
+	serverURL, err := c.URL.Parse("/api/v2/workspaceagents/me/listen")
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return agent.Metadata{}, nil, xerrors.Errorf("parse url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+		return agent.Metadata{}, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  httpmw.AuthCookie,
@@ -201,17 +201,17 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 	})
 	if err != nil {
 		if res == nil {
-			return nil, err
+			return agent.Metadata{}, nil, err
 		}
-		return nil, readBodyAsError(res)
+		return agent.Metadata{}, nil, readBodyAsError(res)
 	}
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
 	if err != nil {
-		return nil, xerrors.Errorf("multiplex client: %w", err)
+		return agent.Metadata{}, nil, xerrors.Errorf("multiplex client: %w", err)
 	}
-	return peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
+	listener, err := peerbroker.Listen(session, func(ctx context.Context) ([]webrtc.ICEServer, *peer.ConnOptions, error) {
 		// This can be cached if it adds to latency too much.
 		res, err := c.request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/iceservers", nil)
 		if err != nil {
@@ -237,6 +237,19 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 			Logger:        logger,
 		}, nil
 	})
+	if err != nil {
+		return agent.Metadata{}, nil, xerrors.Errorf("listen peerbroker: %w", err)
+	}
+	res, err = c.request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
+	if err != nil {
+		return agent.Metadata{}, nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return agent.Metadata{}, nil, readBodyAsError(res)
+	}
+	var agentMetadata agent.Metadata
+	return agentMetadata, listener, json.NewDecoder(res.Body).Decode(&agentMetadata)
 }
 
 // DialWorkspaceAgent creates a connection to the specified resource.

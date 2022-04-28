@@ -187,3 +187,146 @@ func TestTemplateByOrganizationAndName(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestPostWorkspacesByOrganization(t *testing.T) {
+	t.Parallel()
+	t.Run("InvalidTemplate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, err := client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.CreateWorkspaceRequest{
+			TemplateID: uuid.New(),
+			Name:       "workspace",
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("NoTemplateAccess", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+			Name: "another",
+		})
+		require.NoError(t, err)
+		version := coderdtest.CreateTemplateVersion(t, other, org.ID, nil)
+		template := coderdtest.CreateTemplate(t, other, org.ID, version.ID)
+
+		_, err = client.CreateWorkspace(context.Background(), first.OrganizationID, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+
+	t.Run("AlreadyExists", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_, err := client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       workspace.Name,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	})
+}
+
+func TestWorkspacesByOrganization(t *testing.T) {
+	t.Parallel()
+	t.Run("ListEmpty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, err := client.WorkspacesByOrganization(context.Background(), user.OrganizationID)
+		require.NoError(t, err)
+	})
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspaces, err := client.WorkspacesByOrganization(context.Background(), user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, workspaces, 1)
+	})
+}
+
+func TestWorkspacesByOwner(t *testing.T) {
+	t.Parallel()
+	t.Run("ListEmpty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, codersdk.Me)
+		require.NoError(t, err)
+	})
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, codersdk.Me)
+		require.NoError(t, err)
+		require.Len(t, workspaces, 1)
+	})
+}
+
+func TestWorkspaceByOwnerAndName(t *testing.T) {
+	t.Parallel()
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), user.OrganizationID, codersdk.Me, "something")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_, err := client.WorkspaceByOwnerAndName(context.Background(), user.OrganizationID, codersdk.Me, workspace.Name)
+		require.NoError(t, err)
+	})
+}

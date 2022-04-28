@@ -47,7 +47,7 @@ func TestDeleteTemplate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		coderdtest.CreateWorkspace(t, client, codersdk.Me, template.ID)
+		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		err := client.DeleteTemplate(context.Background(), template.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)

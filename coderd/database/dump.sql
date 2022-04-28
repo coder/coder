@@ -56,6 +56,11 @@ CREATE TYPE provisioner_type AS ENUM (
     'terraform'
 );
 
+CREATE TYPE user_status AS ENUM (
+    'active',
+    'suspended'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -221,7 +226,8 @@ CREATE TABLE users (
     username text DEFAULT ''::text NOT NULL,
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
+    updated_at timestamp with time zone NOT NULL,
+    status user_status DEFAULT 'active'::public.user_status NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -272,6 +278,7 @@ CREATE TABLE workspaces (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
     template_id uuid NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
@@ -422,6 +429,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspaces
+    ADD CONSTRAINT workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT;

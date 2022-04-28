@@ -1,7 +1,7 @@
 package buildinfo
 
 import (
-	"path"
+	"fmt"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -14,6 +14,12 @@ var (
 	buildInfoValid bool
 	readBuildInfo  sync.Once
 
+	externalURL     string
+	readExternalURL sync.Once
+
+	version     string
+	readVersion sync.Once
+
 	// Injected with ldflags at build!
 	tag string
 )
@@ -21,29 +27,37 @@ var (
 // Version returns the semantic version of the build.
 // Use golang.org/x/mod/semver to compare versions.
 func Version() string {
-	revision, valid := revision()
-	if valid {
-		revision = "+" + revision[:7]
-	}
-	if tag == "" {
-		return "v0.0.0-devel" + revision
-	}
-	if semver.Build(tag) == "" {
-		tag += revision
-	}
-	return "v" + tag
+	readVersion.Do(func() {
+		revision, valid := revision()
+		if valid {
+			revision = "+" + revision[:7]
+		}
+		if tag == "" {
+			version = "v0.0.0-devel" + revision
+			return
+		}
+		if semver.Build(tag) == "" {
+			tag += revision
+		}
+		version = "v" + tag
+	})
+	return version
 }
 
 // ExternalURL returns a URL referencing the current Coder version.
 // For production builds, this will link directly to a release.
 // For development builds, this will link to a commit.
 func ExternalURL() string {
-	repo := "https://github.com/coder/coder"
-	revision, valid := revision()
-	if !valid {
-		return repo
-	}
-	return path.Join(repo, "commit", revision)
+	readExternalURL.Do(func() {
+		repo := "https://github.com/coder/coder"
+		revision, valid := revision()
+		if !valid {
+			externalURL = repo
+			return
+		}
+		externalURL = fmt.Sprintf("%s/commit/%s", repo, revision)
+	})
+	return externalURL
 }
 
 // Time returns when the Git revision was published.

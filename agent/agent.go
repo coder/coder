@@ -11,8 +11,13 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
+
+	gsyslog "github.com/hashicorp/go-syslog"
+	"go.uber.org/atomic"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
@@ -28,11 +33,14 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type Options struct {
-	Logger slog.Logger
+type Metadata struct {
+	OwnerEmail           string            `json:"owner_email"`
+	OwnerUsername        string            `json:"owner_username"`
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	StartupScript        string            `json:"startup_script"`
 }
 
-type Dialer func(ctx context.Context, logger slog.Logger) (*peerbroker.Listener, error)
+type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
 
 func New(dialer Dialer, logger slog.Logger) io.Closer {
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -55,16 +63,23 @@ type agent struct {
 	closeMutex    sync.Mutex
 	closed        chan struct{}
 
-	sshServer *ssh.Server
+	// Environment variables sent by Coder to inject for shell sessions.
+	// These are atomic because values can change after reconnect.
+	envVars       atomic.Value
+	ownerEmail    atomic.String
+	ownerUsername atomic.String
+	startupScript atomic.Bool
+	sshServer     *ssh.Server
 }
 
 func (a *agent) run(ctx context.Context) {
+	var options Metadata
 	var peerListener *peerbroker.Listener
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		peerListener, err = a.dialer(ctx, a.logger)
+		options, peerListener, err = a.dialer(ctx, a.logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -83,6 +98,22 @@ func (a *agent) run(ctx context.Context) {
 		return
 	default:
 	}
+	a.envVars.Store(options.EnvironmentVariables)
+	a.ownerEmail.Store(options.OwnerEmail)
+	a.ownerUsername.Store(options.OwnerUsername)
+
+	if a.startupScript.CAS(false, true) {
+		// The startup script has not ran yet!
+		go func() {
+			err := a.runStartupScript(ctx, options.StartupScript)
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			if err != nil {
+				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+			}
+		}()
+	}
 
 	for {
 		conn, err := peerListener.Accept()
@@ -99,6 +130,48 @@ func (a *agent) run(ctx context.Context) {
 		a.closeMutex.Unlock()
 		go a.handlePeerConn(ctx, conn)
 	}
+}
+
+func (*agent) runStartupScript(ctx context.Context, script string) error {
+	if script == "" {
+		return nil
+	}
+	currentUser, err := user.Current()
+	if err != nil {
+		return xerrors.Errorf("get current user: %w", err)
+	}
+	username := currentUser.Username
+
+	shell, err := usershell.Get(username)
+	if err != nil {
+		return xerrors.Errorf("get user shell: %w", err)
+	}
+
+	var writer io.WriteCloser
+	// Attempt to use the syslog to write startup information.
+	writer, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "USER", "coder-startup-script")
+	if err != nil {
+		// If the syslog isn't supported or cannot be created, use a text file in temp.
+		writer, err = os.CreateTemp("", "coder-startup-script.txt")
+		if err != nil {
+			return xerrors.Errorf("open startup script log file: %w", err)
+		}
+	}
+	defer func() {
+		_ = writer.Close()
+	}()
+	caller := "-c"
+	if runtime.GOOS == "windows" {
+		caller = "/c"
+	}
+	cmd := exec.CommandContext(ctx, shell, caller, script)
+	cmd.Stdout = writer
+	cmd.Stderr = writer
+	err = cmd.Run()
+	if err != nil {
+		return xerrors.Errorf("run: %w", err)
+	}
+	return nil
 }
 
 func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
@@ -230,13 +303,35 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
-	cmd := exec.CommandContext(session.Context(), shell, "-c", command)
+	caller := "-c"
+	if runtime.GOOS == "windows" {
+		caller = "/c"
+	}
+	cmd := exec.CommandContext(session.Context(), shell, caller, command)
 	cmd.Env = append(os.Environ(), session.Environ()...)
 	executablePath, err := os.Executable()
 	if err != nil {
 		return xerrors.Errorf("getting os executable: %w", err)
 	}
+	// Git on Windows resolves with UNIX-style paths.
+	// If using backslashes, it's unable to find the executable.
+	executablePath = strings.ReplaceAll(executablePath, "\\", "/")
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
+	// These prevent the user from having to specify _anything_ to successfully commit.
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, a.ownerEmail.Load()))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_NAME=%s`, a.ownerUsername.Load()))
+
+	// Load environment variables passed via the agent.
+	// These should override all variables we manually specify.
+	envVars := a.envVars.Load()
+	if envVars != nil {
+		envVarMap, ok := envVars.(map[string]string)
+		if ok {
+			for key, value := range envVarMap {
+				cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+			}
+		}
+	}
 
 	sshPty, windowSize, isPty := session.Pty()
 	if isPty {
@@ -245,9 +340,13 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
+		err = ptty.Resize(uint16(sshPty.Window.Height), uint16(sshPty.Window.Width))
+		if err != nil {
+			return xerrors.Errorf("resize ptty: %w", err)
+		}
 		go func() {
 			for win := range windowSize {
-				err = ptty.Resize(uint16(win.Width), uint16(win.Height))
+				err = ptty.Resize(uint16(win.Height), uint16(win.Width))
 				if err != nil {
 					a.logger.Warn(context.Background(), "failed to resize tty", slog.Error(err))
 				}

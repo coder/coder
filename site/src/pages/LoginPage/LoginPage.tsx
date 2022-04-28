@@ -52,6 +52,7 @@ export const LoginPage: React.FC = () => {
           <div className={styles.container}>
             <SignInForm
               authMethods={authState.context.methods}
+              redirectTo={redirectTo}
               isLoading={isLoading}
               authErrorMessage={authErrorMessage}
               methodsErrorMessage={getMethodsError}
