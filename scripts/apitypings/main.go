@@ -295,13 +295,12 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (string, str
 			return name, "", nil
 		}
 
+		// These are special types that we handle uniquely.
 		switch n.String() {
 		case "net/url.URL":
 			return "string", "", nil
 		case "time.Time":
 			return "string", "is this ok for time?", nil
-		case "github.com/coder/coder/coderd/httpapi.Response":
-
 		}
 
 		// If it's a struct, just use the name of the struct type
