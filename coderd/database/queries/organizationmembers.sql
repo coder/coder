@@ -20,3 +20,13 @@ INSERT INTO
 	)
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
+
+-- name: GetOrganizationIDsByMemberIDs :many
+SELECT
+    user_id, array_agg(organization_id) :: uuid [ ] AS "organization_IDs"
+FROM
+    organization_members
+WHERE
+    user_id = ANY(@ids :: uuid [ ])
+GROUP BY
+    user_id;
