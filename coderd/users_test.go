@@ -349,25 +349,34 @@ func TestGetUsers(t *testing.T) {
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		first := coderdtest.CreateFirstUser(t, client)
+		active := make([]codersdk.User, 0)
+		alice, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "alice@email.com",
 			Username:       "alice",
 			Password:       "password",
-			OrganizationID: user.OrganizationID,
+			OrganizationID: first.OrganizationID,
 		})
-		client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		require.NoError(t, err)
+		active = append(active, alice)
+
+		bruno, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@email.com",
 			Username:       "bruno",
 			Password:       "password",
-			OrganizationID: user.OrganizationID,
+			OrganizationID: first.OrganizationID,
 		})
-		client.SuspendUser(context.Background(), user.UserID)
+		require.NoError(t, err)
+		active = append(active, bruno)
+
+		_, err = client.SuspendUser(context.Background(), first.UserID)
+		require.NoError(t, err)
+
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{
 			Status: string(codersdk.UserStatusActive),
 		})
 		require.NoError(t, err)
-		require.Len(t, users, 2)
+		require.ElementsMatch(t, active, users)
 	})
 }
 
