@@ -8,6 +8,10 @@ cd "${PROJECT_ROOT}"
 # Run yarn install, to make sure node_modules are ready to go
 "$PROJECT_ROOT/scripts/yarn_install.sh"
 
+# Use static credentials for development
+export CODER_DEV_ADMIN_EMAIL=admin@coder.com
+export CODER_DEV_ADMIN_PASSWORD=password
+
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
 # to kill both at the same time. For more details, see:
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
