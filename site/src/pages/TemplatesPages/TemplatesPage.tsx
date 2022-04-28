@@ -9,6 +9,8 @@ import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../components/Header/Header"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+import { Margins } from "../../components/Margins/Margins"
+import { Stack } from "../../components/Stack/Stack"
 import { Column, Table } from "../../components/Table/Table"
 
 export const TemplatesPage: React.FC = () => {
@@ -68,20 +70,16 @@ export const TemplatesPage: React.FC = () => {
   const subTitle = `${templates.length} total`
 
   return (
-    <div className={styles.root}>
+    <Stack spacing={4}>
       <Header title="Templates" subTitle={subTitle} />
-      <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
+      <Margins>
         <Table {...tableProps} />
-      </Paper>
-    </div>
+      </Margins>
+    </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  root: {
-    display: "flex",
-    flexDirection: "column",
-  },
   descriptionLabel: {
     marginBottom: theme.spacing(1),
   },

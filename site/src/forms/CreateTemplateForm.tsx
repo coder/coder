@@ -10,6 +10,7 @@ import { FormSection } from "../components/FormSection/FormSection"
 import { FormTextField } from "../components/FormTextField/FormTextField"
 import { FormTitle } from "../components/FormTitle/FormTitle"
 import { LoadingButton } from "../components/LoadingButton/LoadingButton"
+import { maxWidth } from "../theme/constants"
 
 export interface CreateTemplateFormProps {
   provisioners: Provisioner[]
@@ -121,7 +122,7 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = ({
 
 const useStyles = makeStyles(() => ({
   root: {
-    maxWidth: "1380px",
+    maxWidth,
     width: "100%",
     display: "flex",
     flexDirection: "column",
