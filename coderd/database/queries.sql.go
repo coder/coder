@@ -1885,7 +1885,7 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RbacRoles),
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -1912,7 +1912,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RbacRoles),
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -2004,7 +2004,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
-			pq.Array(&i.RbacRoles),
+			pq.Array(&i.RBACRoles),
 		); err != nil {
 			return nil, err
 		}
@@ -2046,7 +2046,7 @@ func (q *sqlQuerier) GrantUserRole(ctx context.Context, arg GrantUserRoleParams)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RbacRoles),
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -2073,7 +2073,7 @@ type InsertUserParams struct {
 	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	RbacRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
+	RBACRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
@@ -2084,7 +2084,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,
-		pq.Array(arg.RbacRoles),
+		pq.Array(arg.RBACRoles),
 	)
 	var i User
 	err := row.Scan(
@@ -2095,7 +2095,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RbacRoles),
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -2134,7 +2134,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RbacRoles),
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -2166,7 +2166,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
-		pq.Array(&i.RbacRoles),
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
