@@ -292,23 +292,39 @@ func TestGrantRoles(t *testing.T) {
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		client := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, client)
+		admin := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, admin)
+		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
 
-		_, err := client.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+		_, err := admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
 		})
 		require.Error(t, err, "org role in site")
 
-		_, err = client.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateUserRoles(ctx, uuid.New(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+		})
+		require.Error(t, err, "user does not exist")
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "site role in org")
 
-		_, err = client.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "role in org without membership")
+
+		_, err = member.UpdateUserRoles(ctx, first.UserID, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "member cannot change other's roles")
+
+		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "member cannot change other's org roles")
 	})
 
 	t.Run("FirstUserRoles", func(t *testing.T) {
