@@ -7,3 +7,5 @@ export const BODY_FONT_FAMILY = `"Inter", sans-serif`
 export const lightButtonShadow = "0 2px 2px rgba(0, 23, 121, 0.08)"
 export const emptyBoxShadow = "none"
 export const navHeight = 56
+export const maxWidth = 1380
+export const sidePadding = "50px"
