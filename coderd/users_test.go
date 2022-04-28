@@ -321,9 +321,11 @@ func TestPutUserSuspend(t *testing.T) {
 func TestUserByName(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	_, err := client.User(context.Background(), codersdk.Me)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	user, err := client.User(context.Background(), codersdk.Me)
+
 	require.NoError(t, err)
+	require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
 }
 
 func TestGetUsers(t *testing.T) {
@@ -342,6 +344,7 @@ func TestGetUsers(t *testing.T) {
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{})
 		require.NoError(t, err)
 		require.Len(t, users, 2)
+		require.Len(t, users[0].OrganizationIDs, 1)
 	})
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
@@ -477,14 +480,12 @@ func TestPaginatedUsers(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 	me, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err)
+	orgID := me.OrganizationIDs[0]
 
 	allUsers := make([]codersdk.User, 0)
 	allUsers = append(allUsers, me)
 	specialUsers := make([]codersdk.User, 0)
 
-	org, err := client.CreateOrganization(ctx, me.ID, codersdk.CreateOrganizationRequest{
-		Name: "default",
-	})
 	require.NoError(t, err)
 
 	// When 100 users exist
@@ -507,7 +508,7 @@ func TestPaginatedUsers(t *testing.T) {
 			Email:          email,
 			Username:       username,
 			Password:       "password",
-			OrganizationID: org.ID,
+			OrganizationID: orgID,
 		})
 		require.NoError(t, err)
 		allUsers = append(allUsers, newUser)

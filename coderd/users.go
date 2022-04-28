@@ -139,7 +139,6 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		Search:    searchName,
 		Status:    statusFilter,
 	})
-
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
@@ -147,8 +146,27 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userIDs := make([]uuid.UUID, 0, len(users))
+	for _, user := range users {
+		userIDs = append(userIDs, user.ID)
+	}
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(r.Context(), userIDs)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+	organizationIDsByUserID := map[uuid.UUID][]uuid.UUID{}
+	for _, organizationIDsByMemberIDsRow := range organizationIDsByMemberIDsRows {
+		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
+	}
+
 	render.Status(r, http.StatusOK)
-	render.JSON(rw, r, convertUsers(users))
+	render.JSON(rw, r, convertUsers(users, organizationIDsByUserID))
 }
 
 // Creates a new user.
@@ -215,15 +233,23 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusCreated, convertUser(user))
+	httpapi.Write(rw, http.StatusCreated, convertUser(user, []uuid.UUID{createUser.OrganizationID}))
 }
 
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
-func (*api) userByName(rw http.ResponseWriter, r *http.Request) {
+func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
+	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
 
-	httpapi.Write(rw, http.StatusOK, convertUser(user))
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(user, organizationIDs))
 }
 
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
@@ -280,7 +306,15 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile))
+	organizationIDs, err := userOrganizationIDs(r.Context(), api, user)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
 }
 
 func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
@@ -299,7 +333,15 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser))
+	organizations, err := userOrganizationIDs(r.Context(), api, user)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organization IDs: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
 
 // Returns organizations the parameterized user has access to.
@@ -628,20 +670,34 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 	})
 }
 
-func convertUser(user database.User) codersdk.User {
+func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	return codersdk.User{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		Username:  user.Username,
-		Status:    codersdk.UserStatus(user.Status),
+		ID:              user.ID,
+		Email:           user.Email,
+		CreatedAt:       user.CreatedAt,
+		Username:        user.Username,
+		Status:          codersdk.UserStatus(user.Status),
+		OrganizationIDs: organizationIDs,
 	}
 }
 
-func convertUsers(users []database.User) []codersdk.User {
+func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
-		converted = append(converted, convertUser(u))
+		userOrganizationIDs := organizationIDsByUserID[u.ID]
+		converted = append(converted, convertUser(u, userOrganizationIDs))
 	}
 	return converted
+}
+
+func userOrganizationIDs(ctx context.Context, api *api, user database.User) ([]uuid.UUID, error) {
+	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{user.ID})
+	if errors.Is(err, sql.ErrNoRows) || len(organizationIDsByMemberIDsRows) == 0 {
+		return []uuid.UUID{}, nil
+	}
+	if err != nil {
+		return []uuid.UUID{}, err
+	}
+	member := organizationIDsByMemberIDsRows[0]
+	return member.OrganizationIDs, nil
 }
