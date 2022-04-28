@@ -87,6 +87,8 @@ WHERE
 	END
 	-- Filter by status
 	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
 		WHEN @status :: text != '' THEN (
 			status = @status
 		)
