@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -10,12 +9,14 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,18 +75,26 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+
+		wantEmail := "admin@coder.com"
+
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
-		var stdoutBuf bytes.Buffer
-		root.SetOutput(&stdoutBuf)
+		var buf strings.Builder
+		root.SetOutput(&buf)
 		go func() {
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
 
 			// Verify that credentials were output to the terminal.
-			wantEmail := "email: admin@coder.com"
-			wantPassword := "password: password"
-			assert.Contains(t, stdoutBuf.String(), wantEmail, "expected output %q; got no match", wantEmail)
-			assert.Contains(t, stdoutBuf.String(), wantPassword, "expected output %q; got no match", wantPassword)
+			assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
+			// Check that the password line is output and that it's non-empty.
+			if _, after, found := strings.Cut(buf.String(), "password: "); found {
+				before, _, _ := strings.Cut(after, "\n")
+				before = strings.Trim(before, "\r") // Ensure no control character is left.
+				assert.NotEmpty(t, before, "expected non-empty password; got empty")
+			} else {
+				t.Error("expected password line output; got no match")
+			}
 		}()
 		var token string
 		require.Eventually(t, func() bool {

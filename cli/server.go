@@ -41,27 +41,23 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-var defaultDevUser = codersdk.CreateFirstUserRequest{
-	Email:            "admin@coder.com",
-	Username:         "developer",
-	Password:         "password",
-	OrganizationName: "acme-corp",
-}
-
 // nolint:gocyclo
 func server() *cobra.Command {
 	var (
-		accessURL   string
-		address     string
-		cacheDir    string
-		dev         bool
-		postgresURL string
+		accessURL       string
+		address         string
+		cacheDir        string
+		dev             bool
+		devUserEmail    string
+		devUserPassword string
+		postgresURL     string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount           uint8
 		oauth2GithubClientID             string
@@ -278,12 +274,18 @@ func server() *cobra.Command {
 			config := createConfig(cmd)
 
 			if dev {
-				err = createFirstUser(cmd, client, config)
+				if devUserPassword == "" {
+					devUserPassword, err = cryptorand.String(10)
+					if err != nil {
+						return xerrors.Errorf("generate random admin password for dev: %w", err)
+					}
+				}
+				err = createFirstUser(cmd, client, config, devUserEmail, devUserPassword)
 				if err != nil {
 					return xerrors.Errorf("create first user: %w", err)
 				}
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", defaultDevUser.Email)
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", defaultDevUser.Password)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "email: %s\n", devUserEmail)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "password: %s\n", devUserPassword)
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(`Started in dev mode. All data is in-memory! `+cliui.Styles.Bold.Render("Do not use in production")+`. Press `+
@@ -409,6 +411,8 @@ func server() *cobra.Command {
 	// systemd uses the CACHE_DIRECTORY environment variable!
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
+	cliflag.StringVarP(root.Flags(), &devUserEmail, "dev-admin-email", "", "CODER_DEV_ADMIN_EMAIL", "admin@coder.com", "Specifies the admin email to be used in dev mode (--dev)")
+	cliflag.StringVarP(root.Flags(), &devUserPassword, "dev-admin-password", "", "CODER_DEV_ADMIN_PASSWORD", "", "Specifies the admin password to be used in dev mode (--dev) instead of a randomly generated one")
 	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
 	cliflag.Uint8VarP(root.Flags(), &provisionerDaemonCount, "provisioner-daemons", "", "CODER_PROVISIONER_DAEMONS", 3, "The amount of provisioner daemons to create on start.")
 	cliflag.StringVarP(root.Flags(), &oauth2GithubClientID, "oauth2-github-client-id", "", "CODER_OAUTH2_GITHUB_CLIENT_ID", "",
@@ -450,14 +454,25 @@ func server() *cobra.Command {
 	return root
 }
 
-func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root) error {
-	_, err := client.CreateFirstUser(cmd.Context(), defaultDevUser)
+func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Root, email, password string) error {
+	if email == "" {
+		return xerrors.New("email is empty")
+	}
+	if password == "" {
+		return xerrors.New("password is empty")
+	}
+	_, err := client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
+		Email:            email,
+		Username:         "developer",
+		Password:         password,
+		OrganizationName: "acme-corp",
+	})
 	if err != nil {
 		return xerrors.Errorf("create first user: %w", err)
 	}
 	token, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
-		Email:    defaultDevUser.Email,
-		Password: defaultDevUser.Password,
+		Email:    email,
+		Password: password,
 	})
 	if err != nil {
 		return xerrors.Errorf("login with first user: %w", err)
