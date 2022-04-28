@@ -40,6 +40,7 @@ describe("Create User Page", () => {
     const errorMessage = await screen.findByText(FormLanguage.emailInvalid)
     expect(errorMessage).toBeDefined()
   })
+
   it("shows generic error message", async () => {
     jest.spyOn(API, "createUser").mockRejectedValueOnce({
       data: "unknown error",
@@ -49,6 +50,7 @@ describe("Create User Page", () => {
     const errorMessage = await screen.findByText(Language.unknownError)
     expect(errorMessage).toBeDefined()
   })
+
   it("shows API error message", async () => {
     const fieldErrorMessage = "username already in use"
     server.use(
@@ -72,18 +74,21 @@ describe("Create User Page", () => {
     const errorMessage = await screen.findByText(fieldErrorMessage)
     expect(errorMessage).toBeDefined()
   })
+
   it("shows success notification and redirects to users page", async () => {
     render(<CreateUserPage />)
     await fillForm({})
     const successMessage = screen.findByText(UserLanguage.createUserSuccess)
     expect(successMessage).toBeDefined()
   })
+
   it("redirects to users page on cancel", async () => {
     render(<CreateUserPage />)
     const cancelButton = await screen.findByText(FooterLanguage.cancelLabel)
     cancelButton.click()
     expect(history.location.pathname).toEqual("/users")
   })
+
   it("redirects to users page on close", async () => {
     render(<CreateUserPage />)
     const closeButton = await screen.findByText("ESC")
