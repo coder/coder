@@ -120,7 +120,7 @@ func TestServer(t *testing.T) {
 	})
 	// Duplicated test from "Development" above to test setting email/password via env.
 	t.Run("Development with email and password from env", func(t *testing.T) {
-		// Cannot run parallell due to os.Setenv.
+		// Cannot run parallel due to os.Setenv.
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
