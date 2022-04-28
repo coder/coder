@@ -461,21 +461,19 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &loginWithPassword) {
 		return
 	}
+
 	user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "invalid email or password",
-		})
-		return
-	}
-	if err != nil {
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get user: %s", err.Error()),
 		})
 		return
 	}
+
+	// If the user doesn't exist, it will be a default struct.
+
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
