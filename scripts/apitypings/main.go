@@ -35,13 +35,14 @@ func main() {
 	fmt.Println(codeBlocks.String())
 }
 
+// TypescriptTypes holds all the code blocks created.
 type TypescriptTypes struct {
 	// Each entry is the type name, and it's typescript code block.
 	Types map[string]string
 	Enums map[string]string
 }
 
-// String just combines all the codeblocks. I store them in a map for unit testing purposes
+// String just combines all the codeblocks.
 func (t TypescriptTypes) String() string {
 	var s strings.Builder
 	sortedTypes := make([]string, 0, len(t.Types))
@@ -122,19 +123,25 @@ func (g *Generator) parsePackage(ctx context.Context, patterns ...string) error 
 func (g *Generator) generateAll() (*TypescriptTypes, error) {
 	structs := make(map[string]string)
 	enums := make(map[string]types.Object)
-	constants := make(map[string][]*types.Const)
+	enumConsts := make(map[string][]*types.Const)
+	//constants := make(map[string]string)
 
+	// Look for comments that indicate to ignore a type for typescript generation.
 	ignoredTypes := make(map[string]struct{})
-	ignoreRegex := regexp.MustCompile("@typescript-ignore:(?P<ignored_types>)")
+	ignoreRegex := regexp.MustCompile("@typescript-ignore[:]?(?P<ignored_types>.*)")
 	for _, file := range g.pkg.Syntax {
 		for _, comment := range file.Comments {
-			matches := ignoreRegex.FindStringSubmatch(comment.Text())
-			ignored := ignoreRegex.SubexpIndex("ignored_types")
-			if len(matches) >= ignored && matches[ignored] != "" {
-				arr := strings.Split(matches[ignored], ",")
-				for _, s := range arr {
-					ignoredTypes[strings.TrimSpace(s)] = struct{}{}
+			for _, line := range comment.List {
+				text := line.Text
+				matches := ignoreRegex.FindStringSubmatch(text)
+				ignored := ignoreRegex.SubexpIndex("ignored_types")
+				if len(matches) >= ignored && matches[ignored] != "" {
+					arr := strings.Split(matches[ignored], ",")
+					for _, s := range arr {
+						ignoredTypes[strings.TrimSpace(s)] = struct{}{}
+					}
 				}
+
 			}
 		}
 	}
@@ -146,6 +153,7 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 			continue
 		}
 
+		// Exclude ignored types
 		if _, ok := ignoredTypes[obj.Name()]; ok {
 			continue
 		}
@@ -171,7 +179,7 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 				enums[obj.Name()] = obj
 			}
 		case *types.Var:
-			// TODO: Are any enums var declarations?
+			// TODO: Are any enums var declarations? This is also codersdk.Me.
 			v := obj.(*types.Var)
 			var _ = v
 		case *types.Const:
@@ -179,8 +187,12 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 			// We only care about named constant types, since they are enums
 			if named, ok := c.Type().(*types.Named); ok {
 				name := named.Obj().Name()
-				constants[name] = append(constants[name], c)
+				enumConsts[name] = append(enumConsts[name], c)
 			}
+		case *types.Func:
+			// Noop
+		default:
+			fmt.Println(obj.Name())
 		}
 	}
 
@@ -188,7 +200,7 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 	enumCodeBlocks := make(map[string]string)
 	for name, v := range enums {
 		var values []string
-		for _, elem := range constants[name] {
+		for _, elem := range enumConsts[name] {
 			// TODO: If we have non string constants, we need to handle that
 			//		here.
 			values = append(values, elem.Val().String())
@@ -236,37 +248,47 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			jsonName = field.Name()
 		}
 
-		var tsType string
-		var comment string
+		var tsType TypescriptType
 		// If a `typescript:"string"` exists, we take this, and do not try to infer.
 		typescriptTag := tag.Get("typescript")
 		if typescriptTag == "-" {
 			// Ignore this field
 			continue
 		} else if typescriptTag != "" {
-			tsType = typescriptTag
+			tsType.ValueType = typescriptTag
 		} else {
 			var err error
-			tsType, comment, err = g.typescriptType(obj, field.Type())
+			tsType, err = g.typescriptType(obj, field.Type())
 			if err != nil {
 				return "", xerrors.Errorf("typescript type: %w", err)
 			}
 		}
 
-		if comment != "" {
-			s.WriteString(fmt.Sprintf("\t// %s\n", comment))
+		if tsType.Comment != "" {
+			s.WriteString(fmt.Sprintf("\t// %s\n", tsType.Comment))
 		}
-		s.WriteString(fmt.Sprintf("\treadonly %s: %s\n", jsonName, tsType))
+		optional := ""
+		if tsType.Optional {
+			optional = "?"
+		}
+		s.WriteString(fmt.Sprintf("\treadonly %s%s: %s\n", jsonName, optional, tsType.ValueType))
 	}
 	s.WriteString("}\n")
 	return s.String(), nil
+}
+
+type TypescriptType struct {
+	ValueType string
+	Comment   string
+	// Optional indicates the value is an optional field in typescript.
+	Optional bool
 }
 
 // typescriptType this function returns a typescript type for a given
 // golang type.
 // Eg:
 //	[]byte returns "string"
-func (g *Generator) typescriptType(obj types.Object, ty types.Type) (string, string, error) {
+func (g *Generator) typescriptType(obj types.Object, ty types.Type) (TypescriptType, error) {
 	switch ty.(type) {
 	case *types.Basic:
 		bs := ty.(*types.Basic)
@@ -275,22 +297,22 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (string, str
 		//		we want to put another switch to capture these types
 		//		and rename to typescript.
 		switch {
-		case bs.Info() == types.IsNumeric:
-			return "number", "", nil
-		case bs.Info() == types.IsBoolean:
-			return "boolean", "", nil
+		case bs.Info()&types.IsNumeric > 0:
+			return TypescriptType{ValueType: "number"}, nil
+		case bs.Info()&types.IsBoolean > 0:
+			return TypescriptType{ValueType: "boolean"}, nil
 		case bs.Kind() == types.Byte:
 			// TODO: @emyrk What is a byte for typescript? A string? A uint8?
-			return "byte", "", nil
+			return TypescriptType{ValueType: "number", Comment: "This is a byte in golang"}, nil
 		default:
-			return bs.Name(), "", nil
+			return TypescriptType{ValueType: bs.Name()}, nil
 		}
 	case *types.Struct:
 		// TODO: This kinda sucks right now. It just dumps the struct def
-		return ty.String(), "Unknown struct, this might not work", nil
+		return TypescriptType{ValueType: ty.String(), Comment: "Unknown struct, this might not work"}, nil
 	case *types.Map:
 		// TODO: Typescript dictionary??? Object?
-		return "map_not_implemented", "", nil
+		return TypescriptType{ValueType: "map_not_implemented"}, nil
 	case *types.Slice, *types.Array:
 		// Slice/Arrays are pretty much the same.
 		type hasElem interface {
@@ -304,14 +326,14 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (string, str
 		case arr.Elem().String() == "byte":
 			// All byte arrays are strings on the typescript.
 			// Is this ok?
-			return "string", "", nil
+			return TypescriptType{ValueType: "string"}, nil
 		default:
 			// By default, just do an array of the underlying type.
-			underlying, comment, err := g.typescriptType(obj, arr.Elem())
+			underlying, err := g.typescriptType(obj, arr.Elem())
 			if err != nil {
-				return "", "", xerrors.Errorf("array: %w", err)
+				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
-			return underlying + "[]", comment, nil
+			return TypescriptType{ValueType: underlying.ValueType + "[]", Comment: underlying.Comment}, nil
 		}
 	case *types.Named:
 		n := ty.(*types.Named)
@@ -322,20 +344,21 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (string, str
 		if obj := g.pkg.Types.Scope().Lookup(name); obj != nil {
 			// Sweet! Using other typescript types as fields. This could be an
 			// enum or another struct
-			return name, "", nil
+			return TypescriptType{ValueType: name}, nil
 		}
 
 		// These are special types that we handle uniquely.
 		switch n.String() {
 		case "net/url.URL":
-			return "string", "", nil
+			return TypescriptType{ValueType: "string"}, nil
 		case "time.Time":
-			return "string", "is this ok for time?", nil
+			// We really should come up with a standard for time.
+			return TypescriptType{ValueType: "string"}, nil
 		}
 
 		// If it's a struct, just use the name of the struct type
 		if _, ok := n.Underlying().(*types.Struct); ok {
-			return name, "Unknown named type, this might not work", nil
+			return TypescriptType{ValueType: name, Comment: "Unknown named type, this might not work"}, nil
 		}
 
 		// Defer to the underlying type.
@@ -345,10 +368,15 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (string, str
 		// TODO: Nullable fields? We could say these fields can be null in the
 		//		typescript.
 		pt := ty.(*types.Pointer)
-		return g.typescriptType(obj, pt.Elem())
+		resp, err := g.typescriptType(obj, pt.Elem())
+		if err != nil {
+			return TypescriptType{}, xerrors.Errorf("pointer: %w", err)
+		}
+		resp.Optional = true
+		return resp, nil
 	}
 
 	// These are all the other types we need to support.
 	// time.Time, uuid, etc.
-	return "", "", xerrors.Errorf("unknown type: %s", ty.String())
+	return TypescriptType{}, xerrors.Errorf("unknown type: %s", ty.String())
 }
