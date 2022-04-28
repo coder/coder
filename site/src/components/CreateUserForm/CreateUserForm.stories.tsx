@@ -31,7 +31,7 @@ FormError.args = {
   onSubmit: action("submit"),
   isLoading: false,
   formErrors: {
-    email: "Bad email address",
+    username: "Username taken",
   },
 }
 

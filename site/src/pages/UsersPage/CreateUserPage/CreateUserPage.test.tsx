@@ -1,4 +1,4 @@
-import { act, screen } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import React from "react"
@@ -8,10 +8,11 @@ import { history, render } from "../../../testHelpers"
 import { server } from "../../../testHelpers/server"
 import { Language as UserLanguage } from "../../../xServices/users/usersXService"
 import { CreateUserPage, Language } from "./CreateUserPage"
+import * as API from "../../../api"
 
 const fillForm = async ({
-  username = "testuser",
-  email = "test@coder.com",
+  username = "someuser",
+  email = "someone@coder.com",
   password = "password",
 }: {
   username?: string
@@ -25,7 +26,7 @@ const fillForm = async ({
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)
   const submitButton = await screen.findByText(FooterLanguage.defaultSubmitLabel)
-  act(() => submitButton.click())
+  submitButton.click()
 }
 
 describe("Create User Page", () => {
@@ -40,11 +41,9 @@ describe("Create User Page", () => {
     expect(errorMessage).toBeDefined()
   })
   it("shows generic error message", async () => {
-    server.use(
-      rest.post("/api/v2/users", () => {
-        Promise.reject("something went wrong")
-      }),
-    )
+    jest.spyOn(API, "createUser").mockRejectedValueOnce({
+      data: "unknown error",
+    })
     render(<CreateUserPage />)
     await fillForm({})
     const errorMessage = await screen.findByText(Language.unknownError)
@@ -53,7 +52,7 @@ describe("Create User Page", () => {
   it("shows API error message", async () => {
     const fieldErrorMessage = "username already in use"
     server.use(
-      rest.post("/api/v2/users", (req, res, ctx) => {
+      rest.post("/api/v2/users", async (req, res, ctx) => {
         return res(
           ctx.status(400),
           ctx.json({
@@ -82,13 +81,13 @@ describe("Create User Page", () => {
   it("redirects to users page on cancel", async () => {
     render(<CreateUserPage />)
     const cancelButton = await screen.findByText(FooterLanguage.cancelLabel)
-    act(() => cancelButton.click())
+    cancelButton.click()
     expect(history.location.pathname).toEqual("/users")
   })
   it("redirects to users page on close", async () => {
     render(<CreateUserPage />)
     const closeButton = await screen.findByText("ESC")
-    act(() => closeButton.click())
+    closeButton.click()
     expect(history.location.pathname).toEqual("/users")
   })
 })
