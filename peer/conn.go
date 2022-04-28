@@ -230,6 +230,9 @@ func (c *Conn) init() error {
 			slog.F("state", dtlsTransportState))
 	})
 	c.rtc.SCTP().Transport().ICETransport().OnSelectedCandidatePairChange(func(candidatePair *webrtc.ICECandidatePair) {
+		if c.isClosed() {
+			return
+		}
 		c.opts.Logger.Debug(context.Background(), "selected candidate pair changed",
 			slog.F("local", candidatePair.Local), slog.F("remote", candidatePair.Remote))
 	})
