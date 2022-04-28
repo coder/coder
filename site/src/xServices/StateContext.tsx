@@ -24,7 +24,9 @@ export const XServiceContext = createContext({} as XServiceContextType)
 
 export const XServiceProvider: React.FC = ({ children }) => {
   const navigate = useNavigate()
-  const redirectToUsersPage = () => { navigate("users") }
+  const redirectToUsersPage = () => {
+    navigate("users")
+  }
 
   return (
     <XServiceContext.Provider

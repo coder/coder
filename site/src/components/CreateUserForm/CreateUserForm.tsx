@@ -35,13 +35,20 @@ const validationSchema = Yup.object({
   username: Yup.string().required(Language.usernameRequired),
 })
 
-export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel, formErrors, isLoading, error, myOrgId }) => {
+export const CreateUserForm: React.FC<CreateUserFormProps> = ({
+  onSubmit,
+  onCancel,
+  formErrors,
+  isLoading,
+  error,
+  myOrgId,
+}) => {
   const form: FormikContextType<CreateUserRequest> = useFormik<CreateUserRequest>({
     initialValues: {
       email: "",
       password: "",
       username: "",
-      organization_id: myOrgId
+      organization_id: myOrgId,
     },
     validationSchema,
     onSubmit,

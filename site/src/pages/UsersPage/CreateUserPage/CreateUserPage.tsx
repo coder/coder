@@ -17,7 +17,8 @@ export const CreateUserPage: React.FC = () => {
   const { createUserError, createUserFormErrors } = usersState.context
   const navigate = useNavigate()
   // There is no field for organization id in Community Edition, so handle its field error like a generic error
-  const genericError = (createUserError || createUserFormErrors?.organization_id || !myOrgId) ? Language.unknownError : undefined
+  const genericError =
+    createUserError || createUserFormErrors?.organization_id || !myOrgId ? Language.unknownError : undefined
 
   return (
     <CreateUserForm

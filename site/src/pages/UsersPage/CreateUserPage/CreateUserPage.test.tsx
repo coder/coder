@@ -2,13 +2,13 @@ import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import React from "react"
+import * as API from "../../../api"
 import { Language as FormLanguage } from "../../../components/CreateUserForm/CreateUserForm"
 import { Language as FooterLanguage } from "../../../components/FormFooter/FormFooter"
 import { history, render } from "../../../testHelpers"
 import { server } from "../../../testHelpers/server"
 import { Language as UserLanguage } from "../../../xServices/users/usersXService"
 import { CreateUserPage, Language } from "./CreateUserPage"
-import * as API from "../../../api"
 
 const fillForm = async ({
   username = "someuser",

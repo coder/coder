@@ -100,7 +100,7 @@ export const usersMachine = createMachine(
       createUser: (_, event) => API.createUser(event.user),
     },
     guards: {
-      isFormError: (_, event) => isApiError(event.data)
+      isFormError: (_, event) => isApiError(event.data),
     },
     actions: {
       assignUsers: assign({
@@ -119,7 +119,7 @@ export const usersMachine = createMachine(
       }),
       assignCreateUserFormErrors: assign({
         // the guard ensures it is ApiError
-        createUserFormErrors: (_, event) => mapApiErrorToFieldErrors((event.data as ApiError).response.data)
+        createUserFormErrors: (_, event) => mapApiErrorToFieldErrors((event.data as ApiError).response.data),
       }),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
