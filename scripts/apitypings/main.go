@@ -21,6 +21,7 @@ const (
 	baseDir = "./codersdk"
 )
 
+// TODO: Handle httpapi.Response and other types
 func main() {
 	ctx := context.Background()
 	log := slog.Make(sloghuman.Sink(os.Stderr))
@@ -49,7 +50,6 @@ func (t TypescriptTypes) String() string {
 
 	for _, v := range t.Enums {
 		s.WriteString(v)
-		s.WriteRune('\n')
 	}
 	return s.String()
 }
@@ -168,7 +168,6 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 		s.WriteString(fmt.Sprintf("export type %s = %s\n",
 			name, strings.Join(values, " | "),
 		))
-		s.WriteRune('\n')
 
 		enumCodeBlocks[name] = s.String()
 	}
@@ -290,10 +289,19 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (string, str
 		// put the name as it will be defined in the typescript codeblock
 		// we generate.
 		name := n.Obj().Name()
-		if obj := g.pkg.Types.Scope().Lookup(n.String()); obj != nil && obj.Name() != name {
+		if obj := g.pkg.Types.Scope().Lookup(name); obj != nil {
 			// Sweet! Using other typescript types as fields. This could be an
 			// enum or another struct
 			return name, "", nil
+		}
+
+		switch n.String() {
+		case "net/url.URL":
+			return "string", "", nil
+		case "time.Time":
+			return "string", "is this ok for time?", nil
+		case "github.com/coder/coder/coderd/httpapi.Response":
+
 		}
 
 		// If it's a struct, just use the name of the struct type
