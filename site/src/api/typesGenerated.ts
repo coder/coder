@@ -40,9 +40,7 @@ export interface CreateFirstUserRequest {
 
 // From codersdk/users.go:56:6
 export interface CreateFirstUserResponse {
-  // This is likely an enum in an external package
   readonly user_id: string
-  // This is likely an enum in an external package
   readonly organization_id: string
 }
 
@@ -55,28 +53,26 @@ export interface CreateOrganizationRequest {
 export interface CreateParameterRequest {
   readonly name: string
   readonly source_value: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
   readonly source_scheme: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
   readonly destination_scheme: string
 }
 
 // From codersdk/organizations.go:38:6
 export interface CreateTemplateRequest {
   readonly name: string
-  // This is likely an enum in an external package
   readonly template_version_id: string
   readonly parameter_values: CreateParameterRequest[]
 }
 
 // From codersdk/organizations.go:25:6
 export interface CreateTemplateVersionRequest {
-  // This is likely an enum in an external package
   readonly template_id: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerStorageMethod")
   readonly storage_method: string
   readonly storage_source: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
   readonly provisioner: string
   readonly parameter_values: CreateParameterRequest[]
 }
@@ -86,22 +82,19 @@ export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
-  // This is likely an enum in an external package
   readonly organization_id: string
 }
 
 // From codersdk/workspaces.go:33:6
 export interface CreateWorkspaceBuildRequest {
-  // This is likely an enum in an external package
   readonly template_version_id: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly transition: string
   readonly dry_run: boolean
 }
 
 // From codersdk/organizations.go:52:6
 export interface CreateWorkspaceRequest {
-  // This is likely an enum in an external package
   readonly template_id: string
   readonly name: string
   readonly parameter_values: CreateParameterRequest[]
@@ -114,7 +107,6 @@ export interface GenerateAPIKeyResponse {
 
 // From codersdk/gitsshkey.go:14:6
 export interface GitSSHKey {
-  // This is likely an enum in an external package
   readonly user_id: string
   readonly created_at: string
   readonly updated_at: string
@@ -139,7 +131,6 @@ export interface LoginWithPasswordResponse {
 
 // From codersdk/organizations.go:17:6
 export interface Organization {
-  // This is likely an enum in an external package
   readonly id: string
   readonly name: string
   readonly created_at: string
@@ -148,53 +139,47 @@ export interface Organization {
 
 // From codersdk/parameters.go:26:6
 export interface Parameter {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
   readonly updated_at: string
   readonly scope: ParameterScope
-  // This is likely an enum in an external package
   readonly scope_id: string
   readonly name: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
   readonly source_scheme: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
   readonly destination_scheme: string
 }
 
 // From codersdk/provisionerdaemons.go:23:6
 export interface ProvisionerDaemon {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
   readonly updated_at?: string
   readonly organization_id?: string
   readonly name: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
   readonly provisioners: string[]
 }
 
 // From codersdk/provisionerdaemons.go:46:6
 export interface ProvisionerJob {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
   readonly started_at?: string
   readonly completed_at?: string
   readonly error: string
   readonly status: ProvisionerJobStatus
-  // This is likely an enum in an external package
   readonly worker_id?: string
 }
 
 // From codersdk/provisionerdaemons.go:56:6
 export interface ProvisionerJobLog {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.LogSource")
   readonly log_source: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.LogLevel")
   readonly log_level: string
   readonly stage: string
   readonly output: string
@@ -202,25 +187,20 @@ export interface ProvisionerJobLog {
 
 // From codersdk/templates.go:17:6
 export interface Template {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
   readonly updated_at: string
-  // This is likely an enum in an external package
   readonly organization_id: string
   readonly name: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
   readonly provisioner: string
-  // This is likely an enum in an external package
   readonly active_version_id: string
   readonly workspace_owner_count: number
 }
 
 // From codersdk/templateversions.go:17:6
 export interface TemplateVersion {
-  // This is likely an enum in an external package
   readonly id: string
-  // This is likely an enum in an external package
   readonly template_id?: string
   readonly created_at: string
   readonly updated_at: string
@@ -231,40 +211,37 @@ export interface TemplateVersion {
 // From codersdk/templateversions.go:30:6
 export interface TemplateVersionParameter {
   // Named type "github.com/coder/coder/coderd/database.ParameterValue" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly ParameterValue: any
-  // This is likely an enum in an external package
   readonly schema_id: string
   readonly default_source_value: boolean
 }
 
 // From codersdk/templateversions.go:27:6
 export interface TemplateVersionParameterSchema {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
-  // This is likely an enum in an external package
   readonly job_id: string
   readonly name: string
   readonly description: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
   readonly default_source_scheme: string
   readonly default_source_value: string
   readonly allow_override_source: boolean
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
   readonly default_destination_scheme: string
   readonly allow_override_destination: boolean
   readonly default_refresh: string
   readonly redisplay_value: boolean
   readonly validation_error: string
   readonly validation_condition: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterTypeSystem")
   readonly validation_type_system: string
   readonly validation_value_type: string
 }
 
 // From codersdk/templates.go:28:6
 export interface UpdateActiveTemplateVersion {
-  // This is likely an enum in an external package
   readonly id: string
 }
 
@@ -291,19 +268,16 @@ export interface UploadResponse {
 
 // From codersdk/users.go:39:6
 export interface User {
-  // This is likely an enum in an external package
   readonly id: string
   readonly email: string
   readonly created_at: string
   readonly username: string
   readonly status: UserStatus
-  // This is likely an enum in an external package
   readonly organization_ids: string[]
 }
 
 // From codersdk/users.go:17:6
 export interface UsersRequest {
-  // This is likely an enum in an external package
   readonly after_user: string
   readonly search: string
   readonly limit: number
@@ -312,13 +286,10 @@ export interface UsersRequest {
 
 // From codersdk/workspaces.go:18:6
 export interface Workspace {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
   readonly updated_at: string
-  // This is likely an enum in an external package
   readonly owner_id: string
-  // This is likely an enum in an external package
   readonly template_id: string
   readonly template_name: string
   readonly latest_build: WorkspaceBuild
@@ -330,7 +301,6 @@ export interface Workspace {
 
 // From codersdk/workspaceresources.go:33:6
 export interface WorkspaceAgent {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
   readonly updated_at: string
@@ -339,7 +309,6 @@ export interface WorkspaceAgent {
   readonly disconnected_at?: string
   readonly status: WorkspaceAgentStatus
   readonly name: string
-  // This is likely an enum in an external package
   readonly resource_id: string
   readonly instance_id: string
   readonly architecture: string
@@ -377,34 +346,26 @@ export interface WorkspaceAgentResourceMetadata {
 
 // From codersdk/workspacebuilds.go:17:6
 export interface WorkspaceBuild {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
   readonly updated_at: string
-  // This is likely an enum in an external package
   readonly workspace_id: string
-  // This is likely an enum in an external package
   readonly template_version_id: string
-  // This is likely an enum in an external package
   readonly before_id: string
-  // This is likely an enum in an external package
   readonly after_id: string
   readonly name: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly transition: string
-  // This is likely an enum in an external package
   readonly initiator_id: string
   readonly job: ProvisionerJob
 }
 
 // From codersdk/workspaceresources.go:23:6
 export interface WorkspaceResource {
-  // This is likely an enum in an external package
   readonly id: string
   readonly created_at: string
-  // This is likely an enum in an external package
   readonly job_id: string
-  // This is likely an enum in an external package
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly workspace_transition: string
   readonly type: string
   readonly name: string

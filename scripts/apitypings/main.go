@@ -268,8 +268,9 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			}
 		}
 
-		if tsType.Comment != "" {
-			_, _ = s.WriteString(fmt.Sprintf("%s// %s\n", indent, tsType.Comment))
+		if tsType.AboveTypeLine != "" {
+			_, _ = s.WriteString(tsType.AboveTypeLine)
+			_, _ = s.WriteRune('\n')
 		}
 		optional := ""
 		if tsType.Optional {
@@ -283,7 +284,9 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 
 type TypescriptType struct {
 	ValueType string
-	Comment   string
+	// AboveTypeLine lets you put whatever text you want above the typescript
+	// type line.
+	AboveTypeLine string
 	// Optional indicates the value is an optional field in typescript.
 	Optional bool
 }
@@ -304,7 +307,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "boolean"}, nil
 		case bs.Kind() == types.Byte:
 			// TODO: @emyrk What is a byte for typescript? A string? A uint8?
-			return TypescriptType{ValueType: "number", Comment: "This is a byte in golang"}, nil
+			return TypescriptType{ValueType: "number", AboveTypeLine: indentedComment("This is a byte in golang")}, nil
 		default:
 			return TypescriptType{ValueType: bs.Name()}, nil
 		}
@@ -316,7 +319,13 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		//		  Field string `json:"field"`
 		//	  }
 		//  }
-		return TypescriptType{ValueType: "any", Comment: "Embedded struct, please fix by naming it"}, nil
+		return TypescriptType{
+			ValueType: "any",
+			AboveTypeLine: fmt.Sprintf("%s\n%s",
+				indentedComment("Embedded struct, please fix by naming it"),
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
+			),
+		}, nil
 	case *types.Map:
 		// map[string][string] -> Record<string, string>
 		m := ty
@@ -352,7 +361,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			if err != nil {
 				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
-			return TypescriptType{ValueType: underlying.ValueType + "[]", Comment: underlying.Comment}, nil
+			return TypescriptType{ValueType: underlying.ValueType + "[]", AboveTypeLine: underlying.AboveTypeLine}, nil
 		}
 	case *types.Named:
 		n := ty
@@ -377,11 +386,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string", Optional: true}, nil
 		case "github.com/google/uuid.NullUUID":
 			return TypescriptType{ValueType: "string", Optional: true}, nil
+		case "github.com/google/uuid.UUID":
+			return TypescriptType{ValueType: "string"}, nil
 		}
 
 		// If it's a struct, just use the name of the struct type
 		if _, ok := n.Underlying().(*types.Struct); ok {
-			return TypescriptType{ValueType: "any", Comment: fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())}, nil
+			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
+				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
+			)}, nil
 		}
 
 		// Defer to the underlying type.
@@ -389,7 +403,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		if err != nil {
 			return TypescriptType{}, xerrors.Errorf("named underlying: %w", err)
 		}
-		ts.Comment = "This is likely an enum in an external package"
+		ts.AboveTypeLine = indentedComment(fmt.Sprintf("This is likely an enum in an external package (%q)", n.String()))
 		return ts, nil
 	case *types.Pointer:
 		// Dereference pointers.
@@ -405,4 +419,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 	// These are all the other types we need to support.
 	// time.Time, uuid, etc.
 	return TypescriptType{}, xerrors.Errorf("unknown type: %s", ty.String())
+}
+
+func indentedComment(comment string) string {
+	return fmt.Sprintf("%s// %s", indent, comment)
 }
