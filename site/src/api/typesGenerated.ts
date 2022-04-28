@@ -76,21 +76,22 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob
 }
 
-// From codersdk/users.go:17:6.
+// From codersdk/users.go:24:6.
 export interface UsersRequest {
   readonly search: string
   readonly limit: number
   readonly offset: number
+  readonly status: string
 }
 
-// From codersdk/users.go:39:6.
+// From codersdk/users.go:41:6.
 export interface User {
   readonly email: string
   readonly username: string
   readonly status: UserStatus
 }
 
-// From codersdk/users.go:47:6.
+// From codersdk/users.go:49:6.
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -98,41 +99,41 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:60:6.
+// From codersdk/users.go:62:6.
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
 }
 
-// From codersdk/users.go:67:6.
+// From codersdk/users.go:69:6.
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
 }
 
-// From codersdk/users.go:73:6.
+// From codersdk/users.go:75:6.
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:79:6.
+// From codersdk/users.go:81:6.
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
-// From codersdk/users.go:84:6.
+// From codersdk/users.go:86:6.
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
-// From codersdk/users.go:88:6.
+// From codersdk/users.go:90:6.
 export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/users.go:93:6.
+// From codersdk/users.go:95:6.
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -235,7 +236,7 @@ export type ParameterScope = "organization" | "template" | "user" | "workspace"
 // From codersdk/provisionerdaemons.go:26:6.
 export type ProvisionerJobStatus = "pending" | "running" | "succeeded" | "canceling" | "canceled" | "failed"
 
-// From codersdk/users.go:31:6.
+// From codersdk/users.go:17:6.
 export type UserStatus = "active" | "suspended"
 
 // From codersdk/workspaceresources.go:15:6.
