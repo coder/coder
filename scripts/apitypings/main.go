@@ -258,7 +258,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			tsType.ValueType = typescriptTag
 		} else {
 			var err error
-			tsType, err = g.typescriptType(obj, field.Type())
+			tsType, err = g.typescriptType(field.Type())
 			if err != nil {
 				return "", xerrors.Errorf("typescript type: %w", err)
 			}
@@ -288,7 +288,7 @@ type TypescriptType struct {
 // golang type.
 // Eg:
 //	[]byte returns "string"
-func (g *Generator) typescriptType(obj types.Object, ty types.Type) (TypescriptType, error) {
+func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 	switch ty.(type) {
 	case *types.Basic:
 		bs := ty.(*types.Basic)
@@ -312,7 +312,20 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (TypescriptT
 		return TypescriptType{ValueType: ty.String(), Comment: "Unknown struct, this might not work"}, nil
 	case *types.Map:
 		// TODO: Typescript dictionary??? Object?
-		return TypescriptType{ValueType: "map_not_implemented"}, nil
+		// map[string][string] -> Record<string, string>
+		m := ty.(*types.Map)
+		keyType, err := g.typescriptType(m.Key())
+		if err != nil {
+			return TypescriptType{}, xerrors.Errorf("map key: %w", err)
+		}
+		valueType, err := g.typescriptType(m.Elem())
+		if err != nil {
+			return TypescriptType{}, xerrors.Errorf("map key: %w", err)
+		}
+
+		return TypescriptType{
+			ValueType: fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
+		}, nil
 	case *types.Slice, *types.Array:
 		// Slice/Arrays are pretty much the same.
 		type hasElem interface {
@@ -329,7 +342,7 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (TypescriptT
 			return TypescriptType{ValueType: "string"}, nil
 		default:
 			// By default, just do an array of the underlying type.
-			underlying, err := g.typescriptType(obj, arr.Elem())
+			underlying, err := g.typescriptType(arr.Elem())
 			if err != nil {
 				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
@@ -362,13 +375,13 @@ func (g *Generator) typescriptType(obj types.Object, ty types.Type) (TypescriptT
 		}
 
 		// Defer to the underlying type.
-		return g.typescriptType(obj, ty.Underlying())
+		return g.typescriptType(ty.Underlying())
 	case *types.Pointer:
 		// Dereference pointers.
 		// TODO: Nullable fields? We could say these fields can be null in the
 		//		typescript.
 		pt := ty.(*types.Pointer)
-		resp, err := g.typescriptType(obj, pt.Elem())
+		resp, err := g.typescriptType(pt.Elem())
 		if err != nil {
 			return TypescriptType{}, xerrors.Errorf("pointer: %w", err)
 		}
