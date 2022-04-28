@@ -709,6 +709,29 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	getOrganizationIDsByMemberIDRows := make([]database.GetOrganizationIDsByMemberIDsRow, 0, len(ids))
+	for _, userID := range ids {
+		userOrganizationIDs := make([]uuid.UUID, 0)
+		for _, membership := range q.organizationMembers {
+			if membership.UserID == userID {
+				userOrganizationIDs = append(userOrganizationIDs, membership.OrganizationID)
+			}
+		}
+		getOrganizationIDsByMemberIDRows = append(getOrganizationIDsByMemberIDRows, database.GetOrganizationIDsByMemberIDsRow{
+			UserID:          userID,
+			OrganizationIDs: userOrganizationIDs,
+		})
+	}
+	if len(getOrganizationIDsByMemberIDRows) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return getOrganizationIDsByMemberIDRows, nil
+}
+
 func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
