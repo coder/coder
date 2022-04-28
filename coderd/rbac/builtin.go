@@ -47,7 +47,7 @@ var (
 	//
 	// This map will be replaced by database storage defined by this ticket.
 	// https://github.com/coder/coder/issues/1194
-	builtInRoles = map[string]func(scopeID string) Role{
+	builtInRoles = map[string]func(orgID string) Role{
 		// admin grants all actions to all resources.
 		admin: func(_ string) Role {
 			return Role{
@@ -116,7 +116,7 @@ var (
 // RoleByName returns the permissions associated with a given role name.
 // This allows just the role names to be stored and expanded when required.
 func RoleByName(name string) (Role, error) {
-	roleName, scopeID, err := roleSplit(name)
+	roleName, orgID, err := roleSplit(name)
 	if err != nil {
 		return Role{}, xerrors.Errorf(":%w", err)
 	}
@@ -129,25 +129,33 @@ func RoleByName(name string) (Role, error) {
 
 	// Ensure all org roles are properly scoped a non-empty organization id.
 	// This is just some defensive programming.
-	role := roleFunc(scopeID)
-	if len(role.Org) > 0 && scopeID == "" {
-		return Role{}, xerrors.Errorf("expect a scope id for role %q", roleName)
+	role := roleFunc(orgID)
+	if len(role.Org) > 0 && orgID == "" {
+		return Role{}, xerrors.Errorf("expect a org id for role %q", roleName)
 	}
 
 	return role, nil
 }
 
+func IsOrgRole(roleName string) (string, bool) {
+	_, orgID, err := roleSplit(roleName)
+	if err == nil && orgID != "" {
+		return orgID, true
+	}
+	return "", false
+}
+
 // roleName is a quick helper function to return
 // 	role_name:scopeID
 // If no scopeID is required, only 'role_name' is returned
-func roleName(name string, scopeID string) string {
-	if scopeID == "" {
+func roleName(name string, orgID string) string {
+	if orgID == "" {
 		return name
 	}
-	return name + ":" + scopeID
+	return name + ":" + orgID
 }
 
-func roleSplit(role string) (name string, scopeID string, err error) {
+func roleSplit(role string) (name string, orgID string, err error) {
 	arr := strings.Split(role, ":")
 	if len(arr) > 2 {
 		return "", "", xerrors.Errorf("too many colons in role name")

@@ -120,6 +120,14 @@ func New(options *Options) (http.Handler, func()) {
 					r.Get("/", api.workspacesByOwner)
 				})
 			})
+			r.Route("/members", func(r chi.Router) {
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(
+						httpmw.ExtractUserParam(options.Database),
+					)
+					r.Put("/roles", api.putMemberRoles)
+				})
+			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

@@ -49,12 +49,12 @@ SET
 WHERE
 	id = $1 RETURNING *;
 
--- name: GrantUserRole :one
+-- name: UpdateUserRoles :one
 UPDATE
     users
 SET
-	-- Append new roles and remove duplicates just to keep things clean.
-	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(rbac_roles || @granted_roles :: text[]))
+	-- Remove all duplicates from the roles.
+	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(@granted_roles :: text[]))
 WHERE
  	id = @id
 RETURNING *;

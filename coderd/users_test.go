@@ -289,6 +289,28 @@ func TestUpdateUserProfile(t *testing.T) {
 
 func TestGrantRoles(t *testing.T) {
 	t.Parallel()
+	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+		})
+		require.Error(t, err, "org role in site")
+
+		_, err = client.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "site role in org")
+
+		_, err = client.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "role in org without membership")
+	})
+
 	t.Run("FirstUserRoles", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
@@ -300,6 +322,9 @@ func TestGrantRoles(t *testing.T) {
 		require.ElementsMatch(t, roles.Roles, []string{
 			rbac.RoleAdmin(),
 			rbac.RoleMember(),
+		}, "should be a member and admin")
+
+		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
 			rbac.RoleOrgMember(first.OrganizationID),
 			rbac.RoleOrgAdmin(first.OrganizationID),
 		}, "should be a member and admin")
@@ -316,27 +341,43 @@ func TestGrantRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, roles.Roles, []string{
 			rbac.RoleMember(),
-			rbac.RoleOrgMember(first.OrganizationID),
 		}, "should be a member and admin")
+		require.ElementsMatch(t,
+			roles.OrganizationRoles[first.OrganizationID],
+			[]string{rbac.RoleOrgMember(first.OrganizationID)},
+		)
 
 		// Grant
-		// TODO: @emyrk this should be 'admin.GrantUserRoles' once proper authz
+		// TODO: @emyrk this should be 'admin.UpdateUserRoles' once proper authz
 		//		is enforced.
-		_, err = member.GrantUserRoles(ctx, codersdk.Me, codersdk.GrantUserRoles{
+		_, err = member.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{
+				// Promote to site admin
+				rbac.RoleMember(),
 				rbac.RoleAdmin(),
-				rbac.RoleOrgAdmin(first.OrganizationID),
 			},
 		})
 		require.NoError(t, err, "grant member admin role")
+
+		// Promote to org admin
+		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{
+				// Promote to org admin
+				rbac.RoleOrgMember(first.OrganizationID),
+				rbac.RoleOrgAdmin(first.OrganizationID),
+			},
+		})
+		require.NoError(t, err, "grant member org admin role")
 
 		roles, err = member.GetUserRoles(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.ElementsMatch(t, roles.Roles, []string{
 			rbac.RoleMember(),
-			rbac.RoleOrgMember(first.OrganizationID),
-
 			rbac.RoleAdmin(),
+		}, "should be a member and admin")
+
+		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
+			rbac.RoleOrgMember(first.OrganizationID),
 			rbac.RoleOrgAdmin(first.OrganizationID),
 		}, "should be a member and admin")
 	})

@@ -747,6 +747,28 @@ func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, user
 	return memberships, nil
 }
 
+func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+	for i, mem := range q.organizationMembers {
+		if mem.UserID == arg.UserID && mem.OrganizationID == arg.OrgID {
+			uniqueRoles := make([]string, 0, len(arg.GrantedRoles))
+			exist := make(map[string]struct{})
+			for _, r := range arg.GrantedRoles {
+				if _, ok := exist[r]; ok {
+					continue
+				}
+				exist[r] = struct{}{}
+				uniqueRoles = append(uniqueRoles, r)
+			}
+			sort.Strings(uniqueRoles)
+
+			mem.Roles = uniqueRoles
+			q.organizationMembers[i] = mem
+			return mem, nil
+		}
+	}
+	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1177,13 +1199,13 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
 		Status:         database.UserStatusActive,
-		RbacRoles:      arg.RbacRoles,
+		RBACRoles:      arg.RBACRoles,
 	}
 	q.users = append(q.users, user)
 	return user, nil
 }
 
-func (q *fakeQuerier) GrantUserRole(_ context.Context, arg database.GrantUserRoleParams) (database.User, error) {
+func (q *fakeQuerier) UpdateUserRoles(_ context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1192,12 +1214,12 @@ func (q *fakeQuerier) GrantUserRole(_ context.Context, arg database.GrantUserRol
 			continue
 		}
 
-		// Append the new roles
-		user.RbacRoles = append(user.RbacRoles, arg.GrantedRoles...)
+		// Set new roles
+		user.RBACRoles = arg.GrantedRoles
 		// Remove duplicates and sort
-		uniqueRoles := make([]string, 0, len(user.RbacRoles))
+		uniqueRoles := make([]string, 0, len(user.RBACRoles))
 		exist := make(map[string]struct{})
-		for _, r := range user.RbacRoles {
+		for _, r := range user.RBACRoles {
 			if _, ok := exist[r]; ok {
 				continue
 			}
@@ -1205,7 +1227,7 @@ func (q *fakeQuerier) GrantUserRole(_ context.Context, arg database.GrantUserRol
 			uniqueRoles = append(uniqueRoles, r)
 		}
 		sort.Strings(uniqueRoles)
-		user.RbacRoles = uniqueRoles
+		user.RBACRoles = uniqueRoles
 
 		q.users[index] = user
 		return user, nil

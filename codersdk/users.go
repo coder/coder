@@ -70,12 +70,13 @@ type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 }
 
-type GrantUserRoles struct {
+type UpdateRoles struct {
 	Roles []string `json:"roles" validate:"required"`
 }
 
 type UserRoles struct {
-	Roles []string `json:"roles"`
+	Roles             []string               `json:"roles"`
+	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -177,9 +178,25 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// GrantUserRoles grants the userID the specified roles
-func (c *Client) GrantUserRoles(ctx context.Context, userID uuid.UUID, req GrantUserRoles) (User, error) {
+// UpdateUserRoles grants the userID the specified roles.
+// Include ALL roles the user has.
+func (c *Client) UpdateUserRoles(ctx context.Context, userID uuid.UUID, req UpdateRoles) (User, error) {
 	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
+// Include ALL roles the user has.
+func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID, userID uuid.UUID, req UpdateRoles) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, uuidOrMe(userID)), req)
 	if err != nil {
 		return User{}, err
 	}

@@ -87,8 +87,8 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user
-	_, err = api.Database.GrantUserRole(r.Context(), database.GrantUserRoleParams{
-		GrantedRoles: []string{rbac.RoleAdmin()},
+	_, err = api.Database.UpdateUserRoles(r.Context(), database.UpdateUserRolesParams{
+		GrantedRoles: []string{rbac.RoleAdmin(), rbac.RoleMember()},
 		ID:           user.ID,
 	})
 	if err != nil {
@@ -362,7 +362,8 @@ func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	resp := codersdk.UserRoles{
-		Roles: user.RbacRoles,
+		Roles:             user.RBACRoles,
+		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
 	memberships, err := api.Database.GetOrganizationMembershipsByUserID(r.Context(), user.ID)
@@ -374,7 +375,7 @@ func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, mem := range memberships {
-		resp.Roles = append(resp.Roles, mem.Roles...)
+		resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
 	}
 
 	httpapi.Write(rw, http.StatusOK, resp)
@@ -393,27 +394,18 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params codersdk.GrantUserRoles
+	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
 
-	for _, r := range params.Roles {
-		if _, err := rbac.RoleByName(r); err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("%q is not a supported role", r),
-			})
-			return
-		}
-	}
-
-	updatedUser, err := api.Database.GrantUserRole(r.Context(), database.GrantUserRoleParams{
+	updatedUser, err := api.updateSiteUserRoles(r.Context(), database.UpdateUserRolesParams{
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get user: %s", err),
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: err.Error(),
 		})
 		return
 	}
@@ -427,6 +419,25 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(rw, http.StatusOK, convertUser(updatedUser, organizationIDs))
+}
+
+func (api *api) updateSiteUserRoles(ctx context.Context, args database.UpdateUserRolesParams) (database.User, error) {
+	// Enforce only site wide roles
+	for _, r := range args.GrantedRoles {
+		if _, ok := rbac.IsOrgRole(r); ok {
+			return database.User{}, xerrors.Errorf("must only update site wide roles")
+		}
+
+		if _, err := rbac.RoleByName(r); err != nil {
+			return database.User{}, xerrors.Errorf("%q is not a supported role", r)
+		}
+	}
+
+	updatedUser, err := api.Database.UpdateUserRoles(ctx, args)
+	if err != nil {
+		return database.User{}, xerrors.Errorf("update site roles: %w", err)
+	}
+	return updatedUser, nil
 }
 
 // Returns organizations the parameterized user has access to.
@@ -718,7 +729,7 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 			CreatedAt: database.Now(),
 			UpdatedAt: database.Now(),
 			// All new users are defaulted to members of the site.
-			RbacRoles: []string{rbac.RoleMember()},
+			RBACRoles: []string{rbac.RoleMember()},
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

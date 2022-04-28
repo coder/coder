@@ -453,6 +453,37 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 	return i, err
 }
 
+const updateMemberRoles = `-- name: UpdateMemberRoles :one
+UPDATE
+	organization_members
+SET
+	-- Remove all duplicates from the roles.
+	roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
+WHERE
+		user_id = $2
+		AND organization_id = $3
+RETURNING user_id, organization_id, created_at, updated_at, roles
+`
+
+type UpdateMemberRolesParams struct {
+	GrantedRoles []string  `db:"granted_roles" json:"granted_roles"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	OrgID        uuid.UUID `db:"org_id" json:"org_id"`
+}
+
+func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error) {
+	row := q.db.QueryRowContext(ctx, updateMemberRoles, pq.Array(arg.GrantedRoles), arg.UserID, arg.OrgID)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.UserID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		pq.Array(&i.Roles),
+	)
+	return i, err
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
 	id, name, description, created_at, updated_at
@@ -2019,38 +2050,6 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 	return items, nil
 }
 
-const grantUserRole = `-- name: GrantUserRole :one
-UPDATE
-    users
-SET
-	-- Append new roles and remove duplicates just to keep things clean.
-	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(rbac_roles || $1 :: text[]))
-WHERE
- 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
-`
-
-type GrantUserRoleParams struct {
-	GrantedRoles []string  `db:"granted_roles" json:"granted_roles"`
-	ID           uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) GrantUserRole(ctx context.Context, arg GrantUserRoleParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, grantUserRole, pq.Array(arg.GrantedRoles), arg.ID)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Username,
-		&i.HashedPassword,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Status,
-		pq.Array(&i.RBACRoles),
-	)
-	return i, err
-}
-
 const insertUser = `-- name: InsertUser :one
 INSERT INTO
 	users (
@@ -2125,6 +2124,38 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		arg.Username,
 		arg.UpdatedAt,
 	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		pq.Array(&i.RBACRoles),
+	)
+	return i, err
+}
+
+const updateUserRoles = `-- name: UpdateUserRoles :one
+UPDATE
+    users
+SET
+	-- Remove all duplicates from the roles.
+	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
+WHERE
+ 	id = $2
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+`
+
+type UpdateUserRolesParams struct {
+	GrantedRoles []string  `db:"granted_roles" json:"granted_roles"`
+	ID           uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserRoles, pq.Array(arg.GrantedRoles), arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
