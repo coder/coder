@@ -367,11 +367,15 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		case "time.Time":
 			// We really should come up with a standard for time.
 			return TypescriptType{ValueType: "string"}, nil
+		case "database/sql.NullTime":
+			return TypescriptType{ValueType: "string", Optional: true}, nil
+		case "github.com/google/uuid.NullUUID":
+			return TypescriptType{ValueType: "string", Optional: true}, nil
 		}
 
 		// If it's a struct, just use the name of the struct type
 		if _, ok := n.Underlying().(*types.Struct); ok {
-			return TypescriptType{ValueType: name, Comment: "Unknown named type, this might not work"}, nil
+			return TypescriptType{ValueType: "any", Comment: fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())}, nil
 		}
 
 		// Defer to the underlying type.

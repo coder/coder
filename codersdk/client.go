@@ -114,6 +114,7 @@ func readBodyAsError(res *http.Response) error {
 }
 
 // Error represents an unaccepted or invalid request to the API.
+// @typescript-ignore Error
 type Error struct {
 	httpapi.Response
 
