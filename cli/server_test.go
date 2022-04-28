@@ -119,8 +119,9 @@ func TestServer(t *testing.T) {
 		<-done
 	})
 	// Duplicated test from "Development" above to test setting email/password via env.
+	// Cannot run parallel due to os.Setenv.
+	//nolint:paralleltest
 	t.Run("Development with email and password from env", func(t *testing.T) {
-		// Cannot run parallel due to os.Setenv.
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
