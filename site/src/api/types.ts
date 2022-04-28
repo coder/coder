@@ -23,7 +23,7 @@ export interface UserResponse {
   readonly email: string
   readonly created_at: string
   readonly status: "active" | "suspended"
-  readonly organization_id: string
+  readonly organization_ids: string[]
 }
 
 /**
