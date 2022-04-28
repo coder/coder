@@ -17,32 +17,24 @@ const (
 	orgMember string = "organization-member"
 )
 
-// RoleName is a string that represents a registered rbac role. We want to store
-// strings in the database to allow the underlying role permissions to be migrated
-// or modified.
-// All RoleNames should have an entry in 'builtInRoles'.
-// We use functions to retrieve the name incase we need to add a scope.
-type RoleName = string
-
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
 // Any other roles (like auditor), can be listed and let the user select/assigned.
 // Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
 
-func RoleAdmin() RoleName {
+func RoleAdmin() string {
 	return roleName(admin, "")
 }
 
-func RoleMember() RoleName {
+func RoleMember() string {
 	return roleName(member, "")
 }
 
-func RoleOrgAdmin(organizationID uuid.UUID) RoleName {
+func RoleOrgAdmin(organizationID uuid.UUID) string {
 	return roleName(orgAdmin, organizationID.String())
 }
 
-// member:uuid
-func RoleOrgMember(organizationID uuid.UUID) RoleName {
+func RoleOrgMember(organizationID uuid.UUID) string {
 	return roleName(orgMember, organizationID.String())
 }
 
@@ -83,7 +75,6 @@ var (
 			return Role{
 				Name: "auditor",
 				Site: permissions(map[Object][]Action{
-					//ResourceAuditLogs: {ActionRead},
 					// Should be able to read all template details, even in orgs they
 					// are not in.
 					ResourceTemplate: {ActionRead},
@@ -121,43 +112,6 @@ var (
 		},
 	}
 )
-
-// ListOrgRoles lists all roles that can be applied to an organization user
-// in the given organization.
-// Note: This should be a list in a database, but until then we build
-// 	the list from the builtins.
-func ListOrgRoles(organizationID uuid.UUID) []string {
-	var roles []string
-	for role := range builtInRoles {
-		_, scope, err := roleSplit(role)
-		if err != nil {
-			// This should never happen
-			continue
-		}
-		if scope == organizationID.String() {
-			roles = append(roles, role)
-		}
-	}
-	return roles
-}
-
-// ListSiteRoles lists all roles that can be applied to a user.
-// Note: This should be a list in a database, but until then we build
-// 	the list from the builtins.
-func ListSiteRoles() []string {
-	var roles []string
-	for role := range builtInRoles {
-		_, scope, err := roleSplit(role)
-		if err != nil {
-			// This should never happen
-			continue
-		}
-		if scope == "" {
-			roles = append(roles, role)
-		}
-	}
-	return roles
-}
 
 // RoleByName returns the permissions associated with a given role name.
 // This allows just the role names to be stored and expanded when required.

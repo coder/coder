@@ -41,7 +41,7 @@ type authSubject struct {
 // AuthorizeByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []RoleName, action Action, object Object) error {
+func (a RegoAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)
