@@ -30,8 +30,8 @@ export interface CreateUserFormProps {
 
 const validationSchema = Yup.object({
   email: Yup.string().trim().email(Language.emailInvalid).required(Language.emailRequired),
-  password: Yup.string().required(),
-  username: Yup.string().required(),
+  password: Yup.string().required(Language.passwordRequired),
+  username: Yup.string().required(Language.usernameRequired),
 })
 
 export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, onCancel, formErrors, isLoading, error }) => {
