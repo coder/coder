@@ -328,18 +328,44 @@ func TestUserByName(t *testing.T) {
 
 func TestGetUsers(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-		Email:          "alice@email.com",
-		Username:       "alice",
-		Password:       "password",
-		OrganizationID: user.OrganizationID,
+	t.Run("AllUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		// No params is all users
+		users, err := client.Users(context.Background(), codersdk.UsersRequest{})
+		require.NoError(t, err)
+		require.Len(t, users, 2)
 	})
-	// No params is all users
-	users, err := client.Users(context.Background(), codersdk.UsersRequest{})
-	require.NoError(t, err)
-	require.Len(t, users, 2)
+	t.Run("ActiveUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		suspendedUser, _ := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "bruno@email.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		client.SuspendUser(context.Background(), suspendedUser.ID)
+		users, err := client.Users(context.Background(), codersdk.UsersRequest{
+			Status: string(codersdk.UserStatusSuspended),
+		})
+		require.NoError(t, err)
+		require.Len(t, users, 2)
+	})
 }
 
 func TestOrganizationsByUser(t *testing.T) {

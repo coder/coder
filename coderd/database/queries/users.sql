@@ -80,6 +80,9 @@ WHERE
 		WHEN @search :: text != '' THEN (
 			email LIKE concat('%', @search, '%')
 			OR username LIKE concat('%', @search, '%')
+		)	
+		WHEN @status :: user_status != '' THEN (
+			status = @status
 		)
 		ELSE true
 	END

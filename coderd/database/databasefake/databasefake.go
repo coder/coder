@@ -225,6 +225,17 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		}
 		users = users[:params.LimitOpt]
 	}
+
+	if params.Status != "" {
+		usersFilteredByStatus := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.Status == params.Status {
+				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
+			}
+		}
+		users = usersFilteredByStatus
+	}
+
 	tmp := make([]database.User, len(users))
 	copy(tmp, users)
 

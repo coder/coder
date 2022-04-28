@@ -14,6 +14,13 @@ import (
 // Me is used as a replacement for your own ID.
 var Me = uuid.Nil
 
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
 type UsersRequest struct {
 	AfterUser uuid.UUID `json:"after_user"`
 	Search    string    `json:"search"`
@@ -26,14 +33,9 @@ type UsersRequest struct {
 	// To get the next page, use offset=<limit>*<page_number>.
 	// Offset is 0 indexed, so the first record sits at offset 0.
 	Offset int `json:"offset"`
+	// Filter users by status
+	Status string `json:"status"`
 }
-
-type UserStatus string
-
-const (
-	UserStatusActive    UserStatus = "active"
-	UserStatusSuspended UserStatus = "suspended"
-)
 
 // User represents a user in Coder.
 type User struct {
@@ -242,6 +244,7 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 		}
 		q.Set("offset", strconv.Itoa(req.Offset))
 		q.Set("search", req.Search)
+		q.Set("status", req.Status)
 		r.URL.RawQuery = q.Encode()
 	})
 	if err != nil {

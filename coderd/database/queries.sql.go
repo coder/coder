@@ -1884,29 +1884,34 @@ WHERE
 		WHEN $2 :: text != '' THEN (
 			email LIKE concat('%', $2, '%')
 			OR username LIKE concat('%', $2, '%')
+		)	
+		WHEN $3 :: user_status != '' THEN (
+			status = $3
 		)
 		ELSE true
 	END
 ORDER BY
     -- Deterministic and consistent ordering of all users, even if they share
     -- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $3
+	(created_at, id) ASC OFFSET $4
 LIMIT
 	-- A null limit means "no limit", so -1 means return all
-	NULLIF($4 :: int, -1)
+	NULLIF($5 :: int, -1)
 `
 
 type GetUsersParams struct {
-	AfterUser uuid.UUID `db:"after_user" json:"after_user"`
-	Search    string    `db:"search" json:"search"`
-	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
+	AfterUser uuid.UUID  `db:"after_user" json:"after_user"`
+	Search    string     `db:"search" json:"search"`
+	Status    UserStatus `db:"status" json:"status"`
+	OffsetOpt int32      `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32      `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterUser,
 		arg.Search,
+		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
