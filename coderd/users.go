@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -318,7 +316,7 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser))
 }
 
-func (api *api) getUserRoles(rw http.ResponseWriter, r *http.Request) {
+func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	resp := codersdk.UserRoles{

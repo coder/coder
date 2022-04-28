@@ -709,7 +709,7 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
+func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1160,7 +1160,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
-func (q *fakeQuerier) GrantUserRole(ctx context.Context, arg database.GrantUserRoleParams) (database.User, error) {
+func (q *fakeQuerier) GrantUserRole(_ context.Context, arg database.GrantUserRoleParams) (database.User, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1184,6 +1184,22 @@ func (q *fakeQuerier) GrantUserRole(ctx context.Context, arg database.GrantUserR
 		sort.Strings(uniqueRoles)
 		user.RbacRoles = uniqueRoles
 
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.Status = arg.Status
+		user.UpdatedAt = arg.UpdatedAt
 		q.users[index] = user
 		return user, nil
 	}

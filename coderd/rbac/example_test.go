@@ -2,8 +2,9 @@ package rbac_test
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/require"
 

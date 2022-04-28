@@ -204,7 +204,6 @@ func (c *Client) GetUserRoles(ctx context.Context, userID uuid.UUID) (UserRoles,
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
-
 // CreateAPIKey generates an API key for the user ID provided.
 func (c *Client) CreateAPIKey(ctx context.Context, userID uuid.UUID) (*GenerateAPIKeyResponse, error) {
 	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", uuidOrMe(userID)), nil)

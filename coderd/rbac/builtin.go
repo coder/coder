@@ -1,8 +1,9 @@
 package rbac
 
 import (
-	"github.com/google/uuid"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"golang.org/x/xerrors"
 )
@@ -127,7 +128,7 @@ var (
 // 	the list from the builtins.
 func ListOrgRoles(organizationID uuid.UUID) []string {
 	var roles []string
-	for role, _ := range builtInRoles {
+	for role := range builtInRoles {
 		_, scope, err := roleSplit(role)
 		if err != nil {
 			// This should never happen
@@ -145,7 +146,7 @@ func ListOrgRoles(organizationID uuid.UUID) []string {
 // 	the list from the builtins.
 func ListSiteRoles() []string {
 	var roles []string
-	for role, _ := range builtInRoles {
+	for role := range builtInRoles {
 		_, scope, err := roleSplit(role)
 		if err != nil {
 			// This should never happen
@@ -224,11 +225,4 @@ func permissions(perms map[Object][]Action) []Permission {
 		}
 	}
 	return list
-}
-
-func must[T any](value T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return value
 }

@@ -186,7 +186,7 @@ func New(options *Options) (http.Handler, func()) {
 					// TODO: @emyrk Might want to move these to a /roles group instead of /user.
 					//		As we include more roles like org roles, it makes less sense to scope these here.
 					r.Put("/roles", api.putUserRoles)
-					r.Get("/roles", api.getUserRoles)
+					r.Get("/roles", api.userRoles)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					r.Post("/keys", api.postAPIKey)
