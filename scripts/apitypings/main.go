@@ -10,12 +10,11 @@ import (
 	"regexp"
 	"strings"
 
-	"cdr.dev/slog/sloggers/sloghuman"
-
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 )
 
 const (
