@@ -127,10 +127,8 @@ func TestServer(t *testing.T) {
 
 		wantEmail := "myadmin@coder.com"
 		wantPassword := "testpass42"
-		os.Setenv("CODER_DEV_ADMIN_EMAIL", wantEmail)
-		defer os.Unsetenv("CODER_DEV_ADMIN_EMAIL")
-		os.Setenv("CODER_DEV_ADMIN_PASSWORD", wantPassword)
-		defer os.Unsetenv("CODER_DEV_ADMIN_PASSWORD")
+		t.Setenv("CODER_DEV_ADMIN_EMAIL", wantEmail)
+		t.Setenv("CODER_DEV_ADMIN_PASSWORD", wantPassword)
 
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
 		var buf strings.Builder
