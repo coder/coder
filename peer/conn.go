@@ -221,19 +221,35 @@ func (c *Conn) init() error {
 			}
 		}
 	})
+
+	// These functions need to check if the conn is closed, because they can be
+	// called after being closed.
 	c.rtc.OnSignalingStateChange(func(signalState webrtc.SignalingState) {
+		if c.isClosed() {
+			return
+		}
 		c.opts.Logger.Debug(context.Background(), "signaling state updated",
 			slog.F("state", signalState))
 	})
 	c.rtc.SCTP().Transport().OnStateChange(func(dtlsTransportState webrtc.DTLSTransportState) {
+		if c.isClosed() {
+			return
+		}
 		c.opts.Logger.Debug(context.Background(), "dtls transport state updated",
 			slog.F("state", dtlsTransportState))
 	})
 	c.rtc.SCTP().Transport().ICETransport().OnSelectedCandidatePairChange(func(candidatePair *webrtc.ICECandidatePair) {
+		if c.isClosed() {
+			return
+		}
 		c.opts.Logger.Debug(context.Background(), "selected candidate pair changed",
 			slog.F("local", candidatePair.Local), slog.F("remote", candidatePair.Remote))
 	})
 	c.rtc.OnICECandidate(func(iceCandidate *webrtc.ICECandidate) {
+		if c.isClosed() {
+			return
+		}
+
 		if iceCandidate == nil {
 			return
 		}
