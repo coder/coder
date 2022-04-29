@@ -28,7 +28,7 @@ export const PreferencesLayout: React.FC = () => {
           <TabPanel title={Language.preferencesLabel} menuItems={menuItems}>
             <Outlet />
           </TabPanel>
-          </Margins>
+        </Margins>
       </Box>
     </AuthAndFrame>
   )

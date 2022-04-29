@@ -79,7 +79,7 @@ const useStyles = makeStyles((theme) => ({
     flex: 1,
     height: 68,
     minWidth: 0,
-    padding: `0 ${sidePadding}`
+    padding: `0 ${sidePadding}`,
   },
   title: {
     display: "flex",
