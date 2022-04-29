@@ -222,6 +222,7 @@ const useStyles = makeStyles(() => ({
   terminal: {
     width: "100vw",
     height: "100vh",
+    overflow: "hidden",
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {
       padding: 4,

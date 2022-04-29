@@ -548,7 +548,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 	// Resetting this timeout prevents the PTY from exiting.
 	rpty.timeout.Reset(a.reconnectingPTYTimeout)
 
-	heartbeat := time.NewTimer(a.reconnectingPTYTimeout / 2)
+	ctx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+	heartbeat := time.NewTicker(a.reconnectingPTYTimeout / 2)
 	defer heartbeat.Stop()
 	go func() {
 		// Keep updating the activity while this
