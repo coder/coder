@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:94:6
+// From codersdk/users.go:96:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -30,7 +30,7 @@ export interface BuildInfoResponse {
   readonly version: string
 }
 
-// From codersdk/users.go:48:6
+// From codersdk/users.go:50:6
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -38,13 +38,13 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:56:6
+// From codersdk/users.go:58:6
 export interface CreateFirstUserResponse {
   readonly user_id: string
   readonly organization_id: string
 }
 
-// From codersdk/users.go:89:6
+// From codersdk/users.go:91:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -77,7 +77,7 @@ export interface CreateTemplateVersionRequest {
   readonly parameter_values: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:61:6
+// From codersdk/users.go:63:6
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
@@ -100,7 +100,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:85:6
+// From codersdk/users.go:87:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -118,13 +118,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:74:6
+// From codersdk/users.go:76:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:80:6
+// From codersdk/users.go:82:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -245,7 +245,7 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
-// From codersdk/users.go:68:6
+// From codersdk/users.go:70:6
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
@@ -266,7 +266,7 @@ export interface UploadResponse {
   readonly hash: string
 }
 
-// From codersdk/users.go:39:6
+// From codersdk/users.go:41:6
 export interface User {
   readonly id: string
   readonly email: string
@@ -276,12 +276,13 @@ export interface User {
   readonly organization_ids: string[]
 }
 
-// From codersdk/users.go:17:6
+// From codersdk/users.go:24:6
 export interface UsersRequest {
   readonly after_user: string
   readonly search: string
   readonly limit: number
   readonly offset: number
+  readonly status: string
 }
 
 // From codersdk/workspaces.go:18:6
@@ -378,7 +379,7 @@ export type ParameterScope = "organization" | "template" | "user" | "workspace"
 // From codersdk/provisionerdaemons.go:26:6
 export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded"
 
-// From codersdk/users.go:31:6
+// From codersdk/users.go:17:6
 export type UserStatus = "active" | "suspended"
 
 // From codersdk/workspaceresources.go:15:6

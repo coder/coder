@@ -330,19 +330,54 @@ func TestUserByName(t *testing.T) {
 
 func TestGetUsers(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-		Email:          "alice@email.com",
-		Username:       "alice",
-		Password:       "password",
-		OrganizationID: user.OrganizationID,
+	t.Run("AllUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		// No params is all users
+		users, err := client.Users(context.Background(), codersdk.UsersRequest{})
+		require.NoError(t, err)
+		require.Len(t, users, 2)
+		require.Len(t, users[0].OrganizationIDs, 1)
 	})
-	// No params is all users
-	users, err := client.Users(context.Background(), codersdk.UsersRequest{})
-	require.NoError(t, err)
-	require.Len(t, users, 2)
-	require.Len(t, users[0].OrganizationIDs, 1)
+	t.Run("ActiveUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		active := make([]codersdk.User, 0)
+		alice, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+		active = append(active, alice)
+
+		bruno, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "bruno@email.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+		active = append(active, bruno)
+
+		_, err = client.SuspendUser(context.Background(), first.UserID)
+		require.NoError(t, err)
+
+		users, err := client.Users(context.Background(), codersdk.UsersRequest{
+			Status: string(codersdk.UserStatusActive),
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, active, users)
+	})
 }
 
 func TestOrganizationsByUser(t *testing.T) {

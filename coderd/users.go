@@ -90,10 +90,11 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	var (
-		afterArg   = r.URL.Query().Get("after_user")
-		limitArg   = r.URL.Query().Get("limit")
-		offsetArg  = r.URL.Query().Get("offset")
-		searchName = r.URL.Query().Get("search")
+		afterArg     = r.URL.Query().Get("after_user")
+		limitArg     = r.URL.Query().Get("limit")
+		offsetArg    = r.URL.Query().Get("offset")
+		searchName   = r.URL.Query().Get("search")
+		statusFilter = r.URL.Query().Get("status")
 	)
 
 	// createdAfter is a user uuid.
@@ -136,6 +137,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		OffsetOpt: int32(offset),
 		LimitOpt:  int32(pageLimit),
 		Search:    searchName,
+		Status:    statusFilter,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

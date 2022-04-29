@@ -1919,25 +1919,38 @@ WHERE
 			)
 			ELSE true
 	END
+	-- Start filters
+	-- Filter by name, email or username
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email LIKE concat('%', $2, '%')
 			OR username LIKE concat('%', $2, '%')
+		)	
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
+		WHEN $3 :: text != '' THEN (
+			status = $3 :: user_status
 		)
 		ELSE true
 	END
+	-- End of filters
 ORDER BY
     -- Deterministic and consistent ordering of all users, even if they share
     -- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $3
+	(created_at, id) ASC OFFSET $4
 LIMIT
 	-- A null limit means "no limit", so -1 means return all
-	NULLIF($4 :: int, -1)
+	NULLIF($5 :: int, -1)
 `
 
 type GetUsersParams struct {
 	AfterUser uuid.UUID `db:"after_user" json:"after_user"`
 	Search    string    `db:"search" json:"search"`
+	Status    string    `db:"status" json:"status"`
 	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -1946,6 +1959,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterUser,
 		arg.Search,
+		arg.Status,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
