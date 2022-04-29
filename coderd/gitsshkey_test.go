@@ -70,7 +70,7 @@ func TestGitSSHKey(t *testing.T) {
 		require.NotEmpty(t, key1.PublicKey)
 		key2, err := client.RegenerateGitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
-		require.Greater(t, key2.UpdatedAt, key1.UpdatedAt)
+		require.GreaterOrEqual(t, key2.UpdatedAt, key1.UpdatedAt)
 		require.NotEmpty(t, key2.PublicKey)
 		require.NotEqual(t, key2.PublicKey, key1.PublicKey)
 	})
