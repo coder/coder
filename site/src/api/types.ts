@@ -10,11 +10,20 @@ export interface LoginResponse {
   session_token: string
 }
 
+export interface CreateUserRequest {
+  username: string
+  email: string
+  password: string
+  organization_id: string
+}
+
 export interface UserResponse {
   readonly id: string
   readonly username: string
   readonly email: string
   readonly created_at: string
+  readonly status: "active" | "suspended"
+  readonly organization_ids: string[]
 }
 
 /**
