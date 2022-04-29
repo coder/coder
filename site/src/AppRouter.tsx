@@ -17,6 +17,7 @@ import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
 import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/CreateWorkspacePage"
 import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/TemplatePage"
 import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
+import { TerminalPage } from "./pages/TerminalPage/TerminalPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/WorkspacesPage/WorkspacesPage"
@@ -124,6 +125,19 @@ export const AppRouter: React.FC = () => (
         <Route path="security" element={<SecurityPage />} />
         <Route path="ssh-keys" element={<SSHKeysPage />} />
         <Route path="linked-accounts" element={<LinkedAccountsPage />} />
+      </Route>
+
+      <Route path=":username">
+        <Route path=":workspace">
+          <Route
+            path="terminal"
+            element={
+              <RequireAuth>
+                <TerminalPage />
+              </RequireAuth>
+            }
+          />
+        </Route>
       </Route>
 
       {/* Using path="*"" means "match anything", so this route

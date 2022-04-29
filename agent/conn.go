@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"golang.org/x/crypto/ssh"
@@ -11,6 +12,14 @@ import (
 	"github.com/coder/coder/peerbroker/proto"
 )
 
+// ReconnectingPTYRequest is sent from the client to the server
+// to pipe data to a PTY.
+type ReconnectingPTYRequest struct {
+	Data   string `json:"data"`
+	Height uint16 `json:"height"`
+	Width  uint16 `json:"width"`
+}
+
 // Conn wraps a peer connection with helper functions to
 // communicate with the agent.
 type Conn struct {
@@ -18,6 +27,18 @@ type Conn struct {
 	Negotiator proto.DRPCPeerBrokerClient
 
 	*peer.Conn
+}
+
+// ReconnectingPTY returns a connection serving a TTY that can
+// be reconnected to via ID.
+func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error) {
+	channel, err := c.Dial(context.Background(), fmt.Sprintf("%s:%d:%d", id, height, width), &peer.ChannelOptions{
+		Protocol: "reconnecting-pty",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("pty: %w", err)
+	}
+	return channel.NetConn(), nil
 }
 
 // SSH dials the built-in SSH server.

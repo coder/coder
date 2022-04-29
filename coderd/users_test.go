@@ -431,14 +431,45 @@ func TestPutUserSuspend(t *testing.T) {
 	})
 }
 
-func TestUserByName(t *testing.T) {
+func TestGetUser(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, client)
-	user, err := client.User(context.Background(), codersdk.Me)
 
-	require.NoError(t, err)
-	require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	t.Run("ByMe", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		user, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, firstUser.UserID, user.ID)
+		require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	})
+
+	t.Run("ByID", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		user, err := client.User(context.Background(), firstUser.UserID)
+		require.NoError(t, err)
+		require.Equal(t, firstUser.UserID, user.ID)
+		require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	})
+
+	t.Run("ByUsername", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		exp, err := client.User(context.Background(), firstUser.UserID)
+		require.NoError(t, err)
+
+		user, err := client.UserByUsername(context.Background(), exp.Username)
+		require.NoError(t, err)
+		require.Equal(t, exp, user)
+	})
 }
 
 func TestGetUsers(t *testing.T) {

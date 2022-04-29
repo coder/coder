@@ -142,11 +142,14 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
 						Login: github.String("kyle"),
-						Email: github.String("kyle@coder.com"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
-					return []*github.UserEmail{}, nil
+					return []*github.UserEmail{{
+						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
 				},
 			},
 		})

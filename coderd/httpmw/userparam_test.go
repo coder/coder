@@ -34,7 +34,9 @@ func TestUserParam(t *testing.T) {
 		})
 
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
-			ID: uuid.New(),
+			ID:       uuid.New(),
+			Email:    "admin@email.com",
+			Username: "admin",
 		})
 		require.NoError(t, err)
 

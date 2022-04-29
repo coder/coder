@@ -75,7 +75,7 @@ func (api *api) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	// Search for existing users with matching and verified emails.
 	// If a verified GitHub email matches a Coder user, we will return.
 	for _, email := range emails {
-		if email.Verified == nil {
+		if !email.GetVerified() {
 			continue
 		}
 		user, err = api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
@@ -123,8 +123,22 @@ func (api *api) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		var verifiedEmail *github.UserEmail
+		for _, email := range emails {
+			if !email.GetPrimary() || !email.GetVerified() {
+				continue
+			}
+			verifiedEmail = email
+			break
+		}
+		if verifiedEmail == nil {
+			httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
+				Message: "Your primary email must be verified on GitHub!",
+			})
+			return
+		}
 		user, _, err = api.createUser(r.Context(), codersdk.CreateUserRequest{
-			Email:          *ghUser.Email,
+			Email:          *verifiedEmail.Email,
 			Username:       *ghUser.Login,
 			OrganizationID: organizationID,
 		})
