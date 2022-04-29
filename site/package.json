@@ -90,7 +90,7 @@
     "sql-formatter": "4.0.2",
     "style-loader": "3.3.1",
     "ts-jest": "27.1.4",
-    "ts-loader": "9.2.8",
+    "ts-loader": "9.2.9",
     "ts-node": "10.7.0",
     "typescript": "4.6.3",
     "webpack": "5.72.0",
