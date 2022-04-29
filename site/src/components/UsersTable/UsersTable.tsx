@@ -3,6 +3,7 @@ import { UserResponse } from "../../api/types"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { Column, Table } from "../Table/Table"
 import { UserCell } from "../UserCell/UserCell"
+import { UserMenu } from "./UserMenu"
 
 const Language = {
   pageTitle: "Users",
@@ -28,5 +29,13 @@ export interface UsersTableProps {
 }
 
 export const UsersTable: React.FC<UsersTableProps> = ({ users }) => {
-  return <Table columns={columns} data={users} title={Language.usersTitle} emptyState={emptyState} />
+  return (
+    <Table
+      columns={columns}
+      data={users}
+      title={Language.usersTitle}
+      emptyState={emptyState}
+      rowMenu={(user) => <UserMenu user={user} />}
+    />
+  )
 }

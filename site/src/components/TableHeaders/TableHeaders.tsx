@@ -5,9 +5,10 @@ import React from "react"
 
 export interface TableHeadersProps {
   columns: string[]
+  hasMenu?: boolean
 }
 
-export const TableHeaders: React.FC<TableHeadersProps> = ({ columns }) => {
+export const TableHeaders: React.FC<TableHeadersProps> = ({ columns, hasMenu }) => {
   const styles = useStyles()
   return (
     <TableRow className={styles.root}>
@@ -16,6 +17,8 @@ export const TableHeaders: React.FC<TableHeadersProps> = ({ columns }) => {
           {c}
         </TableCell>
       ))}
+      {/* 1% is a hack to make the table cell width fits the content */}
+      {hasMenu && <TableCell width="1%" />}
     </TableRow>
   )
 }
