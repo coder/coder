@@ -24,6 +24,9 @@ export const handlers = [
   rest.get("/api/v2/users", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json({ page: [M.MockUser, M.MockUser2], pager: M.MockPager }))
   }),
+  rest.post("/api/v2/users", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockUser))
+  }),
   rest.post("/api/v2/users/me/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
   }),

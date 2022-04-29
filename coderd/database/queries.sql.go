@@ -306,6 +306,45 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return err
 }
 
+const getOrganizationIDsByMemberIDs = `-- name: GetOrganizationIDsByMemberIDs :many
+SELECT
+    user_id, array_agg(organization_id) :: uuid [ ] AS "organization_IDs"
+FROM
+    organization_members
+WHERE
+    user_id = ANY($1 :: uuid [ ])
+GROUP BY
+    user_id
+`
+
+type GetOrganizationIDsByMemberIDsRow struct {
+	UserID          uuid.UUID   `db:"user_id" json:"user_id"`
+	OrganizationIDs []uuid.UUID `db:"organization_IDs" json:"organization_IDs"`
+}
+
+func (q *sqlQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationIDsByMemberIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationIDsByMemberIDsRow
+	for rows.Next() {
+		var i GetOrganizationIDsByMemberIDsRow
+		if err := rows.Scan(&i.UserID, pq.Array(&i.OrganizationIDs)); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrganizationMemberByUserID = `-- name: GetOrganizationMemberByUserID :one
 SELECT
 	user_id, organization_id, created_at, updated_at, roles

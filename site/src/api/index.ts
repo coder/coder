@@ -106,6 +106,11 @@ export const getWorkspaceResources = async (workspaceBuildID: string): Promise<T
   return response.data
 }
 
+export const createUser = async (user: Types.CreateUserRequest): Promise<TypesGen.User> => {
+  const response = await axios.post<TypesGen.User>("/api/v2/users", user)
+  return response.data
+}
+
 export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
   const response = await axios.get("/api/v2/buildinfo")
   return response.data

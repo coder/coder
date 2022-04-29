@@ -18,6 +18,7 @@ import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/Tem
 import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/TemplatePage"
 import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { TerminalPage } from "./pages/TerminalPage/TerminalPage"
+import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/WorkspacesPage/WorkspacesPage"
 
@@ -84,14 +85,24 @@ export const AppRouter: React.FC = () => (
         />
       </Route>
 
-      <Route
-        path="users"
-        element={
-          <AuthAndFrame>
-            <UsersPage />
-          </AuthAndFrame>
-        }
-      />
+      <Route path="users">
+        <Route
+          index
+          element={
+            <AuthAndFrame>
+              <UsersPage />
+            </AuthAndFrame>
+          }
+        />
+        <Route
+          path="create"
+          element={
+            <RequireAuth>
+              <CreateUserPage />
+            </RequireAuth>
+          }
+        />
+      </Route>
       <Route
         path="orgs"
         element={

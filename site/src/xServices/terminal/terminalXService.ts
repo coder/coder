@@ -157,9 +157,15 @@ export const terminalMachine =
           return API.getWorkspace(context.organizations[0].id, context.username, context.workspaceName)
         },
         getWorkspaceAgent: async (context: TerminalContext) => {
-          if (!context.workspace) {
-            throw new Error("workspace is not set")
+          if (!context.workspace || !context.workspaceName) {
+            throw new Error("workspace or workspace name is not set")
           }
+          // The workspace name is in the format:
+          // <workspace name>[.<agent name>]
+          // The workspace agent is entirely optional.
+          const workspaceNameParts = context.workspaceName.split(".")
+          const agentName = workspaceNameParts[1]
+
           const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
           for (let i = 0; i < resources.length; i++) {
             const resource = resources[i]
@@ -169,7 +175,16 @@ export const terminalMachine =
             if (resource.agents.length <= 0) {
               continue
             }
-            return resource.agents[0]
+            if (!agentName) {
+              return resource.agents[0]
+            }
+            for (let a = 0; a < resource.agents.length; a++) {
+              const agent = resource.agents[a]
+              if (agent.name !== agentName) {
+                continue
+              }
+              return agent
+            }
           }
           throw new Error("no agent found with id")
         },

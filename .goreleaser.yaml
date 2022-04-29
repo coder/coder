@@ -29,7 +29,7 @@ builds:
   - id: coder-slim
     dir: cmd/coder
     ldflags:
-      ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
+      ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]
     goarch: [amd64]
@@ -42,7 +42,7 @@ builds:
     dir: cmd/coder
     flags: [-tags=embed]
     ldflags:
-      ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
+      ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [linux]
     goarch: [amd64, arm64]
@@ -51,7 +51,7 @@ builds:
     dir: cmd/coder
     flags: [-tags=embed]
     ldflags:
-      ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
+      ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [windows]
     goarch: [amd64, arm64]
@@ -60,7 +60,7 @@ builds:
     dir: cmd/coder
     flags: [-tags=embed]
     ldflags:
-      ["-s -w -X github.com/coder/coder/cli/buildinfo.tag={{ .Version }}"]
+      ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [darwin]
     goarch: [amd64, arm64]

@@ -23,19 +23,21 @@ export const MockBuildInfo: BuildInfoResponse = {
 }
 
 export const MockUser: UserResponse = {
-  name: "Test User",
   id: "test-user",
   username: "TestUser",
   email: "test@coder.com",
   created_at: "",
+  status: "active",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
 }
 
 export const MockUser2: UserResponse = {
   id: "test-user-2",
-  name: "Test User 2",
   username: "TestUser2",
   email: "test2@coder.com",
   created_at: "",
+  status: "active",
+  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
 }
 
 export const MockPager: Pager = {

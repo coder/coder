@@ -9,15 +9,19 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"runtime"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -72,10 +76,30 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+
+		wantEmail := "admin@coder.com"
+
 		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
+		var buf strings.Builder
+		root.SetOutput(&buf)
+		var wg sync.WaitGroup
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
+
 			err := root.ExecuteContext(ctx)
 			require.ErrorIs(t, err, context.Canceled)
+
+			// Verify that credentials were output to the terminal.
+			assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
+			// Check that the password line is output and that it's non-empty.
+			if _, after, found := strings.Cut(buf.String(), "password: "); found {
+				before, _, _ := strings.Cut(after, "\n")
+				before = strings.Trim(before, "\r") // Ensure no control character is left.
+				assert.NotEmpty(t, before, "expected non-empty password; got empty")
+			} else {
+				t.Error("expected password line output; got no match")
+			}
 		}()
 		var token string
 		require.Eventually(t, func() bool {
@@ -92,6 +116,55 @@ func TestServer(t *testing.T) {
 		client.SessionToken = token
 		_, err = client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
+
+		cancelFunc()
+		wg.Wait()
+	})
+	// Duplicated test from "Development" above to test setting email/password via env.
+	// Cannot run parallel due to os.Setenv.
+	//nolint:paralleltest
+	t.Run("Development with email and password from env", func(t *testing.T) {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		wantEmail := "myadmin@coder.com"
+		wantPassword := "testpass42"
+		t.Setenv("CODER_DEV_ADMIN_EMAIL", wantEmail)
+		t.Setenv("CODER_DEV_ADMIN_PASSWORD", wantPassword)
+
+		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
+		var buf strings.Builder
+		root.SetOutput(&buf)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			err := root.ExecuteContext(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+
+			// Verify that credentials were output to the terminal.
+			assert.Contains(t, buf.String(), fmt.Sprintf("email: %s", wantEmail), "expected output %q; got no match", wantEmail)
+			assert.Contains(t, buf.String(), fmt.Sprintf("password: %s", wantPassword), "expected output %q; got no match", wantPassword)
+		}()
+		var token string
+		require.Eventually(t, func() bool {
+			var err error
+			token, err = cfg.Session().Read()
+			return err == nil
+		}, 15*time.Second, 25*time.Millisecond)
+		// Verify that authentication was properly set in dev-mode.
+		accessURL, err := cfg.URL().Read()
+		require.NoError(t, err)
+		parsed, err := url.Parse(accessURL)
+		require.NoError(t, err)
+		client := codersdk.New(parsed)
+		client.SessionToken = token
+		_, err = client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		cancelFunc()
+		wg.Wait()
 	})
 	t.Run("TLSBadVersion", func(t *testing.T) {
 		t.Parallel()
