@@ -28,7 +28,7 @@ terraform {
 	required_providers {
 		coder = {
 			source = "coder/coder"
-			version = "0.3.1"
+			version = "0.3.3"
 		}
 	}
 }
@@ -160,6 +160,7 @@ provider "coder" {
 			resource "coder_agent" "A" {
 				os = "windows"
 				arch = "arm64"
+				dir = "C:\\System32"
 			}
 			resource "null_resource" "A" {
 				depends_on = [
@@ -184,6 +185,7 @@ provider "coder" {
 							Name:            "A",
 							OperatingSystem: "windows",
 							Architecture:    "arm64",
+							Directory:       "C:\\System32",
 							Auth: &proto.Agent_Token{
 								Token: "",
 							},

@@ -131,6 +131,7 @@ func (api *api) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		OwnerUsername:        owner.Username,
 		EnvironmentVariables: apiAgent.EnvironmentVariables,
 		StartupScript:        apiAgent.StartupScript,
+		Directory:            apiAgent.Directory,
 	})
 }
 
@@ -339,6 +340,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 		OperatingSystem:      dbAgent.OperatingSystem,
 		StartupScript:        dbAgent.StartupScript.String,
 		EnvironmentVariables: envs,
+		Directory:            dbAgent.Directory,
 	}
 	if dbAgent.FirstConnectedAt.Valid {
 		workspaceAgent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time

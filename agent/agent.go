@@ -38,6 +38,7 @@ type Metadata struct {
 	OwnerUsername        string            `json:"owner_username"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
+	Directory            string            `json:"directory"`
 }
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
@@ -66,6 +67,7 @@ type agent struct {
 	// Environment variables sent by Coder to inject for shell sessions.
 	// These are atomic because values can change after reconnect.
 	envVars       atomic.Value
+	directory     atomic.String
 	ownerEmail    atomic.String
 	ownerUsername atomic.String
 	startupScript atomic.Bool
@@ -98,6 +100,7 @@ func (a *agent) run(ctx context.Context) {
 		return
 	default:
 	}
+	a.directory.Store(options.Directory)
 	a.envVars.Store(options.EnvironmentVariables)
 	a.ownerEmail.Store(options.OwnerEmail)
 	a.ownerUsername.Store(options.OwnerUsername)
@@ -308,6 +311,11 @@ func (a *agent) handleSSHSession(session ssh.Session) error {
 		caller = "/c"
 	}
 	cmd := exec.CommandContext(session.Context(), shell, caller, command)
+	cmd.Dir = a.directory.Load()
+	if cmd.Dir == "" {
+		// Default to $HOME if a directory is not set!
+		cmd.Dir = os.Getenv("HOME")
+	}
 	cmd.Env = append(os.Environ(), session.Environ()...)
 	executablePath, err := os.Executable()
 	if err != nil {
