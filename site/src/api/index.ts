@@ -1,6 +1,5 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
-import { MockPager, MockUser, MockUser2 } from "../testHelpers/entities"
 import * as Types from "./types"
 import * as TypesGen from "./typesGenerated"
 
@@ -76,13 +75,9 @@ export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
   return response.data
 }
 
-export const getUsers = async (): Promise<Types.PagedUsers> => {
-  // const response = await axios.get<Types.UserResponse[]>("/api/v2/users")
-  // return response.data
-  return Promise.resolve({
-    page: [MockUser, MockUser2],
-    pager: MockPager,
-  })
+export const getUsers = async (): Promise<TypesGen.User[]> => {
+  const response = await axios.get<TypesGen.User[]>("/api/v2/users?offset=0&limit=1000")
+  return response.data
 }
 
 export const createUser = async (user: Types.CreateUserRequest): Promise<TypesGen.User> => {

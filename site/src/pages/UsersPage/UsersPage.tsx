@@ -2,13 +2,14 @@ import { useActor } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { useNavigate } from "react-router"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
+import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
 
 export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
-  const { users, pager, getUsersError } = usersState.context
+  const { users, getUsersError } = usersState.context
   const navigate = useNavigate()
 
   /**
@@ -20,15 +21,18 @@ export const UsersPage: React.FC = () => {
 
   if (usersState.matches("error")) {
     return <ErrorSummary error={getUsersError} />
-  } else {
-    return (
-      <UsersPageView
-        users={users}
-        pager={pager}
-        openUserCreationDialog={() => {
-          navigate("/users/create")
-        }}
-      />
-    )
   }
+
+  if (!users) {
+    return <FullScreenLoader />
+  }
+
+  return (
+    <UsersPageView
+      users={users}
+      openUserCreationDialog={() => {
+        navigate("/users/create")
+      }}
+    />
+  )
 }

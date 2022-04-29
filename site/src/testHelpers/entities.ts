@@ -1,7 +1,6 @@
 import {
   BuildInfoResponse,
   Organization,
-  Pager,
   Provisioner,
   Template,
   UserAgent,
@@ -36,10 +35,6 @@ export const MockUser2: UserResponse = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-}
-
-export const MockPager: Pager = {
-  total: 2,
 }
 
 export const MockOrganization: Organization = {
