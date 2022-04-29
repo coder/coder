@@ -1590,7 +1590,7 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAuditLogsBefore(ctx context.Context, arg database.GetAuditLogsBeforeParams) ([]database.AuditLog, error) {
+func (q *fakeQuerier) GetAuditLogsBefore(_ context.Context, arg database.GetAuditLogsBeforeParams) ([]database.AuditLog, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1622,7 +1622,7 @@ func (q *fakeQuerier) GetAuditLogsBefore(ctx context.Context, arg database.GetAu
 	return logs, nil
 }
 
-func (q *fakeQuerier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
+func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
