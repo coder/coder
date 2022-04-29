@@ -14,6 +14,13 @@ import (
 
 type userParamContextKey struct{}
 
+const (
+	// userErrorMessage is a constant so that no information about the state
+	// of the queried user can be gained. We return the same error if the user
+	// does not exist, or if the input is just garbage.
+	userErrorMessage = "\"user\" must be an existing uuid or username"
+)
+
 // UserParam returns the user from the ExtractUserParam handler.
 func UserParam(r *http.Request) database.User {
 	user, ok := r.Context().Value(userParamContextKey{}).(database.User)
@@ -51,8 +58,8 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				// If the userQuery is a valid uuid
 				user, err = db.GetUserByID(r.Context(), userID)
 				if err != nil {
-					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-						Message: fmt.Sprintf("get user: %s", err.Error()),
+					httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+						Message: userErrorMessage,
 					})
 					return
 				}
@@ -62,12 +69,8 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 					Username: userQuery,
 				})
 				if err != nil {
-					// If the error is no rows, they might have inputted something
-					// that is not a username or uuid. Regardless, let's not indicate if
-					// the user exists or not. Just lump all these errors into
-					// something generic.
 					httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-						Message: "\"user\" must be a uuid or username",
+						Message: userErrorMessage,
 					})
 					return
 				}
