@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -283,6 +284,118 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, userProfile.Username, me.Username)
 		require.Equal(t, userProfile.Email, "newemail@coder.com")
+	})
+}
+
+func TestGrantRoles(t *testing.T) {
+	t.Parallel()
+	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		admin := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, admin)
+		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+
+		_, err := admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+		})
+		require.Error(t, err, "org role in site")
+
+		_, err = admin.UpdateUserRoles(ctx, uuid.New(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+		})
+		require.Error(t, err, "user does not exist")
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "site role in org")
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "role in org without membership")
+
+		_, err = member.UpdateUserRoles(ctx, first.UserID, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "member cannot change other's roles")
+
+		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "member cannot change other's org roles")
+	})
+
+	t.Run("FirstUserRoles", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		roles, err := client.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleAdmin(),
+			rbac.RoleMember(),
+		}, "should be a member and admin")
+
+		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
+			rbac.RoleOrgMember(first.OrganizationID),
+			rbac.RoleOrgAdmin(first.OrganizationID),
+		}, "should be a member and admin")
+	})
+
+	t.Run("GrantAdmin", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		admin := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, admin)
+
+		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+		roles, err := member.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleMember(),
+		}, "should be a member and admin")
+		require.ElementsMatch(t,
+			roles.OrganizationRoles[first.OrganizationID],
+			[]string{rbac.RoleOrgMember(first.OrganizationID)},
+		)
+
+		// Grant
+		// TODO: @emyrk this should be 'admin.UpdateUserRoles' once proper authz
+		//		is enforced.
+		_, err = member.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{
+				// Promote to site admin
+				rbac.RoleMember(),
+				rbac.RoleAdmin(),
+			},
+		})
+		require.NoError(t, err, "grant member admin role")
+
+		// Promote to org admin
+		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{
+				// Promote to org admin
+				rbac.RoleOrgMember(first.OrganizationID),
+				rbac.RoleOrgAdmin(first.OrganizationID),
+			},
+		})
+		require.NoError(t, err, "grant member org admin role")
+
+		roles, err = member.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleMember(),
+			rbac.RoleAdmin(),
+		}, "should be a member and admin")
+
+		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
+			rbac.RoleOrgMember(first.OrganizationID),
+			rbac.RoleOrgAdmin(first.OrganizationID),
+		}, "should be a member and admin")
 	})
 }
 

@@ -398,6 +398,7 @@ type User struct {
 	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
 	Status         UserStatus `db:"status" json:"status"`
+	RBACRoles      []string   `db:"rbac_roles" json:"rbac_roles"`
 }
 
 type Workspace struct {

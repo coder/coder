@@ -33,10 +33,11 @@ INSERT INTO
 		username,
 		hashed_password,
 		created_at,
-		updated_at
+		updated_at,
+		rbac_roles
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE
@@ -47,6 +48,16 @@ SET
 	updated_at = $4
 WHERE
 	id = $1 RETURNING *;
+
+-- name: UpdateUserRoles :one
+UPDATE
+    users
+SET
+	-- Remove all duplicates from the roles.
+	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(@granted_roles :: text[]))
+WHERE
+ 	id = @id
+RETURNING *;
 
 -- name: GetUsers :many
 SELECT

@@ -375,6 +375,44 @@ func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetO
 	return i, err
 }
 
+const getOrganizationMembershipsByUserID = `-- name: GetOrganizationMembershipsByUserID :many
+SELECT
+	user_id, organization_id, created_at, updated_at, roles
+FROM
+	organization_members
+WHERE
+  user_id = $1
+`
+
+func (q *sqlQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]OrganizationMember, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationMembershipsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrganizationMember
+	for rows.Next() {
+		var i OrganizationMember
+		if err := rows.Scan(
+			&i.UserID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			pq.Array(&i.Roles),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertOrganizationMember = `-- name: InsertOrganizationMember :one
 INSERT INTO
 	organization_members (
@@ -404,6 +442,37 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 		arg.UpdatedAt,
 		pq.Array(arg.Roles),
 	)
+	var i OrganizationMember
+	err := row.Scan(
+		&i.UserID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		pq.Array(&i.Roles),
+	)
+	return i, err
+}
+
+const updateMemberRoles = `-- name: UpdateMemberRoles :one
+UPDATE
+	organization_members
+SET
+	-- Remove all duplicates from the roles.
+	roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
+WHERE
+		user_id = $2
+		AND organization_id = $3
+RETURNING user_id, organization_id, created_at, updated_at, roles
+`
+
+type UpdateMemberRolesParams struct {
+	GrantedRoles []string  `db:"granted_roles" json:"granted_roles"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	OrgID        uuid.UUID `db:"org_id" json:"org_id"`
+}
+
+func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error) {
+	row := q.db.QueryRowContext(ctx, updateMemberRoles, pq.Array(arg.GrantedRoles), arg.UserID, arg.OrgID)
 	var i OrganizationMember
 	err := row.Scan(
 		&i.UserID,
@@ -1821,7 +1890,7 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
 FROM
 	users
 WHERE
@@ -1847,13 +1916,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
 FROM
 	users
 WHERE
@@ -1873,6 +1943,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -1893,7 +1964,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
 FROM
 	users
 WHERE
@@ -1978,6 +2049,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
+			pq.Array(&i.RBACRoles),
 		); err != nil {
 			return nil, err
 		}
@@ -2000,10 +2072,11 @@ INSERT INTO
 		username,
 		hashed_password,
 		created_at,
-		updated_at
+		updated_at,
+		rbac_roles
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, email, username, hashed_password, created_at, updated_at, status
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
 `
 
 type InsertUserParams struct {
@@ -2013,6 +2086,7 @@ type InsertUserParams struct {
 	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	RBACRoles      []string  `db:"rbac_roles" json:"rbac_roles"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
@@ -2023,6 +2097,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		pq.Array(arg.RBACRoles),
 	)
 	var i User
 	err := row.Scan(
@@ -2033,6 +2108,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -2045,7 +2121,7 @@ SET
 	username = $3,
 	updated_at = $4
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
 `
 
 type UpdateUserProfileParams struct {
@@ -2071,6 +2147,39 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		pq.Array(&i.RBACRoles),
+	)
+	return i, err
+}
+
+const updateUserRoles = `-- name: UpdateUserRoles :one
+UPDATE
+    users
+SET
+	-- Remove all duplicates from the roles.
+	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
+WHERE
+ 	id = $2
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
+`
+
+type UpdateUserRolesParams struct {
+	GrantedRoles []string  `db:"granted_roles" json:"granted_roles"`
+	ID           uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserRoles, pq.Array(arg.GrantedRoles), arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }
@@ -2082,7 +2191,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
 `
 
 type UpdateUserStatusParams struct {
@@ -2102,6 +2211,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Status,
+		pq.Array(&i.RBACRoles),
 	)
 	return i, err
 }

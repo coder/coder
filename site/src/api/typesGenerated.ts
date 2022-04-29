@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:96:6
+// From codersdk/users.go:105:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -44,7 +44,7 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
-// From codersdk/users.go:91:6
+// From codersdk/users.go:100:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -100,7 +100,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:87:6
+// From codersdk/users.go:96:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -118,13 +118,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:76:6
+// From codersdk/users.go:85:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:82:6
+// From codersdk/users.go:91:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -135,6 +135,15 @@ export interface Organization {
   readonly name: string
   readonly created_at: string
   readonly updated_at: string
+}
+
+// From codersdk/organizationmember.go:9:6
+export interface OrganizationMember {
+  readonly user_id: string
+  readonly organization_id: string
+  readonly created_at: string
+  readonly updated_at: string
+  readonly roles: string[]
 }
 
 // From codersdk/parameters.go:26:6
@@ -245,6 +254,11 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
+// From codersdk/users.go:75:6
+export interface UpdateRoles {
+  readonly roles: string[]
+}
+
 // From codersdk/users.go:70:6
 export interface UpdateUserProfileRequest {
   readonly email: string
@@ -274,6 +288,12 @@ export interface User {
   readonly username: string
   readonly status: UserStatus
   readonly organization_ids: string[]
+}
+
+// From codersdk/users.go:79:6
+export interface UserRoles {
+  readonly roles: string[]
+  readonly organization_roles: Record<string, string[]>
 }
 
 // From codersdk/users.go:24:6
