@@ -28,3 +28,4 @@ rename:
   parameter_type_system_hcl: ParameterTypeSystemHCL
   userstatus: UserStatus
   gitsshkey: GitSSHKey
+  rbac_roles: RBACRoles

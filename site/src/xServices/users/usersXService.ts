@@ -10,8 +10,7 @@ export const Language = {
 }
 
 export interface UsersContext {
-  users: Types.UserResponse[]
-  pager?: Types.Pager
+  users?: TypesGen.User[]
   getUsersError?: Error | unknown
   createUserError?: Error | unknown
   createUserFormErrors?: FieldErrors
@@ -27,7 +26,7 @@ export const usersMachine = createMachine(
       events: {} as UsersEvent,
       services: {} as {
         getUsers: {
-          data: Types.PagedUsers
+          data: TypesGen.User[]
         }
         createUser: {
           data: TypesGen.User
@@ -104,8 +103,7 @@ export const usersMachine = createMachine(
     },
     actions: {
       assignUsers: assign({
-        users: (_, event) => event.data.page,
-        pager: (_, event) => event.data.pager,
+        users: (_, event) => event.data,
       }),
       assignGetUsersError: assign({
         getUsersError: (_, event) => event.data,

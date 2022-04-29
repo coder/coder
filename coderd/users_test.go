@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -286,6 +287,118 @@ func TestUpdateUserProfile(t *testing.T) {
 	})
 }
 
+func TestGrantRoles(t *testing.T) {
+	t.Parallel()
+	t.Run("UpdateIncorrectRoles", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		admin := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, admin)
+		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+
+		_, err := admin.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+		})
+		require.Error(t, err, "org role in site")
+
+		_, err = admin.UpdateUserRoles(ctx, uuid.New(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
+		})
+		require.Error(t, err, "user does not exist")
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "site role in org")
+
+		_, err = admin.UpdateOrganizationMemberRoles(ctx, uuid.New(), codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "role in org without membership")
+
+		_, err = member.UpdateUserRoles(ctx, first.UserID, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "member cannot change other's roles")
+
+		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID, codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleMember()},
+		})
+		require.Error(t, err, "member cannot change other's org roles")
+	})
+
+	t.Run("FirstUserRoles", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		roles, err := client.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleAdmin(),
+			rbac.RoleMember(),
+		}, "should be a member and admin")
+
+		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
+			rbac.RoleOrgMember(first.OrganizationID),
+			rbac.RoleOrgAdmin(first.OrganizationID),
+		}, "should be a member and admin")
+	})
+
+	t.Run("GrantAdmin", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		admin := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, admin)
+
+		member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+		roles, err := member.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleMember(),
+		}, "should be a member and admin")
+		require.ElementsMatch(t,
+			roles.OrganizationRoles[first.OrganizationID],
+			[]string{rbac.RoleOrgMember(first.OrganizationID)},
+		)
+
+		// Grant
+		// TODO: @emyrk this should be 'admin.UpdateUserRoles' once proper authz
+		//		is enforced.
+		_, err = member.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{
+				// Promote to site admin
+				rbac.RoleMember(),
+				rbac.RoleAdmin(),
+			},
+		})
+		require.NoError(t, err, "grant member admin role")
+
+		// Promote to org admin
+		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, codersdk.Me, codersdk.UpdateRoles{
+			Roles: []string{
+				// Promote to org admin
+				rbac.RoleOrgMember(first.OrganizationID),
+				rbac.RoleOrgAdmin(first.OrganizationID),
+			},
+		})
+		require.NoError(t, err, "grant member org admin role")
+
+		roles, err = member.GetUserRoles(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.ElementsMatch(t, roles.Roles, []string{
+			rbac.RoleMember(),
+			rbac.RoleAdmin(),
+		}, "should be a member and admin")
+
+		require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
+			rbac.RoleOrgMember(first.OrganizationID),
+			rbac.RoleOrgAdmin(first.OrganizationID),
+		}, "should be a member and admin")
+	})
+}
+
 func TestPutUserSuspend(t *testing.T) {
 	t.Parallel()
 
@@ -318,31 +431,97 @@ func TestPutUserSuspend(t *testing.T) {
 	})
 }
 
-func TestUserByName(t *testing.T) {
+func TestGetUser(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, client)
-	user, err := client.User(context.Background(), codersdk.Me)
 
-	require.NoError(t, err)
-	require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	t.Run("ByMe", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		user, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, firstUser.UserID, user.ID)
+		require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	})
+
+	t.Run("ByID", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		user, err := client.User(context.Background(), firstUser.UserID)
+		require.NoError(t, err)
+		require.Equal(t, firstUser.UserID, user.ID)
+		require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	})
+
+	t.Run("ByUsername", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		exp, err := client.User(context.Background(), firstUser.UserID)
+		require.NoError(t, err)
+
+		user, err := client.UserByUsername(context.Background(), exp.Username)
+		require.NoError(t, err)
+		require.Equal(t, exp, user)
+	})
 }
 
 func TestGetUsers(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	client.CreateUser(context.Background(), codersdk.CreateUserRequest{
-		Email:          "alice@email.com",
-		Username:       "alice",
-		Password:       "password",
-		OrganizationID: user.OrganizationID,
+	t.Run("AllUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		// No params is all users
+		users, err := client.Users(context.Background(), codersdk.UsersRequest{})
+		require.NoError(t, err)
+		require.Len(t, users, 2)
+		require.Len(t, users[0].OrganizationIDs, 1)
 	})
-	// No params is all users
-	users, err := client.Users(context.Background(), codersdk.UsersRequest{})
-	require.NoError(t, err)
-	require.Len(t, users, 2)
-	require.Len(t, users[0].OrganizationIDs, 1)
+	t.Run("ActiveUsers", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		active := make([]codersdk.User, 0)
+		alice, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "alice@email.com",
+			Username:       "alice",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+		active = append(active, alice)
+
+		bruno, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "bruno@email.com",
+			Username:       "bruno",
+			Password:       "password",
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+		active = append(active, bruno)
+
+		_, err = client.SuspendUser(context.Background(), first.UserID)
+		require.NoError(t, err)
+
+		users, err := client.Users(context.Background(), codersdk.UsersRequest{
+			Status: string(codersdk.UserStatusActive),
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, active, users)
+	})
 }
 
 func TestOrganizationsByUser(t *testing.T) {
