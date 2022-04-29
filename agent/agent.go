@@ -484,6 +484,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		}
 		a.reconnectingPTYs.Store(id, rpty)
 		go func() {
+			// CommandContext isn't respected for Windows PTYs right now,
+			// so we need to manually track the lifecycle.
 			// When the context has been completed either:
 			// 1. The timeout completed.
 			// 2. The parent context was canceled.

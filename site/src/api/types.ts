@@ -87,6 +87,7 @@ export interface WorkspaceResource {
 export interface WorkspaceAgent {
   id: string
   name: string
+  operating_system: string
 }
 
 export interface APIKeyResponse {

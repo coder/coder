@@ -1,5 +1,4 @@
 import { waitFor } from "@testing-library/react"
-import crypto from "crypto"
 import "jest-canvas-mock"
 import WS from "jest-websocket-mock"
 import { rest } from "msw"
@@ -23,12 +22,6 @@ Object.defineProperty(window, "matchMedia", {
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
-})
-
-Object.defineProperty(window, "crypto", {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
 })
 
 Object.defineProperty(window, "TextEncoder", {

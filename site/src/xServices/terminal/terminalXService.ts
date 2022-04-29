@@ -48,7 +48,7 @@ export const terminalMachine =
         },
       },
       id: "terminalState",
-      initial: "disconnected",
+      initial: "gettingOrganizations",
       states: {
         gettingOrganizations: {
           invoke: {
@@ -150,13 +150,13 @@ export const terminalMachine =
     {
       services: {
         getOrganizations: API.getOrganizations,
-        getWorkspace: async (context: TerminalContext) => {
+        getWorkspace: async (context) => {
           if (!context.organizations || !context.workspaceName) {
             throw new Error("organizations or workspace not set")
           }
           return API.getWorkspace(context.organizations[0].id, context.username, context.workspaceName)
         },
-        getWorkspaceAgent: async (context: TerminalContext) => {
+        getWorkspaceAgent: async (context) => {
           if (!context.workspace || !context.workspaceName) {
             throw new Error("workspace or workspace name is not set")
           }
@@ -167,38 +167,29 @@ export const terminalMachine =
           const agentName = workspaceNameParts[1]
 
           const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
-          for (let i = 0; i < resources.length; i++) {
-            const resource = resources[i]
-            if (!resource.agents) {
-              continue
-            }
-            if (resource.agents.length <= 0) {
-              continue
-            }
-            if (!agentName) {
-              return resource.agents[0]
-            }
-            for (let a = 0; a < resource.agents.length; a++) {
-              const agent = resource.agents[a]
-              if (agent.name !== agentName) {
-                continue
+
+          const agent = resources
+            .map((resource) => {
+              if (!resource.agents || resource.agents.length < 1) {
+                return
               }
-              return agent
-            }
+              if (!agentName) {
+                return resource.agents[0]
+              }
+              return resource.agents.find((agent) => agent.name === agentName)
+            })
+            .filter((a) => a)[0]
+          if (!agent) {
+            throw new Error("no agent found with id")
           }
-          throw new Error("no agent found with id")
+          return agent
         },
-        connect: (context: TerminalContext) => (send) => {
+        connect: (context) => (send) => {
           return new Promise<WebSocket>((resolve, reject) => {
             if (!context.workspaceAgent) {
               return reject("workspace agent is not set")
             }
-            let proto = location.protocol
-            if (proto === "https:") {
-              proto = "wss:"
-            } else {
-              proto = "ws:"
-            }
+            const proto = location.protocol === "https:" ? "wss:" : "ws:"
             const socket = new WebSocket(
               `${proto}//${location.host}/api/v2/workspaceagents/${context.workspaceAgent.id}/pty?reconnect=${context.reconnection}`,
             )
@@ -274,9 +265,6 @@ export const terminalMachine =
             throw new Error("websocket doesn't exist")
           }
           context.websocket.send(new TextEncoder().encode(JSON.stringify(event.request)))
-        },
-        readMessage: () => {
-          // Override this with the terminal writer!
         },
         disconnect: (context: TerminalContext) => {
           // Code 1000 is a successful exit!

@@ -2,6 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import React from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
 import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
@@ -14,14 +15,6 @@ export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
-}
-
-// TypeScript doesn't have the randomUUID type on Crypto yet. See:
-// https://github.com/denoland/deno/issues/12754#issuecomment-970386235
-declare global {
-  interface Crypto {
-    randomUUID: () => string
-  }
 }
 
 export const TerminalPage: React.FC<{
@@ -39,13 +32,14 @@ export const TerminalPage: React.FC<{
   // a round-trip, and must be a UUIDv4.
   const [reconnectionToken] = React.useState<string>(() => {
     const search = new URLSearchParams(location.search)
-    let reconnect = search.get("reconnect")
-    if (reconnect === null) {
-      reconnect = crypto.randomUUID()
-    }
-    return reconnect
+    return search.get("reconnect") ?? uuidv4()
   })
   const [terminalState, sendEvent] = useMachine(terminalMachine, {
+    context: {
+      reconnection: reconnectionToken,
+      workspaceName: workspace,
+      username: username,
+    },
     actions: {
       readMessage: (_, event) => {
         if (typeof event.data === "string") {
@@ -59,6 +53,8 @@ export const TerminalPage: React.FC<{
     },
   })
   const isConnected = terminalState.matches("connected")
+  const { organizationsError, workspaceError, workspaceAgentError, workspaceAgent, websocketError } =
+    terminalState.context
 
   // Create the terminal!
   React.useEffect(() => {
@@ -125,13 +121,7 @@ export const TerminalPage: React.FC<{
         replace: true,
       },
     )
-    sendEvent({
-      type: "CONNECT",
-      reconnection: reconnectionToken,
-      workspaceName: workspace,
-      username: username,
-    })
-  }, [location.search, navigate, workspace, username, sendEvent, reconnectionToken])
+  }, [location.search, navigate, reconnectionToken])
 
   // Apply terminal options based on connection state.
   React.useEffect(() => {
@@ -150,17 +140,17 @@ export const TerminalPage: React.FC<{
       terminal.options = {
         disableStdin: true,
       }
-      if (terminalState.context.organizationsError instanceof Error) {
-        terminal.writeln(Language.organizationsErrorMessagePrefix + terminalState.context.organizationsError.message)
+      if (organizationsError instanceof Error) {
+        terminal.writeln(Language.organizationsErrorMessagePrefix + organizationsError.message)
       }
-      if (terminalState.context.workspaceError instanceof Error) {
-        terminal.writeln(Language.workspaceErrorMessagePrefix + terminalState.context.workspaceError.message)
+      if (workspaceError instanceof Error) {
+        terminal.writeln(Language.workspaceErrorMessagePrefix + workspaceError.message)
       }
-      if (terminalState.context.workspaceAgentError instanceof Error) {
-        terminal.writeln(Language.workspaceAgentErrorMessagePrefix + terminalState.context.workspaceAgentError.message)
+      if (workspaceAgentError instanceof Error) {
+        terminal.writeln(Language.workspaceAgentErrorMessagePrefix + workspaceAgentError.message)
       }
-      if (terminalState.context.websocketError instanceof Error) {
-        terminal.writeln(Language.websocketErrorMessagePrefix + terminalState.context.websocketError.message)
+      if (websocketError instanceof Error) {
+        terminal.writeln(Language.websocketErrorMessagePrefix + websocketError.message)
       }
       return
     }
@@ -174,6 +164,7 @@ export const TerminalPage: React.FC<{
     terminal.focus()
     terminal.options = {
       disableStdin: false,
+      windowsMode: workspaceAgent?.operating_system === "windows",
     }
 
     // Update the terminal size post-fit.
@@ -185,10 +176,11 @@ export const TerminalPage: React.FC<{
       },
     })
   }, [
-    terminalState.context.workspaceError,
-    terminalState.context.organizationsError,
-    terminalState.context.workspaceAgentError,
-    terminalState.context.websocketError,
+    workspaceError,
+    organizationsError,
+    workspaceAgentError,
+    websocketError,
+    workspaceAgent,
     terminal,
     fitAddon,
     isConnected,
@@ -199,7 +191,9 @@ export const TerminalPage: React.FC<{
     <>
       {/* This overlay makes it more obvious that the terminal is disconnected. */}
       {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
-      <div className={`${styles.overlay} ${isConnected ? "connected" : ""}`} />
+      <div className={`${styles.overlay} ${isConnected ? "connected" : ""}`}>
+        <span>Disconnected</span>
+      </div>
       <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
     </>
   )
@@ -214,6 +208,12 @@ const useStyles = makeStyles(() => ({
     bottom: 0,
     right: 0,
     zIndex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    display: "flex",
+    color: "white",
+    fontFamily: MONOSPACE_FONT_FAMILY,
+    fontSize: 18,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     "&.connected": {
       opacity: 0,

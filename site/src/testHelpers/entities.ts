@@ -102,6 +102,7 @@ export const MockWorkspace: Workspace = {
 export const MockWorkspaceAgent: WorkspaceAgent = {
   id: "test-workspace-agent",
   name: "a-workspace-agent",
+  operating_system: "linux",
 }
 
 export const MockWorkspaceResource: WorkspaceResource = {
