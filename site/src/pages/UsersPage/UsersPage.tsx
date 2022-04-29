@@ -25,14 +25,14 @@ export const UsersPage: React.FC = () => {
 
   if (!users) {
     return <FullScreenLoader />
+  } else {
+    return (
+      <UsersPageView
+        users={users}
+        openUserCreationDialog={() => {
+          navigate("/users/create")
+        }}
+      />
+    )
   }
-
-  return (
-    <UsersPageView
-      users={users}
-      openUserCreationDialog={() => {
-        navigate("/users/create")
-      }}
-    />
-  )
 }
