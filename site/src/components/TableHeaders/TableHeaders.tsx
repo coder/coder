@@ -17,7 +17,7 @@ export const TableHeaders: React.FC<TableHeadersProps> = ({ columns, hasMenu }) 
           {c}
         </TableCell>
       ))}
-      {/* 1% is a hack to make the table cell width fits the content */}
+      {/* 1% is a trick to make the table cell width fit the content */}
       {hasMenu && <TableCell width="1%" />}
     </TableRow>
   )
