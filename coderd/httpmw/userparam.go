@@ -34,7 +34,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 			userQuery := chi.URLParam(r, "user")
 			if userQuery == "" {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: fmt.Sprintf("%q must be provided", "user"),
+					Message: "\"user\" must be provided",
 				})
 				return
 			}
@@ -67,7 +67,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 					// the user exists or not. Just lump all these errors into
 					// something generic.
 					httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-						Message: fmt.Sprint("\"user\" must be a uuid or username"),
+						Message: "\"user\" must be a uuid or username",
 					})
 					return
 				}
