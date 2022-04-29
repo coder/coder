@@ -2,6 +2,8 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -90,7 +92,9 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug))
+	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
@@ -138,7 +142,9 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 
 	agentClient := codersdk.New(client.URL)
 	agentClient.SessionToken = authToken
-	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, slogtest.Make(t, nil))
+	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+		Logger: slogtest.Make(t, nil),
+	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
@@ -155,4 +161,81 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	})
 	_, err = conn.Ping()
 	require.NoError(t, err)
+}
+
+func TestWorkspaceAgentPTY(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	daemonCloser.Close()
+
+	agentClient := codersdk.New(client.URL)
+	agentClient.SessionToken = authToken
+	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
+		Logger: slogtest.Make(t, nil),
+	})
+	t.Cleanup(func() {
+		_ = agentCloser.Close()
+	})
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+
+	conn, err := client.WorkspaceAgentReconnectingPTY(context.Background(), resources[0].Agents[0].ID, uuid.New(), 80, 80)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// First attempt to resize the TTY.
+	// The websocket will close if it fails!
+	data, err := json.Marshal(agent.ReconnectingPTYRequest{
+		Height: 250,
+		Width:  250,
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	data, err = json.Marshal(agent.ReconnectingPTYRequest{
+		Data: "echo test\r\n",
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	findEcho := func() {
+		for {
+			read, err := conn.Read(data)
+			require.NoError(t, err)
+			if strings.Contains(string(data[:read]), "test") {
+				return
+			}
+		}
+	}
+
+	findEcho()
+	findEcho()
 }

@@ -338,6 +338,37 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
 }
 
+// WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
+// It communicates using `agent.ReconnectingPTYRequest` marshaled as JSON.
+// Responses are PTY output that can be rendered.
+func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, reconnect uuid.UUID, height, width int) (net.Conn, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty?reconnect=%s&height=%d&width=%d", agentID, reconnect, height, width))
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  httpmw.AuthCookie,
+		Value: c.SessionToken,
+	}})
+	httpClient := &http.Client{
+		Jar: jar,
+	}
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient: httpClient,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, readBodyAsError(res)
+	}
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
 func (c *Client) turnProxyDialer(ctx context.Context, httpClient *http.Client, path string) proxy.Dialer {
 	return turnconn.ProxyDialer(func() (net.Conn, error) {
 		turnURL, err := c.URL.Parse(path)

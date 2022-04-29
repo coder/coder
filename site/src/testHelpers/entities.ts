@@ -6,7 +6,9 @@ import {
   UserAgent,
   UserResponse,
   Workspace,
+  WorkspaceAgent,
   WorkspaceAutostartRequest,
+  WorkspaceResource,
 } from "../api/types"
 import { AuthMethods } from "../api/typesGenerated"
 
@@ -87,6 +89,20 @@ export const MockWorkspace: Workspace = {
   owner_id: MockUser.id,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
+  latest_build: {
+    id: "test-workspace-build",
+  },
+}
+
+export const MockWorkspaceAgent: WorkspaceAgent = {
+  id: "test-workspace-agent",
+  name: "a-workspace-agent",
+  operating_system: "linux",
+}
+
+export const MockWorkspaceResource: WorkspaceResource = {
+  id: "test-workspace-resource",
+  agents: [MockWorkspaceAgent],
 }
 
 export const MockUserAgent: UserAgent = {

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -19,7 +20,9 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker"
 	"github.com/coder/coder/peerbroker/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -59,9 +62,7 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
+	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("accept websocket: %s", err),
@@ -318,6 +319,135 @@ func (api *api) workspaceAgentTurn(rw http.ResponseWriter, r *http.Request) {
 	case <-r.Context().Done():
 	}
 	api.Logger.Debug(r.Context(), "completed turn connection", slog.F("remote-address", r.RemoteAddr), slog.F("local-address", localAddress))
+}
+
+// workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
+// This is used for the web terminal.
+func (api *api) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
+	api.websocketWaitMutex.Lock()
+	api.websocketWaitGroup.Add(1)
+	api.websocketWaitMutex.Unlock()
+	defer api.websocketWaitGroup.Done()
+
+	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspace agent: %s", err),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
+			Message: fmt.Sprintf("agent must be in the connected state: %s", apiAgent.Status),
+		})
+		return
+	}
+
+	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("reconnection must be a uuid: %s", err),
+		})
+		return
+	}
+	height, err := strconv.Atoi(r.URL.Query().Get("height"))
+	if err != nil {
+		height = 80
+	}
+	width, err := strconv.Atoi(r.URL.Query().Get("width"))
+	if err != nil {
+		width = 80
+	}
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("accept websocket: %s", err),
+		})
+		return
+	}
+	defer func() {
+		_ = conn.Close(websocket.StatusNormalClosure, "ended")
+	}()
+	// Accept text connections, because it's more developer friendly.
+	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
+	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
+		return
+	}
+	defer agentConn.Close()
+	ptNetConn, err := agentConn.ReconnectingPTY(reconnect.String(), uint16(height), uint16(width))
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
+		return
+	}
+	defer ptNetConn.Close()
+	// Pipe the ends together!
+	go func() {
+		_, _ = io.Copy(wsNetConn, ptNetConn)
+	}()
+	_, _ = io.Copy(ptNetConn, wsNetConn)
+}
+
+// dialWorkspaceAgent connects to a workspace agent by ID.
+func (api *api) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.Conn, error) {
+	client, server := provisionersdk.TransportPipe()
+	go func() {
+		_ = peerbroker.ProxyListen(r.Context(), server, peerbroker.ProxyOptions{
+			ChannelID: agentID.String(),
+			Logger:    api.Logger.Named("peerbroker-proxy-dial"),
+			Pubsub:    api.Pubsub,
+		})
+		_ = client.Close()
+		_ = server.Close()
+	}()
+
+	peerClient := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(client))
+	stream, err := peerClient.NegotiateConnection(r.Context())
+	if err != nil {
+		return nil, xerrors.Errorf("negotiate: %w", err)
+	}
+	options := &peer.ConnOptions{}
+	options.SettingEngine.SetSrflxAcceptanceMinWait(0)
+	options.SettingEngine.SetRelayAcceptanceMinWait(0)
+	// Use the ProxyDialer for the TURN server.
+	// This is required for connections where P2P is not enabled.
+	options.SettingEngine.SetICEProxyDialer(turnconn.ProxyDialer(func() (c net.Conn, err error) {
+		clientPipe, serverPipe := net.Pipe()
+		go func() {
+			<-r.Context().Done()
+			_ = clientPipe.Close()
+			_ = serverPipe.Close()
+		}()
+		localAddress, _ := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+		remoteAddress := &net.TCPAddr{
+			IP: net.ParseIP(r.RemoteAddr),
+		}
+		// By default requests have the remote address and port.
+		host, port, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			return nil, xerrors.Errorf("split remote address: %w", err)
+		}
+		remoteAddress.IP = net.ParseIP(host)
+		remoteAddress.Port, err = strconv.Atoi(port)
+		if err != nil {
+			return nil, xerrors.Errorf("convert remote port: %w", err)
+		}
+		api.TURNServer.Accept(clientPipe, remoteAddress, localAddress)
+		return serverPipe, nil
+	}))
+	peerConn, err := peerbroker.Dial(stream, append(api.ICEServers, turnconn.Proxy), options)
+	if err != nil {
+		return nil, xerrors.Errorf("dial: %w", err)
+	}
+	return &agent.Conn{
+		Negotiator: peerClient,
+		Conn:       peerConn,
+	}, nil
 }
 
 func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {

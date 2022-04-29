@@ -3194,6 +3194,11 @@
   resolved "https://registry.yarnpkg.com/@types/unist/-/unist-2.0.6.tgz#250a7b16c3b91f672a24552ec64678eeb1d3a08d"
   integrity sha512-PBjIUxZHOuj0R15/xuwJYjFi+KZdNFrehocChv4g5hu6aFroHue8m0lBP0POdK2nKzbw0cgV1mws8+V/JAcEkQ==
 
+"@types/uuid@^8.3.4":
+  version "8.3.4"
+  resolved "https://registry.yarnpkg.com/@types/uuid/-/uuid-8.3.4.tgz#bd86a43617df0594787d38b735f55c805becf1bc"
+  integrity sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==
+
 "@types/webpack-env@^1.16.0":
   version "1.16.3"
   resolved "https://registry.yarnpkg.com/@types/webpack-env/-/webpack-env-1.16.3.tgz#b776327a73e561b71e7881d0cd6d34a1424db86a"
@@ -5083,7 +5088,7 @@ color-name@1.1.3:
   resolved "https://registry.yarnpkg.com/color-name/-/color-name-1.1.3.tgz#a7d0558bd89c42f795dd42328f740831ca53bc25"
   integrity sha1-p9BVi9icQveV3UIyj3QIMcpTvCU=
 
-color-name@^1.0.0, color-name@~1.1.4:
+color-name@^1.0.0, color-name@^1.1.4, color-name@~1.1.4:
   version "1.1.4"
   resolved "https://registry.yarnpkg.com/color-name/-/color-name-1.1.4.tgz#c2a09a87acbde69543de6f63fa3995c826c536a2"
   integrity sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==
@@ -5585,6 +5590,11 @@ cssesc@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/cssesc/-/cssesc-3.0.0.tgz#37741919903b868565e1c09ea747445cd18983ee"
   integrity sha512-/Tb/JcjK111nNScGob5MNtsntNM1aCNUDipB/TkwZFhyDrrE47SOx/18wF2bbjgc3ZzCSKW1T5nt5EbFoAz/Vg==
+
+cssfontparser@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/cssfontparser/-/cssfontparser-1.2.1.tgz#f4022fc8f9700c68029d542084afbaf425a3f3e3"
+  integrity sha1-9AIvyPlwDGgCnVQghK+69CWj8+M=
 
 cssnano-preset-default@^5.2.5:
   version "5.2.5"
@@ -8510,6 +8520,14 @@ iterate-value@^1.0.2:
     es-get-iterator "^1.0.2"
     iterate-iterator "^1.0.1"
 
+jest-canvas-mock@^2.4.0:
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/jest-canvas-mock/-/jest-canvas-mock-2.4.0.tgz#947b71442d7719f8e055decaecdb334809465341"
+  integrity sha512-mmMpZzpmLzn5vepIaHk5HoH3Ka4WykbSoLuG/EKoJd0x0ID/t+INo1l8ByfcUJuDM+RIsL4QDg/gDnBbrj2/IQ==
+  dependencies:
+    cssfontparser "^1.2.1"
+    moo-color "^1.0.2"
+
 jest-changed-files@^27.5.1:
   version "27.5.1"
   resolved "https://registry.yarnpkg.com/jest-changed-files/-/jest-changed-files-27.5.1.tgz#a348aed00ec9bf671cc58a66fcbe7c3dfd6a68f5"
@@ -8592,7 +8610,7 @@ jest-config@^27.5.1:
     slash "^3.0.0"
     strip-json-comments "^3.1.1"
 
-jest-diff@^27.2.5, jest-diff@^27.5.1:
+jest-diff@^27.0.2, jest-diff@^27.2.5, jest-diff@^27.5.1:
   version "27.5.1"
   resolved "https://registry.yarnpkg.com/jest-diff/-/jest-diff-27.5.1.tgz#a07f5011ac9e6643cf8a95a462b7b1ecf6680def"
   integrity sha512-m0NvkX55LDt9T4mctTEgnZk3fmEg3NRYutvMPWM/0iPnkFj2wIeF45O1718cMSOFO1vINkqmxqD8vE37uTEbqw==
@@ -8972,6 +8990,14 @@ jest-watcher@^27.5.1:
     chalk "^4.0.0"
     jest-util "^27.5.1"
     string-length "^4.0.1"
+
+jest-websocket-mock@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/jest-websocket-mock/-/jest-websocket-mock-2.3.0.tgz#317e7d7f8ba54ba632a7300777b02b7ebb606845"
+  integrity sha512-kXhRRApRdT4hLG/4rhsfcR0Ke0OzqIsDj0P5t0dl5aiAftShSgoRqp/0pyjS5bh+b9GrIzmfkrV2cn9LxxvSvA==
+  dependencies:
+    jest-diff "^27.0.2"
+    mock-socket "^9.1.0"
 
 jest-worker@^25.1.0:
   version "25.5.0"
@@ -9830,6 +9856,18 @@ mkdirp@^1.0.3, mkdirp@^1.0.4:
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-1.0.4.tgz#3eb5ed62622756d79a5f0e2a221dfebad75c2f7e"
   integrity sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==
+
+mock-socket@^9.1.0:
+  version "9.1.3"
+  resolved "https://registry.yarnpkg.com/mock-socket/-/mock-socket-9.1.3.tgz#bcb106c6b345001fa7619466fcf2f8f5a156b10f"
+  integrity sha512-uz8lx8c5wuJYJ21f5UtovqpV0+KJuVwE7cVOLNhrl2QW/CvmstOLRfjXnLSbfFHZtJtiaSGQu0oCJA8SmRcK6A==
+
+moo-color@^1.0.2:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/moo-color/-/moo-color-1.0.3.tgz#d56435f8359c8284d83ac58016df7427febece74"
+  integrity sha512-i/+ZKXMDf6aqYtBhuOcej71YSlbjT3wCO/4H1j8rPvxDJEifdwgg5MaFyu6iYAT8GBZJg2z0dkgK4YMzvURALQ==
+  dependencies:
+    color-name "^1.1.4"
 
 move-concurrently@^1.0.1:
   version "1.0.1"
@@ -14128,6 +14166,34 @@ xtend@^4.0.0, xtend@^4.0.1, xtend@~4.0.1:
   version "4.0.2"
   resolved "https://registry.yarnpkg.com/xtend/-/xtend-4.0.2.tgz#bb72779f5fa465186b1f438f674fa347fdb5db54"
   integrity sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==
+
+xterm-addon-fit@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/xterm-addon-fit/-/xterm-addon-fit-0.5.0.tgz#2d51b983b786a97dcd6cde805e700c7f913bc596"
+  integrity sha512-DsS9fqhXHacEmsPxBJZvfj2la30Iz9xk+UKjhQgnYNkrUIN5CYLbw7WEfz117c7+S86S/tpHPfvNxJsF5/G8wQ==
+
+xterm-addon-web-links@^0.5.1:
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.5.1.tgz#73bfa3ed567af98fba947f638bd12093ee2a0bc6"
+  integrity sha512-dBjbOIrCNmxAcUQkkSrKj9BM6yLpmqUpZ9SOCUuZe/sznPl4d8OBZQClK7VcdZ0vf0+5i5Fce2rUUrew/XTZTg==
+
+xterm-addon-webgl@^0.11.4:
+  version "0.11.4"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.11.4.tgz#e22f3ec0cafca3d4adcabb89bb7c16efaaf3c8db"
+  integrity sha512-/a/VFeftc+etGXQYWaaks977j1P7/wickBXn15zDxZzXYYMT9RN17ztqyIDVLXg9krtg28+icKK6lvgIYghJ0w==
+
+xterm-for-react@^1.0.4:
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/xterm-for-react/-/xterm-for-react-1.0.4.tgz#6b35b9b037a0f9d979e7b57bb1d7c6ab7565b380"
+  integrity sha512-DCkLR9ZXeW907YyyaCTk/3Ol34VRHfCnf3MAPOkj3dUNA85sDqHvTXN8efw4g7bx7gWdJQRsEpGt2tJOXKG3EQ==
+  dependencies:
+    prop-types "^15.7.2"
+    xterm "^4.5.0"
+
+xterm@^4.18.0, xterm@^4.5.0:
+  version "4.18.0"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.18.0.tgz#a1f6ab2c330c3918fb094ae5f4c2562987398ea1"
+  integrity sha512-JQoc1S0dti6SQfI0bK1AZvGnAxH4MVw45ZPFSO6FHTInAiau3Ix77fSxNx3mX4eh9OL4AYa8+4C8f5UvnSfppQ==
 
 y18n@^4.0.0:
   version "4.0.3"

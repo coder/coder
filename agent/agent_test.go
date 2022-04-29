@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
@@ -131,7 +133,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("SFTP", func(t *testing.T) {
 		t.Parallel()
-		sshClient, err := setupAgent(t, agent.Metadata{}).SSHClient()
+		sshClient, err := setupAgent(t, agent.Metadata{}, 0).SSHClient()
 		require.NoError(t, err)
 		client, err := sftp.NewClient(sshClient)
 		require.NoError(t, err)
@@ -168,7 +170,7 @@ func TestAgent(t *testing.T) {
 		content := "somethingnice"
 		setupAgent(t, agent.Metadata{
 			StartupScript: "echo " + content + " > " + tempPath,
-		})
+		}, 0)
 		var gotContent string
 		require.Eventually(t, func() bool {
 			content, err := os.ReadFile(tempPath)
@@ -188,10 +190,54 @@ func TestAgent(t *testing.T) {
 		}, 15*time.Second, 100*time.Millisecond)
 		require.Equal(t, content, strings.TrimSpace(gotContent))
 	})
+
+	t.Run("ReconnectingPTY", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			// This might be our implementation, or ConPTY itself.
+			// It's difficult to find extensive tests for it, so
+			// it seems like it could be either.
+			t.Skip("ConPTY appears to be inconsistent on Windows.")
+		}
+		conn := setupAgent(t, agent.Metadata{}, 0)
+		id := uuid.NewString()
+		netConn, err := conn.ReconnectingPTY(id, 100, 100)
+		require.NoError(t, err)
+
+		data, err := json.Marshal(agent.ReconnectingPTYRequest{
+			Data: "echo test\r\n",
+		})
+		require.NoError(t, err)
+		_, err = netConn.Write(data)
+		require.NoError(t, err)
+
+		findEcho := func() {
+			for {
+				read, err := netConn.Read(data)
+				require.NoError(t, err)
+				if strings.Contains(string(data[:read]), "test") {
+					break
+				}
+			}
+		}
+
+		// Once for typing the command...
+		findEcho()
+		// And another time for the actual output.
+		findEcho()
+
+		_ = netConn.Close()
+		netConn, err = conn.ReconnectingPTY(id, 100, 100)
+		require.NoError(t, err)
+
+		// Same output again!
+		findEcho()
+		findEcho()
+	})
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
-	agentConn := setupAgent(t, agent.Metadata{})
+	agentConn := setupAgent(t, agent.Metadata{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	go func() {
@@ -220,19 +266,22 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 }
 
 func setupSSHSession(t *testing.T, options agent.Metadata) *ssh.Session {
-	sshClient, err := setupAgent(t, options).SSHClient()
+	sshClient, err := setupAgent(t, options, 0).SSHClient()
 	require.NoError(t, err)
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	return session
 }
 
-func setupAgent(t *testing.T, options agent.Metadata) *agent.Conn {
+func setupAgent(t *testing.T, metadata agent.Metadata, ptyTimeout time.Duration) *agent.Conn {
 	client, server := provisionersdk.TransportPipe()
 	closer := agent.New(func(ctx context.Context, logger slog.Logger) (agent.Metadata, *peerbroker.Listener, error) {
 		listener, err := peerbroker.Listen(server, nil)
-		return options, listener, err
-	}, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		return metadata, listener, err
+	}, &agent.Options{
+		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		ReconnectingPTYTimeout: ptyTimeout,
+	})
 	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()

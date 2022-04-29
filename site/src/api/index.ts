@@ -80,6 +80,27 @@ export const getUsers = async (): Promise<TypesGen.User[]> => {
   return response.data
 }
 
+export const getOrganizations = async (): Promise<Types.Organization[]> => {
+  const response = await axios.get<Types.Organization[]>("/api/v2/users/me/organizations")
+  return response.data
+}
+
+export const getWorkspace = async (
+  organizationID: string,
+  username = "me",
+  workspaceName: string,
+): Promise<Types.Workspace> => {
+  const response = await axios.get<Types.Workspace>(
+    `/api/v2/organizations/${organizationID}/workspaces/${username}/${workspaceName}`,
+  )
+  return response.data
+}
+
+export const getWorkspaceResources = async (workspaceBuildID: string): Promise<Types.WorkspaceResource[]> => {
+  const response = await axios.get<Types.WorkspaceResource[]>(`/api/v2/workspacebuilds/${workspaceBuildID}/resources`)
+  return response.data
+}
+
 export const createUser = async (user: Types.CreateUserRequest): Promise<TypesGen.User> => {
   const response = await axios.post<TypesGen.User>("/api/v2/users", user)
   return response.data
