@@ -101,15 +101,6 @@ export interface UserAgent {
   readonly os: string
 }
 
-export interface Pager {
-  total: number
-}
-
-export interface PagedUsers {
-  page: UserResponse[]
-  pager: Pager
-}
-
 export interface WorkspaceAutostartRequest {
   schedule: string
 }

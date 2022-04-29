@@ -38,6 +38,23 @@ type authSubject struct {
 	Roles []Role `json:"roles"`
 }
 
+// AuthorizeByRoleName will expand all roleNames into roles before calling Authorize().
+// This is the function intended to be used outside this package.
+// The role is fetched from the builtin map located in memory.
+func (a RegoAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
+	roles := make([]Role, 0, len(roleNames))
+	for _, n := range roleNames {
+		r, err := RoleByName(n)
+		if err != nil {
+			return xerrors.Errorf("get role permissions: %w", err)
+		}
+		roles = append(roles, r)
+	}
+	return a.Authorize(ctx, subjectID, roles, action, object)
+}
+
+// Authorize allows passing in custom Roles.
+// This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
 func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, action Action, object Object) error {
 	input := map[string]interface{}{
 		"subject": authSubject{

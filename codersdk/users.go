@@ -14,6 +14,13 @@ import (
 // Me is used as a replacement for your own ID.
 var Me = uuid.Nil
 
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
 type UsersRequest struct {
 	AfterUser uuid.UUID `json:"after_user"`
 	Search    string    `json:"search"`
@@ -26,14 +33,9 @@ type UsersRequest struct {
 	// To get the next page, use offset=<limit>*<page_number>.
 	// Offset is 0 indexed, so the first record sits at offset 0.
 	Offset int `json:"offset"`
+	// Filter users by status
+	Status string `json:"status"`
 }
-
-type UserStatus string
-
-const (
-	UserStatusActive    UserStatus = "active"
-	UserStatusSuspended UserStatus = "suspended"
-)
 
 // User represents a user in Coder.
 type User struct {
@@ -68,6 +70,15 @@ type CreateUserRequest struct {
 type UpdateUserProfileRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required,username"`
+}
+
+type UpdateRoles struct {
+	Roles []string `json:"roles" validate:"required"`
+}
+
+type UserRoles struct {
+	Roles             []string               `json:"roles"`
+	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -165,8 +176,53 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 	if res.StatusCode != http.StatusOK {
 		return User{}, readBodyAsError(res)
 	}
+
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// UpdateUserRoles grants the userID the specified roles.
+// Include ALL roles the user has.
+func (c *Client) UpdateUserRoles(ctx context.Context, userID uuid.UUID, req UpdateRoles) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
+// Include ALL roles the user has.
+func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID, userID uuid.UUID, req UpdateRoles) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// GetUserRoles returns all roles the user has
+func (c *Client) GetUserRoles(ctx context.Context, userID uuid.UUID) (UserRoles, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", uuidOrMe(userID)), nil)
+	if err != nil {
+		return UserRoles{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserRoles{}, readBodyAsError(res)
+	}
+	var roles UserRoles
+	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
@@ -218,7 +274,16 @@ func (c *Client) Logout(ctx context.Context) error {
 // User returns a user for the ID provided.
 // If the uuid is nil, the current user will be returned.
 func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", uuidOrMe(id)), nil)
+	return c.userByIdentifier(ctx, uuidOrMe(id))
+}
+
+// UserByUsername returns a user for the username provided.
+func (c *Client) UserByUsername(ctx context.Context, username string) (User, error) {
+	return c.userByIdentifier(ctx, username)
+}
+
+func (c *Client) userByIdentifier(ctx context.Context, ident string) (User, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", ident), nil)
 	if err != nil {
 		return User{}, err
 	}
@@ -243,6 +308,7 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 		}
 		q.Set("offset", strconv.Itoa(req.Offset))
 		q.Set("search", req.Search)
+		q.Set("status", req.Status)
 		r.URL.RawQuery = q.Encode()
 	})
 	if err != nil {

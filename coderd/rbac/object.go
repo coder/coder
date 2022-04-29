@@ -1,5 +1,9 @@
 package rbac
 
+import (
+	"github.com/google/uuid"
+)
+
 const WildcardSymbol = "*"
 
 // Resources are just typed objects. Making resources this way allows directly
@@ -46,11 +50,11 @@ func (z Object) All() Object {
 }
 
 // InOrg adds an org OwnerID to the resource
-func (z Object) InOrg(orgID string) Object {
+func (z Object) InOrg(orgID uuid.UUID) Object {
 	return Object{
 		ResourceID: z.ResourceID,
 		Owner:      z.Owner,
-		OrgID:      orgID,
+		OrgID:      orgID.String(),
 		Type:       z.Type,
 	}
 }

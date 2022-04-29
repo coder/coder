@@ -62,9 +62,7 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
+	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("accept websocket: %s", err),
@@ -378,6 +376,7 @@ func (api *api) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	wsNetConn := websocket.NetConn(r.Context(), conn, websocket.MessageBinary)
 	agentConn, err := api.dialWorkspaceAgent(r, workspaceAgent.ID)
 	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
 	defer agentConn.Close()

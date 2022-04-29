@@ -33,10 +33,11 @@ INSERT INTO
 		username,
 		hashed_password,
 		created_at,
-		updated_at
+		updated_at,
+		rbac_roles
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE
@@ -47,6 +48,16 @@ SET
 	updated_at = $4
 WHERE
 	id = $1 RETURNING *;
+
+-- name: UpdateUserRoles :one
+UPDATE
+    users
+SET
+	-- Remove all duplicates from the roles.
+	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(@granted_roles :: text[]))
+WHERE
+ 	id = @id
+RETURNING *;
 
 -- name: GetUsers :many
 SELECT
@@ -76,13 +87,25 @@ WHERE
 			)
 			ELSE true
 	END
+	-- Start filters
+	-- Filter by name, email or username
 	AND CASE
 		WHEN @search :: text != '' THEN (
 			email LIKE concat('%', @search, '%')
 			OR username LIKE concat('%', @search, '%')
+		)	
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
+		WHEN @status :: text != '' THEN (
+			status = @status :: user_status
 		)
 		ELSE true
 	END
+	-- End of filters
 ORDER BY
     -- Deterministic and consistent ordering of all users, even if they share
     -- a timestamp. This is to ensure consistent pagination.

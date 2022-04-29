@@ -53,6 +53,7 @@ export const TerminalPage: React.FC<{
     },
   })
   const isConnected = terminalState.matches("connected")
+  const isDisconnected = terminalState.matches("disconnected")
   const { organizationsError, workspaceError, workspaceAgentError, workspaceAgent, websocketError } =
     terminalState.context
 
@@ -191,7 +192,7 @@ export const TerminalPage: React.FC<{
     <>
       {/* This overlay makes it more obvious that the terminal is disconnected. */}
       {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
-      <div className={`${styles.overlay} ${isConnected ? "connected" : ""}`}>
+      <div className={`${styles.overlay} ${isDisconnected ? "" : "connected"}`}>
         <span>Disconnected</span>
       </div>
       <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
@@ -214,7 +215,7 @@ const useStyles = makeStyles(() => ({
     color: "white",
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 18,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
     "&.connected": {
       opacity: 0,
     },
