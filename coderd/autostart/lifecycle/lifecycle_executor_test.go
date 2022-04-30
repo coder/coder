@@ -43,6 +43,7 @@ func Test_Executor_Autostart_OK(t *testing.T) {
 	// When: the lifecycle executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
 	}()
 
 	// Then: the workspace should be started
@@ -83,6 +84,7 @@ func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
 	// When: the lifecycle executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
 	}()
 
 	// Then: the workspace should not be started.
@@ -113,6 +115,7 @@ func Test_Executor_Autostart_NotEnabled(t *testing.T) {
 	// When: the lifecycle executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
 	}()
 
 	// Then: the workspace should not be started.
@@ -151,12 +154,13 @@ func Test_Executor_Autostop_OK(t *testing.T) {
 	// When: the lifecycle executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
 	}()
 
 	// Then: the workspace should be started
 	require.Eventually(t, func() bool {
 		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
+		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
 	}, 5*time.Second, 250*time.Millisecond)
 }
 func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
@@ -189,6 +193,7 @@ func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
 	// When: the lifecycle executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
 	}()
 
 	// Then: the workspace should not be stopped.
@@ -219,6 +224,7 @@ func Test_Executor_Autostop_NotEnabled(t *testing.T) {
 	// When: the lifecycle executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
 	}()
 
 	// Then: the workspace should not be stopped.

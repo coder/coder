@@ -33,6 +33,31 @@ AND
 	autostart_schedule <> ''
 ;
 
+-- name: GetWorkspacesAutostop :many
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	deleted = false
+AND
+	autostop_schedule <> ''
+;
+
+-- name: GetWorkspacesAutostartAutostop :many
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	deleted = false
+AND
+(
+	autostart_schedule <> ''
+	OR
+	autostop_schedule <> ''
+);
+
 -- name: GetWorkspacesByTemplateID :many
 SELECT
 	*
