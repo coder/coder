@@ -9,12 +9,10 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -107,13 +105,4 @@ func TestGitSSH(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
 	})
-}
-
-// createConfig consumes the global configuration flag to produce a config root.
-func createConfig(cmd *cobra.Command) config.Root {
-	globalRoot, err := cmd.Flags().GetString("global-config")
-	if err != nil {
-		panic(err)
-	}
-	return config.Root(globalRoot)
 }
