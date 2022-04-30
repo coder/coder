@@ -325,38 +325,6 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaces(_ context.Context) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	workspaces := make([]database.Workspace, len(q.workspaces))
-	copy(workspaces, q.workspaces)
-	return workspaces, nil
-}
-
-func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	workspaces := make([]database.Workspace, 0)
-	for _, ws := range q.workspaces {
-		if ws.AutostartSchedule.String != "" {
-			workspaces = append(workspaces, ws)
-		}
-	}
-	return workspaces, nil
-}
-
-func (q *fakeQuerier) GetWorkspacesAutostop(_ context.Context) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	workspaces := make([]database.Workspace, 0)
-	for _, ws := range q.workspaces {
-		if ws.AutostopSchedule.String != "" {
-			workspaces = append(workspaces, ws)
-		}
-	}
-	return workspaces, nil
-}
-
 func (q *fakeQuerier) GetWorkspacesAutostartAutostop(_ context.Context) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
