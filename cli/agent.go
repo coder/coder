@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -37,7 +39,15 @@ func workspaceAgent() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse %q: %w", rawURL, err)
 			}
-			logger := slog.Make(sloghuman.Sink(cmd.OutOrStdout())).Leveled(slog.LevelDebug)
+
+			logPath := filepath.Join(os.TempDir(), "coder-agent.log")
+			logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0600)
+			if err != nil {
+				return xerrors.Errorf("open log %q: %w", logPath, err)
+			}
+			defer logFile.Close()
+
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logFile)).Leveled(slog.LevelDebug)
 			client := codersdk.New(coderURL)
 
 			// exchangeToken returns a session token.
