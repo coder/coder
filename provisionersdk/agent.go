@@ -14,8 +14,8 @@ var (
 			"amd64": `$ProgressPreference = "SilentlyContinue"
 Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-amd64.exe -OutFile $env:TEMP\sshd.exe
 Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
-$env:CODER_AUTH = "${AUTH_TYPE}"
-$env:CODER_URL = "${ACCESS_URL}"
+$env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
+$env:CODER_AGENT_URL = "${ACCESS_URL}"
 Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru`,
 		},
 		"linux": {
@@ -24,8 +24,8 @@ set -eu pipefail
 export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
 curl -fsSL ${ACCESS_URL}bin/coder-linux-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
-export CODER_AUTH="${AUTH_TYPE}"
-export CODER_URL="${ACCESS_URL}"
+export CODER_AGENT_AUTH="${AUTH_TYPE}"
+export CODER_AGENT_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent`,
 		},
 		"darwin": {
@@ -34,8 +34,8 @@ set -eu pipefail
 export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
 curl -fsSL ${ACCESS_URL}bin/coder-darwin-amd64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
-export CODER_AUTH="${AUTH_TYPE}"
-export CODER_URL="${ACCESS_URL}"
+export CODER_AGENT_AUTH="${AUTH_TYPE}"
+export CODER_AGENT_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent`,
 		},
 	}

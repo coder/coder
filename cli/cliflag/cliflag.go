@@ -19,6 +19,15 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// String sets a string flag on the given flag set.
+func String(flagset *pflag.FlagSet, name, shorthand, env, def, usage string) {
+	v, ok := os.LookupEnv(env)
+	if !ok || v == "" {
+		v = def
+	}
+	flagset.StringP(name, shorthand, v, fmtUsage(usage, env))
+}
+
 // StringVarP sets a string flag on the given flag set.
 func StringVarP(flagset *pflag.FlagSet, p *string, name string, shorthand string, env string, def string, usage string) {
 	v, ok := os.LookupEnv(env)

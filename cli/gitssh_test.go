@@ -9,12 +9,10 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -61,7 +59,7 @@ func TestGitSSH(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		// start workspace agent
-		cmd, root := clitest.New(t, "agent", "--token", agentToken, "--url", client.URL.String())
+		cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
 		agentClient := &*client
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -92,7 +90,7 @@ func TestGitSSH(t *testing.T) {
 			// as long as we get a successful session we don't care if the server errors
 			_ = ssh.Serve(l, func(s ssh.Session) {
 				atomic.AddInt64(&inc, 1)
-				t.Log("got authenticated sesion")
+				t.Log("got authenticated session")
 				err := s.Exit(0)
 				require.NoError(t, err)
 			}, publicKeyOption)
@@ -101,22 +99,10 @@ func TestGitSSH(t *testing.T) {
 		// start ssh session
 		addr, ok := l.Addr().(*net.TCPAddr)
 		require.True(t, ok)
-		cfgDir := createConfig(cmd)
 		// set to agent config dir
-		cmd, root = clitest.New(t, "gitssh", "--global-config="+string(cfgDir), "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
-		clitest.SetupConfig(t, agentClient, root)
-
+		cmd, _ = clitest.New(t, "gitssh", "--agent-url", agentClient.URL.String(), "--agent-token", agentToken, "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
 		err = cmd.ExecuteContext(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
 	})
-}
-
-// createConfig consumes the global configuration flag to produce a config root.
-func createConfig(cmd *cobra.Command) config.Root {
-	globalRoot, err := cmd.Flags().GetString("global-config")
-	if err != nil {
-		panic(err)
-	}
-	return config.Root(globalRoot)
 }

@@ -21,17 +21,16 @@ import (
 
 func workspaceAgent() *cobra.Command {
 	var (
-		rawURL string
-		auth   string
-		token  string
+		auth string
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if rawURL == "" {
-				return xerrors.New("CODER_URL must be set")
+			rawURL, err := cmd.Flags().GetString(varAgentURL)
+			if err != nil {
+				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
 			}
 			coderURL, err := url.Parse(rawURL)
 			if err != nil {
@@ -46,8 +45,9 @@ func workspaceAgent() *cobra.Command {
 			var exchangeToken func(context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error)
 			switch auth {
 			case "token":
-				if token == "" {
-					return xerrors.Errorf("CODER_TOKEN must be set for token auth")
+				token, err := cmd.Flags().GetString(varAgentToken)
+				if err != nil {
+					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
 				}
 				client.SessionToken = token
 			case "google-instance-identity":
@@ -115,27 +115,19 @@ func workspaceAgent() *cobra.Command {
 				}
 			}
 
-			cfg := createConfig(cmd)
-			err = cfg.AgentSession().Write(client.SessionToken)
-			if err != nil {
-				return xerrors.Errorf("writing agent session token to config: %w", err)
-			}
-			err = cfg.URL().Write(client.URL.String())
-			if err != nil {
-				return xerrors.Errorf("writing agent url to config: %w", err)
-			}
-
 			closer := agent.New(client.ListenWorkspaceAgent, &agent.Options{
 				Logger: logger,
+				EnvironmentVariables: map[string]string{
+					// Override the "CODER_AGENT_TOKEN" variable in all
+					// shells so "gitssh" works!
+					"CODER_AGENT_TOKEN": client.SessionToken,
+				},
 			})
 			<-cmd.Context().Done()
 			return closer.Close()
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflag.StringVarP(cmd.Flags(), &rawURL, "url", "", "CODER_URL", "", "Specify the URL to access Coder")
-	cliflag.StringVarP(cmd.Flags(), &token, "token", "", "CODER_TOKEN", "", "Specifies the authentication token to access Coder")
-
+	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
 	return cmd
 }

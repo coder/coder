@@ -40,6 +40,7 @@ import (
 
 type Options struct {
 	ReconnectingPTYTimeout time.Duration
+	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 }
 
@@ -66,6 +67,7 @@ func New(dialer Dialer, options *Options) io.Closer {
 		logger:                 options.Logger,
 		closeCancel:            cancelFunc,
 		closed:                 make(chan struct{}),
+		envVars:                options.EnvironmentVariables,
 	}
 	server.init(ctx)
 	return server
@@ -83,23 +85,21 @@ type agent struct {
 	closeMutex    sync.Mutex
 	closed        chan struct{}
 
-	// Environment variables sent by Coder to inject for shell sessions.
-	// These are atomic because values can change after reconnect.
-	envVars       atomic.Value
-	ownerEmail    atomic.String
-	ownerUsername atomic.String
+	envVars map[string]string
+	// metadata is atomic because values can change after reconnection.
+	metadata      atomic.Value
 	startupScript atomic.Bool
 	sshServer     *ssh.Server
 }
 
 func (a *agent) run(ctx context.Context) {
-	var options Metadata
+	var metadata Metadata
 	var peerListener *peerbroker.Listener
 	var err error
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		options, peerListener, err = a.dialer(ctx, a.logger)
+		metadata, peerListener, err = a.dialer(ctx, a.logger)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -118,14 +118,12 @@ func (a *agent) run(ctx context.Context) {
 		return
 	default:
 	}
-	a.envVars.Store(options.EnvironmentVariables)
-	a.ownerEmail.Store(options.OwnerEmail)
-	a.ownerUsername.Store(options.OwnerUsername)
+	a.metadata.Store(metadata)
 
 	if a.startupScript.CAS(false, true) {
 		// The startup script has not ran yet!
 		go func() {
-			err := a.runStartupScript(ctx, options.StartupScript)
+			err := a.runStartupScript(ctx, metadata.StartupScript)
 			if errors.Is(err, context.Canceled) {
 				return
 			}
@@ -172,7 +170,7 @@ func (*agent) runStartupScript(ctx context.Context, script string) error {
 	writer, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "USER", "coder-startup-script")
 	if err != nil {
 		// If the syslog isn't supported or cannot be created, use a text file in temp.
-		writer, err = os.CreateTemp("", "coder-startup-script.txt")
+		writer, err = os.CreateTemp("", "coder-startup-script-*.txt")
 		if err != nil {
 			return xerrors.Errorf("open startup script log file: %w", err)
 		}
@@ -319,6 +317,15 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
+	rawMetadata := a.metadata.Load()
+	if rawMetadata == nil {
+		return nil, xerrors.Errorf("no metadata was provided: %w", err)
+	}
+	metadata, valid := rawMetadata.(Metadata)
+	if !valid {
+		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
+	}
+
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
 	command := rawCommand
@@ -344,22 +351,23 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, executablePath))
 	// These prevent the user from having to specify _anything_ to successfully commit.
 	// Both author and committer must be set!
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, a.ownerEmail.Load()))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_EMAIL=%s`, a.ownerEmail.Load()))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_NAME=%s`, a.ownerUsername.Load()))
-	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_NAME=%s`, a.ownerUsername.Load()))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_EMAIL=%s`, metadata.OwnerEmail))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_EMAIL=%s`, metadata.OwnerEmail))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_AUTHOR_NAME=%s`, metadata.OwnerUsername))
+	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_COMMITTER_NAME=%s`, metadata.OwnerUsername))
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.
-	envVars := a.envVars.Load()
-	if envVars != nil {
-		envVarMap, ok := envVars.(map[string]string)
-		if ok {
-			for key, value := range envVarMap {
-				cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
-			}
-		}
+	for key, value := range metadata.EnvironmentVariables {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
+
+	// Agent-level environment variables should take over all!
+	// This is used for setting agent-specific variables like "CODER_AGENT_TOKEN".
+	for key, value := range a.envVars {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	}
+
 	return cmd, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
@@ -22,6 +23,10 @@ var (
 )
 
 const (
+	varURL          = "url"
+	varToken        = "token"
+	varAgentToken   = "agent-token"
+	varAgentURL     = "agent-url"
 	varGlobalConfig = "global-config"
 	varNoOpen       = "no-open"
 	varForceTty     = "force-tty"
@@ -76,27 +81,50 @@ func Root() *cobra.Command {
 		workspaceAgent(),
 	)
 
-	cmd.PersistentFlags().String(varGlobalConfig, configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory")
-	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY")
-	err := cmd.PersistentFlags().MarkHidden(varForceTty)
-	if err != nil {
-		// This should never return an error, because we just added the `--force-tty`` flag prior to calling MarkHidden.
-		panic(err)
-	}
+	cliflag.String(cmd.PersistentFlags(), varURL, "", "CODER_URL", "", "Specify the URL to your deployment.")
+	cliflag.String(cmd.PersistentFlags(), varToken, "", "CODER_TOKEN", "", "Specify an authentication token.")
+	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
+	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
+	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
+	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
+	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
-	err = cmd.PersistentFlags().MarkHidden(varNoOpen)
-	if err != nil {
-		panic(err)
-	}
+	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
 
 	return cmd
 }
 
 // createClient returns a new client from the command context.
-// The configuration directory will be read from the global flag.
+// It reads from global configuration files if flags are not set.
 func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	root := createConfig(cmd)
-	rawURL, err := root.URL().Read()
+	rawURL, err := cmd.Flags().GetString(varURL)
+	if err != nil || rawURL == "" {
+		rawURL, err = root.URL().Read()
+		if err != nil {
+			return nil, err
+		}
+	}
+	serverURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	token, err := cmd.Flags().GetString(varToken)
+	if err != nil || token == "" {
+		token, err = root.Session().Read()
+		if err != nil {
+			return nil, err
+		}
+	}
+	client := codersdk.New(serverURL)
+	client.SessionToken = token
+	return client, nil
+}
+
+// createAgentClient returns a new client from the command context.
+// It works just like createClient, but uses the agent token and URL instead.
+func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
+	rawURL, err := cmd.Flags().GetString(varAgentURL)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +132,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	token, err := root.Session().Read()
+	token, err := cmd.Flags().GetString(varAgentToken)
 	if err != nil {
 		return nil, err
 	}
