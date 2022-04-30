@@ -120,7 +120,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 
 	env := os.Environ()
 	env = append(env,
-		"CODER_URL="+start.Metadata.CoderUrl,
+		"CODER_AGENT_URL="+start.Metadata.CoderUrl,
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
 		"CODER_WORKSPACE_NAME="+start.Metadata.WorkspaceName,
 		"CODER_WORKSPACE_OWNER="+start.Metadata.WorkspaceOwner,

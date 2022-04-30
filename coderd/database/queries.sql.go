@@ -2386,11 +2386,12 @@ INSERT INTO
 		environment_variables,
 		operating_system,
 		startup_script,
+		directory,
 		instance_metadata,
 		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -2405,6 +2406,7 @@ type InsertWorkspaceAgentParams struct {
 	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
 	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
 	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	Directory            string                `db:"directory" json:"directory"`
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 }
@@ -2422,6 +2424,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.EnvironmentVariables,
 		arg.OperatingSystem,
 		arg.StartupScript,
+		arg.Directory,
 		arg.InstanceMetadata,
 		arg.ResourceMetadata,
 	)

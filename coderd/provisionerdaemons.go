@@ -635,6 +635,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			AuthInstanceID:       instanceID,
 			Architecture:         agent.Architecture,
 			EnvironmentVariables: env,
+			Directory:            agent.Directory,
 			OperatingSystem:      agent.OperatingSystem,
 			StartupScript: sql.NullString{
 				String: agent.StartupScript,
