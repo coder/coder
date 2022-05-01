@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func workspaceShow() *cobra.Command {
+func show() *cobra.Command {
 	return &cobra.Command{
 		Use:  "show",
 		Args: cobra.ExactArgs(1),

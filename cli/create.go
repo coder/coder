@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func workspaceCreate() *cobra.Command {
+func create() *cobra.Command {
 	var (
 		workspaceName string
 		templateName  string

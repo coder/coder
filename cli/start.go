@@ -10,11 +10,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func workspaceStop() *cobra.Command {
+func start() *cobra.Command {
 	return &cobra.Command{
-		Use:               "stop <workspace>",
-		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(1),
+		Use:  "start <workspace>",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -30,7 +29,7 @@ func workspaceStop() *cobra.Command {
 			}
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition: database.WorkspaceTransitionStop,
+				Transition: database.WorkspaceTransitionStart,
 			})
 			if err != nil {
 				return err
@@ -47,10 +46,7 @@ func workspaceStop() *cobra.Command {
 					return client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, before)
 				},
 			})
-			if err != nil {
-				return err
-			}
-			return nil
+			return err
 		},
 	}
 }
