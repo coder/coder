@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -263,7 +265,10 @@ func server() *cobra.Command {
 			go func() {
 				defer close(errCh)
 				server := http.Server{
-					Handler: handler,
+					// These errors are typically noise like "TLS: EOF". Vault does similar:
+					// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
+					ErrorLog: log.New(io.Discard, "", 0),
+					Handler:  handler,
 					BaseContext: func(_ net.Listener) context.Context {
 						return shutdownConnsCtx
 					},
