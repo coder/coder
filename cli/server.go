@@ -254,9 +254,11 @@ func server() *cobra.Command {
 			// This prevents the pprof import from being accidentally deleted.
 			var _ = pprof.Handler
 			if pprofEnabled {
+				//nolint:revive
 				defer serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")()
 			}
 			if promEnabled {
+				//nolint:revive
 				defer serveHandler(cmd.Context(), logger, promhttp.Handler(), promAddress, "prometheus")()
 			}
 
@@ -680,14 +682,14 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 	}, nil
 }
 
-func serveHandler(ctx context.Context, log slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
-	log.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
+func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
+	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
 
 	srv := &http.Server{Addr: addr, Handler: handler}
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
-			log.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
+			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
 		}
 	}()
 
