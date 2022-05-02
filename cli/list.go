@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func workspaceList() *cobra.Command {
+func list() *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -31,7 +31,7 @@ func workspaceList() *cobra.Command {
 			if len(workspaces) == 0 {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
 				_, _ = fmt.Fprintln(cmd.OutOrStdout())
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder workspaces create <name>"))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render("coder create <name>"))
 				_, _ = fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			}

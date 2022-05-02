@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-func TestWorkspaceCreate(t *testing.T) {
+func TestCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
@@ -22,7 +22,7 @@ func TestWorkspaceCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "workspaces", "create", "my-workspace", "--template", template.Name)
+		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -52,7 +52,7 @@ func TestWorkspaceCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "workspaces", "create", "my-workspace")
+		cmd, root := clitest.New(t, "create", "my-workspace")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -82,7 +82,7 @@ func TestWorkspaceCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "workspaces", "create", "")
+		cmd, root := clitest.New(t, "create", "")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -134,7 +134,7 @@ func TestWorkspaceCreate(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "workspaces", "create", "")
+		cmd, root := clitest.New(t, "create", "")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)

@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 )
 
-func TestWorkspaceAutostart(t *testing.T) {
+func TestAutostart(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EnableDisableOK", func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			tz        = "Europe/Dublin"
-			cmdArgs   = []string{"workspaces", "autostart", "enable", workspace.Name, "--minute", "30", "--hour", "9", "--days", "1-5", "--tz", tz}
+			cmdArgs   = []string{"autostart", "enable", workspace.Name, "--minute", "30", "--hour", "9", "--days", "1-5", "--tz", tz}
 			sched     = "CRON_TZ=Europe/Dublin 30 9 * * 1-5"
 			stdoutBuf = &bytes.Buffer{}
 		)
@@ -48,7 +48,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 		require.Equal(t, sched, updated.AutostartSchedule, "expected autostart schedule to be set")
 
 		// Disable schedule
-		cmd, root = clitest.New(t, "workspaces", "autostart", "disable", workspace.Name)
+		cmd, root = clitest.New(t, "autostart", "disable", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
@@ -73,7 +73,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "workspaces", "autostart", "enable", "doesnotexist")
+		cmd, root := clitest.New(t, "autostart", "enable", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
@@ -91,7 +91,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "workspaces", "autostart", "disable", "doesnotexist")
+		cmd, root := clitest.New(t, "autostart", "disable", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
@@ -118,7 +118,7 @@ func TestWorkspaceAutostart(t *testing.T) {
 			currTz = "UTC"
 		}
 		expectedSchedule := fmt.Sprintf("CRON_TZ=%s 0 9 * * 1-5", currTz)
-		cmd, root := clitest.New(t, "workspaces", "autostart", "enable", workspace.Name)
+		cmd, root := clitest.New(t, "autostart", "enable", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()

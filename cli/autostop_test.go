@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 )
 
-func TestWorkspaceAutostop(t *testing.T) {
+func TestAutostop(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EnableDisableOK", func(t *testing.T) {
@@ -28,7 +28,7 @@ func TestWorkspaceAutostop(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"workspaces", "autostop", "enable", workspace.Name, "--minute", "30", "--hour", "17", "--days", "1-5", "--tz", "Europe/Dublin"}
+			cmdArgs   = []string{"autostop", "enable", workspace.Name, "--minute", "30", "--hour", "17", "--days", "1-5", "--tz", "Europe/Dublin"}
 			sched     = "CRON_TZ=Europe/Dublin 30 17 * * 1-5"
 			stdoutBuf = &bytes.Buffer{}
 		)
@@ -47,7 +47,7 @@ func TestWorkspaceAutostop(t *testing.T) {
 		require.Equal(t, sched, updated.AutostopSchedule, "expected autostop schedule to be set")
 
 		// Disable schedule
-		cmd, root = clitest.New(t, "workspaces", "autostop", "disable", workspace.Name)
+		cmd, root = clitest.New(t, "autostop", "disable", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
@@ -72,7 +72,7 @@ func TestWorkspaceAutostop(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "workspaces", "autostop", "enable", "doesnotexist")
+		cmd, root := clitest.New(t, "autostop", "enable", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
@@ -90,7 +90,7 @@ func TestWorkspaceAutostop(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "workspaces", "autostop", "disable", "doesnotexist")
+		cmd, root := clitest.New(t, "autostop", "disable", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
@@ -118,7 +118,7 @@ func TestWorkspaceAutostop(t *testing.T) {
 		}
 		expectedSchedule := fmt.Sprintf("CRON_TZ=%s 0 18 * * 1-5", currTz)
 
-		cmd, root := clitest.New(t, "workspaces", "autostop", "enable", workspace.Name)
+		cmd, root := clitest.New(t, "autostop", "enable", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()

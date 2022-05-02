@@ -67,17 +67,25 @@ func Root() *cobra.Command {
 	cmd.SetVersionTemplate(versionTemplate())
 
 	cmd.AddCommand(
+		autostart(),
+		autostop(),
 		configSSH(),
-		server(),
+		create(),
+		delete(),
+		gitssh(),
+		list(),
 		login(),
 		parameters(),
-		templates(),
-		users(),
-		workspaces(),
-		ssh(),
-		workspaceTunnel(),
-		gitssh(),
 		publickey(),
+		server(),
+		show(),
+		start(),
+		stop(),
+		ssh(),
+		templates(),
+		update(),
+		users(),
+		tunnel(),
 		workspaceAgent(),
 	)
 
