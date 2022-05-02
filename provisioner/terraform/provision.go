@@ -53,13 +53,6 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		}
 	}()
 	start := request.GetStart()
-	statefilePath := filepath.Join(start.Directory, "terraform.tfstate")
-	if len(start.State) > 0 {
-		err := os.WriteFile(statefilePath, start.State, 0600)
-		if err != nil {
-			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
-		}
-	}
 
 	terraform, err := tfexec.NewTerraform(start.Directory, t.binaryPath)
 	if err != nil {
@@ -246,14 +239,18 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
 		// In this case, we return Complete with an explicit error message.
-		statefileContent, err := os.ReadFile(statefilePath)
+		state, err := terraform.Show(stream.Context())
 		if err != nil {
-			return xerrors.Errorf("read file %q: %w", statefilePath, err)
+			return xerrors.Errorf("show state: %w", err)
+		}
+		stateData, err := json.Marshal(state)
+		if err != nil {
+			return xerrors.Errorf("marshal state: %w", err)
 		}
 		return stream.Send(&proto.Provision_Response{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
-					State: statefileContent,
+					State: stateData,
 					Error: errorMessage,
 				},
 			},
@@ -266,7 +263,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 	if start.DryRun {
 		resp, err = parseTerraformPlan(stream.Context(), terraform, planfilePath)
 	} else {
-		resp, err = parseTerraformApply(stream.Context(), terraform, statefilePath)
+		resp, err = parseTerraformApply(stream.Context(), terraform)
 	}
 	if err != nil {
 		return err
@@ -366,14 +363,10 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 	}, nil
 }
 
-func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, statefilePath string) (*proto.Provision_Response, error) {
-	statefileContent, err := os.ReadFile(statefilePath)
+func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform) (*proto.Provision_Response, error) {
+	state, err := terraform.Show(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("read file %q: %w", statefilePath, err)
-	}
-	state, err := terraform.ShowStateFile(ctx, statefilePath)
-	if err != nil {
-		return nil, xerrors.Errorf("show state file %q: %w", statefilePath, err)
+		return nil, xerrors.Errorf("show state file: %w", err)
 	}
 	resources := make([]*proto.Resource, 0)
 	if state.Values != nil {
@@ -506,6 +499,11 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 				Agents: resourceAgents,
 			})
 		}
+	}
+
+	statefileContent, err := json.Marshal(state)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal state: %w", err)
 	}
 
 	return &proto.Provision_Response{

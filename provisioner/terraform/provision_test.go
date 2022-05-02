@@ -91,7 +91,13 @@ provider "coder" {
 			"main.tf": `variable "A" {
 			}`,
 		},
-		Error: true,
+		Response: &proto.Provision_Response{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Error: "exit status 1",
+				},
+			},
+		},
 	}, {
 		Name: "single-resource",
 		Files: map[string]string{
@@ -498,6 +504,8 @@ provider "coder" {
 
 				resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
 				require.NoError(t, err)
+
+				require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
 
 				require.Equal(t, string(resourcesWant), string(resourcesGot))
 				break
