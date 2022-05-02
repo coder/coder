@@ -336,6 +336,7 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script: string
+  readonly directory: string
 }
 
 // From codersdk/workspaceagents.go:47:6
@@ -343,7 +344,7 @@ export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
 
-// From codersdk/workspaceresources.go:58:6
+// From codersdk/workspaceresources.go:59:6
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -356,7 +357,7 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go:50:6
+// From codersdk/workspaceresources.go:51:6
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number

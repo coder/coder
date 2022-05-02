@@ -124,6 +124,8 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(start.Metadata.WorkspaceTransition.String()),
 		"CODER_WORKSPACE_NAME="+start.Metadata.WorkspaceName,
 		"CODER_WORKSPACE_OWNER="+start.Metadata.WorkspaceOwner,
+		"CODER_WORKSPACE_ID="+start.Metadata.WorkspaceId,
+		"CODER_WORKSPACE_OWNER_ID="+start.Metadata.WorkspaceOwnerId,
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
@@ -330,6 +332,12 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 				agent.StartupScript = startupScript
 			}
 		}
+		if directoryRaw, has := resource.Expressions["dir"]; has {
+			dir, ok := directoryRaw.ConstantValue.(string)
+			if ok {
+				agent.Directory = dir
+			}
+		}
 
 		agents[resource.Address] = agent
 	}
@@ -381,6 +389,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			Auth            string            `mapstructure:"auth"`
 			OperatingSystem string            `mapstructure:"os"`
 			Architecture    string            `mapstructure:"arch"`
+			Directory       string            `mapstructure:"dir"`
 			ID              string            `mapstructure:"id"`
 			Token           string            `mapstructure:"token"`
 			Env             map[string]string `mapstructure:"env"`
@@ -405,6 +414,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 				StartupScript:   attrs.StartupScript,
 				OperatingSystem: attrs.OperatingSystem,
 				Architecture:    attrs.Architecture,
+				Directory:       attrs.Directory,
 			}
 			switch attrs.Auth {
 			case "token":

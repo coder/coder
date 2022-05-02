@@ -247,7 +247,8 @@ CREATE TABLE workspace_agents (
     operating_system character varying(64) NOT NULL,
     startup_script character varying(65534),
     instance_metadata jsonb,
-    resource_metadata jsonb
+    resource_metadata jsonb,
+    directory character varying(4096) DEFAULT ''::character varying NOT NULL
 );
 
 CREATE TABLE workspace_builds (

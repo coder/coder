@@ -431,6 +431,7 @@ type WorkspaceAgent struct {
 	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	Directory            string                `db:"directory" json:"directory"`
 }
 
 type WorkspaceBuild struct {
