@@ -20,9 +20,7 @@ INSERT INTO
         user_id,
         organization_id,
         ip,
-        os,
-        browser,
-        device,
+        user_agent,
         resource_type,
         resource_id,
         resource_target,
@@ -31,4 +29,4 @@ INSERT INTO
         status_code
     )
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;

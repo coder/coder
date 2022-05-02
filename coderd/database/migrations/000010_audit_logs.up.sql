@@ -19,15 +19,15 @@ CREATE TABLE audit_logs (
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     ip cidr NOT NULL,
-    os varchar(64) NOT NULL,
-    browser varchar(64) NOT NULL,
-    device varchar(64) NOT NULL,
+    user_agent varchar(256) NOT NULL,
     resource_type resource_type NOT NULL,
     resource_id uuid NOT NULL,
+    -- resource_target is the name of the resource that `resource_id` points to.
+    -- it's stored here because resources we point to can be deleted.
     resource_target text NOT NULL,
     action audit_action NOT NULL,
     diff jsonb NOT NULL,
-    status_code integer DEFAULT 0 NOT NULL,
+    status_code integer NOT NULL,
     PRIMARY KEY (id)
 );
 

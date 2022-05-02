@@ -81,22 +81,6 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
-CREATE FUNCTION count_estimate(query text) RETURNS integer
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    rec   record;
-    rows  integer;
-BEGIN
-    FOR rec IN EXECUTE 'EXPLAIN ' || query LOOP
-        rows := substring(rec."QUERY PLAN" FROM ' rows=([[:digit:]]+)');
-        EXIT WHEN rows IS NOT NULL;
-    END LOOP;
-
-    RETURN rows;
-END
-$$;
-
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -118,15 +102,13 @@ CREATE TABLE audit_logs (
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
     ip cidr NOT NULL,
-    os character varying(64) NOT NULL,
-    browser character varying(64) NOT NULL,
-    device character varying(64) NOT NULL,
+    user_agent character varying(256) NOT NULL,
     resource_type resource_type NOT NULL,
     resource_id uuid NOT NULL,
     resource_target text NOT NULL,
     action audit_action NOT NULL,
     diff jsonb NOT NULL,
-    status_code integer DEFAULT 0 NOT NULL
+    status_code integer NOT NULL
 );
 
 CREATE TABLE files (

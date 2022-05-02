@@ -312,9 +312,7 @@ type AuditLog struct {
 	UserID         uuid.UUID       `db:"user_id" json:"user_id"`
 	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
 	Ip             pqtype.CIDR     `db:"ip" json:"ip"`
-	Os             string          `db:"os" json:"os"`
-	Browser        string          `db:"browser" json:"browser"`
-	Device         string          `db:"device" json:"device"`
+	UserAgent      string          `db:"user_agent" json:"user_agent"`
 	ResourceType   ResourceType    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID       `db:"resource_id" json:"resource_id"`
 	ResourceTarget string          `db:"resource_target" json:"resource_target"`
