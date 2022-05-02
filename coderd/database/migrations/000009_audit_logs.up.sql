@@ -35,22 +35,3 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 CREATE INDEX idx_audit_log_organization_id ON audit_logs USING btree (organization_id);
 CREATE INDEX idx_audit_log_resource_id ON audit_logs USING btree (resource_id);
-
--- count_estimate returns the number of rows the query planner estimates the
--- provided query will return.
-CREATE FUNCTION count_estimate(query text)
-  RETURNS integer
-  LANGUAGE plpgsql AS
-$func$
-DECLARE
-    rec   record;
-    rows  integer;
-BEGIN
-    FOR rec IN EXECUTE 'EXPLAIN ' || query LOOP
-        rows := substring(rec."QUERY PLAN" FROM ' rows=([[:digit:]]+)');
-        EXIT WHEN rows IS NOT NULL;
-    END LOOP;
-
-    RETURN rows;
-END
-$func$;
