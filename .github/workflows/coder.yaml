@@ -355,7 +355,7 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Build Release
-        run: make release
+        run: make build
 
       - uses: actions/upload-artifact@v3
         with:
