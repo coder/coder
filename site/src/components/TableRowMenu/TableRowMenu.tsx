@@ -3,9 +3,16 @@ import Menu, { MenuProps } from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import MoreVertIcon from "@material-ui/icons/MoreVert"
 import React from "react"
-import { UserResponse } from "../../api/types"
 
-export const UserMenu: React.FC<{ user: UserResponse }> = () => {
+export interface TableRowMenuProps<TData> {
+  data: TData
+  menuItems: Array<{
+    label: string
+    onClick: (data: TData) => void
+  }>
+}
+
+export const TableRowMenu = <T,>({ data, menuItems }: TableRowMenuProps<T>): JSX.Element => {
   const [anchorEl, setAnchorEl] = React.useState<MenuProps["anchorEl"]>(null)
 
   const handleClick = (event: React.MouseEvent) => {
@@ -22,7 +29,17 @@ export const UserMenu: React.FC<{ user: UserResponse }> = () => {
         <MoreVertIcon />
       </IconButton>
       <Menu id="simple-menu" anchorEl={anchorEl} keepMounted open={Boolean(anchorEl)} onClose={handleClose}>
-        <MenuItem onClick={handleClose}>Suspend</MenuItem>
+        {menuItems.map((item) => (
+          <MenuItem
+            key={item.label}
+            onClick={() => {
+              handleClose()
+              item.onClick(data)
+            }}
+          >
+            {item.label}
+          </MenuItem>
+        ))}
       </Menu>
     </>
   )

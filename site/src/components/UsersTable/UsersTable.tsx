@@ -2,14 +2,15 @@ import React from "react"
 import { UserResponse } from "../../api/types"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { Column, Table } from "../Table/Table"
+import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { UserCell } from "../UserCell/UserCell"
-import { UserMenu } from "./UserMenu"
 
 const Language = {
   pageTitle: "Users",
   usersTitle: "All users",
   emptyMessage: "No users found",
   usernameLabel: "User",
+  suspendMenuItem: "Suspend",
 }
 
 const emptyState = <EmptyState message={Language.emptyMessage} />
@@ -35,7 +36,19 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users }) => {
       data={users}
       title={Language.usersTitle}
       emptyState={emptyState}
-      rowMenu={(user) => <UserMenu user={user} />}
+      rowMenu={(user) => (
+        <TableRowMenu
+          data={user}
+          menuItems={[
+            {
+              label: Language.suspendMenuItem,
+              onClick: () => {
+                // TO-DO: Add suspend action here
+              },
+            },
+          ]}
+        />
+      )}
     />
   )
 }
