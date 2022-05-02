@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/pion/webrtc/v3"
 	"google.golang.org/api/idtoken"
 
@@ -68,9 +69,18 @@ func New(options *Options) (http.Handler, func()) {
 	})
 
 	r := chi.NewRouter()
+	r.Use(
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(middleware.NewWrapResponseWriter(w, r.ProtoMajor), r)
+			})
+		},
+		httpmw.Prometheus,
+		chitrace.Middleware(),
+	)
+
 	r.Route("/api/v2", func(r chi.Router) {
 		r.Use(
-			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			debugLogRequest(api.Logger),
