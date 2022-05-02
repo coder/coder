@@ -118,14 +118,14 @@ func (c *Channel) init() {
 		}
 	})
 	c.dc.OnClose(func() {
-		c.conn.opts.Logger.Debug(context.Background(), "datachannel closing from OnClose", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
+		c.conn.logger().Debug(context.Background(), "datachannel closing from OnClose", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
 		_ = c.closeWithError(ErrClosed)
 	})
 	c.dc.OnOpen(func() {
 		c.closeMutex.Lock()
 		defer c.closeMutex.Unlock()
 
-		c.conn.opts.Logger.Debug(context.Background(), "datachannel opening", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
+		c.conn.logger().Debug(context.Background(), "datachannel opening", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
 		var err error
 		c.rwc, err = c.dc.Detach()
 		if err != nil {
@@ -289,7 +289,7 @@ func (c *Channel) closeWithError(err error) error {
 		return c.closeError
 	}
 
-	c.conn.opts.Logger.Debug(context.Background(), "datachannel closing with error", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()), slog.Error(err))
+	c.conn.logger().Debug(context.Background(), "datachannel closing with error", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()), slog.Error(err))
 	if err == nil {
 		c.closeError = ErrClosed
 	} else {
