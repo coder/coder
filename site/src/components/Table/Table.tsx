@@ -40,17 +40,21 @@ export interface TableProps<T> {
    * Optional empty state UI when the data is empty
    */
   emptyState?: React.ReactElement
+  /**
+   * Optional element to render row actions like delete, update, etc
+   */
+  rowMenu?: (data: T) => React.ReactElement
 }
 
-export const Table = <T,>({ columns, data, emptyState, title }: TableProps<T>): React.ReactElement => {
+export const Table = <T,>({ columns, data, emptyState, title, rowMenu }: TableProps<T>): React.ReactElement => {
   const columnNames = columns.map(({ name }) => name)
-  const body = renderTableBody(data, columns, emptyState)
+  const body = renderTableBody(data, columns, emptyState, rowMenu)
 
   return (
     <MuiTable>
       <TableHead>
         {title && <TableTitle title={title} />}
-        <TableHeaders columns={columnNames} />
+        <TableHeaders columns={columnNames} hasMenu={!!rowMenu} />
       </TableHead>
       {body}
     </MuiTable>
@@ -60,7 +64,12 @@ export const Table = <T,>({ columns, data, emptyState, title }: TableProps<T>): 
 /**
  * Helper function to render the table data, falling back to an empty state if available
  */
-const renderTableBody = <T,>(data: T[], columns: Column<T>[], emptyState?: React.ReactElement) => {
+const renderTableBody = <T,>(
+  data: T[],
+  columns: Column<T>[],
+  emptyState?: React.ReactElement,
+  rowMenu?: (data: T) => React.ReactElement,
+) => {
   if (data.length > 0) {
     const rows = data.map((item: T, index) => {
       const cells = columns.map((column) => {
@@ -70,7 +79,12 @@ const renderTableBody = <T,>(data: T[], columns: Column<T>[], emptyState?: React
           return <TableCell key={String(column.key)}>{String(item[column.key]).toString()}</TableCell>
         }
       })
-      return <TableRow key={index}>{cells}</TableRow>
+      return (
+        <TableRow key={index}>
+          {cells}
+          {rowMenu && <TableCell>{rowMenu(item)}</TableCell>}
+        </TableRow>
+      )
     })
     return <TableBody>{rows}</TableBody>
   } else {

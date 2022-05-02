@@ -45,6 +45,7 @@ type WorkspaceAgent struct {
 	EnvironmentVariables map[string]string    `json:"environment_variables"`
 	OperatingSystem      string               `json:"operating_system"`
 	StartupScript        string               `json:"startup_script,omitempty"`
+	Directory            string               `json:"directory,omitempty"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

@@ -10,10 +10,10 @@ templates](./templates.md):
 
 ```sh
 # create a workspace from the template; specify any variables
-coder workspaces create <workspace-name>
+coder create <workspace-name>
 
 # show the resources behind the workspace, and how to connect
-coder workspaces show <workspace-name>
+coder show <workspace-name>
 ```
 
 ## Connect with SSH
@@ -72,5 +72,5 @@ Use the following command to update a workspace to the latest template version.
 The workspace will be stopped and started:
 
 ```sh
-coder workspaces update <workspace-name>
+coder update <workspace-name>
 ```

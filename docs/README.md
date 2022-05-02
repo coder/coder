@@ -59,7 +59,7 @@ coder templates create
 Create a workspace and connect to it via SSH:
 
 ```bash
-coder workspaces create my-first-workspace
+coder create my-first-workspace
 coder ssh my-first-workspace
 ```
 

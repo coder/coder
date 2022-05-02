@@ -16,6 +16,28 @@ import (
 //nolint:paralleltest
 func TestCliflag(t *testing.T) {
 	t.Run("StringDefault", func(t *testing.T) {
+		flagset, name, shorthand, env, usage := randomFlag()
+		def, _ := cryptorand.String(10)
+		cliflag.String(flagset, name, shorthand, env, def, usage)
+		got, err := flagset.GetString(name)
+		require.NoError(t, err)
+		require.Equal(t, def, got)
+		require.Contains(t, flagset.FlagUsages(), usage)
+		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
+	})
+
+	t.Run("StringEnvVar", func(t *testing.T) {
+		flagset, name, shorthand, env, usage := randomFlag()
+		envValue, _ := cryptorand.String(10)
+		t.Setenv(env, envValue)
+		def, _ := cryptorand.String(10)
+		cliflag.String(flagset, name, shorthand, env, def, usage)
+		got, err := flagset.GetString(name)
+		require.NoError(t, err)
+		require.Equal(t, envValue, got)
+	})
+
+	t.Run("StringVarPDefault", func(t *testing.T) {
 		var ptr string
 		flagset, name, shorthand, env, usage := randomFlag()
 		def, _ := cryptorand.String(10)
@@ -28,7 +50,7 @@ func TestCliflag(t *testing.T) {
 		require.Contains(t, flagset.FlagUsages(), fmt.Sprintf(" - consumes $%s", env))
 	})
 
-	t.Run("StringEnvVar", func(t *testing.T) {
+	t.Run("StringVarPEnvVar", func(t *testing.T) {
 		var ptr string
 		flagset, name, shorthand, env, usage := randomFlag()
 		envValue, _ := cryptorand.String(10)

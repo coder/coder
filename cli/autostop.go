@@ -16,31 +16,30 @@ When enabling autostop, provide the minute, hour, and day(s) of week.
 The default autostop schedule is at 18:00 in your local timezone (TZ env, UTC by default).
 `
 
-func workspaceAutostop() *cobra.Command {
+func autostop() *cobra.Command {
 	autostopCmd := &cobra.Command{
 		Use:     "autostop enable <workspace>",
 		Short:   "schedule a workspace to automatically stop at a regular time",
 		Long:    autostopDescriptionLong,
-		Example: "coder workspaces autostop enable my-workspace --minute 0 --hour 18 --days 1-5 -tz Europe/Dublin",
+		Example: "coder autostop enable my-workspace --minute 0 --hour 18 --days 1-5 -tz Europe/Dublin",
 		Hidden:  true,
 	}
 
-	autostopCmd.AddCommand(workspaceAutostopEnable())
-	autostopCmd.AddCommand(workspaceAutostopDisable())
+	autostopCmd.AddCommand(autostopEnable())
+	autostopCmd.AddCommand(autostopDisable())
 
 	return autostopCmd
 }
 
-func workspaceAutostopEnable() *cobra.Command {
+func autostopEnable() *cobra.Command {
 	// yes some of these are technically numbers but the cron library will do that work
 	var autostopMinute string
 	var autostopHour string
 	var autostopDayOfWeek string
 	var autostopTimezone string
 	cmd := &cobra.Command{
-		Use:               "enable <workspace_name> <schedule>",
-		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(1),
+		Use:  "enable <workspace_name> <schedule>",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -86,11 +85,10 @@ func workspaceAutostopEnable() *cobra.Command {
 	return cmd
 }
 
-func workspaceAutostopDisable() *cobra.Command {
+func autostopDisable() *cobra.Command {
 	return &cobra.Command{
-		Use:               "disable <workspace_name>",
-		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(1),
+		Use:  "disable <workspace_name>",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

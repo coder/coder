@@ -115,7 +115,7 @@ func templateCreate() *cobra.Command {
 				"The "+cliui.Styles.Keyword.Render(templateName)+" template has been created! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder workspaces create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
 			return nil

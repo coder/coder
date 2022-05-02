@@ -79,7 +79,7 @@ Run `+cliui.Styles.Code.Render("coder login "+client.URL.String())+` to authenti
 Your email is: `+cliui.Styles.Field.Render(email)+`
 Your password is: `+cliui.Styles.Field.Render(password)+`
 
-Create a workspace  `+cliui.Styles.Code.Render("coder workspaces create")+`!`)
+Create a workspace  `+cliui.Styles.Code.Render("coder create")+`!`)
 			return nil
 		},
 	}

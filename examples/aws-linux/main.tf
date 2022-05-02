@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.3.1"
+      version = "0.3.4"
     }
   }
 }
@@ -12,7 +12,7 @@ variable "access_key" {
 Create an AWS access key to provision resources with Coder:
 - https://console.aws.amazon.com/iam/home#/users
   
-AWS Access Key
+AWS Access Key ID
 EOT
   sensitive   = true
 }

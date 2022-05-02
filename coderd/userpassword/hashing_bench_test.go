@@ -4,9 +4,10 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"github.com/coder/coder/cryptorand"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/pbkdf2"
+
+	"github.com/coder/coder/cryptorand"
 )
 
 var (

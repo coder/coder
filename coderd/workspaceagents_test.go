@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"encoding/json"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -22,40 +23,45 @@ import (
 
 func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
+	t.Run("Connect", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:           echo.ParseComplete,
+			ProvisionDryRun: echo.ProvisionComplete,
+			Provision: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id:        uuid.NewString(),
+								Directory: "/tmp",
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
 						}},
-					}},
+					},
 				},
-			},
-		}},
-	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	daemonCloser.Close()
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		daemonCloser.Close()
 
-	resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
-	require.NoError(t, err)
-	_, err = client.WorkspaceAgent(context.Background(), resources[0].Agents[0].ID)
-	require.NoError(t, err)
+		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Equal(t, "/tmp", resources[0].Agents[0].Directory)
+		_, err = client.WorkspaceAgent(context.Background(), resources[0].Agents[0].ID)
+		require.NoError(t, err)
+	})
 }
 
 func TestWorkspaceAgentListen(t *testing.T) {
@@ -165,6 +171,12 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 
 func TestWorkspaceAgentPTY(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
