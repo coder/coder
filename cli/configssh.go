@@ -106,6 +106,9 @@ func configSSH() *cobra.Command {
 								// Without this, the "REMOTE HOST IDENTITY CHANGED"
 								// message will appear.
 								"\tUserKnownHostsFile=/dev/null",
+								// This disables the "Warning: Permanently added 'hostname' (RSA) to the list of known hosts."
+								// message from appearing on every SSH. This happens because we ignore the known hosts.
+								"\tLogLevel ERROR",
 							)
 							if !skipProxyCommand {
 								configOptions = append(configOptions, fmt.Sprintf("\tProxyCommand %q --global-config %q ssh --stdio %s", binaryFile, root, hostname))
