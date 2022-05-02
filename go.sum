@@ -283,8 +283,8 @@ github.com/charmbracelet/bubbles v0.10.3/go.mod h1:jOA+DUF1rjZm7gZHcNyIVW+YrBPAL
 github.com/charmbracelet/bubbletea v0.19.3/go.mod h1:VuXF2pToRxDUHcBUcPmCRUHRvFATM4Ckb/ql1rBl3KA=
 github.com/charmbracelet/bubbletea v0.20.0 h1:/b8LEPgCbNr7WWZ2LuE/BV1/r4t5PyYJtDb+J3vpwxc=
 github.com/charmbracelet/bubbletea v0.20.0/go.mod h1:zpkze1Rioo4rJELjRyGlm9T2YNou1Fm4LIJQSa5QMEM=
-github.com/charmbracelet/charm v0.11.0 h1:0LNarK9NrduyA9cjwP+SfGQgy5t0IePrhk1rZHx/11M=
-github.com/charmbracelet/charm v0.11.0/go.mod h1:bBFHHhDkQ4p30z/BfoAA5R3y2ir8jNqm6BuPesjuQeM=
+github.com/charmbracelet/charm v0.12.0 h1:gU45uvG66HyoXKLL/YduzIixDsbqHwUPigt+Oyzcef4=
+github.com/charmbracelet/charm v0.12.0/go.mod h1:jpjWedCVoAJHTRgaUkugf++9ziYKxQgDTxmJYLUdGak=
 github.com/charmbracelet/harmonica v0.1.0/go.mod h1:KSri/1RMQOZLbw7AHqgcBycp8pgJnQMYYT8QZRqZ1Ao=
 github.com/charmbracelet/lipgloss v0.4.0/go.mod h1:vmdkHvce7UzX6xkyf4cca8WlwdQ5RQr8fzta+xl7BOM=
 github.com/charmbracelet/lipgloss v0.5.0 h1:lulQHuVeodSgDez+3rGiuxlPVXSnhth442DATR2/8t8=
