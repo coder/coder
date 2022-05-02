@@ -268,6 +268,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
+			r.Get("/state", api.workspaceBuildState)
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)

@@ -80,6 +80,7 @@ func Root() *cobra.Command {
 		server(),
 		show(),
 		start(),
+		state(),
 		stop(),
 		ssh(),
 		templates(),
