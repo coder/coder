@@ -243,6 +243,8 @@ func (server *provisionerdServer) AcquireJob(ctx context.Context, _ *proto.Empty
 					WorkspaceTransition: transition,
 					WorkspaceName:       workspace.Name,
 					WorkspaceOwner:      owner.Username,
+					WorkspaceId:         workspace.ID.String(),
+					WorkspaceOwnerId:    owner.ID.String(),
 				},
 			},
 		}
@@ -633,6 +635,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			AuthInstanceID:       instanceID,
 			Architecture:         agent.Architecture,
 			EnvironmentVariables: env,
+			Directory:            agent.Directory,
 			OperatingSystem:      agent.OperatingSystem,
 			StartupScript: sql.NullString{
 				String: agent.StartupScript,

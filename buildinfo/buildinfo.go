@@ -33,13 +33,17 @@ func Version() string {
 			revision = "+" + revision[:7]
 		}
 		if tag == "" {
+			// This occurs when the tag hasn't been injected,
+			// like when using "go run".
 			version = "v0.0.0-devel" + revision
 			return
 		}
-		if semver.Build(tag) == "" {
-			tag += revision
-		}
 		version = "v" + tag
+		// The tag must be prefixed with "v" otherwise the
+		// semver library will return an empty string.
+		if semver.Build(version) == "" {
+			version += revision
+		}
 	})
 	return version
 }

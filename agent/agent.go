@@ -49,6 +49,7 @@ type Metadata struct {
 	OwnerUsername        string            `json:"owner_username"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
+	Directory            string            `json:"directory"`
 }
 
 type Dialer func(ctx context.Context, logger slog.Logger) (Metadata, *peerbroker.Listener, error)
@@ -340,6 +341,11 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		caller = "/c"
 	}
 	cmd := exec.CommandContext(ctx, shell, caller, command)
+	cmd.Dir = metadata.Directory
+	if cmd.Dir == "" {
+		// Default to $HOME if a directory is not set!
+		cmd.Dir = os.Getenv("HOME")
+	}
 	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
 	if err != nil {

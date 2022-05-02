@@ -79,9 +79,10 @@ message Agent {
     string startup_script = 4;
     string operating_system = 5;
     string architecture = 6;
+    string directory = 7;
     oneof auth {
-        string token = 7;
-        string instance_id = 8;
+        string token = 8;
+        string instance_id = 9;
     }
 }
 
@@ -121,6 +122,8 @@ message Provision {
         WorkspaceTransition workspace_transition = 2;
         string workspace_name = 3;
         string workspace_owner = 4;
+        string workspace_id = 5;
+        string workspace_owner_id = 6;
     }
     message Start {
         string directory = 1;

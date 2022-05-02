@@ -8,6 +8,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -263,7 +265,10 @@ func server() *cobra.Command {
 			go func() {
 				defer close(errCh)
 				server := http.Server{
-					Handler: handler,
+					// These errors are typically noise like "TLS: EOF". Vault does similar:
+					// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
+					ErrorLog: log.New(io.Discard, "", 0),
+					Handler:  handler,
 					BaseContext: func(_ net.Listener) context.Context {
 						return shutdownConnsCtx
 					},
@@ -356,18 +361,7 @@ func server() *cobra.Command {
 						return xerrors.Errorf("delete workspace: %w", err)
 					}
 
-					err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
-						Fetch: func() (codersdk.ProvisionerJob, error) {
-							build, err := client.WorkspaceBuild(cmd.Context(), build.ID)
-							return build.Job, err
-						},
-						Cancel: func() error {
-							return client.CancelWorkspaceBuild(cmd.Context(), build.ID)
-						},
-						Logs: func() (<-chan codersdk.ProvisionerJobLog, error) {
-							return client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, before)
-						},
-					})
+					err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID, before)
 					if err != nil {
 						return xerrors.Errorf("delete workspace %s: %w", workspace.Name, err)
 					}

@@ -2218,7 +2218,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
 FROM
 	workspace_agents
 WHERE
@@ -2247,13 +2247,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.StartupScript,
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
 FROM
 	workspace_agents
 WHERE
@@ -2280,13 +2281,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.StartupScript,
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
 FROM
 	workspace_agents
 WHERE
@@ -2315,13 +2317,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.StartupScript,
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
+		&i.Directory,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
 FROM
 	workspace_agents
 WHERE
@@ -2354,6 +2357,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.StartupScript,
 			&i.InstanceMetadata,
 			&i.ResourceMetadata,
+			&i.Directory,
 		); err != nil {
 			return nil, err
 		}
@@ -2382,11 +2386,12 @@ INSERT INTO
 		environment_variables,
 		operating_system,
 		startup_script,
+		directory,
 		instance_metadata,
 		resource_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -2401,6 +2406,7 @@ type InsertWorkspaceAgentParams struct {
 	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
 	OperatingSystem      string                `db:"operating_system" json:"operating_system"`
 	StartupScript        sql.NullString        `db:"startup_script" json:"startup_script"`
+	Directory            string                `db:"directory" json:"directory"`
 	InstanceMetadata     pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
 	ResourceMetadata     pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
 }
@@ -2418,6 +2424,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.EnvironmentVariables,
 		arg.OperatingSystem,
 		arg.StartupScript,
+		arg.Directory,
 		arg.InstanceMetadata,
 		arg.ResourceMetadata,
 	)
@@ -2439,6 +2446,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.StartupScript,
 		&i.InstanceMetadata,
 		&i.ResourceMetadata,
+		&i.Directory,
 	)
 	return i, err
 }
