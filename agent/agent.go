@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -21,7 +22,6 @@ import (
 	"github.com/armon/circbuf"
 	"github.com/google/uuid"
 
-	gsyslog "github.com/hashicorp/go-syslog"
 	"go.uber.org/atomic"
 
 	"cdr.dev/slog"
@@ -166,15 +166,9 @@ func (*agent) runStartupScript(ctx context.Context, script string) error {
 		return xerrors.Errorf("get user shell: %w", err)
 	}
 
-	var writer io.WriteCloser
-	// Attempt to use the syslog to write startup information.
-	writer, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "USER", "coder-startup-script")
+	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
-		// If the syslog isn't supported or cannot be created, use a text file in temp.
-		writer, err = os.CreateTemp("", "coder-startup-script-*.txt")
-		if err != nil {
-			return xerrors.Errorf("open startup script log file: %w", err)
-		}
+		return xerrors.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
 		_ = writer.Close()
