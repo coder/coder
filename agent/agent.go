@@ -518,7 +518,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 					break
 				}
 				part := buffer[:read]
+				rpty.circularBufferMutex.Lock()
 				_, err = rpty.circularBuffer.Write(part)
+				rpty.circularBufferMutex.Unlock()
 				if err != nil {
 					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", id))
 					break
@@ -545,7 +547,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
 	}
 	// Write any previously stored data for the TTY.
+	rpty.circularBufferMutex.RLock()
 	_, err = conn.Write(rpty.circularBuffer.Bytes())
+	rpty.circularBufferMutex.RUnlock()
 	if err != nil {
 		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", id), slog.Error(err))
 		return
@@ -640,9 +644,10 @@ type reconnectingPTY struct {
 	activeConnsMutex sync.Mutex
 	activeConns      map[string]net.Conn
 
-	circularBuffer *circbuf.Buffer
-	timeout        *time.Timer
-	ptty           pty.PTY
+	circularBuffer      *circbuf.Buffer
+	circularBufferMutex sync.RWMutex
+	timeout             *time.Timer
+	ptty                pty.PTY
 }
 
 // Close ends all connections to the reconnecting
