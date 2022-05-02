@@ -2495,8 +2495,8 @@ google.golang.org/protobuf v1.26.0/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQ
 google.golang.org/protobuf v1.27.1/go.mod h1:9q0QmTI4eRPtz6boOQmLYwt+qCgq0jsYwAQnmE0givc=
 google.golang.org/protobuf v1.28.0 h1:w43yiav+6bVFTBQFZX0r7ipe9JQ1QsbMgHwbBziscLw=
 google.golang.org/protobuf v1.28.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
-gopkg.in/DataDog/dd-trace-go.v1 v1.38.0 h1:vm/mYIZCEp5j2MoKPmwM3t6EGthxpvVbCOm2hRl5uDc=
-gopkg.in/DataDog/dd-trace-go.v1 v1.38.0/go.mod h1:GBhK4yaMJ1h329ivtKAqRNe1EZ944UnZwtz5lh7CnJc=
+gopkg.in/DataDog/dd-trace-go.v1 v1.38.1 h1:nAKgcpJLXRHF56cKCP3bN8gTTQmmNAZFEblbyGKhKTo=
+gopkg.in/DataDog/dd-trace-go.v1 v1.38.1/go.mod h1:GBhK4yaMJ1h329ivtKAqRNe1EZ944UnZwtz5lh7CnJc=
 gopkg.in/airbrake/gobrake.v2 v2.0.9/go.mod h1:/h5ZAUhDkGaJfjzjKLSjv6zCL6O0LLBxU4K+aSYdM/U=
 gopkg.in/alecthomas/kingpin.v2 v2.2.6/go.mod h1:FMv+mEhP44yOT+4EoQTLFTRgOQ1FBLkstjWtayDeSgw=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
