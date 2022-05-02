@@ -13,16 +13,17 @@ export const Language = {
 export interface UsersPageViewProps {
   users: UserResponse[]
   openUserCreationDialog: () => void
+  onSuspendUser: (user: UserResponse) => void
 }
 
-export const UsersPageView: React.FC<UsersPageViewProps> = ({ users, openUserCreationDialog }) => {
+export const UsersPageView: React.FC<UsersPageViewProps> = ({ users, openUserCreationDialog, onSuspendUser }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.flexColumn}>
       <Header title={Language.pageTitle} action={{ text: Language.newUserButton, onClick: openUserCreationDialog }} />
       <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
-        <UsersTable users={users} />
+        <UsersTable users={users} onSuspendUser={onSuspendUser} />
       </Paper>
     </div>
   )
