@@ -1,9 +1,15 @@
+.DEFAULT_GOAL := build
+
 INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-# First target is the default for `make`.
-build: dist
+bin: $(shell find -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+	@echo "== This builds binaries for command-line usage."
+	@echo "== Use \"make build\" to embed the site."
+	goreleaser build --snapshot --rm-dist --single-target
+
+build: dist/artifacts.json
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
@@ -14,9 +20,8 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
-# This is called "dist" to target the output directory for binaries.
-dist: site/out $(find -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
-	goreleaser build --snapshot --rm-dist
+dist/artifacts.json: site/out $(shell find -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+	goreleaser release --snapshot --rm-dist --skip-sign
 
 fmt/prettier:
 	@echo "--- prettier"
@@ -30,6 +35,7 @@ endif
 
 fmt/terraform: $(wildcard *.tf)
 	terraform fmt -recursive
+.PHONY: fmt/terraform
 
 fmt: fmt/prettier fmt/terraform
 .PHONY: fmt
