@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -19,18 +19,18 @@ var (
 		Name:      "requests_processed_total",
 		Help:      "The total number of processed API requests",
 	}, []string{"code", "method", "path"})
-	requestsConcurrent = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	requestsConcurrent = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "concurrent_requests",
 		Help:      "The number of concurrent API requests",
-	}, []string{"method", "path"})
-	websocketsConcurrent = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	})
+	websocketsConcurrent = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "concurrent_websockets",
 		Help:      "The total number of concurrent API websockets",
-	}, []string{"path"})
+	})
 	websocketsDist = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
@@ -64,11 +64,10 @@ func Prometheus(next http.Handler) http.Handler {
 			start  = time.Now()
 			method = r.Method
 			rctx   = chi.RouteContext(r.Context())
-			path   = rctx.RoutePattern()
 		)
-		sw, ok := w.(middleware.WrapResponseWriter)
+		sw, ok := w.(chimw.WrapResponseWriter)
 		if !ok {
-			panic("dev error: http.ResponseWriter is not middleware.WrapResponseWriter")
+			panic("dev error: http.ResponseWriter is not chimw.WrapResponseWriter")
 		}
 
 		var (
@@ -77,24 +76,26 @@ func Prometheus(next http.Handler) http.Handler {
 		)
 		// We want to count websockets separately.
 		if isWebsocketUpgrade(r) {
-			websocketsConcurrent.WithLabelValues(path).Inc()
-			defer websocketsConcurrent.WithLabelValues(path).Dec()
+			websocketsConcurrent.Inc()
+			defer websocketsConcurrent.Dec()
 
 			dist = websocketsDist
-			distOpts = []string{path}
 		} else {
-			requestsConcurrent.WithLabelValues(method, path).Inc()
-			defer requestsConcurrent.WithLabelValues(method, path).Dec()
+			requestsConcurrent.Inc()
+			defer requestsConcurrent.Dec()
 
 			dist = requestsDist
-			distOpts = []string{method, path}
+			distOpts = []string{method}
 		}
 
 		next.ServeHTTP(w, r)
+
+		path := rctx.RoutePattern()
+		distOpts = append(distOpts, path)
 		statusStr := strconv.Itoa(sw.Status())
 
 		requestsProcessed.WithLabelValues(statusStr, method, path).Inc()
-		dist.WithLabelValues(distOpts...).Observe(float64(time.Since(start).Milliseconds()))
+		dist.WithLabelValues(distOpts...).Observe(float64(time.Since(start)) / 1e6)
 	})
 }
 

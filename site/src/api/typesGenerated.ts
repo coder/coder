@@ -91,6 +91,7 @@ export interface CreateWorkspaceBuildRequest {
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly transition: string
   readonly dry_run: boolean
+  readonly state: string
 }
 
 // From codersdk/organizations.go:52:6
@@ -265,12 +266,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:94:6
+// From codersdk/workspaces.go:95:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:114:6
+// From codersdk/workspaces.go:115:6
 export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
@@ -366,7 +367,7 @@ export interface WorkspaceAgentResourceMetadata {
   readonly cpu_mhz: number
 }
 
-// From codersdk/workspacebuilds.go:17:6
+// From codersdk/workspacebuilds.go:18:6
 export interface WorkspaceBuild {
   readonly id: string
   readonly created_at: string
