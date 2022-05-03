@@ -11,16 +11,19 @@ import (
 
 	"github.com/coder/coder/coderd/rbac"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/database"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/go-chi/chi/v5"
-	"github.com/stretchr/testify/require"
 )
 
 func TestExtractUserRoles(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		Name    string
 		AddUser func(db database.Store) (database.User, []string, string)
