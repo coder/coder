@@ -159,7 +159,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 			r.Route("/members", func(r chi.Router) {
 				r.Route("/roles", func(r chi.Router) {
-					r.Use(httpmw.RBACObject(rbac.ResourceUserRole))
+					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
 					r.Get("/", authorize(api.assignableOrgRoles, rbac.ActionRead))
 				})
 				r.Route("/{user}", func(r chi.Router) {
@@ -232,7 +232,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.users)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
-					r.Use(httpmw.RBACObject(rbac.ResourceUserRole))
+					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
 					r.Get("/", authorize(api.assignableSiteRoles, rbac.ActionRead))
 				})
 				r.Route("/{user}", func(r chi.Router) {

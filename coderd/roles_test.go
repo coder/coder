@@ -84,7 +84,7 @@ func TestListRoles(t *testing.T) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			Authorized:    true,
-			ExpectedRoles: rbac.ListOrganizationRoles(admin.OrganizationID),
+			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
@@ -100,7 +100,7 @@ func TestListRoles(t *testing.T) {
 				return client.ListSiteRoles(ctx)
 			},
 			Authorized:    true,
-			ExpectedRoles: rbac.ListSiteRoles(),
+			ExpectedRoles: rbac.SiteRoles(),
 		},
 		{
 			Name: "AdminListOrg",
@@ -108,7 +108,7 @@ func TestListRoles(t *testing.T) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			Authorized:    true,
-			ExpectedRoles: rbac.ListOrganizationRoles(admin.OrganizationID),
+			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
 		},
 	}
 

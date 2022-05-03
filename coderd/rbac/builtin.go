@@ -145,11 +145,11 @@ func IsOrgRole(roleName string) (string, bool) {
 	return "", false
 }
 
-// ListOrganizationRoles lists all roles that can be applied to an organization user
+// OrganizationRoles lists all roles that can be applied to an organization user
 // in the given organization.
-// Note: This should be a list in a database, but until then we build
+// This should be a list in a database, but until then we build
 // 	the list from the builtins.
-func ListOrganizationRoles(organizationID uuid.UUID) []string {
+func OrganizationRoles(organizationID uuid.UUID) []string {
 	var roles []string
 	for role := range builtInRoles {
 		_, scope, err := roleSplit(role)
@@ -164,10 +164,10 @@ func ListOrganizationRoles(organizationID uuid.UUID) []string {
 	return roles
 }
 
-// ListSiteRoles lists all roles that can be applied to a user.
-// Note: This should be a list in a database, but until then we build
+// SiteRoles lists all roles that can be applied to a user.
+// This should be a list in a database, but until then we build
 // 	the list from the builtins.
-func ListSiteRoles() []string {
+func SiteRoles() []string {
 	var roles []string
 	for role := range builtInRoles {
 		_, scope, err := roleSplit(role)

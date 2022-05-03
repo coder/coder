@@ -11,7 +11,7 @@ import (
 func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
-	roles := rbac.ListSiteRoles()
+	roles := rbac.SiteRoles()
 	httpapi.Write(rw, http.StatusOK, roles)
 }
 
@@ -19,6 +19,6 @@ func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
-	roles := rbac.ListSiteRoles()
+	roles := rbac.SiteRoles()
 	httpapi.Write(rw, http.StatusOK, roles)
 }

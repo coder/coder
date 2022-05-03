@@ -88,9 +88,9 @@ func GetAuthObject(r *http.Request) AuthObject {
 	return obj
 }
 
-// RBACObject sets the object for 'Authorize()' for all routes handled
+// WithRBACObject sets the object for 'Authorize()' for all routes handled
 // by this middleware. The important field to set is 'Type'
-func RBACObject(object rbac.Object) func(http.Handler) http.Handler {
+func WithRBACObject(object rbac.Object) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ao := GetAuthObject(r)
@@ -105,7 +105,7 @@ func RBACObject(object rbac.Object) func(http.Handler) http.Handler {
 // User roles are the 'subject' field of Authorize()
 type userRolesKey struct{}
 
-// APIKey returns the API key from the ExtractAPIKey handler.
+// UserRoles returns the API key from the ExtractUserRoles handler.
 func UserRoles(r *http.Request) database.GetAllUserRolesRow {
 	apiKey, ok := r.Context().Value(userRolesKey{}).(database.GetAllUserRolesRow)
 	if !ok {
