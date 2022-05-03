@@ -39,7 +39,7 @@ func TestListRoles(t *testing.T) {
 			Roles: []string{rbac.RoleOrgMember(admin.OrganizationID), rbac.RoleOrgAdmin(admin.OrganizationID)},
 		},
 	)
-	require.NoError(t, err)
+	require.NoError(t, err, "update org member roles")
 
 	testCases := []struct {
 		Name          string

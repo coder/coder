@@ -13,13 +13,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// AuthObject wraps the rbac object type for middleware to customize this value
-// before being passed to Authorize().
-type AuthObject struct {
-	// Object is that base static object the above functions can modify.
-	Object rbac.Object
-}
-
 // Authorize will enforce if the user roles can complete the action on the AuthObject.
 // The organization and owner are found using the ExtractOrganization and
 // ExtractUser middleware if present.
@@ -27,9 +20,8 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			roles := UserRoles(r)
-			args := GetAuthObject(r)
+			object := authObject(r)
 
-			object := args.Object
 			if object.Type == "" {
 				panic("developer error: auth object has no type")
 			}
@@ -80,8 +72,8 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 type authObjectKey struct{}
 
 // APIKey returns the API key from the ExtractAPIKey handler.
-func GetAuthObject(r *http.Request) AuthObject {
-	obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
+func authObject(r *http.Request) rbac.Object {
+	obj, ok := r.Context().Value(authObjectKey{}).(rbac.Object)
 	if !ok {
 		panic("developer error: auth object middleware not provided")
 	}
@@ -93,10 +85,7 @@ func GetAuthObject(r *http.Request) AuthObject {
 func WithRBACObject(object rbac.Object) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ao := GetAuthObject(r)
-			ao.Object = object
-
-			ctx := context.WithValue(r.Context(), authObjectKey{}, ao)
+			ctx := context.WithValue(r.Context(), authObjectKey{}, object)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
