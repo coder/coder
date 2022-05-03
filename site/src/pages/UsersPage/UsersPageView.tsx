@@ -1,4 +1,3 @@
-
 import React from "react"
 import { UserResponse } from "../../api/types"
 import { Header } from "../../components/Header/Header"
