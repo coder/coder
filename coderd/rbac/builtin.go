@@ -151,7 +151,8 @@ func IsOrgRole(roleName string) (string, bool) {
 // 	the list from the builtins.
 func OrganizationRoles(organizationID uuid.UUID) []string {
 	var roles []string
-	for role := range builtInRoles {
+	for _, roleF := range builtInRoles {
+		role := roleF(organizationID.String()).Name
 		_, scope, err := roleSplit(role)
 		if err != nil {
 			// This should never happen

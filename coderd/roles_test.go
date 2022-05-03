@@ -8,19 +8,11 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
 func TestListRoles(t *testing.T) {
 	t.Parallel()
-
-	requireUnauthorized := func(t *testing.T, err error) {
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "unauthorized")
-	}
 
 	ctx := context.Background()
 	client := coderdtest.New(t, nil)
@@ -41,12 +33,20 @@ func TestListRoles(t *testing.T) {
 	)
 	require.NoError(t, err, "update org member roles")
 
+	otherOrg, err := client.CreateOrganization(ctx, admin.UserID, codersdk.CreateOrganizationRequest{
+		Name: "other",
+	})
+	require.NoError(t, err, "create org")
+
+	const unauth = "unauthorized"
+	const notMember = "not a member of the organization"
+
 	testCases := []struct {
-		Name          string
-		Client        *codersdk.Client
-		APICall       func() ([]string, error)
-		ExpectedRoles []string
-		Authorized    bool
+		Name            string
+		Client          *codersdk.Client
+		APICall         func() ([]string, error)
+		ExpectedRoles   []string
+		AuthorizedError string
 	}{
 		{
 			Name: "MemberListSite",
@@ -54,21 +54,21 @@ func TestListRoles(t *testing.T) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
-			Authorized: false,
+			AuthorizedError: unauth,
 		},
 		{
 			Name: "OrgMemberListOrg",
 			APICall: func() ([]string, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			Authorized: false,
+			AuthorizedError: unauth,
 		},
 		{
 			Name: "NonOrgMemberListOrg",
 			APICall: func() ([]string, error) {
-				return member.ListOrganizationRoles(ctx, uuid.New())
+				return member.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
-			Authorized: false,
+			AuthorizedError: notMember,
 		},
 		// Org admin
 		{
@@ -76,22 +76,21 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]string, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
-			Authorized: false,
+			AuthorizedError: unauth,
 		},
 		{
 			Name: "OrgAdminListOrg",
 			APICall: func() ([]string, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			Authorized:    true,
 			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
 			APICall: func() ([]string, error) {
-				return orgAdmin.ListOrganizationRoles(ctx, uuid.New())
+				return orgAdmin.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
-			Authorized: false,
+			AuthorizedError: notMember,
 		},
 		// Admin
 		{
@@ -99,7 +98,6 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]string, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			Authorized:    true,
 			ExpectedRoles: rbac.SiteRoles(),
 		},
 		{
@@ -107,7 +105,6 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]string, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			Authorized:    true,
 			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
 		},
 	}
@@ -117,8 +114,11 @@ func TestListRoles(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			roles, err := c.APICall()
-			if !c.Authorized {
-				requireUnauthorized(t, err)
+			if c.AuthorizedError != "" {
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+				require.Contains(t, apiErr.Message, c.AuthorizedError)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, c.ExpectedRoles, roles)
