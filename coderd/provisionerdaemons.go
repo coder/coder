@@ -95,7 +95,7 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 		},
 	})
 	err = server.Serve(r.Context(), session)
-	if err != nil {
+	if err != nil && !xerrors.Is(err, io.EOF) {
 		api.Logger.Debug(r.Context(), "provisioner daemon disconnected", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return

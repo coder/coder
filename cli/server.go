@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"net/url"
 	"os"
 	"os/signal"
@@ -23,6 +24,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/pion/turn/v2"
 	"github.com/pion/webrtc/v3"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
@@ -55,6 +57,10 @@ func server() *cobra.Command {
 	var (
 		accessURL       string
 		address         string
+		promEnabled     bool
+		promAddress     string
+		pprofEnabled    bool
+		pprofAddress    string
 		cacheDir        string
 		dev             bool
 		devUserEmail    string
@@ -245,6 +251,17 @@ func server() *cobra.Command {
 				}
 			}
 
+			// This prevents the pprof import from being accidentally deleted.
+			var _ = pprof.Handler
+			if pprofEnabled {
+				//nolint:revive
+				defer serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")()
+			}
+			if promEnabled {
+				//nolint:revive
+				defer serveHandler(cmd.Context(), logger, promhttp.Handler(), promAddress, "prometheus")()
+			}
+
 			errCh := make(chan error, 1)
 			provisionerDaemons := make([]*provisionerd.Server, 0)
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
@@ -400,8 +417,12 @@ func server() *cobra.Command {
 		},
 	}
 
-	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder")
-	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard")
+	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
+	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
+	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false, "Enable serving prometheus metrics on the addressdefined by --prometheus-address.")
+	cliflag.StringVarP(root.Flags(), &promAddress, "prometheus-address", "", "CODER_PROMETHEUS_ADDRESS", "127.0.0.1:2112", "The address to serve prometheus metrics.")
+	cliflag.BoolVarP(root.Flags(), &promEnabled, "pprof-enable", "", "CODER_PPROF_ENABLE", false, "Enable serving pprof metrics on the address defined by --pprof-address.")
+	cliflag.StringVarP(root.Flags(), &pprofAddress, "pprof-address", "", "CODER_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	// systemd uses the CACHE_DIRECTORY environment variable!
 	cliflag.StringVarP(root.Flags(), &cacheDir, "cache-dir", "", "CACHE_DIRECTORY", filepath.Join(os.TempDir(), "coder-cache"), "Specifies a directory to cache binaries for provision operations.")
 	cliflag.BoolVarP(root.Flags(), &dev, "dev", "", "CODER_DEV_MODE", false, "Serve Coder in dev mode for tinkering")
@@ -659,6 +680,20 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return memberships, err
 		},
 	}, nil
+}
+
+func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
+	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
+
+	srv := &http.Server{Addr: addr, Handler: handler}
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
+		}
+	}()
+
+	return func() { _ = srv.Close() }
 }
 
 type datadogLogger struct {

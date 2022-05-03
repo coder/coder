@@ -168,3 +168,29 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	}
 	require.Fail(t, "example message never happened")
 }
+
+func TestWorkspaceBuildState(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
+	wantState := []byte("some kinda state")
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:           echo.ParseComplete,
+		ProvisionDryRun: echo.ProvisionComplete,
+		Provision: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					State: wantState,
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	gotState, err := client.WorkspaceBuildState(context.Background(), workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	require.Equal(t, wantState, gotState)
+}

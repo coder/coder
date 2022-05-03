@@ -212,6 +212,11 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
+		state := createBuild.ProvisionerState
+		if state == nil || len(state) == 0 {
+			state = priorHistory.ProvisionerState
+		}
+
 		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         database.Now(),
@@ -220,7 +225,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			TemplateVersionID: templateVersion.ID,
 			BeforeID:          priorHistoryID,
 			Name:              namesgenerator.GetRandomName(1),
-			ProvisionerState:  priorHistory.ProvisionerState,
+			ProvisionerState:  state,
 			InitiatorID:       apiKey.UserID,
 			Transition:        createBuild.Transition,
 			JobID:             provisionerJob.ID,

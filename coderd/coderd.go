@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/pion/webrtc/v3"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -87,9 +88,25 @@ func New(options *Options) (http.Handler, func()) {
 	}
 
 	r := chi.NewRouter()
+
+	r.Use(
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(middleware.NewWrapResponseWriter(w, r.ProtoMajor), r)
+			})
+		},
+		httpmw.Prometheus,
+		chitrace.Middleware(),
+	)
+
 	r.Route("/api/v2", func(r chi.Router) {
+		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				Message: "Route not found.",
+			})
+		})
+
 		r.Use(
-			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			debugLogRequest(api.Logger),
@@ -300,6 +317,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
+			r.Get("/state", api.workspaceBuildState)
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)

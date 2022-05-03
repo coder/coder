@@ -10,6 +10,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# The logic below depends on the exact version being correct :(
+[[ $(sqlc version) != "v1.13.0" ]] && go install github.com/kyleconroy/sqlc/cmd/sqlc@v1.13.0
 sqlc generate
 
 first=true
@@ -20,7 +22,7 @@ for fi in queries/*.sql.go; do
 
     # Copy the header from the first file only, ignoring the source comment.
     if $first; then
-        head -n 4 < "$fi" | grep -v "source" > queries.sql.go
+        head -n 6 < "$fi" | grep -v "source" > queries.sql.go
         first=false
     fi
 
