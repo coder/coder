@@ -143,10 +143,6 @@ type Conn struct {
 }
 
 func (c *Conn) logger() slog.Logger {
-	// The logger gets swapped
-	c.closeMutex.RLock()
-	defer c.closeMutex.RUnlock()
-
 	log, valid := c.loggerValue.Load().(slog.Logger)
 	if !valid {
 		return slog.Logger{}
