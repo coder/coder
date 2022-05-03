@@ -245,6 +245,38 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	return tmp, nil
 }
 
+func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var user *database.User
+	roles := make([]string, 0)
+	for _, u := range q.users {
+		if u.ID == userID {
+			u := u
+			roles = append(roles, u.RBACRoles...)
+			user = &u
+			break
+		}
+	}
+
+	for _, mem := range q.organizationMembers {
+		if mem.UserID == userID {
+			roles = append(roles, mem.Roles...)
+		}
+	}
+
+	if user == nil {
+		return database.GetAllUserRolesRow{}, sql.ErrNoRows
+	}
+
+	return database.GetAllUserRolesRow{
+		ID:       userID,
+		Username: user.Username,
+		Roles:    roles,
+	}, nil
+}
+
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

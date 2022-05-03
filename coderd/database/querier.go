@@ -21,6 +21,7 @@ type querier interface {
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
+	GetAllUserRoles(ctx context.Context, userID uuid.UUID) (GetAllUserRolesRow, error)
 	// GetAuditLogsBefore retrieves `limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBeforeParams) ([]AuditLog, error)

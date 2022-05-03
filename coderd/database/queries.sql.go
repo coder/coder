@@ -2014,6 +2014,31 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 	return err
 }
 
+const getAllUserRoles = `-- name: GetAllUserRoles :one
+SELECT
+    -- username is returned just to help for logging purposes
+	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+FROM
+	users
+LEFT JOIN organization_members
+	ON id = user_id
+WHERE
+    id = $1
+`
+
+type GetAllUserRolesRow struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	Username string    `db:"username" json:"username"`
+	Roles    []string  `db:"roles" json:"roles"`
+}
+
+func (q *sqlQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) (GetAllUserRolesRow, error) {
+	row := q.db.QueryRowContext(ctx, getAllUserRoles, userID)
+	var i GetAllUserRolesRow
+	err := row.Scan(&i.ID, &i.Username, pq.Array(&i.Roles))
+	return i, err
+}
+
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles

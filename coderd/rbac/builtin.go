@@ -145,6 +145,49 @@ func IsOrgRole(roleName string) (string, bool) {
 	return "", false
 }
 
+// OrganizationRoles lists all roles that can be applied to an organization user
+// in the given organization. This is the list of available roles,
+// and specific to an organization.
+//
+// This should be a list in a database, but until then we build
+// the list from the builtins.
+func OrganizationRoles(organizationID uuid.UUID) []string {
+	var roles []string
+	for _, roleF := range builtInRoles {
+		role := roleF(organizationID.String()).Name
+		_, scope, err := roleSplit(role)
+		if err != nil {
+			// This should never happen
+			continue
+		}
+		if scope == organizationID.String() {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
+
+// SiteRoles lists all roles that can be applied to a user.
+// This is the list of available roles, and not specific to a user
+//
+// This should be a list in a database, but until then we build
+// the list from the builtins.
+func SiteRoles() []string {
+	var roles []string
+	for _, roleF := range builtInRoles {
+		role := roleF("random")
+		_, scope, err := roleSplit(role.Name)
+		if err != nil {
+			// This should never happen
+			continue
+		}
+		if scope == "" {
+			roles = append(roles, role.Name)
+		}
+	}
+	return roles
+}
+
 // roleName is a quick helper function to return
 // 	role_name:scopeID
 // If no scopeID is required, only 'role_name' is returned

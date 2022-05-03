@@ -1,6 +1,7 @@
 package rbac_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -59,4 +60,24 @@ func TestIsOrgRole(t *testing.T) {
 			require.Equal(t, c.OrgID, orgID, "match expected org id")
 		})
 	}
+}
+
+func TestListRoles(t *testing.T) {
+	t.Parallel()
+
+	// If this test is ever failing, just update the list to the roles
+	// expected from the builtin set.
+	require.ElementsMatch(t, []string{
+		"admin",
+		"member",
+		"auditor",
+	},
+		rbac.SiteRoles())
+
+	orgID := uuid.New()
+	require.ElementsMatch(t, []string{
+		fmt.Sprintf("organization-admin:%s", orgID.String()),
+		fmt.Sprintf("organization-member:%s", orgID.String()),
+	},
+		rbac.OrganizationRoles(orgID))
 }
