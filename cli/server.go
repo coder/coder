@@ -254,10 +254,12 @@ func server() *cobra.Command {
 			// This prevents the pprof import from being accidentally deleted.
 			var _ = pprof.Handler
 			if pprofEnabled {
+				logger.Info(cmd.Context(), "pprof listening", slog.F("address", pprofAddress))
 				//nolint:revive
 				defer serveHandler(cmd.Context(), logger, nil, pprofAddress, "pprof")()
 			}
 			if promEnabled {
+				logger.Info(cmd.Context(), "prometheus listening", slog.F("address", promAddress))
 				//nolint:revive
 				defer serveHandler(cmd.Context(), logger, promhttp.Handler(), promAddress, "prometheus")()
 			}
