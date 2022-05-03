@@ -3,11 +3,12 @@ import * as API from "../../api"
 import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
 import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
-import { displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   createUserSuccess: "Successfully created user.",
   suspendUserSuccess: "Successfully suspended the user.",
+  suspendUserError: "Error on suspend the user",
 }
 
 export interface UsersContext {
@@ -119,7 +120,7 @@ export const usersMachine = createMachine(
           },
           onError: {
             target: "error",
-            actions: ["assignSuspendUserError"],
+            actions: ["assignSuspendUserError", "displaySuspendedErrorMessage"],
           },
         },
       },
@@ -184,6 +185,9 @@ export const usersMachine = createMachine(
       },
       displaySuspendSuccess: () => {
         displaySuccess(Language.suspendUserSuccess)
+      },
+      displaySuspendedErrorMessage: () => {
+        displayError(Language.suspendUserError)
       },
     },
   },

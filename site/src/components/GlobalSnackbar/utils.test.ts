@@ -1,4 +1,11 @@
-import { displaySuccess, isNotificationTextPrefixed, MsgType, NotificationMsg } from "./utils"
+import {
+  displayError,
+  displaySuccess,
+  isNotificationTextPrefixed,
+  MsgType,
+  NotificationMsg,
+  SnackbarEventType,
+} from "./utils"
 
 describe("Snackbar", () => {
   describe("isNotificationTextPrefixed", () => {
@@ -74,6 +81,20 @@ describe("Snackbar", () => {
       // Then
       expect(dispatchEventMock).toBeCalledTimes(1)
       expect(extractNotificationEvent(dispatchEventMock)).toStrictEqual(expected)
+    })
+  })
+
+  describe("displayError", () => {
+    it("shows the title and the message", (done) => {
+      const message = "Some error happened"
+
+      window.addEventListener(SnackbarEventType, (event) => {
+        const notificationEvent = event as CustomEvent<NotificationMsg>
+        expect(notificationEvent.detail.msg).toEqual(message)
+        done()
+      })
+
+      displayError(message)
     })
   })
 })
