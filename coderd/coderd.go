@@ -69,6 +69,7 @@ func New(options *Options) (http.Handler, func()) {
 	})
 
 	r := chi.NewRouter()
+
 	r.Use(
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +81,12 @@ func New(options *Options) (http.Handler, func()) {
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {
+		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				Message: "Route not found.",
+			})
+		})
+
 		r.Use(
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimitPerMinute(options.APIRateLimit),
