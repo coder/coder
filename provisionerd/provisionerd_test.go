@@ -221,13 +221,11 @@ func TestProvisionerd(t *testing.T) {
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if didAcquireJob.Load() {
-						completeOnce.Do(func() {
-							close(completeChan)
-						})
+					if !didAcquireJob.CAS(false, true) {
+						completeOnce.Do(func() { close(completeChan) })
 						return &proto.AcquiredJob{}, nil
 					}
-					didAcquireJob.Store(true)
+
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
@@ -325,11 +323,11 @@ func TestProvisionerd(t *testing.T) {
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if didAcquireJob.Load() {
+					if !didAcquireJob.CAS(false, true) {
 						completeOnce.Do(func() { close(completeChan) })
 						return &proto.AcquiredJob{}, nil
 					}
-					didAcquireJob.Store(true)
+
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
@@ -395,11 +393,11 @@ func TestProvisionerd(t *testing.T) {
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-					if didAcquireJob.Load() {
+					if !didAcquireJob.CAS(false, true) {
 						completeOnce.Do(func() { close(completeChan) })
 						return &proto.AcquiredJob{}, nil
 					}
-					didAcquireJob.Store(true)
+
 					return &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
