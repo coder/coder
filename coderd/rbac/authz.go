@@ -50,7 +50,6 @@ func (a RegoAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID strin
 		}
 		roles = append(roles, r)
 	}
-
 	return a.Authorize(ctx, subjectID, roles, action, object)
 }
 

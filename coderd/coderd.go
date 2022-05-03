@@ -79,6 +79,7 @@ func New(options *Options) (http.Handler, func()) {
 		Github: options.GithubOAuth2Config,
 	})
 
+	// TODO: @emyrk we should just move this into 'ExtractAPIKey'.
 	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
 
 	authorize := func(f http.HandlerFunc, actions rbac.Action) http.HandlerFunc {
@@ -142,7 +143,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Route("/members", func(r chi.Router) {
 				r.Route("/roles", func(r chi.Router) {
 					r.Use(httpmw.RBACObject(rbac.ResourceUserRole))
-					r.Get("/", authorize(api.assignableOrgRoles, rbac.ActionCreate))
+					r.Get("/", authorize(api.assignableOrgRoles, rbac.ActionRead))
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(
@@ -215,7 +216,7 @@ func New(options *Options) (http.Handler, func()) {
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
 					r.Use(httpmw.RBACObject(rbac.ResourceUserRole))
-					r.Get("/", authorize(api.assignableSiteRoles, rbac.ActionCreate))
+					r.Get("/", authorize(api.assignableSiteRoles, rbac.ActionRead))
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))

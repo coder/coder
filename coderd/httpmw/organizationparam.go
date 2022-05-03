@@ -77,7 +77,6 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 
 			ctx := context.WithValue(r.Context(), organizationParamContextKey{}, organization)
 			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, organizationMember)
-
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

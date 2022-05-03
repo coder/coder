@@ -20,8 +20,9 @@ type AuthObject struct {
 	Object rbac.Object
 }
 
-// Authorize allows for static object & action authorize checking. If the object is a static object, this is an easy way
-// to enforce the route.
+// Authorize will enforce if the user roles can complete the action on the AuthObject.
+// The organization and owner are found using the ExtractOrganization and
+// ExtractUser middleware if present.
 func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -29,7 +30,11 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 			args := GetAuthObject(r)
 
 			object := args.Object
+			if object.Type == "" {
+				panic("developer error: auth object has no type")
+			}
 
+			// First extract the object's owner and organization if present.
 			unknownOrg := r.Context().Value(organizationParamContextKey{})
 			if organization, castOK := unknownOrg.(database.Organization); unknownOrg != nil {
 				if !castOK {
@@ -46,13 +51,14 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 				object = object.WithOwner(owner.ID.String())
 			}
 
-			// Error on the first action that fails
 			err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
 			if err != nil {
 				internalError := new(rbac.UnauthorizedError)
 				if xerrors.As(err, internalError) {
 					logger = logger.With(slog.F("internal", internalError.Internal()))
 				}
+				// Log information for debugging. This will be very helpful
+				// in the early days if we over secure endpoints.
 				logger.Warn(r.Context(), "unauthorized",
 					slog.F("roles", roles.Roles),
 					slog.F("user_id", roles.ID),
@@ -77,11 +83,13 @@ type authObjectKey struct{}
 func GetAuthObject(r *http.Request) AuthObject {
 	obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
 	if !ok {
-		return AuthObject{}
+		panic("developer error: auth object middleware not provided")
 	}
 	return obj
 }
 
+// RBACObject sets the object for 'Authorize()' for all routes handled
+// by this middleware. The important field to set is 'Type'
 func RBACObject(object rbac.Object) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
