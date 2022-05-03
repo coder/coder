@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/pion/webrtc/v3"
+	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -47,6 +49,7 @@ type Options struct {
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
+	Authorizer           *rbac.RegoAuthorizer
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -60,12 +63,27 @@ func New(options *Options) (http.Handler, func()) {
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
 	}
+	if options.Authorizer == nil {
+		var err error
+		options.Authorizer, err = rbac.NewAuthorizer()
+		if err != nil {
+			// This should never happen, as the unit tests would fail if the
+			// default built in authorizer failed.
+			panic(xerrors.Errorf("rego authorize panic: %w", err))
+		}
+	}
 	api := &api{
 		Options: options,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 	})
+
+	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
+
+	authorize := func(actions ...rbac.Action) func(http.Handler) http.Handler {
+		return httpmw.Authorize(api.Logger, api.Authorizer, actions...)
+	}
 
 	r := chi.NewRouter()
 	r.Route("/api/v2", func(r chi.Router) {
@@ -102,6 +120,9 @@ func New(options *Options) (http.Handler, func()) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
+				authRolesMiddleware,
+				// All authorize() functions will be scoped to this organization
+				httpmw.InOrg(httpmw.OrganizationParam),
 			)
 			r.Get("/", api.organization)
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
@@ -121,6 +142,9 @@ func New(options *Options) (http.Handler, func()) {
 				})
 			})
 			r.Route("/members", func(r chi.Router) {
+				r.Route("/roles", func(r chi.Router) {
+					r.With(httpmw.Object(rbac.ResourceUserRole), authorize(rbac.ActionCreate, rbac.ActionDelete)).Get("/", api.assignableOrgRoles)
+				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(
 						httpmw.ExtractUserParam(options.Database),
@@ -183,20 +207,28 @@ func New(options *Options) (http.Handler, func()) {
 				})
 			})
 			r.Group(func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
+				r.Use(
+					apiKeyMiddleware,
+					authRolesMiddleware,
+				)
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
+				// These routes query information about site wide roles.
+				r.Route("/roles", func(r chi.Router) {
+					// Can create/delete all roles to view this endpoint
+					r.With(httpmw.Object(rbac.ResourceUserRole), authorize(rbac.ActionCreate, rbac.ActionDelete)).Get("/", api.assignableSiteRoles)
+				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
 					r.Put("/suspend", api.putUserSuspend)
-					// TODO: @emyrk Might want to move these to a /roles group instead of /user.
-					//		As we include more roles like org roles, it makes less sense to scope these here.
-					r.Put("/roles", api.putUserRoles)
-					r.Get("/roles", api.userRoles)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
+					// These roles apply to the site wide permissions.
+					r.Put("/roles", api.putUserRoles)
+					r.Get("/roles", api.userRoles)
+
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
 						r.Post("/", api.postOrganizationsByUser)

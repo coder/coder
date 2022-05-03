@@ -1888,6 +1888,46 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 	return err
 }
 
+const getAllUserRoles = `-- name: GetAllUserRoles :many
+SELECT
+	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+FROM
+	users
+LEFT JOIN organization_members
+	ON id = user_id
+WHERE
+    id = $1
+`
+
+type GetAllUserRolesRow struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	Username string    `db:"username" json:"username"`
+	Roles    []string  `db:"roles" json:"roles"`
+}
+
+func (q *sqlQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) ([]GetAllUserRolesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllUserRoles, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllUserRolesRow
+	for rows.Next() {
+		var i GetAllUserRolesRow
+		if err := rows.Scan(&i.ID, &i.Username, pq.Array(&i.Roles)); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles
