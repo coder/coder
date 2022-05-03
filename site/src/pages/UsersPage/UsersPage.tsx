@@ -2,7 +2,6 @@ import { useActor } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { useNavigate } from "react-router"
 import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog"
-import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
@@ -26,10 +25,6 @@ export const UsersPage: React.FC = () => {
     usersSend("GET_USERS")
   }, [usersSend])
 
-  if (usersState.matches("error")) {
-    return <ErrorSummary error={getUsersError} />
-  }
-
   if (!users) {
     return <FullScreenLoader />
   } else {
@@ -43,6 +38,7 @@ export const UsersPage: React.FC = () => {
           onSuspendUser={(user) => {
             usersSend({ type: "SUSPEND_USER", userId: user.id })
           }}
+          error={getUsersError}
         />
 
         <ConfirmDialog
