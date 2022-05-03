@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom"
 import { server } from "./src/testHelpers/server"
 
 // Establish API mocking before all tests through MSW.

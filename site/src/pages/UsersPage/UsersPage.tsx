@@ -7,6 +7,11 @@ import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
 
+export const Language = {
+  suspendDialogTitle: "Suspend user",
+  suspendDialogAction: "Suspend",
+}
+
 export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
@@ -45,8 +50,8 @@ export const UsersPage: React.FC = () => {
           hideCancel={false}
           open={usersState.matches("confirmUserSuspension")}
           confirmLoading={usersState.matches("suspendingUser")}
-          title="Suspend user"
-          confirmText="Suspend"
+          title={Language.suspendDialogTitle}
+          confirmText={Language.suspendDialogAction}
           onConfirm={() => {
             usersSend("CONFIRM_USER_SUSPENSION")
           }}

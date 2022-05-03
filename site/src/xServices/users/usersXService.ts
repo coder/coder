@@ -132,7 +132,10 @@ export const usersMachine = createMachine(
   },
   {
     services: {
-      getUsers: API.getUsers,
+      // Passing API.getUsers directly does not invoke the function properly
+      // when it is mocked. This happen in the UsersPage tests inside of the
+      // "shows a success message and refresh the page" test case.
+      getUsers: () => API.getUsers(),
       createUser: (_, event) => API.createUser(event.user),
       suspendUser: (context) => {
         if (!context.userIdToSuspend) {

@@ -5,7 +5,7 @@ import { Column, Table } from "../Table/Table"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { UserCell } from "../UserCell/UserCell"
 
-const Language = {
+export const Language = {
   pageTitle: "Users",
   usersTitle: "All users",
   emptyMessage: "No users found",
