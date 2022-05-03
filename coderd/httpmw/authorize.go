@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/google/uuid"
-
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -15,46 +13,11 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+// AuthObject wraps the rbac object type for middleware to customize this value
+// before being passed to Authorize().
 type AuthObject struct {
-	// WithUser sets the owner of the object to the value returned by the func
-	WithUser func(r *http.Request) uuid.UUID
-
-	// InOrg sets the org owner of the object to the value returned by the func
-	InOrg func(r *http.Request) uuid.UUID
-
-	// WithOwner sets the object id to the value returned by the func
-	WithOwner func(r *http.Request) uuid.UUID
-
 	// Object is that base static object the above functions can modify.
 	Object rbac.Object
-}
-
-func RBACWithOwner(owner func(r *http.Request) database.User) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ao := GetAuthObject(r)
-			ao.WithOwner = func(r *http.Request) uuid.UUID {
-				return owner(r).ID
-			}
-
-			ctx := context.WithValue(r.Context(), authObjectKey{}, ao)
-			next.ServeHTTP(rw, r.WithContext(ctx))
-		})
-	}
-}
-
-func RBACInOrg(org func(r *http.Request) database.Organization) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ao := GetAuthObject(r)
-			ao.InOrg = func(r *http.Request) uuid.UUID {
-				return org(r).ID
-			}
-
-			ctx := context.WithValue(r.Context(), authObjectKey{}, ao)
-			next.ServeHTTP(rw, r.WithContext(ctx))
-		})
-	}
 }
 
 // Authorize allows for static object & action authorize checking. If the object is a static object, this is an easy way
@@ -66,25 +29,27 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 			args := GetAuthObject(r)
 
 			object := args.Object
-			organization, ok := r.Context().Value(organizationParamContextKey{}).(database.Organization)
-			if ok {
+
+			unknownOrg := r.Context().Value(organizationParamContextKey{})
+			if organization, castOK := unknownOrg.(database.Organization); unknownOrg != nil {
+				if !castOK {
+					panic("developer error: organization param middleware not provided for authorize")
+				}
 				object = object.InOrg(organization.ID)
 			}
 
-			if args.InOrg != nil {
-				object.InOrg(args.InOrg(r))
-			}
-			if args.WithUser != nil {
-				object.WithOwner(args.InOrg(r).String())
-			}
-			if args.WithOwner != nil {
-				object.WithID(args.InOrg(r).String())
+			unknownOwner := r.Context().Value(userParamContextKey{})
+			if owner, castOK := unknownOwner.(database.User); unknownOwner != nil {
+				if !castOK {
+					panic("developer error: user param middleware not provided for authorize")
+				}
+				object = object.WithOwner(owner.ID.String())
 			}
 
 			// Error on the first action that fails
 			err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
 			if err != nil {
-				var internalError *rbac.UnauthorizedError
+				internalError := new(rbac.UnauthorizedError)
 				if xerrors.As(err, internalError) {
 					logger = logger.With(slog.F("internal", internalError.Internal()))
 				}
@@ -117,7 +82,7 @@ func GetAuthObject(r *http.Request) AuthObject {
 	return obj
 }
 
-func Object(object rbac.Object) func(http.Handler) http.Handler {
+func RBACObject(object rbac.Object) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ao := GetAuthObject(r)

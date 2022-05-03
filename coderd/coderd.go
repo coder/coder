@@ -81,8 +81,8 @@ func New(options *Options) (http.Handler, func()) {
 
 	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
 
-	authorize := func(f http.HandlerFunc, actions rbac.Action) func(http.Handler) http.Handler {
-		return httpmw.Authorize(api.Logger, api.Authorizer, actions)
+	authorize := func(f http.HandlerFunc, actions rbac.Action) http.HandlerFunc {
+		return httpmw.Authorize(api.Logger, api.Authorizer, actions)(f).ServeHTTP
 	}
 
 	r := chi.NewRouter()
@@ -141,7 +141,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 			r.Route("/members", func(r chi.Router) {
 				r.Route("/roles", func(r chi.Router) {
-					r.Use(httpmw.Object(rbac.ResourceUserRole))
+					r.Use(httpmw.RBACObject(rbac.ResourceUserRole))
 					r.Get("/", authorize(api.assignableOrgRoles, rbac.ActionCreate))
 				})
 				r.Route("/{user}", func(r chi.Router) {
@@ -214,8 +214,8 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.users)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
-					// Can create/delete all roles to view this endpoint
-					r.With(httpmw.Object(rbac.ResourceUserRole), authorize(rbac.ActionCreate, rbac.ActionDelete)).Get("/", api.assignableSiteRoles)
+					r.Use(httpmw.RBACObject(rbac.ResourceUserRole))
+					r.Get("/", authorize(api.assignableSiteRoles, rbac.ActionCreate))
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))

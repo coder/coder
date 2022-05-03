@@ -124,7 +124,7 @@ WHERE
 	id = $1 RETURNING *;
 
 
--- name: GetAllUserRoles :many
+-- name: GetAllUserRoles :one
 SELECT
     -- username is returned just to help for logging purposes
 	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
