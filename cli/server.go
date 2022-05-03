@@ -85,12 +85,17 @@ func server() *cobra.Command {
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
 		spooky                           bool
+		verbose                          bool
 	)
 
 	root := &cobra.Command{
 		Use: "server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
+			if verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
 			if traceDatadog {
 				tracer.Start(tracer.WithLogStartup(false), tracer.WithLogger(&datadogLogger{
 					logger: logger.Named("datadog"),
@@ -464,6 +469,7 @@ func server() *cobra.Command {
 	cliflag.StringVarP(root.Flags(), &sshKeygenAlgorithmRaw, "ssh-keygen-algorithm", "", "CODER_SSH_KEYGEN_ALGORITHM", "ed25519", "Specifies the algorithm to use for generating ssh keys. "+
 		`Accepted values are "ed25519", "ecdsa", or "rsa4096"`)
 	cliflag.BoolVarP(root.Flags(), &spooky, "spooky", "", "", false, "Specifies spookiness level")
+	cliflag.BoolVarP(root.Flags(), &verbose, "verbose", "v", "CODER_VERBOSE", false, "Enables verbose logging.")
 	_ = root.Flags().MarkHidden("spooky")
 
 	return root
