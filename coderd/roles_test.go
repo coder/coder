@@ -122,7 +122,7 @@ func TestListRoles(t *testing.T) {
 				require.Contains(t, apiErr.Message, c.AuthorizedError)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, c.ExpectedRoles, roles)
+				require.ElementsMatch(t, c.ExpectedRoles, roles)
 			}
 		})
 	}

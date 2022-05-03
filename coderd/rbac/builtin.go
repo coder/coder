@@ -174,14 +174,15 @@ func OrganizationRoles(organizationID uuid.UUID) []string {
 // the list from the builtins.
 func SiteRoles() []string {
 	var roles []string
-	for role := range builtInRoles {
-		_, scope, err := roleSplit(role)
+	for _, roleF := range builtInRoles {
+		role := roleF("random")
+		_, scope, err := roleSplit(role.Name)
 		if err != nil {
 			// This should never happen
 			continue
 		}
 		if scope == "" {
-			roles = append(roles, role)
+			roles = append(roles, role.Name)
 		}
 	}
 	return roles
