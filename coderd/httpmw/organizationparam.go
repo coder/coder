@@ -77,6 +77,10 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 
 			ctx := context.WithValue(r.Context(), organizationParamContextKey{}, organization)
 			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, organizationMember)
+
+			next = RBACInOrg(func(r *http.Request) database.Organization {
+				return organization
+			})(next)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

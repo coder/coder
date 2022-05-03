@@ -81,8 +81,8 @@ func New(options *Options) (http.Handler, func()) {
 
 	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
 
-	authorize := func(actions ...rbac.Action) func(http.Handler) http.Handler {
-		return httpmw.Authorize(api.Logger, api.Authorizer, actions...)
+	authorize := func(f http.HandlerFunc, actions rbac.Action) func(http.Handler) http.Handler {
+		return httpmw.Authorize(api.Logger, api.Authorizer, actions)
 	}
 
 	r := chi.NewRouter()
@@ -121,8 +121,6 @@ func New(options *Options) (http.Handler, func()) {
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
 				authRolesMiddleware,
-				// All authorize() functions will be scoped to this organization
-				httpmw.InOrg(httpmw.OrganizationParam),
 			)
 			r.Get("/", api.organization)
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
@@ -143,7 +141,8 @@ func New(options *Options) (http.Handler, func()) {
 			})
 			r.Route("/members", func(r chi.Router) {
 				r.Route("/roles", func(r chi.Router) {
-					r.With(httpmw.Object(rbac.ResourceUserRole), authorize(rbac.ActionCreate, rbac.ActionDelete)).Get("/", api.assignableOrgRoles)
+					r.Use(httpmw.Object(rbac.ResourceUserRole))
+					r.Get("/", authorize(api.assignableOrgRoles, rbac.ActionCreate))
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(

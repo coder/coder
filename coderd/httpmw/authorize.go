@@ -27,11 +27,9 @@ type AuthObject struct {
 
 	// Object is that base static object the above functions can modify.
 	Object rbac.Object
-	//// Actions are the various actions the middleware will check can be done on the object.
-	//Actions []rbac.Action
 }
 
-func WithOwner(owner func(r *http.Request) database.User) func(http.Handler) http.Handler {
+func RBACWithOwner(owner func(r *http.Request) database.User) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ao := GetAuthObject(r)
@@ -45,7 +43,7 @@ func WithOwner(owner func(r *http.Request) database.User) func(http.Handler) htt
 	}
 }
 
-func InOrg(org func(r *http.Request) database.Organization) func(http.Handler) http.Handler {
+func RBACInOrg(org func(r *http.Request) database.Organization) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ao := GetAuthObject(r)
@@ -61,13 +59,18 @@ func InOrg(org func(r *http.Request) database.Organization) func(http.Handler) h
 
 // Authorize allows for static object & action authorize checking. If the object is a static object, this is an easy way
 // to enforce the route.
-func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, actions ...rbac.Action) func(http.Handler) http.Handler {
+func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			roles := UserRoles(r)
 			args := GetAuthObject(r)
 
 			object := args.Object
+			organization, ok := r.Context().Value(organizationParamContextKey{}).(database.Organization)
+			if ok {
+				object = object.InOrg(organization.ID)
+			}
+
 			if args.InOrg != nil {
 				object.InOrg(args.InOrg(r))
 			}
@@ -79,26 +82,24 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, actions ...rbac.Ac
 			}
 
 			// Error on the first action that fails
-			for _, act := range actions {
-				err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, act, object)
-				if err != nil {
-					var internalError *rbac.UnauthorizedError
-					if xerrors.As(err, internalError) {
-						logger = logger.With(slog.F("internal", internalError.Internal()))
-					}
-					logger.Warn(r.Context(), "unauthorized",
-						slog.F("roles", roles.Roles),
-						slog.F("user_id", roles.ID),
-						slog.F("username", roles.Username),
-						slog.F("route", r.URL.Path),
-						slog.F("action", act),
-						slog.F("object", object),
-					)
-					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-						Message: err.Error(),
-					})
-					return
+			err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
+			if err != nil {
+				var internalError *rbac.UnauthorizedError
+				if xerrors.As(err, internalError) {
+					logger = logger.With(slog.F("internal", internalError.Internal()))
 				}
+				logger.Warn(r.Context(), "unauthorized",
+					slog.F("roles", roles.Roles),
+					slog.F("user_id", roles.ID),
+					slog.F("username", roles.Username),
+					slog.F("route", r.URL.Path),
+					slog.F("action", action),
+					slog.F("object", object),
+				)
+				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+					Message: err.Error(),
+				})
+				return
 			}
 			next.ServeHTTP(rw, r)
 		})
