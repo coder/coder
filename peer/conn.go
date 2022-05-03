@@ -110,7 +110,7 @@ type Conn struct {
 	closedRTCMutex sync.Mutex
 	closedICE      chan struct{}
 	closedICEMutex sync.Mutex
-	closeMutex     sync.RWMutex
+	closeMutex     sync.Mutex
 	closeError     error
 
 	dcOpenChannel         chan *webrtc.DataChannel
