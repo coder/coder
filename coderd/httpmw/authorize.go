@@ -20,7 +20,7 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			roles := UserRoles(r)
-			object := authObject(r)
+			object := rbacObject(r)
 
 			if object.Type == "" {
 				panic("developer error: auth object has no type")
@@ -72,7 +72,7 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 type authObjectKey struct{}
 
 // APIKey returns the API key from the ExtractAPIKey handler.
-func authObject(r *http.Request) rbac.Object {
+func rbacObject(r *http.Request) rbac.Object {
 	obj, ok := r.Context().Value(authObjectKey{}).(rbac.Object)
 	if !ok {
 		panic("developer error: auth object middleware not provided")
