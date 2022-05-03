@@ -110,7 +110,7 @@ type Conn struct {
 	closedRTCMutex sync.Mutex
 	closedICE      chan struct{}
 	closedICEMutex sync.Mutex
-	closeMutex     sync.Mutex
+	closeMutex     sync.RWMutex
 	closeError     error
 
 	dcOpenChannel         chan *webrtc.DataChannel
@@ -143,10 +143,15 @@ type Conn struct {
 }
 
 func (c *Conn) logger() slog.Logger {
+	// The logger gets swapped
+	c.closeMutex.RLock()
+	defer c.closeMutex.RUnlock()
+
 	log, valid := c.loggerValue.Load().(slog.Logger)
 	if !valid {
 		return slog.Logger{}
 	}
+
 	return log
 }
 
@@ -566,11 +571,14 @@ func (c *Conn) isClosed() bool {
 func (c *Conn) CloseWithError(err error) error {
 	c.closeMutex.Lock()
 	defer c.closeMutex.Unlock()
+
 	if c.isClosed() {
 		return c.closeError
 	}
 
-	c.logger().Debug(context.Background(), "closing conn with error", slog.Error(err))
+	logger := c.logger()
+
+	logger.Debug(context.Background(), "closing conn with error", slog.Error(err))
 	if err == nil {
 		c.closeError = ErrClosed
 	} else {
@@ -588,11 +596,11 @@ func (c *Conn) CloseWithError(err error) error {
 	// Waiting for pion/webrtc to report closed state on both of these
 	// ensures no goroutine leaks.
 	if c.rtc.ConnectionState() != webrtc.PeerConnectionStateNew {
-		c.logger().Debug(context.Background(), "waiting for rtc connection close...")
+		logger.Debug(context.Background(), "waiting for rtc connection close...")
 		<-c.closedRTC
 	}
 	if c.rtc.ICEConnectionState() != webrtc.ICEConnectionStateNew {
-		c.logger().Debug(context.Background(), "waiting for ice connection close...")
+		logger.Debug(context.Background(), "waiting for ice connection close...")
 		<-c.closedICE
 	}
 
@@ -600,9 +608,11 @@ func (c *Conn) CloseWithError(err error) error {
 	// All logging, goroutines, and async functionality is cleaned up after this.
 	c.dcClosedWaitGroup.Wait()
 
-	c.logger().Debug(context.Background(), "closed")
 	// Disable logging!
 	c.loggerValue.Store(slog.Logger{})
+	logger.Sync()
+
+	logger.Debug(context.Background(), "closed")
 	close(c.closed)
 	return err
 }
