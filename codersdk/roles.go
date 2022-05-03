@@ -22,7 +22,7 @@ func (c *Client) ListSiteRoles(ctx context.Context) ([]string, error) {
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
-func (c *Client) ListOrgRoles(ctx context.Context, org uuid.UUID) ([]string, error) {
+func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]string, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/roles", org.String()), nil)
 	if err != nil {
 		return nil, err

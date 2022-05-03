@@ -59,14 +59,14 @@ func TestListRoles(t *testing.T) {
 		{
 			Name: "OrgMemberListOrg",
 			APICall: func() ([]string, error) {
-				return member.ListOrgRoles(ctx, admin.OrganizationID)
+				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			Authorized: false,
 		},
 		{
 			Name: "NonOrgMemberListOrg",
 			APICall: func() ([]string, error) {
-				return member.ListOrgRoles(ctx, uuid.New())
+				return member.ListOrganizationRoles(ctx, uuid.New())
 			},
 			Authorized: false,
 		},
@@ -81,15 +81,15 @@ func TestListRoles(t *testing.T) {
 		{
 			Name: "OrgAdminListOrg",
 			APICall: func() ([]string, error) {
-				return orgAdmin.ListOrgRoles(ctx, admin.OrganizationID)
+				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			Authorized:    true,
-			ExpectedRoles: rbac.ListOrgRoles(admin.OrganizationID),
+			ExpectedRoles: rbac.ListOrganizationRoles(admin.OrganizationID),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
 			APICall: func() ([]string, error) {
-				return orgAdmin.ListOrgRoles(ctx, uuid.New())
+				return orgAdmin.ListOrganizationRoles(ctx, uuid.New())
 			},
 			Authorized: false,
 		},
@@ -105,10 +105,10 @@ func TestListRoles(t *testing.T) {
 		{
 			Name: "AdminListOrg",
 			APICall: func() ([]string, error) {
-				return client.ListOrgRoles(ctx, admin.OrganizationID)
+				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			Authorized:    true,
-			ExpectedRoles: rbac.ListOrgRoles(admin.OrganizationID),
+			ExpectedRoles: rbac.ListOrganizationRoles(admin.OrganizationID),
 		},
 	}
 
