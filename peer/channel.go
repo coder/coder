@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/pion/datachannel"
 	"github.com/pion/webrtc/v3"
@@ -245,13 +244,6 @@ func (c *Channel) Write(bytes []byte) (n int, err error) {
 	if c.dc.BufferedAmount()+uint64(len(bytes)) >= maxBufferedAmount {
 		<-c.sendMore
 	}
-	// REMARK: There's an obvious race-condition here. This is an edge-case, as
-	//         most-frequently data won't be pooled so synchronously, but is
-	//         definitely possible.
-	//
-	// See: https://github.com/pion/sctp/issues/181
-	time.Sleep(time.Microsecond)
-
 	return c.rwc.Write(bytes)
 }
 
