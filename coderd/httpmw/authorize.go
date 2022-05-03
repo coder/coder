@@ -2,7 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"golang.org/x/xerrors"
@@ -111,7 +110,7 @@ func ExtractUserRoles(db database.Store) func(http.Handler) http.Handler {
 			role, err := db.GetAllUserRoles(r.Context(), apiKey.UserID)
 			if err != nil {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("roles not found", AuthCookie),
+					Message: "roles not found",
 				})
 				return
 			}

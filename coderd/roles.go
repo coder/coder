@@ -10,7 +10,7 @@ import (
 )
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
-func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
+func (*api) assignableSiteRoles(rw http.ResponseWriter, _ *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 	roles := rbac.SiteRoles()
@@ -18,7 +18,7 @@ func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
-func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
+func (*api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)

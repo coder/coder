@@ -245,7 +245,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	return tmp, nil
 }
 
-func (q *fakeQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
+func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -253,6 +253,7 @@ func (q *fakeQuerier) GetAllUserRoles(ctx context.Context, userID uuid.UUID) (da
 	roles := make([]string, 0)
 	for _, u := range q.users {
 		if u.ID == userID {
+			u := u
 			roles = append(roles, u.RBACRoles...)
 			user = &u
 			break
