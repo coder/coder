@@ -58,7 +58,7 @@ jobs:
         run: brew install make
 
       - name: Build Site
-        run: make site/out
+        run: make site/out/index.html
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2.9.1

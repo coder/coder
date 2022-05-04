@@ -355,7 +355,7 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Build site
-        run: make site/out
+        run: make site/out/index.html
 
       - name: Build Release
         uses: goreleaser/goreleaser-action@v2.9.1
@@ -488,7 +488,7 @@ jobs:
 
       - name: Build
         run: |
-          make site/out
+          make site/out/index.html
 
       - run: yarn playwright:install
         working-directory: site
