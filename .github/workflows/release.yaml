@@ -54,6 +54,9 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install make
+        run: brew install make
+
       - name: Build Site
         run: make site/out
 
