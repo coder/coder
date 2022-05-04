@@ -80,8 +80,8 @@ export const getUsers = async (): Promise<TypesGen.User[]> => {
   return response.data
 }
 
-export const getOrganization = async (): Promise<Types.Organization> => {
-  const response = await axios.get<Types.Organization>(`/api/v2/organizations/organizationId`)
+export const getOrganization = async (organizationId: string): Promise<Types.Organization> => {
+  const response = await axios.get<Types.Organization>(`/api/v2/organizations/${organizationId}`)
   return response.data
 }
 
