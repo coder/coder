@@ -1,19 +1,17 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
-import * as TypesGen from "../../api/typesGenerated"
-
-    `/api/v2/workspaces/${workspaceParam}`
-     `/api/v2/templates/${unsafeSWRArgument(workspace).template_id}`
-     `/api/v2/organizations/${unsafeSWRArgument(template).organization_id}`
 
 interface WorkspaceContext {
   workspace?: Types.Workspace,
   template?: Types.Template,
   organization?: Types.Organization
+  getWorkspaceError?: Error | unknown,
+  getTemplateError?: Error | unknown,
+  getOrganizationError?: Error | unknown,
 }
 
-type WorkspaceEvent = { type: "GET_WORKSPACE", workspaceName: string, organizationID: string }
+type WorkspaceEvent = { type: "GET_WORKSPACE", workspaceId: string }
 
 export const workspaceMachine = createMachine({
   tsTypes: {} as import("./workspaceXService.typegen").Typegen0,
@@ -44,22 +42,100 @@ export const workspaceMachine = createMachine({
       invoke: {
         src: "getWorkspace",
         id: 'getWorkspace',
-        onDone: {},
-        onError: {}
-      }
+        onDone: {
+          target: "gettingTemplate",
+          actions: ["assignWorkspace", "clearGetWorkspaceError"]
+        },
+        onError: {
+          target: "error",
+          actions: "assignGetWorkspaceError"
+        }
+      },
+      tags: "loading"
     },
-    gettingTemplate: {},
-    gettingOrganization: {},
-    error: {}
+    gettingTemplate: {
+      invoke: {
+        src: "getTemplate",
+        id: 'getTemplate',
+        onDone: {
+          target: "gettingOrganization",
+          actions: ["assignTemplate", "clearGetTemplateError"]
+        },
+        onError: {
+          target: "error",
+          actions: "assignGetTemplateError"
+        }
+      },
+      tags: "loading"
+    },
+    gettingOrganization: {
+      invoke: {
+        src: "getOrganization",
+        id: 'getOrganization',
+        onDone: {
+          target: "idle",
+          actions: ["assignOrganization", "clearGetOrganizationError"]
+        },
+        onError: {
+          target: "error",
+          actions: "assignGetOrganizationError"
+        },
+      },
+      tags: "loading"
+    },
+    error: {
+      on: {
+        GET_WORKSPACE: "gettingWorkspace"
+      }
+    }
   }
 }, {
-  actions: {},
+  actions: {
+    assignWorkspace: assign({
+      workspace: (_, event) => event.data
+    }),
+    assignGetWorkspaceError: assign({
+      getWorkspaceError: (_, event) => event.data
+    }),
+    clearGetWorkspaceError: (context) => (
+      assign({ ...context, getWorkspaceError: undefined })
+    ),
+    assignTemplate: assign({
+      template: (_, event) => event.data
+    }),
+    assignGetTemplateError: assign({
+      getTemplateError: (_, event) => event.data
+    }),
+    clearGetTemplateError: (context) => (
+      assign({ ...context, getTemplateError: undefined })
+    ),
+    assignOrganization: assign({
+      organization: (_, event) => event.data
+    }),
+    assignGetOrganizationError: assign({
+      getOrganizationError: (_, event) => event.data
+    }),
+    clearGetOrganizationError: (context) => (
+      assign({ ...context, getOrganizationError: undefined })
+    )
+  },
   services: {
     getWorkspace: async (_, event) => {
-      return await API.getWorkspace(
-        event.organizationID,
-        "me",
-        event.workspaceName)
+      return await API.getWorkspace(event.workspaceId)
+    },
+    getTemplate: async (context) => {
+      if (context.workspace) {
+        return await API.getTemplate(context.workspace.template_id)
+      } else {
+        throw Error("Cannot get template without workspace")
+      }
+    },
+    getOrganization: async (context) => {
+      if (context.template) {
+        return await API.getOrganization(context.template.organization_id)
+      } else {
+        throw Error("Cannot get organization without template")
+      }
     }
   }
 })

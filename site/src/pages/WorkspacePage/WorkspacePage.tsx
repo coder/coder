@@ -1,34 +1,42 @@
-import React from "react"
+import { useActor } from "@xstate/react"
+import React, { useContext, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import * as Types from "../../api/types"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
+import { XServiceContext } from "../../xServices/StateContext"
 
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
-  const workspaceParam = firstOrItem(workspaceQueryParam, null)
+  const workspaceId = firstOrItem(workspaceQueryParam, null)
 
-  const [workspaceState, workspaceSend] = useActor(workspaceXService)
+  const xServices = useContext(XServiceContext)
+  const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
   const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } = workspaceState.context
 
-  if (state.matches('error')) {
+  /**
+   * Get workspace, template, and organization on mount and whenever workspaceId changes.
+   * workspaceSend should not change.
+   */
+  useEffect(() => {
+    workspaceId && workspaceSend({ type: "GET_WORKSPACE", workspaceId })
+  }, [workspaceId, workspaceSend])
+
+  if (workspaceState.matches('error')) {
     return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError } />
-  }
-
-  if (!workspace || !template || !organization) {
+  } else if (!workspace || !template || !organization) {
     return <FullScreenLoader />
+  } else {
+    return (
+      <Margins>
+        <Stack spacing={4}>
+          <Workspace organization={organization} template={template} workspace={workspace} />
+        </Stack>
+      </Margins>
+    )
   }
-
-  return (
-    <Margins>
-      <Stack spacing={4}>
-        <Workspace organization={organization} template={template} workspace={workspace} />
-      </Stack>
-    </Margins>
-  )
 }
