@@ -5,7 +5,7 @@ import { Column, Table } from "../Table/Table"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { UserCell } from "../UserCell/UserCell"
 
-const Language = {
+export const Language = {
   pageTitle: "Users",
   usersTitle: "All users",
   emptyMessage: "No users found",
@@ -27,9 +27,10 @@ const columns: Column<UserResponse>[] = [
 
 export interface UsersTableProps {
   users: UserResponse[]
+  onSuspendUser: (user: UserResponse) => void
 }
 
-export const UsersTable: React.FC<UsersTableProps> = ({ users }) => {
+export const UsersTable: React.FC<UsersTableProps> = ({ users, onSuspendUser }) => {
   return (
     <Table
       columns={columns}
@@ -42,9 +43,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users }) => {
           menuItems={[
             {
               label: Language.suspendMenuItem,
-              onClick: () => {
-                // TO-DO: Add suspend action here
-              },
+              onClick: onSuspendUser,
             },
           ]}
         />

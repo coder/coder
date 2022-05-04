@@ -76,7 +76,7 @@ export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
 }
 
 export const getUsers = async (): Promise<TypesGen.User[]> => {
-  const response = await axios.get<TypesGen.User[]>("/api/v2/users?offset=0&limit=1000")
+  const response = await axios.get<TypesGen.User[]>("/api/v2/users?status=active")
   return response.data
 }
 
@@ -133,5 +133,10 @@ export const putWorkspaceAutostop = async (
 
 export const updateProfile = async (userId: string, data: Types.UpdateProfileRequest): Promise<Types.UserResponse> => {
   const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
+  return response.data
+}
+
+export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
+  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/suspend`)
   return response.data
 }

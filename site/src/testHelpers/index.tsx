@@ -30,9 +30,11 @@ export function renderWithAuth(ui: JSX.Element, { route = "/" }: { route?: strin
   const renderResult = wrappedRender(
     <MemoryRouter initialEntries={[route]}>
       <XServiceProvider>
-        <Routes>
-          <Route path={route} element={<RequireAuth>{ui}</RequireAuth>} />
-        </Routes>
+        <ThemeProvider theme={dark}>
+          <Routes>
+            <Route path={route} element={<RequireAuth>{ui}</RequireAuth>} />
+          </Routes>
+        </ThemeProvider>
       </XServiceProvider>
     </MemoryRouter>,
   )

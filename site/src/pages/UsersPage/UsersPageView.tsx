@@ -1,5 +1,6 @@
 import React from "react"
 import { UserResponse } from "../../api/types"
+import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../components/Header/Header"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
@@ -13,14 +14,21 @@ export const Language = {
 export interface UsersPageViewProps {
   users: UserResponse[]
   openUserCreationDialog: () => void
+  onSuspendUser: (user: UserResponse) => void
+  error?: unknown
 }
 
-export const UsersPageView: React.FC<UsersPageViewProps> = ({ users, openUserCreationDialog }) => {
+export const UsersPageView: React.FC<UsersPageViewProps> = ({
+  users,
+  openUserCreationDialog,
+  onSuspendUser,
+  error,
+}) => {
   return (
     <Stack spacing={4}>
       <Header title={Language.pageTitle} action={{ text: Language.newUserButton, onClick: openUserCreationDialog }} />
       <Margins>
-        <UsersTable users={users} />
+        {error ? <ErrorSummary error={error} /> : <UsersTable users={users} onSuspendUser={onSuspendUser} />}
       </Margins>
     </Stack>
   )
