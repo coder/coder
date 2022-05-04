@@ -85,6 +85,13 @@ export const getOrganizations = async (): Promise<Types.Organization[]> => {
   return response.data
 }
 
+export const getWorkspace = async (workspaceId: string): Promise<Types.Workspace> => {
+  const response = await axios.get<Types.Workspace>(
+    `/api/v2/workspaces/${workspaceId}`,
+  )
+  return response.data
+}
+
 export const getWorkspaceByOwnerAndName = async (
   organizationID: string,
   username = "me",
