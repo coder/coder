@@ -17,7 +17,7 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-export const TerminalPage: React.FC<{
+const TerminalPage: React.FC<{
   readonly renderer?: XTerm.RendererType
 }> = ({ renderer }) => {
   const location = useLocation()
@@ -199,6 +199,8 @@ export const TerminalPage: React.FC<{
     </>
   )
 }
+
+export default TerminalPage
 
 const useStyles = makeStyles(() => ({
   overlay: {

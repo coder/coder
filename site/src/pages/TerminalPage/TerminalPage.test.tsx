@@ -8,7 +8,7 @@ import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
 import { history, MockWorkspaceAgent, render } from "../../testHelpers"
 import { server } from "../../testHelpers/server"
-import { Language, TerminalPage } from "./TerminalPage"
+import TerminalPage, { Language } from "./TerminalPage"
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
