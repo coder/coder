@@ -10,12 +10,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func workspaceDelete() *cobra.Command {
+func stop() *cobra.Command {
 	return &cobra.Command{
-		Use:               "delete <workspace>",
-		Aliases:           []string{"rm"},
-		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(1),
+		Use:  "stop <workspace>",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -31,7 +29,7 @@ func workspaceDelete() *cobra.Command {
 			}
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition: database.WorkspaceTransitionDelete,
+				Transition: database.WorkspaceTransitionStop,
 			})
 			if err != nil {
 				return err

@@ -480,9 +480,6 @@ provider "coder" {
 				}
 
 				require.NoError(t, err)
-				if !request.GetStart().DryRun {
-					require.Greater(t, len(msg.GetComplete().State), 0)
-				}
 
 				// Remove randomly generated data.
 				for _, resource := range msg.GetComplete().Resources {

@@ -1,5 +1,3 @@
-import Paper from "@material-ui/core/Paper"
-import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
@@ -8,12 +6,13 @@ import { EmptyState } from "../../../../components/EmptyState/EmptyState"
 import { ErrorSummary } from "../../../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../../../components/Header/Header"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
+import { Margins } from "../../../../components/Margins/Margins"
+import { Stack } from "../../../../components/Stack/Stack"
 import { Column, Table } from "../../../../components/Table/Table"
 import { unsafeSWRArgument } from "../../../../util"
 import { firstOrItem } from "../../../../util/array"
 
 export const TemplatePage: React.FC = () => {
-  const styles = useStyles()
   const navigate = useNavigate()
   const { template: templateName, organization: organizationName } = useParams()
 
@@ -82,7 +81,7 @@ export const TemplatePage: React.FC = () => {
   }
 
   return (
-    <div className={styles.root}>
+    <Stack spacing={4}>
       <Header
         title={firstOrItem(templateName, "")}
         description={firstOrItem(organizationName, "")}
@@ -93,25 +92,9 @@ export const TemplatePage: React.FC = () => {
         }}
       />
 
-      <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
+      <Margins>
         <Table {...tableProps} />
-      </Paper>
-    </div>
+      </Margins>
+    </Stack>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  root: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  header: {
-    display: "flex",
-    flexDirection: "row-reverse",
-    justifyContent: "space-between",
-    margin: "1em auto",
-    maxWidth: "1380px",
-    padding: theme.spacing(2, 6.25, 0),
-    width: "100%",
-  },
-}))

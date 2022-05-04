@@ -60,7 +60,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		defer resourceMutex.Unlock()
 		message := "Don't panic, your workspace is booting up!"
 		if agent.Status == codersdk.WorkspaceAgentDisconnected {
-			message = "The workspace agent lost connection! Wait for it to reconnect or run: " + Styles.Code.Render("coder workspaces rebuild "+opts.WorkspaceName)
+			message = "The workspace agent lost connection! Wait for it to reconnect or run: " + Styles.Code.Render("coder rebuild "+opts.WorkspaceName)
 		}
 		// This saves the cursor position, then defers clearing from the cursor
 		// position to the end of the screen.

@@ -16,31 +16,30 @@ When enabling autostart, provide the minute, hour, and day(s) of week.
 The default schedule is at 09:00 in your local timezone (TZ env, UTC by default).
 `
 
-func workspaceAutostart() *cobra.Command {
+func autostart() *cobra.Command {
 	autostartCmd := &cobra.Command{
 		Use:     "autostart enable <workspace>",
 		Short:   "schedule a workspace to automatically start at a regular time",
 		Long:    autostartDescriptionLong,
-		Example: "coder workspaces autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Europe/Dublin",
+		Example: "coder autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Europe/Dublin",
 		Hidden:  true,
 	}
 
-	autostartCmd.AddCommand(workspaceAutostartEnable())
-	autostartCmd.AddCommand(workspaceAutostartDisable())
+	autostartCmd.AddCommand(autostartEnable())
+	autostartCmd.AddCommand(autostartDisable())
 
 	return autostartCmd
 }
 
-func workspaceAutostartEnable() *cobra.Command {
+func autostartEnable() *cobra.Command {
 	// yes some of these are technically numbers but the cron library will do that work
 	var autostartMinute string
 	var autostartHour string
 	var autostartDayOfWeek string
 	var autostartTimezone string
 	cmd := &cobra.Command{
-		Use:               "enable <workspace_name> <schedule>",
-		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(1),
+		Use:  "enable <workspace_name> <schedule>",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -86,11 +85,10 @@ func workspaceAutostartEnable() *cobra.Command {
 	return cmd
 }
 
-func workspaceAutostartDisable() *cobra.Command {
+func autostartDisable() *cobra.Command {
 	return &cobra.Command{
-		Use:               "disable <workspace_name>",
-		ValidArgsFunction: validArgsWorkspaceName,
-		Args:              cobra.ExactArgs(1),
+		Use:  "disable <workspace_name>",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

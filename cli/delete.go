@@ -1,17 +1,21 @@
 package cli
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
-func workspaceShow() *cobra.Command {
+// nolint
+func delete() *cobra.Command {
 	return &cobra.Command{
-		Use:  "show",
-		Args: cobra.ExactArgs(1),
+		Use:     "delete <workspace>",
+		Aliases: []string{"rm"},
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -23,15 +27,16 @@ func workspaceShow() *cobra.Command {
 			}
 			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace: %w", err)
+				return err
 			}
-			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return xerrors.Errorf("get workspace resources: %w", err)
-			}
-			return cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
-				WorkspaceName: workspace.Name,
+			before := time.Now()
+			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: database.WorkspaceTransitionDelete,
 			})
+			if err != nil {
+				return err
+			}
+			return cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID, before)
 		},
 	}
 }

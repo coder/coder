@@ -1,9 +1,9 @@
-import Paper from "@material-ui/core/Paper"
-import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { UserResponse } from "../../api/types"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../components/Header/Header"
+import { Margins } from "../../components/Margins/Margins"
+import { Stack } from "../../components/Stack/Stack"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 
 export const Language = {
@@ -24,21 +24,12 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
   onSuspendUser,
   error,
 }) => {
-  const styles = useStyles()
-
   return (
-    <div className={styles.flexColumn}>
+    <Stack spacing={4}>
       <Header title={Language.pageTitle} action={{ text: Language.newUserButton, onClick: openUserCreationDialog }} />
-      <Paper style={{ maxWidth: "1380px", margin: "1em auto", width: "100%" }}>
+      <Margins>
         {error ? <ErrorSummary error={error} /> : <UsersTable users={users} onSuspendUser={onSuspendUser} />}
-      </Paper>
-    </div>
+      </Margins>
+    </Stack>
   )
 }
-
-const useStyles = makeStyles(() => ({
-  flexColumn: {
-    display: "flex",
-    flexDirection: "column",
-  },
-}))

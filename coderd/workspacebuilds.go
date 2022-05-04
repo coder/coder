@@ -87,6 +87,14 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
+func (*api) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(workspaceBuild.ProvisionerState)
+}
+
 func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.ProvisionerJob) codersdk.WorkspaceBuild {
 	//nolint:unconvert
 	return codersdk.WorkspaceBuild{

@@ -122,3 +122,15 @@ SET
 	updated_at = $3
 WHERE
 	id = $1 RETURNING *;
+
+
+-- name: GetAllUserRoles :one
+SELECT
+    -- username is returned just to help for logging purposes
+	id, username, array_cat(users.rbac_roles, organization_members.roles) :: text[] AS roles
+FROM
+	users
+LEFT JOIN organization_members
+	ON id = user_id
+WHERE
+    id = @user_id;

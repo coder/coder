@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/pion/datachannel"
 	"github.com/pion/webrtc/v3"
@@ -118,14 +117,14 @@ func (c *Channel) init() {
 		}
 	})
 	c.dc.OnClose(func() {
-		c.conn.opts.Logger.Debug(context.Background(), "datachannel closing from OnClose", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
+		c.conn.logger().Debug(context.Background(), "datachannel closing from OnClose", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
 		_ = c.closeWithError(ErrClosed)
 	})
 	c.dc.OnOpen(func() {
 		c.closeMutex.Lock()
 		defer c.closeMutex.Unlock()
 
-		c.conn.opts.Logger.Debug(context.Background(), "datachannel opening", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
+		c.conn.logger().Debug(context.Background(), "datachannel opening", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()))
 		var err error
 		c.rwc, err = c.dc.Detach()
 		if err != nil {
@@ -245,13 +244,6 @@ func (c *Channel) Write(bytes []byte) (n int, err error) {
 	if c.dc.BufferedAmount()+uint64(len(bytes)) >= maxBufferedAmount {
 		<-c.sendMore
 	}
-	// REMARK: There's an obvious race-condition here. This is an edge-case, as
-	//         most-frequently data won't be pooled so synchronously, but is
-	//         definitely possible.
-	//
-	// See: https://github.com/pion/sctp/issues/181
-	time.Sleep(time.Microsecond)
-
 	return c.rwc.Write(bytes)
 }
 
@@ -289,7 +281,7 @@ func (c *Channel) closeWithError(err error) error {
 		return c.closeError
 	}
 
-	c.conn.opts.Logger.Debug(context.Background(), "datachannel closing with error", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()), slog.Error(err))
+	c.conn.logger().Debug(context.Background(), "datachannel closing with error", slog.F("id", c.dc.ID()), slog.F("label", c.dc.Label()), slog.Error(err))
 	if err == nil {
 		c.closeError = ErrClosed
 	} else {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -21,7 +22,6 @@ import (
 	"github.com/armon/circbuf"
 	"github.com/google/uuid"
 
-	gsyslog "github.com/hashicorp/go-syslog"
 	"go.uber.org/atomic"
 
 	"cdr.dev/slog"
@@ -166,15 +166,9 @@ func (*agent) runStartupScript(ctx context.Context, script string) error {
 		return xerrors.Errorf("get user shell: %w", err)
 	}
 
-	var writer io.WriteCloser
-	// Attempt to use the syslog to write startup information.
-	writer, err = gsyslog.NewLogger(gsyslog.LOG_INFO, "USER", "coder-startup-script")
+	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
-		// If the syslog isn't supported or cannot be created, use a text file in temp.
-		writer, err = os.CreateTemp("", "coder-startup-script-*.txt")
-		if err != nil {
-			return xerrors.Errorf("open startup script log file: %w", err)
-		}
+		return xerrors.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
 		_ = writer.Close()
@@ -524,7 +518,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 					break
 				}
 				part := buffer[:read]
+				rpty.circularBufferMutex.Lock()
 				_, err = rpty.circularBuffer.Write(part)
+				rpty.circularBufferMutex.Unlock()
 				if err != nil {
 					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", id))
 					break
@@ -551,7 +547,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", id), slog.Error(err))
 	}
 	// Write any previously stored data for the TTY.
+	rpty.circularBufferMutex.RLock()
 	_, err = conn.Write(rpty.circularBuffer.Bytes())
+	rpty.circularBufferMutex.RUnlock()
 	if err != nil {
 		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", id), slog.Error(err))
 		return
@@ -646,9 +644,10 @@ type reconnectingPTY struct {
 	activeConnsMutex sync.Mutex
 	activeConns      map[string]net.Conn
 
-	circularBuffer *circbuf.Buffer
-	timeout        *time.Timer
-	ptty           pty.PTY
+	circularBuffer      *circbuf.Buffer
+	circularBufferMutex sync.RWMutex
+	timeout             *time.Timer
+	ptty                pty.PTY
 }
 
 // Close ends all connections to the reconnecting

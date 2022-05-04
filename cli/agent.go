@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -17,6 +19,8 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func workspaceAgent() *cobra.Command {
@@ -36,7 +40,13 @@ func workspaceAgent() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse %q: %w", rawURL, err)
 			}
-			logger := slog.Make(sloghuman.Sink(cmd.OutOrStdout())).Leveled(slog.LevelDebug)
+
+			logWriter := &lumberjack.Logger{
+				Filename: filepath.Join(os.TempDir(), "coder-agent.log"),
+				MaxSize:  5, // MB
+			}
+			defer logWriter.Close()
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 			client := codersdk.New(coderURL)
 
 			// exchangeToken returns a session token.

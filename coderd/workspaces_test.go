@@ -130,6 +130,29 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, build.ID.String(), firstBuild.AfterID.String())
 	})
 
+	t.Run("WithState", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		_ = closeDaemon.Close()
+		wantState := []byte("something")
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        database.WorkspaceTransitionStart,
+			ProvisionerState:  wantState,
+		})
+		require.NoError(t, err)
+		gotState, err := client.WorkspaceBuildState(context.Background(), build.ID)
+		require.NoError(t, err)
+		require.Equal(t, wantState, gotState)
+	})
+
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
