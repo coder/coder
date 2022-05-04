@@ -1,16 +1,16 @@
-import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { useParams } from "react-router-dom"
 import useSWR from "swr"
 import * as Types from "../../api/types"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+import { Margins } from "../../components/Margins/Margins"
+import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { unsafeSWRArgument } from "../../util"
 import { firstOrItem } from "../../util/array"
 
 export const WorkspacePage: React.FC = () => {
-  const styles = useStyles()
   const { workspace: workspaceQueryParam } = useParams()
 
   const { data: workspace, error: workspaceError } = useSWR<Types.Workspace, Error>(() => {
@@ -45,22 +45,10 @@ export const WorkspacePage: React.FC = () => {
   }
 
   return (
-    <div className={styles.root}>
-      <div className={styles.inner}>
+    <Margins>
+      <Stack spacing={4}>
         <Workspace organization={organization} template={template} workspace={workspace} />
-      </div>
-    </div>
+      </Stack>
+    </Margins>
   )
 }
-
-const useStyles = makeStyles(() => ({
-  root: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  inner: {
-    maxWidth: "1380px",
-    margin: "1em auto",
-    width: "100%",
-  },
-}))

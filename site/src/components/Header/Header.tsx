@@ -2,6 +2,7 @@ import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
+import { maxWidth, sidePadding } from "../../theme/constants"
 import { HeaderButton } from "../HeaderButton/HeaderButton"
 
 export interface HeaderAction {
@@ -66,18 +67,19 @@ const useStyles = makeStyles((theme) => ({
     position: "relative",
     display: "flex",
     alignItems: "center",
-    height: 150,
+    height: 126,
     background: theme.palette.hero.main,
     boxShadow: theme.shadows[3],
   },
   topInner: {
     display: "flex",
     alignItems: "center",
-    maxWidth: "1380px",
+    maxWidth,
     margin: "0 auto",
     flex: 1,
     height: 68,
     minWidth: 0,
+    padding: `0 ${sidePadding}`,
   },
   title: {
     display: "flex",

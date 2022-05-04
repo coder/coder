@@ -2,6 +2,7 @@ import Box from "@material-ui/core/Box"
 import React from "react"
 import { Outlet } from "react-router-dom"
 import { AuthAndFrame } from "../AuthAndFrame/AuthAndFrame"
+import { Margins } from "../Margins/Margins"
 import { TabPanel } from "../TabPanel/TabPanel"
 
 export const Language = {
@@ -23,11 +24,11 @@ export const PreferencesLayout: React.FC = () => {
   return (
     <AuthAndFrame>
       <Box display="flex" flexDirection="column">
-        <Box style={{ maxWidth: "1380px", margin: "1em auto" }}>
+        <Margins>
           <TabPanel title={Language.preferencesLabel} menuItems={menuItems}>
             <Outlet />
           </TabPanel>
-        </Box>
+        </Margins>
       </Box>
     </AuthAndFrame>
   )
