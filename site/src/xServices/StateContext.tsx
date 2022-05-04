@@ -36,7 +36,7 @@ export const XServiceProvider: React.FC = ({ children }) => {
         authXService: useInterpret(authMachine),
         buildInfoXService: useInterpret(buildInfoMachine),
         usersXService: useInterpret(() => usersMachine.withConfig({ actions: { redirectToUsersPage } })),
-        workspaceXService: useInterpret(workspaceMachine)
+        workspaceXService: useInterpret(workspaceMachine),
       }}
     >
       {children}

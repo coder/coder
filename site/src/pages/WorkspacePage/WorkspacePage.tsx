@@ -9,14 +9,14 @@ import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { XServiceContext } from "../../xServices/StateContext"
 
-
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
   const workspaceId = firstOrItem(workspaceQueryParam, null)
 
   const xServices = useContext(XServiceContext)
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
-  const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } = workspaceState.context
+  const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
+    workspaceState.context
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -26,8 +26,8 @@ export const WorkspacePage: React.FC = () => {
     workspaceId && workspaceSend({ type: "GET_WORKSPACE", workspaceId })
   }, [workspaceId, workspaceSend])
 
-  if (workspaceState.matches('error')) {
-    return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError } />
+  if (workspaceState.matches("error")) {
+    return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError} />
   } else if (!workspace || !template || !organization) {
     return <FullScreenLoader />
   } else {

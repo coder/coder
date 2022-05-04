@@ -96,9 +96,7 @@ export const getTemplate = async (templateId: string): Promise<Types.Template> =
 }
 
 export const getWorkspace = async (workspaceId: string): Promise<Types.Workspace> => {
-  const response = await axios.get<Types.Workspace>(
-    `/api/v2/workspaces/${workspaceId}`,
-  )
+  const response = await axios.get<Types.Workspace>(`/api/v2/workspaces/${workspaceId}`)
   return response.data
 }
 
