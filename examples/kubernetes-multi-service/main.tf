@@ -46,7 +46,7 @@ resource "kubernetes_pod" "main" {
         run_as_user = "1000"
       }
       env {
-        name  = "CODER_TOKEN"
+        name  = "CODER_AGENT_TOKEN"
         value = coder_agent.go.token
       }
     }
@@ -58,7 +58,7 @@ resource "kubernetes_pod" "main" {
         run_as_user = "1000"
       }
       env {
-        name  = "CODER_TOKEN"
+        name  = "CODER_AGENT_TOKEN"
         value = coder_agent.java.token
       }
     }
@@ -70,7 +70,7 @@ resource "kubernetes_pod" "main" {
         run_as_user = "1000"
       }
       env {
-        name  = "CODER_TOKEN"
+        name  = "CODER_AGENT_TOKEN"
         value = coder_agent.ubuntu.token
       }
     }
