@@ -4,7 +4,7 @@ INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-bin: $(shell find -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
 	@echo "== This builds binaries for command-line usage."
 	@echo "== Use \"make build\" to embed the site."
 	goreleaser build --snapshot --rm-dist --single-target
@@ -20,7 +20,7 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
-dist/artifacts.json: site/out $(shell find -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
 	goreleaser release --snapshot --rm-dist --skip-sign
 
 fmt/prettier:
@@ -76,7 +76,7 @@ provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionersdk/proto/provisioner.proto
 
-site/out: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
+site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
 	./scripts/yarn_install.sh
 	cd site && yarn typegen
 	cd site && yarn build
