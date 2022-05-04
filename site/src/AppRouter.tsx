@@ -20,7 +20,7 @@ import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { TerminalPage } from "./pages/TerminalPage/TerminalPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
-import { WorkspacePage } from "./pages/WorkspacesPage/WorkspacesPage"
+import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 
 export const AppRouter: React.FC = () => (
   <Routes>
