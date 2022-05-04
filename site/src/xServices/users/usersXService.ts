@@ -119,7 +119,7 @@ export const usersMachine = createMachine(
             actions: ["displaySuspendSuccess"],
           },
           onError: {
-            target: "error",
+            target: "idle",
             actions: ["assignSuspendUserError", "displaySuspendedErrorMessage"],
           },
         },
