@@ -1,4 +1,8 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "_jest", "**/*.stories.tsx", "**/*.test.tsx"]
+  "exclude": ["node_modules", "_jest", "**/*.stories.tsx", "**/*.test.tsx"],
+  "compilerOptions": {
+    // https://github.com/webpack/webpack/issues/5703#issuecomment-357512412
+    "module": "esnext"
+  }
 }
