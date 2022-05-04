@@ -85,7 +85,7 @@ export const getOrganizations = async (): Promise<Types.Organization[]> => {
   return response.data
 }
 
-export const getWorkspace = async (
+export const getWorkspaceByOwnerAndName = async (
   organizationID: string,
   username = "me",
   workspaceName: string,
