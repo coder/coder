@@ -42,7 +42,7 @@ resource "docker_container" "workspace" {
   name    = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
   dns     = ["1.1.1.1"]
   command = ["sh", "-c", coder_agent.dev.init_script]
-  env     = ["CODER_TOKEN=${coder_agent.dev.token}"]
+  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.coder_volume.name
