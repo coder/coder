@@ -9,6 +9,7 @@ import { UsersPageView } from "./UsersPageView"
 export const Language = {
   suspendDialogTitle: "Suspend user",
   suspendDialogAction: "Suspend",
+  suspendDialogMessagePrefix: "Do you want to suspend the user",
 }
 
 export const UsersPage: React.FC = () => {
@@ -56,7 +57,7 @@ export const UsersPage: React.FC = () => {
           }}
           description={
             <>
-              Do you want to suspend the user <strong>{userToBeSuspended?.username}</strong>?
+              {Language.suspendDialogMessagePrefix} <strong>{userToBeSuspended?.username}</strong>?
             </>
           }
         />

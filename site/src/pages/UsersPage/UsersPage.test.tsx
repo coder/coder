@@ -24,7 +24,7 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog")
-  expect(confirmDialog).toHaveTextContent("Do you want to suspend the user TestUser?")
+  expect(confirmDialog).toHaveTextContent(`${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`)
 
   // Setup spies to check the actions after
   setupActionSpies()
