@@ -172,7 +172,10 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	users := q.users
+	// Avoid side-effect of sorting.
+	users := make([]database.User, len(q.users))
+	copy(users, q.users)
+
 	// Database orders by created_at
 	sort.Slice(users, func(i, j int) bool {
 		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
@@ -239,10 +242,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = users[:params.LimitOpt]
 	}
 
-	tmp := make([]database.User, len(users))
-	copy(tmp, users)
-
-	return tmp, nil
+	return users, nil
 }
 
 func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
