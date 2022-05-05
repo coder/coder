@@ -795,7 +795,9 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 
 	// Check the first page
 	page, err := client.Users(ctx, opt(codersdk.UsersRequest{
-		Limit: limit,
+		Pagination: codersdk.Pagination{
+			Limit: limit,
+		},
 	}))
 	require.NoError(t, err, "first page")
 	require.Equalf(t, page, allUsers[:limit], "first page, limit=%d", limit)
@@ -811,15 +813,19 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		// This is using a cursor, and only works if all users created_at
 		// is unique.
 		page, err = client.Users(ctx, opt(codersdk.UsersRequest{
-			Limit:     limit,
-			AfterUser: afterCursor,
+			Pagination: codersdk.Pagination{
+				Limit:   limit,
+				AfterID: afterCursor,
+			},
 		}))
 		require.NoError(t, err, "next cursor page")
 
 		// Also check page by offset
 		offsetPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
-			Limit:  limit,
-			Offset: count,
+			Pagination: codersdk.Pagination{
+				Limit:  limit,
+				Offset: count,
+			},
 		}))
 		require.NoError(t, err, "next offset page")
 
@@ -834,8 +840,10 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 
 		// Also check the before
 		prevPage, err := client.Users(ctx, opt(codersdk.UsersRequest{
-			Offset: count - limit,
-			Limit:  limit,
+			Pagination: codersdk.Pagination{
+				Offset: count - limit,
+				Limit:  limit,
+			},
 		}))
 		require.NoError(t, err, "prev page")
 		require.Equal(t, allUsers[count-limit:count], prevPage, "prev users")

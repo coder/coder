@@ -633,24 +633,27 @@ func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 	}
 
 	// Database orders by created_at
-	sort.Slice(version, func(i, j int) bool {
-		if version[i].CreatedAt.Equal(version[j].CreatedAt) {
+	slices.SortFunc(version, func(a, b database.TemplateVersion) bool {
+		if a.CreatedAt.Equal(b.CreatedAt) {
 			// Technically the postgres database also orders by uuid. So match
 			// that behavior
-			return version[i].ID.String() < version[j].ID.String()
+			return a.ID.String() < b.ID.String()
 		}
-		return version[i].CreatedAt.Before(version[j].CreatedAt)
+		return a.CreatedAt.Before(b.CreatedAt)
 	})
 
 	if arg.AfterID != uuid.Nil {
 		found := false
 		for i, v := range version {
 			if v.ID == arg.AfterID {
+				// We want to return all users after index i.
 				version = version[i+1:]
 				found = true
 				break
 			}
 		}
+
+		// If no users after the time, then we return an empty list.
 		if !found {
 			return nil, sql.ErrNoRows
 		}
