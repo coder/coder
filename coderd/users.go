@@ -384,19 +384,20 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Hash password and update it in the database
-	hashedPassword, hashError := userpassword.Hash(params.NewPassword)
-	if hashError != nil {
+	hashedPassword, err := userpassword.Hash(params.NewPassword)
+	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("hash password: %s", hashError.Error()),
+			Message: fmt.Sprintf("hash password: %s", err.Error()),
 		})
+		return
 	}
-	databaseError := api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
+	err = api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
 		ID:             user.ID,
 		HashedPassword: []byte(hashedPassword),
 	})
-	if databaseError != nil {
+	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("put user password: %s", databaseError.Error()),
+			Message: fmt.Sprintf("put user password: %s", err.Error()),
 		})
 		return
 	}

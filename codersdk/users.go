@@ -187,7 +187,8 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// Update user password
+// UpdateUserPassword updates a user password.
+// It calls PUT /users/{user}/password
 func (c *Client) UpdateUserPassword(ctx context.Context, userID uuid.UUID, req UpdateUserPasswordRequest) error {
 	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", uuidOrMe(userID)), req)
 	if err != nil {

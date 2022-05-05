@@ -70,7 +70,7 @@ WHERE
 -- name: GetUsers :many
 SELECT
 	*
-FROM	
+FROM
 	users
 WHERE
 	CASE
