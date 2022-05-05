@@ -22,7 +22,12 @@ const validationSchema = Yup.object({
   name: Yup.string().required("Name is required"),
 })
 
-export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ template, onSubmit, onCancel, organization_id }) => {
+export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
+  template,
+  onSubmit,
+  onCancel,
+  organization_id,
+}) => {
   const styles = useStyles()
 
   const form: FormikContextType<{ name: string }> = useFormik<{ name: string }>({
@@ -35,7 +40,7 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ template, o
       return onSubmit({
         template_id: template.id,
         name: name,
-        organization_id
+        organization_id,
       })
     },
   })

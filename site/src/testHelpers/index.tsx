@@ -27,12 +27,15 @@ export const render = (component: React.ReactElement): RenderResult => {
 type RenderWithAuthResult = RenderResult & { user: typeof MockUser }
 
 /**
- * 
+ *
  * @param ui The component to render and test
  * @param options Can contain `route`, the URL to use, such as /users/user1, and `path`,
  * such as /users/:userid. When there are no parameters, they are the same and you can just supply `route`.
  */
-export function renderWithAuth(ui: JSX.Element, { route = "/", path }: { route?: string, path?: string } = {}): RenderWithAuthResult {
+export function renderWithAuth(
+  ui: JSX.Element,
+  { route = "/", path }: { route?: string; path?: string } = {},
+): RenderWithAuthResult {
   const renderResult = wrappedRender(
     <MemoryRouter initialEntries={[route]}>
       <XServiceProvider>
