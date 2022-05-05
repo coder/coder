@@ -122,6 +122,10 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		Search:    searchName,
 		Status:    statusFilter,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusOK, []codersdk.User{})
+		return
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
