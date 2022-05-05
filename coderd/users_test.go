@@ -290,26 +290,12 @@ func TestUpdateUserProfile(t *testing.T) {
 func TestUpdateUserPassword(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DifferentPasswordConfirmation", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-		err := client.UpdateUserPassword(context.Background(), codersdk.Me, codersdk.UpdateUserPasswordRequest{
-			Password:        "newpassword",
-			ConfirmPassword: "wrongconfirmation",
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-	})
-
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		err := client.UpdateUserPassword(context.Background(), codersdk.Me, codersdk.UpdateUserPasswordRequest{
-			Password:        "newpassword",
-			ConfirmPassword: "newpassword",
+			Password: "newpassword",
 		})
 		require.NoError(t, err, "update password request should be successful")
 
