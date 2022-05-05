@@ -84,7 +84,7 @@ coder templates update gcp-linux
   - [Manage templates](./templates.md#manage-templates)
   - [Persistent and ephemeral
     resources](./templates.md#persistent-and-ephemeral-resources)
-  - [Variables](./templates.md#variables)
+  - [Parameters](./templates.md#parameters)
 - [Workspaces](./workspaces.md)
   - [Create workspaces](./workspaces.md#create-workspaces)
   - [Connect with SSH](./workspaces.md#connect-with-ssh)
@@ -100,6 +100,6 @@ Read the [contributing docs](./CONTRIBUTING.md).
 
 <!--- Add your row by date (mm/dd/yyyy), most recent date at end of list --->
 
-| Name          | Start Date | First PR Date |Organization|                GitHub User Link |
-| ------------- | :--------: | :-----------: |:----------:| ------------------------------: |
-| Mathias Fredriksson | 04/25/2022 | 04/25/2022 | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri) |
+| Name                | Start Date | First PR Date |           Organization            |                        GitHub User Link |
+| ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------: |
+| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri) |
