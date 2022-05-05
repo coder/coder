@@ -202,7 +202,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 		// If no users after the time, then we return an empty list.
 		if !found {
-			return []database.User{}, nil
+			return nil, sql.ErrNoRows
 		}
 	}
 
@@ -230,7 +230,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 	if params.OffsetOpt > 0 {
 		if int(params.OffsetOpt) > len(users)-1 {
-			return []database.User{}, nil
+			return nil, sql.ErrNoRows
 		}
 		users = users[params.OffsetOpt:]
 	}
