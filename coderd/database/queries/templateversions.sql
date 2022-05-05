@@ -10,9 +10,9 @@ WHERE
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
 		WHEN @after_id :: uuid != '00000000-00000000-00000000-00000000' THEN (
-			-- The pagination cursor is the last user of the previous page.
+			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the created_at field, so select all
-			-- users after the cursor. We also want to include any users
+			-- rows after the cursor. We also want to include any rows
 			-- that share the created_at (super rare).
 				created_at >= (
 					SELECT
@@ -28,7 +28,7 @@ WHERE
 			ELSE true
 	END
 ORDER BY
-    -- Deterministic and consistent ordering of all users, even if they share
+    -- Deterministic and consistent ordering of all rows, even if they share
     -- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET @offset_opt
 LIMIT
