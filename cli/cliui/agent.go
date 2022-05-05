@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"sync"
 	"time"
 
@@ -45,6 +47,23 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	spin.Suffix = " Waiting for connection from " + Styles.Field.Render(agent.Name) + "..."
 	spin.Start()
 	defer spin.Stop()
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+	stopSpin := make(chan os.Signal, 1)
+	signal.Notify(stopSpin, os.Interrupt)
+	defer signal.Stop(stopSpin)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-stopSpin:
+		}
+		signal.Stop(stopSpin)
+		spin.Stop()
+		// nolint:revive
+		os.Exit(1)
+	}()
 
 	ticker := time.NewTicker(opts.FetchInterval)
 	defer ticker.Stop()
