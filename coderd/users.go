@@ -360,33 +360,17 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
 
-func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
+func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) error {
 	user := httpmw.UserParam(r)
 
 	var params codersdk.UpdateUserPasswordRequest
 	if !httpapi.Read(rw, r, &params) {
-		return
-	}
-
-	// Check if the password is correct
-	equal, err := userpassword.Compare(string(user.HashedPassword), params.Password)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("compare: %s", err.Error()),
-		})
-	}
-	if !equal {
-		// This message is the same as above to remove ease in detecting whether
-		// users are registered or not. Attackers still could with a timing attack.
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "invalid email or password",
-		})
-		return
+		return nil
 	}
 
 	// Check if the new password and the confirmation match
 	if params.NewPassword != params.ConfirmNewPassword {
-		errors := []httpapi.Error{
+		requestErrors := []httpapi.Error{
 			{
 				Field:  "confirm_new_password",
 				Detail: "The value does not match the new password",
@@ -394,16 +378,15 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		}
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("The new password and the new password confirmation don't match"),
-			Errors:  errors,
+			Errors:  requestErrors,
 		})
-		return
+		return nil
 	}
 
 	// Hash password and update it in the database
 	hashedPassword, hashError := userpassword.Hash(params.NewPassword)
 	if hashError != nil {
-		xerrors.Errorf("hash password: %w", hashError)
-		return
+		return xerrors.Errorf("hash password: %w", hashError)
 	}
 	databaseError := api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
 		ID:             user.ID,
@@ -413,10 +396,11 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("put user password: %s", databaseError.Error()),
 		})
-		return
+		return nil
 	}
 
 	httpapi.Write(rw, http.StatusNoContent, nil)
+	return nil
 }
 
 func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
