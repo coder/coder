@@ -109,7 +109,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		statusFilter = r.URL.Query().Get("status")
 	)
 
-	paginationParams, err := httpapi.ParsePagination(r)
+	paginationParams, err := parsePagination(r)
 	if err != nil {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{Message: fmt.Sprintf("parse pagination request: %s", err.Error())})
 		return
