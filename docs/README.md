@@ -80,6 +80,7 @@ coder templates update gcp-linux
   - [Why remote development](about.md#why-remote-development)
   - [Why Coder](about.md#why-coder)
   - [What Coder is not](about.md#what-coder-is-not)
+  - [Comparison: Coder vs. [product]](about.md#comparison)
 - [Templates](./templates.md)
   - [Manage templates](./templates.md#manage-templates)
   - [Persistent and ephemeral
