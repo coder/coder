@@ -157,7 +157,6 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 	// Populate database with template versions.
-	var templateVersions []codersdk.TemplateVersion
 	total := 9
 	for i := 0; i < total; i++ {
 		data, err := echo.Tar(nil)
