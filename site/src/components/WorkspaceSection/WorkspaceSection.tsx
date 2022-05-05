@@ -2,7 +2,7 @@ import Paper from "@material-ui/core/Paper"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
-import { CardPadding, CardRadius } from "../Workspace/constants"
+import { CardRadius, CardPadding } from "../../theme/constants"
 
 export interface WorkspaceSectionProps {
   title: string
