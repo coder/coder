@@ -12,20 +12,17 @@ WHERE
 		WHEN @after_id :: uuid != '00000000-00000000-00000000-00000000' THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the created_at field, so select all
-			-- rows after the cursor. We also want to include any rows
-			-- that share the created_at (super rare).
-				created_at >= (
-					SELECT
-						created_at
-					FROM
-						template_versions
-					WHERE
-						id = @after_id
-				)
-				-- Omit the cursor from the final.
-				AND id != @after_id
+			-- rows after the cursor.
+			(created_at, id) > (
+				SELECT
+					created_at, id
+				FROM
+					template_versions
+				WHERE
+					id = @after_id
 			)
-			ELSE true
+		)
+		ELSE true
 	END
 ORDER BY
     -- Deterministic and consistent ordering of all rows, even if they share

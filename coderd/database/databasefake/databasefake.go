@@ -186,10 +186,10 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		return a.CreatedAt.Before(b.CreatedAt)
 	})
 
-	if params.AfterUser != uuid.Nil {
+	if params.AfterID != uuid.Nil {
 		found := false
 		for i, v := range users {
-			if v.ID == params.AfterUser {
+			if v.ID == params.AfterID {
 				// We want to return all users after index i.
 				users = users[i+1:]
 				found = true

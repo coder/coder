@@ -1915,20 +1915,17 @@ WHERE
 		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the created_at field, so select all
-			-- rows after the cursor. We also want to include any rows
-			-- that share the created_at (super rare).
-				created_at >= (
-					SELECT
-						created_at
-					FROM
-						template_versions
-					WHERE
-						id = $2
-				)
-				-- Omit the cursor from the final.
-				AND id != $2
+			-- rows after the cursor.
+			(created_at, id) > (
+				SELECT
+					created_at, id
+				FROM
+					template_versions
+				WHERE
+					id = $2
 			)
-			ELSE true
+		)
+		ELSE true
 	END
 ORDER BY
     -- Deterministic and consistent ordering of all rows, even if they share
@@ -2166,22 +2163,19 @@ WHERE
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
 		WHEN $1 :: uuid != '00000000-00000000-00000000-00000000' THEN (
-		    	-- The pagination cursor is the last user of the previous page.
-		    	-- The query is ordered by the created_at field, so select all
-		    	-- users after the cursor. We also want to include any users
-		    	-- that share the created_at (super rare).
-				created_at >= (
-					SELECT
-						created_at
-					FROM
-						users
-					WHERE
-						id = $1
-				)
-				-- Omit the cursor from the final.
-				AND id != $1
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the created_at field, so select all
+			-- rows after the cursor.
+			(created_at, id) > (
+				SELECT
+					created_at, id
+				FROM
+					template_versions
+				WHERE
+					id = $1
 			)
-			ELSE true
+		)
+		ELSE true
 	END
 	-- Start filters
 	-- Filter by name, email or username
@@ -2212,7 +2206,7 @@ LIMIT
 `
 
 type GetUsersParams struct {
-	AfterUser uuid.UUID `db:"after_user" json:"after_user"`
+	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
 	Search    string    `db:"search" json:"search"`
 	Status    string    `db:"status" json:"status"`
 	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
@@ -2221,7 +2215,7 @@ type GetUsersParams struct {
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
-		arg.AfterUser,
+		arg.AfterID,
 		arg.Search,
 		arg.Status,
 		arg.OffsetOpt,

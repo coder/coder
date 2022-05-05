@@ -115,7 +115,7 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
-		AfterUser: paginationParams.AfterID,
+		AfterID:   paginationParams.AfterID,
 		OffsetOpt: int32(paginationParams.Offset),
 		LimitOpt:  int32(paginationParams.Limit),
 		Search:    searchName,
