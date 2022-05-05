@@ -2170,7 +2170,7 @@ WHERE
 				SELECT
 					created_at, id
 				FROM
-					template_versions
+					users
 				WHERE
 					id = $1
 			)
