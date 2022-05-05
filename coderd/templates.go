@@ -75,9 +75,8 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
-	paginationParams, err := parsePagination(r)
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{Message: fmt.Sprintf("parse pagination request: %s", err.Error())})
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
 		return
 	}
 
