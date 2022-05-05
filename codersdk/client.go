@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -81,34 +80,13 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 // readBodyAsError reads the response as an httpapi.Message, and
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
-	contentType := res.Header.Get("Content-Type")
-	if strings.HasPrefix(contentType, "text/plain") {
-		resp, err := io.ReadAll(res.Body)
-		if err != nil {
-			return xerrors.Errorf("read body: %w", err)
-		}
-		return &Error{
-			statusCode: res.StatusCode,
-			Response: httpapi.Response{
-				Message: string(resp),
-			},
-		}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read body: %w", err)
 	}
 
-	//nolint:varnamelen
-	var m httpapi.Response
-	err := json.NewDecoder(res.Body).Decode(&m)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			// If no body is sent, we'll just provide the status code.
-			return &Error{
-				statusCode: res.StatusCode,
-			}
-		}
-		return xerrors.Errorf("decode body: %w", err)
-	}
 	return &Error{
-		Response:   m,
+		Body:       body,
 		statusCode: res.StatusCode,
 	}
 }
@@ -116,7 +94,7 @@ func readBodyAsError(res *http.Response) error {
 // Error represents an unaccepted or invalid request to the API.
 // @typescript-ignore Error
 type Error struct {
-	httpapi.Response
+	Body []byte
 
 	statusCode int
 }
@@ -126,10 +104,21 @@ func (e *Error) StatusCode() int {
 }
 
 func (e *Error) Error() string {
-	var builder strings.Builder
-	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
-	for _, err := range e.Errors {
-		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
+	var errMsg strings.Builder
+	_, _ = fmt.Fprintf(&errMsg, "status code %d:", e.statusCode)
+
+	//nolint:varnamelen
+	var m httpapi.Response
+	err := json.Unmarshal(e.Body, &m)
+	if err != nil || len(m.Errors) == 0 {
+		// We print the body instead of the parsed API errors in case another
+		// component in the HTTP stack is giving the error.
+		_, _ = fmt.Fprintf(&errMsg, "\n%s", bytes.TrimSpace(e.Body))
+	} else {
+		_, _ = fmt.Fprintf(&errMsg, " %v\n", m.Message)
+		for _, err := range m.Errors {
+			_, _ = fmt.Fprintf(&errMsg, "\n\t%s: %s", err.Field, err.Detail)
+		}
 	}
-	return builder.String()
+	return errMsg.String()
 }

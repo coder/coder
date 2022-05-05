@@ -119,7 +119,7 @@ func TestListRoles(t *testing.T) {
 				var apiErr *codersdk.Error
 				require.ErrorAs(t, err, &apiErr)
 				require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-				require.Contains(t, apiErr.Message, c.AuthorizedError)
+				require.Contains(t, string(apiErr.Body), c.AuthorizedError)
 			} else {
 				require.NoError(t, err)
 				require.ElementsMatch(t, c.ExpectedRoles, roles)
