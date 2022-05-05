@@ -295,9 +295,8 @@ func TestUpdateUserPassword(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		err := client.UpdateUserPassword(context.Background(), codersdk.Me, codersdk.UpdateUserPasswordRequest{
-			Password:           coderdtest.FirstUserParams.Password,
-			NewPassword:        "newpassword",
-			ConfirmNewPassword: "wrongconfirmation",
+			Password:        "newpassword",
+			ConfirmPassword: "wrongconfirmation",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -309,9 +308,8 @@ func TestUpdateUserPassword(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		err := client.UpdateUserPassword(context.Background(), codersdk.Me, codersdk.UpdateUserPasswordRequest{
-			Password:           coderdtest.FirstUserParams.Password,
-			NewPassword:        "newpassword",
-			ConfirmNewPassword: "newpassword",
+			Password:        "newpassword",
+			ConfirmPassword: "newpassword",
 		})
 		require.NoError(t, err, "update password request should be successful")
 
