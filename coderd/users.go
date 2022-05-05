@@ -360,12 +360,12 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
 
-func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) error {
+func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
 	var params codersdk.UpdateUserPasswordRequest
 	if !httpapi.Read(rw, r, &params) {
-		return nil
+		return
 	}
 
 	// Check if the new password and the confirmation match
@@ -380,13 +380,15 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) error {
 			Message: fmt.Sprintf("The new password and the new password confirmation don't match"),
 			Errors:  requestErrors,
 		})
-		return nil
+		return
 	}
 
 	// Hash password and update it in the database
 	hashedPassword, hashError := userpassword.Hash(params.NewPassword)
 	if hashError != nil {
-		return xerrors.Errorf("hash password: %w", hashError)
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("hash password: %s", hashError.Error()),
+		})
 	}
 	databaseError := api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
 		ID:             user.ID,
@@ -396,11 +398,10 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) error {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("put user password: %s", databaseError.Error()),
 		})
-		return nil
+		return
 	}
 
 	httpapi.Write(rw, http.StatusNoContent, nil)
-	return nil
 }
 
 func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
