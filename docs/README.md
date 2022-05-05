@@ -10,6 +10,8 @@ Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=soc
 
 Provision remote development environments with Terraform.
 
+![Coder Kubernetes workspace in Coder v2](./screenshot.png)
+
 ## Highlights
 
 - Automate development environments for Linux, Windows, and macOS
