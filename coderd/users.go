@@ -360,6 +360,64 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
 
+func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	var params codersdk.UpdateUserHashedPasswordRequest
+	if !httpapi.Read(rw, r, &params) {
+		return
+	}
+
+	// Check if the password is correct
+	equal, err := userpassword.Compare(string(user.HashedPassword), params.Password)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("compare: %s", err.Error()),
+		})
+	}
+	if !equal {
+		// This message is the same as above to remove ease in detecting whether
+		// users are registered or not. Attackers still could with a timing attack.
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "invalid email or password",
+		})
+		return
+	}
+
+	// Check if the new password and the confirmation match
+	if params.NewPassword != params.ConfirmNewPassword {
+		errors := []httpapi.Error{
+			{
+				Field:  "confirm_new_password",
+				Detail: "The value does not match the new password",
+			},
+		}
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("The new password and the new password confirmation don't match"),
+			Errors:  errors,
+		})
+		return
+	}
+
+	// Hash password and update it in the database
+	hashedPassword, hashError := userpassword.Hash(params.NewPassword)
+	if hashError != nil {
+		xerrors.Errorf("hash password: %w", hashError)
+		return
+	}
+	databaseError := api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
+		HashedPassword: []byte(hashedPassword),
+	})
+	if databaseError != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("put user password: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusNoContent, nil)
+}
+
 func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 

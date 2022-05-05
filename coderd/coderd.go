@@ -240,6 +240,7 @@ func New(options *Options) (http.Handler, func()) {
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
 					r.Put("/suspend", api.putUserSuspend)
+					r.Put("/password", api.putUserPassword)
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					// These roles apply to the site wide permissions.

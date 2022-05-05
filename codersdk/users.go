@@ -72,6 +72,12 @@ type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 }
 
+type UpdateUserHashedPasswordRequest struct {
+	Password           string `json:"password" validate:"required"`
+	NewPassword        string `json:"new_password" validate:"required"`
+	ConfirmNewPassword string `json:"confirm_new_password" validate:"required"`
+}
+
 type UpdateRoles struct {
 	Roles []string `json:"roles" validate:"required"`
 }
