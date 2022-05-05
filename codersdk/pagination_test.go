@@ -1,3 +1,4 @@
+//nolint:testpackage
 package codersdk
 
 import (
@@ -11,6 +12,8 @@ import (
 )
 
 func TestPagination_asRequestOption(t *testing.T) {
+	t.Parallel()
+
 	uuid1 := uuid.New()
 	type fields struct {
 		AfterID uuid.UUID
@@ -39,7 +42,10 @@ func TestPagination_asRequestOption(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			p := Pagination{
 				AfterID: tt.fields.AfterID,
 				Limit:   tt.fields.Limit,
