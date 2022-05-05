@@ -174,21 +174,22 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 	return closer
 }
 
+var FirstUserParams = codersdk.CreateFirstUserRequest{
+	Email:            "testuser@coder.com",
+	Username:         "testuser",
+	Password:         "testpass",
+	OrganizationName: "testorg",
+}
+
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
 func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirstUserResponse {
-	req := codersdk.CreateFirstUserRequest{
-		Email:            "testuser@coder.com",
-		Username:         "testuser",
-		Password:         "testpass",
-		OrganizationName: "testorg",
-	}
-	resp, err := client.CreateFirstUser(context.Background(), req)
+	resp, err := client.CreateFirstUser(context.Background(), FirstUserParams)
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-		Email:    req.Email,
-		Password: req.Password,
+		Email:    FirstUserParams.Email,
+		Password: FirstUserParams.Password,
 	})
 	require.NoError(t, err)
 	client.SessionToken = login.SessionToken

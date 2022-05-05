@@ -287,6 +287,57 @@ func TestUpdateUserProfile(t *testing.T) {
 	})
 }
 
+func TestUpdateUserPassword(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WrongPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		err := client.UpdateUserPassword(context.Background(), codersdk.Me, codersdk.UpdateUserPasswordRequest{
+			Password:           "wrongpassword",
+			NewPassword:        "newpassword",
+			ConfirmNewPassword: "newpassword",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+
+	t.Run("DifferentPasswordConfirmation", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		err := client.UpdateUserPassword(context.Background(), codersdk.Me, codersdk.UpdateUserPasswordRequest{
+			Password:           coderdtest.FirstUserParams.Password,
+			NewPassword:        "newpassword",
+			ConfirmNewPassword: "wrongconfirmation",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		err := client.UpdateUserPassword(context.Background(), codersdk.Me, codersdk.UpdateUserPasswordRequest{
+			Password:           coderdtest.FirstUserParams.Password,
+			NewPassword:        "newpassword",
+			ConfirmNewPassword: "newpassword",
+		})
+		require.NoError(t, err, "update password request should be successful")
+
+		// Check if the user can login using the new password
+		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: "newpassword",
+		})
+		require.NoError(t, err, "login should be successful")
+	})
+}
+
 func TestGrantRoles(t *testing.T) {
 	t.Parallel()
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {

@@ -363,7 +363,7 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	var params codersdk.UpdateUserHashedPasswordRequest
+	var params codersdk.UpdateUserPasswordRequest
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
@@ -406,11 +406,12 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	databaseError := api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
+		ID:             user.ID,
 		HashedPassword: []byte(hashedPassword),
 	})
 	if databaseError != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("put user password: %s", err.Error()),
+			Message: fmt.Sprintf("put user password: %s", databaseError.Error()),
 		})
 		return
 	}
@@ -635,7 +636,6 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// If the user doesn't exist, it will be a default struct.
-
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
