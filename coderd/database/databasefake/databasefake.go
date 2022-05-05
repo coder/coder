@@ -1318,12 +1318,12 @@ func (q *fakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.U
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, user := range q.users {
+	for i, user := range q.users {
 		if user.ID != arg.ID {
 			continue
 		}
 		user.HashedPassword = arg.HashedPassword
-		q.users[index] = user
+		q.users[i] = user
 		return nil
 	}
 	return sql.ErrNoRows
