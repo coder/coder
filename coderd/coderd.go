@@ -242,7 +242,7 @@ func New(options *Options) (http.Handler, func()) {
 					r.Put("/suspend", api.putUserSuspend)
 					r.Route("/password", func(r chi.Router) {
 						r.Use(httpmw.WithRBACObject(rbac.ResourceUserPasswordRole))
-						r.Put("/password", authorize(api.putUserPassword, rbac.ActionUpdate))
+						r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
 					})
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
