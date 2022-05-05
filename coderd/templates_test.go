@@ -225,6 +225,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := client.TemplateVersionsByTemplate(tt.args.ctx, codersdk.TemplateVersionsByTemplateRequest{
 				TemplateID: template.ID,
 				Pagination: tt.args.pagination,
