@@ -722,8 +722,6 @@ func TestPaginatedUsers(t *testing.T) {
 	allUsers = append(allUsers, me)
 	specialUsers := make([]codersdk.User, 0)
 
-	require.NoError(t, err)
-
 	// When 100 users exist
 	total := 100
 	// Create users
