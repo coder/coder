@@ -1,16 +1,18 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface CodeBlockProps {
   lines: string[]
+  className?: string
 }
 
-export const CodeBlock: React.FC<CodeBlockProps> = ({ lines }) => {
+export const CodeBlock: React.FC<CodeBlockProps> = ({ lines, className = "" }) => {
   const styles = useStyles()
 
   return (
-    <div className={styles.root}>
+    <div className={combineClasses([styles.root, className])}>
       {lines.map((line, idx) => (
         <div className={styles.line} key={idx}>
           {line}

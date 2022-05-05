@@ -11,6 +11,7 @@ export const Language = {
   emptyMessage: "No users found",
   usernameLabel: "User",
   suspendMenuItem: "Suspend",
+  resetPasswordMenuItem: "Reset password",
 }
 
 const emptyState = <EmptyState message={Language.emptyMessage} />
@@ -28,9 +29,10 @@ const columns: Column<UserResponse>[] = [
 export interface UsersTableProps {
   users: UserResponse[]
   onSuspendUser: (user: UserResponse) => void
+  onResetUserPassword: (user: UserResponse) => void
 }
 
-export const UsersTable: React.FC<UsersTableProps> = ({ users, onSuspendUser }) => {
+export const UsersTable: React.FC<UsersTableProps> = ({ users, onSuspendUser, onResetUserPassword }) => {
   return (
     <Table
       columns={columns}
@@ -44,6 +46,10 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onSuspendUser }) 
             {
               label: Language.suspendMenuItem,
               onClick: onSuspendUser,
+            },
+            {
+              label: Language.resetPasswordMenuItem,
+              onClick: onResetUserPassword,
             },
           ]}
         />
