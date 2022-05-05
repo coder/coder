@@ -75,7 +75,18 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
-	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), template.ID)
+	paginationParams, err := httpapi.ParsePagination(r)
+	if err != nil {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{Message: fmt.Sprintf("parse pagination request: %s", err.Error())})
+		return
+	}
+
+	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
+		TemplateID: template.ID,
+		AfterID:    paginationParams.AfterID,
+		LimitOpt:   int32(paginationParams.Limit),
+		OffsetOpt:  int32(paginationParams.Offset),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

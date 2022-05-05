@@ -4,7 +4,36 @@ SELECT
 FROM
 	template_versions
 WHERE
-	template_id = $1 :: uuid;
+	template_id = @template_id :: uuid
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN @after_id :: uuid != '00000000-00000000-00000000-00000000' THEN (
+			-- The pagination cursor is the last user of the previous page.
+			-- The query is ordered by the created_at field, so select all
+			-- users after the cursor. We also want to include any users
+			-- that share the created_at (super rare).
+				created_at >= (
+					SELECT
+						created_at
+					FROM
+						template_versions
+					WHERE
+						id = @after_id
+				)
+				-- Omit the cursor from the final.
+				AND id != @after_id
+			)
+			ELSE true
+	END
+ORDER BY
+    -- Deterministic and consistent ordering of all users, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+	(created_at, id) ASC OFFSET @offset_opt
+LIMIT
+	-- A null limit means "no limit", so -1 means return all
+	NULLIF(@limit_opt :: int, -1);
 
 -- name: GetTemplateVersionByJobID :one
 SELECT

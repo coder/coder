@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 var (
@@ -132,4 +135,43 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	}
 
 	return msg
+}
+
+type Pagination struct {
+	AfterID uuid.UUID
+	Limit   int
+	Offset  int
+}
+
+func ParsePagination(r *http.Request) (p Pagination, err error) {
+	var (
+		afterID = uuid.Nil
+		limit   = -1 // Default to no limit and return all results.
+		offset  = 0
+	)
+
+	if s := r.URL.Query().Get("after_id"); s != "" {
+		afterID, err = uuid.Parse(r.URL.Query().Get("after_id"))
+		if err != nil {
+			return p, xerrors.Errorf("after_id must be a valid uuid: %w", err.Error())
+		}
+	}
+	if s := r.URL.Query().Get("limit"); s != "" {
+		limit, err = strconv.Atoi(s)
+		if err != nil {
+			return p, xerrors.Errorf("limit must be an integer: %w", err.Error())
+		}
+	}
+	if s := r.URL.Query().Get("offset"); s != "" {
+		offset, err = strconv.Atoi(s)
+		if err != nil {
+			return p, xerrors.Errorf("offset must be an integer: %w", err.Error())
+		}
+	}
+
+	return Pagination{
+		AfterID: afterID,
+		Limit:   limit,
+		Offset:  offset,
+	}, nil
 }

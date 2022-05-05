@@ -621,20 +621,59 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, templateID uuid.UUID) ([]database.TemplateVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg database.GetTemplateVersionsByTemplateIDParams) (version []database.TemplateVersion, err error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	version := make([]database.TemplateVersion, 0)
 	for _, templateVersion := range q.templateVersions {
-		if templateVersion.TemplateID.UUID.String() != templateID.String() {
+		if templateVersion.TemplateID.UUID.String() != arg.TemplateID.String() {
 			continue
 		}
 		version = append(version, templateVersion)
 	}
+
+	// Database orders by created_at
+	sort.Slice(version, func(i, j int) bool {
+		if version[i].CreatedAt.Equal(version[j].CreatedAt) {
+			// Technically the postgres database also orders by uuid. So match
+			// that behavior
+			return version[i].ID.String() < version[j].ID.String()
+		}
+		return version[i].CreatedAt.Before(version[j].CreatedAt)
+	})
+
+	if arg.AfterID != uuid.Nil {
+		found := false
+		for i, v := range version {
+			if v.ID == arg.AfterID {
+				version = version[i+1:]
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, sql.ErrNoRows
+		}
+	}
+
+	if arg.OffsetOpt > 0 {
+		if int(arg.OffsetOpt) > len(version)-1 {
+			return nil, sql.ErrNoRows
+		}
+		version = version[arg.OffsetOpt:]
+	}
+
+	if arg.LimitOpt > 0 {
+		if int(arg.LimitOpt) > len(version) {
+			arg.LimitOpt = int32(len(version))
+		}
+		version = version[:arg.LimitOpt]
+	}
+
 	if len(version) == 0 {
 		return nil, sql.ErrNoRows
 	}
+
 	return version, nil
 }
 

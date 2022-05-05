@@ -147,6 +147,13 @@ export interface OrganizationMember {
   readonly roles: string[]
 }
 
+// From codersdk/pagination.go:11:6
+export interface Pagination {
+  readonly after_id: string
+  readonly limit: number
+  readonly offset: number
+}
+
 // From codersdk/parameters.go:26:6
 export interface Parameter {
   readonly id: string
@@ -254,6 +261,12 @@ export interface TemplateVersionParameterSchema {
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterTypeSystem")
   readonly validation_type_system: string
   readonly validation_value_type: string
+}
+
+// From codersdk/templates.go:74:6
+export interface TemplateVersionsByTemplateRequest {
+  readonly template_id: string
+  readonly Pagination: Pagination
 }
 
 // From codersdk/templates.go:28:6

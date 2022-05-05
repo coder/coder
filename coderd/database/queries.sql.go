@@ -1908,10 +1908,51 @@ FROM
 	template_versions
 WHERE
 	template_id = $1 :: uuid
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+			-- The pagination cursor is the last user of the previous page.
+			-- The query is ordered by the created_at field, so select all
+			-- users after the cursor. We also want to include any users
+			-- that share the created_at (super rare).
+				created_at >= (
+					SELECT
+						created_at
+					FROM
+						template_versions
+					WHERE
+						id = $2
+				)
+				-- Omit the cursor from the final.
+				AND id != $2
+			)
+			ELSE true
+	END
+ORDER BY
+    -- Deterministic and consistent ordering of all users, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+	(created_at, id) ASC OFFSET $3
+LIMIT
+	-- A null limit means "no limit", so -1 means return all
+	NULLIF($4 :: int, -1)
 `
 
-func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, dollar_1 uuid.UUID) ([]TemplateVersion, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByTemplateID, dollar_1)
+type GetTemplateVersionsByTemplateIDParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
+	OffsetOpt  int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt   int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByTemplateID,
+		arg.TemplateID,
+		arg.AfterID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
