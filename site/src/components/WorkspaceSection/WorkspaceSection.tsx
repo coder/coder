@@ -5,7 +5,7 @@ import React from "react"
 import { CardRadius, CardPadding } from "../../theme/constants"
 
 export interface WorkspaceSectionProps {
-  title: string
+  title?: string
 }
 
 export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, children }) => {
@@ -13,11 +13,13 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, child
 
   return (
     <Paper elevation={0} className={styles.root}>
-      <div className={styles.headerContainer}>
-        <div className={styles.header}>
-          <Typography variant="h6">{title}</Typography>
+      {title &&
+        <div className={styles.headerContainer}>
+          <div className={styles.header}>
+            <Typography variant="h6">{title}</Typography>
+          </div>
         </div>
-      </div>
+      }
 
       <div className={styles.contents}>{children}</div>
     </Paper>

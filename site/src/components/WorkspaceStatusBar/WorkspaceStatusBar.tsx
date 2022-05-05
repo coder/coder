@@ -7,6 +7,7 @@ import { WorkspaceProps } from "../Workspace/Workspace"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import { CardPadding, CardRadius, TitleIconSize } from "../../theme/constants"
 import { makeStyles } from "@material-ui/core/styles"
+import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 /**
  * Component for the header at the top of the workspace page
@@ -17,7 +18,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceProps> = ({ organization, tem
   const templateLink = `/templates/${organization.name}/${template.name}`
 
   return (
-    <Paper elevation={0} className={styles.section}>
+    <WorkspaceSection>
       <div className={styles.horizontal}>
         <Box mr="1em">
           <CloudCircleIcon width={TitleIconSize} height={TitleIconSize} />
@@ -29,7 +30,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceProps> = ({ organization, tem
           </Typography>
         </div>
       </div>
-    </Paper>
+    </WorkspaceSection>
   )
 }
 
@@ -46,12 +47,6 @@ const useStyles = makeStyles((theme) => {
     vertical: {
       display: "flex",
       flexDirection: "column",
-    },
-    section: {
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: CardRadius,
-      padding: CardPadding,
-      margin: theme.spacing(1),
     },
   }
 })
