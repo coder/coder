@@ -61,6 +61,7 @@ export interface CreateTemplateRequest {
 export interface CreateWorkspaceRequest {
   name: string
   template_id: string
+  organization_id: string
 }
 
 export interface WorkspaceBuild {

@@ -20,7 +20,7 @@ export const provisioners: Types.Provisioner[] = [
 
 export namespace Workspace {
   export const create = async (request: Types.CreateWorkspaceRequest): Promise<Types.Workspace> => {
-    const response = await fetch(`/api/v2/users/me/workspaces`, {
+    const response = await fetch(`/api/v2/organizations/${request.organization_id}/workspaces`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
