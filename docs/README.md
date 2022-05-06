@@ -10,6 +10,8 @@ Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=soc
 
 Provision remote development environments with Terraform.
 
+![Kubernetes workspace in Coder v2](./screenshot.png)
+
 ## Highlights
 
 - Automate development environments for Linux, Windows, and macOS
@@ -100,6 +102,6 @@ Read the [contributing docs](./CONTRIBUTING.md).
 
 <!--- Add your row by date (mm/dd/yyyy), most recent date at end of list --->
 
-| Name          | Start Date | First PR Date |Organization|                GitHub User Link |
-| ------------- | :--------: | :-----------: |:----------:| ------------------------------: |
-| Mathias Fredriksson | 04/25/2022 | 04/25/2022 | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri) |
+| Name                | Start Date | First PR Date |           Organization            |                        GitHub User Link |
+| ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------: |
+| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri) |

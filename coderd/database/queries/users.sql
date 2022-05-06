@@ -59,6 +59,14 @@ WHERE
  	id = @id
 RETURNING *;
 
+-- name: UpdateUserHashedPassword :exec
+UPDATE
+	users
+SET
+	hashed_password = $2
+WHERE
+	id = $1;
+
 -- name: GetUsers :many
 SELECT
 	*

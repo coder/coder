@@ -20,7 +20,7 @@ export const provisioners: Types.Provisioner[] = [
 
 export namespace Workspace {
   export const create = async (request: Types.CreateWorkspaceRequest): Promise<Types.Workspace> => {
-    const response = await fetch(`/api/v2/users/me/workspaces`, {
+    const response = await fetch(`/api/v2/organizations/${request.organization_id}/workspaces`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -80,12 +80,27 @@ export const getUsers = async (): Promise<TypesGen.User[]> => {
   return response.data
 }
 
+export const getOrganization = async (organizationId: string): Promise<Types.Organization> => {
+  const response = await axios.get<Types.Organization>(`/api/v2/organizations/${organizationId}`)
+  return response.data
+}
+
 export const getOrganizations = async (): Promise<Types.Organization[]> => {
   const response = await axios.get<Types.Organization[]>("/api/v2/users/me/organizations")
   return response.data
 }
 
-export const getWorkspace = async (
+export const getTemplate = async (templateId: string): Promise<Types.Template> => {
+  const response = await axios.get<Types.Template>(`/api/v2/templates/${templateId}`)
+  return response.data
+}
+
+export const getWorkspace = async (workspaceId: string): Promise<Types.Workspace> => {
+  const response = await axios.get<Types.Workspace>(`/api/v2/workspaces/${workspaceId}`)
+  return response.data
+}
+
+export const getWorkspaceByOwnerAndName = async (
   organizationID: string,
   username = "me",
   workspaceName: string,

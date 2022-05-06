@@ -845,7 +845,7 @@ func (p *Server) failActiveJob(failedJob *proto.FailedJob) {
 		return
 	}
 	if p.jobFailed.Load() {
-		p.opts.Logger.Warn(context.Background(), "job has already been marked as failed", slog.F("error_messsage", failedJob.Error))
+		p.opts.Logger.Debug(context.Background(), "job has already been marked as failed", slog.F("error_messsage", failedJob.Error))
 		return
 	}
 	p.jobFailed.Store(true)

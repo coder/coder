@@ -240,6 +240,10 @@ func New(options *Options) (http.Handler, func()) {
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
 					r.Put("/suspend", api.putUserSuspend)
+					r.Route("/password", func(r chi.Router) {
+						r.Use(httpmw.WithRBACObject(rbac.ResourceUserPasswordRole))
+						r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
+					})
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					// These roles apply to the site wide permissions.

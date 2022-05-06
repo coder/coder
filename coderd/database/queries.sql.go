@@ -2264,6 +2264,25 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
+const updateUserHashedPassword = `-- name: UpdateUserHashedPassword :exec
+UPDATE
+	users
+SET
+	hashed_password = $2
+WHERE
+	id = $1
+`
+
+type UpdateUserHashedPasswordParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
+}
+
+func (q *sqlQuerier) UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserHashedPassword, arg.ID, arg.HashedPassword)
+	return err
+}
+
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE
 	users
