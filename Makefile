@@ -86,6 +86,7 @@ site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -typ
 site/src/api/typesGenerated.ts: $(shell find codersdk -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site && yarn run format:types
+.PHONY: site/src/api/typesGenerated.ts
 
 test:
 	gotestsum -- -v -short ./...
