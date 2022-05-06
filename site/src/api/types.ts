@@ -66,6 +66,7 @@ export interface CreateWorkspaceRequest {
 
 export interface WorkspaceBuild {
   id: string
+  transition: WorkspaceBuildTransition
 }
 
 export interface Workspace {
@@ -110,6 +111,8 @@ export interface WorkspaceAutostartRequest {
 export interface WorkspaceAutostopRequest {
   schedule: string
 }
+
+export type WorkspaceBuildTransition = "start" | "stop" | "delete"
 
 export interface UpdateProfileRequest {
   readonly username: string

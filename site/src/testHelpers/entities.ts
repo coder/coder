@@ -8,6 +8,7 @@ import {
   Workspace,
   WorkspaceAgent,
   WorkspaceAutostartRequest,
+  WorkspaceBuildTransition,
   WorkspaceResource,
 } from "../api/types"
 import { AuthMethods } from "../api/typesGenerated"
@@ -80,6 +81,11 @@ export const MockWorkspaceAutostopEnabled: WorkspaceAutostartRequest = {
   schedule: "CRON_TZ=America/Toronto 30 21 * * 1-5",
 }
 
+export const MockWorkspaceBuild = {
+  id: "test-workspace-build",
+  transition: "start" as WorkspaceBuildTransition
+}
+
 export const MockWorkspace: Workspace = {
   id: "test-workspace",
   name: "Test-Workspace",
@@ -90,9 +96,7 @@ export const MockWorkspace: Workspace = {
   owner_id: MockUser.id,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
-  latest_build: {
-    id: "test-workspace-build",
-  },
+  latest_build: MockWorkspaceBuild
 }
 
 export const MockWorkspaceAgent: WorkspaceAgent = {
