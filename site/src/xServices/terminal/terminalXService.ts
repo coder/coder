@@ -154,7 +154,7 @@ export const terminalMachine =
           if (!context.organizations || !context.workspaceName) {
             throw new Error("organizations or workspace not set")
           }
-          return API.getWorkspace(context.organizations[0].id, context.username, context.workspaceName)
+          return API.getWorkspaceByOwnerAndName(context.organizations[0].id, context.username, context.workspaceName)
         },
         getWorkspaceAgent: async (context) => {
           if (!context.workspace || !context.workspaceName) {
