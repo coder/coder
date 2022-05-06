@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 import { Link } from "react-router-dom"
-import { WorkspaceProps } from "../Workspace/Workspace"
+import { WorkspaceStatus } from "../Workspace/Workspace"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import { TitleIconSize } from "../../theme/constants"
 import { makeStyles } from "@material-ui/core/styles"
@@ -10,16 +10,45 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { Stack } from "../Stack/Stack"
 import Button from "@material-ui/core/Button"
 import Divider from "@material-ui/core/Divider"
+import * as Types from "../../api/types"
+
+const Language = {
+  stop: "Stop",
+  start: "Start",
+  update: "Update", 
+  settings: "Settings"
+}
+export interface WorkspaceStatusBarProps {
+  organization: Types.Organization
+  workspace: Types.Workspace
+  template: Types.Template
+  status: WorkspaceStatus
+  handleUpdate: () => void
+  handleToggle: () => void
+}
 
 /**
  * Component for the header at the top of the workspace page
  */
-export const WorkspaceStatusBar: React.FC<WorkspaceProps> = ({ organization, template, workspace }) => {
+export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({ organization, template, workspace, status, handleUpdate, handleToggle }) => {
   const styles = useStyles()
 
   const templateLink = `/templates/${organization.name}/${template.name}`
-  const action = "Start" // TODO don't let me merge this
-  const outOfDate = false // TODO
+  const statusToAction: Record<WorkspaceStatus, string> = {
+    started: Language.stop,
+    stopping: Language.stop,
+    stopped: Language.start,
+    starting: Language.start,
+  }
+  // Cannot start or stop in the middle of starting or stopping
+  const statusToDisabled: Record<WorkspaceStatus, boolean> = {
+    started: false,
+    stopping: true,
+    stopped: false,
+    starting: true
+  }
+  const action = statusToAction[status]
+  const actionDisabled = statusToDisabled[status]
 
   return (
     <WorkspaceSection>
@@ -37,12 +66,12 @@ export const WorkspaceStatusBar: React.FC<WorkspaceProps> = ({ organization, tem
           </div>
         </div>
         <div className={styles.horizontal}>
-          <Button color="primary">{action}</Button>
-          {outOfDate &&
-            <Button color="primary">Update</Button>
+          <Button onClick={handleToggle} disabled={actionDisabled} color="primary">{action}</Button>
+          {workspace.outdated &&
+            <Button onClick={handleUpdate} color="primary">{Language.update}</Button>
           }
           <Divider orientation="vertical" flexItem/>
-          <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>Settings</Link>
+          <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>{Language.settings}</Link>
         </div>
       </div>
       </Stack>

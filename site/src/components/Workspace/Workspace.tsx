@@ -6,22 +6,29 @@ import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
 
+export type WorkspaceStatus =
+  "started"
+  | "stopping"
+  | "stopped"
+  | "starting"
+
 export interface WorkspaceProps {
   organization: Types.Organization
   workspace: Types.Workspace
   template: Types.Template
+  status: WorkspaceStatus
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, workspace }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, workspace, status }) => {
   const styles = useStyles()
 
   return (
     <div className={styles.root}>
       <div className={styles.vertical}>
-        <WorkspaceStatusBar organization={organization} template={template} workspace={workspace} />
+        <WorkspaceStatusBar organization={organization} template={template} workspace={workspace} status={status} handleUpdate={} handleToggle={} />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
             <WorkspaceSection title="Applications">
