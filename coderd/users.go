@@ -361,10 +361,10 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
-        var (
-                user  = httpmw.UserParam(r)
-                params codersdk.UpdateUserPasswordRequest
-        )
+	var (
+		user   = httpmw.UserParam(r)
+		params codersdk.UpdateUserPasswordRequest
+	)
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}

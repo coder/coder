@@ -51,7 +51,8 @@ var (
 		// admin grants all actions to all resources.
 		admin: func(_ string) Role {
 			return Role{
-				Name: admin,
+				Name:        admin,
+				DisplayName: "Admin",
 				Site: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
 				}),
@@ -61,7 +62,8 @@ var (
 		// member grants all actions to all resources owned by the user
 		member: func(_ string) Role {
 			return Role{
-				Name: member,
+				Name:        member,
+				DisplayName: "Member",
 				User: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
 				}),
@@ -73,7 +75,8 @@ var (
 		// TODO: Finish the auditor as we add resources.
 		auditor: func(_ string) Role {
 			return Role{
-				Name: "auditor",
+				Name:        "auditor",
+				DisplayName: "Auditor",
 				Site: permissions(map[Object][]Action{
 					// Should be able to read all template details, even in orgs they
 					// are not in.
@@ -86,7 +89,8 @@ var (
 		// organization scope.
 		orgAdmin: func(organizationID string) Role {
 			return Role{
-				Name: roleName(orgAdmin, organizationID),
+				Name:        roleName(orgAdmin, organizationID),
+				DisplayName: "Organization Admin",
 				Org: map[string][]Permission{
 					organizationID: {
 						{
@@ -104,7 +108,8 @@ var (
 		// in an organization.
 		orgMember: func(organizationID string) Role {
 			return Role{
-				Name: roleName(orgMember, organizationID),
+				Name:        roleName(orgMember, organizationID),
+				DisplayName: "Organization Member",
 				Org: map[string][]Permission{
 					organizationID: {},
 				},

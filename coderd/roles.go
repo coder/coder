@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/codersdk"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
@@ -13,7 +14,8 @@ import (
 func (*api) assignableSiteRoles(rw http.ResponseWriter, _ *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
-	roles := rbac.SiteRoles()
+	roleNames := rbac.SiteRoles()
+	roles := codersdk.RolesFromName(roleNames)
 	httpapi.Write(rw, http.StatusOK, roles)
 }
 
@@ -22,6 +24,7 @@ func (*api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
-	roles := rbac.OrganizationRoles(organization.ID)
+	roleNames := rbac.OrganizationRoles(organization.ID)
+	roles := codersdk.RolesFromName(roleNames)
 	httpapi.Write(rw, http.StatusOK, roles)
 }
