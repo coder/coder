@@ -45,17 +45,13 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Ro
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
-func RolesFromName(roleNames []string) []Role {
-	roles := make([]Role, 0, len(roleNames))
-	for _, roleName := range roleNames {
-		role, err := rbac.RoleByName(roleName)
-		if err != nil {
-			continue
-		}
-		roles = append(roles, Role{
-			Name:        role.Name,
+func ConvertRoles(roles []rbac.Role) []Role {
+	converted := make([]Role, 0, len(roles))
+	for _, role := range roles {
+		converted = append(converted, Role{
 			DisplayName: role.DisplayName,
+			Name:        role.Name,
 		})
 	}
-	return roles
+	return converted
 }

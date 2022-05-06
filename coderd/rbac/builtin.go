@@ -156,11 +156,11 @@ func IsOrgRole(roleName string) (string, bool) {
 //
 // This should be a list in a database, but until then we build
 // the list from the builtins.
-func OrganizationRoles(organizationID uuid.UUID) []string {
-	var roles []string
+func OrganizationRoles(organizationID uuid.UUID) []Role {
+	var roles []Role
 	for _, roleF := range builtInRoles {
-		role := roleF(organizationID.String()).Name
-		_, scope, err := roleSplit(role)
+		role := roleF(organizationID.String())
+		_, scope, err := roleSplit(role.Name)
 		if err != nil {
 			// This should never happen
 			continue
@@ -177,8 +177,8 @@ func OrganizationRoles(organizationID uuid.UUID) []string {
 //
 // This should be a list in a database, but until then we build
 // the list from the builtins.
-func SiteRoles() []string {
-	var roles []string
+func SiteRoles() []Role {
+	var roles []Role
 	for _, roleF := range builtInRoles {
 		role := roleF("random")
 		_, scope, err := roleSplit(role.Name)
@@ -187,7 +187,7 @@ func SiteRoles() []string {
 			continue
 		}
 		if scope == "" {
-			roles = append(roles, role.Name)
+			roles = append(roles, role)
 		}
 	}
 	return roles

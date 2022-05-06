@@ -14,9 +14,8 @@ import (
 func (*api) assignableSiteRoles(rw http.ResponseWriter, _ *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
-	roleNames := rbac.SiteRoles()
-	roles := codersdk.RolesFromName(roleNames)
-	httpapi.Write(rw, http.StatusOK, roles)
+	roles := rbac.SiteRoles()
+	httpapi.Write(rw, http.StatusOK, codersdk.ConvertRoles(roles))
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
@@ -24,7 +23,6 @@ func (*api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
-	roleNames := rbac.OrganizationRoles(organization.ID)
-	roles := codersdk.RolesFromName(roleNames)
-	httpapi.Write(rw, http.StatusOK, roles)
+	roles := rbac.OrganizationRoles(organization.ID)
+	httpapi.Write(rw, http.StatusOK, codersdk.ConvertRoles(roles))
 }

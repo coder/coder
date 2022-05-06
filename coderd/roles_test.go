@@ -84,7 +84,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: codersdk.RolesFromName(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: codersdk.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
@@ -99,14 +99,14 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: codersdk.RolesFromName(rbac.SiteRoles()),
+			ExpectedRoles: codersdk.ConvertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "AdminListOrg",
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: codersdk.RolesFromName(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: codersdk.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 	}
 
