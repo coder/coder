@@ -9,6 +9,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { Stack } from "../Stack/Stack"
 import Button from "@material-ui/core/Button"
+import Divider from "@material-ui/core/Divider"
 
 /**
  * Component for the header at the top of the workspace page
@@ -37,7 +38,10 @@ export const WorkspaceStatusBar: React.FC<WorkspaceProps> = ({ organization, tem
         </div>
         <div className={styles.horizontal}>
           <Button color="primary">{action}</Button>
-          <Button color="primary" disabled={!outOfDate}>Update</Button>
+          {outOfDate &&
+            <Button color="primary">Update</Button>
+          }
+          <Divider orientation="vertical" flexItem/>
           <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>Settings</Link>
         </div>
       </div>
@@ -61,7 +65,7 @@ const useStyles = makeStyles((theme) => {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      gap: theme.spacing(1)
+      gap: theme.spacing(2)
     },
     vertical: {
       display: "flex",
