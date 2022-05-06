@@ -13,6 +13,17 @@ export interface ResetPasswordDialogProps {
   onConfirm: () => void
   user?: TypesGen.User
   newPassword?: string
+  loading: boolean
+}
+
+export const Language = {
+  title: "Reset password",
+  message: (username?: string): JSX.Element => (
+    <>
+      You will need to send <strong>{username}</strong> the following password:
+    </>
+  ),
+  confirmText: "Reset password",
 }
 
 export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({
@@ -21,17 +32,16 @@ export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({
   onConfirm,
   user,
   newPassword,
+  loading,
 }) => {
   const styles = useStyles()
 
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle title="Reset password" />
+      <DialogTitle title={Language.title} />
 
       <DialogContent>
-        <DialogContentText variant="subtitle2">
-          You will need to send <strong>{user?.username}</strong> the following password:
-        </DialogContentText>
+        <DialogContentText variant="subtitle2">{Language.message(user?.username)}</DialogContentText>
 
         <DialogContentText component="div">
           <CodeBlock lines={[newPassword ?? ""]} className={styles.codeBlock} />
@@ -39,7 +49,12 @@ export const ResetPasswordDialog: React.FC<ResetPasswordDialogProps> = ({
       </DialogContent>
 
       <DialogActions>
-        <DialogActionButtons onCancel={onClose} confirmText="Reset password" onConfirm={onConfirm} />
+        <DialogActionButtons
+          onCancel={onClose}
+          confirmText={Language.confirmText}
+          onConfirm={onConfirm}
+          confirmLoading={loading}
+        />
       </DialogActions>
     </Dialog>
   )

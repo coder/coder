@@ -255,7 +255,7 @@ export const usersMachine = createMachine(
         displaySuccess(Language.resetUserPasswordSuccess)
       },
       displayResetPasswordErrorMessage: () => {
-        displaySuccess(Language.resetUserPasswordError)
+        displayError(Language.resetUserPasswordError)
       },
       generateRandomPassword: assign({
         newUserPassword: (_) => generateRandomString(12),

@@ -68,6 +68,7 @@ export const UsersPage: React.FC = () => {
         />
 
         <ResetPasswordDialog
+          loading={usersState.matches("resettingUserPassword")}
           user={userToResetPassword}
           newPassword={newUserPassword}
           open={usersState.matches("confirmUserPasswordReset")}
