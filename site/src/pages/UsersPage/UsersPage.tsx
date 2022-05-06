@@ -13,6 +13,29 @@ export const Language = {
   suspendDialogMessagePrefix: "Do you want to suspend the user",
 }
 
+const useRoles = () => {
+  const xServices = useContext(XServiceContext)
+  const [authState] = useActor(xServices.authXService)
+  const [rolesState, rolesSend] = useActor(xServices.rolesXService)
+  const { roles } = rolesState.context
+  const { me } = authState.context
+
+  useEffect(() => {
+    if (!me) {
+      throw new Error("User is not logged in")
+    }
+
+    const organizationId = me.organization_ids[0]
+
+    rolesSend({
+      type: "GET_ROLES",
+      organizationId,
+    })
+  }, [me, rolesSend])
+
+  return roles
+}
+
 export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
@@ -20,6 +43,7 @@ export const UsersPage: React.FC = () => {
   const navigate = useNavigate()
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
+  const roles = useRoles()
 
   /**
    * Fetch users on component mount
@@ -28,12 +52,13 @@ export const UsersPage: React.FC = () => {
     usersSend("GET_USERS")
   }, [usersSend])
 
-  if (!users) {
+  if (!users || !roles) {
     return <FullScreenLoader />
   } else {
     return (
       <>
         <UsersPageView
+          roles={roles}
           users={users}
           openUserCreationDialog={() => {
             navigate("/users/create")
