@@ -271,6 +271,12 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
 		require.NoError(t, err)
+		// Send a two more signal, which should be ignored.  Send 2 because the channel has a buffer
+		// of 1 and we want to make sure that nothing strange happens if we exceed the buffer.
+		err = currentProcess.Signal(os.Interrupt)
+		require.NoError(t, err)
+		err = currentProcess.Signal(os.Interrupt)
+		require.NoError(t, err)
 		<-done
 	})
 	t.Run("DatadogTracerNoLeak", func(t *testing.T) {
