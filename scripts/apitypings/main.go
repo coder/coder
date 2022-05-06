@@ -244,7 +244,10 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	extendedFields := make(map[int]bool)
 	for i := 0; i < st.NumFields(); i++ {
 		field := st.Field(i)
-		if field.Embedded() && field.Pkg().Name() == "codersdk" {
+		tag := reflect.StructTag(st.Tag(i))
+		// Adding a json struct tag causes the json package to consider
+		// the field unembedded.
+		if field.Embedded() && tag.Get("json") == "" && field.Pkg().Name() == "codersdk" {
 			extendedFields[i] = true
 			extends = append(extends, field.Name())
 		}
