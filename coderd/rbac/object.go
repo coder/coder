@@ -24,6 +24,10 @@ var (
 		Type: "user_role",
 	}
 
+	ResourceUserPasswordRole = Object{
+		Type: "user_password",
+	}
+
 	// ResourceWildcard represents all resource types
 	ResourceWildcard = Object{
 		Type: WildcardSymbol,

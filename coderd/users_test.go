@@ -287,6 +287,44 @@ func TestUpdateUserProfile(t *testing.T) {
 	})
 }
 
+func TestUpdateUserPassword(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MemberCantUpdateAdminPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		err := member.UpdateUserPassword(context.Background(), admin.UserID, codersdk.UpdateUserPasswordRequest{
+			Password: "newpassword",
+		})
+		require.Error(t, err, "member should not be able to update admin password")
+	})
+
+	t.Run("AdminCanUpdateMemberPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+		member, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "coder@coder.com",
+			Username:       "coder",
+			Password:       "password",
+			OrganizationID: admin.OrganizationID,
+		})
+		require.NoError(t, err, "create member")
+		err = client.UpdateUserPassword(context.Background(), member.ID, codersdk.UpdateUserPasswordRequest{
+			Password: "newpassword",
+		})
+		require.NoError(t, err, "admin should be able to update member password")
+		// Check if the member can login using the new password
+		_, err = client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    "coder@coder.com",
+			Password: "newpassword",
+		})
+		require.NoError(t, err, "member should login successfully with the new password")
+	})
+}
+
 func TestGrantRoles(t *testing.T) {
 	t.Parallel()
 	t.Run("UpdateIncorrectRoles", func(t *testing.T) {

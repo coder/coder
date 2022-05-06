@@ -72,6 +72,10 @@ type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 }
 
+type UpdateUserPasswordRequest struct {
+	Password string `json:"password" validate:"required"`
+}
+
 type UpdateRoles struct {
 	Roles []string `json:"roles" validate:"required"`
 }
@@ -179,6 +183,20 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// UpdateUserPassword updates a user password.
+// It calls PUT /users/{user}/password
+func (c *Client) UpdateUserPassword(ctx context.Context, userID uuid.UUID, req UpdateUserPasswordRequest) error {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", uuidOrMe(userID)), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+	return nil
 }
 
 // UpdateUserRoles grants the userID the specified roles.

@@ -76,14 +76,6 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 				}
 			}
 
-			apiKey := APIKey(r)
-			if apiKey.UserID != user.ID {
-				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "getting non-personal users isn't supported yet",
-				})
-				return
-			}
-
 			ctx := context.WithValue(r.Context(), userParamContextKey{}, user)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

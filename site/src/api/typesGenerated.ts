@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:105:6
+// From codersdk/users.go:109:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -44,7 +44,7 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
-// From codersdk/users.go:100:6
+// From codersdk/users.go:104:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -101,7 +101,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:96:6
+// From codersdk/users.go:100:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -119,13 +119,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:85:6
+// From codersdk/users.go:89:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:91:6
+// From codersdk/users.go:95:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -255,9 +255,14 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
-// From codersdk/users.go:75:6
+// From codersdk/users.go:79:6
 export interface UpdateRoles {
   readonly roles: string[]
+}
+
+// From codersdk/users.go:75:6
+export interface UpdateUserPasswordRequest {
+  readonly password: string
 }
 
 // From codersdk/users.go:70:6
@@ -291,7 +296,7 @@ export interface User {
   readonly organization_ids: string[]
 }
 
-// From codersdk/users.go:79:6
+// From codersdk/users.go:83:6
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>
