@@ -195,6 +195,12 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
+// From codersdk/roles.go:13:6
+export interface Role {
+  readonly name: string
+  readonly display_name: string
+}
+
 // From codersdk/templates.go:17:6
 export interface Template {
   readonly id: string
