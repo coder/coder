@@ -4,7 +4,7 @@ import { useNavigate } from "react-router"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
-import { rolesMachine } from "./roles/rolesXService"
+import { siteRolesMachine } from "./roles/siteRolesXService"
 import { usersMachine } from "./users/usersXService"
 import { workspaceMachine } from "./workspace/workspaceXService"
 
@@ -13,7 +13,7 @@ interface XServiceContextType {
   buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
   usersXService: ActorRefFrom<typeof usersMachine>
   workspaceXService: ActorRefFrom<typeof workspaceMachine>
-  rolesXService: ActorRefFrom<typeof rolesMachine>
+  siteRolesXService: ActorRefFrom<typeof siteRolesMachine>
 }
 
 /**
@@ -39,7 +39,7 @@ export const XServiceProvider: React.FC = ({ children }) => {
         buildInfoXService: useInterpret(buildInfoMachine),
         usersXService: useInterpret(() => usersMachine.withConfig({ actions: { redirectToUsersPage } })),
         workspaceXService: useInterpret(workspaceMachine),
-        rolesXService: useInterpret(rolesMachine),
+        siteRolesXService: useInterpret(siteRolesMachine),
       }}
     >
       {children}

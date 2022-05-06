@@ -3,38 +3,34 @@ import * as API from "../../api"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 
-type RolesContext = {
+type SiteRolesContext = {
   roles?: TypesGen.Role[]
   getRolesError: Error | unknown
-  organizationId?: string
 }
 
-type RolesEvent = {
+type SiteRolesEvent = {
   type: "GET_ROLES"
   organizationId: string
 }
 
-export const rolesMachine = createMachine(
+export const siteRolesMachine = createMachine(
   {
-    id: "rolesState",
+    id: "siteRolesState",
     initial: "idle",
     schema: {
-      context: {} as RolesContext,
-      events: {} as RolesEvent,
+      context: {} as SiteRolesContext,
+      events: {} as SiteRolesEvent,
       services: {
         getRoles: {
           data: {} as TypesGen.Role[],
         },
       },
     },
-    tsTypes: {} as import("./rolesXService.typegen").Typegen0,
+    tsTypes: {} as import("./siteRolesXService.typegen").Typegen0,
     states: {
       idle: {
         on: {
-          GET_ROLES: {
-            target: "gettingRoles",
-            actions: ["assignOrganizationId"],
-          },
+          GET_ROLES: "gettingRoles",
         },
       },
       gettingRoles: {
@@ -61,23 +57,12 @@ export const rolesMachine = createMachine(
       assignGetRolesError: assign({
         getRolesError: (_, event) => event.data,
       }),
-      assignOrganizationId: assign({
-        organizationId: (_, event) => event.organizationId,
-      }),
       displayGetRolesError: () => {
         displayError("Error on get the roles.")
       },
     },
     services: {
-      getRoles: (ctx) => {
-        const { organizationId } = ctx
-
-        if (!organizationId) {
-          throw new Error("organizationId not defined")
-        }
-
-        return API.getOrganizationRoles(organizationId)
-      },
+      getRoles: () => API.getSiteRoles(),
     },
   },
 )

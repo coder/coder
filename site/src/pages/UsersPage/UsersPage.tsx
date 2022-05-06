@@ -16,7 +16,7 @@ export const Language = {
 const useRoles = () => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
-  const [rolesState, rolesSend] = useActor(xServices.rolesXService)
+  const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
   const { roles } = rolesState.context
   const { me } = authState.context
 

@@ -1,4 +1,6 @@
 import Box from "@material-ui/core/Box"
+import MenuItem from "@material-ui/core/MenuItem"
+import Select from "@material-ui/core/Select"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -48,7 +50,15 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, roles, onSuspendU
             <TableCell>
               <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
             </TableCell>
-            <TableCell>{roles.map((r) => r.display_name)}</TableCell>
+            <TableCell>
+              <Select multiple value={[]}>
+                {roles.map((r) => (
+                  <MenuItem key={r.name} value={r.name}>
+                    {r.display_name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </TableCell>
             <TableCell>
               <TableRowMenu
                 data={u}
