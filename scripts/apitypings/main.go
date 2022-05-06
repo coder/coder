@@ -251,6 +251,10 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		if jsonName == "" {
 			jsonName = field.Name()
 		}
+		jsonOptional := false
+		if len(arr) > 1 && arr[1] == "omitempty" {
+			jsonOptional = true
+		}
 
 		var tsType TypescriptType
 		// If a `typescript:"string"` exists, we take this, and do not try to infer.
@@ -273,7 +277,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			_, _ = s.WriteRune('\n')
 		}
 		optional := ""
-		if tsType.Optional {
+		if jsonOptional || tsType.Optional {
 			optional = "?"
 		}
 		_, _ = s.WriteString(fmt.Sprintf("%sreadonly %s%s: %s\n", indent, jsonName, optional, tsType.ValueType))

@@ -91,7 +91,7 @@ export interface CreateWorkspaceBuildRequest {
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly transition: string
   readonly dry_run: boolean
-  readonly state: string
+  readonly state?: string
 }
 
 // From codersdk/organizations.go:52:6
@@ -149,9 +149,9 @@ export interface OrganizationMember {
 
 // From codersdk/pagination.go:11:6
 export interface Pagination {
-  readonly after_id: string
-  readonly limit: number
-  readonly offset: number
+  readonly after_id?: string
+  readonly limit?: number
+  readonly offset?: number
 }
 
 // From codersdk/parameters.go:26:6
@@ -185,7 +185,7 @@ export interface ProvisionerJob {
   readonly created_at: string
   readonly started_at?: string
   readonly completed_at?: string
-  readonly error: string
+  readonly error?: string
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
 }
@@ -355,12 +355,12 @@ export interface WorkspaceAgent {
   readonly status: WorkspaceAgentStatus
   readonly name: string
   readonly resource_id: string
-  readonly instance_id: string
+  readonly instance_id?: string
   readonly architecture: string
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
-  readonly startup_script: string
-  readonly directory: string
+  readonly startup_script?: string
+  readonly directory?: string
 }
 
 // From codersdk/workspaceagents.go:47:6
@@ -415,7 +415,7 @@ export interface WorkspaceResource {
   readonly workspace_transition: string
   readonly type: string
   readonly name: string
-  readonly agents: WorkspaceAgent[]
+  readonly agents?: WorkspaceAgent[]
 }
 
 // From codersdk/parameters.go:16:6
