@@ -344,7 +344,7 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 		if resource.Mode == tfjson.DataResourceMode {
 			continue
 		}
-		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" {
+		if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" {
 			continue
 		}
 		resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")
@@ -471,11 +471,45 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			}
 		}
 
+		type appAttributes struct {
+			AgentID string `mapstructure:"agent_id"`
+			Name    string `mapstructure:"name"`
+			Icon    string `mapstructure:"icon"`
+			Target  string `mapstructure:"target"`
+			Command string `mapstructure:"command"`
+		}
+		// Associate Apps with agents.
+		for _, resource := range state.Values.RootModule.Resources {
+			if resource.Type != "coder_app" {
+				continue
+			}
+			var attrs appAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode app attributes: %w", err)
+			}
+			if attrs.Name == "" {
+				// Default to the resource name if none is set!
+				attrs.Name = resource.Name
+			}
+			for _, agent := range agents {
+				if agent.Id != attrs.AgentID {
+					continue
+				}
+				agent.Apps = append(agent.Apps, &proto.App{
+					Name:    attrs.Name,
+					Command: attrs.Command,
+					Target:  attrs.Target,
+					Icon:    attrs.Icon,
+				})
+			}
+		}
+
 		for _, resource := range state.Values.RootModule.Resources {
 			if resource.Mode == tfjson.DataResourceMode {
 				continue
 			}
-			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" {
+			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" {
 				continue
 			}
 			resourceKey := strings.Join([]string{resource.Type, resource.Name}, ".")

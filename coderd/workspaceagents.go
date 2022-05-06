@@ -30,7 +30,14 @@ import (
 
 func (api *api) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(r.Context(), workspaceAgent.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace agent apps: %s", err),
+		})
+		return
+	}
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspace agent: %s", err),
@@ -48,7 +55,7 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspace agent: %s", err),
@@ -92,7 +99,7 @@ func (api *api) workspaceAgentDial(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspace agent: %s", err),
@@ -331,7 +338,7 @@ func (api *api) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	defer api.websocketWaitGroup.Done()
 
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	apiAgent, err := convertWorkspaceAgent(workspaceAgent, api.AgentConnectionUpdateFrequency)
+	apiAgent, err := convertWorkspaceAgent(workspaceAgent, nil, api.AgentConnectionUpdateFrequency)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspace agent: %s", err),
@@ -451,7 +458,21 @@ func (api *api) dialWorkspaceAgent(r *http.Request, agentID uuid.UUID) (*agent.C
 	}, nil
 }
 
-func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
+func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
+	apps := make([]codersdk.WorkspaceApp, 0)
+	for _, dbApp := range dbApps {
+		apps = append(apps, codersdk.WorkspaceApp{
+			ID:      dbApp.ID,
+			Name:    dbApp.Name,
+			Command: dbApp.Command.String,
+			Target:  dbApp.Target.String,
+			Icon:    dbApp.Icon,
+		})
+	}
+	return apps
+}
+
+func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentUpdateFrequency time.Duration) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
@@ -471,6 +492,7 @@ func convertWorkspaceAgent(dbAgent database.WorkspaceAgent, agentUpdateFrequency
 		StartupScript:        dbAgent.StartupScript.String,
 		EnvironmentVariables: envs,
 		Directory:            dbAgent.Directory,
+		Apps:                 apps,
 	}
 	if dbAgent.FirstConnectedAt.Valid {
 		workspaceAgent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time

@@ -625,7 +625,7 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		_, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
+		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   uuid.New(),
 			CreatedAt:            database.Now(),
 			UpdatedAt:            database.Now(),
@@ -644,6 +644,27 @@ func insertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
+		}
+
+		for _, app := range agent.Apps {
+			_, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
+				ID:        uuid.New(),
+				CreatedAt: database.Now(),
+				AgentID:   dbAgent.ID,
+				Name:      app.Name,
+				Icon:      app.Icon,
+				Command: sql.NullString{
+					String: app.Command,
+					Valid:  app.Command != "",
+				},
+				Target: sql.NullString{
+					String: app.Target,
+					Valid:  app.Target != "",
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("insert app: %w", err)
+			}
 		}
 	}
 	return nil

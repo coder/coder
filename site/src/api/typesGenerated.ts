@@ -338,6 +338,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script: string
   readonly directory: string
+  readonly apps: WorkspaceApp[]
 }
 
 // From codersdk/workspaceagents.go:47:6
@@ -345,7 +346,7 @@ export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
 
-// From codersdk/workspaceresources.go:59:6
+// From codersdk/workspaceresources.go:60:6
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -358,13 +359,22 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go:51:6
+// From codersdk/workspaceresources.go:52:6
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number
   readonly cpu_cores: number
   readonly cpu_model: string
   readonly cpu_mhz: number
+}
+
+// From codersdk/workspacedevurls.go:5:6
+export interface WorkspaceApp {
+  readonly id: string
+  readonly name: string
+  readonly command: string
+  readonly target: string
+  readonly icon: string
 }
 
 // From codersdk/workspacebuilds.go:18:6

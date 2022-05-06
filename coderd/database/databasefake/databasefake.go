@@ -34,6 +34,7 @@ func New() database.Store {
 		templateVersions:        make([]database.TemplateVersion, 0),
 		templates:               make([]database.Template, 0),
 		workspaceBuilds:         make([]database.WorkspaceBuild, 0),
+		workspaceApps:           make([]database.WorkspaceApp, 0),
 		workspaces:              make([]database.Workspace, 0),
 	}
 }
@@ -62,6 +63,7 @@ type fakeQuerier struct {
 	templateVersions        []database.TemplateVersion
 	templates               []database.Template
 	workspaceBuilds         []database.WorkspaceBuild
+	workspaceApps           []database.WorkspaceApp
 	workspaces              []database.Workspace
 }
 
@@ -326,6 +328,41 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 		return workspace, nil
 	}
 	return database.Workspace{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apps := make([]database.WorkspaceApp, 0)
+	for _, app := range q.workspaceApps {
+		if app.AgentID == id {
+			apps = append(apps, app)
+		}
+	}
+	if len(apps) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return apps, nil
+}
+
+func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apps := make([]database.WorkspaceApp, 0)
+	for _, app := range q.workspaceApps {
+		for _, id := range ids {
+			if app.AgentID.String() == id.String() {
+				apps = append(apps, app)
+				break
+			}
+		}
+	}
+	if len(apps) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return apps, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
@@ -1351,6 +1388,23 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	workspaceApp := database.WorkspaceApp{
+		ID:        arg.ID,
+		AgentID:   arg.AgentID,
+		CreatedAt: arg.CreatedAt,
+		Name:      arg.Name,
+		Icon:      arg.Icon,
+		Command:   arg.Command,
+		Target:    arg.Target,
+	}
+	q.workspaceApps = append(q.workspaceApps, workspaceApp)
+	return workspaceApp, nil
 }
 
 func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
@@ -39,9 +40,30 @@ func (api *api) workspaceResource(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	agentIDs := make([]uuid.UUID, 0)
+	for _, agent := range agents {
+		agentIDs = append(agentIDs, agent.ID)
+	}
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(r.Context(), agentIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspace apps: %s", err),
+		})
+		return
+	}
 	apiAgents := make([]codersdk.WorkspaceAgent, 0)
 	for _, agent := range agents {
-		convertedAgent, err := convertWorkspaceAgent(agent, api.AgentConnectionUpdateFrequency)
+		dbApps := make([]database.WorkspaceApp, 0)
+		for _, app := range apps {
+			if app.AgentID == agent.ID {
+				dbApps = append(dbApps, app)
+			}
+		}
+
+		convertedAgent, err := convertWorkspaceAgent(agent, convertApps(dbApps), api.AgentConnectionUpdateFrequency)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("convert provisioner job agent: %s", err),

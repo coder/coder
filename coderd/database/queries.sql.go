@@ -2630,6 +2630,124 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
+const getWorkspaceAppsByAgentID = `-- name: GetWorkspaceAppsByAgentID :many
+SELECT id, created_at, agent_id, name, icon, command, target FROM workspace_apps WHERE agent_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceApp, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceApp
+	for rows.Next() {
+		var i WorkspaceApp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Name,
+			&i.Icon,
+			&i.Command,
+			&i.Target,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAppsByAgentIDs = `-- name: GetWorkspaceAppsByAgentIDs :many
+SELECT id, created_at, agent_id, name, icon, command, target FROM workspace_apps WHERE agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceApp, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAppsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceApp
+	for rows.Next() {
+		var i WorkspaceApp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.Name,
+			&i.Icon,
+			&i.Command,
+			&i.Target,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceApp = `-- name: InsertWorkspaceApp :one
+INSERT INTO
+    workspace_apps (
+        id,
+        created_at,
+        agent_id,
+        name,
+        icon,
+        command,
+        target
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, agent_id, name, icon, command, target
+`
+
+type InsertWorkspaceAppParams struct {
+	ID        uuid.UUID      `db:"id" json:"id"`
+	CreatedAt time.Time      `db:"created_at" json:"created_at"`
+	AgentID   uuid.UUID      `db:"agent_id" json:"agent_id"`
+	Name      string         `db:"name" json:"name"`
+	Icon      string         `db:"icon" json:"icon"`
+	Command   sql.NullString `db:"command" json:"command"`
+	Target    sql.NullString `db:"target" json:"target"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceApp,
+		arg.ID,
+		arg.CreatedAt,
+		arg.AgentID,
+		arg.Name,
+		arg.Icon,
+		arg.Command,
+		arg.Target,
+	)
+	var i WorkspaceApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.AgentID,
+		&i.Name,
+		&i.Icon,
+		&i.Command,
+		&i.Target,
+	)
+	return i, err
+}
+
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
