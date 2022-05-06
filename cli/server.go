@@ -348,7 +348,7 @@ func server() *cobra.Command {
 			// signal.Stop() until graceful shutdown finished--this means we swallow additional
 			// SIGINT after the first.  To get out of a graceful shutdown, the user can send SIGQUIT
 			// with ctrl+\ or SIGTERM with `kill`.
-			stopChan := make(chan os.Signal)
+			stopChan := make(chan os.Signal, 1)
 			defer signal.Stop(stopChan)
 			signal.Notify(stopChan, os.Interrupt)
 			select {
