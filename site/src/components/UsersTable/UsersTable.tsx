@@ -6,6 +6,7 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import React from "react"
 import { UserResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
@@ -26,7 +27,7 @@ export interface UsersTableProps {
   users: UserResponse[]
   onSuspendUser: (user: UserResponse) => void
   onResetUserPassword: (user: UserResponse) => void
-  roles: string[]
+  roles: TypesGen.Role[]
 }
 
 export const UsersTable: React.FC<UsersTableProps> = ({ users, roles, onSuspendUser, onResetUserPassword }) => {
@@ -47,7 +48,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, roles, onSuspendU
             <TableCell>
               <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
             </TableCell>
-            <TableCell>{roles}</TableCell>
+            <TableCell>{roles.map((r) => r.display_name)}</TableCell>
             <TableCell>
               <TableRowMenu
                 data={u}

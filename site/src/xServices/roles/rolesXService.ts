@@ -1,9 +1,10 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
+import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 
 type RolesContext = {
-  roles?: string[]
+  roles?: TypesGen.Role[]
   getRolesError: Error | unknown
   organizationId?: string
 }
@@ -22,7 +23,7 @@ export const rolesMachine = createMachine(
       events: {} as RolesEvent,
       services: {
         getRoles: {
-          data: {} as string[],
+          data: {} as TypesGen.Role[],
         },
       },
     },

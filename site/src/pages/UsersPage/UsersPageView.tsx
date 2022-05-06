@@ -1,5 +1,6 @@
 import React from "react"
 import { UserResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../components/Header/Header"
 import { Margins } from "../../components/Margins/Margins"
@@ -16,7 +17,7 @@ export interface UsersPageViewProps {
   openUserCreationDialog: () => void
   onSuspendUser: (user: UserResponse) => void
   onResetUserPassword: (user: UserResponse) => void
-  roles: string[]
+  roles: TypesGen.Role[]
   error?: unknown
 }
 
