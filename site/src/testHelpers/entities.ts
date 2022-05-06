@@ -86,6 +86,7 @@ export const MockWorkspace: Workspace = {
   created_at: "",
   updated_at: "",
   template_id: MockTemplate.id,
+  outdated: false,
   owner_id: MockUser.id,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
