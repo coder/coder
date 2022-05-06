@@ -105,3 +105,5 @@ Read the [contributing docs](./CONTRIBUTING.md).
 | Name                | Start Date | First PR Date |           Organization            |                        GitHub User Link |
 | ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------: |
 | Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri) |
+| Ben Potter          | 08/10/2022 |  03/31/2022   | [Coder](https://github.com/coder) | [bpmct](https://github.com/bpmct)       |
+
