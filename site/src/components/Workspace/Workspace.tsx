@@ -6,11 +6,7 @@ import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
 
-export type WorkspaceStatus =
-  "started"
-  | "stopping"
-  | "stopped"
-  | "starting"
+export type WorkspaceStatus = "started" | "stopping" | "stopped" | "starting"
 
 export interface WorkspaceProps {
   organization: Types.Organization
@@ -28,7 +24,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, wo
   return (
     <div className={styles.root}>
       <div className={styles.vertical}>
-        <WorkspaceStatusBar organization={organization} template={template} workspace={workspace} status={status} handleUpdate={} handleToggle={} />
+        <WorkspaceStatusBar
+          organization={organization}
+          template={template}
+          workspace={workspace}
+          status={status}
+          handleUpdate={}
+          handleToggle={}
+        />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
             <WorkspaceSection title="Applications">

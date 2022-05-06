@@ -70,7 +70,7 @@ export interface WorkspaceBuild {
 
 export interface Workspace {
   id: string
-  outdated: boolean;
+  outdated: boolean
   created_at: string
   updated_at: string
   owner_id: string
