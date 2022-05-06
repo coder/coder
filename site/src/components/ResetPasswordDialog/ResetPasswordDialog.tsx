@@ -7,7 +7,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { CodeBlock } from "../CodeBlock/CodeBlock"
 import { Dialog, DialogActionButtons, DialogTitle } from "../Dialog/Dialog"
 
-interface ResetPasswordDialogProps {
+export interface ResetPasswordDialogProps {
   open: boolean
   onClose: () => void
   onConfirm: () => void
