@@ -271,6 +271,9 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
 		require.NoError(t, err)
+		// Send a second signal, which should be ignored
+		err = currentProcess.Signal(os.Interrupt)
+		require.NoError(t, err)
 		<-done
 	})
 	t.Run("DatadogTracerNoLeak", func(t *testing.T) {
