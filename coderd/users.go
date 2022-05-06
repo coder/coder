@@ -361,29 +361,14 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-
-	var params codersdk.UpdateUserPasswordRequest
+	var (
+		user   = httpmw.UserParam(r)
+		params codersdk.UpdateUserPasswordRequest
+	)
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
 
-	// Check if the new password and the confirmation match
-	if params.Password != params.ConfirmPassword {
-		requestErrors := []httpapi.Error{
-			{
-				Field:  "confirm_new_password",
-				Detail: "The value does not match the new password",
-			},
-		}
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("The new password and the new password confirmation don't match"),
-			Errors:  requestErrors,
-		})
-		return
-	}
-
-	// Hash password and update it in the database
 	hashedPassword, err := userpassword.Hash(params.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
