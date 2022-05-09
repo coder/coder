@@ -1,4 +1,6 @@
 import { rest } from "msw"
+import { WorkspaceBuildTransition } from "../api/types"
+import { CreateWorkspaceBuildRequest } from "../api/typesGenerated"
 import * as M from "./entities"
 
 export const handlers = [
@@ -64,6 +66,16 @@ export const handlers = [
   }),
   rest.put("/api/v2/workspaces/:workspaceId/autostop", async (req, res, ctx) => {
     return res(ctx.status(200))
+  }),
+  rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
+    const { transition } = req.body as CreateWorkspaceBuildRequest
+    const transitionToBuild = {
+      start: M.MockWorkspaceStart,
+      stop: M.MockWorkspaceStop,
+      delete: M.MockWorkspaceDelete
+    }
+    const result = transitionToBuild[transition as WorkspaceBuildTransition]
+    return res(ctx.status(200), ctx.json(result))
   }),
 
   // workspace builds

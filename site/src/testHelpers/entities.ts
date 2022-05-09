@@ -83,7 +83,23 @@ export const MockWorkspaceAutostopEnabled: WorkspaceAutostartRequest = {
 
 export const MockWorkspaceBuild = {
   id: "test-workspace-build",
-  transition: "start" as WorkspaceBuildTransition
+  transition: "start" as WorkspaceBuildTransition,
+}
+
+// These are special cases of MockWorkspaceBuild for more precise testing
+export const MockWorkspaceStart = {
+  id: "test-workspace-build-start",
+  transition: "start"
+}
+
+export const MockWorkspaceStop = {
+  id: "test-workspace-build-stop",
+  transition: "stop"
+}
+
+export const MockWorkspaceDelete = {
+  id: "test-workspace-build-delete",
+  transition: "delete"
 }
 
 export const MockWorkspace: Workspace = {
@@ -96,7 +112,7 @@ export const MockWorkspace: Workspace = {
   owner_id: MockUser.id,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
-  latest_build: MockWorkspaceBuild
+  latest_build: MockWorkspaceBuild,
 }
 
 export const MockWorkspaceAgent: WorkspaceAgent = {
