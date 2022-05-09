@@ -234,6 +234,46 @@ func Test_Executor_Autostop_NotEnabled(t *testing.T) {
 	}, 5*time.Second, 250*time.Millisecond)
 }
 
+func Test_Executor_Workspace_Deleted(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		err    error
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = MustProvisionWorkspace(t, client)
+	)
+
+	// Given: the workspace initially has autostart disabled
+	require.Empty(t, workspace.AutostopSchedule)
+
+	// When: we enable workspace autostart
+	sched, err := schedule.Weekly("* * * * *")
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
+		Schedule: sched.String(),
+	}))
+
+	// Given: workspace is deleted
+	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
+
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: nothing should happen
+	require.Never(t, func() bool {
+		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.Transition != database.WorkspaceTransitionDelete
+	}, 5*time.Second, 250*time.Millisecond)
+}
+
 func MustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
 	t.Helper()
 	coderdtest.NewProvisionerDaemon(t, client)
