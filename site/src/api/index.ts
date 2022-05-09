@@ -116,14 +116,16 @@ export const getWorkspaceResources = async (workspaceBuildID: string): Promise<T
   return response.data
 }
 
-const postWorkspaceBuild = (transition: string) => async (workspaceId: string, templateVersionId?: string): Promise<TypesGen.WorkspaceBuild> => {
-  const payload = {
-    transition,
-    templateVersionId
+const postWorkspaceBuild =
+  (transition: string) =>
+  async (workspaceId: string, templateVersionId?: string): Promise<TypesGen.WorkspaceBuild> => {
+    const payload = {
+      transition,
+      templateVersionId,
+    }
+    const response = await axios.post(`api/v2/workspaces/${workspaceId}/builds`, payload)
+    return response.data
   }
-  const response = await axios.post(`api/v2/workspaces/${workspaceId}/builds`, payload)
-  return response.data
-}
 
 export const startWorkspace = postWorkspaceBuild("start")
 export const stopWorkspace = postWorkspaceBuild("stop")

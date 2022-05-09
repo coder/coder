@@ -89,17 +89,17 @@ export const MockWorkspaceBuild = {
 // These are special cases of MockWorkspaceBuild for more precise testing
 export const MockWorkspaceStart = {
   id: "test-workspace-build-start",
-  transition: "start"
+  transition: "start",
 }
 
 export const MockWorkspaceStop = {
   id: "test-workspace-build-stop",
-  transition: "stop"
+  transition: "stop",
 }
 
 export const MockWorkspaceDelete = {
   id: "test-workspace-build-delete",
-  transition: "delete"
+  transition: "delete",
 }
 
 export const MockWorkspace: Workspace = {

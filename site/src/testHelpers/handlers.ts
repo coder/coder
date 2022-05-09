@@ -72,7 +72,7 @@ export const handlers = [
     const transitionToBuild = {
       start: M.MockWorkspaceStart,
       stop: M.MockWorkspaceStop,
-      delete: M.MockWorkspaceDelete
+      delete: M.MockWorkspaceDelete,
     }
     const result = transitionToBuild[transition as WorkspaceBuildTransition]
     return res(ctx.status(200), ctx.json(result))
