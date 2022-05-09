@@ -45,6 +45,7 @@ type User struct {
 	Username        string      `json:"username" validate:"required"`
 	Status          UserStatus  `json:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
+	Roles           []Role      `json:"roles"`
 }
 
 type CreateFirstUserRequest struct {

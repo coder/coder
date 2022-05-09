@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:109:6
+// From codersdk/users.go:110:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -30,7 +30,7 @@ export interface BuildInfoResponse {
   readonly version: string
 }
 
-// From codersdk/users.go:50:6
+// From codersdk/users.go:51:6
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -38,13 +38,13 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:58:6
+// From codersdk/users.go:59:6
 export interface CreateFirstUserResponse {
   readonly user_id: string
   readonly organization_id: string
 }
 
-// From codersdk/users.go:104:6
+// From codersdk/users.go:105:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -77,7 +77,7 @@ export interface CreateTemplateVersionRequest {
   readonly parameter_values: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:63:6
+// From codersdk/users.go:64:6
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
@@ -101,7 +101,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:100:6
+// From codersdk/users.go:101:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -119,13 +119,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:89:6
+// From codersdk/users.go:90:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:95:6
+// From codersdk/users.go:96:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -195,6 +195,12 @@ export interface ProvisionerJobLog {
   readonly output: string
 }
 
+// From codersdk/roles.go:13:6
+export interface Role {
+  readonly name: string
+  readonly display_name: string
+}
+
 // From codersdk/templates.go:17:6
 export interface Template {
   readonly id: string
@@ -255,17 +261,17 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
-// From codersdk/users.go:79:6
+// From codersdk/users.go:80:6
 export interface UpdateRoles {
   readonly roles: string[]
 }
 
-// From codersdk/users.go:75:6
+// From codersdk/users.go:76:6
 export interface UpdateUserPasswordRequest {
   readonly password: string
 }
 
-// From codersdk/users.go:70:6
+// From codersdk/users.go:71:6
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
@@ -294,9 +300,10 @@ export interface User {
   readonly username: string
   readonly status: UserStatus
   readonly organization_ids: string[]
+  readonly roles: Role[]
 }
 
-// From codersdk/users.go:83:6
+// From codersdk/users.go:84:6
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>
