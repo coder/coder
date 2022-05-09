@@ -187,7 +187,7 @@ export const usersMachine = createMachine(
           id: "updateUserRoles",
           onDone: {
             target: "idle",
-            actions: ["displayUpdateRolesSuccess", "updateUserRolesInTheList"],
+            actions: ["updateUserRolesInTheList"],
           },
           onError: {
             target: "idle",
@@ -302,9 +302,6 @@ export const usersMachine = createMachine(
       displayResetPasswordErrorMessage: () => {
         displayError(Language.resetUserPasswordError)
       },
-      displayUpdateRolesSuccess: () => {
-        displaySuccess(Language.updateUserRolesSuccess)
-      },
       displayUpdateRolesErrorMessage: () => {
         displayError(Language.updateUserRolesError)
       },
@@ -317,7 +314,9 @@ export const usersMachine = createMachine(
             return users
           }
 
-          return users.map((u) => (u.id === event.data.id ? event.data : u))
+          return users.map((u) => {
+            return u.id === event.data.id ? event.data : u
+          })
         },
       }),
     },
