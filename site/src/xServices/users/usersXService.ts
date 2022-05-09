@@ -303,7 +303,7 @@ export const usersMachine = createMachine(
         displayError(Language.resetUserPasswordError)
       },
       displayUpdateRolesSuccess: () => {
-        displayError(Language.updateUserRolesSuccess)
+        displaySuccess(Language.updateUserRolesSuccess)
       },
       displayUpdateRolesErrorMessage: () => {
         displayError(Language.updateUserRolesError)
@@ -317,8 +317,7 @@ export const usersMachine = createMachine(
             return users
           }
 
-          const updatedUser = event.data
-          return users.map((u) => (u.id === updatedUser.id ? updatedUser : u))
+          return users.map((u) => (u.id === event.data.id ? event.data : u))
         },
       }),
     },

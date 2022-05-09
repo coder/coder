@@ -16,6 +16,7 @@ export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, lo
   const styles = useStyles()
   const value = selectedRoles.map((r) => r.name)
   const renderValue = () => selectedRoles.map((r) => r.display_name).join(", ")
+  const sortedRoles = roles.sort((a, b) => a.display_name.localeCompare(b.display_name))
 
   return (
     <Select
@@ -25,11 +26,11 @@ export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, lo
       variant="outlined"
       className={styles.select}
       onChange={(e) => {
-        const { value } = e.currentTarget
+        const { value } = e.target
         onChange(value as string[])
       }}
     >
-      {roles.map((r) => {
+      {sortedRoles.map((r) => {
         const isChecked = selectedRoles.some((selectedRole) => selectedRole.name === r.name)
 
         return (
