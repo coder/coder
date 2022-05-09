@@ -1,7 +1,7 @@
 import Checkbox from "@material-ui/core/Checkbox"
 import MenuItem from "@material-ui/core/MenuItem"
 import Select from "@material-ui/core/Select"
-import makeStyles from "@material-ui/styles/makeStyles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import React from "react"
 import { Role } from "../../api/typesGenerated"
 
@@ -42,8 +42,11 @@ export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, lo
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme: Theme) => ({
   select: {
     margin: 0,
+    // Set a fix width for the select. It avoids selects having different sizes
+    // depending on how much roles they have selected.
+    width: theme.spacing(25),
   },
 }))
