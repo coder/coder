@@ -1,7 +1,6 @@
 import { Story } from "@storybook/react"
 import React from "react"
 import { MockUser } from "../../testHelpers"
-import { generateRandomString } from "../../util/random"
 import { ResetPasswordDialog, ResetPasswordDialogProps } from "./ResetPasswordDialog"
 
 export default {
@@ -19,5 +18,5 @@ export const Example = Template.bind({})
 Example.args = {
   open: true,
   user: MockUser,
-  newPassword: generateRandomString(12),
+  newPassword: "somerandomstringhere",
 }

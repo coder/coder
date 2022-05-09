@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/google/uuid"
 )
 
@@ -43,15 +42,4 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Ro
 	}
 	var roles []Role
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
-}
-
-func ConvertRoles(roles []rbac.Role) []Role {
-	converted := make([]Role, 0, len(roles))
-	for _, role := range roles {
-		converted = append(converted, Role{
-			DisplayName: role.DisplayName,
-			Name:        role.Name,
-		})
-	}
-	return converted
 }
