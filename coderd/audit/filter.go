@@ -6,6 +6,8 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
+// FilterDecision is a bitwise flag describing the actions a given filter allows
+// for a given audit log.
 type FilterDecision uint8
 
 const (
