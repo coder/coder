@@ -32,7 +32,7 @@ type Conn struct {
 // ReconnectingPTY returns a connection serving a TTY that can
 // be reconnected to via ID.
 func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error) {
-	channel, err := c.Dial(context.Background(), fmt.Sprintf("%s:%d:%d", id, height, width), &peer.ChannelOptions{
+	channel, err := c.OpenChannel(context.Background(), fmt.Sprintf("%s:%d:%d", id, height, width), &peer.ChannelOptions{
 		Protocol: "reconnecting-pty",
 	})
 	if err != nil {
@@ -43,7 +43,7 @@ func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error
 
 // SSH dials the built-in SSH server.
 func (c *Conn) SSH() (net.Conn, error) {
-	channel, err := c.Dial(context.Background(), "ssh", &peer.ChannelOptions{
+	channel, err := c.OpenChannel(context.Background(), "ssh", &peer.ChannelOptions{
 		Protocol: "ssh",
 	})
 	if err != nil {

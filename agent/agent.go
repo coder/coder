@@ -211,6 +211,8 @@ func (a *agent) handlePeerConn(ctx context.Context, conn *peer.Conn) {
 			go a.sshServer.HandleConn(channel.NetConn())
 		case "reconnecting-pty":
 			go a.handleReconnectingPTY(ctx, channel.Label(), channel.NetConn())
+		case "dial":
+			go a.handleDial(ctx, channel.Label(), channel.NetConn())
 		default:
 			a.logger.Warn(ctx, "unhandled protocol from channel",
 				slog.F("protocol", channel.Protocol()),
