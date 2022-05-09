@@ -37,6 +37,7 @@ describe("AccountPage", () => {
           created_at: new Date().toString(),
           status: "active",
           organization_ids: ["123"],
+          roles: [],
           ...data,
         }),
       )
