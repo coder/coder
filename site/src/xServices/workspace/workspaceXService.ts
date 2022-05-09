@@ -1,6 +1,7 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api"
 import * as Types from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 
 interface WorkspaceContext {
   workspace?: Types.Workspace
@@ -11,7 +12,7 @@ interface WorkspaceContext {
   getOrganizationError?: Error | unknown
 }
 
-type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string }
+type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string } | { type: "START" } | {type: "STOP"} | { type: "RETRY" }
 
 export const workspaceMachine = createMachine(
   {
@@ -28,6 +29,15 @@ export const workspaceMachine = createMachine(
         }
         getOrganization: {
           data: Types.Organization
+        }
+        startWorkspace: {
+          data: TypesGen.WorkspaceBuild
+        }
+        stopWorkspace: {
+          data: TypesGen.WorkspaceBuild
+        }
+        pollBuild: {
+          data: Types.Workspace
         }
       },
     },
@@ -97,10 +107,58 @@ export const workspaceMachine = createMachine(
           build: {
             initial: "idle",
             states: {
-              idle: {},
-              requesting: {},
-              building: {},
-              error: {}
+              idle: {
+                on: {
+                  START: "requestingStart",
+                  STOP: "requestingStop"
+                }
+              },
+              requestingStart: {
+                invoke: {
+                  id: "startWorkspace",
+                  src: "startWorkspace",
+                  onDone: "building",
+                  onError: {
+                    target: "error",
+                    actions: ["assignFailedTransition", "assignEnqueueError"]
+                  }
+                }
+              },
+              requestingStop: {
+                invoke: {
+                  id: "stopWorkspace",
+                  src: "stopWorkspace",
+                  onDone: "building",
+                  onError: {
+                    target: "error",
+                    actions: ["assignFailedTransition", "assignEnqueueError"]
+                  }
+                }
+              },
+              building: {
+                invoke: {
+                  id: "building",
+                  src: "pollBuild",
+                  onDone: "idle",
+                  onError: {
+                    target: "error",
+                    actions: ["assignFailedTransition", "assignBuildError"]
+                  }
+                }
+              },
+              error: {
+                on: {
+                  RETRY: [
+                    {
+                      cond: "failedToStart",
+                      target: "requestingStart"
+                    },
+                    {
+                      target: "requestingStop"
+                    }
+                  ]
+                }
+              }
             }
           }
         },
@@ -154,6 +212,20 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get organization without template")
         }
       },
+      startWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.startWorkspace(context.workspace.id)
+        } else {
+          throw Error("Cannot start workspace without workspace id")
+        }
+      },
+      stopWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.stopWorkspace(context.workspace.id)
+        } else {
+          throw Error("Cannot stop workspace without workspace id")
+        }
+      }
     },
   },
 )
