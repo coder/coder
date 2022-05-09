@@ -1644,11 +1644,16 @@ func (q *fakeQuerier) GetAuditLogsBefore(_ context.Context, arg database.GetAudi
 	logs := make([]database.AuditLog, 0)
 	start := database.AuditLog{}
 
-	for _, alog := range q.auditLogs {
-		if alog.ID == arg.ID {
-			start = alog
-			break
+	if arg.ID != uuid.Nil {
+		for _, alog := range q.auditLogs {
+			if alog.ID == arg.ID {
+				start = alog
+				break
+			}
 		}
+	} else {
+		start.ID = uuid.New()
+		start.Time = arg.StartTime
 	}
 
 	if start.ID == uuid.Nil {

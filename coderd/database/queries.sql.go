@@ -154,22 +154,23 @@ SELECT
 FROM
 	audit_logs
 WHERE
-	"time" < (SELECT "time" FROM audit_logs a WHERE a.id = $1)
+	audit_logs."time" < COALESCE((SELECT "time" FROM audit_logs a WHERE a.id = $1), $2)
 ORDER BY
     "time" DESC
 LIMIT
-	$2
+	$3
 `
 
 type GetAuditLogsBeforeParams struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	RowLimit int32     `db:"row_limit" json:"row_limit"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	RowLimit  int32     `db:"row_limit" json:"row_limit"`
 }
 
 // GetAuditLogsBefore retrieves `limit` number of audit logs before the provided
 // ID.
 func (q *sqlQuerier) GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBeforeParams) ([]AuditLog, error) {
-	rows, err := q.db.QueryContext(ctx, getAuditLogsBefore, arg.ID, arg.RowLimit)
+	rows, err := q.db.QueryContext(ctx, getAuditLogsBefore, arg.ID, arg.StartTime, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +230,7 @@ type InsertAuditLogParams struct {
 	Time           time.Time       `db:"time" json:"time"`
 	UserID         uuid.UUID       `db:"user_id" json:"user_id"`
 	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip             pqtype.CIDR     `db:"ip" json:"ip"`
+	Ip             pqtype.Inet     `db:"ip" json:"ip"`
 	UserAgent      string          `db:"user_agent" json:"user_agent"`
 	ResourceType   ResourceType    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID       `db:"resource_id" json:"resource_id"`
