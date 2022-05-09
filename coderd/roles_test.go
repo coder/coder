@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -84,7 +85,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: codersdk.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: coderd.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
@@ -99,14 +100,14 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: codersdk.ConvertRoles(rbac.SiteRoles()),
+			ExpectedRoles: coderd.ConvertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "AdminListOrg",
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: codersdk.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: coderd.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 	}
 
