@@ -14,7 +14,7 @@ type slogBackend struct {
 	log slog.Logger
 }
 
-func NewSlogBackend(logger slog.Logger) audit.Backend {
+func NewSlog(logger slog.Logger) audit.Backend {
 	return slogBackend{log: logger}
 }
 

@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-// Backends can accept and store or send audit logs elsewhere.
+// Backends can store or send audit logs to arbitrary locations.
 type Backend interface {
 	// Decision determines the FilterDecisions that the backend tolerates.
 	Decision() FilterDecision
@@ -16,12 +16,13 @@ type Backend interface {
 	Export(ctx context.Context, alog database.AuditLog) error
 }
 
-// Exporter exports audit logs to an arbitrary amount of backends.
+// Exporter exports audit logs to an arbitrary list of backends.
 type Exporter struct {
 	filter   Filter
 	backends []Backend
 }
 
+// NewExporter creates an exporter from the given filter and backends.
 func NewExporter(filter Filter, backends ...Backend) *Exporter {
 	return &Exporter{
 		filter:   filter,
@@ -29,6 +30,9 @@ func NewExporter(filter Filter, backends ...Backend) *Exporter {
 	}
 }
 
+// Export exports and audit log. Before exporting to a backend, it uses the
+// filter to determine if the backend tolerates the audit log. If not, it is
+// dropped.
 func (e *Exporter) Export(ctx context.Context, alog database.AuditLog) error {
 	for _, backend := range e.backends {
 		decision, err := e.filter.Check(ctx, alog)

@@ -24,7 +24,7 @@ func TestPostgresBackend(t *testing.T) {
 		var (
 			ctx, cancel = context.WithCancel(context.Background())
 			db          = databasefake.New()
-			pgb         = backends.NewPGBackend(db, true)
+			pgb         = backends.NewPostgres(db, true)
 			alog        = randomAuditLog()
 		)
 		defer cancel()

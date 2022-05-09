@@ -21,7 +21,7 @@ func TestSlogBackend(t *testing.T) {
 
 			sink    = &fakeSink{}
 			logger  = slog.Make(sink)
-			backend = backends.NewSlogBackend(logger)
+			backend = backends.NewSlog(logger)
 
 			alog = randomAuditLog()
 		)
