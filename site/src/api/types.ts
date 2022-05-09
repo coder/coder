@@ -24,6 +24,7 @@ export interface UserResponse {
   readonly created_at: string
   readonly status: "active" | "suspended"
   readonly organization_ids: string[]
+  readonly roles: { name: string; display_name: string }[]
 }
 
 /**
@@ -61,6 +62,7 @@ export interface CreateTemplateRequest {
 export interface CreateWorkspaceRequest {
   name: string
   template_id: string
+  organization_id: string
 }
 
 export interface WorkspaceBuild {

@@ -1314,6 +1314,21 @@ func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.HashedPassword = arg.HashedPassword
+		q.users[i] = user
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

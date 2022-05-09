@@ -28,6 +28,7 @@ export const MockUser: UserResponse = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [],
 }
 
 export const MockUser2: UserResponse = {
@@ -37,6 +38,7 @@ export const MockUser2: UserResponse = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  roles: [],
 }
 
 export const MockOrganization: Organization = {

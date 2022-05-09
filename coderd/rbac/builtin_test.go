@@ -65,6 +65,12 @@ func TestIsOrgRole(t *testing.T) {
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
+	siteRoles := rbac.SiteRoles()
+	siteRoleNames := make([]string, 0, len(siteRoles))
+	for _, role := range siteRoles {
+		siteRoleNames = append(siteRoleNames, role.Name)
+	}
+
 	// If this test is ever failing, just update the list to the roles
 	// expected from the builtin set.
 	require.ElementsMatch(t, []string{
@@ -72,12 +78,18 @@ func TestListRoles(t *testing.T) {
 		"member",
 		"auditor",
 	},
-		rbac.SiteRoles())
+		siteRoleNames)
 
 	orgID := uuid.New()
+	orgRoles := rbac.OrganizationRoles(orgID)
+	orgRoleNames := make([]string, 0, len(orgRoles))
+	for _, role := range orgRoles {
+		orgRoleNames = append(orgRoleNames, role.Name)
+	}
+
 	require.ElementsMatch(t, []string{
 		fmt.Sprintf("organization-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-member:%s", orgID.String()),
 	},
-		rbac.OrganizationRoles(orgID))
+		orgRoleNames)
 }

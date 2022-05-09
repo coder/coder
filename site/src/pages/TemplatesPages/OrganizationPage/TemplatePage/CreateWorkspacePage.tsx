@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React, { useCallback } from "react"
+import { useSelector } from "@xstate/react"
+import React, { useCallback, useContext } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 import * as API from "../../../../api"
@@ -8,11 +9,16 @@ import { ErrorSummary } from "../../../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { CreateWorkspaceForm } from "../../../../forms/CreateWorkspaceForm"
 import { unsafeSWRArgument } from "../../../../util"
+import { selectOrgId } from "../../../../xServices/auth/authSelectors"
+import { XServiceContext } from "../../../../xServices/StateContext"
 
 export const CreateWorkspacePage: React.FC = () => {
   const { organization: organizationName, template: templateName } = useParams()
   const navigate = useNavigate()
   const styles = useStyles()
+
+  const xServices = useContext(XServiceContext)
+  const myOrgId = useSelector(xServices.authXService, selectOrgId)
 
   const { data: organizationInfo, error: organizationError } = useSWR<Types.Organization, Error>(
     () => `/api/v2/users/me/organizations/${organizationName}`,
@@ -44,9 +50,13 @@ export const CreateWorkspacePage: React.FC = () => {
     return <FullScreenLoader />
   }
 
+  if (!myOrgId) {
+    return <ErrorSummary error={Error("no organization id")} />
+  }
+
   return (
     <div className={styles.root}>
-      <CreateWorkspaceForm onCancel={onCancel} onSubmit={onSubmit} template={template} />
+      <CreateWorkspaceForm onCancel={onCancel} onSubmit={onSubmit} template={template} organization_id={myOrgId} />
     </div>
   )
 }

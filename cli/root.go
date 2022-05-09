@@ -90,8 +90,8 @@ func Root() *cobra.Command {
 		workspaceAgent(),
 	)
 
-	cliflag.String(cmd.PersistentFlags(), varURL, "", "CODER_URL", "", "Specify the URL to your deployment.")
-	cliflag.String(cmd.PersistentFlags(), varToken, "", "CODER_TOKEN", "", "Specify an authentication token.")
+	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
+	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
 	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")

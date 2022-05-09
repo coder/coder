@@ -360,6 +360,36 @@ func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, convertUser(suspendedUser, organizations))
 }
 
+func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
+	var (
+		user   = httpmw.UserParam(r)
+		params codersdk.UpdateUserPasswordRequest
+	)
+	if !httpapi.Read(rw, r, &params) {
+		return
+	}
+
+	hashedPassword, err := userpassword.Hash(params.Password)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("hash password: %s", err.Error()),
+		})
+		return
+	}
+	err = api.Database.UpdateUserHashedPassword(r.Context(), database.UpdateUserHashedPasswordParams{
+		ID:             user.ID,
+		HashedPassword: []byte(hashedPassword),
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("put user password: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusNoContent, nil)
+}
+
 func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
@@ -577,7 +607,6 @@ func (api *api) postLogin(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// If the user doesn't exist, it will be a default struct.
-
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -778,14 +807,22 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
-	return codersdk.User{
+	convertedUser := codersdk.User{
 		ID:              user.ID,
 		Email:           user.Email,
 		CreatedAt:       user.CreatedAt,
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
+		Roles:           make([]codersdk.Role, 0),
 	}
+
+	for _, roleName := range user.RBACRoles {
+		rbacRole, _ := rbac.RoleByName(roleName)
+		convertedUser.Roles = append(convertedUser.Roles, convertRole(rbacRole))
+	}
+
+	return convertedUser
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {

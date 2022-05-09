@@ -45,6 +45,7 @@ type User struct {
 	Username        string      `json:"username" validate:"required"`
 	Status          UserStatus  `json:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
+	Roles           []Role      `json:"roles"`
 }
 
 type CreateFirstUserRequest struct {
@@ -70,6 +71,10 @@ type CreateUserRequest struct {
 type UpdateUserProfileRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Username string `json:"username" validate:"required,username"`
+}
+
+type UpdateUserPasswordRequest struct {
+	Password string `json:"password" validate:"required"`
 }
 
 type UpdateRoles struct {
@@ -181,6 +186,20 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
+// UpdateUserPassword updates a user password.
+// It calls PUT /users/{user}/password
+func (c *Client) UpdateUserPassword(ctx context.Context, userID uuid.UUID, req UpdateUserPasswordRequest) error {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", uuidOrMe(userID)), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 // UpdateUserRoles grants the userID the specified roles.
 // Include ALL roles the user has.
 func (c *Client) UpdateUserRoles(ctx context.Context, userID uuid.UUID, req UpdateRoles) (User, error) {
@@ -198,17 +217,17 @@ func (c *Client) UpdateUserRoles(ctx context.Context, userID uuid.UUID, req Upda
 
 // UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
 // Include ALL roles the user has.
-func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID, userID uuid.UUID, req UpdateRoles) (User, error) {
+func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID, userID uuid.UUID, req UpdateRoles) (OrganizationMember, error) {
 	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, uuidOrMe(userID)), req)
 	if err != nil {
-		return User{}, err
+		return OrganizationMember{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, readBodyAsError(res)
+		return OrganizationMember{}, readBodyAsError(res)
 	}
-	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	var member OrganizationMember
+	return member, json.NewDecoder(res.Body).Decode(&member)
 }
 
 // GetUserRoles returns all roles the user has
