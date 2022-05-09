@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"io"
+	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -23,21 +24,46 @@ import (
 
 func ssh() *cobra.Command {
 	var (
-		stdio bool
+		stdio   bool
+		shuffle bool
 	)
 	cmd := &cobra.Command{
 		Use:  "ssh <workspace>",
-		Args: cobra.MinimumNArgs(1),
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			workspaceParts := strings.Split(args[0], ".")
-			workspace, err := client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceParts[0])
-			if err != nil {
-				return err
+			var workspace codersdk.Workspace
+			var workspaceParts []string
+			if shuffle {
+				err := cobra.ExactArgs(0)(cmd, args)
+				if err != nil {
+					return err
+				}
+
+				workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
+				if err != nil {
+					return err
+				}
+				if len(workspaces) == 0 {
+					return xerrors.New("no workspaces to shuffle")
+				}
+
+				workspace = workspaces[rand.Intn(len(workspaces))]
+			} else {
+				err := cobra.MinimumNArgs(1)(cmd, args)
+				if err != nil {
+					return err
+				}
+
+				workspaceParts = strings.Split(args[0], ".")
+				workspace, err = client.WorkspaceByName(cmd.Context(), codersdk.Me, workspaceParts[0])
+				if err != nil {
+					return err
+				}
 			}
 
 			if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
@@ -82,9 +108,14 @@ func ssh() *cobra.Command {
 			}
 			if agent.ID == uuid.Nil {
 				if len(agents) > 1 {
-					return xerrors.New("you must specify the name of an agent")
+					if shuffle {
+						agent = agents[rand.Intn(len(agents))]
+					} else {
+						return xerrors.New("you must specify the name of an agent")
+					}
+				} else {
+					agent = agents[0]
 				}
-				agent = agents[0]
 			}
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
@@ -159,6 +190,8 @@ func ssh() *cobra.Command {
 		},
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
+	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
+	cmd.Flags().MarkHidden("shuffle")
 
 	return cmd
 }
