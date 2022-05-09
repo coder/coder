@@ -44,7 +44,7 @@ export const workspaceMachine = createMachine(
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: {
-            target: "gettingTemplate",
+            target: "ready",
             actions: ["assignWorkspace", "clearGetWorkspaceError"],
           },
           onError: {
@@ -54,35 +54,56 @@ export const workspaceMachine = createMachine(
         },
         tags: "loading",
       },
-      gettingTemplate: {
-        invoke: {
-          src: "getTemplate",
-          id: "getTemplate",
-          onDone: {
-            target: "gettingOrganization",
-            actions: ["assignTemplate", "clearGetTemplateError"],
+      ready: {
+        type: "parallel",
+        states: {
+          breadcrumb: {
+            initial: "gettingTemplate",
+            states: {
+              gettingTemplate: {
+                invoke: {
+                  src: "getTemplate",
+                  id: "getTemplate",
+                  onDone: {
+                    target: "gettingOrganization",
+                    actions: ["assignTemplate", "clearGetTemplateError"],
+                  },
+                  onError: {
+                    target: "error",
+                    actions: "assignGetTemplateError",
+                  },
+                },
+                tags: "loading",
+              },
+              gettingOrganization: {
+                invoke: {
+                  src: "getOrganization",
+                  id: "getOrganization",
+                  onDone: {
+                    target: "ready",
+                    actions: ["assignOrganization", "clearGetOrganizationError"],
+                  },
+                  onError: {
+                    target: "error",
+                    actions: "assignGetOrganizationError",
+                  },
+                },
+                tags: "loading",
+              },
+              error: {},
+              ready: {}
+            },
           },
-          onError: {
-            target: "error",
-            actions: "assignGetTemplateError",
-          },
+          build: {
+            initial: "idle",
+            states: {
+              idle: {},
+              requesting: {},
+              building: {},
+              error: {}
+            }
+          }
         },
-        tags: "loading",
-      },
-      gettingOrganization: {
-        invoke: {
-          src: "getOrganization",
-          id: "getOrganization",
-          onDone: {
-            target: "idle",
-            actions: ["assignOrganization", "clearGetOrganizationError"],
-          },
-          onError: {
-            target: "error",
-            actions: "assignGetOrganizationError",
-          },
-        },
-        tags: "loading",
       },
       error: {
         on: {
