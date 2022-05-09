@@ -163,3 +163,8 @@ export const getSiteRoles = async (): Promise<Array<TypesGen.Role>> => {
   const response = await axios.get<Array<TypesGen.Role>>(`/api/v2/users/roles`)
   return response.data
 }
+
+export const updateUserRoles = async (
+  roles: TypesGen.Role["name"][],
+  userId: TypesGen.User["id"],
+): Promise<TypesGen.User> => axios.put(`/api/v2/users/${userId}/roles`, { roles })

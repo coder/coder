@@ -1,6 +1,4 @@
 import Box from "@material-ui/core/Box"
-import MenuItem from "@material-ui/core/MenuItem"
-import Select from "@material-ui/core/Select"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -14,6 +12,7 @@ import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { TableTitle } from "../TableTitle/TableTitle"
 import { UserCell } from "../UserCell/UserCell"
+import { RoleSelect } from "./RoleSelect"
 
 export const Language = {
   pageTitle: "Users",
@@ -29,10 +28,19 @@ export interface UsersTableProps {
   users: UserResponse[]
   onSuspendUser: (user: UserResponse) => void
   onResetUserPassword: (user: UserResponse) => void
+  onUpdateUserRoles: (user: UserResponse, roles: TypesGen.Role["name"][]) => void
   roles: TypesGen.Role[]
+  isUpdatingUserRoles?: boolean
 }
 
-export const UsersTable: React.FC<UsersTableProps> = ({ users, roles, onSuspendUser, onResetUserPassword }) => {
+export const UsersTable: React.FC<UsersTableProps> = ({
+  users,
+  roles,
+  onSuspendUser,
+  onResetUserPassword,
+  onUpdateUserRoles,
+  isUpdatingUserRoles,
+}) => {
   return (
     <Table>
       <TableHead>
@@ -51,13 +59,12 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, roles, onSuspendU
               <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
             </TableCell>
             <TableCell>
-              <Select multiple value={[]}>
-                {roles.map((r) => (
-                  <MenuItem key={r.name} value={r.name}>
-                    {r.display_name}
-                  </MenuItem>
-                ))}
-              </Select>
+              <RoleSelect
+                roles={roles}
+                selectedRoles={u.roles}
+                loading={isUpdatingUserRoles}
+                onChange={(roles) => onUpdateUserRoles(u, roles)}
+              />
             </TableCell>
             <TableCell>
               <TableRowMenu

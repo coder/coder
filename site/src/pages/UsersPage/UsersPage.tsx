@@ -69,7 +69,15 @@ export const UsersPage: React.FC = () => {
           onResetUserPassword={(user) => {
             usersSend({ type: "RESET_USER_PASSWORD", userId: user.id })
           }}
+          onUpdateUserRoles={(user, roles) => {
+            usersSend({
+              type: "UPDATE_USER_ROLES",
+              userId: user.id,
+              roles,
+            })
+          }}
           error={getUsersError}
+          isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         />
 
         <ConfirmDialog
