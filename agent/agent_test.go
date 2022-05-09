@@ -304,13 +304,13 @@ func TestAgent(t *testing.T) {
 
 				// Try to dial the listener over WebRTC
 				conn := setupAgent(t, agent.Metadata{}, 0)
-				conn1, err := conn.Dial(l.Addr().Network(), l.Addr().String())
+				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 				require.NoError(t, err)
 				defer conn1.Close()
 				testDial(t, conn1)
 
 				// Dial again using the same WebRTC client
-				conn2, err := conn.Dial(l.Addr().Network(), l.Addr().String())
+				conn2, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 				require.NoError(t, err)
 				defer conn2.Close()
 				testDial(t, conn2)
@@ -337,7 +337,7 @@ func TestAgent(t *testing.T) {
 
 		// Try to dial the non-existent Unix socket over WebRTC
 		conn := setupAgent(t, agent.Metadata{}, 0)
-		netConn, err := conn.Dial("unix", filepath.Join(tmpDir, "test.sock"))
+		netConn, err := conn.DialContext(context.Background(), "unix", filepath.Join(tmpDir, "test.sock"))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "remote dial error")
 		require.ErrorContains(t, err, "no such file")

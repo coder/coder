@@ -469,8 +469,8 @@ func (c *Conn) Accept(ctx context.Context) (*Channel, error) {
 	return newChannel(c, dataChannel, &ChannelOptions{}), nil
 }
 
-// OpenChannel creates a new DataChannel.
-func (c *Conn) OpenChannel(ctx context.Context, label string, opts *ChannelOptions) (*Channel, error) {
+// CreateChannel creates a new DataChannel.
+func (c *Conn) CreateChannel(ctx context.Context, label string, opts *ChannelOptions) (*Channel, error) {
 	if opts == nil {
 		opts = &ChannelOptions{}
 	}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -619,6 +620,57 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, rawID string, conn ne
 	}
 }
 
+// dialResponse is written to datachannels with protocol "dial" by the agent as
+// the first packet to signify whether the dial succeeded or failed.
+type dialResponse struct {
+	Error string `json:"error,omitempty"`
+}
+
+func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
+	defer conn.Close()
+
+	writeError := func(responseError error) error {
+		msg := ""
+		if responseError != nil {
+			msg = responseError.Error()
+			if !xerrors.Is(responseError, io.EOF) {
+				a.logger.Warn(ctx, "handle dial", slog.F("label", label), slog.Error(responseError))
+			}
+		}
+		b, err := json.Marshal(dialResponse{
+			Error: msg,
+		})
+		if err != nil {
+			a.logger.Warn(ctx, "write dial response", slog.F("label", label), slog.Error(err))
+			return xerrors.Errorf("marshal agent webrtc dial response: %w", err)
+		}
+
+		_, err = conn.Write(b)
+		return err
+	}
+
+	u, err := url.Parse(label)
+	if err != nil {
+		_ = writeError(xerrors.Errorf("parse URL %q: %w", label, err))
+		return
+	}
+
+	network := u.Scheme
+	addr := u.Host + u.Path
+	nconn, err := net.Dial(network, addr)
+	if err != nil {
+		_ = writeError(xerrors.Errorf("dial '%v://%v': %w", network, addr, err))
+		return
+	}
+
+	err = writeError(nil)
+	if err != nil {
+		return
+	}
+
+	bicopy(ctx, conn, nconn)
+}
+
 // isClosed returns whether the API is closed or not.
 func (a *agent) isClosed() bool {
 	select {
@@ -663,4 +715,24 @@ func (r *reconnectingPTY) Close() {
 	_ = r.ptty.Close()
 	r.circularBuffer.Reset()
 	r.timeout.Stop()
+}
+
+// bicopy copies all of the data between the two connections and will close them
+// after one or both of them are done writing. If the context is canceled, both
+// of the connections will be closed.
+func bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
+	defer c1.Close()
+	defer c2.Close()
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	copyFunc := func(dst io.WriteCloser, src io.Reader) {
+		defer cancel()
+		_, _ = io.Copy(dst, src)
+	}
+
+	go copyFunc(c1, c2)
+	go copyFunc(c2, c1)
+
+	<-ctx.Done()
 }
