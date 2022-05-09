@@ -40,7 +40,6 @@ func (e *Exporter) Export(ctx context.Context, alog database.AuditLog) error {
 	}
 
 	for _, backend := range e.backends {
-
 		if decision&backend.Decision() != backend.Decision() {
 			continue
 		}
