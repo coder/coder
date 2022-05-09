@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -85,7 +84,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: coderd.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
@@ -100,14 +99,14 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: coderd.ConvertRoles(rbac.SiteRoles()),
+			ExpectedRoles: convertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "AdminListOrg",
 			APICall: func() ([]codersdk.Role, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: coderd.ConvertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
+			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 	}
 
@@ -127,4 +126,19 @@ func TestListRoles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func convertRole(role rbac.Role) codersdk.Role {
+	return codersdk.Role{
+		DisplayName: role.DisplayName,
+		Name:        role.Name,
+	}
+}
+
+func convertRoles(roles []rbac.Role) []codersdk.Role {
+	converted := make([]codersdk.Role, 0, len(roles))
+	for _, role := range roles {
+		converted = append(converted, convertRole(role))
+	}
+	return converted
 }

@@ -15,7 +15,7 @@ func (*api) assignableSiteRoles(rw http.ResponseWriter, _ *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 	roles := rbac.SiteRoles()
-	httpapi.Write(rw, http.StatusOK, ConvertRoles(roles))
+	httpapi.Write(rw, http.StatusOK, convertRoles(roles))
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
@@ -24,20 +24,20 @@ func (*api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(rw, http.StatusOK, ConvertRoles(roles))
+	httpapi.Write(rw, http.StatusOK, convertRoles(roles))
 }
 
-func ConvertRole(role rbac.Role) codersdk.Role {
+func convertRole(role rbac.Role) codersdk.Role {
 	return codersdk.Role{
 		DisplayName: role.DisplayName,
 		Name:        role.Name,
 	}
 }
 
-func ConvertRoles(roles []rbac.Role) []codersdk.Role {
+func convertRoles(roles []rbac.Role) []codersdk.Role {
 	converted := make([]codersdk.Role, 0, len(roles))
 	for _, role := range roles {
-		converted = append(converted, ConvertRole(role))
+		converted = append(converted, convertRole(role))
 	}
 	return converted
 }
