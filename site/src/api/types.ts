@@ -1,3 +1,5 @@
+import * as TypesGen from "./typesGenerated"
+
 /**
  * `BuildInfoResponse` must be kept in sync with the go struct in buildinfo.go.
  */
@@ -67,6 +69,7 @@ export interface CreateWorkspaceRequest {
 export interface WorkspaceBuild {
   id: string
   transition: WorkspaceBuildTransition
+  job: TypesGen.ProvisionerJob
 }
 
 export interface Workspace {

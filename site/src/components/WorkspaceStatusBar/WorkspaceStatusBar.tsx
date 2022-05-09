@@ -9,7 +9,6 @@ import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
 import { TitleIconSize } from "../../theme/constants"
 import { Stack } from "../Stack/Stack"
-import { WorkspaceStatus } from "../Workspace/Workspace"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
 const Language = {
@@ -22,9 +21,8 @@ export interface WorkspaceStatusBarProps {
   organization: Types.Organization
   workspace: Types.Workspace
   template: Types.Template
-  status: WorkspaceStatus
-  handleUpdate: () => void
-  handleToggle: () => void
+  handleStart: () => void
+  handleStop: () => void
 }
 
 /**
@@ -34,28 +32,12 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
   organization,
   template,
   workspace,
-  status,
-  handleUpdate,
-  handleToggle,
+  handleStart,
+  handleStop
 }) => {
   const styles = useStyles()
 
   const templateLink = `/templates/${organization.name}/${template.name}`
-  const statusToAction: Record<WorkspaceStatus, string> = {
-    started: Language.stop,
-    stopping: Language.stop,
-    stopped: Language.start,
-    starting: Language.start,
-  }
-  // Cannot start or stop in the middle of starting or stopping
-  const statusToDisabled: Record<WorkspaceStatus, boolean> = {
-    started: false,
-    stopping: true,
-    stopped: false,
-    starting: true,
-  }
-  const action = statusToAction[status]
-  const actionDisabled = statusToDisabled[status]
 
   return (
     <WorkspaceSection>
@@ -76,11 +58,11 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
             </div>
           </div>
           <div className={styles.horizontal}>
-            <Button onClick={handleToggle} disabled={actionDisabled} color="primary">
-              {action}
+            <Button onClick={handleStart} disabled={false} color="primary">
+              START
             </Button>
             {workspace.outdated && (
-              <Button onClick={handleUpdate} color="primary">
+              <Button color="primary">
                 {Language.update}
               </Button>
             )}

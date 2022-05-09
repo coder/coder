@@ -34,7 +34,10 @@ export const WorkspacePage: React.FC = () => {
     return (
       <Margins>
         <Stack spacing={4}>
-          <Workspace organization={organization} template={template} workspace={workspace} />
+          <Workspace organization={organization} template={template} workspace={workspace}
+            handleStart={() => workspaceSend("START")}
+            handleStop={() => workspaceSend("STOP")}
+           />
         </Stack>
       </Margins>
     )
