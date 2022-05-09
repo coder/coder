@@ -18,11 +18,12 @@ The default schedule is at 09:00 in your local timezone (TZ env, UTC by default)
 
 func autostart() *cobra.Command {
 	autostartCmd := &cobra.Command{
-		Use:     "autostart enable <workspace>",
-		Short:   "schedule a workspace to automatically start at a regular time",
-		Long:    autostartDescriptionLong,
-		Example: "coder autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Europe/Dublin",
-		Hidden:  true,
+		Annotations: workspaceCommand,
+		Use:         "autostart enable <workspace>",
+		Short:       "schedule a workspace to automatically start at a regular time",
+		Long:        autostartDescriptionLong,
+		Example:     "coder autostart enable my-workspace --minute 30 --hour 9 --days 1-5 --tz Europe/Dublin",
+		Hidden:      true,
 	}
 
 	autostartCmd.AddCommand(autostartEnable())

@@ -11,7 +11,9 @@ import (
 
 func update() *cobra.Command {
 	return &cobra.Command{
-		Use: "update",
+		Annotations: workspaceCommand,
+		Use:         "update",
+		Short:       "Update a workspace to the latest template version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
