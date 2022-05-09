@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/pion/webrtc/v3"
+	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
 	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
@@ -22,6 +24,7 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -35,13 +38,19 @@ type Options struct {
 	Pubsub    database.Pubsub
 
 	AgentConnectionUpdateFrequency time.Duration
-	AWSCertificates                awsidentity.Certificates
-	AzureCertificates              x509.VerifyOptions
-	GoogleTokenValidator           *idtoken.Validator
-	ICEServers                     []webrtc.ICEServer
-	SecureAuthCookie               bool
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	TURNServer                     *turnconn.Server
+	// APIRateLimit is the minutely throughput rate limit per user or ip.
+	// Setting a rate limit <0 will disable the rate limiter across the entire
+	// app. Specific routes may have their own limiters.
+	APIRateLimit         int
+	AWSCertificates      awsidentity.Certificates
+	AzureCertificates    x509.VerifyOptions
+	GoogleTokenValidator *idtoken.Validator
+	GithubOAuth2Config   *GithubOAuth2Config
+	ICEServers           []webrtc.ICEServer
+	SecureAuthCookie     bool
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	TURNServer           *turnconn.Server
+	Authorizer           *rbac.RegoAuthorizer
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -52,16 +61,54 @@ func New(options *Options) (http.Handler, func()) {
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 3 * time.Second
 	}
+	if options.APIRateLimit == 0 {
+		options.APIRateLimit = 512
+	}
+	if options.Authorizer == nil {
+		var err error
+		options.Authorizer, err = rbac.NewAuthorizer()
+		if err != nil {
+			// This should never happen, as the unit tests would fail if the
+			// default built in authorizer failed.
+			panic(xerrors.Errorf("rego authorize panic: %w", err))
+		}
+	}
 	api := &api{
 		Options: options,
 	}
+	apiKeyMiddleware := httpmw.ExtractAPIKey(options.Database, &httpmw.OAuth2Configs{
+		Github: options.GithubOAuth2Config,
+	})
+
+	// TODO: @emyrk we should just move this into 'ExtractAPIKey'.
+	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
+
+	authorize := func(f http.HandlerFunc, actions rbac.Action) http.HandlerFunc {
+		return httpmw.Authorize(api.Logger, api.Authorizer, actions)(f).ServeHTTP
+	}
 
 	r := chi.NewRouter()
+
+	r.Use(
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(middleware.NewWrapResponseWriter(w, r.ProtoMajor), r)
+			})
+		},
+		httpmw.Prometheus,
+		chitrace.Middleware(),
+	)
+
 	r.Route("/api/v2", func(r chi.Router) {
+		r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				Message: "Route not found.",
+			})
+		})
+
 		r.Use(
-			chitrace.Middleware(),
 			// Specific routes can specify smaller limits.
-			httpmw.RateLimitPerMinute(512),
+			httpmw.RateLimitPerMinute(options.APIRateLimit),
 			debugLogRequest(api.Logger),
 		)
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +126,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
@@ -89,8 +136,9 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
+				authRolesMiddleware,
 			)
 			r.Get("/", api.organization)
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
@@ -100,9 +148,30 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.templatesByOrganization)
 				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})
+			r.Route("/workspaces", func(r chi.Router) {
+				r.Post("/", api.postWorkspacesByOrganization)
+				r.Get("/", api.workspacesByOrganization)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Get("/{workspace}", api.workspaceByOwnerAndName)
+					r.Get("/", api.workspacesByOwner)
+				})
+			})
+			r.Route("/members", func(r chi.Router) {
+				r.Route("/roles", func(r chi.Router) {
+					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
+					r.Get("/", authorize(api.assignableOrgRoles, rbac.ActionRead))
+				})
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(
+						httpmw.ExtractUserParam(options.Database),
+					)
+					r.Put("/roles", api.putMemberRoles)
+				})
+			})
 		})
 		r.Route("/parameters/{scope}/{id}", func(r chi.Router) {
-			r.Use(httpmw.ExtractAPIKey(options.Database, nil))
+			r.Use(apiKeyMiddleware)
 			r.Post("/", api.postParameter)
 			r.Get("/", api.parameters)
 			r.Route("/{name}", func(r chi.Router) {
@@ -111,7 +180,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
@@ -125,7 +194,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
@@ -147,26 +216,45 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/first", api.postFirstUser)
 			r.Post("/login", api.postLogin)
 			r.Post("/logout", api.postLogout)
+			r.Get("/authmethods", api.userAuthMethods)
+			r.Route("/oauth2", func(r chi.Router) {
+				r.Route("/github", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config))
+					r.Get("/callback", api.userOAuth2Github)
+				})
+			})
 			r.Group(func(r chi.Router) {
-				r.Use(httpmw.ExtractAPIKey(options.Database, nil))
-				r.Post("/", api.postUsers)
+				r.Use(
+					apiKeyMiddleware,
+					authRolesMiddleware,
+				)
+				r.Post("/", api.postUser)
 				r.Get("/", api.users)
+				// These routes query information about site wide roles.
+				r.Route("/roles", func(r chi.Router) {
+					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
+					r.Get("/", authorize(api.assignableSiteRoles, rbac.ActionRead))
+				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
+					r.Put("/suspend", api.putUserSuspend)
+					r.Route("/password", func(r chi.Router) {
+						r.Use(httpmw.WithRBACObject(rbac.ResourceUserPasswordRole))
+						r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
+					})
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
+					// These roles apply to the site wide permissions.
+					r.Put("/roles", api.putUserRoles)
+					r.Get("/roles", api.userRoles)
+
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
 						r.Post("/", api.postOrganizationsByUser)
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
-					})
-					r.Route("/workspaces", func(r chi.Router) {
-						r.Post("/", api.postWorkspacesByUser)
-						r.Get("/", api.workspacesByUser)
-						r.Get("/{workspacename}", api.workspaceByUserAndName)
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
@@ -179,25 +267,27 @@ func New(options *Options) (http.Handler, func()) {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/", api.workspaceAgentListen)
+				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Get("/listen", api.workspaceAgentListen)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/turn", api.workspaceAgentTurn)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractAPIKey(options.Database, nil),
+					apiKeyMiddleware,
 					httpmw.ExtractWorkspaceAgentParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/dial", api.workspaceAgentDial)
 				r.Get("/turn", api.workspaceAgentTurn)
+				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/iceservers", api.workspaceAgentICEServers)
 			})
 		})
 		r.Route("/workspaceresources/{workspaceresource}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractWorkspaceResourceParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -205,7 +295,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspaces/{workspace}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
 			r.Get("/", api.workspace)
@@ -223,7 +313,7 @@ func New(options *Options) (http.Handler, func()) {
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
-				httpmw.ExtractAPIKey(options.Database, nil),
+				apiKeyMiddleware,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -231,6 +321,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/resources", api.workspaceBuildResources)
+			r.Get("/state", api.workspaceBuildState)
 		})
 	})
 	r.NotFound(site.DefaultHandler().ServeHTTP)

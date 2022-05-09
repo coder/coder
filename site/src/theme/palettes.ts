@@ -18,6 +18,16 @@ declare module "@material-ui/core/styles/createPalette" {
         contrastText: string
       }
     }
+    confirmDialog: {
+      error: {
+        background: string
+        text: string
+      }
+      info: {
+        background: string
+        text: string
+      }
+    }
     navbar: {
       main: string
     }
@@ -40,6 +50,16 @@ declare module "@material-ui/core/styles/createPalette" {
         contrastText: string
       }
     }
+    confirmDialog: {
+      error: {
+        background: string
+        text: string
+      }
+      info: {
+        background: string
+        text: string
+      }
+    }
     navbar: {
       main: string
     }
@@ -58,6 +78,7 @@ export type CustomPalette = Pick<
   | "action"
   | "background"
   | "codeBlock"
+  | "confirmDialog"
   | "divider"
   | "error"
   | "hero"
@@ -88,6 +109,16 @@ export const lightPalette: CustomPalette = {
       main: "#E6ECE6",
       hover: "#DAEBDA",
       contrastText: "#000",
+    },
+  },
+  confirmDialog: {
+    error: {
+      background: "#912F42",
+      text: "#FFF",
+    },
+    info: {
+      background: "#000",
+      text: "#FFF",
     },
   },
   primary: {
@@ -157,6 +188,13 @@ export const darkPalette: CustomPalette = {
       main: "rgba(255, 255, 255, 0.1)",
       hover: "rgba(255, 255, 255, 0.25)",
       contrastText: "#FFF",
+    },
+  },
+  confirmDialog: {
+    error: lightPalette.confirmDialog.error,
+    info: {
+      background: "rgba(255, 255, 255, 0.95)",
+      text: "rgb(31, 33, 35)",
     },
   },
   hero: {

@@ -1,28 +1,27 @@
+.DEFAULT_GOAL := build
+
 INSTALL_DIR=$(shell go env GOPATH)/bin
 GOOS=$(shell go env GOOS)
 GOARCH=$(shell go env GOARCH)
 
-bin:
-	goreleaser build --snapshot --rm-dist
-.PHONY: bin
+bin: $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+	@echo "== This builds binaries for command-line usage."
+	@echo "== Use \"make build\" to embed the site."
+	goreleaser build --snapshot --rm-dist --single-target
 
-build: site/out bin
+build: dist/artifacts.json
 .PHONY: build
 
 # Runs migrations to output a dump of the database.
 coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 	go run coderd/database/dump/main.go
-.PHONY: coderd/database/dump.sql
 
 # Generates Go code for querying the database.
-coderd/database/generate: fmt/sql coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
+coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
-.PHONY: coderd/database/generate
 
-apitypings/generate: site/src/api/types.ts
-	go run scripts/apitypings/main.go > site/src/api/types-generated.ts
-	cd site && yarn run format:types
-.PHONY: apitypings/generate
+dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
+	goreleaser release --snapshot --rm-dist --skip-sign
 
 fmt/prettier:
 	@echo "--- prettier"
@@ -34,31 +33,18 @@ else
 endif
 .PHONY: fmt/prettier
 
-fmt/sql: $(wildcard coderd/database/queries/*.sql)
-	# TODO: this is slightly slow
-	for fi in coderd/database/queries/*.sql; do \
-		npx sql-formatter \
-			--language postgresql \
-			--lines-between-queries 2 \
-			--tab-indent \
-			$$fi \
-			--output $$fi; \
-	done
-
-	sed -i 's/@ /@/g' ./coderd/database/queries/*.sql
-
 fmt/terraform: $(wildcard *.tf)
 	terraform fmt -recursive
+.PHONY: fmt/terraform
 
-fmt: fmt/prettier fmt/sql fmt/terraform
+fmt: fmt/prettier fmt/terraform
 .PHONY: fmt
 
-gen: coderd/database/generate peerbroker/proto provisionersdk/proto provisionerd/proto apitypings/generate
-.PHONY: gen
+gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
 
-install: bin
+install: build
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
-	cp -r ./dist/coder_$(GOOS)_$(GOARCH)/* $(INSTALL_DIR)
+	cp -r ./dist/coder-$(GOOS)_$(GOOS)_$(GOARCH)*/* $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
@@ -66,44 +52,40 @@ lint:
 	golangci-lint run
 .PHONY: lint
 
-peerbroker/proto: peerbroker/proto/peerbroker.proto
+peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./peerbroker/proto/peerbroker.proto
-.PHONY: peerbroker/proto
 
-provisionerd/proto: provisionerd/proto/provisionerd.proto
+provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./provisionerd/proto/provisionerd.proto
-.PHONY: provisionerd/proto
 
-provisionersdk/proto: provisionersdk/proto/provisioner.proto
+provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./provisionersdk/proto/provisioner.proto
-.PHONY: provisionersdk/proto
 
-release:
-	goreleaser release --snapshot --rm-dist --skip-sign
-.PHONY: release
-
-site/out:
+site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.tsx') $(shell find ./site -not -path './site/node_modules/*' -type f -name '*.ts') site/package.json
 	./scripts/yarn_install.sh
 	cd site && yarn typegen
 	cd site && yarn build
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
-.PHONY: site/out
+
+site/src/api/typesGenerated.ts: $(shell find codersdk -type f -name '*.go')
+	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
+	cd site && yarn run format:types
 
 test:
 	gotestsum -- -v -short ./...

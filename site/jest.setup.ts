@@ -1,4 +1,15 @@
-import { server } from "./src/test_helpers/server"
+import "@testing-library/jest-dom"
+import crypto from "crypto"
+import { server } from "./src/testHelpers/server"
+
+// Polyfill the getRandomValues that is used on utils/random.ts
+Object.defineProperty(global.self, "crypto", {
+  value: {
+    getRandomValues: function (buffer: Buffer) {
+      return crypto.randomFillSync(buffer)
+    },
+  },
+})
 
 // Establish API mocking before all tests through MSW.
 beforeAll(() =>

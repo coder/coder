@@ -4,7 +4,7 @@ import React from "react"
 import { Stack, StackProps } from "./Stack"
 
 export default {
-  title: "Components/Stack",
+  title: "components/Stack",
   component: Stack,
 }
 

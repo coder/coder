@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,13 +14,38 @@ import (
 // Me is used as a replacement for your own ID.
 var Me = uuid.Nil
 
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
+type UsersRequest struct {
+	AfterUser uuid.UUID `json:"after_user"`
+	Search    string    `json:"search"`
+	// Limit sets the maximum number of users to be returned
+	// in a single page. If the limit is <= 0, there is no limit
+	// and all users are returned.
+	Limit int `json:"limit"`
+	// Offset is used to indicate which page to return. An offset of 0
+	// returns the first 'limit' number of users.
+	// To get the next page, use offset=<limit>*<page_number>.
+	// Offset is 0 indexed, so the first record sits at offset 0.
+	Offset int `json:"offset"`
+	// Filter users by status
+	Status string `json:"status"`
+}
+
 // User represents a user in Coder.
 type User struct {
-	ID        uuid.UUID `json:"id" validate:"required"`
-	Email     string    `json:"email" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required"`
-	Username  string    `json:"username" validate:"required"`
-	Name      string    `json:"name"`
+	ID              uuid.UUID   `json:"id" validate:"required"`
+	Email           string      `json:"email" validate:"required"`
+	CreatedAt       time.Time   `json:"created_at" validate:"required"`
+	Username        string      `json:"username" validate:"required"`
+	Status          UserStatus  `json:"status"`
+	OrganizationIDs []uuid.UUID `json:"organization_ids"`
+	Roles           []Role      `json:"roles"`
 }
 
 type CreateFirstUserRequest struct {
@@ -43,9 +69,21 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserProfileRequest struct {
-	Email    string  `json:"email" validate:"required,email"`
-	Username string  `json:"username" validate:"required,username"`
-	Name     *string `json:"name"`
+	Email    string `json:"email" validate:"required,email"`
+	Username string `json:"username" validate:"required,username"`
+}
+
+type UpdateUserPasswordRequest struct {
+	Password string `json:"password" validate:"required"`
+}
+
+type UpdateRoles struct {
+	Roles []string `json:"roles" validate:"required"`
+}
+
+type UserRoles struct {
+	Roles             []string               `json:"roles"`
+	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -68,13 +106,10 @@ type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }
 
-// CreateWorkspaceRequest provides options for creating a new workspace.
-type CreateWorkspaceRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required"`
-	Name       string    `json:"name" validate:"username,required"`
-	// ParameterValues allows for additional parameters to be provided
-	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+// AuthMethods contains whether authentication types are enabled or not.
+type AuthMethods struct {
+	Password bool `json:"password"`
+	Github   bool `json:"github"`
 }
 
 // HasFirstUser returns whether the first user has been created.
@@ -136,17 +171,77 @@ func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req Up
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-func (c *Client) GetUsers(ctx context.Context) ([]User, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/users", nil)
+// SuspendUser enables callers to suspend a user
+func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/suspend", uuidOrMe(userID)), nil)
 	if err != nil {
-		return []User{}, err
+		return User{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return []User{}, readBodyAsError(res)
+		return User{}, readBodyAsError(res)
 	}
-	var users []User
-	return users, json.NewDecoder(res.Body).Decode(&users)
+
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// UpdateUserPassword updates a user password.
+// It calls PUT /users/{user}/password
+func (c *Client) UpdateUserPassword(ctx context.Context, userID uuid.UUID, req UpdateUserPasswordRequest) error {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", uuidOrMe(userID)), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateUserRoles grants the userID the specified roles.
+// Include ALL roles the user has.
+func (c *Client) UpdateUserRoles(ctx context.Context, userID uuid.UUID, req UpdateRoles) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", uuidOrMe(userID)), req)
+	if err != nil {
+		return User{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return User{}, readBodyAsError(res)
+	}
+	var user User
+	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
+// Include ALL roles the user has.
+func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID, userID uuid.UUID, req UpdateRoles) (OrganizationMember, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, uuidOrMe(userID)), req)
+	if err != nil {
+		return OrganizationMember{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMember{}, readBodyAsError(res)
+	}
+	var member OrganizationMember
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
+// GetUserRoles returns all roles the user has
+func (c *Client) GetUserRoles(ctx context.Context, userID uuid.UUID) (UserRoles, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", uuidOrMe(userID)), nil)
+	if err != nil {
+		return UserRoles{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserRoles{}, readBodyAsError(res)
+	}
+	var roles UserRoles
+	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
@@ -198,7 +293,16 @@ func (c *Client) Logout(ctx context.Context) error {
 // User returns a user for the ID provided.
 // If the uuid is nil, the current user will be returned.
 func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", uuidOrMe(id)), nil)
+	return c.userByIdentifier(ctx, uuidOrMe(id))
+}
+
+// UserByUsername returns a user for the username provided.
+func (c *Client) UserByUsername(ctx context.Context, username string) (User, error) {
+	return c.userByIdentifier(ctx, username)
+}
+
+func (c *Client) userByIdentifier(ctx context.Context, ident string) (User, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", ident), nil)
 	if err != nil {
 		return User{}, err
 	}
@@ -208,6 +312,35 @@ func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
 	}
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
+}
+
+// Users returns all users according to the request parameters. If no parameters are set,
+// the default behavior is to return all users in a single page.
+func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil, func(r *http.Request) {
+		q := r.URL.Query()
+		if req.AfterUser != uuid.Nil {
+			q.Set("after_user", req.AfterUser.String())
+		}
+		if req.Limit > 0 {
+			q.Set("limit", strconv.Itoa(req.Limit))
+		}
+		q.Set("offset", strconv.Itoa(req.Offset))
+		q.Set("search", req.Search)
+		q.Set("status", req.Status)
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return []User{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return []User{}, readBodyAsError(res)
+	}
+
+	var users []User
+	return users, json.NewDecoder(res.Body).Decode(&users)
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.
@@ -253,51 +386,20 @@ func (c *Client) CreateOrganization(ctx context.Context, userID uuid.UUID, req C
 	return org, json.NewDecoder(res.Body).Decode(&org)
 }
 
-// CreateWorkspace creates a new workspace for the template specified.
-func (c *Client) CreateWorkspace(ctx context.Context, userID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), request)
+// AuthMethods returns types of authentication available to the user.
+func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/users/authmethods", nil)
 	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, readBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
-}
-
-// WorkspacesByUser returns all workspaces the specified user has access to.
-func (c *Client) WorkspacesByUser(ctx context.Context, userID uuid.UUID) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), nil)
-	if err != nil {
-		return nil, err
+		return AuthMethods{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return AuthMethods{}, readBodyAsError(res)
 	}
 
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
-
-func (c *Client) WorkspaceByName(ctx context.Context, userID uuid.UUID, name string) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces/%s", uuidOrMe(userID), name), nil)
-	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return Workspace{}, readBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+	var userAuth AuthMethods
+	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
 
 // uuidOrMe returns the provided uuid as a string if it's valid, ortherwise

@@ -13,6 +13,12 @@ import (
 // RateLimitPerMinute returns a handler that limits requests per-minute based
 // on IP, endpoint, and user ID (if available).
 func RateLimitPerMinute(count int) func(http.Handler) http.Handler {
+	// -1 is no rate limit
+	if count <= 0 {
+		return func(handler http.Handler) http.Handler {
+			return handler
+		}
+	}
 	return httprate.Limit(
 		count,
 		1*time.Minute,

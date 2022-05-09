@@ -21,10 +21,11 @@ overrides:
 rename:
   api_key: APIKey
   login_type_oidc: LoginTypeOIDC
-  oidc_access_token: OIDCAccessToken
-  oidc_expiry: OIDCExpiry
-  oidc_id_token: OIDCIDToken
-  oidc_refresh_token: OIDCRefreshToken
+  oauth_access_token: OAuthAccessToken
+  oauth_expiry: OAuthExpiry
+  oauth_id_token: OAuthIDToken
+  oauth_refresh_token: OAuthRefreshToken
   parameter_type_system_hcl: ParameterTypeSystemHCL
   userstatus: UserStatus
   gitsshkey: GitSSHKey
+  rbac_roles: RBACRoles

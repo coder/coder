@@ -4,20 +4,30 @@ import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import { CreateWorkspaceRequest, Template, Workspace } from "../api/types"
-import { LoadingButton } from "../components/Button"
-import { FormCloseButton, FormSection, FormTextField, FormTitle } from "../components/Form"
+import { FormCloseButton } from "../components/FormCloseButton/FormCloseButton"
+import { FormSection } from "../components/FormSection/FormSection"
+import { FormTextField } from "../components/FormTextField/FormTextField"
+import { FormTitle } from "../components/FormTitle/FormTitle"
+import { LoadingButton } from "../components/LoadingButton/LoadingButton"
+import { maxWidth } from "../theme/constants"
 
 export interface CreateWorkspaceForm {
   template: Template
   onSubmit: (request: CreateWorkspaceRequest) => Promise<Workspace>
   onCancel: () => void
+  organization_id: string
 }
 
 const validationSchema = Yup.object({
   name: Yup.string().required("Name is required"),
 })
 
-export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ template, onSubmit, onCancel }) => {
+export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
+  template,
+  onSubmit,
+  onCancel,
+  organization_id,
+}) => {
   const styles = useStyles()
 
   const form: FormikContextType<{ name: string }> = useFormik<{ name: string }>({
@@ -30,6 +40,7 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ template, o
       return onSubmit({
         template_id: template.id,
         name: name,
+        organization_id,
       })
     },
   })
@@ -79,7 +90,7 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({ template, o
 
 const useStyles = makeStyles(() => ({
   root: {
-    maxWidth: "1380px",
+    maxWidth,
     width: "100%",
     display: "flex",
     flexDirection: "column",

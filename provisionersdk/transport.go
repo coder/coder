@@ -9,6 +9,12 @@ import (
 	"storj.io/drpc/drpcconn"
 )
 
+const (
+	// MaxMessageSize is the maximum payload size that can be
+	// transported without error.
+	MaxMessageSize = 4 << 20
+)
+
 // TransportPipe creates an in-memory pipe for dRPC transport.
 func TransportPipe() (*yamux.Session, *yamux.Session) {
 	clientReader, clientWriter := io.Pipe()

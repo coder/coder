@@ -1,56 +1,98 @@
 import React from "react"
 import { Route, Routes } from "react-router-dom"
-import { RequireAuth } from "./components"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
-import { PreferencesLayout } from "./components/Preferences/Layout"
+import { PreferencesLayout } from "./components/PreferencesLayout/PreferencesLayout"
+import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { IndexPage } from "./pages"
-import { NotFoundPage } from "./pages/404"
-import { CliAuthenticationPage } from "./pages/cli-auth"
-import { HealthzPage } from "./pages/healthz"
-import { SignInPage } from "./pages/login"
-import { OrganizationsPage } from "./pages/orgs"
-import { PreferencesAccountPage } from "./pages/preferences/account"
-import { PreferencesLinkedAccountsPage } from "./pages/preferences/linked-accounts"
-import { PreferencesSecurityPage } from "./pages/preferences/security"
-import { PreferencesSSHKeysPage } from "./pages/preferences/ssh-keys"
-import { SettingsPage } from "./pages/settings"
-import { TemplatesPage } from "./pages/templates"
-import { TemplatePage } from "./pages/templates/[organization]/[template]"
-import { CreateWorkspacePage } from "./pages/templates/[organization]/[template]/create"
+import { NotFoundPage } from "./pages/404Page/404Page"
+import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
+import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
+import { LoginPage } from "./pages/LoginPage/LoginPage"
+import { OrgsPage } from "./pages/OrgsPage/OrgsPage"
+import { AccountPage } from "./pages/PreferencesPages/AccountPage/AccountPage"
+import { LinkedAccountsPage } from "./pages/PreferencesPages/LinkedAccountsPage/LinkedAccountsPage"
+import { SecurityPage } from "./pages/PreferencesPages/SecurityPage/SecurityPage"
+import { SSHKeysPage } from "./pages/PreferencesPages/SSHKeysPage/SSHKeysPage"
+import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
+import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/CreateWorkspacePage"
+import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/TemplatePage"
+import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
+import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
-import { WorkspacePage } from "./pages/workspaces/[workspace]"
+import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
+
+const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
 
 export const AppRouter: React.FC = () => (
-  <Routes>
-    <Route path="/">
-      <Route
-        index
-        element={
-          <RequireAuth>
-            <IndexPage />
-          </RequireAuth>
-        }
-      />
-
-      <Route path="login" element={<SignInPage />} />
-      <Route path="healthz" element={<HealthzPage />} />
-      <Route path="cli-auth" element={<CliAuthenticationPage />} />
-
-      <Route path="templates">
+  <React.Suspense fallback={<></>}>
+    <Routes>
+      <Route path="/">
         <Route
           index
           element={
-            <AuthAndFrame>
-              <TemplatesPage />
-            </AuthAndFrame>
+            <RequireAuth>
+              <IndexPage />
+            </RequireAuth>
           }
         />
-        <Route path=":organization/:template">
+
+        <Route path="login" element={<LoginPage />} />
+        <Route path="healthz" element={<HealthzPage />} />
+        <Route
+          path="cli-auth"
+          element={
+            <RequireAuth>
+              <CliAuthenticationPage />
+            </RequireAuth>
+          }
+        />
+
+        <Route path="templates">
           <Route
             index
             element={
               <AuthAndFrame>
-                <TemplatePage />
+                <TemplatesPage />
+              </AuthAndFrame>
+            }
+          />
+          <Route path=":organization/:template">
+            <Route
+              index
+              element={
+                <AuthAndFrame>
+                  <TemplatePage />
+                </AuthAndFrame>
+              }
+            />
+            <Route
+              path="create"
+              element={
+                <RequireAuth>
+                  <CreateWorkspacePage />
+                </RequireAuth>
+              }
+            />
+          </Route>
+        </Route>
+
+        <Route path="workspaces">
+          <Route
+            path=":workspace"
+            element={
+              <AuthAndFrame>
+                <WorkspacePage />
+              </AuthAndFrame>
+            }
+          />
+        </Route>
+
+        <Route path="users">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <UsersPage />
               </AuthAndFrame>
             }
           />
@@ -58,60 +100,53 @@ export const AppRouter: React.FC = () => (
             path="create"
             element={
               <RequireAuth>
-                <CreateWorkspacePage />
+                <CreateUserPage />
               </RequireAuth>
             }
           />
         </Route>
-      </Route>
-
-      <Route path="workspaces">
         <Route
-          path=":workspace"
+          path="orgs"
           element={
             <AuthAndFrame>
-              <WorkspacePage />
+              <OrgsPage />
             </AuthAndFrame>
           }
         />
-      </Route>
+        <Route
+          path="settings"
+          element={
+            <AuthAndFrame>
+              <SettingsPage />
+            </AuthAndFrame>
+          }
+        />
 
-      <Route
-        path="users"
-        element={
-          <AuthAndFrame>
-            <UsersPage />
-          </AuthAndFrame>
-        }
-      />
-      <Route
-        path="orgs"
-        element={
-          <AuthAndFrame>
-            <OrganizationsPage />
-          </AuthAndFrame>
-        }
-      />
-      <Route
-        path="settings"
-        element={
-          <AuthAndFrame>
-            <SettingsPage />
-          </AuthAndFrame>
-        }
-      />
+        <Route path="preferences" element={<PreferencesLayout />}>
+          <Route path="account" element={<AccountPage />} />
+          <Route path="security" element={<SecurityPage />} />
+          <Route path="ssh-keys" element={<SSHKeysPage />} />
+          <Route path="linked-accounts" element={<LinkedAccountsPage />} />
+        </Route>
 
-      <Route path="preferences" element={<PreferencesLayout />}>
-        <Route path="account" element={<PreferencesAccountPage />} />
-        <Route path="security" element={<PreferencesSecurityPage />} />
-        <Route path="ssh-keys" element={<PreferencesSSHKeysPage />} />
-        <Route path="linked-accounts" element={<PreferencesLinkedAccountsPage />} />
-      </Route>
+        <Route path=":username">
+          <Route path=":workspace">
+            <Route
+              path="terminal"
+              element={
+                <RequireAuth>
+                  <TerminalPage />
+                </RequireAuth>
+              }
+            />
+          </Route>
+        </Route>
 
-      {/* Using path="*"" means "match anything", so this route
+        {/* Using path="*"" means "match anything", so this route
         acts like a catch-all for URLs that we don't have explicit
         routes for. */}
-      <Route path="*" element={<NotFoundPage />} />
-    </Route>
-  </Routes>
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>
+  </React.Suspense>
 )

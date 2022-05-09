@@ -53,8 +53,10 @@ import (
 type Options struct {
 	AWSCertificates      awsidentity.Certificates
 	AzureCertificates    x509.VerifyOptions
+	GithubOAuth2Config   *coderd.GithubOAuth2Config
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	APIRateLimit         int
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -122,9 +124,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 
 		AWSCertificates:      options.AWSCertificates,
 		AzureCertificates:    options.AzureCertificates,
+		GithubOAuth2Config:   options.GithubOAuth2Config,
 		GoogleTokenValidator: options.GoogleTokenValidator,
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
+		APIRateLimit:         options.APIRateLimit,
 	})
 	t.Cleanup(func() {
 		cancelFunc()
@@ -170,21 +174,22 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 	return closer
 }
 
+var FirstUserParams = codersdk.CreateFirstUserRequest{
+	Email:            "testuser@coder.com",
+	Username:         "testuser",
+	Password:         "testpass",
+	OrganizationName: "testorg",
+}
+
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
 func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirstUserResponse {
-	req := codersdk.CreateFirstUserRequest{
-		Email:            "testuser@coder.com",
-		Username:         "testuser",
-		Password:         "testpass",
-		OrganizationName: "testorg",
-	}
-	resp, err := client.CreateFirstUser(context.Background(), req)
+	resp, err := client.CreateFirstUser(context.Background(), FirstUserParams)
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-		Email:    req.Email,
-		Password: req.Password,
+		Email:    FirstUserParams.Email,
+		Password: FirstUserParams.Password,
 	})
 	require.NoError(t, err)
 	client.SessionToken = login.SessionToken
@@ -286,8 +291,8 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, build uuid.UUID
 
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, user uuid.UUID, templateID uuid.UUID) codersdk.Workspace {
-	workspace, err := client.CreateWorkspace(context.Background(), user, codersdk.CreateWorkspaceRequest{
+func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID) codersdk.Workspace {
+	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.CreateWorkspaceRequest{
 		TemplateID: templateID,
 		Name:       randomUsername(),
 	})

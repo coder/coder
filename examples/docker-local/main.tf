@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.3.1"
+      version = "0.3.4"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -37,12 +37,12 @@ resource "docker_volume" "coder_volume" {
 }
 
 resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
+  count   = data.coder_workspace.me.start_count
   image   = var.docker_image
   name    = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
   dns     = ["1.1.1.1"]
   command = ["sh", "-c", coder_agent.dev.init_script]
-  env     = ["CODER_TOKEN=${coder_agent.dev.token}"]
+  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.coder_volume.name

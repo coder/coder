@@ -40,8 +40,6 @@ func TestOrganizationParam(t *testing.T) {
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             userID,
 			Email:          "testaccount@coder.com",
-			Name:           "example",
-			LoginType:      database.LoginTypeBuiltIn,
 			HashedPassword: hashed[:],
 			Username:       username,
 			CreatedAt:      database.Now(),

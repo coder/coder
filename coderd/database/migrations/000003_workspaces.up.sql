@@ -5,6 +5,7 @@ CREATE TABLE workspaces (
     -- Use ON DELETE RESTRICT so that we can cleanup external workspace
     -- resources first.
     owner_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    organization_id uuid NOT NULL REFERENCES organizations (id) ON DELETE RESTRICT,
     template_id uuid NOT NULL REFERENCES templates (id) ON DELETE RESTRICT,
     deleted boolean NOT NULL DEFAULT FALSE,
     name varchar(64) NOT NULL,
@@ -12,8 +13,7 @@ CREATE TABLE workspaces (
 );
 
 -- Enforces no active workspaces have the same name.
-CREATE UNIQUE INDEX ON workspaces USING btree (owner_id, name) WHERE deleted = FALSE;
-CREATE UNIQUE INDEX idx_workspaces_name_lower ON workspaces USING btree (lower(name));
+CREATE UNIQUE INDEX ON workspaces USING btree (owner_id, lower(name)) WHERE deleted = FALSE;
 
 CREATE TYPE workspace_transition AS ENUM (
     'start',

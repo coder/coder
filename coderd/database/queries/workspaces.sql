@@ -8,6 +8,9 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspacesByOrganizationID :many
+SELECT * FROM workspaces WHERE organization_id = $1 AND deleted = $2;
+
 -- name: GetWorkspacesByTemplateID :many
 SELECT
 	*
@@ -17,7 +20,7 @@ WHERE
 	template_id = $1
 	AND deleted = $2;
 
--- name: GetWorkspacesByUserID :many
+-- name: GetWorkspacesByOwnerID :many
 SELECT
 	*
 FROM
@@ -26,7 +29,7 @@ WHERE
 	owner_id = $1
 	AND deleted = $2;
 
--- name: GetWorkspaceByUserIDAndName :one
+-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
 	*
 FROM
@@ -55,11 +58,12 @@ INSERT INTO
 		created_at,
 		updated_at,
 		owner_id,
+		organization_id,
 		template_id,
 		name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE

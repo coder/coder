@@ -43,6 +43,7 @@ func TestLogin(t *testing.T) {
 			"username", "testuser",
 			"email", "user@coder.com",
 			"password", "password",
+			"password", "password", // Confirm.
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -51,6 +52,44 @@ func TestLogin(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
+	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		client := coderdtest.New(t, nil)
+		// The --force-tty flag is required on Windows, because the `isatty` library does not
+		// accurately detect Windows ptys when they are not attached to a process:
+		// https://github.com/mattn/go-isatty/issues/59
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
+		pty := ptytest.New(t)
+		root.SetIn(pty.Input())
+		root.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := root.ExecuteContext(ctx)
+			require.ErrorIs(t, err, context.Canceled)
+		}()
+
+		matches := []string{
+			"first user?", "yes",
+			"username", "testuser",
+			"email", "user@coder.com",
+			"password", "mypass",
+			"password", "wrongpass", // Confirm.
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
+		pty.ExpectMatch("Passwords do not match")
+		pty.ExpectMatch("password") // Re-prompt password.
+		cancel()
 		<-doneChan
 	})
 

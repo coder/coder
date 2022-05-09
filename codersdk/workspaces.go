@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-// Workspace is a per-user deployment of a template. It tracks
-// template versions, and can be updated.
+// Workspace is a deployment of a template. It references a specific
+// version and can be updated.
 type Workspace struct {
 	ID                uuid.UUID      `json:"id"`
 	CreatedAt         time.Time      `json:"created_at"`
@@ -34,6 +34,7 @@ type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID                    `json:"template_version_id"`
 	Transition        database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 	DryRun            bool                         `json:"dry_run"`
+	ProvisionerState  []byte                       `json:"state,omitempty"`
 }
 
 // Workspace returns a single workspace.

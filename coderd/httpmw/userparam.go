@@ -5,13 +5,21 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 )
 
-const UserKey = "user"
-
 type userParamContextKey struct{}
+
+const (
+	// userErrorMessage is a constant so that no information about the state
+	// of the queried user can be gained. We return the same error if the user
+	// does not exist, or if the input is just garbage.
+	userErrorMessage = "\"user\" must be an existing uuid or username"
+)
 
 // UserParam returns the user from the ExtractUserParam handler.
 func UserParam(r *http.Request) database.User {
@@ -26,24 +34,46 @@ func UserParam(r *http.Request) database.User {
 func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			userID, ok := parseUUID(rw, r, UserKey)
-			if !ok {
-				return
-			}
+			var user database.User
+			var err error
 
-			apiKey := APIKey(r)
-			if apiKey.UserID != userID {
+			// userQuery is either a uuid, a username, or 'me'
+			userQuery := chi.URLParam(r, "user")
+			if userQuery == "" {
 				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-					Message: "getting non-personal users isn't supported yet",
+					Message: "\"user\" must be provided",
 				})
 				return
 			}
 
-			user, err := db.GetUserByID(r.Context(), userID)
-			if err != nil {
-				httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-					Message: fmt.Sprintf("get user: %s", err.Error()),
+			if userQuery == "me" {
+				user, err = db.GetUserByID(r.Context(), APIKey(r).UserID)
+				if err != nil {
+					httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+						Message: fmt.Sprintf("get user: %s", err.Error()),
+					})
+					return
+				}
+			} else if userID, err := uuid.Parse(userQuery); err == nil {
+				// If the userQuery is a valid uuid
+				user, err = db.GetUserByID(r.Context(), userID)
+				if err != nil {
+					httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+						Message: userErrorMessage,
+					})
+					return
+				}
+			} else {
+				// Try as a username last
+				user, err = db.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+					Username: userQuery,
 				})
+				if err != nil {
+					httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+						Message: userErrorMessage,
+					})
+					return
+				}
 			}
 
 			ctx := context.WithValue(r.Context(), userParamContextKey{}, user)

@@ -80,7 +80,7 @@ CREATE TABLE workspace_agents (
     last_connected_at timestamptz,
     disconnected_at timestamptz,
     resource_id uuid NOT NULL REFERENCES workspace_resources (id) ON DELETE CASCADE,
-    auth_token uuid NOT NULL UNIQUE,
+    auth_token uuid NOT NULL,
     auth_instance_id varchar(64),
     architecture varchar(64) NOT NULL,
     environment_variables jsonb,

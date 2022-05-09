@@ -117,6 +117,19 @@ func login() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("specify password prompt: %w", err)
 				}
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:   "Confirm " + cliui.Styles.Field.Render("password") + ":",
+					Secret: true,
+					Validate: func(s string) error {
+						if s != password {
+							return xerrors.Errorf("Passwords do not match")
+						}
+						return nil
+					},
+				})
+				if err != nil {
+					return xerrors.Errorf("confirm password prompt: %w", err)
+				}
 
 				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
 					Email:            email,

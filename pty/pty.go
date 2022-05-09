@@ -25,7 +25,7 @@ type PTY interface {
 	Input() io.ReadWriter
 
 	// Resize sets the size of the PTY.
-	Resize(cols uint16, rows uint16) error
+	Resize(height uint16, width uint16) error
 }
 
 // New constructs a new Pty.

@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func gitssh() *cobra.Command {
@@ -14,17 +18,10 @@ func gitssh() *cobra.Command {
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient(cmd)
+			client, err := createAgentClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return xerrors.Errorf("create agent client: %w", err)
 			}
-			cfg := createConfig(cmd)
-			session, err := cfg.AgentSession().Read()
-			if err != nil {
-				return xerrors.Errorf("read agent session from config: %w", err)
-			}
-			client.SessionToken = session
-
 			key, err := client.AgentGitSSHKey(cmd.Context())
 			if err != nil {
 				return xerrors.Errorf("get agent git ssh token: %w", err)
@@ -47,12 +44,25 @@ func gitssh() *cobra.Command {
 				return xerrors.Errorf("close temp gitsshkey file: %w", err)
 			}
 
-			a := append([]string{"-i", privateKeyFile.Name()}, args...)
-			c := exec.CommandContext(cmd.Context(), "ssh", a...)
+			args = append([]string{"-i", privateKeyFile.Name()}, args...)
+			c := exec.CommandContext(cmd.Context(), "ssh", args...)
+			c.Stderr = cmd.ErrOrStderr()
 			c.Stdout = cmd.OutOrStdout()
 			c.Stdin = cmd.InOrStdin()
 			err = c.Run()
 			if err != nil {
+				exitErr := &exec.ExitError{}
+				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
+						"\n"+cliui.Styles.Wrap.Render("Coder authenticates with "+cliui.Styles.Field.Render("git")+
+							" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n")
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n")
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Add to GitHub and GitLab:")
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Prompt.String()+"https://github.com/settings/ssh/new")
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Prompt.String()+"https://gitlab.com/-/profile/keys")
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+					return err
+				}
 				return xerrors.Errorf("run ssh command: %w", err)
 			}
 

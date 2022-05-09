@@ -1,3 +1,9 @@
+-- name: GetOrganizations :many
+SELECT
+	*
+FROM
+	organizations;
+
 -- name: GetOrganizationByID :one
 SELECT
 	*

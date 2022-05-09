@@ -26,6 +26,7 @@ func New(serverURL *url.URL) *Client {
 }
 
 // Client is an HTTP caller for methods to the Coder API.
+// @typescript-ignore Client
 type Client struct {
 	HTTPClient   *http.Client
 	SessionToken string
@@ -113,6 +114,7 @@ func readBodyAsError(res *http.Response) error {
 }
 
 // Error represents an unaccepted or invalid request to the API.
+// @typescript-ignore Error
 type Error struct {
 	httpapi.Response
 

@@ -28,6 +28,9 @@ module.exports = {
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
       testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes", "/e2e/"],
       moduleDirectories: ["node_modules", "<rootDir>"],
+      moduleNameMapper: {
+        "\\.css$": "<rootDir>/src/testHelpers/styleMock.ts",
+      },
     },
     {
       displayName: "lint",

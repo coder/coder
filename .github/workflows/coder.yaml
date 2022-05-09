@@ -94,12 +94,12 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
-          version: "3.19.4"
+          version: "3.20.0"
       - uses: actions/setup-go@v3
         with:
           go-version: "~1.18"
       - run: curl -sSL
-          https://github.com/kyleconroy/sqlc/releases/download/v1.11.0/sqlc_1.11.0_linux_amd64.tar.gz
+          https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz
           | sudo tar -C /usr/bin -xz sqlc
 
       - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
@@ -172,14 +172,14 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install goreleaser
-        uses: jaxxstorm/action-install-gh-release@v1.4.0
+        uses: jaxxstorm/action-install-gh-release@v1.5.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
           tag: v1.7.0
 
-      - uses: hashicorp/setup-terraform@v1
+      - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.1.2
           terraform_wrapper: false
@@ -241,14 +241,14 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install goreleaser
-        uses: jaxxstorm/action-install-gh-release@v1.4.0
+        uses: jaxxstorm/action-install-gh-release@v1.5.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
           tag: v1.7.0
 
-      - uses: hashicorp/setup-terraform@v1
+      - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.1.2
           terraform_wrapper: false
@@ -354,8 +354,14 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Build site
+        run: make site/out/index.html
+
       - name: Build Release
-        run: make release
+        uses: goreleaser/goreleaser-action@v2.9.1
+        with:
+          version: latest
+          args: release --snapshot --rm-dist --skip-sign
 
       - uses: actions/upload-artifact@v3
         with:
@@ -449,7 +455,7 @@ jobs:
         with:
           go-version: "~1.18"
 
-      - uses: hashicorp/setup-terraform@v1
+      - uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.1.2
           terraform_wrapper: false
@@ -482,7 +488,7 @@ jobs:
 
       - name: Build
         run: |
-          make site/out
+          make site/out/index.html
 
       - run: yarn playwright:install
         working-directory: site

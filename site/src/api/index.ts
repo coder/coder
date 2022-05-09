@@ -1,7 +1,7 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
-import { MockPager, MockUser, MockUser2 } from "../test_helpers/entities"
 import * as Types from "./types"
+import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
@@ -20,7 +20,7 @@ export const provisioners: Types.Provisioner[] = [
 
 export namespace Workspace {
   export const create = async (request: Types.CreateWorkspaceRequest): Promise<Types.Workspace> => {
-    const response = await fetch(`/api/v2/users/me/workspaces`, {
+    const response = await fetch(`/api/v2/organizations/${request.organization_id}/workspaces`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -65,18 +65,60 @@ export const getUser = async (): Promise<Types.UserResponse> => {
   return response.data
 }
 
+export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
+  const response = await axios.get<TypesGen.AuthMethods>("/api/v2/users/authmethods")
+  return response.data
+}
+
 export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
   const response = await axios.post<Types.APIKeyResponse>("/api/v2/users/me/keys")
   return response.data
 }
 
-export const getUsers = async (): Promise<Types.PagedUsers> => {
-  // const response = await axios.get<Types.UserResponse[]>("/api/v2/users")
-  // return response.data
-  return Promise.resolve({
-    page: [MockUser, MockUser2],
-    pager: MockPager,
-  })
+export const getUsers = async (): Promise<TypesGen.User[]> => {
+  const response = await axios.get<TypesGen.User[]>("/api/v2/users?status=active")
+  return response.data
+}
+
+export const getOrganization = async (organizationId: string): Promise<Types.Organization> => {
+  const response = await axios.get<Types.Organization>(`/api/v2/organizations/${organizationId}`)
+  return response.data
+}
+
+export const getOrganizations = async (): Promise<Types.Organization[]> => {
+  const response = await axios.get<Types.Organization[]>("/api/v2/users/me/organizations")
+  return response.data
+}
+
+export const getTemplate = async (templateId: string): Promise<Types.Template> => {
+  const response = await axios.get<Types.Template>(`/api/v2/templates/${templateId}`)
+  return response.data
+}
+
+export const getWorkspace = async (workspaceId: string): Promise<Types.Workspace> => {
+  const response = await axios.get<Types.Workspace>(`/api/v2/workspaces/${workspaceId}`)
+  return response.data
+}
+
+export const getWorkspaceByOwnerAndName = async (
+  organizationID: string,
+  username = "me",
+  workspaceName: string,
+): Promise<Types.Workspace> => {
+  const response = await axios.get<Types.Workspace>(
+    `/api/v2/organizations/${organizationID}/workspaces/${username}/${workspaceName}`,
+  )
+  return response.data
+}
+
+export const getWorkspaceResources = async (workspaceBuildID: string): Promise<Types.WorkspaceResource[]> => {
+  const response = await axios.get<Types.WorkspaceResource[]>(`/api/v2/workspacebuilds/${workspaceBuildID}/resources`)
+  return response.data
+}
+
+export const createUser = async (user: Types.CreateUserRequest): Promise<TypesGen.User> => {
+  const response = await axios.post<TypesGen.User>("/api/v2/users", user)
+  return response.data
 }
 
 export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
@@ -108,3 +150,11 @@ export const updateProfile = async (userId: string, data: Types.UpdateProfileReq
   const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
   return response.data
 }
+
+export const suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
+  const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/suspend`)
+  return response.data
+}
+
+export const updateUserPassword = async (password: string, userId: TypesGen.User["id"]): Promise<undefined> =>
+  axios.put(`/api/v2/users/${userId}/password`, { password })

@@ -1,5 +1,9 @@
 package rbac
 
+import (
+	"github.com/google/uuid"
+)
+
 const WildcardSymbol = "*"
 
 // Resources are just typed objects. Making resources this way allows directly
@@ -11,6 +15,17 @@ var (
 
 	ResourceTemplate = Object{
 		Type: "template",
+	}
+
+	// ResourceUserRole might be expanded later to allow more granular permissions
+	// to modifying roles. For now, this covers all possible roles, so having this permission
+	// allows granting/deleting **ALL** roles.
+	ResourceUserRole = Object{
+		Type: "user_role",
+	}
+
+	ResourceUserPasswordRole = Object{
+		Type: "user_password",
 	}
 
 	// ResourceWildcard represents all resource types
@@ -46,11 +61,11 @@ func (z Object) All() Object {
 }
 
 // InOrg adds an org OwnerID to the resource
-func (z Object) InOrg(orgID string) Object {
+func (z Object) InOrg(orgID uuid.UUID) Object {
 	return Object{
 		ResourceID: z.ResourceID,
 		Owner:      z.Owner,
-		OrgID:      orgID,
+		OrgID:      orgID.String(),
 		Type:       z.Type,
 	}
 }
