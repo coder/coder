@@ -24,6 +24,7 @@ export interface UserResponse {
   readonly created_at: string
   readonly status: "active" | "suspended"
   readonly organization_ids: string[]
+  readonly roles: { name: string; display_name: string }[]
 }
 
 /**

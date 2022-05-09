@@ -807,14 +807,22 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
-	return codersdk.User{
+	convertedUser := codersdk.User{
 		ID:              user.ID,
 		Email:           user.Email,
 		CreatedAt:       user.CreatedAt,
 		Username:        user.Username,
 		Status:          codersdk.UserStatus(user.Status),
 		OrganizationIDs: organizationIDs,
+		Roles:           make([]codersdk.Role, 0),
 	}
+
+	for _, roleName := range user.RBACRoles {
+		rbacRole, _ := rbac.RoleByName(roleName)
+		convertedUser.Roles = append(convertedUser.Roles, convertRole(rbacRole))
+	}
+
+	return convertedUser
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
