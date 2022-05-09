@@ -34,11 +34,12 @@ func NewExporter(filter Filter, backends ...Backend) *Exporter {
 // filter to determine if the backend tolerates the audit log. If not, it is
 // dropped.
 func (e *Exporter) Export(ctx context.Context, alog database.AuditLog) error {
+	decision, err := e.filter.Check(ctx, alog)
+	if err != nil {
+		return xerrors.Errorf("filter check: %w", err)
+	}
+
 	for _, backend := range e.backends {
-		decision, err := e.filter.Check(ctx, alog)
-		if err != nil {
-			return xerrors.Errorf("filter check: %w", err)
-		}
 
 		if decision&backend.Decision() != backend.Decision() {
 			continue
