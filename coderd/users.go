@@ -819,7 +819,7 @@ func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User 
 
 	for _, roleName := range user.RBACRoles {
 		rbacRole, _ := rbac.RoleByName(roleName)
-		convertedUser.Roles = append(convertedUser.Roles, ConvertRole(rbacRole))
+		convertedUser.Roles = append(convertedUser.Roles, convertRole(rbacRole))
 	}
 
 	return convertedUser
