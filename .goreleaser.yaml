@@ -45,7 +45,8 @@ builds:
       ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [linux]
-    goarch: [amd64, arm64]
+    goarch: [amd64, arm, arm64]
+    goarm: ["7"]
 
   - id: coder-windows
     dir: cmd/coder
