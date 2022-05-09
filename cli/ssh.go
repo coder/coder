@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"io"
-	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -20,6 +19,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 )
 
 func ssh() *cobra.Command {
@@ -52,7 +52,11 @@ func ssh() *cobra.Command {
 					return xerrors.New("no workspaces to shuffle")
 				}
 
-				workspace = workspaces[rand.Intn(len(workspaces))]
+				idx, err := cryptorand.Intn(len(workspaces))
+				if err != nil {
+					return err
+				}
+				workspace = workspaces[idx]
 			} else {
 				err := cobra.MinimumNArgs(1)(cmd, args)
 				if err != nil {
@@ -108,11 +112,14 @@ func ssh() *cobra.Command {
 			}
 			if agent.ID == uuid.Nil {
 				if len(agents) > 1 {
-					if shuffle {
-						agent = agents[rand.Intn(len(agents))]
-					} else {
+					if !shuffle {
 						return xerrors.New("you must specify the name of an agent")
 					}
+					idx, err := cryptorand.Intn(len(agents))
+					if err != nil {
+						return err
+					}
+					agent = agents[idx]
 				} else {
 					agent = agents[0]
 				}
@@ -191,7 +198,7 @@ func ssh() *cobra.Command {
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
-	cmd.Flags().MarkHidden("shuffle")
+	_ = cmd.Flags().MarkHidden("shuffle")
 
 	return cmd
 }
