@@ -13,8 +13,10 @@ import (
 
 func list() *cobra.Command {
 	return &cobra.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
+		Annotations: workspaceCommand,
+		Use:         "list",
+		Short:       "List all workspaces",
+		Aliases:     []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
