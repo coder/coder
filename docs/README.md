@@ -106,3 +106,4 @@ Read the [contributing docs](./CONTRIBUTING.md).
 | ------------------- | :--------: | :-----------: | :-------------------------------: | ------------------------------------------: |
 | Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) |     [mafredri](https://github.com/mafredri) |
 | Kira Pilot          | 05/09/2022 |  05/09/2022   | [Coder](https://github.com/coder) | [Kira-Pilot](https://github.com/Kira-Pilot) |
+| David Wahler        | 05/09/2022 |  04/05/2022   | [Coder](https://github.com/coder) |       [dwahler](https://github.com/dwahler) |
