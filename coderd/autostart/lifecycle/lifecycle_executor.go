@@ -38,15 +38,9 @@ func NewExecutor(ctx context.Context, db database.Store, log slog.Logger, tick <
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	for {
-		select {
-		case t := <-e.tick:
-			if err := e.runOnce(t); err != nil {
-				e.log.Error(e.ctx, "error running once", slog.Error(err))
-			}
-		case <-e.ctx.Done():
-			return
-		default:
+	for t := range e.tick {
+		if err := e.runOnce(t); err != nil {
+			e.log.Error(e.ctx, "error running once", slog.Error(err))
 		}
 	}
 }
@@ -94,6 +88,7 @@ func (e *Executor) runOnce(t time.Time) error {
 					slog.F("workspace_id", ws.ID),
 					slog.F("latest_build_transition", latestBuild.Transition),
 				)
+				continue
 			}
 
 			// Round time to the nearest minute, as this is the finest granularity cron supports.
