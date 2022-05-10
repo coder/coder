@@ -37,6 +37,7 @@ export const siteRolesMachine = createMachine(
         },
       },
       gettingRoles: {
+        entry: "clearGetRolesError",
         invoke: {
           id: "getRoles",
           src: "getRoles",
@@ -63,6 +64,9 @@ export const siteRolesMachine = createMachine(
       displayGetRolesError: () => {
         displayError(Language.getRolesError)
       },
+      clearGetRolesError: assign({
+        getRolesError: (_) => undefined,
+      }),
     },
     services: {
       getRoles: () => API.getSiteRoles(),
