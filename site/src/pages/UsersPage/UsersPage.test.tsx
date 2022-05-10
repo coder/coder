@@ -75,7 +75,7 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
   // Click on the "roles" menu to display the role options
   const rolesLabel = within(firstUserRow).getByLabelText(RoleSelectLanguage.label)
   const rolesMenuTrigger = within(rolesLabel).getByRole("button")
-  // For v4, the Select was changed to open on mouseDown instead of click
+  // For MUI v4, the Select was changed to open on mouseDown instead of click
   // https://github.com/mui-org/material-ui/pull/17978
   fireEvent.mouseDown(rolesMenuTrigger)
 
