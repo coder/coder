@@ -84,7 +84,7 @@ const Placeholder: React.FC = () => {
   )
 }
 
-export const useStyles = makeStyles((theme) => {
+export const useStyles = makeStyles(() => {
   return {
     root: {
       display: "flex",
