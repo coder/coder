@@ -2,6 +2,7 @@ package executor_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -271,6 +272,45 @@ func Test_Executor_Workspace_Deleted(t *testing.T) {
 	require.Never(t, func() bool {
 		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.Transition != database.WorkspaceTransitionDelete
+	}, 5*time.Second, 250*time.Millisecond)
+}
+
+func Test_Executor_Workspace_TooEarly(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		err    error
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
+	)
+
+	// Given: the workspace initially has autostart disabled
+	require.Empty(t, workspace.AutostopSchedule)
+
+	// When: we enable workspace autostart with some time in the future
+	futureTime := time.Now().Add(time.Hour)
+	futureTimeCron := fmt.Sprintf("%d %d * * *", futureTime.Minute(), futureTime.Hour())
+	sched, err := schedule.Weekly(futureTimeCron)
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
+		Schedule: sched.String(),
+	}))
+
+	// When: the lifecycle executor ticks
+	go func() {
+		tickCh <- time.Now().UTC()
+		close(tickCh)
+	}()
+
+	// Then: nothing should happen
+	require.Never(t, func() bool {
+		ws := mustWorkspace(t, client, workspace.ID)
+		return ws.LatestBuild.Transition != database.WorkspaceTransitionStart
 	}, 5*time.Second, 250*time.Millisecond)
 }
 

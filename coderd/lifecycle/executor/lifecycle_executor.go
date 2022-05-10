@@ -109,7 +109,7 @@ func (e *Executor) runOnce(t time.Time) error {
 			)
 
 			if err := doBuild(e.ctx, db, ws, validTransition); err != nil {
-				e.log.Error(e.ctx, "transition workspace",
+				e.log.Error(e.ctx, "unable to transition workspace",
 					slog.F("workspace_id", ws.ID),
 					slog.F("transition", validTransition),
 					slog.Error(err),
