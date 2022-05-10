@@ -264,9 +264,8 @@ export interface TemplateVersionParameterSchema {
 }
 
 // From codersdk/templates.go:74:6
-export interface TemplateVersionsByTemplateRequest {
+export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
-  readonly Pagination: Pagination
 }
 
 // From codersdk/templates.go:28:6
@@ -323,10 +322,9 @@ export interface UserRoles {
 }
 
 // From codersdk/users.go:23:6
-export interface UsersRequest {
+export interface UsersRequest extends Pagination {
   readonly search: string
   readonly status: string
-  readonly Pagination: Pagination
 }
 
 // From codersdk/workspaces.go:18:6
