@@ -45,13 +45,13 @@ func TestListRoles(t *testing.T) {
 	testCases := []struct {
 		Name            string
 		Client          *codersdk.Client
-		APICall         func() ([]string, error)
-		ExpectedRoles   []string
+		APICall         func() ([]codersdk.Role, error)
+		ExpectedRoles   []codersdk.Role
 		AuthorizedError string
 	}{
 		{
 			Name: "MemberListSite",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
@@ -59,14 +59,14 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "OrgMemberListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			AuthorizedError: unauth,
 		},
 		{
 			Name: "NonOrgMemberListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: notMember,
@@ -74,21 +74,21 @@ func TestListRoles(t *testing.T) {
 		// Org admin
 		{
 			Name: "OrgAdminListSite",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
 			AuthorizedError: unauth,
 		},
 		{
 			Name: "OrgAdminListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
+			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: notMember,
@@ -96,17 +96,17 @@ func TestListRoles(t *testing.T) {
 		// Admin
 		{
 			Name: "AdminListSite",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: rbac.SiteRoles(),
+			ExpectedRoles: convertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "AdminListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
+			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 	}
 
@@ -126,4 +126,19 @@ func TestListRoles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func convertRole(role rbac.Role) codersdk.Role {
+	return codersdk.Role{
+		DisplayName: role.DisplayName,
+		Name:        role.Name,
+	}
+}
+
+func convertRoles(roles []rbac.Role) []codersdk.Role {
+	converted := make([]codersdk.Role, 0, len(roles))
+	for _, role := range roles {
+		converted = append(converted, convertRole(role))
+	}
+	return converted
 }

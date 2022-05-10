@@ -36,7 +36,9 @@ func configSSH() *cobra.Command {
 		skipProxyCommand bool
 	)
 	cmd := &cobra.Command{
-		Use: "config-ssh",
+		Annotations: workspaceCommand,
+		Use:         "config-ssh",
+		Short:       "Populate your SSH config with Host entries for all of your workspaces",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

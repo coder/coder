@@ -172,25 +172,25 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	users := q.users
+	// Avoid side-effect of sorting.
+	users := make([]database.User, len(q.users))
+	copy(users, q.users)
+
 	// Database orders by created_at
-	sort.Slice(users, func(i, j int) bool {
-		if users[i].CreatedAt.Equal(users[j].CreatedAt) {
+	slices.SortFunc(users, func(a, b database.User) bool {
+		if a.CreatedAt.Equal(b.CreatedAt) {
 			// Technically the postgres database also orders by uuid. So match
 			// that behavior
-			return users[i].ID.String() < users[j].ID.String()
+			return a.ID.String() < b.ID.String()
 		}
-		return users[i].CreatedAt.Before(users[j].CreatedAt)
+		return a.CreatedAt.Before(b.CreatedAt)
 	})
 
-	if params.AfterUser != uuid.Nil {
+	if params.AfterID != uuid.Nil {
 		found := false
-		for i := range users {
-			if users[i].ID == params.AfterUser {
+		for i, v := range users {
+			if v.ID == params.AfterID {
 				// We want to return all users after index i.
-				if i+1 >= len(users) {
-					return []database.User{}, nil
-				}
 				users = users[i+1:]
 				found = true
 				break
@@ -199,7 +199,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 		// If no users after the time, then we return an empty list.
 		if !found {
-			return []database.User{}, nil
+			return nil, sql.ErrNoRows
 		}
 	}
 
@@ -227,7 +227,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 
 	if params.OffsetOpt > 0 {
 		if int(params.OffsetOpt) > len(users)-1 {
-			return []database.User{}, nil
+			return nil, sql.ErrNoRows
 		}
 		users = users[params.OffsetOpt:]
 	}
@@ -239,10 +239,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = users[:params.LimitOpt]
 	}
 
-	tmp := make([]database.User, len(users))
-	copy(tmp, users)
-
-	return tmp, nil
+	return users, nil
 }
 
 func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
@@ -478,6 +475,25 @@ func (q *fakeQuerier) GetWorkspacesByOrganizationID(_ context.Context, req datab
 	return workspaces, nil
 }
 
+func (q *fakeQuerier) GetWorkspacesByOrganizationIDs(_ context.Context, req database.GetWorkspacesByOrganizationIDsParams) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		for _, id := range req.Ids {
+			if workspace.OrganizationID != id {
+				continue
+			}
+			if workspace.Deleted != req.Deleted {
+				continue
+			}
+			workspaces = append(workspaces, workspace)
+		}
+	}
+	return workspaces, nil
+}
+
 func (q *fakeQuerier) GetWorkspacesByOwnerID(_ context.Context, req database.GetWorkspacesByOwnerIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -491,9 +507,6 @@ func (q *fakeQuerier) GetWorkspacesByOwnerID(_ context.Context, req database.Get
 			continue
 		}
 		workspaces = append(workspaces, workspace)
-	}
-	if len(workspaces) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return workspaces, nil
 }
@@ -605,20 +618,62 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, templateID uuid.UUID) ([]database.TemplateVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg database.GetTemplateVersionsByTemplateIDParams) (version []database.TemplateVersion, err error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	version := make([]database.TemplateVersion, 0)
 	for _, templateVersion := range q.templateVersions {
-		if templateVersion.TemplateID.UUID.String() != templateID.String() {
+		if templateVersion.TemplateID.UUID.String() != arg.TemplateID.String() {
 			continue
 		}
 		version = append(version, templateVersion)
 	}
+
+	// Database orders by created_at
+	slices.SortFunc(version, func(a, b database.TemplateVersion) bool {
+		if a.CreatedAt.Equal(b.CreatedAt) {
+			// Technically the postgres database also orders by uuid. So match
+			// that behavior
+			return a.ID.String() < b.ID.String()
+		}
+		return a.CreatedAt.Before(b.CreatedAt)
+	})
+
+	if arg.AfterID != uuid.Nil {
+		found := false
+		for i, v := range version {
+			if v.ID == arg.AfterID {
+				// We want to return all users after index i.
+				version = version[i+1:]
+				found = true
+				break
+			}
+		}
+
+		// If no users after the time, then we return an empty list.
+		if !found {
+			return nil, sql.ErrNoRows
+		}
+	}
+
+	if arg.OffsetOpt > 0 {
+		if int(arg.OffsetOpt) > len(version)-1 {
+			return nil, sql.ErrNoRows
+		}
+		version = version[arg.OffsetOpt:]
+	}
+
+	if arg.LimitOpt > 0 {
+		if int(arg.LimitOpt) > len(version) {
+			arg.LimitOpt = int32(len(version))
+		}
+		version = version[:arg.LimitOpt]
+	}
+
 	if len(version) == 0 {
 		return nil, sql.ErrNoRows
 	}
+
 	return version, nil
 }
 
@@ -1314,6 +1369,21 @@ func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.HashedPassword = arg.HashedPassword
+		q.users[i] = user
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1629,11 +1699,16 @@ func (q *fakeQuerier) GetAuditLogsBefore(_ context.Context, arg database.GetAudi
 	logs := make([]database.AuditLog, 0)
 	start := database.AuditLog{}
 
-	for _, alog := range q.auditLogs {
-		if alog.ID == arg.ID {
-			start = alog
-			break
+	if arg.ID != uuid.Nil {
+		for _, alog := range q.auditLogs {
+			if alog.ID == arg.ID {
+				start = alog
+				break
+			}
 		}
+	} else {
+		start.ID = uuid.New()
+		start.Time = arg.StartTime
 	}
 
 	if start.ID == uuid.Nil {

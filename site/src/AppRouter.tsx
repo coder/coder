@@ -19,7 +19,7 @@ import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePa
 import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
-import { WorkspacePage } from "./pages/WorkspacesPage/WorkspacesPage"
+import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
 

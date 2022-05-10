@@ -89,7 +89,8 @@ func server() *cobra.Command {
 	)
 
 	root := &cobra.Command{
-		Use: "server",
+		Use:   "server",
+		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := slog.Make(sloghuman.Sink(os.Stderr))
 			if verbose {
@@ -342,6 +343,12 @@ func server() *cobra.Command {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
+			// Because the graceful shutdown includes cleaning up workspaces in dev mode, we're
+			// going to make it harder to accidentally skip the graceful shutdown by hitting ctrl+c
+			// two or more times.  So the stopChan is unlimited in size and we don't call
+			// signal.Stop() until graceful shutdown finished--this means we swallow additional
+			// SIGINT after the first.  To get out of a graceful shutdown, the user can send SIGQUIT
+			// with ctrl+\ or SIGTERM with `kill`.
 			stopChan := make(chan os.Signal, 1)
 			defer signal.Stop(stopChan)
 			signal.Notify(stopChan, os.Interrupt)
@@ -354,16 +361,18 @@ func server() *cobra.Command {
 					return err
 				}
 			case err := <-errCh:
+				shutdownConns()
 				closeCoderd()
 				return err
 			case <-stopChan:
 			}
-			signal.Stop(stopChan)
 			_, err = daemon.SdNotify(false, daemon.SdNotifyStopping)
 			if err != nil {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+cliui.Styles.Bold.Render("Interrupt caught. Gracefully exiting..."))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n\n"+
+				cliui.Styles.Bold.Render(
+					"Interrupt caught, gracefully exiting.  Use ctrl+\\ to force quit"))
 
 			if dev {
 				organizations, err := client.OrganizationsByUser(cmd.Context(), codersdk.Me)
