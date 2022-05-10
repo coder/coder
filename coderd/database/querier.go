@@ -70,6 +70,7 @@ type querier interface {
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspacesByOrganizationID(ctx context.Context, arg GetWorkspacesByOrganizationIDParams) ([]Workspace, error)
+	GetWorkspacesByOrganizationIDs(ctx context.Context, arg GetWorkspacesByOrganizationIDsParams) ([]Workspace, error)
 	GetWorkspacesByOwnerID(ctx context.Context, arg GetWorkspacesByOwnerIDParams) ([]Workspace, error)
 	GetWorkspacesByTemplateID(ctx context.Context, arg GetWorkspacesByTemplateIDParams) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)

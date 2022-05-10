@@ -402,6 +402,22 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
 
+// WorkspacesByUser returns all workspaces a user has access to.
+func (c *Client) WorkspacesByUser(ctx context.Context, userID uuid.UUID) ([]Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var workspaces []Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}
+
 // uuidOrMe returns the provided uuid as a string if it's valid, ortherwise
 // `me`.
 func uuidOrMe(id uuid.UUID) string {

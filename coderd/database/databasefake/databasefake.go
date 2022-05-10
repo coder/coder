@@ -478,6 +478,28 @@ func (q *fakeQuerier) GetWorkspacesByOrganizationID(_ context.Context, req datab
 	return workspaces, nil
 }
 
+func (q *fakeQuerier) GetWorkspacesByOrganizationIDs(_ context.Context, req database.GetWorkspacesByOrganizationIDsParams) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		for _, id := range req.Ids {
+			if workspace.ID != id {
+				continue
+			}
+			if workspace.Deleted != req.Deleted {
+				continue
+			}
+			workspaces = append(workspaces, workspace)
+		}
+	}
+	if len(workspaces) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaces, nil
+}
+
 func (q *fakeQuerier) GetWorkspacesByOwnerID(_ context.Context, req database.GetWorkspacesByOwnerIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
