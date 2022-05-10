@@ -361,6 +361,7 @@ func server() *cobra.Command {
 					return err
 				}
 			case err := <-errCh:
+				shutdownConns()
 				closeCoderd()
 				return err
 			case <-stopChan:
