@@ -1,7 +1,13 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
 import React from "react"
-import { MockFailedWorkspace, MockStoppedWorkspace, MockTemplate, MockWorkspace, renderWithAuth } from "../../testHelpers"
+import {
+  MockFailedWorkspace,
+  MockStoppedWorkspace,
+  MockTemplate,
+  MockWorkspace,
+  renderWithAuth,
+} from "../../testHelpers"
 import { server } from "../../testHelpers/server"
 import { WorkspacePage } from "./WorkspacePage"
 

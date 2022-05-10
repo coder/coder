@@ -186,18 +186,25 @@ export const workspaceMachine = createMachine(
                       id: "refreshWorkspace",
                       src: "refreshWorkspace",
                       onDone: [
-                        { cond: "jobSucceeded", target: "#workspaceState.ready.build.started", actions: ["clearBuildError", "assignWorkspace"]},
+                        {
+                          cond: "jobSucceeded",
+                          target: "#workspaceState.ready.build.started",
+                          actions: ["clearBuildError", "assignWorkspace"],
+                        },
                         { cond: "jobPendingOrRunning", target: "waiting", actions: "assignWorkspace" },
-                        { target: "#workspaceState.ready.build.error", actions: ["assignWorkspace", "assignBuildError"] }
+                        {
+                          target: "#workspaceState.ready.build.error",
+                          actions: ["assignWorkspace", "assignBuildError"],
+                        },
                       ],
-                      onError: { target: "waiting", actions: "assignRefreshWorkspaceError"}
-                    }
+                      onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
+                    },
                   },
                   waiting: {
                     after: {
-                      1000: "refreshingWorkspace"
-                    }
-                  }
+                      1000: "refreshingWorkspace",
+                    },
+                  },
                 },
                 tags: ["buildLoading", "starting"],
               },
@@ -210,18 +217,25 @@ export const workspaceMachine = createMachine(
                       id: "refreshWorkspace",
                       src: "refreshWorkspace",
                       onDone: [
-                        { cond: "jobSucceeded", target: "#workspaceState.ready.build.stopped", actions: ["clearBuildError", "assignWorkspace"]},
+                        {
+                          cond: "jobSucceeded",
+                          target: "#workspaceState.ready.build.stopped",
+                          actions: ["clearBuildError", "assignWorkspace"],
+                        },
                         { cond: "jobPendingOrRunning", target: "waiting", actions: "assignWorkspace" },
-                        { target: "#workspaceState.ready.build.error", actions: ["assignWorkspace", "assignBuildError"] }
+                        {
+                          target: "#workspaceState.ready.build.error",
+                          actions: ["assignWorkspace", "assignBuildError"],
+                        },
                       ],
-                      onError: { target: "waiting", actions: "assignRefreshWorkspaceError"}
-                    }
+                      onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
+                    },
                   },
                   waiting: {
                     after: {
-                      1000: "refreshingWorkspace"
-                    }
-                  }
+                      1000: "refreshingWorkspace",
+                    },
+                  },
                 },
                 tags: ["buildLoading", "stopping"],
               },
@@ -289,12 +303,14 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: undefined,
         }),
-      assignRefreshWorkspaceError: (_, event) => assign({
-        refreshWorkspaceError: event.data
-      }),
-      clearRefreshWorkspaceError: (_) => assign({
-        refreshWorkspaceError: undefined
-      })
+      assignRefreshWorkspaceError: (_, event) =>
+        assign({
+          refreshWorkspaceError: event.data,
+        }),
+      clearRefreshWorkspaceError: (_) =>
+        assign({
+          refreshWorkspaceError: undefined,
+        }),
     },
     guards: {
       workspaceIsStarted: (context) =>

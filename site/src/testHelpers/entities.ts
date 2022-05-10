@@ -176,8 +176,6 @@ export const MockFailedWorkspace: Workspace = {
   latest_build: MockFailedWorkspaceBuild,
 }
 
-
-
 export const MockWorkspaceAgent: WorkspaceAgent = {
   id: "test-workspace-agent",
   name: "a-workspace-agent",

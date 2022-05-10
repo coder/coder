@@ -22,7 +22,7 @@ const Language = {
   starting: "Building",
   stopping: "Stopping",
   error: "Build Failed",
-  loading: "Loading Status"
+  loading: "Loading Status",
 }
 
 export interface WorkspaceStatusBarProps {
