@@ -57,7 +57,28 @@ func (e *Executor) runOnce(t time.Time) error {
 			// Determine the workspace state based on its latest build.
 			latestBuild, err := db.GetWorkspaceBuildByWorkspaceIDWithoutAfter(e.ctx, ws.ID)
 			if err != nil {
-				return xerrors.Errorf("get latest build for workspace %q: %w", ws.ID, err)
+				e.log.Warn(e.ctx, "get latest workspace build",
+					slog.F("workspace_id", ws.ID),
+					slog.Error(err),
+				)
+				continue
+			}
+
+			lastBuild, err := db.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
+			if err != nil {
+				e.log.Warn(e.ctx, "get last provisioner job for workspace %q: %w",
+					slog.F("workspace_id", ws.ID),
+					slog.Error(err),
+				)
+				continue
+			}
+
+			if !lastBuild.CompletedAt.Valid || lastBuild.Error.String != "" {
+				e.log.Warn(e.ctx, "last workspace build did not complete successfully, skipping",
+					slog.F("workspace_id", ws.ID),
+					slog.F("error", lastBuild.Error.String),
+				)
+				continue
 			}
 
 			var validTransition database.WorkspaceTransition
