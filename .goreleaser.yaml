@@ -32,7 +32,8 @@ builds:
       ["-s -w -X github.com/coder/coder/buildinfo.tag={{ .Version }}"]
     env: [CGO_ENABLED=0]
     goos: [darwin, linux, windows]
-    goarch: [amd64]
+    goarch: [amd64, arm, arm64]
+    goarm: ["7"]
     hooks:
       # The "trimprefix" appends ".exe" on Windows.
       post: |
