@@ -66,8 +66,8 @@ export const TemplatePage: React.FC = () => {
     {
       key: "name",
       name: "Name",
-      renderer: (nameField: string | WorkspaceBuild, workspace: Workspace) => {
-        return <Link to={`/workspaces/${workspace.id}`}>{nameField}</Link>
+      renderer: (_, workspace: Workspace) => {
+        return <Link to={`/workspaces/${workspace.id}`}>{workspace.name}</Link>
       },
     },
   ]
