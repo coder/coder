@@ -662,6 +662,51 @@ func TestPostAPIKey(t *testing.T) {
 	})
 }
 
+func TestWorkspacesByUser(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		workspaces, err := client.WorkspacesByUser(context.Background(), codersdk.Me)
+		require.NoError(t, err)
+		require.Len(t, workspaces, 0)
+	})
+	t.Run("Access", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+			Email:          "test@coder.com",
+			Username:       "someone",
+			Password:       "password",
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+		auth, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    newUser.Email,
+			Password: "password",
+		})
+		require.NoError(t, err)
+
+		newUserClient := codersdk.New(client.URL)
+		newUserClient.SessionToken = auth.SessionToken
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		workspaces, err := newUserClient.WorkspacesByUser(context.Background(), codersdk.Me)
+		require.NoError(t, err)
+		require.Len(t, workspaces, 0)
+
+		workspaces, err = client.WorkspacesByUser(context.Background(), codersdk.Me)
+		require.NoError(t, err)
+		require.Len(t, workspaces, 1)
+	})
+}
+
 // TestPaginatedUsers creates a list of users, then tries to paginate through
 // them using different page sizes.
 func TestPaginatedUsers(t *testing.T) {

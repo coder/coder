@@ -3210,6 +3210,49 @@ func (q *sqlQuerier) GetWorkspacesByOrganizationID(ctx context.Context, arg GetW
 	return items, nil
 }
 
+const getWorkspacesByOrganizationIDs = `-- name: GetWorkspacesByOrganizationIDs :many
+SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule FROM workspaces WHERE organization_id = ANY($1 :: uuid [ ]) AND deleted = $2
+`
+
+type GetWorkspacesByOrganizationIDsParams struct {
+	Ids     []uuid.UUID `db:"ids" json:"ids"`
+	Deleted bool        `db:"deleted" json:"deleted"`
+}
+
+func (q *sqlQuerier) GetWorkspacesByOrganizationIDs(ctx context.Context, arg GetWorkspacesByOrganizationIDsParams) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesByOrganizationIDs, pq.Array(arg.Ids), arg.Deleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspacesByOwnerID = `-- name: GetWorkspacesByOwnerID :many
 SELECT
 	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
