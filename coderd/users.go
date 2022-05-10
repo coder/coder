@@ -820,7 +820,8 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	organizationIDs := make([]uuid.UUID, 0)
 	for _, organization := range organizations {
 		err = api.Authorizer.AuthorizeByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead, rbac.ResourceWorkspace.All().InOrg(organization.ID))
-		if errors.Is(err, &rbac.UnauthorizedError{}) {
+		var apiErr *rbac.UnauthorizedError
+		if xerrors.As(err, &apiErr) {
 			continue
 		}
 		if err != nil {
@@ -832,7 +833,8 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		organizationIDs = append(organizationIDs, organization.ID)
 	}
 
-	workspaces, err := api.Database.GetWorkspacesByOrganizationIDs(r.Context(), database.GetWorkspacesByOrganizationIDsParams{
+	workspaceIDs := map[uuid.UUID]struct{}{}
+	allWorkspaces, err := api.Database.GetWorkspacesByOrganizationIDs(r.Context(), database.GetWorkspacesByOrganizationIDsParams{
 		Ids: organizationIDs,
 	})
 	if err != nil {
@@ -841,7 +843,27 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+	for _, ws := range allWorkspaces {
+		workspaceIDs[ws.ID] = struct{}{}
+	}
+	userWorkspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
+		OwnerID: user.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces for user: %s", err),
+		})
+		return
+	}
+	for _, ws := range userWorkspaces {
+		_, exists := workspaceIDs[ws.ID]
+		if exists {
+			continue
+		}
+		allWorkspaces = append(allWorkspaces, ws)
+	}
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allWorkspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
