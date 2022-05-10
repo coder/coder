@@ -93,10 +93,32 @@ export const MockProvisionerJob = {
   worker_id: "test-worker-id",
 }
 
+export const MockFailedProvisionerJob = {
+  id: "test-provisioner-job",
+  created_at: "",
+  started_at: "",
+  completed_at: "",
+  error: "",
+  status: "failed" as ProvisionerJobStatus,
+  worker_id: "test-worker-id",
+}
+
 export const MockWorkspaceBuild = {
   id: "test-workspace-build",
   transition: "start" as WorkspaceBuildTransition,
   job: MockProvisionerJob,
+}
+
+export const MockWorkspaceBuildStop = {
+  id: "test-workspace-build",
+  transition: "stop" as WorkspaceBuildTransition,
+  job: MockProvisionerJob,
+}
+
+export const MockFailedWorkspaceBuild = {
+  id: "test-workspace-build",
+  transition: "start" as WorkspaceBuildTransition,
+  job: MockFailedProvisionerJob,
 }
 
 // These are special cases of MockWorkspaceBuild for more precise testing
@@ -127,6 +149,34 @@ export const MockWorkspace: Workspace = {
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
   latest_build: MockWorkspaceBuild,
 }
+
+export const MockStoppedWorkspace: Workspace = {
+  id: "test-workspace",
+  name: "Test-Workspace",
+  created_at: "",
+  updated_at: "",
+  template_id: MockTemplate.id,
+  outdated: false,
+  owner_id: MockUser.id,
+  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
+  autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
+  latest_build: MockWorkspaceBuildStop,
+}
+
+export const MockFailedWorkspace: Workspace = {
+  id: "test-workspace",
+  name: "Test-Workspace",
+  created_at: "",
+  updated_at: "",
+  template_id: MockTemplate.id,
+  outdated: false,
+  owner_id: MockUser.id,
+  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
+  autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
+  latest_build: MockFailedWorkspaceBuild,
+}
+
+
 
 export const MockWorkspaceAgent: WorkspaceAgent = {
   id: "test-workspace-agent",

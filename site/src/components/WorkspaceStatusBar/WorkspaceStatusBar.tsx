@@ -73,7 +73,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
         <div className={styles.horizontal}>
           <div className={styles.horizontal}>
             <Typography variant="h4">{workspace.name}</Typography>
-            <Box className={styles.statusChip}>
+            <Box className={styles.statusChip} role="status">
               {workspaceStatus === "started" && Language.started}
               {workspaceStatus === "starting" && Language.starting}
               {workspaceStatus === "stopped" && Language.stopped}
