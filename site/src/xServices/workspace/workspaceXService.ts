@@ -52,11 +52,11 @@ export const workspaceMachine = createMachine(
     },
     id: "workspaceState",
     initial: "idle",
+    on: {
+      GET_WORKSPACE: "gettingWorkspace",
+    },
     states: {
       idle: {
-        on: {
-          GET_WORKSPACE: "gettingWorkspace",
-        },
         tags: "loading",
       },
       gettingWorkspace: {
