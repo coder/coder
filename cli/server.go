@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/lifecycle/executor"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -342,6 +343,11 @@ func server() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
+
+			lifecyclePoller := time.NewTicker(30 * time.Second)
+			defer lifecyclePoller.Stop()
+			lifecycleExecutor := executor.New(cmd.Context(), options.Database, logger, lifecyclePoller.C)
+			go lifecycleExecutor.Run()
 
 			// Because the graceful shutdown includes cleaning up workspaces in dev mode, we're
 			// going to make it harder to accidentally skip the graceful shutdown by hitting ctrl+c
