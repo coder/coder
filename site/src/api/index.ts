@@ -123,7 +123,7 @@ const postWorkspaceBuild =
       transition,
       templateVersionId,
     }
-    const response = await axios.post(`api/v2/workspaces/${workspaceId}/builds`, payload)
+    const response = await axios.post(`/api/v2/workspaces/${workspaceId}/builds`, payload)
     return response.data
   }
 
