@@ -75,7 +75,7 @@ func main() {
 		"service":              "coder",
 		"_dd.cireport_version": "2",
 
-		"test.traits": fmt.Sprintf(`{"database":["%s"], "category":["%s"]}`,
+		"test.traits": fmt.Sprintf(`{"database":[%q], "category":[%q]}`,
 			os.Getenv("DD_DATABASE"), os.Getenv("DD_CATEGORY")),
 
 		// Additional tags found in DataDog docs. See:

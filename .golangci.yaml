@@ -77,7 +77,7 @@ linters-settings:
       # - sloppyReassign
       - sloppyTypeAssert
       - sortSlice
-      # - sprintfQuotedString
+      - sprintfQuotedString
       - sqlQuery
       # - stringConcatSimplify
       # - stringXbytes
@@ -107,6 +107,9 @@ linters-settings:
 
   staticcheck:
     # https://staticcheck.io/docs/options#checks
+    # We disable SA1019 because it gets angry about our usage of xerrors. We
+    # intentionally xerrors because stack frame support didn't make it into the
+    # stdlib port.
     checks: ["all", "-SA1019"]
 
   goimports:
