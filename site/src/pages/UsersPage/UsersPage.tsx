@@ -18,6 +18,9 @@ const useRoles = () => {
   const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
   const { roles } = rolesState.context
 
+  /**
+   * Fetch roles on component mount
+   */
   useEffect(() => {
     rolesSend({
       type: "GET_ROLES",
