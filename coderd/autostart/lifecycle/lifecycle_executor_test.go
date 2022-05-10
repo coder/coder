@@ -25,10 +25,10 @@ func Test_Executor_Autostart_OK(t *testing.T) {
 			LifecycleTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = MustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client)
 	)
 	// Given: workspace is stopped
-	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// Given: the workspace initially has autostart disabled
 	require.Empty(t, workspace.AutostartSchedule)
@@ -48,7 +48,7 @@ func Test_Executor_Autostart_OK(t *testing.T) {
 
 	// Then: the workspace should be started
 	require.Eventually(t, func() bool {
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded &&
 			ws.LatestBuild.Transition == database.WorkspaceTransitionStart
 	}, 5*time.Second, 250*time.Millisecond)
@@ -65,7 +65,7 @@ func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
 			LifecycleTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = MustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client)
 	)
 
 	// Given: we ensure the workspace is running
@@ -89,7 +89,7 @@ func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
 
 	// Then: the workspace should not be started.
 	require.Never(t, func() bool {
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
 	}, 5*time.Second, 250*time.Millisecond)
 }
@@ -103,11 +103,11 @@ func Test_Executor_Autostart_NotEnabled(t *testing.T) {
 			LifecycleTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = MustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client)
 	)
 
 	// Given: workspace is stopped
-	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// Given: the workspace has autostart disabled
 	require.Empty(t, workspace.AutostartSchedule)
@@ -120,7 +120,7 @@ func Test_Executor_Autostart_NotEnabled(t *testing.T) {
 
 	// Then: the workspace should not be started.
 	require.Never(t, func() bool {
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
 	}, 5*time.Second, 250*time.Millisecond)
 }
@@ -136,7 +136,7 @@ func Test_Executor_Autostop_OK(t *testing.T) {
 			LifecycleTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = MustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client)
 	)
 	// Given: workspace is running
 	require.Equal(t, database.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
@@ -159,7 +159,7 @@ func Test_Executor_Autostop_OK(t *testing.T) {
 
 	// Then: the workspace should be started
 	require.Eventually(t, func() bool {
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
 	}, 5*time.Second, 250*time.Millisecond)
 }
@@ -174,11 +174,11 @@ func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
 			LifecycleTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = MustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client)
 	)
 
 	// Given: workspace is stopped
-	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// Given: the workspace initially has autostart disabled
 	require.Empty(t, workspace.AutostopSchedule)
@@ -198,7 +198,7 @@ func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
 
 	// Then: the workspace should not be stopped.
 	require.Never(t, func() bool {
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.ID == workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
 	}, 5*time.Second, 250*time.Millisecond)
 }
@@ -212,7 +212,7 @@ func Test_Executor_Autostop_NotEnabled(t *testing.T) {
 			LifecycleTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = MustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client)
 	)
 
 	// Given: workspace is running
@@ -229,7 +229,7 @@ func Test_Executor_Autostop_NotEnabled(t *testing.T) {
 
 	// Then: the workspace should not be stopped.
 	require.Never(t, func() bool {
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.ID == workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
 	}, 5*time.Second, 250*time.Millisecond)
 }
@@ -245,7 +245,7 @@ func Test_Executor_Workspace_Deleted(t *testing.T) {
 			LifecycleTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
-		workspace = MustProvisionWorkspace(t, client)
+		workspace = mustProvisionWorkspace(t, client)
 	)
 
 	// Given: the workspace initially has autostart disabled
@@ -259,7 +259,7 @@ func Test_Executor_Workspace_Deleted(t *testing.T) {
 	}))
 
 	// Given: workspace is deleted
-	MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
+	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
 
 	// When: the lifecycle executor ticks
 	go func() {
@@ -269,12 +269,12 @@ func Test_Executor_Workspace_Deleted(t *testing.T) {
 
 	// Then: nothing should happen
 	require.Never(t, func() bool {
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		ws := mustWorkspace(t, client, workspace.ID)
 		return ws.LatestBuild.Transition != database.WorkspaceTransitionDelete
 	}, 5*time.Second, 250*time.Millisecond)
 }
 
-func MustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
+func mustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
 	t.Helper()
 	coderdtest.NewProvisionerDaemon(t, client)
 	user := coderdtest.CreateFirstUser(t, client)
@@ -283,10 +283,10 @@ func MustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Work
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
-	return coderdtest.MustWorkspace(t, client, ws.ID)
+	return mustWorkspace(t, client, ws.ID)
 }
 
-func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) {
+func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
@@ -304,6 +304,13 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 
 	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
-	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
+	updated := mustWorkspace(t, client, workspace.ID)
 	require.Equal(t, to, updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
+}
+
+func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
+	ctx := context.Background()
+	ws, err := client.Workspace(ctx, workspaceID)
+	require.NoError(t, err, "no workspace found with id %s", workspaceID)
+	return ws
 }

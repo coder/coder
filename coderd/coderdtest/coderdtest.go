@@ -508,10 +508,3 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
-
-func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
-	ctx := context.Background()
-	ws, err := client.Workspace(ctx, workspaceID)
-	require.NoError(t, err, "no workspace found with id %s", workspaceID)
-	return ws
-}
