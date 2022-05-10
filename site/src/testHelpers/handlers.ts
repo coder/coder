@@ -51,6 +51,9 @@ export const handlers = [
   rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAuthMethods))
   }),
+  rest.get("/api/v2/users/roles", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockSiteRoles))
+  }),
 
   // workspaces
   rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
