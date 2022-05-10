@@ -1,13 +1,13 @@
-package lifecycle_test
+package executor_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/autostart/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/lifecycle/schedule"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"

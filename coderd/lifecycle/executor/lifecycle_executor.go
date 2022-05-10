@@ -1,4 +1,4 @@
-package lifecycle
+package executor
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/coderd/autostart/schedule"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/lifecycle/schedule"
 
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -23,8 +23,8 @@ type Executor struct {
 	tick <-chan time.Time
 }
 
-// NewExecutor returns a new instance of Executor.
-func NewExecutor(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
+// New returns a new lifecycle executor.
+func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		ctx:  ctx,
 		db:   db,

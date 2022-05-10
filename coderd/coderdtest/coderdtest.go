@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/autostart/lifecycle"
-
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
@@ -43,6 +41,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/lifecycle/executor"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -105,7 +104,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	lifecycleExecutor := lifecycle.NewExecutor(
+	lifecycleExecutor := executor.New(
 		ctx,
 		db,
 		slogtest.Make(t, nil).Named("lifecycle.executor").Leveled(slog.LevelDebug),
