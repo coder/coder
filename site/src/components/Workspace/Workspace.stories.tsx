@@ -20,7 +20,7 @@ Started.args = {
   handleStart: action("start"),
   handleStop: action("stop"),
   handleRetry: action("retry"),
-  workspaceStatus: "started"
+  workspaceStatus: "started",
 }
 
 export const Starting = Template.bind({})

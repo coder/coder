@@ -20,7 +20,15 @@ export interface WorkspaceProps {
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, workspace, handleStart, handleStop, handleRetry, workspaceStatus }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({
+  organization,
+  template,
+  workspace,
+  handleStart,
+  handleStop,
+  handleRetry,
+  workspaceStatus,
+}) => {
   const styles = useStyles()
 
   return (

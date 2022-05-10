@@ -1,9 +1,7 @@
 import Box from "@material-ui/core/Box"
 import Button from "@material-ui/core/Button"
-import Divider from "@material-ui/core/Divider"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import React from "react"
 import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
@@ -23,7 +21,7 @@ const Language = {
   stopped: "Stopped",
   starting: "Building",
   stopping: "Stopping",
-  error: "Build Failed"
+  error: "Build Failed",
 }
 
 export interface WorkspaceStatusBarProps {
@@ -46,7 +44,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
   handleStart,
   handleStop,
   handleRetry,
-  workspaceStatus
+  workspaceStatus,
 }) => {
   const styles = useStyles()
 
@@ -55,23 +53,21 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
   return (
     <WorkspaceSection>
       <Stack spacing={1}>
-
         <div className={combineClasses([styles.horizontal, styles.reverse])}>
           <div className={styles.horizontal}>
-              <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>
-                {Language.settings}
-              </Link>
+            <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>
+              {Language.settings}
+            </Link>
           </div>
 
-          {organization && template &&
+          {organization && template && (
             <Typography variant="body2" color="textSecondary">
               Back to{" "}
               <Link className={styles.link} to={templateLink}>
                 {template.name}
               </Link>
             </Typography>
-          }
-
+          )}
         </div>
 
         <div className={styles.horizontal}>
@@ -87,28 +83,23 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
           </div>
 
           <div className={styles.horizontal}>
-            {workspaceStatus === "started" && 
-              (<Button onClick={handleStop} color="primary">
+            {workspaceStatus === "started" && (
+              <Button onClick={handleStop} color="primary">
                 {Language.stop}
-              </Button>)
-            }
-            {workspaceStatus === "stopped" &&
-              (<Button onClick={handleStart} color="primary">
+              </Button>
+            )}
+            {workspaceStatus === "stopped" && (
+              <Button onClick={handleStart} color="primary">
                 {Language.start}
-              </Button>)
-            }
-            {workspaceStatus === "error" &&
-              (<Button onClick={handleRetry} color="primary">
+              </Button>
+            )}
+            {workspaceStatus === "error" && (
+              <Button onClick={handleRetry} color="primary">
                 {Language.retry}
-              </Button>)
-            }
-
-            {workspace.outdated && (
-              <Button color="primary">
-                {Language.update}
               </Button>
             )}
 
+            {workspace.outdated && <Button color="primary">{Language.update}</Button>}
           </div>
         </div>
       </Stack>
@@ -133,12 +124,12 @@ const useStyles = makeStyles((theme) => {
       gap: theme.spacing(2),
     },
     reverse: {
-      flexDirection: 'row-reverse'
+      flexDirection: "row-reverse",
     },
     statusChip: {
       border: `solid 1px ${theme.palette.text.hint}`,
       borderRadius: theme.shape.borderRadius,
-      padding: theme.spacing(1)
+      padding: theme.spacing(1),
     },
     vertical: {
       display: "flex",

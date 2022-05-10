@@ -82,19 +82,19 @@ export const MockWorkspaceAutostopEnabled: WorkspaceAutostartRequest = {
 }
 
 export const MockProvisionerJob = {
-   id: "test-provisioner-job",
-   created_at: "",
-   started_at: "",
-   completed_at: "",
-   error: "",
-   status: "succeeded" as ProvisionerJobStatus,
-   worker_id: "test-worker-id"
+  id: "test-provisioner-job",
+  created_at: "",
+  started_at: "",
+  completed_at: "",
+  error: "",
+  status: "succeeded" as ProvisionerJobStatus,
+  worker_id: "test-worker-id",
 }
 
 export const MockWorkspaceBuild = {
   id: "test-workspace-build",
   transition: "start" as WorkspaceBuildTransition,
-  job: MockProvisionerJob
+  job: MockProvisionerJob,
 }
 
 // These are special cases of MockWorkspaceBuild for more precise testing

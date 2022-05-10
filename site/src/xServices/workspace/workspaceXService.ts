@@ -16,7 +16,12 @@ interface WorkspaceContext {
   buildError?: Error | unknown
 }
 
-type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string } | { type: "START" } | {type: "STOP"} | { type: "RETRY" } | { type: 'REFRESH_WORKSPACE' }
+type WorkspaceEvent =
+  | { type: "GET_WORKSPACE"; workspaceId: string }
+  | { type: "START" }
+  | { type: "STOP" }
+  | { type: "RETRY" }
+  | { type: "REFRESH_WORKSPACE" }
 
 export const workspaceMachine = createMachine(
   {
@@ -49,7 +54,7 @@ export const workspaceMachine = createMachine(
         on: {
           GET_WORKSPACE: "gettingWorkspace",
         },
-        tags: "loading"
+        tags: "loading",
       },
       gettingWorkspace: {
         invoke: {
@@ -103,7 +108,7 @@ export const workspaceMachine = createMachine(
                 tags: "loading",
               },
               error: {},
-              ready: {}
+              ready: {},
             },
           },
           build: {
@@ -113,34 +118,34 @@ export const workspaceMachine = createMachine(
                 always: [
                   {
                     cond: "workspaceIsStarted",
-                    target: "started"
+                    target: "started",
                   },
-                  { 
+                  {
                     cond: "workspaceIsStopped",
-                    target: "stopped"
+                    target: "stopped",
                   },
                   {
                     cond: "workspaceIsStarting",
-                    target: "buildingStart"
+                    target: "buildingStart",
                   },
                   {
                     cond: "workspaceIsStopping",
-                    target: "buildingStop"
+                    target: "buildingStop",
                   },
-                  { target: "error" }
-                ]
+                  { target: "error" },
+                ],
               },
               started: {
                 on: {
-                  STOP: "requestingStop"
+                  STOP: "requestingStop",
                 },
-                tags: "buildReady"
+                tags: "buildReady",
               },
               stopped: {
                 on: {
-                  START: "requestingStart"
+                  START: "requestingStart",
                 },
-                tags: "buildReady"
+                tags: "buildReady",
               },
               requestingStart: {
                 invoke: {
@@ -148,14 +153,14 @@ export const workspaceMachine = createMachine(
                   src: "startWorkspace",
                   onDone: {
                     target: "buildingStart",
-                    actions: "clearJobError"
+                    actions: "clearJobError",
                   },
                   onError: {
                     target: "error",
-                    actions: "assignJobError"
-                  }
+                    actions: "assignJobError",
+                  },
                 },
-                tags: ["buildLoading", "starting"]
+                tags: ["buildLoading", "starting"],
               },
               requestingStop: {
                 invoke: {
@@ -164,10 +169,10 @@ export const workspaceMachine = createMachine(
                   onDone: { target: "buildingStop", actions: "clearJobError" },
                   onError: {
                     target: "error",
-                    actions: "assignJobError"
-                  }
+                    actions: "assignJobError",
+                  },
                 },
-                tags: ["buildLoading", "stopping"]
+                tags: ["buildLoading", "stopping"],
               },
               buildingStart: {
                 invoke: {
@@ -184,28 +189,28 @@ export const workspaceMachine = createMachine(
                         {
                           cond: "jobSucceeded",
                           target: "#workspaceState.ready.build.started",
-                          actions: "clearBuildError"
+                          actions: "clearBuildError",
                         },
                         {
                           cond: "jobPendingOrRunning",
-                          target: "waiting"
+                          target: "waiting",
                         },
                         {
                           // if job is canceling, cancelled, or failed, the user needs to retry
                           target: "#workspaceState.ready.build.error",
-                          actions: "assignBuildError"
-                        }
+                          actions: "assignBuildError",
+                        },
                       ],
-                      onError: "waiting"
-                    }
+                      onError: "waiting",
+                    },
                   },
                   waiting: {
                     on: {
-                      REFRESH_WORKSPACE: "refreshingWorkspace"
-                    }
-                  }
+                      REFRESH_WORKSPACE: "refreshingWorkspace",
+                    },
+                  },
                 },
-                tags: ["buildLoading", "starting"]
+                tags: ["buildLoading", "starting"],
               },
               buildingStop: {
                 invoke: {
@@ -222,45 +227,45 @@ export const workspaceMachine = createMachine(
                         {
                           cond: "jobSucceeded",
                           target: "#workspaceState.ready.build.stopped",
-                          actions: "clearBuildError"
+                          actions: "clearBuildError",
                         },
                         {
                           cond: "jobPendingOrRunning",
-                          target: "waiting"
+                          target: "waiting",
                         },
                         {
                           // if job is canceling, cancelled, or failed, the user needs to retry
                           target: "#workspaceState.ready.build.error",
-                          actions: "assignBuildError"
-                        }
+                          actions: "assignBuildError",
+                        },
                       ],
-                      onError: "waiting"
-                    }
+                      onError: "waiting",
+                    },
                   },
                   waiting: {
                     on: {
-                      REFRESH_WORKSPACE: "refreshingWorkspace"
-                    }
-                  }
+                      REFRESH_WORKSPACE: "refreshingWorkspace",
+                    },
+                  },
                 },
-                tags: ["buildLoading", "stopping"]
+                tags: ["buildLoading", "stopping"],
               },
               error: {
                 on: {
                   RETRY: [
                     {
                       cond: "triedToStart",
-                      target: "requestingStart"
+                      target: "requestingStart",
                     },
                     {
                       // this could also be post-delete
-                      target: "requestingStop"
-                    }
-                  ]
-                }
-              }
-            }
-          }
+                      target: "requestingStop",
+                    },
+                  ],
+                },
+              },
+            },
+          },
         },
       },
       error: {
@@ -293,42 +298,42 @@ export const workspaceMachine = createMachine(
         getOrganizationError: (_, event) => event.data,
       }),
       clearGetOrganizationError: (context) => assign({ ...context, getOrganizationError: undefined }),
-      assignJobError: (_, event) => assign({
-        jobError: event.data
-      }),
-      clearJobError: (_) => assign({
-        jobError: undefined
-      }),
-      assignBuildError: (_, event) => assign({
-        buildError: event.data
-      }),
-      clearBuildError: (_) => assign({
-        buildError: undefined
-      }),
+      assignJobError: (_, event) =>
+        assign({
+          jobError: event.data,
+        }),
+      clearJobError: (_) =>
+        assign({
+          jobError: undefined,
+        }),
+      assignBuildError: (_, event) =>
+        assign({
+          buildError: event.data,
+        }),
+      clearBuildError: (_) =>
+        assign({
+          buildError: undefined,
+        }),
     },
     guards: {
-      workspaceIsStarted: (context) => (
-        context.workspace?.latest_build.transition === "start" && context.workspace.latest_build.job.status === "succeeded"
-      ),
-      workspaceIsStopped: (context) => (
-        context.workspace?.latest_build.transition === "stop" && context.workspace.latest_build.job.status === "succeeded"
-      ),
-      workspaceIsStarting: (context) => (
-        context.workspace?.latest_build.transition === "start" && ["pending", "running"].includes(context.workspace.latest_build.job.status)
-      ),
-      workspaceIsStopping: (context) => (
-        context.workspace?.latest_build.transition === "stop" && ["pending", "running"].includes(context.workspace.latest_build.job.status)
-      ),
-      triedToStart: (context) => (
-        context.workspace?.latest_build.transition === "start"
-      ),
-      jobSucceeded: (context) => (
-        context.workspace?.latest_build.job.status === "succeeded"
-      ),
+      workspaceIsStarted: (context) =>
+        context.workspace?.latest_build.transition === "start" &&
+        context.workspace.latest_build.job.status === "succeeded",
+      workspaceIsStopped: (context) =>
+        context.workspace?.latest_build.transition === "stop" &&
+        context.workspace.latest_build.job.status === "succeeded",
+      workspaceIsStarting: (context) =>
+        context.workspace?.latest_build.transition === "start" &&
+        ["pending", "running"].includes(context.workspace.latest_build.job.status),
+      workspaceIsStopping: (context) =>
+        context.workspace?.latest_build.transition === "stop" &&
+        ["pending", "running"].includes(context.workspace.latest_build.job.status),
+      triedToStart: (context) => context.workspace?.latest_build.transition === "start",
+      jobSucceeded: (context) => context.workspace?.latest_build.job.status === "succeeded",
       jobPendingOrRunning: (context) => {
         const status = context.workspace?.latest_build.job.status
         return status === "pending" || status === "running"
-      }
+      },
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -365,8 +370,8 @@ export const workspaceMachine = createMachine(
       pollBuild: async (context) => (send) => {
         if (context.workspace) {
           const workspaceId = context.workspace.id
-          const intervalId = setInterval(() => send({ type: 'GET_WORKSPACE', workspaceId }), 1000);
-          return () => clearInterval(intervalId);
+          const intervalId = setInterval(() => send({ type: "GET_WORKSPACE", workspaceId }), 1000)
+          return () => clearInterval(intervalId)
         } else {
           throw Error("Cannot fetch workspace without id")
         }
@@ -377,7 +382,7 @@ export const workspaceMachine = createMachine(
         } else {
           throw Error("Cannot refresh workspace without id")
         }
-      }
+      },
     },
   },
 )

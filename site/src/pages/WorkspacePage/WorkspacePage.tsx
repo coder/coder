@@ -42,18 +42,21 @@ export const WorkspacePage: React.FC = () => {
 
   if (workspaceState.matches("error")) {
     return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError} />
-  } else if (!workspace){
+  } else if (!workspace) {
     return <FullScreenLoader />
   } else {
     return (
       <Margins>
         <Stack spacing={4}>
-          <Workspace organization={organization} template={template} workspace={workspace}
+          <Workspace
+            organization={organization}
+            template={template}
+            workspace={workspace}
             handleStart={() => workspaceSend("START")}
             handleStop={() => workspaceSend("STOP")}
             handleRetry={() => workspaceSend("RETRY")}
             workspaceStatus={workspaceStatus}
-           />
+          />
         </Stack>
       </Margins>
     )
