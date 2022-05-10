@@ -20,14 +20,14 @@ import (
 
 func TestWorkspace(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	_, err := client.Workspace(context.Background(), workspace.ID)
+	api := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, api.Client)
+	coderdtest.NewProvisionerDaemon(t, api.Client)
+	version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+	template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+	_, err := api.Client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
 }
 
@@ -35,14 +35,14 @@ func TestWorkspaceBuilds(t *testing.T) {
 	t.Parallel()
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.WorkspaceBuilds(context.Background(), workspace.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		_, err := api.Client.WorkspaceBuilds(context.Background(), workspace.ID)
 		require.NoError(t, err)
 	})
 }
@@ -51,14 +51,14 @@ func TestPostWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 	t.Run("NoTemplateVersion", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.NewProvisionerDaemon(t, client)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		api := coderdtest.New(t, nil)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		_, err := api.Client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: uuid.New(),
 			Transition:        database.WorkspaceTransitionStart,
 		})
@@ -70,15 +70,15 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("TemplateVersionFailedImport", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Provision: []*proto.Provision_Response{{}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		_, err := client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.CreateWorkspaceRequest{
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		_, err := api.Client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
 			Name:       "workspace",
 		})
@@ -89,16 +89,16 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("AlreadyActive", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		closeDaemon := coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
 		// Close here so workspace build doesn't process!
 		closeDaemon.Close()
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		_, err := api.Client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Transition:        database.WorkspaceTransitionStart,
 		})
@@ -110,67 +110,67 @@ func TestPostWorkspaceBuild(t *testing.T) {
 
 	t.Run("UpdatePriorAfterField", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
+		build, err := api.Client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Transition:        database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
 
-		firstBuild, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
+		firstBuild, err := api.Client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
 		require.Equal(t, build.ID.String(), firstBuild.AfterID.String())
 	})
 
 	t.Run("WithState", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		closeDaemon := coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		closeDaemon := coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 		_ = closeDaemon.Close()
 		wantState := []byte("something")
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		build, err := api.Client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Transition:        database.WorkspaceTransitionStart,
 			ProvisionerState:  wantState,
 		})
 		require.NoError(t, err)
-		gotState, err := client.WorkspaceBuildState(context.Background(), build.ID)
+		gotState, err := api.Client.WorkspaceBuildState(context.Background(), build.ID)
 		require.NoError(t, err)
 		require.Equal(t, wantState, gotState)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
+		build, err := api.Client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			Transition: database.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, build.ID)
 
-		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, user.UserID)
+		workspaces, err := api.Client.WorkspacesByOwner(context.Background(), user.OrganizationID, user.UserID)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
@@ -180,14 +180,14 @@ func TestWorkspaceBuildByName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.WorkspaceBuildByName(context.Background(), workspace.ID, "something")
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		_, err := api.Client.WorkspaceBuildByName(context.Background(), workspace.ID, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -195,16 +195,16 @@ func TestWorkspaceBuildByName(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		build, err := api.Client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		_, err = client.WorkspaceBuildByName(context.Background(), workspace.ID, build.Name)
+		_, err = api.Client.WorkspaceBuildByName(context.Background(), workspace.ID, build.Name)
 		require.NoError(t, err)
 	})
 }
@@ -283,19 +283,19 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			t.Parallel()
 			var (
 				ctx       = context.Background()
-				client    = coderdtest.New(t, nil)
-				_         = coderdtest.NewProvisionerDaemon(t, client)
-				user      = coderdtest.CreateFirstUser(t, client)
-				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+				api       = coderdtest.New(t, nil)
+				_         = coderdtest.NewProvisionerDaemon(t, api.Client)
+				user      = coderdtest.CreateFirstUser(t, api.Client)
+				version   = coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+				project   = coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+				workspace = coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, project.ID)
 			)
 
 			// ensure test invariant: new workspaces have no autostart schedule.
 			require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
 
-			err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			err := api.Client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 				Schedule: testCase.schedule,
 			})
 
@@ -306,7 +306,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 
 			require.NoError(t, err, "expected no error setting workspace autostart schedule")
 
-			updated, err := client.Workspace(ctx, workspace.ID)
+			updated, err := api.Client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err, "fetch updated workspace")
 
 			require.Equal(t, testCase.schedule, updated.AutostartSchedule, "expected autostart schedule to equal requested")
@@ -326,16 +326,16 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		var (
-			ctx    = context.Background()
-			client = coderdtest.New(t, nil)
-			_      = coderdtest.CreateFirstUser(t, client)
-			wsid   = uuid.New()
-			req    = codersdk.UpdateWorkspaceAutostartRequest{
+			ctx  = context.Background()
+			api  = coderdtest.New(t, nil)
+			_    = coderdtest.CreateFirstUser(t, api.Client)
+			wsid = uuid.New()
+			req  = codersdk.UpdateWorkspaceAutostartRequest{
 				Schedule: "9 30 1-5",
 			}
 		)
 
-		err := client.UpdateWorkspaceAutostart(ctx, wsid, req)
+		err := api.Client.UpdateWorkspaceAutostart(ctx, wsid, req)
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")
@@ -417,19 +417,19 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 			t.Parallel()
 			var (
 				ctx       = context.Background()
-				client    = coderdtest.New(t, nil)
-				_         = coderdtest.NewProvisionerDaemon(t, client)
-				user      = coderdtest.CreateFirstUser(t, client)
-				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+				api       = coderdtest.New(t, nil)
+				_         = coderdtest.NewProvisionerDaemon(t, api.Client)
+				user      = coderdtest.CreateFirstUser(t, api.Client)
+				version   = coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+				project   = coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+				workspace = coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, project.ID)
 			)
 
 			// ensure test invariant: new workspaces have no autostop schedule.
 			require.Empty(t, workspace.AutostopSchedule, "expected newly-minted workspace to have no autstop schedule")
 
-			err := client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
+			err := api.Client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
 				Schedule: testCase.schedule,
 			})
 
@@ -440,7 +440,7 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 
 			require.NoError(t, err, "expected no error setting workspace autostop schedule")
 
-			updated, err := client.Workspace(ctx, workspace.ID)
+			updated, err := api.Client.Workspace(ctx, workspace.ID)
 			require.NoError(t, err, "fetch updated workspace")
 
 			require.Equal(t, testCase.schedule, updated.AutostopSchedule, "expected autostop schedule to equal requested")
@@ -460,16 +460,16 @@ func TestWorkspaceUpdateAutostop(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		var (
-			ctx    = context.Background()
-			client = coderdtest.New(t, nil)
-			_      = coderdtest.CreateFirstUser(t, client)
-			wsid   = uuid.New()
-			req    = codersdk.UpdateWorkspaceAutostopRequest{
+			ctx  = context.Background()
+			api  = coderdtest.New(t, nil)
+			_    = coderdtest.CreateFirstUser(t, api.Client)
+			wsid = uuid.New()
+			req  = codersdk.UpdateWorkspaceAutostopRequest{
 				Schedule: "9 30 1-5",
 			}
 		)
 
-		err := client.UpdateWorkspaceAutostop(ctx, wsid, req)
+		err := api.Client.UpdateWorkspaceAutostop(ctx, wsid, req)
 		require.IsType(t, err, &codersdk.Error{}, "expected codersdk.Error")
 		coderSDKErr, _ := err.(*codersdk.Error) //nolint:errorlint
 		require.Equal(t, coderSDKErr.StatusCode(), 404, "expected status code 404")

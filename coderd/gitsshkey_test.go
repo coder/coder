@@ -19,56 +19,56 @@ func TestGitSSHKey(t *testing.T) {
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		client := coderdtest.New(t, nil)
-		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		api := coderdtest.New(t, nil)
+		res := coderdtest.CreateFirstUser(t, api.Client)
+		key, err := api.Client.GitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("Ed25519", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 		})
-		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		res := coderdtest.CreateFirstUser(t, api.Client)
+		key, err := api.Client.GitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("ECDSA", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmECDSA,
 		})
-		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		res := coderdtest.CreateFirstUser(t, api.Client)
+		key, err := api.Client.GitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("RSA4096", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmRSA4096,
 		})
-		res := coderdtest.CreateFirstUser(t, client)
-		key, err := client.GitSSHKey(ctx, res.UserID)
+		res := coderdtest.CreateFirstUser(t, api.Client)
+		key, err := api.Client.GitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PublicKey)
 	})
 	t.Run("Regenerate", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			SSHKeygenAlgorithm: gitsshkey.AlgorithmEd25519,
 		})
-		res := coderdtest.CreateFirstUser(t, client)
-		key1, err := client.GitSSHKey(ctx, res.UserID)
+		res := coderdtest.CreateFirstUser(t, api.Client)
+		key1, err := api.Client.GitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
 		require.NotEmpty(t, key1.PublicKey)
-		key2, err := client.RegenerateGitSSHKey(ctx, res.UserID)
+		key2, err := api.Client.RegenerateGitSSHKey(ctx, res.UserID)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, key2.UpdatedAt, key1.UpdatedAt)
 		require.NotEmpty(t, key2.PublicKey)
@@ -79,11 +79,11 @@ func TestGitSSHKey(t *testing.T) {
 func TestAgentGitSSHKey(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	api := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, api.Client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, api.Client)
 	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
 		ProvisionDryRun: echo.ProvisionComplete,
 		Provision: []*proto.Provision_Response{{
@@ -103,13 +103,13 @@ func TestAgentGitSSHKey(t *testing.T) {
 			},
 		}},
 	})
-	project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	project := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, project.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := codersdk.New(api.Client.URL)
 	agentClient.SessionToken = authToken
 
 	agentKey, err := agentClient.AgentGitSSHKey(context.Background())

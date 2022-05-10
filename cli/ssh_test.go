@@ -26,11 +26,11 @@ func TestSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
 		agentToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
@@ -50,11 +50,11 @@ func TestSSH(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
 		cmd, root := clitest.New(t, "ssh", workspace.Name)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, api.Client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
@@ -66,8 +66,8 @@ func TestSSH(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		pty.ExpectMatch("Waiting")
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		agentClient := codersdk.New(client.URL)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
+		agentClient := codersdk.New(api.Client.URL)
 		agentClient.SessionToken = agentToken
 		agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
@@ -81,11 +81,11 @@ func TestSSH(t *testing.T) {
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
 		agentToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
@@ -105,14 +105,14 @@ func TestSSH(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
 		go func() {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
-			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-			agentClient := codersdk.New(client.URL)
+			coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
+			agentClient := codersdk.New(api.Client.URL)
 			agentClient.SessionToken = agentToken
 			agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 				Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
@@ -126,7 +126,7 @@ func TestSSH(t *testing.T) {
 		serverOutput, serverInput := io.Pipe()
 
 		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, api.Client, root)
 		doneChan := make(chan struct{})
 		cmd.SetIn(clientOutput)
 		cmd.SetOut(serverInput)

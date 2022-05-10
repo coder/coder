@@ -19,10 +19,10 @@ func TestTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_, err := client.TemplateVersion(context.Background(), version.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		_, err := api.Client.TemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
 	})
 }
@@ -31,22 +31,22 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("AlreadyCompleted", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		err := client.CancelTemplateVersion(context.Background(), version.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		err := api.Client.CancelTemplateVersion(context.Background(), version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
 	t.Run("AlreadyCanceled", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
@@ -56,24 +56,24 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		})
 		require.Eventually(t, func() bool {
 			var err error
-			version, err = client.TemplateVersion(context.Background(), version.ID)
+			version, err = api.Client.TemplateVersion(context.Background(), version.ID)
 			require.NoError(t, err)
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
 		}, 5*time.Second, 25*time.Millisecond)
-		err := client.CancelTemplateVersion(context.Background(), version.ID)
+		err := api.Client.CancelTemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
-		err = client.CancelTemplateVersion(context.Background(), version.ID)
+		err = api.Client.CancelTemplateVersion(context.Background(), version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
@@ -83,16 +83,16 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		})
 		require.Eventually(t, func() bool {
 			var err error
-			version, err = client.TemplateVersion(context.Background(), version.ID)
+			version, err = api.Client.TemplateVersion(context.Background(), version.ID)
 			require.NoError(t, err)
 			t.Logf("Status: %s", version.Job.Status)
 			return version.Job.Status == codersdk.ProvisionerJobRunning
 		}, 5*time.Second, 25*time.Millisecond)
-		err := client.CancelTemplateVersion(context.Background(), version.ID)
+		err := api.Client.CancelTemplateVersion(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			var err error
-			version, err = client.TemplateVersion(context.Background(), version.ID)
+			version, err = api.Client.TemplateVersion(context.Background(), version.ID)
 			require.NoError(t, err)
 			return version.Job.Status == codersdk.ProvisionerJobCanceled
 		}, 5*time.Second, 25*time.Millisecond)
@@ -103,20 +103,20 @@ func TestTemplateVersionSchema(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_, err := client.TemplateVersionSchema(context.Background(), version.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		_, err := api.Client.TemplateVersionSchema(context.Background(), version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
@@ -131,8 +131,8 @@ func TestTemplateVersionSchema(t *testing.T) {
 			}},
 			Provision: echo.ProvisionComplete,
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		schemas, err := client.TemplateVersionSchema(context.Background(), version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		schemas, err := api.Client.TemplateVersionSchema(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, schemas)
 		require.Len(t, schemas, 1)
@@ -143,20 +143,20 @@ func TestTemplateVersionParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_, err := client.TemplateVersionParameters(context.Background(), version.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		_, err := api.Client.TemplateVersionParameters(context.Background(), version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
@@ -176,8 +176,8 @@ func TestTemplateVersionParameters(t *testing.T) {
 			}},
 			Provision: echo.ProvisionComplete,
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		params, err := client.TemplateVersionParameters(context.Background(), version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		params, err := api.Client.TemplateVersionParameters(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, params)
 		require.Len(t, params, 1)
@@ -189,20 +189,20 @@ func TestTemplateVersionResources(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_, err := client.TemplateVersionResources(context.Background(), version.ID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, nil)
+		_, err := api.Client.TemplateVersionResources(context.Background(), version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -222,8 +222,8 @@ func TestTemplateVersionResources(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		resources, err := client.TemplateVersionResources(context.Background(), version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		resources, err := api.Client.TemplateVersionResources(context.Background(), version.ID)
 		require.NoError(t, err)
 		require.NotNil(t, resources)
 		require.Len(t, resources, 4)
@@ -235,11 +235,11 @@ func TestTemplateVersionResources(t *testing.T) {
 
 func TestTemplateVersionLogs(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
+	api := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, api.Client)
+	coderdtest.NewProvisionerDaemon(t, api.Client)
 	before := time.Now()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
 		ProvisionDryRun: echo.ProvisionComplete,
 		Provision: []*proto.Provision_Response{{
@@ -271,7 +271,7 @@ func TestTemplateVersionLogs(t *testing.T) {
 	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
-	logs, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
+	logs, err := api.Client.TemplateVersionLogsAfter(ctx, version.ID, before)
 	require.NoError(t, err)
 	for {
 		_, ok := <-logs

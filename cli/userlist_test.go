@@ -12,10 +12,10 @@ import (
 
 func TestUserList(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
+	api := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, api.Client)
 	cmd, root := clitest.New(t, "users", "list")
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, api.Client, root)
 	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())

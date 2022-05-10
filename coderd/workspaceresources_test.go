@@ -15,10 +15,10 @@ func TestWorkspaceResource(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -35,13 +35,13 @@ func TestWorkspaceResource(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
+		resources, err := api.Client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		_, err = client.WorkspaceResource(context.Background(), resources[0].ID)
+		_, err = api.Client.WorkspaceResource(context.Background(), resources[0].ID)
 		require.NoError(t, err)
 	})
 }

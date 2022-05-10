@@ -23,16 +23,16 @@ func TestProvisionerDaemons(t *testing.T) {
 			// Takes too long to allocate memory on Windows!
 			t.Skip()
 		}
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
 		data := make([]byte, provisionersdk.MaxMessageSize)
 		rand.Read(data)
-		resp, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+		resp, err := api.Client.Upload(context.Background(), codersdk.ContentTypeTar, data)
 		require.NoError(t, err)
 		t.Log(resp.Hash)
 
-		version, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		version, err := api.Client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			StorageSource: resp.Hash,
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -40,7 +40,7 @@ func TestProvisionerDaemons(t *testing.T) {
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			var err error
-			version, err = client.TemplateVersion(context.Background(), version.ID)
+			version, err = api.Client.TemplateVersion(context.Background(), version.ID)
 			require.NoError(t, err)
 			return version.Job.Error != ""
 		}, 5*time.Second, 25*time.Millisecond)

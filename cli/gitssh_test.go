@@ -22,19 +22,19 @@ import (
 func TestGitSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("Dial", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
 
 		// get user public key
-		keypair, err := client.GitSSHKey(context.Background(), codersdk.Me)
+		keypair, err := api.Client.GitSSHKey(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		publicKey, _, _, _, err := gossh.ParseAuthorizedKey([]byte(keypair.PublicKey))
 		require.NoError(t, err)
 
 		// setup provisioner
 		agentToken := uuid.NewString()
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
@@ -53,14 +53,14 @@ func TestGitSSH(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 
 		// start workspace agent
-		cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
-		agentClient := &*client
+		cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", api.Client.URL.String())
+		agentClient := &*(api.Client)
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
@@ -69,10 +69,10 @@ func TestGitSSH(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
+		resources, err := api.Client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
+		dialer, err := api.Client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()

@@ -59,9 +59,15 @@ type Options struct {
 	APIRateLimit         int
 }
 
+// API wraps the codersdk client as well as other fields
+// for consumption by unit tests.
+type API struct {
+	Client *codersdk.Client
+}
+
 // New constructs an in-memory coderd instance and returns
-// the connected client.
-func New(t *testing.T, options *Options) *codersdk.Client {
+// the wrapped api client.
+func New(t testing.TB, options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
@@ -137,7 +143,9 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		closeWait()
 	})
 
-	return codersdk.New(serverURL)
+	return &API{
+		Client: codersdk.New(serverURL),
+	}
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work

@@ -16,17 +16,17 @@ func TestListRoles(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	client := coderdtest.New(t, nil)
+	api := coderdtest.New(t, nil)
 	// Create admin, member, and org admin
-	admin := coderdtest.CreateFirstUser(t, client)
-	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	admin := coderdtest.CreateFirstUser(t, api.Client)
+	member := coderdtest.CreateAnotherUser(t, api.Client, admin.OrganizationID)
 
-	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	orgAdmin := coderdtest.CreateAnotherUser(t, api.Client, admin.OrganizationID)
 	orgAdminUser, err := orgAdmin.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
 	// TODO: @emyrk switch this to the admin when getting non-personal users is
-	//	supported. `client.UpdateOrganizationMemberRoles(...)`
+	//	supported. `api.Client.UpdateOrganizationMemberRoles(...)`
 	_, err = orgAdmin.UpdateOrganizationMemberRoles(ctx, admin.OrganizationID, orgAdminUser.ID,
 		codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleOrgMember(admin.OrganizationID), rbac.RoleOrgAdmin(admin.OrganizationID)},
@@ -34,7 +34,7 @@ func TestListRoles(t *testing.T) {
 	)
 	require.NoError(t, err, "update org member roles")
 
-	otherOrg, err := client.CreateOrganization(ctx, admin.UserID, codersdk.CreateOrganizationRequest{
+	otherOrg, err := api.Client.CreateOrganization(ctx, admin.UserID, codersdk.CreateOrganizationRequest{
 		Name: "other",
 	})
 	require.NoError(t, err, "create org")
@@ -97,14 +97,14 @@ func TestListRoles(t *testing.T) {
 		{
 			Name: "AdminListSite",
 			APICall: func() ([]codersdk.Role, error) {
-				return client.ListSiteRoles(ctx)
+				return api.Client.ListSiteRoles(ctx)
 			},
 			ExpectedRoles: convertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "AdminListOrg",
 			APICall: func() ([]codersdk.Role, error) {
-				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
+				return api.Client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},

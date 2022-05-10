@@ -18,9 +18,9 @@ func TestMain(m *testing.M) {
 func TestCli(t *testing.T) {
 	t.Parallel()
 	clitest.CreateTemplateVersionSource(t, nil)
-	client := coderdtest.New(t, nil)
+	api := coderdtest.New(t, nil)
 	cmd, config := clitest.New(t)
-	clitest.SetupConfig(t, client, config)
+	clitest.SetupConfig(t, api.Client, config)
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
 	cmd.SetOut(pty.Output())

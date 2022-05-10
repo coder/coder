@@ -35,18 +35,18 @@ func TestUserAuthMethods(t *testing.T) {
 	t.Parallel()
 	t.Run("Password", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		methods, err := client.AuthMethods(context.Background())
+		api := coderdtest.New(t, nil)
+		methods, err := api.Client.AuthMethods(context.Background())
 		require.NoError(t, err)
 		require.True(t, methods.Password)
 		require.False(t, methods.Github)
 	})
 	t.Run("Github", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{},
 		})
-		methods, err := client.AuthMethods(context.Background())
+		methods, err := api.Client.AuthMethods(context.Background())
 		require.NoError(t, err)
 		require.True(t, methods.Password)
 		require.True(t, methods.Github)
@@ -57,7 +57,7 @@ func TestUserOAuth2Github(t *testing.T) {
 	t.Parallel()
 	t.Run("NotInAllowedOrganization", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config: &oauth2Config{},
 				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
@@ -70,12 +70,12 @@ func TestUserOAuth2Github(t *testing.T) {
 			},
 		})
 
-		resp := oauth2Callback(t, client)
+		resp := oauth2Callback(t, api.Client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 	t.Run("UnverifiedEmail", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
@@ -97,13 +97,13 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		resp := oauth2Callback(t, client)
+		_ = coderdtest.CreateFirstUser(t, api.Client)
+		resp := oauth2Callback(t, api.Client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
@@ -122,12 +122,12 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		resp := oauth2Callback(t, client)
+		resp := oauth2Callback(t, api.Client)
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 	t.Run("Signup", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
@@ -153,12 +153,12 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		resp := oauth2Callback(t, client)
+		resp := oauth2Callback(t, api.Client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 	t.Run("Login", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			GithubOAuth2Config: &coderd.GithubOAuth2Config{
 				OAuth2Config:       &oauth2Config{},
 				AllowOrganizations: []string{"coder"},
@@ -180,8 +180,8 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 			},
 		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		resp := oauth2Callback(t, client)
+		_ = coderdtest.CreateFirstUser(t, api.Client)
+		resp := oauth2Callback(t, api.Client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 }

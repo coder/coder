@@ -18,8 +18,8 @@ func TestMain(m *testing.M) {
 
 func TestBuildInfo(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	buildInfo, err := client.BuildInfo(context.Background())
+	api := coderdtest.New(t, nil)
+	buildInfo, err := api.Client.BuildInfo(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, buildinfo.ExternalURL(), buildInfo.ExternalURL, "external URL")
 	require.Equal(t, buildinfo.Version(), buildInfo.Version, "version")

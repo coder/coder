@@ -16,15 +16,15 @@ func TestTemplateCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		api := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, api.Client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
-		clitest.SetupConfig(t, client, root)
-		_ = coderdtest.NewProvisionerDaemon(t, client)
+		clitest.SetupConfig(t, api.Client, root)
+		_ = coderdtest.NewProvisionerDaemon(t, api.Client)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())

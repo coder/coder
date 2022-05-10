@@ -16,9 +16,9 @@ func TestPostParameter(t *testing.T) {
 	t.Parallel()
 	t.Run("BadScope", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterScope("something"), user.OrganizationID, codersdk.CreateParameterRequest{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		_, err := api.Client.CreateParameter(context.Background(), codersdk.ParameterScope("something"), user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
@@ -31,9 +31,9 @@ func TestPostParameter(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		_, err := api.Client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
@@ -44,9 +44,9 @@ func TestPostParameter(t *testing.T) {
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		_, err := api.Client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
@@ -54,7 +54,7 @@ func TestPostParameter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
+		_, err = api.Client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
@@ -70,23 +70,23 @@ func TestParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("ListEmpty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.Parameters(context.Background(), codersdk.ParameterOrganization, user.OrganizationID)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		_, err := api.Client.Parameters(context.Background(), codersdk.ParameterOrganization, user.OrganizationID)
 		require.NoError(t, err)
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		_, err := api.Client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
 			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
-		params, err := client.Parameters(context.Background(), codersdk.ParameterOrganization, user.OrganizationID)
+		params, err := api.Client.Parameters(context.Background(), codersdk.ParameterOrganization, user.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, params, 1)
 	})
@@ -96,25 +96,25 @@ func TestDeleteParameter(t *testing.T) {
 	t.Parallel()
 	t.Run("NotExist", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		err := client.DeleteParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, "something")
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		err := api.Client.DeleteParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, "something")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		param, err := client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		param, err := api.Client.CreateParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, codersdk.CreateParameterRequest{
 			Name:              "example",
 			SourceValue:       "tomato",
 			SourceScheme:      database.ParameterSourceSchemeData,
 			DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
 		})
 		require.NoError(t, err)
-		err = client.DeleteParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, param.Name)
+		err = api.Client.DeleteParameter(context.Background(), codersdk.ParameterOrganization, user.OrganizationID, param.Name)
 		require.NoError(t, err)
 	})
 }

@@ -25,11 +25,11 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+		api := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		daemonCloser := coderdtest.NewProvisionerDaemon(t, api.Client)
 		authToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 			Provision: []*proto.Provision_Response{{
@@ -50,27 +50,27 @@ func TestWorkspaceAgent(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 		daemonCloser.Close()
 
-		resources, err := client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
+		resources, err := api.Client.WorkspaceResourcesByBuild(context.Background(), workspace.LatestBuild.ID)
 		require.NoError(t, err)
 		require.Equal(t, "/tmp", resources[0].Agents[0].Directory)
-		_, err = client.WorkspaceAgent(context.Background(), resources[0].Agents[0].ID)
+		_, err = api.Client.WorkspaceAgent(context.Background(), resources[0].Agents[0].ID)
 		require.NoError(t, err)
 	})
 }
 
 func TestWorkspaceAgentListen(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	api := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, api.Client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, api.Client)
 	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
 		ProvisionDryRun: echo.ProvisionComplete,
 		Provision: []*proto.Provision_Response{{
@@ -90,13 +90,13 @@ func TestWorkspaceAgentListen(t *testing.T) {
 			},
 		}},
 	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := codersdk.New(api.Client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
@@ -104,8 +104,8 @@ func TestWorkspaceAgentListen(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
+	resources := coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
+	conn, err := api.Client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = conn.Close()
@@ -116,11 +116,11 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 func TestWorkspaceAgentTURN(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	api := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, api.Client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, api.Client)
 	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
 		ProvisionDryRun: echo.ProvisionComplete,
 		Provision: []*proto.Provision_Response{{
@@ -140,13 +140,13 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 			},
 		}},
 	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := codersdk.New(api.Client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
@@ -154,13 +154,13 @@ func TestWorkspaceAgentTURN(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
 	opts := &peer.ConnOptions{
 		Logger: slogtest.Make(t, nil).Named("client"),
 	}
 	// Force a TURN connection!
 	opts.SettingEngine.SetNetworkTypes([]webrtc.NetworkType{webrtc.NetworkTypeTCP4})
-	conn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, opts)
+	conn, err := api.Client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, opts)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = conn.Close()
@@ -177,11 +177,11 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	daemonCloser := coderdtest.NewProvisionerDaemon(t, client)
+	api := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, api.Client)
+	daemonCloser := coderdtest.NewProvisionerDaemon(t, api.Client)
 	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 		Parse:           echo.ParseComplete,
 		ProvisionDryRun: echo.ProvisionComplete,
 		Provision: []*proto.Provision_Response{{
@@ -201,13 +201,13 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 			},
 		}},
 	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := codersdk.New(api.Client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
@@ -215,9 +215,9 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
 
-	conn, err := client.WorkspaceAgentReconnectingPTY(context.Background(), resources[0].Agents[0].ID, uuid.New(), 80, 80)
+	conn, err := api.Client.WorkspaceAgentReconnectingPTY(context.Background(), resources[0].Agents[0].ID, uuid.New(), 80, 80)
 	require.NoError(t, err)
 	defer conn.Close()
 

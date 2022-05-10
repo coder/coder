@@ -15,20 +15,20 @@ func TestLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InitialUserNoTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		root, _ := clitest.New(t, "login", client.URL.String())
+		api := coderdtest.New(t, nil)
+		root, _ := clitest.New(t, "login", api.Client.URL.String())
 		err := root.Execute()
 		require.Error(t, err)
 	})
 
 	t.Run("InitialUserTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		api := coderdtest.New(t, nil)
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
+		root, _ := clitest.New(t, "login", "--force-tty", api.Client.URL.String())
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
@@ -59,12 +59,12 @@ func TestLogin(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		client := coderdtest.New(t, nil)
+		api := coderdtest.New(t, nil)
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
+		root, _ := clitest.New(t, "login", "--force-tty", api.Client.URL.String())
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
@@ -95,11 +95,11 @@ func TestLogin(t *testing.T) {
 
 	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		api := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, api.Client)
 
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
+		root, _ := clitest.New(t, "login", "--force-tty", api.Client.URL.String(), "--no-open")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
@@ -110,20 +110,20 @@ func TestLogin(t *testing.T) {
 		}()
 
 		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken)
+		pty.WriteLine(api.Client.SessionToken)
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
 
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		api := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, api.Client)
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
+		root, _ := clitest.New(t, "login", api.Client.URL.String(), "--no-open")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())

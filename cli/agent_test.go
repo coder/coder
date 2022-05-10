@@ -18,12 +18,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			AzureCertificates: certificates,
 		})
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -41,12 +41,12 @@ func TestWorkspaceAgent(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 
-		cmd, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
+		cmd, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", api.Client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
@@ -57,10 +57,10 @@ func TestWorkspaceAgent(t *testing.T) {
 			err := cmd.ExecuteContext(ctx)
 			require.NoError(t, err)
 		}()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
+		resources, err := api.Client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := api.Client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()
@@ -72,12 +72,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			AWSCertificates: certificates,
 		})
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -95,12 +95,12 @@ func TestWorkspaceAgent(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 
-		cmd, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
+		cmd, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", api.Client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
@@ -111,10 +111,10 @@ func TestWorkspaceAgent(t *testing.T) {
 			err := cmd.ExecuteContext(ctx)
 			require.NoError(t, err)
 		}()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
+		resources, err := api.Client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := api.Client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()
@@ -126,12 +126,12 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
 		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
-		client := coderdtest.New(t, &coderdtest.Options{
+		api := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		user := coderdtest.CreateFirstUser(t, api.Client)
+		coderdtest.NewProvisionerDaemon(t, api.Client)
+		version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
@@ -149,12 +149,12 @@ func TestWorkspaceAgent(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
 
-		cmd, _ := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
+		cmd, _ := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", api.Client.URL.String())
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		go func() {
@@ -165,10 +165,10 @@ func TestWorkspaceAgent(t *testing.T) {
 			err := cmd.ExecuteContext(ctx)
 			require.NoError(t, err)
 		}()
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-		resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
+		resources, err := api.Client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := api.Client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		_, err = dialer.Ping()

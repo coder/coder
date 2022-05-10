@@ -27,11 +27,11 @@ import (
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	coderdtest.NewProvisionerDaemon(t, client)
+	api := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, api.Client)
+	coderdtest.NewProvisionerDaemon(t, api.Client)
 	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, api.Client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
 		ProvisionDryRun: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
@@ -65,11 +65,11 @@ func TestConfigSSH(t *testing.T) {
 			},
 		}},
 	})
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	agentClient := codersdk.New(client.URL)
+	coderdtest.AwaitTemplateVersionJob(t, api.Client, version.ID)
+	template := coderdtest.CreateTemplate(t, api.Client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, api.Client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, api.Client, workspace.LatestBuild.ID)
+	agentClient := codersdk.New(api.Client.URL)
 	agentClient.SessionToken = authToken
 	agentCloser := agent.New(agentClient.ListenWorkspaceAgent, &agent.Options{
 		Logger: slogtest.Make(t, nil),
@@ -80,8 +80,8 @@ func TestConfigSSH(t *testing.T) {
 	tempFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	_ = tempFile.Close()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
-	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
+	resources := coderdtest.AwaitWorkspaceAgents(t, api.Client, workspace.LatestBuild.ID)
+	agentConn, err := api.Client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()
 
@@ -113,7 +113,7 @@ func TestConfigSSH(t *testing.T) {
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
 		"--ssh-config-file", tempFile.Name(),
 		"--skip-proxy-command")
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, api.Client, root)
 	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
