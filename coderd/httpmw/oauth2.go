@@ -48,7 +48,7 @@ func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			if config == nil {
 				httpapi.Write(rw, http.StatusPreconditionRequired, httpapi.Response{
-					Message: fmt.Sprintf("The oauth2 method requested is not configured!"),
+					Message: "The oauth2 method requested is not configured!",
 				})
 				return
 			}
