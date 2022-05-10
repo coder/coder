@@ -82,11 +82,12 @@ coder templates update gcp-linux
   - [Why remote development](about.md#why-remote-development)
   - [Why Coder](about.md#why-coder)
   - [What Coder is not](about.md#what-coder-is-not)
+  - [Comparison: Coder vs. [product]](about.md#comparison)
 - [Templates](./templates.md)
   - [Manage templates](./templates.md#manage-templates)
   - [Persistent and ephemeral
     resources](./templates.md#persistent-and-ephemeral-resources)
-  - [Variables](./templates.md#variables)
+  - [Parameters](./templates.md#parameters)
 - [Workspaces](./workspaces.md)
   - [Create workspaces](./workspaces.md#create-workspaces)
   - [Connect with SSH](./workspaces.md#connect-with-ssh)
@@ -104,5 +105,7 @@ Read the [contributing docs](./CONTRIBUTING.md).
 
 | Name                | Start Date | First PR Date |           Organization            |                              GitHub User Link |
 | ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------------: |
-| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri)       |
+| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) |       [mafredri](https://github.com/mafredri) |
 | Spike Curtis        | 05/02/2022 |  05/06/2022.  | [Coder](https://github.com/coder) | [spikecurtis](https://github.com/spikecurtis) |
+| Kira Pilot          | 05/09/2022 |  05/09/2022   | [Coder](https://github.com/coder) |   [Kira-Pilot](https://github.com/Kira-Pilot) |
+| David Wahler        | 05/09/2022 |  04/05/2022   | [Coder](https://github.com/coder) |         [dwahler](https://github.com/dwahler) |

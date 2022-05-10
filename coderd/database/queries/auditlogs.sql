@@ -6,7 +6,7 @@ SELECT
 FROM
 	audit_logs
 WHERE
-	"time" < (SELECT "time" FROM audit_logs a WHERE a.id = sqlc.arg(id))
+	audit_logs."time" < COALESCE((SELECT "time" FROM audit_logs a WHERE a.id = sqlc.arg(id)), sqlc.arg(start_time))
 ORDER BY
     "time" DESC
 LIMIT
