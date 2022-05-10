@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResetPassword(t *testing.T) {

@@ -79,6 +79,8 @@ func testSQLDB(t testing.TB) *sql.DB {
 	return db
 }
 
+// paralleltest linter doesn't correctly handle table-driven tests (https://github.com/kunwardeep/paralleltest/issues/8)
+// nolint:paralleltest
 func TestCheckLatestVersion(t *testing.T) {
 	t.Parallel()
 
@@ -102,12 +104,15 @@ func TestCheckLatestVersion(t *testing.T) {
 	}
 
 	for i, tc := range tests {
+		i, tc := i, tc
 		t.Run(fmt.Sprintf("entry %d", i), func(t *testing.T) {
+			t.Parallel()
 
 			driver, _ := stub.WithInstance(nil, &stub.Config{})
-			migrations := driver.(*stub.Stub).Migrations
+			stub, ok := driver.(*stub.Stub)
+			require.True(t, ok)
 			for _, version := range tc.existingVersions {
-				migrations.Append(&source.Migration{
+				stub.Migrations.Append(&source.Migration{
 					Version:    version,
 					Identifier: "",
 					Direction:  source.Up,
