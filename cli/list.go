@@ -2,7 +2,10 @@ package cli
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
@@ -12,7 +15,10 @@ import (
 )
 
 func list() *cobra.Command {
-	return &cobra.Command{
+	var (
+		columns []string
+	)
+	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List all workspaces",
@@ -22,11 +28,7 @@ func list() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			organization, err := currentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
-			workspaces, err := client.WorkspacesByOwner(cmd.Context(), organization.ID, codersdk.Me)
+			workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return err
 			}
@@ -37,11 +39,22 @@ func list() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout())
 				return nil
 			}
+			users, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
+			if err != nil {
+				return err
+			}
+			usersByID := map[uuid.UUID]codersdk.User{}
+			for _, user := range users {
+				usersByID[user.ID] = user
+			}
 
-			tableWriter := table.NewWriter()
-			tableWriter.SetStyle(table.StyleLight)
-			tableWriter.Style().Options.SeparateColumns = false
-			tableWriter.AppendHeader(table.Row{"Workspace", "Template", "Status", "Last Built", "Outdated"})
+			tableWriter := cliui.Table()
+			header := table.Row{"workspace", "template", "status", "last built", "outdated"}
+			tableWriter.AppendHeader(header)
+			tableWriter.SortBy([]table.SortBy{{
+				Name: "workspace",
+			}})
+			tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, columns))
 
 			for _, workspace := range workspaces {
 				status := ""
@@ -53,27 +66,54 @@ func list() *cobra.Command {
 
 				switch workspace.LatestBuild.Transition {
 				case database.WorkspaceTransitionStart:
-					status = "start"
+					status = "Running"
 					if inProgress {
-						status = "starting"
+						status = "Starting"
 					}
 				case database.WorkspaceTransitionStop:
-					status = "stop"
+					status = "Stopped"
 					if inProgress {
-						status = "stopping"
+						status = "Stopping"
 					}
 				case database.WorkspaceTransitionDelete:
-					status = "delete"
+					status = "Deleted"
 					if inProgress {
-						status = "deleting"
+						status = "Deleting"
 					}
 				}
+				if workspace.LatestBuild.Job.Status == codersdk.ProvisionerJobFailed {
+					status = "Failed"
+				}
 
+				duration := time.Now().UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
+				if duration > time.Hour {
+					duration = duration.Truncate(time.Hour)
+				}
+				if duration > time.Minute {
+					duration = duration.Truncate(time.Minute)
+				}
+				days := 0
+				for duration.Hours() > 24 {
+					days++
+					duration -= 24 * time.Hour
+				}
+				durationDisplay := duration.String()
+				if days > 0 {
+					durationDisplay = fmt.Sprintf("%dd%s", days, durationDisplay)
+				}
+				if strings.HasSuffix(durationDisplay, "m0s") {
+					durationDisplay = durationDisplay[:len(durationDisplay)-2]
+				}
+				if strings.HasSuffix(durationDisplay, "h0m") {
+					durationDisplay = durationDisplay[:len(durationDisplay)-2]
+				}
+
+				user := usersByID[workspace.OwnerID]
 				tableWriter.AppendRow(table.Row{
-					cliui.Styles.Bold.Render(workspace.Name),
+					user.Username + "/" + workspace.Name,
 					workspace.TemplateName,
 					status,
-					workspace.LatestBuild.Job.CreatedAt.Format("January 2, 2006"),
+					durationDisplay,
 					workspace.Outdated,
 				})
 			}
@@ -81,4 +121,7 @@ func list() *cobra.Command {
 			return err
 		},
 	}
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
+		"Specify a column to filter in the table.")
+	return cmd
 }
