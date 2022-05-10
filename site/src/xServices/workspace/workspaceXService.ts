@@ -155,7 +155,7 @@ export const workspaceMachine = createMachine(
                     actions: "assignJobError"
                   }
                 },
-                tags: "buildLoading"
+                tags: ["buildLoading", "starting"]
               },
               requestingStop: {
                 invoke: {
@@ -167,7 +167,7 @@ export const workspaceMachine = createMachine(
                     actions: "assignJobError"
                   }
                 },
-                tags: "loading"
+                tags: ["buildLoading", "stopping"]
               },
               buildingStart: {
                 invoke: {
@@ -205,7 +205,7 @@ export const workspaceMachine = createMachine(
                     }
                   }
                 },
-                tags: "loading"
+                tags: ["buildLoading", "starting"]
               },
               buildingStop: {
                 invoke: {
@@ -243,7 +243,7 @@ export const workspaceMachine = createMachine(
                     }
                   }
                 },
-                tags: "loading"
+                tags: ["buildLoading", "stopping"]
               },
               error: {
                 on: {

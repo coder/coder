@@ -2,22 +2,25 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as Types from "../../api/types"
+import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
 
 export interface WorkspaceProps {
-  organization: Types.Organization
+  organization?: Types.Organization
   workspace: Types.Workspace
-  template: Types.Template
+  template?: Types.Template
   handleStart: () => void
   handleStop: () => void
+  handleRetry: () => void
+  workspaceStatus: WorkspaceStatus
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
-export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, workspace, handleStart, handleStop }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, workspace, handleStart, handleStop, handleRetry, workspaceStatus }) => {
   const styles = useStyles()
 
   return (
@@ -29,6 +32,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ organization, template, wo
           workspace={workspace}
           handleStart={handleStart}
           handleStop={handleStop}
+          handleRetry={handleRetry}
+          workspaceStatus={workspaceStatus}
         />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>

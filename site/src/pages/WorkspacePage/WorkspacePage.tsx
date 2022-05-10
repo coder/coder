@@ -9,6 +9,8 @@ import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { XServiceContext } from "../../xServices/StateContext"
 
+export type WorkspaceStatus = "started" | "starting" | "stopped" | "stopping" | "error"
+
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
   const workspaceId = firstOrItem(workspaceQueryParam, null)
@@ -17,6 +19,18 @@ export const WorkspacePage: React.FC = () => {
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
   const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
     workspaceState.context
+  let workspaceStatus: WorkspaceStatus
+  if (workspaceState.matches("ready.build.started")) {
+    workspaceStatus = "started"
+  } else if (workspaceState.matches("ready.build.stopped")) {
+    workspaceStatus = "stopped"
+  } else if (workspaceState.hasTag("starting")) {
+    workspaceStatus = "starting"
+  } else if (workspaceState.hasTag("stopping")) {
+    workspaceStatus = "stopping"
+  } else {
+    workspaceStatus = "error"
+  }
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -28,7 +42,7 @@ export const WorkspacePage: React.FC = () => {
 
   if (workspaceState.matches("error")) {
     return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError} />
-  } else if (!workspace || !template || !organization) {
+  } else if (!workspace){
     return <FullScreenLoader />
   } else {
     return (
@@ -37,6 +51,8 @@ export const WorkspacePage: React.FC = () => {
           <Workspace organization={organization} template={template} workspace={workspace}
             handleStart={() => workspaceSend("START")}
             handleStop={() => workspaceSend("STOP")}
+            handleRetry={() => workspaceSend("RETRY")}
+            workspaceStatus={workspaceStatus}
            />
         </Stack>
       </Margins>

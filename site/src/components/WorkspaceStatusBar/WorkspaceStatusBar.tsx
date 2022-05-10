@@ -7,6 +7,7 @@ import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import React from "react"
 import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
+import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
 import { TitleIconSize } from "../../theme/constants"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -14,15 +15,24 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 const Language = {
   stop: "Stop",
   start: "Start",
+  retry: "Retry",
   update: "Update",
   settings: "Settings",
+  started: "Running",
+  stopped: "Stopped",
+  starting: "Building",
+  stopping: "Stopping",
+  error: "Build Failed"
 }
+
 export interface WorkspaceStatusBarProps {
-  organization: Types.Organization
+  organization?: Types.Organization
   workspace: Types.Workspace
-  template: Types.Template
+  template?: Types.Template
   handleStart: () => void
   handleStop: () => void
+  handleRetry: () => void
+  workspaceStatus: WorkspaceStatus
 }
 
 /**
@@ -33,43 +43,70 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
   template,
   workspace,
   handleStart,
-  handleStop
+  handleStop,
+  handleRetry,
+  workspaceStatus
 }) => {
   const styles = useStyles()
 
-  const templateLink = `/templates/${organization.name}/${template.name}`
+  const templateLink = `/templates/${organization?.name}/${template?.name}`
 
   return (
     <WorkspaceSection>
       <Stack spacing={1}>
-        <Typography variant="body2" color="textSecondary">
-          Back to{" "}
-          <Link className={styles.link} to={templateLink}>
-            {template.name}
-          </Link>
-        </Typography>
+
+        {organization && template &&
+          <Typography variant="body2" color="textSecondary">
+            Back to{" "}
+            <Link className={styles.link} to={templateLink}>
+              {template.name}
+            </Link>
+          </Typography>
+        }
+
         <div className={styles.horizontal}>
           <div className={styles.horizontal}>
-            <Box mr="1em">
-              <CloudCircleIcon width={TitleIconSize} height={TitleIconSize} />
-            </Box>
             <div className={styles.vertical}>
               <Typography variant="h4">{workspace.name}</Typography>
             </div>
+            <Box className={styles.statusChip}>
+              {workspaceStatus === "started" && Language.started}
+              {workspaceStatus === "starting" && Language.starting}
+              {workspaceStatus === "stopped" && Language.stopped}
+              {workspaceStatus === "stopping" && Language.stopping}
+              {workspaceStatus === "error" && Language.error}
+            </Box>
           </div>
+
           <div className={styles.horizontal}>
-            <Button onClick={handleStart} disabled={false} color="primary">
-              START
-            </Button>
+            {workspaceStatus === "started" && 
+              (<Button onClick={handleStop} color="primary">
+                {Language.stop}
+              </Button>)
+            }
+            {workspaceStatus === "stopped" &&
+              (<Button onClick={handleStart} color="primary">
+                {Language.start}
+              </Button>)
+            }
+            {workspaceStatus === "error" &&
+              (<Button onClick={handleRetry} color="primary">
+                {Language.retry}
+              </Button>)
+            }
+
             {workspace.outdated && (
               <Button color="primary">
                 {Language.update}
               </Button>
             )}
+
             <Divider orientation="vertical" flexItem />
+
             <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>
               {Language.settings}
             </Link>
+
           </div>
         </div>
       </Stack>
@@ -93,6 +130,11 @@ const useStyles = makeStyles((theme) => {
       justifyContent: "space-between",
       alignItems: "center",
       gap: theme.spacing(2),
+    },
+    statusChip: {
+      border: `solid 1px ${theme.palette.text.hint}`,
+      borderRadius: theme.shape.borderRadius,
+      padding: theme.spacing(1)
     },
     vertical: {
       display: "flex",
