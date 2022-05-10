@@ -53,7 +53,7 @@ const useStyles = makeStyles((theme: Theme) => ({
   select: {
     margin: 0,
     // Set a fix width for the select. It avoids selects having different sizes
-    // depending on how much roles they have selected.
+    // depending on how many roles they have selected.
     width: theme.spacing(25),
   },
 }))
