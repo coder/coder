@@ -22,6 +22,7 @@ const Language = {
   starting: "Building",
   stopping: "Stopping",
   error: "Build Failed",
+  loading: "Loading Status"
 }
 
 export interface WorkspaceStatusBarProps {
@@ -79,6 +80,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
               {workspaceStatus === "stopped" && Language.stopped}
               {workspaceStatus === "stopping" && Language.stopping}
               {workspaceStatus === "error" && Language.error}
+              {workspaceStatus === "loading" && Language.loading}
             </Box>
           </div>
 

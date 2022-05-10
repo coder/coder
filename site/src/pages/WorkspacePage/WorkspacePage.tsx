@@ -9,7 +9,7 @@ import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { XServiceContext } from "../../xServices/StateContext"
 
-export type WorkspaceStatus = "started" | "starting" | "stopped" | "stopping" | "error"
+export type WorkspaceStatus = "started" | "starting" | "stopped" | "stopping" | "error" | "loading"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
@@ -28,8 +28,10 @@ export const WorkspacePage: React.FC = () => {
     workspaceStatus = "starting"
   } else if (workspaceState.hasTag("stopping")) {
     workspaceStatus = "stopping"
-  } else {
+  } else if (workspaceState.matches("ready.build.error")) {
     workspaceStatus = "error"
+  } else {
+    workspaceStatus = "loading"
   }
 
   /**
