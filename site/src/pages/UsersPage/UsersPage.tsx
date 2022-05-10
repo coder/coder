@@ -15,23 +15,14 @@ export const Language = {
 
 const useRoles = () => {
   const xServices = useContext(XServiceContext)
-  const [authState] = useActor(xServices.authXService)
   const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
   const { roles } = rolesState.context
-  const { me } = authState.context
 
   useEffect(() => {
-    if (!me) {
-      throw new Error("User is not logged in")
-    }
-
-    const organizationId = me.organization_ids[0]
-
     rolesSend({
       type: "GET_ROLES",
-      organizationId,
     })
-  }, [me, rolesSend])
+  }, [rolesSend])
 
   return roles
 }

@@ -8,11 +8,11 @@ import React from "react"
 import { UserResponse } from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { EmptyState } from "../EmptyState/EmptyState"
+import { RoleSelect } from "../RoleSelect/RoleSelect"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { TableTitle } from "../TableTitle/TableTitle"
 import { UserCell } from "../UserCell/UserCell"
-import { RoleSelect } from "./RoleSelect"
 
 export const Language = {
   pageTitle: "Users",

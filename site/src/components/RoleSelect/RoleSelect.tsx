@@ -5,6 +5,9 @@ import { makeStyles, Theme } from "@material-ui/core/styles"
 import React from "react"
 import { Role } from "../../api/typesGenerated"
 
+export const Language = {
+  label: "Roles",
+}
 export interface RoleSelectProps {
   roles: Role[]
   selectedRoles: Role[]
@@ -21,6 +24,7 @@ export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, lo
 
   return (
     <Select
+      aria-label={Language.label}
       open={open}
       multiple
       value={value}

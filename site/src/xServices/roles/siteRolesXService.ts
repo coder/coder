@@ -10,7 +10,6 @@ type SiteRolesContext = {
 
 type SiteRolesEvent = {
   type: "GET_ROLES"
-  organizationId: string
 }
 
 export const siteRolesMachine = createMachine(

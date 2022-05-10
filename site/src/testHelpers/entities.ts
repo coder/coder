@@ -10,7 +10,7 @@ import {
   WorkspaceAutostartRequest,
   WorkspaceResource,
 } from "../api/types"
-import { AuthMethods } from "../api/typesGenerated"
+import { AuthMethods, Role } from "../api/typesGenerated"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
@@ -21,6 +21,23 @@ export const MockBuildInfo: BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockAdminRole: Role = {
+  name: "admin",
+  display_name: "Admin",
+}
+
+export const MockMemberRole: Role = {
+  name: "member",
+  display_name: "Member",
+}
+
+export const MockAuditorRole: Role = {
+  name: "auditor",
+  display_name: "Auditor",
+}
+
+export const MockSiteRoles = [MockAdminRole, MockAuditorRole, MockMemberRole]
+
 export const MockUser: UserResponse = {
   id: "test-user",
   username: "TestUser",
@@ -28,7 +45,7 @@ export const MockUser: UserResponse = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [],
+  roles: [MockAdminRole, MockMemberRole],
 }
 
 export const MockUser2: UserResponse = {
@@ -38,7 +55,7 @@ export const MockUser2: UserResponse = {
   created_at: "",
   status: "active",
   organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
-  roles: [],
+  roles: [MockMemberRole],
 }
 
 export const MockOrganization: Organization = {
