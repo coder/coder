@@ -17,6 +17,12 @@ Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.
 $env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
 $env:CODER_AGENT_URL = "${ACCESS_URL}"
 Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru`,
+			"arm64": `$ProgressPreference = "SilentlyContinue"
+Invoke-WebRequest -Uri ${ACCESS_URL}bin/coder-windows-arm64.exe -OutFile $env:TEMP\sshd.exe
+Set-MpPreference -DisableRealtimeMonitoring $true -ExclusionPath $env:TEMP\sshd.exe
+$env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
+$env:CODER_AGENT_URL = "${ACCESS_URL}"
+Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru`,
 		},
 		"linux": {
 			"amd64": `#!/usr/bin/env sh
@@ -27,12 +33,36 @@ chmod +x $BINARY_LOCATION
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent`,
+			"arm64": `#!/usr/bin/env sh
+set -eu pipefail
+export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
+curl -fsSL ${ACCESS_URL}bin/coder-linux-arm64 -o $BINARY_LOCATION
+chmod +x $BINARY_LOCATION
+export CODER_AGENT_AUTH="${AUTH_TYPE}"
+export CODER_AGENT_URL="${ACCESS_URL}"
+exec $BINARY_LOCATION agent`,
+			"arm": `#!/usr/bin/env sh
+set -eu pipefail
+export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
+curl -fsSL ${ACCESS_URL}bin/coder-linux-arm -o $BINARY_LOCATION
+chmod +x $BINARY_LOCATION
+export CODER_AGENT_AUTH="${AUTH_TYPE}"
+export CODER_AGENT_URL="${ACCESS_URL}"
+exec $BINARY_LOCATION agent`,
 		},
 		"darwin": {
 			"amd64": `#!/usr/bin/env sh
 set -eu pipefail
 export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
 curl -fsSL ${ACCESS_URL}bin/coder-darwin-amd64 -o $BINARY_LOCATION
+chmod +x $BINARY_LOCATION
+export CODER_AGENT_AUTH="${AUTH_TYPE}"
+export CODER_AGENT_URL="${ACCESS_URL}"
+exec $BINARY_LOCATION agent`,
+			"arm64": `#!/usr/bin/env sh
+set -eu pipefail
+export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
+curl -fsSL ${ACCESS_URL}bin/coder-darwin-arm64 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
