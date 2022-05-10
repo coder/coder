@@ -103,9 +103,9 @@ Read the [contributing docs](./CONTRIBUTING.md).
 
 <!--- Add your row by date (mm/dd/yyyy), most recent date at end of list --->
 
-
-| Name                | Start Date | First PR Date |           Organization            |                            GitHub User Link |
-| ------------------- | :--------: | :-----------: | :-------------------------------: | ------------------------------------------: |
-| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) |     [mafredri](https://github.com/mafredri) |
-| Kira Pilot          | 05/09/2022 |  05/09/2022   | [Coder](https://github.com/coder) | [Kira-Pilot](https://github.com/Kira-Pilot) |
-| David Wahler        | 05/09/2022 |  04/05/2022   | [Coder](https://github.com/coder) |       [dwahler](https://github.com/dwahler) |
+| Name                | Start Date | First PR Date |           Organization            |                              GitHub User Link |
+| ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------------: |
+| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) |       [mafredri](https://github.com/mafredri) |
+| Spike Curtis        | 05/02/2022 |  05/06/2022.  | [Coder](https://github.com/coder) | [spikecurtis](https://github.com/spikecurtis) |
+| Kira Pilot          | 05/09/2022 |  05/09/2022   | [Coder](https://github.com/coder) |   [Kira-Pilot](https://github.com/Kira-Pilot) |
+| David Wahler        | 05/09/2022 |  04/05/2022   | [Coder](https://github.com/coder) |         [dwahler](https://github.com/dwahler) |
