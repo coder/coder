@@ -11,7 +11,7 @@ import {
   WorkspaceBuildTransition,
   WorkspaceResource,
 } from "../api/types"
-import { AuthMethods } from "../api/typesGenerated"
+import { AuthMethods, ProvisionerJobStatus } from "../api/typesGenerated"
 
 export const MockSessionToken = { session_token: "my-session-token" }
 
@@ -81,9 +81,20 @@ export const MockWorkspaceAutostopEnabled: WorkspaceAutostartRequest = {
   schedule: "CRON_TZ=America/Toronto 30 21 * * 1-5",
 }
 
+export const MockProvisionerJob = {
+   id: "test-provisioner-job",
+   created_at: "",
+   started_at: "",
+   completed_at: "",
+   error: "",
+   status: "succeeded" as ProvisionerJobStatus,
+   worker_id: "test-worker-id"
+}
+
 export const MockWorkspaceBuild = {
   id: "test-workspace-build",
   transition: "start" as WorkspaceBuildTransition,
+  job: MockProvisionerJob
 }
 
 // These are special cases of MockWorkspaceBuild for more precise testing
