@@ -45,6 +45,9 @@ export const workspaceMachine = createMachine(
         stopWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
+        refreshWorkspace: {
+          data: Types.Workspace | undefined
+        }
       },
     },
     id: "workspaceState",
@@ -189,16 +192,17 @@ export const workspaceMachine = createMachine(
                         {
                           cond: "jobSucceeded",
                           target: "#workspaceState.ready.build.started",
-                          actions: "clearBuildError",
+                          actions: ["clearBuildError", "assignWorkspace"],
                         },
                         {
                           cond: "jobPendingOrRunning",
                           target: "waiting",
+                          actions: "assignWorkspace"
                         },
                         {
                           // if job is canceling, cancelled, or failed, the user needs to retry
                           target: "#workspaceState.ready.build.error",
-                          actions: "assignBuildError",
+                          actions: ["assignBuildError", "assignWorkspace"],
                         },
                       ],
                       onError: "waiting",
