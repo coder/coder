@@ -10,9 +10,13 @@ interface WorkspaceContext {
   getWorkspaceError?: Error | unknown
   getTemplateError?: Error | unknown
   getOrganizationError?: Error | unknown
+  // error enqueuing a ProvisionerJob to create a new WorkspaceBuild
+  jobError?: Error | unknown
+  // error creating a new WorkspaceBuild
+  buildError?: Error | unknown
 }
 
-type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string } | { type: "START" } | {type: "STOP"} | { type: "RETRY" }
+type WorkspaceEvent = { type: "GET_WORKSPACE"; workspaceId: string } | { type: "START" } | {type: "STOP"} | { type: "RETRY" } | { type: 'REFRESH_WORKSPACE' }
 
 export const workspaceMachine = createMachine(
   {
@@ -36,9 +40,6 @@ export const workspaceMachine = createMachine(
         stopWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
-        pollBuild: {
-          data: Types.Workspace
-        }
       },
     },
     id: "workspaceState",
@@ -48,6 +49,7 @@ export const workspaceMachine = createMachine(
         on: {
           GET_WORKSPACE: "gettingWorkspace",
         },
+        tags: "loading"
       },
       gettingWorkspace: {
         invoke: {
@@ -105,55 +107,153 @@ export const workspaceMachine = createMachine(
             },
           },
           build: {
-            initial: "idle",
+            initial: "dispatch",
             states: {
-              idle: {
+              dispatch: {
+                always: [
+                  {
+                    cond: "workspaceIsStarted",
+                    target: "started"
+                  },
+                  { 
+                    cond: "workspaceIsStopped",
+                    target: "stopped"
+                  },
+                  {
+                    cond: "workspaceIsStarting",
+                    target: "buildingStart"
+                  },
+                  {
+                    cond: "workspaceIsStopping",
+                    target: "buildingStop"
+                  },
+                  { target: "error" }
+                ]
+              },
+              started: {
                 on: {
-                  START: "requestingStart",
                   STOP: "requestingStop"
-                }
+                },
+                tags: "buildReady"
+              },
+              stopped: {
+                on: {
+                  START: "requestingStart"
+                },
+                tags: "buildReady"
               },
               requestingStart: {
                 invoke: {
                   id: "startWorkspace",
                   src: "startWorkspace",
-                  onDone: "building",
+                  onDone: {
+                    target: "buildingStart",
+                    actions: "clearJobError"
+                  },
                   onError: {
                     target: "error",
-                    actions: ["assignFailedTransition", "assignEnqueueError"]
+                    actions: "assignJobError"
                   }
-                }
+                },
+                tags: "buildLoading"
               },
               requestingStop: {
                 invoke: {
                   id: "stopWorkspace",
                   src: "stopWorkspace",
-                  onDone: "building",
+                  onDone: { target: "buildingStop", actions: "clearJobError" },
                   onError: {
                     target: "error",
-                    actions: ["assignFailedTransition", "assignEnqueueError"]
+                    actions: "assignJobError"
                   }
-                }
+                },
+                tags: "loading"
               },
-              building: {
+              buildingStart: {
                 invoke: {
                   id: "building",
                   src: "pollBuild",
-                  onDone: "idle",
-                  onError: {
-                    target: "error",
-                    actions: ["assignFailedTransition", "assignBuildError"]
+                },
+                initial: "refreshingWorkspace",
+                states: {
+                  refreshingWorkspace: {
+                    invoke: {
+                      id: "refreshWorkspace",
+                      src: "refreshWorkspace",
+                      onDone: [
+                        {
+                          cond: "jobSucceeded",
+                          target: "#workspaceState.ready.build.started",
+                          actions: "clearBuildError"
+                        },
+                        {
+                          cond: "jobPendingOrRunning",
+                          target: "waiting"
+                        },
+                        {
+                          // if job is canceling, cancelled, or failed, the user needs to retry
+                          target: "#workspaceState.ready.build.error",
+                          actions: "assignBuildError"
+                        }
+                      ],
+                      onError: "waiting"
+                    }
+                  },
+                  waiting: {
+                    on: {
+                      REFRESH_WORKSPACE: "refreshingWorkspace"
+                    }
                   }
-                }
+                },
+                tags: "loading"
+              },
+              buildingStop: {
+                invoke: {
+                  id: "building",
+                  src: "pollBuild",
+                },
+                initial: "refreshingWorkspace",
+                states: {
+                  refreshingWorkspace: {
+                    invoke: {
+                      id: "refreshWorkspace",
+                      src: "refreshWorkspace",
+                      onDone: [
+                        {
+                          cond: "jobSucceeded",
+                          target: "#workspaceState.ready.build.stopped",
+                          actions: "clearBuildError"
+                        },
+                        {
+                          cond: "jobPendingOrRunning",
+                          target: "waiting"
+                        },
+                        {
+                          // if job is canceling, cancelled, or failed, the user needs to retry
+                          target: "#workspaceState.ready.build.error",
+                          actions: "assignBuildError"
+                        }
+                      ],
+                      onError: "waiting"
+                    }
+                  },
+                  waiting: {
+                    on: {
+                      REFRESH_WORKSPACE: "refreshingWorkspace"
+                    }
+                  }
+                },
+                tags: "loading"
               },
               error: {
                 on: {
                   RETRY: [
                     {
-                      cond: "failedToStart",
+                      cond: "triedToStart",
                       target: "requestingStart"
                     },
                     {
+                      // this could also be post-delete
                       target: "requestingStop"
                     }
                   ]
@@ -193,6 +293,42 @@ export const workspaceMachine = createMachine(
         getOrganizationError: (_, event) => event.data,
       }),
       clearGetOrganizationError: (context) => assign({ ...context, getOrganizationError: undefined }),
+      assignJobError: (_, event) => assign({
+        jobError: event.data
+      }),
+      clearJobError: (_) => assign({
+        jobError: undefined
+      }),
+      assignBuildError: (_, event) => assign({
+        buildError: event.data
+      }),
+      clearBuildError: (_) => assign({
+        buildError: undefined
+      }),
+    },
+    guards: {
+      workspaceIsStarted: (context) => (
+        context.workspace?.latest_build.transition === "start" && context.workspace.latest_build.job.status === "succeeded"
+      ),
+      workspaceIsStopped: (context) => (
+        context.workspace?.latest_build.transition === "stop" && context.workspace.latest_build.job.status === "succeeded"
+      ),
+      workspaceIsStarting: (context) => (
+        context.workspace?.latest_build.transition === "start" && ["pending", "running"].includes(context.workspace.latest_build.job.status)
+      ),
+      workspaceIsStopping: (context) => (
+        context.workspace?.latest_build.transition === "stop" && ["pending", "running"].includes(context.workspace.latest_build.job.status)
+      ),
+      triedToStart: (context) => (
+        context.workspace?.latest_build.transition === "start"
+      ),
+      jobSucceeded: (context) => (
+        context.workspace?.latest_build.job.status === "succeeded"
+      ),
+      jobPendingOrRunning: (context) => {
+        const status = context.workspace?.latest_build.job.status
+        return status === "pending" || status === "running"
+      }
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -224,6 +360,22 @@ export const workspaceMachine = createMachine(
           return await API.stopWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot stop workspace without workspace id")
+        }
+      },
+      pollBuild: async (context) => (send) => {
+        if (context.workspace) {
+          const workspaceId = context.workspace.id
+          const intervalId = setInterval(() => send({ type: 'GET_WORKSPACE', workspaceId }), 1000);
+          return () => clearInterval(intervalId);
+        } else {
+          throw Error("Cannot fetch workspace without id")
+        }
+      },
+      refreshWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.getWorkspace(context.workspace.id)
+        } else {
+          throw Error("Cannot refresh workspace without id")
         }
       }
     },
