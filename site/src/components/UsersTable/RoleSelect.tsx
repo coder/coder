@@ -10,9 +10,10 @@ export interface RoleSelectProps {
   selectedRoles: Role[]
   onChange: (roles: Role["name"][]) => void
   loading?: boolean
+  open?: boolean
 }
 
-export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, loading, onChange }) => {
+export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, loading, onChange, open }) => {
   const styles = useStyles()
   const value = selectedRoles.map((r) => r.name)
   const renderValue = () => selectedRoles.map((r) => r.display_name).join(", ")
@@ -20,6 +21,7 @@ export const RoleSelect: React.FC<RoleSelectProps> = ({ roles, selectedRoles, lo
 
   return (
     <Select
+      open={open}
       multiple
       value={value}
       renderValue={renderValue}
