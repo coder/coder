@@ -237,10 +237,31 @@ func (g *Generator) posLine(obj types.Object) string {
 func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, error) {
 	var s strings.Builder
 	_, _ = s.WriteString(g.posLine(obj))
+	_, _ = s.WriteString(fmt.Sprintf("export interface %s ", obj.Name()))
 
-	_, _ = s.WriteString(fmt.Sprintf("export interface %s {\n", obj.Name()))
+	// Handle named embedded structs in the codersdk package via extension.
+	var extends []string
+	extendedFields := make(map[int]bool)
+	for i := 0; i < st.NumFields(); i++ {
+		field := st.Field(i)
+		tag := reflect.StructTag(st.Tag(i))
+		// Adding a json struct tag causes the json package to consider
+		// the field unembedded.
+		if field.Embedded() && tag.Get("json") == "" && field.Pkg().Name() == "codersdk" {
+			extendedFields[i] = true
+			extends = append(extends, field.Name())
+		}
+	}
+	if len(extends) > 0 {
+		_, _ = s.WriteString(fmt.Sprintf("extends %s ", strings.Join(extends, ", ")))
+	}
+
+	_, _ = s.WriteString("{\n")
 	// For each field in the struct, we print 1 line of the typescript interface
 	for i := 0; i < st.NumFields(); i++ {
+		if extendedFields[i] {
+			continue
+		}
 		field := st.Field(i)
 		tag := reflect.StructTag(st.Tag(i))
 
@@ -250,6 +271,10 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		jsonName = arr[0]
 		if jsonName == "" {
 			jsonName = field.Name()
+		}
+		jsonOptional := false
+		if len(arr) > 1 && arr[1] == "omitempty" {
+			jsonOptional = true
 		}
 
 		var tsType TypescriptType
@@ -273,7 +298,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			_, _ = s.WriteRune('\n')
 		}
 		optional := ""
-		if tsType.Optional {
+		if jsonOptional || tsType.Optional {
 			optional = "?"
 		}
 		_, _ = s.WriteString(fmt.Sprintf("%sreadonly %s%s: %s\n", indent, jsonName, optional, tsType.ValueType))
@@ -322,7 +347,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		return TypescriptType{
 			ValueType: "any",
 			AboveTypeLine: fmt.Sprintf("%s\n%s",
-				indentedComment("Embedded struct, please fix by naming it"),
+				indentedComment("Embedded anonymous struct, please fix by naming it"),
 				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
 			),
 		}, nil
