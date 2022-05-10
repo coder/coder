@@ -213,7 +213,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 		state := createBuild.ProvisionerState
-		if state == nil || len(state) == 0 {
+		if len(state) == 0 {
 			state = priorHistory.ProvisionerState
 		}
 

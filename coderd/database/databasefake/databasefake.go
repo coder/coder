@@ -1733,20 +1733,7 @@ func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	alog := database.AuditLog{
-		ID:             arg.ID,
-		Time:           arg.Time,
-		UserID:         arg.UserID,
-		OrganizationID: arg.OrganizationID,
-		Ip:             arg.Ip,
-		UserAgent:      arg.UserAgent,
-		ResourceType:   arg.ResourceType,
-		ResourceID:     arg.ResourceID,
-		ResourceTarget: arg.ResourceTarget,
-		Action:         arg.Action,
-		Diff:           arg.Diff,
-		StatusCode:     arg.StatusCode,
-	}
+	alog := database.AuditLog(arg)
 
 	q.auditLogs = append(q.auditLogs, alog)
 	slices.SortFunc(q.auditLogs, func(a, b database.AuditLog) bool {

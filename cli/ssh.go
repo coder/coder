@@ -3,10 +3,8 @@ package cli
 import (
 	"context"
 	"io"
-	"net"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
@@ -180,33 +178,4 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 
 	return cmd
-}
-
-type stdioConn struct {
-	io.Reader
-	io.Writer
-}
-
-func (*stdioConn) Close() (err error) {
-	return nil
-}
-
-func (*stdioConn) LocalAddr() net.Addr {
-	return nil
-}
-
-func (*stdioConn) RemoteAddr() net.Addr {
-	return nil
-}
-
-func (*stdioConn) SetDeadline(_ time.Time) error {
-	return nil
-}
-
-func (*stdioConn) SetReadDeadline(_ time.Time) error {
-	return nil
-}
-
-func (*stdioConn) SetWriteDeadline(_ time.Time) error {
-	return nil
 }

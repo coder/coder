@@ -31,20 +31,7 @@ func (b *postgresBackend) Decision() audit.FilterDecision {
 }
 
 func (b *postgresBackend) Export(ctx context.Context, alog database.AuditLog) error {
-	_, err := b.db.InsertAuditLog(ctx, database.InsertAuditLogParams{
-		ID:             alog.ID,
-		Time:           alog.Time,
-		UserID:         alog.UserID,
-		OrganizationID: alog.OrganizationID,
-		Ip:             alog.Ip,
-		UserAgent:      alog.UserAgent,
-		ResourceType:   alog.ResourceType,
-		ResourceID:     alog.ResourceID,
-		ResourceTarget: alog.ResourceTarget,
-		Action:         alog.Action,
-		Diff:           alog.Diff,
-		StatusCode:     alog.StatusCode,
-	})
+	_, err := b.db.InsertAuditLog(ctx, database.InsertAuditLogParams(alog))
 	if err != nil {
 		return xerrors.Errorf("insert audit log: %w", err)
 	}

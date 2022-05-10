@@ -307,7 +307,7 @@ func (c *Client) userByIdentifier(ctx context.Context, ident string) (User, erro
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
 func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil,
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/users", nil,
 		req.Pagination.asRequestOption(),
 		func(r *http.Request) {
 			q := r.URL.Query()

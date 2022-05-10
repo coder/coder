@@ -176,7 +176,7 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 				st, _ := obj.Type().Underlying().(*types.Struct)
 				codeBlock, err := g.buildStruct(obj, st)
 				if err != nil {
-					return nil, xerrors.Errorf("generate %q: %w", obj.Name())
+					return nil, xerrors.Errorf("generate %q: %w", obj.Name(), err)
 				}
 				structs[obj.Name()] = codeBlock
 			case *types.Basic:
