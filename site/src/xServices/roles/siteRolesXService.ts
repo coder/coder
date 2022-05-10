@@ -3,6 +3,10 @@ import * as API from "../../api"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 
+export const Language = {
+  getRolesError: "Error on get the roles.",
+}
+
 type SiteRolesContext = {
   roles?: TypesGen.Role[]
   getRolesError: Error | unknown
@@ -57,7 +61,7 @@ export const siteRolesMachine = createMachine(
         getRolesError: (_, event) => event.data,
       }),
       displayGetRolesError: () => {
-        displayError("Error on get the roles.")
+        displayError(Language.getRolesError)
       },
     },
     services: {

@@ -221,5 +221,28 @@ describe("Users Page", () => {
         expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
       })
     })
+
+    describe("when it fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await updateUserRole(() => {
+          jest.spyOn(API, "updateUserRoles").mockRejectedValueOnce({})
+        }, MockAuditorRole)
+
+        // Check if the error message is displayed
+        await screen.findByText(usersXServiceLanguage.updateUserRolesError)
+
+        // Check if the API was called correctly
+        const currentRoles = MockUser.roles.map((r) => r.name)
+        expect(API.updateUserRoles).toBeCalledTimes(1)
+        expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+      })
+    })
   })
 })
