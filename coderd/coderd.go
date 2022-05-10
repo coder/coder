@@ -258,7 +258,7 @@ func New(options *Options) (http.Handler, func()) {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
-					r.Get("/workspaces", api.workspacesByOwner)
+					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})
