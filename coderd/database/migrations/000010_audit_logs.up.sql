@@ -18,7 +18,7 @@ CREATE TABLE audit_logs (
     "time" timestamp with time zone NOT NULL,
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
-    ip cidr NOT NULL,
+    ip inet NOT NULL,
     user_agent varchar(256) NOT NULL,
     resource_type resource_type NOT NULL,
     resource_id uuid NOT NULL,

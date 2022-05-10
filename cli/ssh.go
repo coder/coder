@@ -26,8 +26,10 @@ func ssh() *cobra.Command {
 		stdio bool
 	)
 	cmd := &cobra.Command{
-		Use:  "ssh <workspace>",
-		Args: cobra.MinimumNArgs(1),
+		Annotations: workspaceCommand,
+		Use:         "ssh <workspace>",
+		Short:       "SSH into a workspace",
+		Args:        cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

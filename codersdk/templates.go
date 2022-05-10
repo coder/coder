@@ -69,9 +69,16 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 	return nil
 }
 
+// TemplateVersionsByTemplateRequest defines the request parameters for
+// TemplateVersionsByTemplate.
+type TemplateVersionsByTemplateRequest struct {
+	TemplateID uuid.UUID `json:"template_id" validate:"required"`
+	Pagination
+}
+
 // TemplateVersionsByTemplate lists versions associated with a template.
-func (c *Client) TemplateVersionsByTemplate(ctx context.Context, template uuid.UUID) ([]TemplateVersion, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", template), nil)
+func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVersionsByTemplateRequest) ([]TemplateVersion, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID), nil, req.Pagination.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

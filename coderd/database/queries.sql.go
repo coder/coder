@@ -154,22 +154,23 @@ SELECT
 FROM
 	audit_logs
 WHERE
-	"time" < (SELECT "time" FROM audit_logs a WHERE a.id = $1)
+	audit_logs."time" < COALESCE((SELECT "time" FROM audit_logs a WHERE a.id = $1), $2)
 ORDER BY
     "time" DESC
 LIMIT
-	$2
+	$3
 `
 
 type GetAuditLogsBeforeParams struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	RowLimit int32     `db:"row_limit" json:"row_limit"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	RowLimit  int32     `db:"row_limit" json:"row_limit"`
 }
 
 // GetAuditLogsBefore retrieves `limit` number of audit logs before the provided
 // ID.
 func (q *sqlQuerier) GetAuditLogsBefore(ctx context.Context, arg GetAuditLogsBeforeParams) ([]AuditLog, error) {
-	rows, err := q.db.QueryContext(ctx, getAuditLogsBefore, arg.ID, arg.RowLimit)
+	rows, err := q.db.QueryContext(ctx, getAuditLogsBefore, arg.ID, arg.StartTime, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +230,7 @@ type InsertAuditLogParams struct {
 	Time           time.Time       `db:"time" json:"time"`
 	UserID         uuid.UUID       `db:"user_id" json:"user_id"`
 	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip             pqtype.CIDR     `db:"ip" json:"ip"`
+	Ip             pqtype.Inet     `db:"ip" json:"ip"`
 	UserAgent      string          `db:"user_agent" json:"user_agent"`
 	ResourceType   ResourceType    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID       `db:"resource_id" json:"resource_id"`
@@ -1907,10 +1908,48 @@ FROM
 	template_versions
 WHERE
 	template_id = $1 :: uuid
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the created_at field, so select all
+			-- rows after the cursor.
+			(created_at, id) > (
+				SELECT
+					created_at, id
+				FROM
+					template_versions
+				WHERE
+					id = $2
+			)
+		)
+		ELSE true
+	END
+ORDER BY
+    -- Deterministic and consistent ordering of all rows, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+	(created_at, id) ASC OFFSET $3
+LIMIT
+	-- A null limit means "no limit", so -1 means return all
+	NULLIF($4 :: int, -1)
 `
 
-func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, dollar_1 uuid.UUID) ([]TemplateVersion, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByTemplateID, dollar_1)
+type GetTemplateVersionsByTemplateIDParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
+	OffsetOpt  int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt   int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByTemplateID,
+		arg.TemplateID,
+		arg.AfterID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2124,22 +2163,19 @@ WHERE
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
 		WHEN $1 :: uuid != '00000000-00000000-00000000-00000000' THEN (
-		    	-- The pagination cursor is the last user of the previous page.
-		    	-- The query is ordered by the created_at field, so select all
-		    	-- users after the cursor. We also want to include any users
-		    	-- that share the created_at (super rare).
-				created_at >= (
-					SELECT
-						created_at
-					FROM
-						users
-					WHERE
-						id = $1
-				)
-				-- Omit the cursor from the final.
-				AND id != $1
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the created_at field, so select all
+			-- rows after the cursor.
+			(created_at, id) > (
+				SELECT
+					created_at, id
+				FROM
+					users
+				WHERE
+					id = $1
 			)
-			ELSE true
+		)
+		ELSE true
 	END
 	-- Start filters
 	-- Filter by name, email or username
@@ -2170,7 +2206,7 @@ LIMIT
 `
 
 type GetUsersParams struct {
-	AfterUser uuid.UUID `db:"after_user" json:"after_user"`
+	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
 	Search    string    `db:"search" json:"search"`
 	Status    string    `db:"status" json:"status"`
 	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
@@ -2179,7 +2215,7 @@ type GetUsersParams struct {
 
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
-		arg.AfterUser,
+		arg.AfterID,
 		arg.Search,
 		arg.Status,
 		arg.OffsetOpt,
@@ -3177,6 +3213,49 @@ type GetWorkspacesByOrganizationIDParams struct {
 
 func (q *sqlQuerier) GetWorkspacesByOrganizationID(ctx context.Context, arg GetWorkspacesByOrganizationIDParams) ([]Workspace, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspacesByOrganizationID, arg.OrganizationID, arg.Deleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesByOrganizationIDs = `-- name: GetWorkspacesByOrganizationIDs :many
+SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule FROM workspaces WHERE organization_id = ANY($1 :: uuid [ ]) AND deleted = $2
+`
+
+type GetWorkspacesByOrganizationIDsParams struct {
+	Ids     []uuid.UUID `db:"ids" json:"ids"`
+	Deleted bool        `db:"deleted" json:"deleted"`
+}
+
+func (q *sqlQuerier) GetWorkspacesByOrganizationIDs(ctx context.Context, arg GetWorkspacesByOrganizationIDsParams) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesByOrganizationIDs, pq.Array(arg.Ids), arg.Deleted)
 	if err != nil {
 		return nil, err
 	}

@@ -15,6 +15,7 @@ export interface UsersPageViewProps {
   users: UserResponse[]
   openUserCreationDialog: () => void
   onSuspendUser: (user: UserResponse) => void
+  onResetUserPassword: (user: UserResponse) => void
   error?: unknown
 }
 
@@ -22,13 +23,18 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
   users,
   openUserCreationDialog,
   onSuspendUser,
+  onResetUserPassword,
   error,
 }) => {
   return (
     <Stack spacing={4}>
       <Header title={Language.pageTitle} action={{ text: Language.newUserButton, onClick: openUserCreationDialog }} />
       <Margins>
-        {error ? <ErrorSummary error={error} /> : <UsersTable users={users} onSuspendUser={onSuspendUser} />}
+        {error ? (
+          <ErrorSummary error={error} />
+        ) : (
+          <UsersTable users={users} onSuspendUser={onSuspendUser} onResetUserPassword={onResetUserPassword} />
+        )}
       </Margins>
     </Stack>
   )

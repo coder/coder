@@ -83,7 +83,7 @@ site/out/index.html: $(shell find ./site -not -path './site/node_modules/*' -typ
 	# Restores GITKEEP files!
 	git checkout HEAD site/out
 
-site/src/api/typesGenerated.ts: $(shell find codersdk -type f -name '*.go')
+site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site && yarn run format:types
 

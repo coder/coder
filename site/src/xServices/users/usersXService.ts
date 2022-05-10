@@ -4,28 +4,42 @@ import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../
 import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { generateRandomString } from "../../util/random"
 
 export const Language = {
   createUserSuccess: "Successfully created user.",
   suspendUserSuccess: "Successfully suspended the user.",
-  suspendUserError: "Error on suspend the user",
+  suspendUserError: "Error on suspend the user.",
+  resetUserPasswordSuccess: "Successfully updated the user password.",
+  resetUserPasswordError: "Error on reset the user password.",
 }
 
 export interface UsersContext {
+  // Get users
   users?: TypesGen.User[]
-  userIdToSuspend?: TypesGen.User["id"]
   getUsersError?: Error | unknown
   createUserError?: Error | unknown
   createUserFormErrors?: FieldErrors
+  // Suspend user
+  userIdToSuspend?: TypesGen.User["id"]
   suspendUserError?: Error | unknown
+  // Reset user password
+  userIdToResetPassword?: TypesGen.User["id"]
+  resetUserPasswordError?: Error | unknown
+  newUserPassword?: string
 }
 
 export type UsersEvent =
   | { type: "GET_USERS" }
   | { type: "CREATE"; user: Types.CreateUserRequest }
+  // Suspend events
   | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_SUSPENSION" }
   | { type: "CANCEL_USER_SUSPENSION" }
+  // Reset password events
+  | { type: "RESET_USER_PASSWORD"; userId: TypesGen.User["id"] }
+  | { type: "CONFIRM_USER_PASSWORD_RESET" }
+  | { type: "CANCEL_USER_PASSWORD_RESET" }
 
 export const usersMachine = createMachine(
   {
@@ -43,6 +57,9 @@ export const usersMachine = createMachine(
         suspendUser: {
           data: TypesGen.User
         }
+        updateUserPassword: {
+          data: undefined
+        }
       },
     },
     id: "usersState",
@@ -58,6 +75,10 @@ export const usersMachine = createMachine(
           SUSPEND_USER: {
             target: "confirmUserSuspension",
             actions: ["assignUserIdToSuspend"],
+          },
+          RESET_USER_PASSWORD: {
+            target: "confirmUserPasswordReset",
+            actions: ["assignUserIdToResetPassword", "generateRandomPassword"],
           },
         },
       },
@@ -124,6 +145,27 @@ export const usersMachine = createMachine(
           },
         },
       },
+      confirmUserPasswordReset: {
+        on: {
+          CONFIRM_USER_PASSWORD_RESET: "resettingUserPassword",
+          CANCEL_USER_PASSWORD_RESET: "idle",
+        },
+      },
+      resettingUserPassword: {
+        entry: "clearResetUserPasswordError",
+        invoke: {
+          src: "resetUserPassword",
+          id: "resetUserPassword",
+          onDone: {
+            target: "idle",
+            actions: ["displayResetPasswordSuccess"],
+          },
+          onError: {
+            target: "idle",
+            actions: ["assignResetUserPasswordError", "displayResetPasswordErrorMessage"],
+          },
+        },
+      },
       error: {
         on: {
           GET_USERS: "gettingUsers",
@@ -145,6 +187,17 @@ export const usersMachine = createMachine(
 
         return API.suspendUser(context.userIdToSuspend)
       },
+      resetUserPassword: (context) => {
+        if (!context.userIdToResetPassword) {
+          throw new Error("userIdToResetPassword is undefined")
+        }
+
+        if (!context.newUserPassword) {
+          throw new Error("newUserPassword not generated")
+        }
+
+        return API.updateUserPassword(context.newUserPassword, context.userIdToResetPassword)
+      },
     },
     guards: {
       isFormError: (_, event) => isApiError(event.data),
@@ -158,6 +211,9 @@ export const usersMachine = createMachine(
       }),
       assignUserIdToSuspend: assign({
         userIdToSuspend: (_, event) => event.userId,
+      }),
+      assignUserIdToResetPassword: assign({
+        userIdToResetPassword: (_, event) => event.userId,
       }),
       clearGetUsersError: assign((context: UsersContext) => ({
         ...context,
@@ -173,12 +229,18 @@ export const usersMachine = createMachine(
       assignSuspendUserError: assign({
         suspendUserError: (_, event) => event.data,
       }),
+      assignResetUserPasswordError: assign({
+        resetUserPasswordError: (_, event) => event.data,
+      }),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
         createUserError: undefined,
       })),
       clearSuspendUserError: assign({
         suspendUserError: (_) => undefined,
+      }),
+      clearResetUserPasswordError: assign({
+        resetUserPasswordError: (_) => undefined,
       }),
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
@@ -189,6 +251,15 @@ export const usersMachine = createMachine(
       displaySuspendedErrorMessage: () => {
         displayError(Language.suspendUserError)
       },
+      displayResetPasswordSuccess: () => {
+        displaySuccess(Language.resetUserPasswordSuccess)
+      },
+      displayResetPasswordErrorMessage: () => {
+        displayError(Language.resetUserPasswordError)
+      },
+      generateRandomPassword: assign({
+        newUserPassword: (_) => generateRandomString(12),
+      }),
     },
   },
 )
