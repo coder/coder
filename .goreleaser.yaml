@@ -34,6 +34,12 @@ builds:
     goos: [darwin, linux, windows]
     goarch: [amd64, arm, arm64]
     goarm: ["7"]
+    # Only build arm 7 for Linux
+    ignore:
+      - goos: windows
+        goarm: '7'
+      - goos: darwin
+        goarm: '7'
     hooks:
       # The "trimprefix" appends ".exe" on Windows.
       post: |
