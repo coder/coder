@@ -34,3 +34,6 @@ Stopping.args = { ...Started.args, workspaceStatus: "stopping" }
 
 export const Error = Template.bind({})
 Error.args = { ...Started.args, workspaceStatus: "error" }
+
+export const NoBreadcrumb = Template.bind({})
+NoBreadcrumb.args = { ...Started.args, template: undefined }

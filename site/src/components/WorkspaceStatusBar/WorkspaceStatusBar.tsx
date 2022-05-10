@@ -9,6 +9,7 @@ import { Link } from "react-router-dom"
 import * as Types from "../../api/types"
 import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
 import { TitleIconSize } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
@@ -55,20 +56,27 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
     <WorkspaceSection>
       <Stack spacing={1}>
 
-        {organization && template &&
-          <Typography variant="body2" color="textSecondary">
-            Back to{" "}
-            <Link className={styles.link} to={templateLink}>
-              {template.name}
-            </Link>
-          </Typography>
-        }
+        <div className={combineClasses([styles.horizontal, styles.reverse])}>
+          <div className={styles.horizontal}>
+              <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>
+                {Language.settings}
+              </Link>
+          </div>
+
+          {organization && template &&
+            <Typography variant="body2" color="textSecondary">
+              Back to{" "}
+              <Link className={styles.link} to={templateLink}>
+                {template.name}
+              </Link>
+            </Typography>
+          }
+
+        </div>
 
         <div className={styles.horizontal}>
           <div className={styles.horizontal}>
-            <div className={styles.vertical}>
-              <Typography variant="h4">{workspace.name}</Typography>
-            </div>
+            <Typography variant="h4">{workspace.name}</Typography>
             <Box className={styles.statusChip}>
               {workspaceStatus === "started" && Language.started}
               {workspaceStatus === "starting" && Language.starting}
@@ -101,12 +109,6 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
               </Button>
             )}
 
-            <Divider orientation="vertical" flexItem />
-
-            <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>
-              {Language.settings}
-            </Link>
-
           </div>
         </div>
       </Stack>
@@ -126,10 +128,12 @@ const useStyles = makeStyles((theme) => {
     },
     horizontal: {
       display: "flex",
-      flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
       gap: theme.spacing(2),
+    },
+    reverse: {
+      flexDirection: 'row-reverse'
     },
     statusChip: {
       border: `solid 1px ${theme.palette.text.hint}`,
