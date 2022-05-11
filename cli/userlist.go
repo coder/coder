@@ -2,17 +2,20 @@ package cli
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 func userList() *cobra.Command {
-	return &cobra.Command{
+	var (
+		columns []string
+	)
+	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -24,14 +27,14 @@ func userList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			sort.Slice(users, func(i, j int) bool {
-				return users[i].Username < users[j].Username
-			})
 
-			tableWriter := table.NewWriter()
-			tableWriter.SetStyle(table.StyleLight)
-			tableWriter.Style().Options.SeparateColumns = false
-			tableWriter.AppendHeader(table.Row{"Username", "Email", "Created At"})
+			tableWriter := cliui.Table()
+			header := table.Row{"Username", "Email", "Created At"}
+			tableWriter.AppendHeader(header)
+			tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, columns))
+			tableWriter.SortBy([]table.SortBy{{
+				Name: "Username",
+			}})
 			for _, user := range users {
 				tableWriter.AppendRow(table.Row{
 					user.Username,
@@ -43,4 +46,7 @@ func userList() *cobra.Command {
 			return err
 		},
 	}
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
+		"Specify a column to filter in the table.")
+	return cmd
 }

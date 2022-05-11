@@ -1,8 +1,17 @@
+import Box from "@material-ui/core/Box"
+import Table from "@material-ui/core/Table"
+import TableBody from "@material-ui/core/TableBody"
+import TableCell from "@material-ui/core/TableCell"
+import TableHead from "@material-ui/core/TableHead"
+import TableRow from "@material-ui/core/TableRow"
 import React from "react"
 import { UserResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { EmptyState } from "../EmptyState/EmptyState"
-import { Column, Table } from "../Table/Table"
+import { RoleSelect } from "../RoleSelect/RoleSelect"
+import { TableHeaderRow } from "../TableHeaders/TableHeaders"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
+import { TableTitle } from "../TableTitle/TableTitle"
 import { UserCell } from "../UserCell/UserCell"
 
 export const Language = {
@@ -12,48 +21,79 @@ export const Language = {
   usernameLabel: "User",
   suspendMenuItem: "Suspend",
   resetPasswordMenuItem: "Reset password",
+  rolesLabel: "Roles",
 }
-
-const emptyState = <EmptyState message={Language.emptyMessage} />
-
-const columns: Column<UserResponse>[] = [
-  {
-    key: "username",
-    name: Language.usernameLabel,
-    renderer: (field, data) => {
-      return <UserCell Avatar={{ username: data.username }} primaryText={data.username} caption={data.email} />
-    },
-  },
-]
 
 export interface UsersTableProps {
   users: UserResponse[]
   onSuspendUser: (user: UserResponse) => void
   onResetUserPassword: (user: UserResponse) => void
+  onUpdateUserRoles: (user: UserResponse, roles: TypesGen.Role["name"][]) => void
+  roles: TypesGen.Role[]
+  isUpdatingUserRoles?: boolean
 }
 
-export const UsersTable: React.FC<UsersTableProps> = ({ users, onSuspendUser, onResetUserPassword }) => {
+export const UsersTable: React.FC<UsersTableProps> = ({
+  users,
+  roles,
+  onSuspendUser,
+  onResetUserPassword,
+  onUpdateUserRoles,
+  isUpdatingUserRoles,
+}) => {
   return (
-    <Table
-      columns={columns}
-      data={users}
-      title={Language.usersTitle}
-      emptyState={emptyState}
-      rowMenu={(user) => (
-        <TableRowMenu
-          data={user}
-          menuItems={[
-            {
-              label: Language.suspendMenuItem,
-              onClick: onSuspendUser,
-            },
-            {
-              label: Language.resetPasswordMenuItem,
-              onClick: onResetUserPassword,
-            },
-          ]}
-        />
-      )}
-    />
+    <Table>
+      <TableHead>
+        <TableTitle title={Language.usersTitle} />
+        <TableHeaderRow>
+          <TableCell size="small">{Language.usernameLabel}</TableCell>
+          <TableCell size="small">{Language.rolesLabel}</TableCell>
+          {/* 1% is a trick to make the table cell width fit the content */}
+          <TableCell size="small" width="1%" />
+        </TableHeaderRow>
+      </TableHead>
+      <TableBody>
+        {users.map((u) => (
+          <TableRow key={u.id}>
+            <TableCell>
+              <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
+            </TableCell>
+            <TableCell>
+              <RoleSelect
+                roles={roles}
+                selectedRoles={u.roles}
+                loading={isUpdatingUserRoles}
+                onChange={(roles) => onUpdateUserRoles(u, roles)}
+              />
+            </TableCell>
+            <TableCell>
+              <TableRowMenu
+                data={u}
+                menuItems={[
+                  {
+                    label: Language.suspendMenuItem,
+                    onClick: onSuspendUser,
+                  },
+                  {
+                    label: Language.resetPasswordMenuItem,
+                    onClick: onResetUserPassword,
+                  },
+                ]}
+              />
+            </TableCell>
+          </TableRow>
+        ))}
+
+        {users.length === 0 && (
+          <TableRow>
+            <TableCell colSpan={999}>
+              <Box p={4}>
+                <EmptyState message={Language.emptyMessage} />
+              </Box>
+            </TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </Table>
   )
 }

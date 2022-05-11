@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import React from "react"
-import { MockUser, MockUser2 } from "../../testHelpers"
+import { MockSiteRoles, MockUser, MockUser2 } from "../../testHelpers"
 import { UsersTable, UsersTableProps } from "./UsersTable"
 
 export default {
@@ -13,9 +13,11 @@ const Template: Story<UsersTableProps> = (args) => <UsersTable {...args} />
 export const Example = Template.bind({})
 Example.args = {
   users: [MockUser, MockUser2],
+  roles: MockSiteRoles,
 }
 
 export const Empty = Template.bind({})
 Empty.args = {
   users: [],
+  roles: MockSiteRoles,
 }

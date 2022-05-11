@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -106,55 +105,26 @@ func (api *api) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 	var (
-		afterArg     = r.URL.Query().Get("after_user")
-		limitArg     = r.URL.Query().Get("limit")
-		offsetArg    = r.URL.Query().Get("offset")
 		searchName   = r.URL.Query().Get("search")
 		statusFilter = r.URL.Query().Get("status")
 	)
 
-	// createdAfter is a user uuid.
-	createdAfter := uuid.Nil
-	if afterArg != "" {
-		after, err := uuid.Parse(afterArg)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("after_user must be a valid uuid: %s", err.Error()),
-			})
-			return
-		}
-		createdAfter = after
-	}
-
-	// Default to no limit and return all users.
-	pageLimit := -1
-	if limitArg != "" {
-		limit, err := strconv.Atoi(limitArg)
-		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("limit must be an integer: %s", err.Error()),
-			})
-			return
-		}
-		pageLimit = limit
-	}
-
-	// The default for empty string is 0.
-	offset, err := strconv.ParseInt(offsetArg, 10, 64)
-	if offsetArg != "" && err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("offset must be an integer: %s", err.Error()),
-		})
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
 		return
 	}
 
 	users, err := api.Database.GetUsers(r.Context(), database.GetUsersParams{
-		AfterUser: createdAfter,
-		OffsetOpt: int32(offset),
-		LimitOpt:  int32(pageLimit),
+		AfterID:   paginationParams.AfterID,
+		OffsetOpt: int32(paginationParams.Offset),
+		LimitOpt:  int32(paginationParams.Limit),
 		Search:    searchName,
 		Status:    statusFilter,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusOK, []codersdk.User{})
+		return
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: err.Error(),
@@ -296,7 +266,7 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("user already exists"),
+			Message: "user already exists",
 			Errors:  responseErrors,
 		})
 		return
@@ -421,7 +391,7 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	if apiKey.UserID != user.ID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("modifying other users is not supported at this time"),
+			Message: "modifying other users is not supported at this time",
 		})
 		return
 	}
@@ -804,6 +774,73 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 		}
 		return nil
 	})
+}
+
+func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+	roles := httpmw.UserRoles(r)
+
+	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get organizations: %s", err),
+		})
+		return
+	}
+	organizationIDs := make([]uuid.UUID, 0)
+	for _, organization := range organizations {
+		err = api.Authorizer.AuthorizeByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead, rbac.ResourceWorkspace.All().InOrg(organization.ID))
+		var apiErr *rbac.UnauthorizedError
+		if xerrors.As(err, &apiErr) {
+			continue
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("authorize: %s", err),
+			})
+			return
+		}
+		organizationIDs = append(organizationIDs, organization.ID)
+	}
+
+	workspaceIDs := map[uuid.UUID]struct{}{}
+	allWorkspaces, err := api.Database.GetWorkspacesByOrganizationIDs(r.Context(), database.GetWorkspacesByOrganizationIDsParams{
+		Ids: organizationIDs,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces for organizations: %s", err),
+		})
+		return
+	}
+	for _, ws := range allWorkspaces {
+		workspaceIDs[ws.ID] = struct{}{}
+	}
+	userWorkspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
+		OwnerID: user.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get workspaces for user: %s", err),
+		})
+		return
+	}
+	for _, ws := range userWorkspaces {
+		_, exists := workspaceIDs[ws.ID]
+		if exists {
+			continue
+		}
+		allWorkspaces = append(allWorkspaces, ws)
+	}
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allWorkspaces)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("convert workspaces: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
