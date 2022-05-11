@@ -223,8 +223,9 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 
 // prettyDirectoryPath returns a prettified path when inside the users
 // home directory. Falls back to dir if the users home directory cannot
-// discerned.
+// discerned. This function calls filepath.Clean on the result.
 func prettyDirectoryPath(dir string) string {
+	dir = filepath.Clean(dir)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return dir
