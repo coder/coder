@@ -38,11 +38,13 @@ func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan ti
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	for t := range e.tick {
-		if err := e.runOnce(t); err != nil {
-			e.log.Error(e.ctx, "error running once", slog.Error(err))
+	go func() {
+		for t := range e.tick {
+			if err := e.runOnce(t); err != nil {
+				e.log.Error(e.ctx, "error running once", slog.Error(err))
+			}
 		}
-	}
+	}()
 }
 
 func (e *Executor) runOnce(t time.Time) error {

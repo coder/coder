@@ -347,7 +347,7 @@ func server() *cobra.Command {
 			lifecyclePoller := time.NewTicker(time.Minute)
 			defer lifecyclePoller.Stop()
 			lifecycleExecutor := executor.New(cmd.Context(), options.Database, logger, lifecyclePoller.C)
-			go lifecycleExecutor.Run()
+			lifecycleExecutor.Run()
 
 			// Because the graceful shutdown includes cleaning up workspaces in dev mode, we're
 			// going to make it harder to accidentally skip the graceful shutdown by hitting ctrl+c

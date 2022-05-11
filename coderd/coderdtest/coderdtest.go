@@ -110,7 +110,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		slogtest.Make(t, nil).Named("lifecycle.executor").Leveled(slog.LevelDebug),
 		options.LifecycleTicker,
 	)
-	go lifecycleExecutor.Run()
+	lifecycleExecutor.Run()
 
 	srv := httptest.NewUnstartedServer(nil)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
