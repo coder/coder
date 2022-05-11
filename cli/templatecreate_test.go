@@ -22,7 +22,7 @@ func TestTemplateCreate(t *testing.T) {
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
 		doneChan := make(chan struct{})
