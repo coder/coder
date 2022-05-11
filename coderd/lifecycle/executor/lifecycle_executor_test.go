@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Executor_Autostart_OK(t *testing.T) {
+func TestExecutorAutostartOK(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -57,7 +57,7 @@ func Test_Executor_Autostart_OK(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
 }
 
-func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
+func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -97,7 +97,7 @@ func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
-func Test_Executor_Autostart_NotEnabled(t *testing.T) {
+func TestExecutorAutostartNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -128,7 +128,7 @@ func Test_Executor_Autostart_NotEnabled(t *testing.T) {
 	require.NotEqual(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
 
-func Test_Executor_Autostop_OK(t *testing.T) {
+func TestExecutorAutostopOK(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -168,7 +168,7 @@ func Test_Executor_Autostop_OK(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
 
-func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
+func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -208,7 +208,7 @@ func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
 
-func Test_Executor_Autostop_NotEnabled(t *testing.T) {
+func TestExecutorAutostopNotEnabled(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -239,7 +239,7 @@ func Test_Executor_Autostop_NotEnabled(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
-func Test_Executor_Workspace_Deleted(t *testing.T) {
+func TestExecutorWorkspaceDeleted(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -279,7 +279,7 @@ func Test_Executor_Workspace_Deleted(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionDelete, ws.LatestBuild.Transition, "expected workspace to be deleted")
 }
 
-func Test_Executor_Workspace_TooEarly(t *testing.T) {
+func TestExecutorWorkspaceTooEarly(t *testing.T) {
 	t.Parallel()
 
 	var (
