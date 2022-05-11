@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // Me is used as a replacement for your own ID.
@@ -74,6 +76,27 @@ type UpdateRoles struct {
 type UserRoles struct {
 	Roles             []string               `json:"roles"`
 	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
+}
+
+type UserPermissionCheckObject struct {
+	ResourceType   string `json:"resource_type,omitempty"`
+	OwnerID        string `json:"owner_id,omitempty"`
+	OrganizationID string `json:"organization_id,omitempty"`
+	ResourceID     string `json:"resource_id,omitempty"`
+}
+
+type UserPermissionCheckResponse map[string]bool
+
+// UserPermissionCheckRequest is a structure instead of a map because
+// go-playground/validate can only validate structs. If you attempt to pass
+// a map into 'httpapi.Read', you will get an invalid type error.
+type UserPermissionCheckRequest struct {
+	Checks map[string]UserPermissionCheck `json:"checks"`
+}
+
+type UserPermissionCheck struct {
+	Object UserPermissionCheckObject `json:"object"`
+	Action rbac.Action               `json:"action"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
