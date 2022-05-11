@@ -78,14 +78,14 @@ export const AppRouter: React.FC = () => (
         </Route>
 
         <Route path="workspaces">
-          <Route
-            path=":workspace"
-          >
-            <Route index
+          <Route path=":workspace">
+            <Route
+              index
               element={
                 <AuthAndFrame>
                   <WorkspacePage />
-                </AuthAndFrame>}
+                </AuthAndFrame>
+              }
             />
             <Route
               path="edit"
@@ -93,7 +93,8 @@ export const AppRouter: React.FC = () => (
                 <AuthAndFrame>
                   <WorkspaceSettingsPage />
                 </AuthAndFrame>
-              }/>
+              }
+            />
           </Route>
         </Route>
 
