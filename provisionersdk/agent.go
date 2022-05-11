@@ -44,7 +44,7 @@ exec $BINARY_LOCATION agent`,
 			"armv7": `#!/usr/bin/env sh
 set -eu pipefail
 export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
-curl -fsSL ${ACCESS_URL}bin/coder-linux-arm -o $BINARY_LOCATION
+curl -fsSL ${ACCESS_URL}bin/coder-linux-armv7 -o $BINARY_LOCATION
 chmod +x $BINARY_LOCATION
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
