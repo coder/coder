@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -29,7 +28,7 @@ func (api *api) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	//	the selected organization. Until then, allow anarchy
 	if apiKey.UserID != user.ID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("modifying other users is not supported at this time"),
+			Message: "modifying other users is not supported at this time",
 		})
 		return
 	}

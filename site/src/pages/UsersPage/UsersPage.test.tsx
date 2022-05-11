@@ -1,10 +1,12 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import React from "react"
 import * as API from "../../api"
+import { Role } from "../../api/typesGenerated"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
 import { Language as ResetPasswordDialogLanguage } from "../../components/ResetPasswordDialog/ResetPasswordDialog"
+import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
 import { Language as UsersTableLanguage } from "../../components/UsersTable/UsersTable"
-import { MockUser, MockUser2, render } from "../../testHelpers"
+import { MockAuditorRole, MockUser, MockUser2, render } from "../../testHelpers"
 import { Language as usersXServiceLanguage } from "../../xServices/users/usersXService"
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
 
@@ -60,6 +62,34 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   // Click on the "Confirm" button
   const confirmButton = within(confirmDialog).getByRole("button", { name: ResetPasswordDialogLanguage.confirmText })
   fireEvent.click(confirmButton)
+}
+
+const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
+  // Get the first user in the table
+  const users = await screen.findAllByText(/.*@coder.com/)
+  const firstUserRow = users[0].closest("tr")
+  if (!firstUserRow) {
+    throw new Error("Error on get the first user row")
+  }
+
+  // Click on the "roles" menu to display the role options
+  const rolesLabel = within(firstUserRow).getByLabelText(RoleSelectLanguage.label)
+  const rolesMenuTrigger = within(rolesLabel).getByRole("button")
+  // For MUI v4, the Select was changed to open on mouseDown instead of click
+  // https://github.com/mui-org/material-ui/pull/17978
+  fireEvent.mouseDown(rolesMenuTrigger)
+
+  // Setup spies to check the actions after
+  setupActionSpies()
+
+  // Click on the role option
+  const listBox = screen.getByRole("listbox")
+  const auditorOption = within(listBox).getByRole("option", { name: role.display_name })
+  fireEvent.click(auditorOption)
+
+  return {
+    rolesMenuTrigger,
+  }
 }
 
 describe("Users Page", () => {
@@ -161,6 +191,57 @@ describe("Users Page", () => {
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1)
         expect(API.updateUserPassword).toBeCalledWith(expect.any(String), MockUser.id)
+      })
+    })
+  })
+
+  describe("Update user role", () => {
+    describe("when it is success", () => {
+      it("updates the roles", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        const { rolesMenuTrigger } = await updateUserRole(() => {
+          jest.spyOn(API, "updateUserRoles").mockResolvedValueOnce({
+            ...MockUser,
+            roles: [...MockUser.roles, MockAuditorRole],
+          })
+        }, MockAuditorRole)
+
+        // Check if the select text was updated with the Auditor role
+        await waitFor(() => expect(rolesMenuTrigger).toHaveTextContent("Admin, Member, Auditor"))
+
+        // Check if the API was called correctly
+        const currentRoles = MockUser.roles.map((r) => r.name)
+        expect(API.updateUserRoles).toBeCalledTimes(1)
+        expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
+      })
+    })
+
+    describe("when it fails", () => {
+      it("shows an error message", async () => {
+        render(
+          <>
+            <UsersPage />
+            <GlobalSnackbar />
+          </>,
+        )
+
+        await updateUserRole(() => {
+          jest.spyOn(API, "updateUserRoles").mockRejectedValueOnce({})
+        }, MockAuditorRole)
+
+        // Check if the error message is displayed
+        await screen.findByText(usersXServiceLanguage.updateUserRolesError)
+
+        // Check if the API was called correctly
+        const currentRoles = MockUser.roles.map((r) => r.name)
+        expect(API.updateUserRoles).toBeCalledTimes(1)
+        expect(API.updateUserRoles).toBeCalledWith([...currentRoles, MockAuditorRole.name], MockUser.id)
       })
     })
   })

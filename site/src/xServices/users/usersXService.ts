@@ -12,6 +12,8 @@ export const Language = {
   suspendUserError: "Error on suspend the user.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
   resetUserPasswordError: "Error on reset the user password.",
+  updateUserRolesSuccess: "Successfully updated the user roles.",
+  updateUserRolesError: "Error on update the user roles.",
 }
 
 export interface UsersContext {
@@ -27,6 +29,9 @@ export interface UsersContext {
   userIdToResetPassword?: TypesGen.User["id"]
   resetUserPasswordError?: Error | unknown
   newUserPassword?: string
+  // Update user roles
+  userIdToUpdateRoles?: TypesGen.User["id"]
+  updateUserRolesError?: Error | unknown
 }
 
 export type UsersEvent =
@@ -40,6 +45,8 @@ export type UsersEvent =
   | { type: "RESET_USER_PASSWORD"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_PASSWORD_RESET" }
   | { type: "CANCEL_USER_PASSWORD_RESET" }
+  // Update roles events
+  | { type: "UPDATE_USER_ROLES"; userId: TypesGen.User["id"]; roles: TypesGen.Role["name"][] }
 
 export const usersMachine = createMachine(
   {
@@ -60,6 +67,9 @@ export const usersMachine = createMachine(
         updateUserPassword: {
           data: undefined
         }
+        updateUserRoles: {
+          data: TypesGen.User
+        }
       },
     },
     id: "usersState",
@@ -79,6 +89,10 @@ export const usersMachine = createMachine(
           RESET_USER_PASSWORD: {
             target: "confirmUserPasswordReset",
             actions: ["assignUserIdToResetPassword", "generateRandomPassword"],
+          },
+          UPDATE_USER_ROLES: {
+            target: "updatingUserRoles",
+            actions: ["assignUserIdToUpdateRoles"],
           },
         },
       },
@@ -166,6 +180,21 @@ export const usersMachine = createMachine(
           },
         },
       },
+      updatingUserRoles: {
+        entry: "clearUpdateUserRolesError",
+        invoke: {
+          src: "updateUserRoles",
+          id: "updateUserRoles",
+          onDone: {
+            target: "idle",
+            actions: ["updateUserRolesInTheList"],
+          },
+          onError: {
+            target: "idle",
+            actions: ["assignUpdateRolesError", "displayUpdateRolesErrorMessage"],
+          },
+        },
+      },
       error: {
         on: {
           GET_USERS: "gettingUsers",
@@ -198,6 +227,13 @@ export const usersMachine = createMachine(
 
         return API.updateUserPassword(context.newUserPassword, context.userIdToResetPassword)
       },
+      updateUserRoles: (context, event) => {
+        if (!context.userIdToUpdateRoles) {
+          throw new Error("userIdToUpdateRoles is undefined")
+        }
+
+        return API.updateUserRoles(event.roles, context.userIdToUpdateRoles)
+      },
     },
     guards: {
       isFormError: (_, event) => isApiError(event.data),
@@ -214,6 +250,9 @@ export const usersMachine = createMachine(
       }),
       assignUserIdToResetPassword: assign({
         userIdToResetPassword: (_, event) => event.userId,
+      }),
+      assignUserIdToUpdateRoles: assign({
+        userIdToUpdateRoles: (_, event) => event.userId,
       }),
       clearGetUsersError: assign((context: UsersContext) => ({
         ...context,
@@ -232,6 +271,9 @@ export const usersMachine = createMachine(
       assignResetUserPasswordError: assign({
         resetUserPasswordError: (_, event) => event.data,
       }),
+      assignUpdateRolesError: assign({
+        updateUserRolesError: (_, event) => event.data,
+      }),
       clearCreateUserError: assign((context: UsersContext) => ({
         ...context,
         createUserError: undefined,
@@ -241,6 +283,9 @@ export const usersMachine = createMachine(
       }),
       clearResetUserPasswordError: assign({
         resetUserPasswordError: (_) => undefined,
+      }),
+      clearUpdateUserRolesError: assign({
+        updateUserRolesError: (_) => undefined,
       }),
       displayCreateUserSuccess: () => {
         displaySuccess(Language.createUserSuccess)
@@ -257,8 +302,22 @@ export const usersMachine = createMachine(
       displayResetPasswordErrorMessage: () => {
         displayError(Language.resetUserPasswordError)
       },
+      displayUpdateRolesErrorMessage: () => {
+        displayError(Language.updateUserRolesError)
+      },
       generateRandomPassword: assign({
         newUserPassword: (_) => generateRandomString(12),
+      }),
+      updateUserRolesInTheList: assign({
+        users: ({ users }, event) => {
+          if (!users) {
+            return users
+          }
+
+          return users.map((u) => {
+            return u.id === event.data.id ? event.data : u
+          })
+        },
       }),
     },
   },

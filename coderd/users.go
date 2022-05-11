@@ -266,7 +266,7 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
-			Message: fmt.Sprintf("user already exists"),
+			Message: "user already exists",
 			Errors:  responseErrors,
 		})
 		return
@@ -391,7 +391,7 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	if apiKey.UserID != user.ID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: fmt.Sprintf("modifying other users is not supported at this time"),
+			Message: "modifying other users is not supported at this time",
 		})
 		return
 	}

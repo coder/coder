@@ -77,9 +77,9 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
-		connectionURL, close, err := postgres.Open()
+		connectionURL, closePg, err := postgres.Open()
 		require.NoError(t, err)
-		t.Cleanup(close)
+		t.Cleanup(closePg)
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {

@@ -42,7 +42,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3.1.0
         with:
-          version: v1.45.2
+          version: v1.46.0
 
   style-lint-typescript:
     name: "style/lint/typescript"

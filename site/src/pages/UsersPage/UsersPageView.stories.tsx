@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import React from "react"
-import { MockUser, MockUser2 } from "../../testHelpers"
+import { MockSiteRoles, MockUser, MockUser2 } from "../../testHelpers"
 import { UsersPageView, UsersPageViewProps } from "./UsersPageView"
 
 export default {
@@ -13,8 +13,10 @@ const Template: Story<UsersPageViewProps> = (args) => <UsersPageView {...args} /
 export const Ready = Template.bind({})
 Ready.args = {
   users: [MockUser, MockUser2],
+  roles: MockSiteRoles,
 }
 export const Empty = Template.bind({})
 Empty.args = {
   users: [],
+  roles: MockSiteRoles,
 }

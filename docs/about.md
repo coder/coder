@@ -70,6 +70,18 @@ Azure, Google Cloud, Kubernetes, and more.
 - Coder is not a SaaS/fully-managed offering. You must host
   Coder on a cloud service (AWS, Azure, GCP) or your private data center.
 
+## Comparison
+
+Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](./about.md#what-coder-is-not).
+
+
+| Tool                                                        | Type                                    | Self-hosted version          | Hosted version | Availability                    | Supported platforms                                                                                                                                        |
+| :---------------------------------------------------------- | :-------------------------------------- | :--------------------------- | :------------- | :------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Coder](https://github.com/coder/coder)                     | Platform: multiple workspaces and teams | ✅                            |                | Open source (paid version soon) | All [Terraform](https://www.terraform.io/registry/providers) resources, all clouds, multi-architecture: Linux, Mac, Windows, containers, VMs, amd64, arm64 |
+| [Coder (Classic)](https://coder.com/docs)                   | Platform: multiple workspaces and teams | ✅                            |                | Proprietary/paid license        | Any Kubernetes cluster: Linux Containers                                                                                                                   |
+| [GitHub Codespaces](https://github.com/features/codespaces) | Platform: solo or team                  | Only GitHub Enterprise Cloud | ✅              | Open source/paid                | Linux containers                                                                                                                                           |
+| [code-server](https://github.com/cdr/code-server)           | Web IDE: solo developer                 | ✅                            |                | Open source                     | Linux, Mac, Windows, containers, VMs, amd64, arm64                                                                                                         |
+
 ---
 
 Next: [Templates](./templates.md)
