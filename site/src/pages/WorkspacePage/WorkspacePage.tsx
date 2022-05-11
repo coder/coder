@@ -19,20 +19,17 @@ export const WorkspacePage: React.FC = () => {
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
   const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
     workspaceState.context
-  let workspaceStatus: WorkspaceStatus
-  if (workspaceState.matches("ready.build.started")) {
-    workspaceStatus = "started"
-  } else if (workspaceState.matches("ready.build.stopped")) {
-    workspaceStatus = "stopped"
-  } else if (workspaceState.hasTag("starting")) {
-    workspaceStatus = "starting"
-  } else if (workspaceState.hasTag("stopping")) {
-    workspaceStatus = "stopping"
-  } else if (workspaceState.matches("ready.build.error")) {
-    workspaceStatus = "error"
-  } else {
-    workspaceStatus = "loading"
-  }
+  const workspaceStatus: WorkspaceStatus = workspaceState.matches("ready.build.started")
+    ? "started"
+    : workspaceState.matches("ready.build.stopped")
+    ? "stopped"
+    : workspaceState.hasTag("starting")
+    ? "starting"
+    : workspaceState.hasTag("stopping")
+    ? "stopping"
+    : workspaceState.matches("ready.build.error")
+    ? "error"
+    : "loading"
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
