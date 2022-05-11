@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/lifecycle/schedule"
 	"github.com/coder/coder/codersdk"
+	"go.uber.org/goleak"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -353,4 +354,8 @@ func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	ws, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
+
+}
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
