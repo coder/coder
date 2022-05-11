@@ -3,11 +3,11 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
-import { BuildInfoResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { XServiceContext } from "../../xServices/StateContext"
 
 export const Language = {
-  buildInfoText: (buildInfo: BuildInfoResponse): string => {
+  buildInfoText: (buildInfo: TypesGen.BuildInfoResponse): string => {
     return `Coder ${buildInfo.version}`
   },
 }

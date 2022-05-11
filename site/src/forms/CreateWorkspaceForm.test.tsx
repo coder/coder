@@ -15,7 +15,7 @@ describe("CreateWorkspaceForm", () => {
         template={MockTemplate}
         onSubmit={onSubmit}
         onCancel={onCancel}
-        organization_id={MockOrganization.id}
+        organizationId={MockOrganization.id}
       />,
     )
 

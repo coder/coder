@@ -7,7 +7,7 @@ import { fade, makeStyles } from "@material-ui/core/styles"
 import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
-import { UserResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { BorderedMenu } from "../BorderedMenu/BorderedMenu"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { DocsIcon } from "../Icons/DocsIcon"
@@ -21,7 +21,7 @@ export const Language = {
   signOutLabel: "Sign Out",
 }
 export interface UserDropdownProps {
-  user: UserResponse
+  user: TypesGen.User
   onSignOut: () => void
 }
 

@@ -1,26 +1,32 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
-import * as Types from "./types"
 import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
   "Content-Type": "application/json",
 }
 
-export const provisioners: Types.Provisioner[] = [
+export const provisioners: TypesGen.ProvisionerDaemon[] = [
   {
     id: "terraform",
     name: "Terraform",
+    created_at: "",
+    provisioners: [],
   },
   {
     id: "cdr-basic",
     name: "Basic",
+    created_at: "",
+    provisioners: [],
   },
 ]
 
 export namespace Workspace {
-  export const create = async (request: Types.CreateWorkspaceRequest): Promise<Types.Workspace> => {
-    const response = await fetch(`/api/v2/organizations/${request.organization_id}/workspaces`, {
+  export const create = async (
+    organizationId: string,
+    request: TypesGen.CreateWorkspaceRequest,
+  ): Promise<TypesGen.Workspace> => {
+    const response = await fetch(`/api/v2/organizations/${organizationId}/workspaces`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -43,13 +49,13 @@ export namespace Workspace {
   }
 }
 
-export const login = async (email: string, password: string): Promise<Types.LoginResponse> => {
+export const login = async (email: string, password: string): Promise<TypesGen.LoginWithPasswordResponse> => {
   const payload = JSON.stringify({
     email,
     password,
   })
 
-  const response = await axios.post<Types.LoginResponse>("/api/v2/users/login", payload, {
+  const response = await axios.post<TypesGen.LoginWithPasswordResponse>("/api/v2/users/login", payload, {
     headers: { ...CONTENT_TYPE_JSON },
   })
 
@@ -60,8 +66,8 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
 
-export const getUser = async (): Promise<Types.UserResponse> => {
-  const response = await axios.get<Types.UserResponse>("/api/v2/users/me")
+export const getUser = async (): Promise<TypesGen.User> => {
+  const response = await axios.get<TypesGen.User>("/api/v2/users/me")
   return response.data
 }
 
@@ -70,8 +76,8 @@ export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   return response.data
 }
 
-export const getApiKey = async (): Promise<Types.APIKeyResponse> => {
-  const response = await axios.post<Types.APIKeyResponse>("/api/v2/users/me/keys")
+export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
+  const response = await axios.post<TypesGen.GenerateAPIKeyResponse>("/api/v2/users/me/keys")
   return response.data
 }
 
@@ -80,23 +86,23 @@ export const getUsers = async (): Promise<TypesGen.User[]> => {
   return response.data
 }
 
-export const getOrganization = async (organizationId: string): Promise<Types.Organization> => {
-  const response = await axios.get<Types.Organization>(`/api/v2/organizations/${organizationId}`)
+export const getOrganization = async (organizationId: string): Promise<TypesGen.Organization> => {
+  const response = await axios.get<TypesGen.Organization>(`/api/v2/organizations/${organizationId}`)
   return response.data
 }
 
-export const getOrganizations = async (): Promise<Types.Organization[]> => {
-  const response = await axios.get<Types.Organization[]>("/api/v2/users/me/organizations")
+export const getOrganizations = async (): Promise<TypesGen.Organization[]> => {
+  const response = await axios.get<TypesGen.Organization[]>("/api/v2/users/me/organizations")
   return response.data
 }
 
-export const getTemplate = async (templateId: string): Promise<Types.Template> => {
-  const response = await axios.get<Types.Template>(`/api/v2/templates/${templateId}`)
+export const getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
+  const response = await axios.get<TypesGen.Template>(`/api/v2/templates/${templateId}`)
   return response.data
 }
 
-export const getWorkspace = async (workspaceId: string): Promise<Types.Workspace> => {
-  const response = await axios.get<Types.Workspace>(`/api/v2/workspaces/${workspaceId}`)
+export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
+  const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
   return response.data
 }
 
@@ -104,31 +110,33 @@ export const getWorkspaceByOwnerAndName = async (
   organizationID: string,
   username = "me",
   workspaceName: string,
-): Promise<Types.Workspace> => {
-  const response = await axios.get<Types.Workspace>(
+): Promise<TypesGen.Workspace> => {
+  const response = await axios.get<TypesGen.Workspace>(
     `/api/v2/organizations/${organizationID}/workspaces/${username}/${workspaceName}`,
   )
   return response.data
 }
 
-export const getWorkspaceResources = async (workspaceBuildID: string): Promise<Types.WorkspaceResource[]> => {
-  const response = await axios.get<Types.WorkspaceResource[]>(`/api/v2/workspacebuilds/${workspaceBuildID}/resources`)
+export const getWorkspaceResources = async (workspaceBuildID: string): Promise<TypesGen.WorkspaceResource[]> => {
+  const response = await axios.get<TypesGen.WorkspaceResource[]>(
+    `/api/v2/workspacebuilds/${workspaceBuildID}/resources`,
+  )
   return response.data
 }
 
-export const createUser = async (user: Types.CreateUserRequest): Promise<TypesGen.User> => {
+export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
   const response = await axios.post<TypesGen.User>("/api/v2/users", user)
   return response.data
 }
 
-export const getBuildInfo = async (): Promise<Types.BuildInfoResponse> => {
+export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
   const response = await axios.get("/api/v2/buildinfo")
   return response.data
 }
 
 export const putWorkspaceAutostart = async (
   workspaceID: string,
-  autostart: Types.WorkspaceAutostartRequest,
+  autostart: TypesGen.UpdateWorkspaceAutostartRequest,
 ): Promise<void> => {
   const payload = JSON.stringify(autostart)
   await axios.put(`/api/v2/workspaces/${workspaceID}/autostart`, payload, {
@@ -138,7 +146,7 @@ export const putWorkspaceAutostart = async (
 
 export const putWorkspaceAutostop = async (
   workspaceID: string,
-  autostop: Types.WorkspaceAutostopRequest,
+  autostop: TypesGen.UpdateWorkspaceAutostopRequest,
 ): Promise<void> => {
   const payload = JSON.stringify(autostop)
   await axios.put(`/api/v2/workspaces/${workspaceID}/autostop`, payload, {
@@ -146,7 +154,10 @@ export const putWorkspaceAutostop = async (
   })
 }
 
-export const updateProfile = async (userId: string, data: Types.UpdateProfileRequest): Promise<Types.UserResponse> => {
+export const updateProfile = async (
+  userId: string,
+  data: TypesGen.UpdateUserProfileRequest,
+): Promise<TypesGen.User> => {
   const response = await axios.put(`/api/v2/users/${userId}/profile`, data)
   return response.data
 }
