@@ -132,7 +132,7 @@ func (e *Executor) runOnce(t time.Time) error {
 				slog.F("transition", validTransition),
 			)
 
-			if err := doBuild(e.ctx, db, ws, validTransition, priorHistory, priorJob); err != nil {
+			if err := build(e.ctx, db, ws, validTransition, priorHistory, priorJob); err != nil {
 				e.log.Error(e.ctx, "unable to transition workspace",
 					slog.F("workspace_id", ws.ID),
 					slog.F("transition", validTransition),
@@ -145,7 +145,7 @@ func (e *Executor) runOnce(t time.Time) error {
 }
 
 // TODO(cian): this function duplicates most of api.postWorkspaceBuilds. Refactor.
-func doBuild(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuild, priorJob database.ProvisionerJob) error {
+func build(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuild, priorJob database.ProvisionerJob) error {
 	template, err := store.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
 		return xerrors.Errorf("get workspace template: %w", err)
