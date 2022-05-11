@@ -111,7 +111,7 @@ type UserPermissionCheck struct {
 type UserPermissionCheckObject struct {
 	// ResourceType is the name of the resource.
 	// './coderd/rbac/object.go' has the list of valid resource types.
-	ResourceType string `json:"resource_type,omitempty"`
+	ResourceType string `json:"resource_type"`
 	// OwnerID (optional) is a user_id. It adds the set constraint to all resources owned
 	// by a given user.
 	OwnerID string `json:"owner_id,omitempty"`
