@@ -6,7 +6,7 @@ import React from "react"
 import { Route, Routes } from "react-router-dom"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
-import { history, MockWorkspaceAgent, render } from "../../testHelpers"
+import { history, MockWorkspaceAgent, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
 

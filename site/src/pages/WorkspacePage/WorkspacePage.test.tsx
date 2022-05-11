@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { MockTemplate, MockWorkspace, renderWithAuth } from "../../testHelpers"
+import { MockTemplate, MockWorkspace, renderWithAuth } from "../../testHelpers/renderHelpers"
 import { WorkspacePage } from "./WorkspacePage"
 
 describe("Workspace Page", () => {

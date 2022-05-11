@@ -1,5 +1,5 @@
 import axios from "axios"
-import { getApiKey, login, logout } from "."
+import { getApiKey, login, logout } from "./api"
 import * as TypesGen from "./typesGenerated"
 
 // Mock the axios module so that no real network requests are made, but rather
