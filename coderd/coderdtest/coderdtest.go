@@ -36,12 +36,12 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/lifecycle/executor"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -107,7 +107,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 	lifecycleExecutor := executor.New(
 		ctx,
 		db,
-		slogtest.Make(t, nil).Named("lifecycle.executor").Leveled(slog.LevelDebug),
+		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.LifecycleTicker,
 	)
 	lifecycleExecutor.Run()

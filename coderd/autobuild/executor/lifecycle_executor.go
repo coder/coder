@@ -7,15 +7,15 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/lifecycle/schedule"
 
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 )
 
-// Executor executes automated workspace lifecycle operations.
+// Executor automatically starts or stops workspaces.
 type Executor struct {
 	ctx  context.Context
 	db   database.Store
@@ -23,7 +23,7 @@ type Executor struct {
 	tick <-chan time.Time
 }
 
-// New returns a new lifecycle executor.
+// New returns a new autobuild executor.
 func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		ctx:  ctx,
@@ -34,7 +34,7 @@ func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan ti
 	return le
 }
 
-// Run will cause executor to run workspace lifecycle operations on every
+// Run will cause executor to start or stop workspaces on every
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {

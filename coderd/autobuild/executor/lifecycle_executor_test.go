@@ -8,9 +8,9 @@ import (
 
 	"go.uber.org/goleak"
 
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/lifecycle/schedule"
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
@@ -43,7 +43,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 		Schedule: sched.String(),
 	}))
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
 		close(tickCh)
@@ -84,7 +84,7 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 		Schedule: sched.String(),
 	}))
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
 		close(tickCh)
@@ -115,7 +115,7 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	// Given: the workspace has autostart disabled
 	require.Empty(t, workspace.AutostartSchedule)
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
 		close(tickCh)
@@ -154,7 +154,7 @@ func TestExecutorAutostopOK(t *testing.T) {
 		Schedule: sched.String(),
 	}))
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
 		close(tickCh)
@@ -195,7 +195,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 		Schedule: sched.String(),
 	}))
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
 		close(tickCh)
@@ -226,7 +226,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	// Given: the workspace has autostop disabled
 	require.Empty(t, workspace.AutostopSchedule)
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
 		close(tickCh)
@@ -266,7 +266,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	// Given: workspace is deleted
 	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC().Add(time.Minute)
 		close(tickCh)
@@ -305,7 +305,7 @@ func TestExecutorWorkspaceTooEarly(t *testing.T) {
 		Schedule: sched.String(),
 	}))
 
-	// When: the lifecycle executor ticks
+	// When: the autobuild executor ticks
 	go func() {
 		tickCh <- time.Now().UTC()
 		close(tickCh)

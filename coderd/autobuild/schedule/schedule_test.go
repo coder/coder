@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/lifecycle/schedule"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 )
 
 func Test_Weekly(t *testing.T) {
