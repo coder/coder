@@ -11,8 +11,62 @@ terraform {
   }
 }
 
+variable "step1_use_kubeconfig" {
+  type        = bool
+  sensitive   = true
+  description = "Use local ~/.kube/config? (true/false)"
+}
+
+variable "step2_cluster_host" {
+  type        = string
+  sensitive   = true
+  description = <<-EOF
+  Hint: You can use:
+  $ kubectl cluster-info | grep "control plane"
+
+
+  Leave blank if using ~/.kube/config (from step 1)
+  EOF
+}
+
+variable "step3_certificate" {
+  type        = string
+  sensitive   = true
+  description = <<-EOF
+  Use docs at https://github.com/coder/coder/tree/main/examples/kubernetes-multi-service#serviceaccount to create a ServiceAccount for Coder and grab values.
+
+  Enter CA certificate
+
+  Leave blank if using ~/.kube/config (from step 1)
+  EOF
+}
+
+variable "step4_token" {
+  type        = string
+  sensitive   = true
+  description = <<-EOF
+  Enter token (refer to docs at https://github.com/coder/coder/tree/main/examples/kubernetes-multi-service#serviceaccount)
+
+  Leave blank if using ~/.kube/config (from step 1)
+  EOF
+}
+
+variable "step5_coder_namespace" {
+  type        = string
+  sensitive   = true
+  description = <<-EOF
+  Enter namespace (refer to docs at https://github.com/coder/coder/tree/main/examples/kubernetes-multi-service#serviceaccount)
+
+  Leave blank if using ~/.kube/config (from step 1)
+  EOF
+}
+
 provider "kubernetes" {
-  config_path = "~/.kube/config"
+  # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
+  config_path            = var.step1_use_kubeconfig == true ? "~/.kube/config" : null
+  host                   = var.step1_use_kubeconfig == false ? var.step2_cluster_host : null
+  cluster_ca_certificate = var.step1_use_kubeconfig == false ? base64decode(var.step3_certificate) : null
+  token                  = var.step1_use_kubeconfig == false ? base64decode(var.step4_token) : null
 }
 
 data "coder_workspace" "me" {}
