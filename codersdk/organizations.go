@@ -24,7 +24,7 @@ type Organization struct {
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
 	// TemplateID optionally associates a version with a template.
-	TemplateID uuid.UUID `json:"template_id"`
+	TemplateID uuid.UUID `json:"template_id,omitempty"`
 
 	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
 	StorageSource string                            `json:"storage_source" validate:"required"`

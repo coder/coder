@@ -68,7 +68,7 @@ export interface CreateTemplateRequest {
 
 // From codersdk/organizations.go:25:6
 export interface CreateTemplateVersionRequest {
-  readonly template_id: string
+  readonly template_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerStorageMethod")
   readonly storage_method: string
   readonly storage_source: string
