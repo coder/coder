@@ -107,6 +107,54 @@ nfpms:
       - src: coder.service
         dst: /usr/lib/systemd/system/coder.service
 
+dockers:
+  - image_templates: ["ghcr.io/coder/coder:{{ .Tag }}-amd64"]
+    id: coder-linux
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title=Coder
+      - --label=org.opencontainers.image.description=A tool for provisioning self-hosted development environments with Terraform.
+      - --label=org.opencontainers.image.url=https://github.com/coder/coder
+      - --label=org.opencontainers.image.source=https://github.com/coder/coder
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=MIT
+  - image_templates: ["ghcr.io/coder/coder:{{ .Tag }}-arm64"]
+    goarch: arm64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm64/v8
+      - --label=org.opencontainers.image.title=coder
+      - --label=org.opencontainers.image.description=A tool for provisioning self-hosted development environments with Terraform.
+      - --label=org.opencontainers.image.url=https://github.com/coder/coder
+      - --label=org.opencontainers.image.source=https://github.com/coder/coder
+      - --label=org.opencontainers.image.version={{ .Tag }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=AGPL-3.0
+  - image_templates: ["ghcr.io/coder/coder:{{ .Tag }}-armv7"]
+    goarch: arm
+    goarm: "7"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm/v7
+      - --label=org.opencontainers.image.title=Coder
+      - --label=org.opencontainers.image.description=A tool for provisioning self-hosted development environments with Terraform.
+      - --label=org.opencontainers.image.url=https://github.com/coder/coder
+      - --label=org.opencontainers.image.source=https://github.com/coder/coder
+      - --label=org.opencontainers.image.version={{ .Tag }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=AGPL-3.0
+docker_manifests:
+  - name_template: ghcr.io/coder/coder:{{ .Tag }}
+    image_templates:
+      - ghcr.io/coder/coder:{{ .Tag }}-amd64
+      - ghcr.io/coder/coder:{{ .Tag }}-arm64
+      - ghcr.io/coder/coder:{{ .Tag }}-armv7
+
 release:
   ids: [coder-linux, coder-darwin, coder-windows, packages]
 
