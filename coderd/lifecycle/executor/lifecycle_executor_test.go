@@ -50,11 +50,11 @@ func Test_Executor_Autostart_OK(t *testing.T) {
 	}()
 
 	// Then: the workspace should be started
-	require.Eventually(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded &&
-			ws.LatestBuild.Transition == database.WorkspaceTransitionStart
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
+	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
 }
 
 func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
@@ -91,10 +91,10 @@ func Test_Executor_Autostart_AlreadyRunning(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	require.Never(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
 func Test_Executor_Autostart_NotEnabled(t *testing.T) {
@@ -122,10 +122,10 @@ func Test_Executor_Autostart_NotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be started.
-	require.Never(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStart
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.NotEqual(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
 
 func Test_Executor_Autostop_OK(t *testing.T) {
@@ -161,11 +161,13 @@ func Test_Executor_Autostop_OK(t *testing.T) {
 	}()
 
 	// Then: the workspace should be started
-	require.Eventually(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.ID != workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
+	require.Equal(t, database.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
+
 func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
 	t.Parallel()
 
@@ -200,10 +202,10 @@ func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be stopped.
-	require.Never(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.ID == workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, database.WorkspaceTransitionStop, ws.LatestBuild.Transition, "expected workspace not to be running")
 }
 
 func Test_Executor_Autostop_NotEnabled(t *testing.T) {
@@ -231,10 +233,10 @@ func Test_Executor_Autostop_NotEnabled(t *testing.T) {
 	}()
 
 	// Then: the workspace should not be stopped.
-	require.Never(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.ID == workspace.LatestBuild.ID && ws.LatestBuild.Transition == database.WorkspaceTransitionStop
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
 func Test_Executor_Workspace_Deleted(t *testing.T) {
@@ -271,10 +273,10 @@ func Test_Executor_Workspace_Deleted(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	require.Never(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.Transition != database.WorkspaceTransitionDelete
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, database.WorkspaceTransitionDelete, ws.LatestBuild.Transition, "expected workspace to be deleted")
 }
 
 func Test_Executor_Workspace_TooEarly(t *testing.T) {
@@ -310,10 +312,10 @@ func Test_Executor_Workspace_TooEarly(t *testing.T) {
 	}()
 
 	// Then: nothing should happen
-	require.Never(t, func() bool {
-		ws := mustWorkspace(t, client, workspace.ID)
-		return ws.LatestBuild.Transition != database.WorkspaceTransitionStart
-	}, 5*time.Second, 250*time.Millisecond)
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
