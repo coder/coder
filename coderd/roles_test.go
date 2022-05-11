@@ -15,24 +15,11 @@ import (
 func TestPermissionCheck(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	client := coderdtest.New(t, nil)
 	// Create admin, member, and org admin
 	admin := coderdtest.CreateFirstUser(t, client)
 	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-
-	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	orgAdminUser, err := orgAdmin.User(ctx, codersdk.Me)
-	require.NoError(t, err)
-
-	// TODO: @emyrk switch this to the admin when getting non-personal users is
-	//	supported. `client.UpdateOrganizationMemberRoles(...)`
-	_, err = orgAdmin.UpdateOrganizationMemberRoles(ctx, admin.OrganizationID, orgAdminUser.ID,
-		codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(admin.OrganizationID), rbac.RoleOrgAdmin(admin.OrganizationID)},
-		},
-	)
-	require.NoError(t, err, "update org member roles")
+	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	// With admin, member, and org admin
 	const (
@@ -102,6 +89,7 @@ func TestPermissionCheck(t *testing.T) {
 	for _, c := range testCases {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
 			resp, err := c.Client.CheckPermissions(context.Background(), codersdk.UserPermissionCheckRequest{Checks: params})
 			require.NoError(t, err, "check perms")
 			require.Equal(t, resp, c.Check)
@@ -117,19 +105,7 @@ func TestListRoles(t *testing.T) {
 	// Create admin, member, and org admin
 	admin := coderdtest.CreateFirstUser(t, client)
 	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-
-	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	orgAdminUser, err := orgAdmin.User(ctx, codersdk.Me)
-	require.NoError(t, err)
-
-	// TODO: @emyrk switch this to the admin when getting non-personal users is
-	//	supported. `client.UpdateOrganizationMemberRoles(...)`
-	_, err = orgAdmin.UpdateOrganizationMemberRoles(ctx, admin.OrganizationID, orgAdminUser.ID,
-		codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(admin.OrganizationID), rbac.RoleOrgAdmin(admin.OrganizationID)},
-		},
-	)
-	require.NoError(t, err, "update org member roles")
+	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	otherOrg, err := client.CreateOrganization(ctx, admin.UserID, codersdk.CreateOrganizationRequest{
 		Name: "other",
