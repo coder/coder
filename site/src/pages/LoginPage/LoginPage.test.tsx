@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import React from "react"
 import { Language } from "../../components/SignInForm/SignInForm"
-import { history, render } from "../../testHelpers"
+import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { LoginPage } from "./LoginPage"
 

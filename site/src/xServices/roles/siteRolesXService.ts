@@ -1,5 +1,5 @@
 import { assign, createMachine } from "xstate"
-import * as API from "../../api"
+import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
 

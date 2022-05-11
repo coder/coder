@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { render } from "../../testHelpers"
 import { MockUser } from "../../testHelpers/entities"
+import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdown, UserDropdownProps } from "./UsersDropdown"
 
 const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {

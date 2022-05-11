@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { MockWorkspaceAutostartEnabled } from "../../testHelpers"
+import { MockWorkspaceAutostartEnabled } from "../../testHelpers/renderHelpers"
 import { WorkspaceSchedule, WorkspaceScheduleProps } from "./WorkspaceSchedule"
 
 export default {
