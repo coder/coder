@@ -57,6 +57,58 @@ func TestExecutorAutostartOK(t *testing.T) {
 	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
 }
 
+func TestExecutorAutostartTemplateUpdated(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		err    error
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
+	)
+	// Given: workspace is stopped
+	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// Given: the workspace initially has autostart disabled
+	require.Empty(t, workspace.AutostartSchedule)
+
+	// Given: the workspace template has been updated
+	orgs, err := client.OrganizationsByUser(ctx, workspace.OwnerID)
+	require.NoError(t, err)
+	require.Len(t, orgs, 1)
+
+	newVersion := coderdtest.UpdateTemplateVersion(t, client, orgs[0].ID, nil, workspace.TemplateID)
+	coderdtest.AwaitTemplateVersionJob(t, client, newVersion.ID)
+	require.NoError(t, client.UpdateActiveTemplateVersion(ctx, workspace.TemplateID, codersdk.UpdateActiveTemplateVersion{
+		ID: newVersion.ID,
+	}))
+
+	// When: we enable workspace autostart
+	sched, err := schedule.Weekly("* * * * *")
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+		Schedule: sched.String(),
+	}))
+
+	// When: the autobuild executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: the workspace should be started using the previous template version, and not the updated version.
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
+	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
+	require.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
+}
+
 func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	t.Parallel()
 

@@ -261,6 +261,23 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 	return template
 }
 
+// UpdateTemplateVersion creates a new template version with the "echo" provisioner
+// and associates it with the given templateID.
+func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+	data, err := echo.Tar(res)
+	require.NoError(t, err)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+	require.NoError(t, err)
+	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
+		TemplateID:    templateID,
+		StorageSource: file.Hash,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+		Provisioner:   database.ProvisionerTypeEcho,
+	})
+	require.NoError(t, err)
+	return templateVersion
+}
+
 // AwaitTemplateImportJob awaits for an import job to reach completed status.
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	var templateVersion codersdk.TemplateVersion
