@@ -50,13 +50,14 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
   const styles = useStyles()
 
   const templateLink = `/templates/${organization?.name}/${template?.name}`
+  const settingsLink = "edit"
 
   return (
     <WorkspaceSection>
       <Stack spacing={1}>
         <div className={combineClasses([styles.horizontal, styles.reverse])}>
           <div className={styles.horizontal}>
-            <Link className={styles.link} to={`workspaces/${workspace.id}/edit`}>
+            <Link className={styles.link} to={settingsLink}>
               {Language.settings}
             </Link>
           </div>
