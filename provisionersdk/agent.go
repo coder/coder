@@ -41,7 +41,7 @@ chmod +x $BINARY_LOCATION
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
 exec $BINARY_LOCATION agent`,
-			"arm": `#!/usr/bin/env sh
+			"armv7": `#!/usr/bin/env sh
 set -eu pipefail
 export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXX)/coder
 curl -fsSL ${ACCESS_URL}bin/coder-linux-arm -o $BINARY_LOCATION
