@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/coderd/rbac"
 )
 
 // Me is used as a replacement for your own ID.
@@ -96,7 +94,7 @@ type UserPermissionCheckRequest struct {
 
 type UserPermissionCheck struct {
 	Object UserPermissionCheckObject `json:"object"`
-	Action rbac.Action               `json:"action"`
+	Action string                    `json:"action"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
