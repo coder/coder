@@ -9,12 +9,28 @@ const WildcardSymbol = "*"
 // Resources are just typed objects. Making resources this way allows directly
 // passing them into an Authorize function and use the chaining api.
 var (
+	// ResourceWorkspace CRUD. Org + User owner
+	//	create/delete = make or delete workspaces
+	// 	read = access workspace
+	//	update = edit workspace variables
 	ResourceWorkspace = Object{
 		Type: "workspace",
 	}
 
 	ResourceTemplate = Object{
 		Type: "template",
+	}
+
+	ResourceTypeFile = Object{
+		Type: "file",
+	}
+
+	// ResourceOrganization CRUD. Org owner
+	//	create/delete = make or delete organizations
+	// 	read = view org information
+	//	update = ??
+	ResourceOrganization = Object{
+		Type: "organization",
 	}
 
 	// ResourceUserRole might be expanded later to allow more granular permissions

@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
 	"github.com/golang-jwt/jwt"
@@ -57,11 +59,10 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
+	Authorizer           rbac.Authorizer
 }
 
-// New constructs an in-memory coderd instance and returns
-// the connected client.
-func New(t *testing.T, options *Options) *codersdk.Client {
+func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -129,6 +130,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
+		Authorizer:           options.Authorizer,
 	})
 	t.Cleanup(func() {
 		cancelFunc()
@@ -137,7 +139,14 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		closeWait()
 	})
 
-	return codersdk.New(serverURL)
+	return srv, codersdk.New(serverURL)
+}
+
+// New constructs an in-memory coderd instance and returns
+// the connected client.
+func New(t *testing.T, options *Options) *codersdk.Client {
+	_, cli := NewMemoryCoderd(t, options)
+	return cli
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work

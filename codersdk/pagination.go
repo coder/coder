@@ -26,7 +26,7 @@ type Pagination struct {
 	Offset int `json:"offset,omitempty"`
 }
 
-// asRequestOption returns a function that can be used in (*Client).request.
+// asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
 func (p Pagination) asRequestOption() requestOption {
 	return func(r *http.Request) {

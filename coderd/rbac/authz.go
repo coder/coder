@@ -9,6 +9,10 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 )
 
+type Authorizer interface {
+	AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error
+}
+
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
 	query rego.PreparedEvalQuery

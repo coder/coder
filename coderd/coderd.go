@@ -50,7 +50,7 @@ type Options struct {
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
-	Authorizer           *rbac.RegoAuthorizer
+	Authorizer           rbac.Authorizer
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -127,9 +127,11 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
+				httpmw.WithRBACObject(rbac.ResourceTypeFile),
 			)
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
@@ -137,8 +139,8 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(options.Database),
 				authRolesMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.organization)
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
@@ -149,12 +151,16 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})
 			r.Route("/workspaces", func(r chi.Router) {
-				r.Post("/", api.postWorkspacesByOrganization)
-				r.Get("/", api.workspacesByOrganization)
+				r.Use(httpmw.WithRBACObject(rbac.ResourceWorkspace))
+				// Posting a workspace is inherently owned by the api key creating it.
+				r.With(httpmw.WithAPIKeyAsOwner()).
+					Post("/", authorize(api.postWorkspacesByOrganization, rbac.ActionCreate))
+				r.Get("/", authorize(api.workspacesByOrganization, rbac.ActionRead))
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/{workspace}", api.workspaceByOwnerAndName)
-					r.Get("/", api.workspacesByOwner)
+					// TODO: @emyrk add the resource id to this authorize.
+					r.Get("/{workspace}", authorize(api.workspaceByOwnerAndName, rbac.ActionRead))
+					r.Get("/", authorize(api.workspacesByOwner, rbac.ActionRead))
 				})
 			})
 			r.Route("/members", func(r chi.Router) {

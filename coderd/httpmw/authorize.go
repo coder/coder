@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -15,11 +17,12 @@ import (
 // Authorize will enforce if the user roles can complete the action on the AuthObject.
 // The organization and owner are found using the ExtractOrganization and
 // ExtractUser middleware if present.
-func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action) func(http.Handler) http.Handler {
+func Authorize(logger slog.Logger, auth rbac.Authorizer, action rbac.Action) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			roles := UserRoles(r)
-			object := rbacObject(r)
+			authObject := rbacObject(r)
+			object := authObject.Object
 
 			if object.Type == "" {
 				panic("developer error: auth object has no type")
@@ -34,12 +37,18 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 				object = object.InOrg(organization.ID)
 			}
 
-			unknownOwner := r.Context().Value(userParamContextKey{})
-			if owner, castOK := unknownOwner.(database.User); unknownOwner != nil {
-				if !castOK {
-					panic("developer error: user param middleware not provided for authorize")
+			if authObject.WithOwner != nil {
+				owner := authObject.WithOwner(r)
+				object = object.WithOwner(owner.String())
+			} else {
+				// Attempt to find the resource owner id
+				unknownOwner := r.Context().Value(userParamContextKey{})
+				if owner, castOK := unknownOwner.(database.User); unknownOwner != nil {
+					if !castOK {
+						panic("developer error: user param middleware not provided for authorize")
+					}
+					object = object.WithOwner(owner.ID.String())
 				}
-				object = object.WithOwner(owner.ID.String())
 			}
 
 			err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
@@ -70,13 +79,44 @@ func Authorize(logger slog.Logger, auth *rbac.RegoAuthorizer, action rbac.Action
 
 type authObjectKey struct{}
 
+type AuthObject struct {
+	Object rbac.Object
+
+	WithOwner func(r *http.Request) uuid.UUID
+}
+
 // APIKey returns the API key from the ExtractAPIKey handler.
-func rbacObject(r *http.Request) rbac.Object {
-	obj, ok := r.Context().Value(authObjectKey{}).(rbac.Object)
+func rbacObject(r *http.Request) AuthObject {
+	obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
 	if !ok {
 		panic("developer error: auth object middleware not provided")
 	}
 	return obj
+}
+
+func WithAPIKeyAsOwner() func(http.Handler) http.Handler {
+	return WithOwner(func(r *http.Request) uuid.UUID {
+		key := APIKey(r)
+		return key.UserID
+	})
+}
+
+// WithOwner sets the object owner for 'Authorize()' for all routes handled
+// by this middleware.
+func WithOwner(withOwner func(r *http.Request) uuid.UUID) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
+			if ok {
+				obj.WithOwner = withOwner
+			} else {
+				obj = AuthObject{WithOwner: withOwner}
+			}
+
+			ctx := context.WithValue(r.Context(), authObjectKey{}, obj)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
 }
 
 // WithRBACObject sets the object for 'Authorize()' for all routes handled
@@ -84,7 +124,14 @@ func rbacObject(r *http.Request) rbac.Object {
 func WithRBACObject(object rbac.Object) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), authObjectKey{}, object)
+			obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
+			if ok {
+				obj.Object = object
+			} else {
+				obj = AuthObject{Object: object}
+			}
+
+			ctx := context.WithValue(r.Context(), authObjectKey{}, obj)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
