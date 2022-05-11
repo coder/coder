@@ -31,7 +31,7 @@ func Test_Executor_Autostart_OK(t *testing.T) {
 		workspace = mustProvisionWorkspace(t, client)
 	)
 	// Given: workspace is stopped
-	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// Given: the workspace initially has autostart disabled
 	require.Empty(t, workspace.AutostartSchedule)
@@ -110,7 +110,7 @@ func Test_Executor_Autostart_NotEnabled(t *testing.T) {
 	)
 
 	// Given: workspace is stopped
-	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// Given: the workspace has autostart disabled
 	require.Empty(t, workspace.AutostartSchedule)
@@ -181,9 +181,9 @@ func Test_Executor_Autostop_AlreadyStopped(t *testing.T) {
 	)
 
 	// Given: workspace is stopped
-	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-	// Given: the workspace initially has autostart disabled
+	// Given: the workspace initially has autostop disabled
 	require.Empty(t, workspace.AutostopSchedule)
 
 	// When: we enable workspace autostart
@@ -262,7 +262,7 @@ func Test_Executor_Workspace_Deleted(t *testing.T) {
 	}))
 
 	// Given: workspace is deleted
-	mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
+	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionDelete)
 
 	// When: the lifecycle executor ticks
 	go func() {
@@ -328,7 +328,7 @@ func mustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Work
 	return mustWorkspace(t, client, ws.ID)
 }
 
-func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) {
+func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
@@ -348,6 +348,7 @@ func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 
 	updated := mustWorkspace(t, client, workspace.ID)
 	require.Equal(t, to, updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
+	return updated
 }
 
 func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
