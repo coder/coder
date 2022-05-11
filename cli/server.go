@@ -344,7 +344,7 @@ func server() *cobra.Command {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			lifecyclePoller := time.NewTicker(30 * time.Second)
+			lifecyclePoller := time.NewTicker(time.Minute)
 			defer lifecyclePoller.Stop()
 			lifecycleExecutor := executor.New(cmd.Context(), options.Database, logger, lifecyclePoller.C)
 			go lifecycleExecutor.Run()

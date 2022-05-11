@@ -46,7 +46,7 @@ func (e *Executor) Run() {
 }
 
 func (e *Executor) runOnce(t time.Time) error {
-	currentTick := t.Round(time.Minute)
+	currentTick := t.Truncate(time.Minute)
 	return e.db.InTx(func(db database.Store) error {
 		eligibleWorkspaces, err := db.GetWorkspacesAutostartAutostop(e.ctx)
 		if err != nil {
@@ -55,7 +55,7 @@ func (e *Executor) runOnce(t time.Time) error {
 
 		for _, ws := range eligibleWorkspaces {
 			// Determine the workspace state based on its latest build.
-			latestBuild, err := db.GetWorkspaceBuildByWorkspaceIDWithoutAfter(e.ctx, ws.ID)
+			priorHistory, err := db.GetWorkspaceBuildByWorkspaceIDWithoutAfter(e.ctx, ws.ID)
 			if err != nil {
 				e.log.Warn(e.ctx, "get latest workspace build",
 					slog.F("workspace_id", ws.ID),
@@ -64,7 +64,7 @@ func (e *Executor) runOnce(t time.Time) error {
 				continue
 			}
 
-			lastBuild, err := db.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
+			priorJob, err := db.GetProvisionerJobByID(e.ctx, priorHistory.JobID)
 			if err != nil {
 				e.log.Warn(e.ctx, "get last provisioner job for workspace %q: %w",
 					slog.F("workspace_id", ws.ID),
@@ -73,17 +73,17 @@ func (e *Executor) runOnce(t time.Time) error {
 				continue
 			}
 
-			if !lastBuild.CompletedAt.Valid || lastBuild.Error.String != "" {
+			if !priorJob.CompletedAt.Valid || priorJob.Error.String != "" {
 				e.log.Warn(e.ctx, "last workspace build did not complete successfully, skipping",
 					slog.F("workspace_id", ws.ID),
-					slog.F("error", lastBuild.Error.String),
+					slog.F("error", priorJob.Error.String),
 				)
 				continue
 			}
 
 			var validTransition database.WorkspaceTransition
 			var sched *schedule.Schedule
-			switch latestBuild.Transition {
+			switch priorHistory.Transition {
 			case database.WorkspaceTransitionStart:
 				validTransition = database.WorkspaceTransitionStop
 				sched, err = schedule.Weekly(ws.AutostopSchedule.String)
@@ -107,14 +107,15 @@ func (e *Executor) runOnce(t time.Time) error {
 			default:
 				e.log.Debug(e.ctx, "last transition not valid for autostart or autostop",
 					slog.F("workspace_id", ws.ID),
-					slog.F("latest_build_transition", latestBuild.Transition),
+					slog.F("latest_build_transition", priorHistory.Transition),
 				)
 				continue
 			}
 
-			// Round time to the nearest minute, as this is the finest granularity cron supports.
-			nextTransitionAt := sched.Next(latestBuild.CreatedAt).Round(time.Minute)
-			if nextTransitionAt.After(currentTick) {
+			// Round time down to the nearest minute, as this is the finest granularity cron supports.
+			// Truncate is probably not necessary here, but doing it anyway to be sure.
+			nextTransitionAt := sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
+			if currentTick.Before(nextTransitionAt) {
 				e.log.Debug(e.ctx, "skipping workspace: too early",
 					slog.F("workspace_id", ws.ID),
 					slog.F("next_transition_at", nextTransitionAt),
@@ -129,7 +130,7 @@ func (e *Executor) runOnce(t time.Time) error {
 				slog.F("transition", validTransition),
 			)
 
-			if err := doBuild(e.ctx, db, ws, validTransition); err != nil {
+			if err := doBuild(e.ctx, db, ws, validTransition, priorHistory, priorJob); err != nil {
 				e.log.Error(e.ctx, "unable to transition workspace",
 					slog.F("workspace_id", ws.ID),
 					slog.F("transition", validTransition),
@@ -142,20 +143,10 @@ func (e *Executor) runOnce(t time.Time) error {
 }
 
 // TODO(cian): this function duplicates most of api.postWorkspaceBuilds. Refactor.
-func doBuild(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition) error {
+func doBuild(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuild, priorJob database.ProvisionerJob) error {
 	template, err := store.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
-		return xerrors.Errorf("get template: %w", err)
-	}
-
-	priorHistory, err := store.GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx, workspace.ID)
-	if err != nil {
-		return xerrors.Errorf("get prior history: %w", err)
-	}
-
-	priorJob, err := store.GetProvisionerJobByID(ctx, priorHistory.JobID)
-	if err == nil && !priorJob.CompletedAt.Valid {
-		return xerrors.Errorf("workspace build already active")
+		return xerrors.Errorf("get workspace template: %w", err)
 	}
 
 	priorHistoryID := uuid.NullUUID{
@@ -176,10 +167,11 @@ func doBuild(ctx context.Context, store database.Store, workspace database.Works
 		return xerrors.Errorf("marshal provision job: %w", err)
 	}
 	provisionerJobID := uuid.New()
+	now := database.Now()
 	newProvisionerJob, err := store.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 		ID:             provisionerJobID,
-		CreatedAt:      database.Now(),
-		UpdatedAt:      database.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 		InitiatorID:    workspace.OwnerID,
 		OrganizationID: template.OrganizationID,
 		Provisioner:    template.Provisioner,
@@ -193,8 +185,8 @@ func doBuild(ctx context.Context, store database.Store, workspace database.Works
 	}
 	newWorkspaceBuild, err = store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 		ID:                workspaceBuildID,
-		CreatedAt:         database.Now(),
-		UpdatedAt:         database.Now(),
+		CreatedAt:         now,
+		UpdatedAt:         now,
 		WorkspaceID:       workspace.ID,
 		TemplateVersionID: priorHistory.TemplateVersionID,
 		BeforeID:          priorHistoryID,
@@ -213,7 +205,7 @@ func doBuild(ctx context.Context, store database.Store, workspace database.Works
 		err = store.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               priorHistory.ID,
 			ProvisionerState: priorHistory.ProvisionerState,
-			UpdatedAt:        database.Now(),
+			UpdatedAt:        now,
 			AfterID: uuid.NullUUID{
 				UUID:  newWorkspaceBuild.ID,
 				Valid: true,
