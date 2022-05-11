@@ -55,7 +55,6 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = ({
         storage_method: "file",
         storage_source: "hash",
         provisioner: req.provisioner,
-        parameter_values: [],
       })
     },
   })

@@ -21,9 +21,9 @@ const (
 )
 
 type UsersRequest struct {
-	Search string `json:"search"`
+	Search string `json:"search,omitempty"`
 	// Filter users by status
-	Status string `json:"status"`
+	Status string `json:"status,omitempty"`
 	Pagination
 }
 

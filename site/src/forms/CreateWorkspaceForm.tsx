@@ -40,7 +40,6 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
       return onSubmit(organizationId, {
         template_id: template.id,
         name: name,
-        parameter_values: [],
       })
     },
   })
