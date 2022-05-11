@@ -13,11 +13,12 @@ const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {
 describe("UserDropdown", () => {
   const env = process.env
 
+  // REMARK: copying process.env so we don't mutate that object or encounter conflicts between tests
   beforeEach(() => {
-    jest.resetModules()
     process.env = { ...env }
   })
 
+  // REMARK: restoring process.env
   afterEach(() => {
     process.env = env
   })
