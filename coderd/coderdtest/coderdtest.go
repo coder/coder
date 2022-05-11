@@ -36,6 +36,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
@@ -57,6 +58,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
+	LifecycleTicker      <-chan time.Time
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -71,6 +73,11 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		var err error
 		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
+	}
+	if options.LifecycleTicker == nil {
+		ticker := make(chan time.Time)
+		options.LifecycleTicker = ticker
+		t.Cleanup(func() { close(ticker) })
 	}
 
 	// This can be hotswapped for a live database instance.
@@ -96,8 +103,16 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		})
 	}
 
-	srv := httptest.NewUnstartedServer(nil)
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	lifecycleExecutor := executor.New(
+		ctx,
+		db,
+		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
+		options.LifecycleTicker,
+	)
+	lifecycleExecutor.Run()
+
+	srv := httptest.NewUnstartedServer(nil)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
@@ -244,6 +259,23 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 	})
 	require.NoError(t, err)
 	return template
+}
+
+// UpdateTemplateVersion creates a new template version with the "echo" provisioner
+// and associates it with the given templateID.
+func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+	data, err := echo.Tar(res)
+	require.NoError(t, err)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+	require.NoError(t, err)
+	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
+		TemplateID:    templateID,
+		StorageSource: file.Hash,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+		Provisioner:   database.ProvisionerTypeEcho,
+	})
+	require.NoError(t, err)
+	return templateVersion
 }
 
 // AwaitTemplateImportJob awaits for an import job to reach completed status.

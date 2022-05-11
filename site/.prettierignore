@@ -17,3 +17,5 @@ coverage/
 out/
 storybook-static/
 test-results/
+
+**/*.swp
