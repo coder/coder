@@ -7,8 +7,12 @@ export const Language = {
   successProfileUpdate: "Updated preferences.",
 }
 
-const permissionsToCheck = {
-  readAllUsers: {
+export const checks = {
+  readAllUsers: "readAllUsers",
+} as const
+
+export const permissionsToCheck = {
+  [checks.readAllUsers]: {
     object: {
       resource_type: "user",
     },
