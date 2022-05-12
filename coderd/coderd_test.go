@@ -39,14 +39,20 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		Authorizer: authorizer,
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
-	var _ = admin
+	organization, err := client.Organization(context.Background(), admin.OrganizationID)
+	require.NoError(t, err, "fetch org")
+
+	// Always fail auth from this point forward
+	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(fmt.Errorf("fake implementation"), nil, nil)
 
 	// skipRoutes allows skipping routes from being checked.
 	type routeCheck struct {
 		NoAuthorize  bool
 		AssertObject rbac.Object
+		StatusCode   int
 	}
 	assertRoute := map[string]routeCheck{
+		// These endpoints do not require auth
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
@@ -72,12 +78,59 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"/api/v2/organizations/{organization}/provisionerdaemons": {NoAuthorize: true},
-		"GET:/api/v2/organizations/{organization}":                {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
+		"GET:/api/v2/workspaceresources/{workspaceresource}":             {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}":                   {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/logs":              {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/resources":         {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/state":             {NoAuthorize: true},
+		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel":          {NoAuthorize: true},
+		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {NoAuthorize: true},
+
+		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
+
+		"POST:/api/v2/users/{user}/organizations/":                          {NoAuthorize: true},
+		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templates":               {NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/templates":                {NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
+
+		"POST:/api/v2/parameters/{scope}/{id}":          {NoAuthorize: true},
+		"GET:/api/v2/parameters/{scope}/{id}":           {NoAuthorize: true},
+		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {NoAuthorize: true},
+
+		"GET:/api/v2/provisionerdaemons/me/listen": {NoAuthorize: true},
+
+		"DELETE:/api/v2/templates/{template}":                             {NoAuthorize: true},
+		"GET:/api/v2/templates/{template}":                                {NoAuthorize: true},
+		"GET:/api/v2/templates/{template}/versions":                       {NoAuthorize: true},
+		"PATCH:/api/v2/templates/{template}/versions":                     {NoAuthorize: true},
+		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {NoAuthorize: true},
+
+		"GET:/api/v2/templateversions/{templateversion}":            {NoAuthorize: true},
+		"PATCH:/api/v2/templateversions/{templateversion}/cancel":   {NoAuthorize: true},
+		"GET:/api/v2/templateversions/{templateversion}/logs":       {NoAuthorize: true},
+		"GET:/api/v2/templateversions/{templateversion}/parameters": {NoAuthorize: true},
+		"GET:/api/v2/templateversions/{templateversion}/resources":  {NoAuthorize: true},
+		"GET:/api/v2/templateversions/{templateversion}/schema":     {NoAuthorize: true},
+
+		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
+
+		"GET:/api/v2/workspaces/{workspace}":           {NoAuthorize: true},
+		"PUT:/api/v2/workspaces/{workspace}/autostart": {NoAuthorize: true},
+		"PUT:/api/v2/workspaces/{workspace}/autostop":  {NoAuthorize: true},
+		"GET:/api/v2/workspaces/{workspace}/builds":    {NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds":   {NoAuthorize: true},
+
+		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
+		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
+		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
+		"GET:/api/v2/users/{user}/workspaces":      {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 	}
 
 	c := srv.Config.Handler.(*chi.Mux)
-	err := chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	err = chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
 		t.Run(name, func(t *testing.T) {
 			authorizer.reset()
@@ -86,10 +139,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 				// By default, all omitted routes check for just "authorize" called
 				routeAssertions = routeCheck{}
 			}
+			if routeAssertions.StatusCode == 0 {
+				routeAssertions.StatusCode = http.StatusUnauthorized
+			}
 
 			// Replace all url params with known values
 			route = strings.ReplaceAll(route, "{organization}", admin.OrganizationID.String())
 			route = strings.ReplaceAll(route, "{user}", admin.UserID.String())
+			route = strings.ReplaceAll(route, "{organizationname}", organization.Name)
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
@@ -97,7 +154,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 			if !routeAssertions.NoAuthorize {
 				assert.NotNil(t, authorizer.Called, "authorizer expected")
-				assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "expect unauthorized")
+				assert.Equal(t, routeAssertions.StatusCode, resp.StatusCode, "expect unauthorized")
 				if routeAssertions.AssertObject.Type != "" {
 					assert.Equal(t, routeAssertions.AssertObject.Type, authorizer.Called.Object.Type, "resource type")
 				}
@@ -127,7 +184,8 @@ type authCall struct {
 }
 
 type fakeAuthorizer struct {
-	Called *authCall
+	Called       *authCall
+	AlwaysReturn error
 }
 
 func (f *fakeAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
@@ -137,7 +195,7 @@ func (f *fakeAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID stri
 		Action:    action,
 		Object:    object,
 	}
-	return rbac.ForbiddenWithInternal(fmt.Errorf("fake implementation"), nil, nil)
+	return f.AlwaysReturn
 }
 
 func (f *fakeAuthorizer) reset() {

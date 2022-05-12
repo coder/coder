@@ -811,6 +811,7 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 	})
 }
 
+//
 func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)

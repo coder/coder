@@ -239,7 +239,7 @@ func New(options *Options) (http.Handler, func()) {
 				)
 				r.Group(func(r chi.Router) {
 					// Site wide, all users
-					r.Use(httpmw.WithRBACObject(rbac.ResourceUser))
+					r.Use(httpmw.WithRBACObject(rbac.ResourceUser.All()))
 					r.Post("/", authorize(api.postUser, rbac.ActionCreate))
 					r.Get("/", authorize(api.users, rbac.ActionRead))
 				})
@@ -274,6 +274,7 @@ func New(options *Options) (http.Handler, func()) {
 					})
 
 					r.With(httpmw.WithRBACObject(rbac.ResourceAPIKey)).Post("/keys", authorize(api.postAPIKey, rbac.ActionCreate))
+					r.Get("/workspaces", api.workspacesByUser)
 
 					r.Route("/organizations", func(r chi.Router) {
 						// TODO: @emyrk This creates an organization, so why is it nested under {user}?
@@ -286,7 +287,6 @@ func New(options *Options) (http.Handler, func()) {
 						// TODO: @emyrk why is this nested under {user} when the user param is not used?
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
-					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})
