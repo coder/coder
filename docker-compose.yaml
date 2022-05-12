@@ -1,0 +1,31 @@
+version: "3.9"
+services:
+  coder:
+    image: ghcr.io/coder/coder:v${CODER_VERSION:-0.5.5}-${ARCH:-amd64}
+    ports:
+      - "7080:7080"
+    environment:
+      CODER_PG_CONNECTION_URL: "postgresql://username:password@database/coder?sslmode=disable"
+      CODER_ADDRESS: "0.0.0.0:7080"
+    depends_on:
+      database:
+        condition: service_healthy
+  database:
+    image: "postgres:14.2"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-username} # The PostgreSQL user (useful to connect to the database)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password} # The PostgreSQL password (useful to connect to the database)
+      POSTGRES_DB: ${POSTGRES_DB:-coder} # The PostgreSQL default database (automatically created at first launch)
+    volumes:
+      - coder_data:/var/lib/postgresql/data # Use "docker volume rm coder_coder_data" to reset Coder
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-username} -d ${POSTGRES_DB:-coder}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+volumes:
+  coder_data:
