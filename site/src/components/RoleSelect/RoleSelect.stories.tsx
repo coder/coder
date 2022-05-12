@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import React from "react"
-import { MockAdminRole, MockMemberRole, MockSiteRoles } from "../../testHelpers"
+import { MockAdminRole, MockMemberRole, MockSiteRoles } from "../../testHelpers/renderHelpers"
 import { RoleSelect, RoleSelectProps } from "./RoleSelect"
 
 export default {

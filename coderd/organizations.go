@@ -180,6 +180,7 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "template version does not exist",
 		})
+		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
