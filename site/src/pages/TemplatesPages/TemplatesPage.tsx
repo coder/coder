@@ -25,6 +25,7 @@ export const Language = {
   nameLabel: "Name",
   emptyMessage: "No templates have been created yet",
   emptyDescription: "Run the following command to get started:",
+  totalLabel: "total",
 }
 
 export const TemplatesPage: React.FC = () => {
@@ -34,7 +35,7 @@ export const TemplatesPage: React.FC = () => {
     orgs ? `/api/v2/organizations/${orgs[0].id}/templates` : null,
   )
   const isLoading = !templates || !orgs
-  const subTitle = templates ? `${templates.length} total` : undefined
+  const subTitle = templates ? `${templates.length} ${Language.totalLabel}` : undefined
   const hasError = orgsError || error
   // Create a dictionary of organization ID -> organization Name
   // Needed to properly construct links to dive into a template
