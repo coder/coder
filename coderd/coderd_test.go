@@ -2,7 +2,9 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -32,15 +34,6 @@ func TestBuildInfo(t *testing.T) {
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
 
-	// skipRoutes allows skipping routes from being checked.
-	type routeCheck struct {
-		NoAuthorize bool
-	}
-	assertRoute := map[string]routeCheck{
-		"GET:/api/v2":           {NoAuthorize: true},
-		"GET:/api/v2/buildinfo": {NoAuthorize: true},
-	}
-
 	authorizer := &fakeAuthorizer{}
 	srv, client := coderdtest.NewMemoryCoderd(t, &coderdtest.Options{
 		Authorizer: authorizer,
@@ -48,16 +41,38 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	admin := coderdtest.CreateFirstUser(t, client)
 	var _ = admin
 
+	// skipRoutes allows skipping routes from being checked.
+	type routeCheck struct {
+		NoAuthorize  bool
+		AssertObject rbac.Object
+	}
+	assertRoute := map[string]routeCheck{
+		"GET:/api/v2":                   {NoAuthorize: true},
+		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
+		"GET:/api/v2/users/first":       {NoAuthorize: true},
+		"POST:/api/v2/users/first":      {NoAuthorize: true},
+		"POST:/api/v2/users/login":      {NoAuthorize: true},
+		"POST:/api/v2/users/logout":     {NoAuthorize: true},
+		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
+
+		// TODO: @emyrk these need to be fixed by adding authorize calls
+		"/api/v2/organizations/{organization}/provisionerdaemons": {NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}":                {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
+	}
+
 	c := srv.Config.Handler.(*chi.Mux)
 	err := chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
 		t.Run(name, func(t *testing.T) {
 			authorizer.reset()
-			routeAssertions, ok := assertRoute[name]
+			routeAssertions, ok := assertRoute[strings.TrimRight(name, "/")]
 			if !ok {
 				// By default, all omitted routes check for just "authorize" called
 				routeAssertions = routeCheck{}
 			}
+
+			// Replace all url params with expected
+			route = strings.ReplaceAll(route, "{organization}", admin.OrganizationID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
@@ -65,6 +80,19 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 			if !routeAssertions.NoAuthorize {
 				assert.NotNil(t, authorizer.Called, "authorizer expected")
+				assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "expect unauthorized")
+				if routeAssertions.AssertObject.Type != "" {
+					assert.Equal(t, routeAssertions.AssertObject.Type, authorizer.Called.Object.Type, "resource type")
+				}
+				if routeAssertions.AssertObject.Owner != "" {
+					assert.Equal(t, routeAssertions.AssertObject.Owner, authorizer.Called.Object.Owner, "resource owner")
+				}
+				if routeAssertions.AssertObject.OrgID != "" {
+					assert.Equal(t, routeAssertions.AssertObject.OrgID, authorizer.Called.Object.OrgID, "resource org")
+				}
+				if routeAssertions.AssertObject.ResourceID != "" {
+					assert.Equal(t, routeAssertions.AssertObject.ResourceID, authorizer.Called.Object.ResourceID, "resource ID")
+				}
 			} else {
 				assert.Nil(t, authorizer.Called, "authorize not expected")
 			}
@@ -92,7 +120,7 @@ func (f *fakeAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID stri
 		Action:    action,
 		Object:    object,
 	}
-	return nil
+	return rbac.ForbiddenWithInternal(fmt.Errorf("fake implementation"), nil, nil)
 }
 
 func (f *fakeAuthorizer) reset() {

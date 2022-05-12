@@ -83,8 +83,8 @@ func New(options *Options) (http.Handler, func()) {
 	// TODO: @emyrk we should just move this into 'ExtractAPIKey'.
 	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
 
-	authorize := func(f http.HandlerFunc, actions rbac.Action) http.HandlerFunc {
-		return httpmw.Authorize(api.Logger, api.Authorizer, actions)(f).ServeHTTP
+	authorize := func(f http.HandlerFunc, actions ...rbac.Action) http.HandlerFunc {
+		return httpmw.Authorize(api.Logger, api.Authorizer, actions...)(f).ServeHTTP
 	}
 
 	r := chi.NewRouter()
@@ -131,10 +131,12 @@ func New(options *Options) (http.Handler, func()) {
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
+				// TODO: @emyrk (rbac) Currently files are owned by the site?
+				//	Should files be org scoped? User scoped?
 				httpmw.WithRBACObject(rbac.ResourceTypeFile),
 			)
-			r.Get("/{hash}", api.fileByHash)
-			r.Post("/", api.postFile)
+			r.Get("/{hash}", authorize(api.fileByHash, rbac.ActionRead))
+			r.Post("/", authorize(api.postFile, rbac.ActionCreate, rbac.ActionUpdate))
 		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
@@ -142,7 +144,8 @@ func New(options *Options) (http.Handler, func()) {
 				authRolesMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
-			r.Get("/", api.organization)
+			r.With(httpmw.WithRBACObject(rbac.ResourceOrganization)).
+				Get("/", authorize(api.organization, rbac.ActionRead))
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
 			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 			r.Route("/templates", func(r chi.Router) {

@@ -17,7 +17,7 @@ import (
 // Authorize will enforce if the user roles can complete the action on the AuthObject.
 // The organization and owner are found using the ExtractOrganization and
 // ExtractUser middleware if present.
-func Authorize(logger slog.Logger, auth rbac.Authorizer, action rbac.Action) func(http.Handler) http.Handler {
+func Authorize(logger slog.Logger, auth rbac.Authorizer, actions ...rbac.Action) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			roles := UserRoles(r)
@@ -51,26 +51,28 @@ func Authorize(logger slog.Logger, auth rbac.Authorizer, action rbac.Action) fun
 				}
 			}
 
-			err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
-			if err != nil {
-				internalError := new(rbac.UnauthorizedError)
-				if xerrors.As(err, internalError) {
-					logger = logger.With(slog.F("internal", internalError.Internal()))
+			for _, action := range actions {
+				err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
+				if err != nil {
+					internalError := new(rbac.UnauthorizedError)
+					if xerrors.As(err, internalError) {
+						logger = logger.With(slog.F("internal", internalError.Internal()))
+					}
+					// Log information for debugging. This will be very helpful
+					// in the early days if we over secure endpoints.
+					logger.Warn(r.Context(), "unauthorized",
+						slog.F("roles", roles.Roles),
+						slog.F("user_id", roles.ID),
+						slog.F("username", roles.Username),
+						slog.F("route", r.URL.Path),
+						slog.F("action", action),
+						slog.F("object", object),
+					)
+					httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+						Message: err.Error(),
+					})
+					return
 				}
-				// Log information for debugging. This will be very helpful
-				// in the early days if we over secure endpoints.
-				logger.Warn(r.Context(), "unauthorized",
-					slog.F("roles", roles.Roles),
-					slog.F("user_id", roles.ID),
-					slog.F("username", roles.Username),
-					slog.F("route", r.URL.Path),
-					slog.F("action", action),
-					slog.F("object", object),
-				)
-				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: err.Error(),
-				})
-				return
 			}
 			next.ServeHTTP(rw, r)
 		})
