@@ -77,7 +77,12 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
             </MenuItem>
           </Link>
 
-          <a href="https://coder.com/docs" target="_blank" rel="noreferrer" className={styles.link}>
+          <a
+            href={`https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`}
+            target="_blank"
+            rel="noreferrer"
+            className={styles.link}
+          >
             <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
               <ListItemIcon className={styles.icon}>
                 <DocsIcon />

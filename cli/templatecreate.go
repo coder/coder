@@ -27,7 +27,8 @@ func templateCreate() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "create [name]",
-		Short: "Create a template from the current directory",
+		Short: "Create a template from the current directory or as specified by flag",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -51,19 +52,10 @@ func templateCreate() *cobra.Command {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
 			}
 
-			// Confirm upload of the users current directory.
-			// Truncate if in the home directory, because a shorter path looks nicer.
-			displayDirectory := directory
-			userHomeDir, err := os.UserHomeDir()
-			if err != nil {
-				return xerrors.Errorf("get home dir: %w", err)
-			}
-			if strings.HasPrefix(displayDirectory, userHomeDir) {
-				displayDirectory = strings.TrimPrefix(displayDirectory, userHomeDir)
-				displayDirectory = "~" + displayDirectory
-			}
+			// Confirm upload of the directory.
+			prettyDir := prettyDirectoryPath(directory)
 			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Create and upload %q?", displayDirectory),
+				Text:      fmt.Sprintf("Create and upload %q?", prettyDir),
 				IsConfirm: true,
 				Default:   "yes",
 			})
@@ -73,7 +65,7 @@ func templateCreate() *cobra.Command {
 
 			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 			spin.Writer = cmd.OutOrStdout()
-			spin.Suffix = cliui.Styles.Keyword.Render(" Uploading current directory...")
+			spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
 			spin.Start()
 			defer spin.Stop()
 			archive, err := provisionersdk.Tar(directory, provisionersdk.TemplateArchiveLimit)
@@ -123,9 +115,9 @@ func templateCreate() *cobra.Command {
 	}
 	currentDirectory, _ := os.Getwd()
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
-	cmd.Flags().StringVarP(&provisioner, "provisioner", "p", "terraform", "Customize the provisioner backend")
+	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	// This is for testing!
-	err := cmd.Flags().MarkHidden("provisioner")
+	err := cmd.Flags().MarkHidden("test.provisioner")
 	if err != nil {
 		panic(err)
 	}
@@ -227,4 +219,21 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 	}
 
 	return &version, parameters, nil
+}
+
+// prettyDirectoryPath returns a prettified path when inside the users
+// home directory. Falls back to dir if the users home directory cannot
+// discerned. This function calls filepath.Clean on the result.
+func prettyDirectoryPath(dir string) string {
+	dir = filepath.Clean(dir)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return dir
+	}
+	pretty := dir
+	if strings.HasPrefix(pretty, homeDir) {
+		pretty = strings.TrimPrefix(pretty, homeDir)
+		pretty = "~" + pretty
+	}
+	return pretty
 }

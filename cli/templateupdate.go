@@ -3,22 +3,28 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
 
 func templateUpdate() *cobra.Command {
-	return &cobra.Command{
-		Use:   "update <template> [directory]",
-		Args:  cobra.MinimumNArgs(1),
-		Short: "Update the source-code of a template from a directory.",
+	var (
+		directory   string
+		provisioner string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "update <template>",
+		Args:  cobra.ExactArgs(1),
+		Short: "Update the source-code of a template from the current directory or as specified by flag",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -33,16 +39,22 @@ func templateUpdate() *cobra.Command {
 				return err
 			}
 
-			directory, err := os.Getwd()
+			// Confirm upload of the directory.
+			prettyDir := prettyDirectoryPath(directory)
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Upload %q?", prettyDir),
+				IsConfirm: true,
+				Default:   "yes",
+			})
 			if err != nil {
 				return err
 			}
-			if len(args) >= 2 {
-				directory, err = filepath.Abs(args[1])
-				if err != nil {
-					return err
-				}
-			}
+
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = cmd.OutOrStdout()
+			spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
+			spin.Start()
+			defer spin.Stop()
 			content, err := provisionersdk.Tar(directory, provisionersdk.TemplateArchiveLimit)
 			if err != nil {
 				return err
@@ -51,13 +63,14 @@ func templateUpdate() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			spin.Stop()
 
 			before := time.Now()
 			templateVersion, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
 				TemplateID:    template.ID,
 				StorageMethod: database.ProvisionerStorageMethodFile,
 				StorageSource: resp.Hash,
-				Provisioner:   database.ProvisionerTypeTerraform,
+				Provisioner:   database.ProvisionerType(provisioner),
 			})
 			if err != nil {
 				return err
@@ -71,7 +84,7 @@ func templateUpdate() *cobra.Command {
 				if !ok {
 					break
 				}
-				_, _ = fmt.Printf("terraform (%s): %s\n", log.Level, log.Output)
+				_, _ = fmt.Printf("%s (%s): %s\n", provisioner, log.Level, log.Output)
 			}
 			templateVersion, err = client.TemplateVersion(cmd.Context(), templateVersion.ID)
 			if err != nil {
@@ -92,4 +105,15 @@ func templateUpdate() *cobra.Command {
 			return nil
 		},
 	}
+
+	currentDirectory, _ := os.Getwd()
+	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
+	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
+	// This is for testing!
+	err := cmd.Flags().MarkHidden("test.provisioner")
+	if err != nil {
+		panic(err)
+	}
+
+	return cmd
 }

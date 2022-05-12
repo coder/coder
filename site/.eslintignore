@@ -10,3 +10,4 @@ coverage
 storybook-static
 test-results
 **/*.typegen.ts
+**/*.swp

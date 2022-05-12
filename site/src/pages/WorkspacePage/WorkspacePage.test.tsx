@@ -8,7 +8,7 @@ import {
   MockTemplate,
   MockWorkspace,
   renderWithAuth,
-} from "../../testHelpers"
+} from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { WorkspacePage } from "./WorkspacePage"
 

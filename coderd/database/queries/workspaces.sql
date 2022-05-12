@@ -14,6 +14,20 @@ SELECT * FROM workspaces WHERE organization_id = $1 AND deleted = $2;
 -- name: GetWorkspacesByOrganizationIDs :many
 SELECT * FROM workspaces WHERE organization_id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
 
+-- name: GetWorkspacesAutostartAutostop :many
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	deleted = false
+AND
+(
+	autostart_schedule <> ''
+	OR
+	autostop_schedule <> ''
+);
+
 -- name: GetWorkspacesByTemplateID :many
 SELECT
 	*

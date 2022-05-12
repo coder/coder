@@ -1,7 +1,7 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import React from "react"
-import { MockOrganization, MockOutdatedWorkspace, MockTemplate, MockWorkspace } from "../../testHelpers"
+import { MockOrganization, MockOutdatedWorkspace, MockTemplate, MockWorkspace } from "../../testHelpers/renderHelpers"
 import { Workspace, WorkspaceProps } from "./Workspace"
 
 export default {
