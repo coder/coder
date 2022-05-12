@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -23,6 +24,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/coderd/rbac"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
@@ -212,14 +215,14 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID) *codersdk.Client {
+func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
 		OrganizationID: organizationID,
 	}
-	_, err := client.CreateUser(context.Background(), req)
+	user, err := client.CreateUser(context.Background(), req)
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -230,6 +233,40 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 
 	other := codersdk.New(client.URL)
 	other.SessionToken = login.SessionToken
+
+	if len(roles) > 0 {
+		// Find the roles for the org vs the site wide roles
+		orgRoles := make(map[string][]string)
+		var siteRoles []string
+
+		for _, roleName := range roles {
+			roleName := roleName
+			orgID, ok := rbac.IsOrgRole(roleName)
+			if ok {
+				orgRoles[orgID] = append(orgRoles[orgID], roleName)
+			} else {
+				siteRoles = append(siteRoles, roleName)
+			}
+		}
+		// Update the roles
+		for _, r := range user.Roles {
+			siteRoles = append(siteRoles, r.Name)
+		}
+		// TODO: @emyrk switch "other" to "client" when we support updating other
+		//	users.
+		_, err := other.UpdateUserRoles(context.Background(), user.ID, codersdk.UpdateRoles{Roles: siteRoles})
+		require.NoError(t, err, "update site roles")
+
+		// Update org roles
+		for orgID, roles := range orgRoles {
+			organizationID, err := uuid.Parse(orgID)
+			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
+			// TODO: @Emyrk add the member to the organization if they do not already belong.
+			_, err = other.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID,
+				codersdk.UpdateRoles{Roles: append(roles, rbac.RoleOrgMember(organizationID))})
+			require.NoError(t, err, "update org membership roles")
+		}
+	}
 	return other
 }
 

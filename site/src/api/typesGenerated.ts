@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:100:6
+// From codersdk/users.go:150:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -44,7 +44,7 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
-// From codersdk/users.go:95:6
+// From codersdk/users.go:145:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -101,7 +101,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:91:6
+// From codersdk/users.go:141:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -119,13 +119,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:80:6
+// From codersdk/users.go:130:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:86:6
+// From codersdk/users.go:136:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -314,6 +314,28 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
 }
+
+// From codersdk/users.go:95:6
+export interface UserPermissionCheck {
+  readonly object: UserPermissionCheckObject
+  readonly action: string
+}
+
+// From codersdk/users.go:111:6
+export interface UserPermissionCheckObject {
+  readonly resource_type: string
+  readonly owner_id?: string
+  readonly organization_id?: string
+  readonly resource_id?: string
+}
+
+// From codersdk/users.go:84:6
+export interface UserPermissionCheckRequest {
+  readonly checks: Record<string, UserPermissionCheck>
+}
+
+// From codersdk/users.go:79:6
+export type UserPermissionCheckResponse = Record<string, boolean>
 
 // From codersdk/users.go:74:6
 export interface UserRoles {

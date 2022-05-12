@@ -183,6 +183,28 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 				// type <Name> string
 				// These are enums. Store to expand later.
 				enums[obj.Name()] = obj
+			case *types.Map:
+				// Declared maps that are not structs are still valid codersdk objects.
+				// Handle them custom by calling 'typescriptType' directly instead of
+				// iterating through each struct field.
+				// These types support no json/typescript tags.
+				// These are **NOT** enums, as a map in Go would never be used for an enum.
+				ts, err := g.typescriptType(obj.Type().Underlying())
+				if err != nil {
+					return nil, xerrors.Errorf("(map) generate %q: %w", obj.Name(), err)
+				}
+
+				var str strings.Builder
+				_, _ = str.WriteString(g.posLine(obj))
+				if ts.AboveTypeLine != "" {
+					str.WriteString(ts.AboveTypeLine)
+					str.WriteRune('\n')
+				}
+				// Use similar output syntax to enums.
+				str.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), ts.ValueType))
+				structs[obj.Name()] = str.String()
+			case *types.Array, *types.Slice:
+				// TODO: @emyrk if you need this, follow the same design as "*types.Map" case.
 			}
 		case *types.Var:
 			// TODO: Are any enums var declarations? This is also codersdk.Me.

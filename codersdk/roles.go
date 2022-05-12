@@ -43,3 +43,16 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Ro
 	var roles []Role
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
+
+func (c *Client) CheckPermissions(ctx context.Context, checks UserPermissionCheckRequest) (UserPermissionCheckResponse, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/authorization", uuidOrMe(Me)), checks)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var roles UserPermissionCheckResponse
+	return roles, json.NewDecoder(res.Body).Decode(&roles)
+}
