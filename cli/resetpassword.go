@@ -29,6 +29,10 @@ func resetPassword() *cobra.Command {
 				return xerrors.Errorf("dial postgres: %w", err)
 			}
 			defer sqlDB.Close()
+			err = sqlDB.Ping()
+			if err != nil {
+				return xerrors.Errorf("ping postgres: %w", err)
+			}
 
 			err = database.EnsureClean(sqlDB)
 			if err != nil {
