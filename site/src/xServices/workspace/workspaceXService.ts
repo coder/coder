@@ -1,12 +1,11 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 
 interface WorkspaceContext {
-  workspace?: Types.Workspace
-  template?: Types.Template
-  organization?: Types.Organization
+  workspace?: TypesGen.Workspace
+  template?: TypesGen.Template
+  organization?: TypesGen.Organization
   build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: Error | unknown
   getTemplateError?: Error | unknown
@@ -36,13 +35,13 @@ export const workspaceMachine = createMachine(
       events: {} as WorkspaceEvent,
       services: {} as {
         getWorkspace: {
-          data: Types.Workspace
+          data: TypesGen.Workspace
         }
         getTemplate: {
-          data: Types.Template
+          data: TypesGen.Template
         }
         getOrganization: {
-          data: Types.Organization
+          data: TypesGen.Organization
         }
         startWorkspace: {
           data: TypesGen.WorkspaceBuild
@@ -51,7 +50,7 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild
         }
         refreshWorkspace: {
-          data: Types.Workspace | undefined
+          data: TypesGen.Workspace | undefined
         }
       },
     },

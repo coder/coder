@@ -1,16 +1,16 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
-import * as Types from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
 
 export interface WorkspaceProps {
-  organization?: Types.Organization
-  workspace: Types.Workspace
-  template?: Types.Template
+  organization?: TypesGen.Organization
+  workspace: TypesGen.Workspace
+  template?: TypesGen.Template
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void

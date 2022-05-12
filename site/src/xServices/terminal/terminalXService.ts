@@ -1,13 +1,14 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as Types from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 
 export interface TerminalContext {
   organizationsError?: Error | unknown
-  organizations?: Types.Organization[]
+  organizations?: TypesGen.Organization[]
   workspaceError?: Error | unknown
-  workspace?: Types.Workspace
-  workspaceAgent?: Types.WorkspaceAgent
+  workspace?: TypesGen.Workspace
+  workspaceAgent?: TypesGen.WorkspaceAgent
   workspaceAgentError?: Error | unknown
   websocket?: WebSocket
   websocketError?: Error | unknown
@@ -34,13 +35,13 @@ export const terminalMachine =
         events: {} as TerminalEvent,
         services: {} as {
           getOrganizations: {
-            data: Types.Organization[]
+            data: TypesGen.Organization[]
           }
           getWorkspace: {
-            data: Types.Workspace
+            data: TypesGen.Workspace
           }
           getWorkspaceAgent: {
-            data: Types.WorkspaceAgent
+            data: TypesGen.WorkspaceAgent
           }
           connect: {
             data: WebSocket
