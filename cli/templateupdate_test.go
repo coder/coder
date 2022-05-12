@@ -35,22 +35,24 @@ func TestTemplateUpdate(t *testing.T) {
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
 	cmd.SetOut(pty.Output())
-	done := make(chan struct{})
+
+	execDone := make(chan error)
 	go func() {
-		defer close(done)
-		err := cmd.Execute()
-		require.NoError(t, err)
+		execDone <- cmd.Execute()
 	}()
-	matches := []string{
-		"Upload", "yes",
+
+	matches := []struct {
+		match string
+		write string
+	}{
+		{match: "Upload", write: "yes"},
 	}
-	for i := 0; i < len(matches); i += 2 {
-		match := matches[i]
-		value := matches[i+1]
-		pty.ExpectMatch(match)
-		pty.WriteLine(value)
+	for _, m := range matches {
+		pty.ExpectMatch(m.match)
+		pty.WriteLine(m.write)
 	}
-	<-done
+
+	require.NoError(t, <-execDone)
 
 	// Assert that the template version changed.
 	templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
