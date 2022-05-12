@@ -1,4 +1,4 @@
-import { useActor } from "@xstate/react"
+import { useActor, useSelector } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
@@ -8,8 +8,9 @@ import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { XServiceContext } from "../../xServices/StateContext"
+import { selectWorkspaceStatus } from "../../xServices/workspace/workspaceSelectors"
 
-export type WorkspaceStatus = "started" | "starting" | "stopped" | "stopping" | "error" | "loading"
+export type WorkspaceStatus = "started" | "starting" | "stopped" | "stopping" | "error" | "loading" | "deleting" | "deleted"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
@@ -19,17 +20,7 @@ export const WorkspacePage: React.FC = () => {
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
   const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
     workspaceState.context
-  const workspaceStatus: WorkspaceStatus = workspaceState.matches("ready.build.started")
-    ? "started"
-    : workspaceState.matches("ready.build.stopped")
-    ? "stopped"
-    : workspaceState.hasTag("starting")
-    ? "starting"
-    : workspaceState.hasTag("stopping")
-    ? "stopping"
-    : workspaceState.matches("ready.build.error")
-    ? "error"
-    : "loading"
+  const workspaceStatus = useSelector(xServices.workspaceXService, selectWorkspaceStatus)
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.

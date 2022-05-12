@@ -2,7 +2,7 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
 
-interface WorkspaceContext {
+export interface WorkspaceContext {
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
   organization?: TypesGen.Organization
@@ -19,13 +19,12 @@ interface WorkspaceContext {
   refreshTemplateError: Error | unknown
 }
 
-type WorkspaceEvent =
+export type WorkspaceEvent =
   | { type: "GET_WORKSPACE"; workspaceId: string }
   | { type: "START" }
   | { type: "STOP" }
   | { type: "RETRY" }
   | { type: "UPDATE" }
-  | { type: "REFRESH_WORKSPACE" }
 
 export const workspaceMachine = createMachine(
   {
@@ -82,7 +81,7 @@ export const workspaceMachine = createMachine(
       ready: {
         type: "parallel",
         states: {
-          // We poll the workspace consistently to know if it becomes outdated
+          // We poll the workspace consistently to know if it becomes outdated and to update build status
           pollingWorkspace: {
             initial: "refreshingWorkspace",
             states: {
@@ -91,13 +90,13 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "refreshWorkspace",
                   src: "refreshWorkspace",
-                  onDone: { actions: "assignWorkspace"},
+                  onDone: { target: "waiting", actions: "assignWorkspace"},
                   onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
                 },
               },
               waiting: {
                 after: {
-                  5000: "refreshingWorkspace"
+                  1000: "refreshingWorkspace"
                 }
               }
             }
@@ -140,157 +139,65 @@ export const workspaceMachine = createMachine(
             },
           },
           build: {
-            initial: "dispatch",
-            on: {
-              UPDATE: "#workspaceState.ready.build.refreshingTemplate",
-            },
+            initial: "idle",
             states: {
-              dispatch: {
-                always: [
-                  {
-                    cond: "workspaceIsStarted",
-                    target: "started",
-                  },
-                  {
-                    cond: "workspaceIsStopped",
-                    target: "stopped",
-                  },
-                  {
-                    cond: "workspaceIsStarting",
-                    target: "buildingStart",
-                  },
-                  {
-                    cond: "workspaceIsStopping",
-                    target: "buildingStop",
-                  },
-                  { target: "error" },
-                ],
-              },
-              started: {
-                on: {
-                  STOP: "requestingStop",
-                },
-                tags: "buildReady",
-              },
-              stopped: {
+              idle: {
                 on: {
                   START: "requestingStart",
+                  STOP: "requestingStop",
+                  RETRY: [
+                    { cond: "triedToStart", target: "requestingStart" },
+                    { target: "requestingStop" }
+                  ],
+                  UPDATE: "refreshingTemplate",
                 },
-                tags: "buildReady",
               },
               requestingStart: {
+                entry: "clearBuildError",
                 invoke: {
                   id: "startWorkspace",
                   src: "startWorkspace",
                   onDone: {
-                    target: "buildingStart",
-                    actions: ["assignBuild", "clearJobError"],
+                    target: "idle",
+                    actions: "assignBuild"
                   },
                   onError: {
-                    target: "error",
-                    actions: "assignJobError",
-                  },
-                },
-                tags: ["buildLoading", "starting"],
+                    target: "idle",
+                    actions: "assignBuildError"
+                  }
+                }
               },
               requestingStop: {
+                entry: "clearBuildError",
                 invoke: {
                   id: "stopWorkspace",
                   src: "stopWorkspace",
-                  onDone: { target: "buildingStop", actions: ["assignBuild", "clearJobError"] },
+                  onDone: {
+                    target: "idle",
+                    actions: "assignBuild"
+                  },
                   onError: {
-                    target: "error",
-                    actions: "assignJobError",
-                  },
-                },
-                tags: ["buildLoading", "stopping"],
-              },
-              buildingStart: {
-                initial: "refreshingWorkspace",
-                states: {
-                  refreshingWorkspace: {
-                    entry: "clearRefreshWorkspaceError",
-                    invoke: {
-                      id: "refreshWorkspace",
-                      src: "refreshWorkspace",
-                      onDone: [
-                        {
-                          cond: "jobSucceeded",
-                          target: "#workspaceState.ready.build.started",
-                          actions: ["clearBuildError", "assignWorkspace"],
-                        },
-                        { cond: "jobPendingOrRunning", target: "waiting", actions: "assignWorkspace" },
-                        {
-                          target: "#workspaceState.ready.build.error",
-                          actions: ["assignWorkspace", "assignBuildError"],
-                        },
-                      ],
-                      onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
-                    },
-                  },
-                  waiting: {
-                    after: {
-                      1000: "refreshingWorkspace",
-                    },
-                  },
-                },
-                tags: ["buildLoading", "starting"],
-              },
-              buildingStop: {
-                initial: "refreshingWorkspace",
-                states: {
-                  refreshingWorkspace: {
-                    entry: "clearRefreshWorkspaceError",
-                    invoke: {
-                      id: "refreshWorkspace",
-                      src: "refreshWorkspace",
-                      onDone: [
-                        {
-                          cond: "jobSucceeded",
-                          target: "#workspaceState.ready.build.stopped",
-                          actions: ["clearBuildError", "assignWorkspace"],
-                        },
-                        { cond: "jobPendingOrRunning", target: "waiting", actions: "assignWorkspace" },
-                        {
-                          target: "#workspaceState.ready.build.error",
-                          actions: ["assignWorkspace", "assignBuildError"],
-                        },
-                      ],
-                      onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
-                    },
-                  },
-                  waiting: {
-                    after: {
-                      1000: "refreshingWorkspace",
-                    },
-                  },
-                },
-                tags: ["buildLoading", "stopping"],
+                    target: "idle",
+                    actions: "assignBuildError"
+                  }
+                }
               },
               refreshingTemplate: {
                 entry: "clearRefreshTemplateError",
                 invoke: {
                   id: "refreshTemplate",
                   src: "getTemplate",
-                  onDone: { target: "#workspaceState.ready.build.requestingStart", actions: "assignTemplate" },
-                  onError: { target: "error", actions: "assignRefreshTemplateError" },
-                },
+                  onDone: {
+                    target: "requestingStart",
+                    actions: "assignTemplate"
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: "assignRefreshTemplateError"
+                  }
+                }
               },
-              error: {
-                on: {
-                  RETRY: [
-                    {
-                      cond: "triedToStart",
-                      target: "requestingStart",
-                    },
-                    {
-                      // this could also be post-delete
-                      target: "requestingStop",
-                    },
-                  ],
-                },
-              },
-            },
+            }
           },
         },
       },
@@ -336,14 +243,6 @@ export const workspaceMachine = createMachine(
         assign({
           build: event.data,
         }),
-      assignJobError: (_, event) =>
-        assign({
-          jobError: event.data,
-        }),
-      clearJobError: (_) =>
-        assign({
-          jobError: undefined,
-        }),
       assignBuildError: (_, event) =>
         assign({
           buildError: event.data,
@@ -370,24 +269,7 @@ export const workspaceMachine = createMachine(
         }),
     },
     guards: {
-      workspaceIsStarted: (context) =>
-        context.workspace?.latest_build.transition === "start" &&
-        context.workspace.latest_build.job.status === "succeeded",
-      workspaceIsStopped: (context) =>
-        context.workspace?.latest_build.transition === "stop" &&
-        context.workspace.latest_build.job.status === "succeeded",
-      workspaceIsStarting: (context) =>
-        context.workspace?.latest_build.transition === "start" &&
-        ["pending", "running"].includes(context.workspace.latest_build.job.status),
-      workspaceIsStopping: (context) =>
-        context.workspace?.latest_build.transition === "stop" &&
-        ["pending", "running"].includes(context.workspace.latest_build.job.status),
       triedToStart: (context) => context.workspace?.latest_build.transition === "start",
-      jobSucceeded: (context) => context.workspace?.latest_build.job.status === "succeeded",
-      jobPendingOrRunning: (context) => {
-        const status = context.workspace?.latest_build.job.status
-        return status === "pending" || status === "running"
-      },
     },
     services: {
       getWorkspace: async (_, event) => {

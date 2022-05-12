@@ -23,6 +23,8 @@ const Language = {
   stopping: "Stopping",
   error: "Build Failed",
   loading: "Loading Status",
+  deleting: "Deleting", 
+  deleted: "Deleted"
 }
 
 export interface WorkspaceStatusBarProps {
@@ -78,12 +80,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
           <div className={styles.horizontal}>
             <Typography variant="h4">{workspace.name}</Typography>
             <Box className={styles.statusChip} role="status">
-              {workspaceStatus === "started" && Language.started}
-              {workspaceStatus === "starting" && Language.starting}
-              {workspaceStatus === "stopped" && Language.stopped}
-              {workspaceStatus === "stopping" && Language.stopping}
-              {workspaceStatus === "error" && Language.error}
-              {workspaceStatus === "loading" && Language.loading}
+              {Language[workspaceStatus]}
             </Box>
           </div>
 
