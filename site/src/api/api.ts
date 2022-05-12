@@ -76,7 +76,7 @@ export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   return response.data
 }
 
-export const getUserPermissions = async (
+export const checkUserPermissions = async (
   userId: string,
   params: TypesGen.UserPermissionCheckRequest,
 ): Promise<TypesGen.UserPermissionCheckResponse> => {

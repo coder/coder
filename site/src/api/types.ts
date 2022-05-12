@@ -10,5 +10,3 @@ export interface ReconnectingPTYRequest {
   readonly height?: number
   readonly width?: number
 }
-
-export type UserPermissionCheckResponse = Record<string, boolean>

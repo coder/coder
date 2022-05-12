@@ -23,8 +23,8 @@ export interface AuthContext {
   updateProfileError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
-  permissions?: Types.UserPermissionCheckResponse
-  getPermissionsError?: Error | unknown
+  permissions?: TypesGen.UserPermissionCheckResponse
+  checkPermissionsError?: Error | unknown
 }
 
 export type AuthEvent =
@@ -61,8 +61,8 @@ export const authMachine =
           updateProfile: {
             data: TypesGen.User
           }
-          getPermissions: {
-            data: Types.UserPermissionCheckResponse
+          checkPermissions: {
+            data: TypesGen.UserPermissionCheckResponse
           }
         },
       },
@@ -117,8 +117,8 @@ export const authMachine =
         gettingPermissions: {
           entry: "clearGetPermissionsError",
           invoke: {
-            src: "getPermissions",
-            id: "getPermissions",
+            src: "checkPermissions",
+            id: "checkPermissions",
             onDone: [
               {
                 actions: ["assignPermissions"],
@@ -234,12 +234,12 @@ export const authMachine =
 
           return API.updateProfile(context.me.id, event.data)
         },
-        getPermissions: async (context) => {
+        checkPermissions: async (context) => {
           if (!context.me) {
             throw new Error("No current user found")
           }
 
-          return API.getUserPermissions(context.me.id, {
+          return API.checkUserPermissions(context.me.id, {
             checks: permissionsToCheck,
           })
         },
@@ -289,10 +289,10 @@ export const authMachine =
           permissions: (_, event) => event.data,
         }),
         assignGetPermissionsError: assign({
-          getPermissionsError: (_, event) => event.data,
+          checkPermissionsError: (_, event) => event.data,
         }),
         clearGetPermissionsError: assign({
-          getPermissionsError: (_) => undefined,
+          checkPermissionsError: (_) => undefined,
         }),
       },
     },
