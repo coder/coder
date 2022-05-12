@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"

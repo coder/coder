@@ -6,12 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/xerrors"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/coderdtest"
