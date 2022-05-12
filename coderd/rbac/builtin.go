@@ -64,11 +64,7 @@ var (
 			return Role{
 				Name:        member,
 				DisplayName: "Member",
-				Site: permissions(map[Object][]Action{
-					// All users can read all organizations.
-					// TODO: @emyrk is this ok?
-					ResourceOrganization: {ActionRead},
-				}),
+				Site:        permissions(map[Object][]Action{}),
 				User: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
 				}),

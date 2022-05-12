@@ -2,10 +2,11 @@ package coderd_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+
+	"golang.org/x/xerrors"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	require.NoError(t, err, "fetch org")
 
 	// Always fail auth from this point forward
-	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(fmt.Errorf("fake implementation"), nil, nil)
+	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
 
 	// skipRoutes allows skipping routes from being checked.
 	type routeCheck struct {
@@ -123,13 +124,16 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaces/{workspace}/builds":    {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":   {NoAuthorize: true},
 
+		"POST:/api/v2/files":       {NoAuthorize: true},
+		"GET:/api/v2/files/{hash}": {NoAuthorize: true},
+
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
 		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspaces":      {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 	}
 
-	c := srv.Config.Handler.(*chi.Mux)
+	c, _ := srv.Config.Handler.(*chi.Mux)
 	err = chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
 		t.Run(name, func(t *testing.T) {
@@ -188,7 +192,7 @@ type fakeAuthorizer struct {
 	AlwaysReturn error
 }
 
-func (f *fakeAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
+func (f *fakeAuthorizer) AuthorizeByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
 	f.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,

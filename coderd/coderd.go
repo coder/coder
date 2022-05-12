@@ -135,8 +135,8 @@ func New(options *Options) (http.Handler, func()) {
 				//	Should files be org scoped? User scoped?
 				httpmw.WithRBACObject(rbac.ResourceFile),
 			)
-			r.Get("/{hash}", authorize(api.fileByHash, rbac.ActionRead))
-			r.Post("/", authorize(api.postFile, rbac.ActionCreate, rbac.ActionUpdate))
+			r.Get("/{hash}", api.fileByHash)
+			r.Post("/", api.postFile)
 		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(

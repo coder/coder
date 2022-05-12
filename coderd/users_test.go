@@ -401,10 +401,11 @@ func TestGrantRoles(t *testing.T) {
 			[]string{rbac.RoleOrgMember(first.OrganizationID)},
 		)
 
+		memberUser, err := member.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch member")
+
 		// Grant
-		// TODO: @emyrk this should be 'admin.UpdateUserRoles' once proper authz
-		//		is enforced.
-		_, err = member.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateUserRoles(ctx, memberUser.ID, codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to site admin
 				rbac.RoleMember(),
@@ -588,12 +589,13 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
+		notMember := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
-		_, err = client.OrganizationByName(context.Background(), codersdk.Me, org.Name)
+		_, err = notMember.OrganizationByName(context.Background(), codersdk.Me, org.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
