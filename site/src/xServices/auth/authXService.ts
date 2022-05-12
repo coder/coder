@@ -7,14 +7,16 @@ export const Language = {
   successProfileUpdate: "Updated preferences.",
 }
 
-const permissionsToCheck: Record<string, TypesGen.UserPermissionCheck> = {
+const permissionsToCheck = {
   readAllUsers: {
     object: {
       resource_type: "user",
     },
     action: "read",
   },
-}
+} as const
+
+type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface AuthContext {
   getUserError?: Error | unknown
@@ -23,7 +25,7 @@ export interface AuthContext {
   updateProfileError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
-  permissions?: TypesGen.UserPermissionCheckResponse
+  permissions?: Permissions
   checkPermissionsError?: Error | unknown
 }
 
@@ -286,7 +288,9 @@ export const authMachine =
           updateProfileError: (_) => undefined,
         }),
         assignPermissions: assign({
-          permissions: (_, event) => event.data,
+          // Setting event.data as Permissions to be more stricted. So we know
+          // what permissions we asked for.
+          permissions: (_, event) => event.data as Permissions,
         }),
         assignGetPermissionsError: assign({
           checkPermissionsError: (_, event) => event.data,
