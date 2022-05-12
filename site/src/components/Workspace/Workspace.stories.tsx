@@ -1,7 +1,7 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import React from "react"
-import { MockOrganization, MockTemplate, MockWorkspace } from "../../testHelpers"
+import { MockOrganization, MockOutdatedWorkspace, MockTemplate, MockWorkspace } from "../../testHelpers"
 import { Workspace, WorkspaceProps } from "./Workspace"
 
 export default {
@@ -37,3 +37,6 @@ Error.args = { ...Started.args, workspaceStatus: "error" }
 
 export const NoBreadcrumb = Template.bind({})
 NoBreadcrumb.args = { ...Started.args, template: undefined }
+
+export const Outdated = Template.bind({})
+Outdated.args = { ...Started.args, workspace: MockOutdatedWorkspace }

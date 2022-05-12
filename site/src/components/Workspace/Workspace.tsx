@@ -14,6 +14,7 @@ export interface WorkspaceProps {
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void
+  handleUpdate: () => void
   workspaceStatus: WorkspaceStatus
 }
 
@@ -27,6 +28,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleStart,
   handleStop,
   handleRetry,
+  handleUpdate,
   workspaceStatus,
 }) => {
   const styles = useStyles()
@@ -41,6 +43,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           handleStart={handleStart}
           handleStop={handleStop}
           handleRetry={handleRetry}
+          handleUpdate={handleUpdate}
           workspaceStatus={workspaceStatus}
         />
         <div className={styles.horizontal}>

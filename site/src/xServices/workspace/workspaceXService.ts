@@ -7,6 +7,7 @@ interface WorkspaceContext {
   workspace?: Types.Workspace
   template?: Types.Template
   organization?: Types.Organization
+  build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: Error | unknown
   getTemplateError?: Error | unknown
   getOrganizationError?: Error | unknown
@@ -14,6 +15,9 @@ interface WorkspaceContext {
   jobError?: Error | unknown
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
+  // these are separate from get X errors because they don't make the page unusable
+  refreshWorkspaceError: Error | unknown
+  refreshTemplateError: Error | unknown
 }
 
 type WorkspaceEvent =
@@ -21,6 +25,7 @@ type WorkspaceEvent =
   | { type: "START" }
   | { type: "STOP" }
   | { type: "RETRY" }
+  | { type: "UPDATE" }
   | { type: "REFRESH_WORKSPACE" }
 
 export const workspaceMachine = createMachine(
@@ -60,12 +65,13 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingWorkspace: {
+        entry: ["clearGetWorkspaceError", "clearContext"],
         invoke: {
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: {
             target: "ready",
-            actions: ["assignWorkspace", "clearGetWorkspaceError"],
+            actions: ["assignWorkspace"],
           },
           onError: {
             target: "error",
@@ -116,6 +122,9 @@ export const workspaceMachine = createMachine(
           },
           build: {
             initial: "dispatch",
+            on: {
+              UPDATE: "#workspaceState.ready.build.refreshingTemplate",
+            },
             states: {
               dispatch: {
                 always: [
@@ -156,7 +165,7 @@ export const workspaceMachine = createMachine(
                   src: "startWorkspace",
                   onDone: {
                     target: "buildingStart",
-                    actions: "clearJobError",
+                    actions: ["assignBuild", "clearJobError"],
                   },
                   onError: {
                     target: "error",
@@ -169,7 +178,7 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "stopWorkspace",
                   src: "stopWorkspace",
-                  onDone: { target: "buildingStop", actions: "clearJobError" },
+                  onDone: { target: "buildingStop", actions: ["assignBuild", "clearJobError"] },
                   onError: {
                     target: "error",
                     actions: "assignJobError",
@@ -239,6 +248,15 @@ export const workspaceMachine = createMachine(
                 },
                 tags: ["buildLoading", "stopping"],
               },
+              refreshingTemplate: {
+                entry: "clearRefreshTemplateError",
+                invoke: {
+                  id: "refreshTemplate",
+                  src: "getTemplate",
+                  onDone: { target: "#workspaceState.ready.build.requestingStart", actions: "assignTemplate" },
+                  onError: { target: "error", actions: "assignRefreshTemplateError" },
+                },
+              },
               error: {
                 on: {
                   RETRY: [
@@ -266,6 +284,14 @@ export const workspaceMachine = createMachine(
   },
   {
     actions: {
+      // Clear data about an old workspace when looking at a new one
+      clearContext: () =>
+        assign({
+          workspace: undefined,
+          template: undefined,
+          organization: undefined,
+          build: undefined,
+        }),
       assignWorkspace: assign({
         workspace: (_, event) => event.data,
       }),
@@ -287,6 +313,10 @@ export const workspaceMachine = createMachine(
         getOrganizationError: (_, event) => event.data,
       }),
       clearGetOrganizationError: (context) => assign({ ...context, getOrganizationError: undefined }),
+      assignBuild: (_, event) =>
+        assign({
+          build: event.data,
+        }),
       assignJobError: (_, event) =>
         assign({
           jobError: event.data,
@@ -310,6 +340,14 @@ export const workspaceMachine = createMachine(
       clearRefreshWorkspaceError: (_) =>
         assign({
           refreshWorkspaceError: undefined,
+        }),
+      assignRefreshTemplateError: (_, event) =>
+        assign({
+          refreshTemplateError: event.data,
+        }),
+      clearRefreshTemplateError: (_) =>
+        assign({
+          refreshTemplateError: undefined,
         }),
     },
     guards: {

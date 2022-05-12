@@ -32,6 +32,7 @@ export interface WorkspaceStatusBarProps {
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void
+  handleUpdate: () => void
   workspaceStatus: WorkspaceStatus
 }
 
@@ -45,6 +46,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
   handleStart,
   handleStop,
   handleRetry,
+  handleUpdate,
   workspaceStatus,
 }) => {
   const styles = useStyles()
@@ -102,7 +104,12 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
               </Button>
             )}
 
-            {workspace.outdated && <Button color="primary">{Language.update}</Button>}
+            {/* Workspace will not update while another job is in progress so hide the button until it's usable */}
+            {workspace.outdated && ["started", "stopped", "error"].includes(workspaceStatus) && (
+              <Button onClick={handleUpdate} color="primary">
+                {Language.update}
+              </Button>
+            )}
           </div>
         </div>
       </Stack>

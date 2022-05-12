@@ -54,6 +54,7 @@ export const WorkspacePage: React.FC = () => {
             handleStart={() => workspaceSend("START")}
             handleStop={() => workspaceSend("STOP")}
             handleRetry={() => workspaceSend("RETRY")}
+            handleUpdate={() => workspaceSend("UPDATE")}
             workspaceStatus={workspaceStatus}
           />
         </Stack>

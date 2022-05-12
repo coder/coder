@@ -3,6 +3,7 @@ import { rest } from "msw"
 import React from "react"
 import {
   MockFailedWorkspace,
+  MockOutdatedWorkspace,
   MockStoppedWorkspace,
   MockTemplate,
   MockWorkspace,
@@ -61,5 +62,17 @@ describe("Workspace Page", () => {
     retryButton.click()
     const laterStatus = await screen.findByText("Building")
     expect(laterStatus).toBeDefined()
+  })
+  it("restarts the workspace when the user presses Update", async () => {
+    renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
+    server.use(
+      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
+      }),
+    )
+    const updateButton = await screen.findByText("Update")
+    updateButton.click()
+    const status = await screen.findByText("Building")
+    expect(status).toBeDefined()
   })
 })

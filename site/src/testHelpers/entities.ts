@@ -167,31 +167,11 @@ export const MockWorkspace: Workspace = {
   latest_build: MockWorkspaceBuild,
 }
 
-export const MockStoppedWorkspace: Workspace = {
-  id: "test-workspace",
-  name: "Test-Workspace",
-  created_at: "",
-  updated_at: "",
-  template_id: MockTemplate.id,
-  outdated: false,
-  owner_id: MockUser.id,
-  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
-  latest_build: MockWorkspaceBuildStop,
-}
+export const MockStoppedWorkspace: Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildStop }
 
-export const MockFailedWorkspace: Workspace = {
-  id: "test-workspace",
-  name: "Test-Workspace",
-  created_at: "",
-  updated_at: "",
-  template_id: MockTemplate.id,
-  outdated: false,
-  owner_id: MockUser.id,
-  autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
-  latest_build: MockFailedWorkspaceBuild,
-}
+export const MockFailedWorkspace: Workspace = { ...MockWorkspace, latest_build: MockFailedWorkspaceBuild }
+
+export const MockOutdatedWorkspace: Workspace = { ...MockWorkspace, outdated: true }
 
 export const MockWorkspaceAgent: WorkspaceAgent = {
   id: "test-workspace-agent",
