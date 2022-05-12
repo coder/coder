@@ -1,6 +1,6 @@
 FROM golang:1.18-alpine
 
-RUN go install golang.org/x/tools/cmd/godoc@v0.1.10
+RUN go install github.com/dwahler/go-tools/cmd/godoc@v0.1.0
 
 WORKDIR /go/src/github.com/coder/coder
 ADD . .
