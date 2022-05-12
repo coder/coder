@@ -21,7 +21,7 @@ const config: PlaywrightTestConfig = {
     command: `go run -tags embed ${path.join(
       __dirname,
       "../../cmd/coder/main.go",
-    )} server --dev --skip-tunnel --dev-admin-email ${constants.email} --dev-admin-password ${constants.password}`,
+    )} server --dev --tunnel=false --dev-admin-email ${constants.email} --dev-admin-password ${constants.password}`,
     port: 3000,
     timeout: 120 * 10000,
     reuseExistingServer: false,

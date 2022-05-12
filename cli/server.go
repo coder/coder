@@ -80,7 +80,7 @@ func server() *cobra.Command {
 		tlsKeyFile                       string
 		tlsMinVersion                    string
 		turnRelayAddress                 string
-		skipTunnel                       bool
+		tunnel                           bool
 		stunServers                      []string
 		traceDatadog                     bool
 		secureAuthCookie                 bool
@@ -139,7 +139,7 @@ func server() *cobra.Command {
 				accessURL = localURL.String()
 			} else {
 				// If an access URL is specified, always skip tunneling.
-				skipTunnel = true
+				tunnel = false
 			}
 
 			var (
@@ -150,7 +150,7 @@ func server() *cobra.Command {
 
 			// If we're attempting to tunnel in dev-mode, the access URL
 			// needs to be changed to use the tunnel.
-			if dev && !skipTunnel {
+			if dev && tunnel {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Wrap.Render(
 					"Coder requires a URL accessible by workspaces you provision. "+
 						"A free tunnel can be created for simple setup. This will "+
@@ -158,12 +158,15 @@ func server() *cobra.Command {
 						cliui.Styles.Field.Render("--access-url")+" can be specified instead.\n",
 				))
 
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Would you like to start a tunnel for simple setup?",
-					IsConfirm: true,
-				})
-				if errors.Is(err, cliui.Canceled) {
-					return err
+				// This skips the prompt if the flag is explicitly specified.
+				if !cmd.Flags().Changed("tunnel") {
+					_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						Text:      "Would you like to start a tunnel for simple setup?",
+						IsConfirm: true,
+					})
+					if errors.Is(err, cliui.Canceled) {
+						return err
+					}
 				}
 				if err == nil {
 					accessURL, tunnelErrChan, err = devtunnel.New(ctxTunnel, localURL)
@@ -424,7 +427,7 @@ func server() *cobra.Command {
 				spin.Stop()
 			}
 
-			if dev && !skipTunnel {
+			if dev && tunnel {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for dev tunnel to close...\n")
 				closeTunnel()
 				<-tunnelErrChan
@@ -472,8 +475,8 @@ func server() *cobra.Command {
 		"Specifies the path to the private key for the certificate. It requires a PEM-encoded file")
 	cliflag.StringVarP(root.Flags(), &tlsMinVersion, "tls-min-version", "", "CODER_TLS_MIN_VERSION", "tls12",
 		`Specifies the minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"`)
-	cliflag.BoolVarP(root.Flags(), &skipTunnel, "skip-tunnel", "", "CODER_DEV_SKIP_TUNNEL", false, "Skip serving dev mode through an exposed tunnel for simple setup.")
-	_ = root.Flags().MarkHidden("skip-tunnel")
+	cliflag.BoolVarP(root.Flags(), &tunnel, "tunnel", "", "CODER_DEV_TUNNEL", true,
+		"Specifies whether the dev tunnel will be enabled or not. If specified, the interactive prompt will not display.")
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
 	}, "Specify URLs for STUN servers to enable P2P connections.")
