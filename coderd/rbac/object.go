@@ -21,13 +21,13 @@ var (
 		Type: "template",
 	}
 
-	ResourceTypeFile = Object{
+	ResourceFile = Object{
 		Type: "file",
 	}
 
-	// ResourceOrganization CRUD. Org owner
+	// ResourceOrganization CRUD. Always has an org owner.
 	//	create/delete = make or delete organizations
-	// 	read = view org information
+	// 	read = view org information (Can add user owner for read)
 	//	update = ??
 	ResourceOrganization = Object{
 		Type: "organization",
@@ -36,12 +36,38 @@ var (
 	// ResourceUserRole might be expanded later to allow more granular permissions
 	// to modifying roles. For now, this covers all possible roles, so having this permission
 	// allows granting/deleting **ALL** roles.
+	//	create  = Assign roles
+	//	update  = ??
+	//	read	= View available roles to assign
+	//	delete	= Remove role
 	ResourceUserRole = Object{
 		Type: "user_role",
 	}
 
-	ResourceUserPasswordRole = Object{
-		Type: "user_password",
+	// ResourceAPIKey is owned by a user.
+	//	create  = Create a new api key for user
+	//	update  = ??
+	//	read	= View api key
+	//	delete	= Delete api key
+	ResourceAPIKey = Object{
+		Type: "api_key",
+	}
+
+	// ResourceUser is the user in the 'users' table.
+	// 	create/delete = make or delete a new user.
+	// 	read = view all user's settings
+	// 	update = update all user field & settings
+	ResourceUser = Object{
+		Type: "user",
+	}
+
+	// ResourceOrganizationMember is a user's membership in an organization.
+	// Has ONLY an organization owner.
+	//	create/delete  = Create/delete member from org.
+	//	update  = Update organization member
+	//	read	= View member
+	ResourceOrganizationMember = Object{
+		Type: "organization_member",
 	}
 
 	// ResourceWildcard represents all resource types

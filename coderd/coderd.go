@@ -133,7 +133,7 @@ func New(options *Options) (http.Handler, func()) {
 				httpmw.RateLimitPerMinute(12),
 				// TODO: @emyrk (rbac) Currently files are owned by the site?
 				//	Should files be org scoped? User scoped?
-				httpmw.WithRBACObject(rbac.ResourceTypeFile),
+				httpmw.WithRBACObject(rbac.ResourceFile),
 			)
 			r.Get("/{hash}", authorize(api.fileByHash, rbac.ActionRead))
 			r.Post("/", authorize(api.postFile, rbac.ActionCreate, rbac.ActionUpdate))
@@ -237,8 +237,12 @@ func New(options *Options) (http.Handler, func()) {
 					apiKeyMiddleware,
 					authRolesMiddleware,
 				)
-				r.Post("/", api.postUser)
-				r.Get("/", api.users)
+				r.Group(func(r chi.Router) {
+					// Site wide, all users
+					r.Use(httpmw.WithRBACObject(rbac.ResourceUser))
+					r.Post("/", authorize(api.postUser, rbac.ActionCreate))
+					r.Get("/", authorize(api.users, rbac.ActionRead))
+				})
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
 					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
@@ -246,27 +250,42 @@ func New(options *Options) (http.Handler, func()) {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/", api.userByName)
-					r.Put("/profile", api.putUserProfile)
-					r.Put("/suspend", api.putUserSuspend)
-					r.Route("/password", func(r chi.Router) {
-						r.Use(httpmw.WithRBACObject(rbac.ResourceUserPasswordRole))
-						r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
-					})
-					r.Get("/organizations", api.organizationsByUser)
-					r.Post("/organizations", api.postOrganizationsByUser)
-					// These roles apply to the site wide permissions.
-					r.Put("/roles", api.putUserRoles)
-					r.Get("/roles", api.userRoles)
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.WithRBACObject(rbac.ResourceUser))
+						r.Get("/", authorize(api.userByName, rbac.ActionRead))
+						r.Put("/profile", authorize(api.putUserProfile, rbac.ActionUpdate))
+						// suspension is deleting for a user
+						r.Put("/suspend", authorize(api.putUserSuspend, rbac.ActionDelete))
+						r.Route("/password", func(r chi.Router) {
+							r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
+						})
+						// This route technically also fetches the organization member struct, but only
+						// returns the roles.
+						r.Get("/roles", authorize(api.userRoles, rbac.ActionRead))
 
-					r.Post("/keys", api.postAPIKey)
+						// This has 2 authorize calls. The second is explicitly called
+						// in the handler.
+						r.Put("/roles", authorize(api.putUserRoles, rbac.ActionUpdate))
+
+						// For now, just use the "user" role for their ssh keys.
+						// We can always split this out to it's own resource if we need to.
+						r.Get("/gitsshkey", authorize(api.gitSSHKey, rbac.ActionRead))
+						r.Put("/gitsshkey", authorize(api.regenerateGitSSHKey, rbac.ActionUpdate))
+					})
+
+					r.With(httpmw.WithRBACObject(rbac.ResourceAPIKey)).Post("/keys", authorize(api.postAPIKey, rbac.ActionCreate))
+
 					r.Route("/organizations", func(r chi.Router) {
+						// TODO: @emyrk This creates an organization, so why is it nested under {user}?
+						//	Shouldn't this be outside the {user} param subpath? Maybe in the organizations/
+						//	path?
 						r.Post("/", api.postOrganizationsByUser)
+
 						r.Get("/", api.organizationsByUser)
+
+						// TODO: @emyrk why is this nested under {user} when the user param is not used?
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
-					r.Get("/gitsshkey", api.gitSSHKey)
-					r.Put("/gitsshkey", api.regenerateGitSSHKey)
 					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})

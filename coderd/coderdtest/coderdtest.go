@@ -55,12 +55,13 @@ import (
 
 type Options struct {
 	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
-	Authorizer           rbac.Authorizer
+	LifecycleTicker      <-chan time.Time
 }
 
 // New constructs an in-memory coderd instance and returns

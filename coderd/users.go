@@ -385,20 +385,49 @@ func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	// User is the user to modify
-	// TODO: Until rbac authorize is implemented, only be able to change your
-	//		own roles. This also means you can grant yourself whatever roles you want.
 	user := httpmw.UserParam(r)
-	apiKey := httpmw.APIKey(r)
-	if apiKey.UserID != user.ID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "modifying other users is not supported at this time",
-		})
-		return
-	}
+	roles := httpmw.UserRoles(r)
 
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
+	}
+
+	has := make(map[string]struct{})
+	for _, exists := range roles.Roles {
+		has[exists] = struct{}{}
+	}
+
+	for _, roleName := range params.Roles {
+		// If the user already has the role, we don't need to check the permission.
+		if _, ok := has[roleName]; ok {
+			delete(has, roleName)
+			continue
+		}
+
+		// Assigning a role requires the create permission. The middleware checks if
+		// we can update this user, so the combination of the 2 permissions enables
+		// assigning new roles.
+		err := api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles,
+			rbac.ActionCreate, rbac.ResourceUserRole.WithID(roleName))
+		if err != nil {
+			httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+				Message: "unauthorized",
+			})
+			return
+		}
+	}
+
+	// Any roles that were removed also need to be checked.
+	for roleName := range has {
+		err := api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles,
+			rbac.ActionDelete, rbac.ResourceUserRole.WithID(roleName))
+		if err != nil {
+			httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+				Message: "unauthorized",
+			})
+			return
+		}
 	}
 
 	updatedUser, err := api.updateSiteUserRoles(r.Context(), database.UpdateUserRolesParams{
@@ -445,6 +474,7 @@ func (api *api) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 // Returns organizations the parameterized user has access to.
 func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
+	roles := httpmw.UserRoles(r)
 
 	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -460,14 +490,23 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 
 	publicOrganizations := make([]codersdk.Organization, 0, len(organizations))
 	for _, organization := range organizations {
-		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
+		err := api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceOrganization.
+				WithID(organization.ID.String()).
+				InOrg(organization.ID),
+		)
+		if err == nil {
+			// Only return orgs the user can read
+			publicOrganizations = append(publicOrganizations, convertOrganization(organization))
+		}
 	}
 
 	httpapi.Write(rw, http.StatusOK, publicOrganizations)
 }
 
 func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
+	roles := httpmw.UserRoles(r)
+
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -482,19 +521,15 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
-	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
-		OrganizationID: organization.ID,
-		UserID:         user.ID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "you are not a member of that organization",
-		})
-		return
-	}
+
+	err = api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+		rbac.ResourceOrganization.
+			InOrg(organization.ID).
+			WithID(organization.ID.String()),
+	)
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization member: %s", err),
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: err.Error(),
 		})
 		return
 	}

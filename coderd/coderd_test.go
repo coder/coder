@@ -55,6 +55,22 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"POST:/api/v2/users/logout":     {NoAuthorize: true},
 		"GET:/api/v2/users/authmethods": {NoAuthorize: true},
 
+		// All workspaceagents endpoints do not use rbac
+		"POST:/api/v2/workspaceagents/aws-instance-identity":      {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/azure-instance-identity":    {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/google-instance-identity":   {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/gitsshkey":                {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/iceservers":               {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/listen":                   {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}":            {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/":           {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/dial":       {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
+
 		// TODO: @emyrk these need to be fixed by adding authorize calls
 		"/api/v2/organizations/{organization}/provisionerdaemons": {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}":                {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
@@ -71,8 +87,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 				routeAssertions = routeCheck{}
 			}
 
-			// Replace all url params with expected
+			// Replace all url params with known values
 			route = strings.ReplaceAll(route, "{organization}", admin.OrganizationID.String())
+			route = strings.ReplaceAll(route, "{user}", admin.UserID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
