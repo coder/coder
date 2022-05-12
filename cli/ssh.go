@@ -2,10 +2,13 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/gen2brain/beeep"
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -15,6 +18,8 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/autobuild/notify"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
@@ -108,6 +113,20 @@ func ssh() *cobra.Command {
 			}
 			defer conn.Close()
 
+			// Notify the user if the workspace is due to shutdown. This uses
+			// the library gen2brain/beeep under the hood.
+			countdown := []time.Duration{
+				30 * time.Minute,
+				10 * time.Minute,
+				5 * time.Minute,
+				time.Minute,
+			}
+			condition := notifyWorkspaceAutostop(cmd.Context(), client, workspace.ID)
+			notifier := notify.New(condition, countdown...)
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			go notifier.Poll(ticker.C)
+
 			if stdio {
 				rawSSH, err := conn.SSH()
 				if err != nil {
@@ -178,4 +197,41 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 
 	return cmd
+}
+
+func notifyWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) notify.Condition {
+	return func(now time.Time) (deadline time.Time, callback func()) {
+		ws, err := client.Workspace(ctx, workspaceID)
+		if err != nil {
+			return time.Time{}, nil
+		}
+
+		if ws.AutostopSchedule == "" {
+			return time.Time{}, nil
+		}
+
+		sched, err := schedule.Weekly(ws.AutostopSchedule)
+		if err != nil {
+			return time.Time{}, nil
+		}
+
+		deadline = sched.Next(now)
+		callback = func() {
+			ttl := deadline.Sub(now)
+			var title, body string
+			if ttl > time.Minute {
+				title = fmt.Sprintf(`Workspace %s stopping in %.0f mins`, ws.Name, ttl.Minutes())
+				body = fmt.Sprintf(
+					`Your Coder workspace %s is scheduled to stop at %s.`,
+					ws.Name,
+					deadline.Format(time.Kitchen),
+				)
+			} else {
+				title = fmt.Sprintf("Workspace %s stopping!", ws.Name)
+				body = fmt.Sprintf("Your Coder workspace %s is stopping any time now!", ws.Name)
+			}
+			beeep.Notify(title, body, "")
+		}
+		return deadline.Truncate(time.Minute), callback
+	}
 }
