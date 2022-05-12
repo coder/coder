@@ -14,7 +14,7 @@ interface WorkspaceContext {
   jobError?: Error | unknown
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
-  // these are separate from get X errors because they don't make the page unusable
+  // these are separate from getX errors because they don't make the page unusable
   refreshWorkspaceError: Error | unknown
   refreshTemplateError: Error | unknown
 }
@@ -82,6 +82,26 @@ export const workspaceMachine = createMachine(
       ready: {
         type: "parallel",
         states: {
+          // We poll the workspace consistently to know if it becomes outdated
+          pollingWorkspace: {
+            initial: "refreshingWorkspace",
+            states: {
+              refreshingWorkspace: {
+                entry: "clearRefreshWorkspaceError",
+                invoke: {
+                  id: "refreshWorkspace",
+                  src: "refreshWorkspace",
+                  onDone: { actions: "assignWorkspace"},
+                  onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
+                },
+              },
+              waiting: {
+                after: {
+                  5000: "refreshingWorkspace"
+                }
+              }
+            }
+          },
           breadcrumb: {
             initial: "gettingTemplate",
             states: {
