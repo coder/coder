@@ -23,6 +23,11 @@ func TestResetPassword(t *testing.T) {
 		t.SkipNow()
 	}
 
+	const email = "some@one.com"
+	const username = "example"
+	const oldPassword = "password"
+	const newPassword = "password2"
+
 	// start postgres and coder server processes
 
 	connectionURL, closeFunc, err := postgres.Open()
@@ -48,16 +53,16 @@ func TestResetPassword(t *testing.T) {
 		return true
 	}, 15*time.Second, 25*time.Millisecond)
 	_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-		Email:            "some@one.com",
-		Username:         "example",
-		Password:         "password",
+		Email:            email,
+		Username:         username,
+		Password:         oldPassword,
 		OrganizationName: "example",
 	})
 	require.NoError(t, err)
 
 	// reset the password
 
-	resetCmd, cmdCfg := clitest.New(t, "reset-password", "--postgres-url", connectionURL, "example")
+	resetCmd, cmdCfg := clitest.New(t, "reset-password", "--postgres-url", connectionURL, username)
 	clitest.SetupConfig(t, client, cmdCfg)
 	cmdDone := make(chan struct{})
 	pty := ptytest.New(t)
@@ -73,7 +78,8 @@ func TestResetPassword(t *testing.T) {
 		output string
 		input  string
 	}{
-		{"password", "password2"},
+		{"Enter new", newPassword},
+		{"Confirm", newPassword},
 	}
 	for _, match := range matches {
 		pty.ExpectMatch(match.output)
@@ -84,14 +90,14 @@ func TestResetPassword(t *testing.T) {
 	// now try logging in
 
 	_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-		Email:    "some@one.com",
-		Password: "password",
+		Email:    email,
+		Password: oldPassword,
 	})
 	require.Error(t, err)
 
 	_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-		Email:    "some@one.com",
-		Password: "password2",
+		Email:    email,
+		Password: newPassword,
 	})
 	require.NoError(t, err)
 

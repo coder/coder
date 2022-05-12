@@ -51,6 +51,17 @@ func resetPassword() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("password prompt: %w", err)
 			}
+			confirmedPassword, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
+				Secret:   true,
+				Validate: cliui.ValidateNotEmpty,
+			})
+			if err != nil {
+				return xerrors.Errorf("confirm password prompt: %w", err)
+			}
+			if password != confirmedPassword {
+				return xerrors.New("Passwords do not match")
+			}
 
 			hashedPassword, err := userpassword.Hash(password)
 			if err != nil {
