@@ -39,8 +39,9 @@ export const Footer: React.FC = ({ children }) => {
 const useFooterStyles = makeStyles((theme) => ({
   root: {
     textAlign: "center",
-    marginBottom: theme.spacing(5),
     flex: "0",
+    paddingTop: theme.spacing(2),
+    paddingBottom: theme.spacing(2),
   },
   copyRight: {
     margin: theme.spacing(0.25),
