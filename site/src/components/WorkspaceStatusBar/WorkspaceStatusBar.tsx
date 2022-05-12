@@ -4,7 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 import { Link } from "react-router-dom"
-import * as Types from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
 import { TitleIconSize } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
@@ -26,9 +26,9 @@ const Language = {
 }
 
 export interface WorkspaceStatusBarProps {
-  organization?: Types.Organization
-  workspace: Types.Workspace
-  template?: Types.Template
+  organization?: TypesGen.Organization
+  workspace: TypesGen.Workspace
+  template?: TypesGen.Template
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void

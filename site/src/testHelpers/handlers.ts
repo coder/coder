@@ -73,9 +73,9 @@ export const handlers = [
   rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
     const { transition } = req.body as CreateWorkspaceBuildRequest
     const transitionToBuild = {
-      start: M.MockWorkspaceStart,
-      stop: M.MockWorkspaceStop,
-      delete: M.MockWorkspaceDelete,
+      start: M.MockWorkspaceBuild,
+      stop: M.MockWorkspaceBuildStop,
+      delete: M.MockWorkspaceBuildDelete,
     }
     const result = transitionToBuild[transition as WorkspaceBuildTransition]
     return res(ctx.status(200), ctx.json(result))
