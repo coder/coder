@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// Authorize will enforce if the user roles can complete the action on the AuthObject.
+// Authorize will enforce if the user roles can complete the action on the RBACObject.
 // The organization and owner are found using the ExtractOrganization and
 // ExtractUser middleware if present.
 func Authorize(logger slog.Logger, auth rbac.Authorizer, actions ...rbac.Action) func(http.Handler) http.Handler {
@@ -51,7 +51,7 @@ func Authorize(logger slog.Logger, auth rbac.Authorizer, actions ...rbac.Action)
 			}
 
 			for _, action := range actions {
-				err := auth.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
+				err := auth.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
 				if err != nil {
 					internalError := new(rbac.UnauthorizedError)
 					if xerrors.As(err, internalError) {
@@ -80,15 +80,15 @@ func Authorize(logger slog.Logger, auth rbac.Authorizer, actions ...rbac.Action)
 
 type authObjectKey struct{}
 
-type AuthObject struct {
+type RBACObject struct {
 	Object rbac.Object
 
 	WithOwner func(r *http.Request) uuid.UUID
 }
 
 // APIKey returns the API key from the ExtractAPIKey handler.
-func rbacObject(r *http.Request) AuthObject {
-	obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
+func rbacObject(r *http.Request) RBACObject {
+	obj, ok := r.Context().Value(authObjectKey{}).(RBACObject)
 	if !ok {
 		panic("developer error: auth object middleware not provided")
 	}
@@ -107,11 +107,11 @@ func WithAPIKeyAsOwner() func(http.Handler) http.Handler {
 func WithOwner(withOwner func(r *http.Request) uuid.UUID) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
+			obj, ok := r.Context().Value(authObjectKey{}).(RBACObject)
 			if ok {
 				obj.WithOwner = withOwner
 			} else {
-				obj = AuthObject{WithOwner: withOwner}
+				obj = RBACObject{WithOwner: withOwner}
 			}
 
 			ctx := context.WithValue(r.Context(), authObjectKey{}, obj)
@@ -125,11 +125,11 @@ func WithOwner(withOwner func(r *http.Request) uuid.UUID) func(http.Handler) htt
 func WithRBACObject(object rbac.Object) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			obj, ok := r.Context().Value(authObjectKey{}).(AuthObject)
+			obj, ok := r.Context().Value(authObjectKey{}).(RBACObject)
 			if ok {
 				obj.Object = object
 			} else {
-				obj = AuthObject{Object: object}
+				obj = RBACObject{Object: object}
 			}
 
 			ctx := context.WithValue(r.Context(), authObjectKey{}, obj)

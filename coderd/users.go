@@ -408,7 +408,7 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		// Assigning a role requires the create permission. The middleware checks if
 		// we can update this user, so the combination of the 2 permissions enables
 		// assigning new roles.
-		err := api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles,
+		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles,
 			rbac.ActionCreate, rbac.ResourceUserRole.WithID(roleName))
 		if err != nil {
 			httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
@@ -420,7 +420,7 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 
 	// Any roles that were removed also need to be checked.
 	for roleName := range has {
-		err := api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles,
+		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles,
 			rbac.ActionDelete, rbac.ResourceUserRole.WithID(roleName))
 		if err != nil {
 			httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
@@ -490,7 +490,7 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 
 	publicOrganizations := make([]codersdk.Organization, 0, len(organizations))
 	for _, organization := range organizations {
-		err := api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
 			rbac.ResourceOrganization.
 				WithID(organization.ID.String()).
 				InOrg(organization.ID),
@@ -522,7 +522,7 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = api.Authorizer.AuthorizeByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+	err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
 		rbac.ResourceOrganization.
 			InOrg(organization.ID).
 			WithID(organization.ID.String()),
@@ -825,7 +825,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	organizationIDs := make([]uuid.UUID, 0)
 	for _, organization := range organizations {
-		err = api.Authorizer.AuthorizeByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead, rbac.ResourceWorkspace.All().InOrg(organization.ID))
+		err = api.Authorizer.ByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead, rbac.ResourceWorkspace.All().InOrg(organization.ID))
 		var apiErr *rbac.UnauthorizedError
 		if xerrors.As(err, &apiErr) {
 			continue

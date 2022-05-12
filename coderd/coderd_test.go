@@ -191,7 +191,7 @@ type fakeAuthorizer struct {
 	AlwaysReturn error
 }
 
-func (f *fakeAuthorizer) AuthorizeByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
+func (f *fakeAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, action rbac.Action, object rbac.Object) error {
 	f.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
