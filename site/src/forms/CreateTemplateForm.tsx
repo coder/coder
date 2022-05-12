@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { CreateTemplateRequest, Organization, Provisioner, Template } from "../api/types"
+import * as TypesGen from "../api/typesGenerated"
 import { FormCloseButton } from "../components/FormCloseButton/FormCloseButton"
 import { FormDropdownField, FormDropdownItem } from "../components/FormDropdownField/FormDropdownField"
 import { FormSection } from "../components/FormSection/FormSection"
@@ -12,11 +12,19 @@ import { FormTitle } from "../components/FormTitle/FormTitle"
 import { LoadingButton } from "../components/LoadingButton/LoadingButton"
 import { maxWidth } from "../theme/constants"
 
+// It appears that to create a template you need to create a template version
+// and then a template so this contains the information to do both.
+export type CreateTemplateRequest = TypesGen.CreateTemplateVersionRequest & Pick<TypesGen.CreateTemplateRequest, "name">
+
 export interface CreateTemplateFormProps {
-  provisioners: Provisioner[]
-  organizations: Organization[]
-  onSubmit: (request: CreateTemplateRequest) => Promise<Template>
+  provisioners: TypesGen.ProvisionerDaemon[]
+  organizations: TypesGen.Organization[]
+  onSubmit: (organizationId: string, request: CreateTemplateRequest) => Promise<TypesGen.Template>
   onCancel: () => void
+}
+
+interface CreateTemplateFields extends Pick<CreateTemplateRequest, "name" | "provisioner"> {
+  organizationId: string
 }
 
 const validationSchema = Yup.object({
@@ -33,7 +41,7 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = ({
 }) => {
   const styles = useStyles()
 
-  const form: FormikContextType<CreateTemplateRequest> = useFormik<CreateTemplateRequest>({
+  const form: FormikContextType<CreateTemplateFields> = useFormik<CreateTemplateFields>({
     initialValues: {
       provisioner: provisioners[0].id,
       organizationId: organizations[0].name,
@@ -42,7 +50,12 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = ({
     enableReinitialize: true,
     validationSchema: validationSchema,
     onSubmit: (req) => {
-      return onSubmit(req)
+      return onSubmit(req.organizationId, {
+        name: req.name,
+        storage_method: "file",
+        storage_source: "hash",
+        provisioner: req.provisioner,
+      })
     },
   })
 

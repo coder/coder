@@ -1,5 +1,4 @@
 import React from "react"
-import { UserResponse } from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../components/Header/Header"
@@ -13,11 +12,11 @@ export const Language = {
 }
 
 export interface UsersPageViewProps {
-  users: UserResponse[]
+  users: TypesGen.User[]
   openUserCreationDialog: () => void
-  onSuspendUser: (user: UserResponse) => void
-  onResetUserPassword: (user: UserResponse) => void
-  onUpdateUserRoles: (user: UserResponse, roles: TypesGen.Role["name"][]) => void
+  onSuspendUser: (user: TypesGen.User) => void
+  onResetUserPassword: (user: TypesGen.User) => void
+  onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
   roles: TypesGen.Role[]
   error?: unknown
   isUpdatingUserRoles?: boolean

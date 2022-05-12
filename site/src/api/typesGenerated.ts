@@ -63,18 +63,18 @@ export interface CreateParameterRequest {
 export interface CreateTemplateRequest {
   readonly name: string
   readonly template_version_id: string
-  readonly parameter_values: CreateParameterRequest[]
+  readonly parameter_values?: CreateParameterRequest[]
 }
 
 // From codersdk/organizations.go:25:6
 export interface CreateTemplateVersionRequest {
-  readonly template_id: string
+  readonly template_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerStorageMethod")
   readonly storage_method: string
   readonly storage_source: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
   readonly provisioner: string
-  readonly parameter_values: CreateParameterRequest[]
+  readonly parameter_values?: CreateParameterRequest[]
 }
 
 // From codersdk/users.go:54:6
@@ -87,10 +87,10 @@ export interface CreateUserRequest {
 
 // From codersdk/workspaces.go:33:6
 export interface CreateWorkspaceBuildRequest {
-  readonly template_version_id: string
+  readonly template_version_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly transition: string
-  readonly dry_run: boolean
+  readonly dry_run?: boolean
   readonly state?: string
 }
 
@@ -98,7 +98,7 @@ export interface CreateWorkspaceBuildRequest {
 export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
-  readonly parameter_values: CreateParameterRequest[]
+  readonly parameter_values?: CreateParameterRequest[]
 }
 
 // From codersdk/users.go:91:6
@@ -323,8 +323,8 @@ export interface UserRoles {
 
 // From codersdk/users.go:23:6
 export interface UsersRequest extends Pagination {
-  readonly search: string
-  readonly status: string
+  readonly search?: string
+  readonly status?: string
 }
 
 // From codersdk/workspaces.go:18:6

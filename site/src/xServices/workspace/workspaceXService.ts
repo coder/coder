@@ -1,11 +1,11 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import * as Types from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 
 interface WorkspaceContext {
-  workspace?: Types.Workspace
-  template?: Types.Template
-  organization?: Types.Organization
+  workspace?: TypesGen.Workspace
+  template?: TypesGen.Template
+  organization?: TypesGen.Organization
   getWorkspaceError?: Error | unknown
   getTemplateError?: Error | unknown
   getOrganizationError?: Error | unknown
@@ -21,13 +21,13 @@ export const workspaceMachine = createMachine(
       events: {} as WorkspaceEvent,
       services: {} as {
         getWorkspace: {
-          data: Types.Workspace
+          data: TypesGen.Workspace
         }
         getTemplate: {
-          data: Types.Template
+          data: TypesGen.Template
         }
         getOrganization: {
-          data: Types.Organization
+          data: TypesGen.Organization
         }
       },
     },
