@@ -390,7 +390,7 @@ export const workspaceMachine = createMachine(
       },
       startWorkspace: async (context) => {
         if (context.workspace) {
-          return await API.startWorkspace(context.workspace.id)
+          return await API.startWorkspace(context.workspace.id, context.template?.active_version_id)
         } else {
           throw Error("Cannot start workspace without workspace id")
         }
