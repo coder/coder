@@ -334,6 +334,9 @@ export interface UserPermissionCheckRequest {
   readonly checks: Record<string, UserPermissionCheck>
 }
 
+// From codersdk/users.go:79:6
+export type UserPermissionCheckResponse = Record<string, boolean>
+
 // From codersdk/users.go:74:6
 export interface UserRoles {
   readonly roles: string[]
