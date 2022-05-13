@@ -212,8 +212,8 @@ func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req Up
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// SetUserStatus sets the user status to the given status
-func (c *Client) SetUserStatus(ctx context.Context, userID uuid.UUID, status UserStatus) (User, error) {
+// UpdateUserStatus sets the user status to the given status
+func (c *Client) UpdateUserStatus(ctx context.Context, userID uuid.UUID, status UserStatus) (User, error) {
 	path := fmt.Sprintf("/api/v2/users/%s/status/", uuidOrMe(userID))
 	switch status {
 	case UserStatusActive:

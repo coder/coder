@@ -16,23 +16,26 @@ func userStatus() *cobra.Command {
 		Short: "Update the status of a user",
 	}
 	cmd.AddCommand(
-		setUserStatus(codersdk.UserStatusActive),
-		setUserStatus(codersdk.UserStatusSuspended),
+		createUserStatusCommand(codersdk.UserStatusActive),
+		createUserStatusCommand(codersdk.UserStatusSuspended),
 	)
 	return cmd
 }
 
-// setUserStatus sets a user status.
-func setUserStatus(sdkStatus codersdk.UserStatus) *cobra.Command {
+// createUserStatusCommand sets a user status.
+func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 	var verb string
 	var aliases []string
+	var short string
 	switch sdkStatus {
 	case codersdk.UserStatusActive:
-		verb = "active"
-		aliases = []string{"activate"}
+		verb = "activate"
+		aliases = []string{"active"}
+		short = "Update a user's status to 'active'. Active users can fully interact with the platform"
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		aliases = []string{"rm", "delete"}
+		short = "Update a user's status to 'suspended'. A suspended user cannot log into the platform"
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
@@ -42,7 +45,7 @@ func setUserStatus(sdkStatus codersdk.UserStatus) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
-		Short:   fmt.Sprintf("Update a user's status to %q", sdkStatus),
+		Short:   short,
 		Args:    cobra.ExactArgs(1),
 		Aliases: aliases,
 		Example: fmt.Sprintf("coder users status %s example_user", verb),
@@ -81,7 +84,7 @@ func setUserStatus(sdkStatus codersdk.UserStatus) *cobra.Command {
 				return err
 			}
 
-			_, err = client.SetUserStatus(cmd.Context(), user.ID, sdkStatus)
+			_, err = client.UpdateUserStatus(cmd.Context(), user.ID, sdkStatus)
 			if err != nil {
 				return xerrors.Errorf("%s user: %w", verb, err)
 			}

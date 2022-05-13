@@ -452,7 +452,7 @@ func TestPutUserSuspend(t *testing.T) {
 			Password:       "password",
 			OrganizationID: me.OrganizationID,
 		})
-		user, err := client.SetUserStatus(context.Background(), user.ID, codersdk.UserStatusSuspended)
+		user, err := client.UpdateUserStatus(context.Background(), user.ID, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
 	})
@@ -462,7 +462,7 @@ func TestPutUserSuspend(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		client.User(context.Background(), codersdk.Me)
-		_, err := client.SetUserStatus(context.Background(), codersdk.Me, codersdk.UserStatusSuspended)
+		_, err := client.UpdateUserStatus(context.Background(), codersdk.Me, codersdk.UserStatusSuspended)
 
 		require.ErrorContains(t, err, "suspend yourself", "cannot suspend yourself")
 	})
@@ -555,7 +555,7 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 		active = append(active, bruno)
 
-		_, err = client.SetUserStatus(context.Background(), alice.ID, codersdk.UserStatusSuspended)
+		_, err = client.UpdateUserStatus(context.Background(), alice.ID, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{
