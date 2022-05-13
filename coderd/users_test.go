@@ -530,9 +530,15 @@ func TestGetUsers(t *testing.T) {
 	})
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
+		active := make([]codersdk.User, 0)
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-		active := make([]codersdk.User, 0)
+
+		firstUser, err := client.User(context.Background(), first.UserID)
+		require.NoError(t, err, "")
+		active = append(active, firstUser)
+
+		// Alice will be suspended
 		alice, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "alice@email.com",
 			Username:       "alice",
@@ -540,7 +546,6 @@ func TestGetUsers(t *testing.T) {
 			OrganizationID: first.OrganizationID,
 		})
 		require.NoError(t, err)
-		active = append(active, alice)
 
 		bruno, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@email.com",
@@ -551,7 +556,7 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 		active = append(active, bruno)
 
-		_, err = client.SetUserStatus(context.Background(), first.UserID, codersdk.UserStatusSuspended)
+		_, err = client.SetUserStatus(context.Background(), alice.ID, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{
