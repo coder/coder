@@ -8,20 +8,22 @@ import React from "react"
 import { TableHeaders } from "../TableHeaders/TableHeaders"
 import { TableTitle } from "../TableTitle/TableTitle"
 
-export interface Column<T> {
-  /**
-   * The field of type T that this column is associated with
-   */
-  key: keyof T
-  /**
-   * Friendly name of the field, shown in headers
-   */
-  name: string
-  /**
-   * Custom render for the field inside the table
-   */
-  renderer?: (field: T[keyof T], data: T) => React.ReactElement
-}
+export type Column<T> = {
+  [K in keyof T]: {
+    /**
+     * The field of type T that this column is associated with
+     */
+    key: K
+    /**
+     * Friendly name of the field, shown in headers
+     */
+    name: string
+    /**
+     * Custom render for the field inside the table
+     */
+    renderer?: (field: T[K], data: T) => React.ReactElement
+  }
+}[keyof T]
 
 export interface TableProps<T> {
   /**

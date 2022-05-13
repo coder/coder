@@ -5,15 +5,15 @@ import Typography from "@material-ui/core/Typography"
 import CloudCircleIcon from "@material-ui/icons/CloudCircle"
 import React from "react"
 import { Link } from "react-router-dom"
-import * as Types from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import * as Constants from "./constants"
 
 export interface WorkspaceProps {
-  organization: Types.Organization
-  workspace: Types.Workspace
-  template: Types.Template
+  organization: TypesGen.Organization
+  workspace: TypesGen.Workspace
+  template: TypesGen.Template
 }
 
 /**

@@ -10,8 +10,6 @@ import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
 import { OrgsPage } from "./pages/OrgsPage/OrgsPage"
 import { AccountPage } from "./pages/PreferencesPages/AccountPage/AccountPage"
-import { LinkedAccountsPage } from "./pages/PreferencesPages/LinkedAccountsPage/LinkedAccountsPage"
-import { SecurityPage } from "./pages/PreferencesPages/SecurityPage/SecurityPage"
 import { SSHKeysPage } from "./pages/PreferencesPages/SSHKeysPage/SSHKeysPage"
 import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
 import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/CreateWorkspacePage"
@@ -124,9 +122,7 @@ export const AppRouter: React.FC = () => (
 
         <Route path="preferences" element={<PreferencesLayout />}>
           <Route path="account" element={<AccountPage />} />
-          <Route path="security" element={<SecurityPage />} />
           <Route path="ssh-keys" element={<SSHKeysPage />} />
-          <Route path="linked-accounts" element={<LinkedAccountsPage />} />
         </Route>
 
         <Route path=":username">

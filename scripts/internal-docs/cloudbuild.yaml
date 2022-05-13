@@ -1,0 +1,8 @@
+steps:
+- name: gcr.io/cloud-builders/docker
+  args: ['build', '-t', 'gcr.io/coder-devrel/internal-docs', '-f', 'scripts/internal-docs/docker/Dockerfile', '.']
+- name: gcr.io/cloud-builders/docker
+  args: ['push', 'gcr.io/coder-devrel/internal-docs']
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args: ['run', 'deploy', 'internal-docs', '--image', 'gcr.io/coder-devrel/internal-docs', '--region', 'us-central1']

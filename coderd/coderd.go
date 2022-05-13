@@ -159,6 +159,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.With(httpmw.WithAPIKeyAsOwner()).
 					Post("/", authorize(api.postWorkspacesByOrganization, rbac.ActionCreate))
 				r.Get("/", authorize(api.workspacesByOrganization, rbac.ActionRead))
+				r.Post("/", api.postWorkspacesByOrganization)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					// TODO: @emyrk add the resource id to this authorize.
@@ -271,6 +272,8 @@ func New(options *Options) (http.Handler, func()) {
 						// We can always split this out to it's own resource if we need to.
 						r.Get("/gitsshkey", authorize(api.gitSSHKey, rbac.ActionRead))
 						r.Put("/gitsshkey", authorize(api.regenerateGitSSHKey, rbac.ActionUpdate))
+
+						r.Post("/authorization", authorize(api.checkPermissions, rbac.ActionRead))
 					})
 
 					r.With(httpmw.WithRBACObject(rbac.ResourceAPIKey)).Post("/keys", authorize(api.postAPIKey, rbac.ActionCreate))

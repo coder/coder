@@ -31,9 +31,9 @@ type Workspace struct {
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	TemplateVersionID uuid.UUID                    `json:"template_version_id"`
+	TemplateVersionID uuid.UUID                    `json:"template_version_id,omitempty"`
 	Transition        database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-	DryRun            bool                         `json:"dry_run"`
+	DryRun            bool                         `json:"dry_run,omitempty"`
 	ProvisionerState  []byte                       `json:"state,omitempty"`
 }
 

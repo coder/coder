@@ -1,7 +1,6 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { ApiError, FieldErrors, isApiError, mapApiErrorToFieldErrors } from "../../api/errors"
-import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 import { generateRandomString } from "../../util/random"
@@ -36,7 +35,7 @@ export interface UsersContext {
 
 export type UsersEvent =
   | { type: "GET_USERS" }
-  | { type: "CREATE"; user: Types.CreateUserRequest }
+  | { type: "CREATE"; user: TypesGen.CreateUserRequest }
   // Suspend events
   | { type: "SUSPEND_USER"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_SUSPENSION" }

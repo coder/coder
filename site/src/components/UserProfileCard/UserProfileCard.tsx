@@ -1,11 +1,11 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
-import { UserResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { UserAvatar } from "../UserAvatar/UserAvatar"
 
 interface UserProfileCardProps {
-  user: UserResponse
+  user: TypesGen.User
 }
 
 export const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {

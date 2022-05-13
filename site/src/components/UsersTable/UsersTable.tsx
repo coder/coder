@@ -5,7 +5,6 @@ import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import React from "react"
-import { UserResponse } from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { RoleSelect } from "../RoleSelect/RoleSelect"
@@ -25,10 +24,10 @@ export const Language = {
 }
 
 export interface UsersTableProps {
-  users: UserResponse[]
-  onSuspendUser: (user: UserResponse) => void
-  onResetUserPassword: (user: UserResponse) => void
-  onUpdateUserRoles: (user: UserResponse, roles: TypesGen.Role["name"][]) => void
+  users: TypesGen.User[]
+  onSuspendUser: (user: TypesGen.User) => void
+  onResetUserPassword: (user: TypesGen.User) => void
+  onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
   roles: TypesGen.Role[]
   isUpdatingUserRoles?: boolean
 }

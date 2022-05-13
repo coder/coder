@@ -61,6 +61,7 @@ func Root() *cobra.Command {
 		list(),
 		login(),
 		publickey(),
+		resetPassword(),
 		server(),
 		show(),
 		start(),

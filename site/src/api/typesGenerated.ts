@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:100:6
+// From codersdk/users.go:150:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -44,7 +44,7 @@ export interface CreateFirstUserResponse {
   readonly organization_id: string
 }
 
-// From codersdk/users.go:95:6
+// From codersdk/users.go:145:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -63,18 +63,18 @@ export interface CreateParameterRequest {
 export interface CreateTemplateRequest {
   readonly name: string
   readonly template_version_id: string
-  readonly parameter_values: CreateParameterRequest[]
+  readonly parameter_values?: CreateParameterRequest[]
 }
 
 // From codersdk/organizations.go:25:6
 export interface CreateTemplateVersionRequest {
-  readonly template_id: string
+  readonly template_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerStorageMethod")
   readonly storage_method: string
   readonly storage_source: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
   readonly provisioner: string
-  readonly parameter_values: CreateParameterRequest[]
+  readonly parameter_values?: CreateParameterRequest[]
 }
 
 // From codersdk/users.go:54:6
@@ -87,10 +87,10 @@ export interface CreateUserRequest {
 
 // From codersdk/workspaces.go:33:6
 export interface CreateWorkspaceBuildRequest {
-  readonly template_version_id: string
+  readonly template_version_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly transition: string
-  readonly dry_run: boolean
+  readonly dry_run?: boolean
   readonly state?: string
 }
 
@@ -98,10 +98,10 @@ export interface CreateWorkspaceBuildRequest {
 export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
-  readonly parameter_values: CreateParameterRequest[]
+  readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:91:6
+// From codersdk/users.go:141:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -119,13 +119,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:80:6
+// From codersdk/users.go:130:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:86:6
+// From codersdk/users.go:136:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -315,6 +315,28 @@ export interface User {
   readonly roles: Role[]
 }
 
+// From codersdk/users.go:95:6
+export interface UserAuthorization {
+  readonly object: UserAuthorizationObject
+  readonly action: string
+}
+
+// From codersdk/users.go:111:6
+export interface UserAuthorizationObject {
+  readonly resource_type: string
+  readonly owner_id?: string
+  readonly organization_id?: string
+  readonly resource_id?: string
+}
+
+// From codersdk/users.go:84:6
+export interface UserAuthorizationRequest {
+  readonly checks: Record<string, UserAuthorization>
+}
+
+// From codersdk/users.go:79:6
+export type UserAuthorizationResponse = Record<string, boolean>
+
 // From codersdk/users.go:74:6
 export interface UserRoles {
   readonly roles: string[]
@@ -323,8 +345,8 @@ export interface UserRoles {
 
 // From codersdk/users.go:23:6
 export interface UsersRequest extends Pagination {
-  readonly search: string
-  readonly status: string
+  readonly search?: string
+  readonly status?: string
 }
 
 // From codersdk/workspaces.go:18:6
