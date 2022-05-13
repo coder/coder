@@ -22,7 +22,7 @@ func TestUserStatus(t *testing.T) {
 
 	//nolint:paralleltest
 	t.Run("StatusSelf", func(t *testing.T) {
-		cmd, root := clitest.New(t, "users", "status", "suspend", "me")
+		cmd, root := clitest.New(t, "users", "suspend", "me")
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
 		cmd.SetIn(bytes.NewReader([]byte("yes\n")))
@@ -36,7 +36,7 @@ func TestUserStatus(t *testing.T) {
 	t.Run("StatusOther", func(t *testing.T) {
 		require.Equal(t, otherUser.Status, codersdk.UserStatusActive, "start as active")
 
-		cmd, root := clitest.New(t, "users", "status", "suspend", otherUser.Username)
+		cmd, root := clitest.New(t, "users", "suspend", otherUser.Username)
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
 		cmd.SetIn(bytes.NewReader([]byte("yes\n")))
@@ -48,8 +48,8 @@ func TestUserStatus(t *testing.T) {
 		require.NoError(t, err, "fetch suspended user")
 		require.Equal(t, otherUser.Status, codersdk.UserStatusSuspended, "suspended user")
 
-		// Set back to active
-		cmd, root = clitest.New(t, "users", "status", "active", otherUser.Username)
+		// Set back to active. Try using a uuid as well
+		cmd, root = clitest.New(t, "users", "activate", otherUser.ID.String())
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
 		cmd.SetIn(bytes.NewReader([]byte("yes\n")))

@@ -18,7 +18,8 @@ func users() *cobra.Command {
 	cmd.AddCommand(
 		userCreate(),
 		userList(),
-		userStatus(),
+		createUserStatusCommand(codersdk.UserStatusActive),
+		createUserStatusCommand(codersdk.UserStatusSuspended),
 	)
 	return cmd
 }

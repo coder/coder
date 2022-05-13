@@ -10,18 +10,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func userStatus() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "Update the status of a user",
-	}
-	cmd.AddCommand(
-		createUserStatusCommand(codersdk.UserStatusActive),
-		createUserStatusCommand(codersdk.UserStatusSuspended),
-	)
-	return cmd
-}
-
 // createUserStatusCommand sets a user status.
 func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 	var verb string
@@ -48,7 +36,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 		Short:   short,
 		Args:    cobra.ExactArgs(1),
 		Aliases: aliases,
-		Example: fmt.Sprintf("coder users status %s example_user", verb),
+		Example: fmt.Sprintf("coder users %s example_user", verb),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
