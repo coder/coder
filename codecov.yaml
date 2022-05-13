@@ -1,8 +1,7 @@
 codecov:
   require_ci_to_pass: false
 
-comment:
-  show_carryforward_flags: yes
+comment: false
 
 github_checks:
   annotations: false
