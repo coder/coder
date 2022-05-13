@@ -462,10 +462,9 @@ func TestPutUserSuspend(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		client.User(context.Background(), codersdk.Me)
-		suspendedUser, err := client.SetUserStatus(context.Background(), codersdk.Me, codersdk.UserStatusSuspended)
+		_, err := client.SetUserStatus(context.Background(), codersdk.Me, codersdk.UserStatusSuspended)
 
-		require.NoError(t, err)
-		require.Equal(t, suspendedUser.Status, codersdk.UserStatusSuspended)
+		require.ErrorContains(t, err, "suspend yourself", "cannot suspend yourself")
 	})
 }
 
