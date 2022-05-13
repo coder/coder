@@ -126,10 +126,10 @@ export const getWorkspaceResources = async (workspaceBuildID: string): Promise<T
 
 const postWorkspaceBuild =
   (transition: string) =>
-  async (workspaceId: string, templateVersionId?: string): Promise<TypesGen.WorkspaceBuild> => {
+  async (workspaceId: string, template_version_id?: string): Promise<TypesGen.WorkspaceBuild> => {
     const payload = {
       transition,
-      templateVersionId,
+      template_version_id,
     }
     const response = await axios.post(`/api/v2/workspaces/${workspaceId}/builds`, payload)
     return response.data

@@ -283,7 +283,6 @@ export const workspaceMachine = createMachine(
         return await API.getWorkspace(event.workspaceId)
       },
       getTemplate: async (context) => {
-        console.log("get template", context.template?.active_version_id)
         if (context.workspace) {
           return await API.getTemplate(context.workspace.template_id)
         } else {
@@ -298,7 +297,6 @@ export const workspaceMachine = createMachine(
         }
       },
       startWorkspace: async (context) => {
-        console.log("start workspace", context.template?.active_version_id)
         if (context.workspace) {
           return await API.startWorkspace(context.workspace.id, context.template?.active_version_id)
         } else {
