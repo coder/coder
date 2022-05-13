@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { PreferencesLayout } from "./components/PreferencesLayout/PreferencesLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
+import { WorkspacesPage } from "./components/WorkspacesPage/WorkspacesPage"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
@@ -75,6 +76,14 @@ export const AppRouter: React.FC = () => (
         </Route>
 
         <Route path="workspaces">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <WorkspacesPage />
+              </AuthAndFrame>
+            }
+          />
           <Route
             path=":workspace"
             element={

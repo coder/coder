@@ -182,7 +182,7 @@ export const darkPalette: CustomPalette = {
   info: lightPalette.info,
   error: lightPalette.error,
   codeBlock: {
-    main: "rgb(24, 26, 27)",
+    main: "#1F1F1F",
     contrastText: "rgba(255, 255, 255, 0.8)",
     button: {
       main: "rgba(255, 255, 255, 0.1)",
@@ -202,10 +202,10 @@ export const darkPalette: CustomPalette = {
     button: "#333333",
   },
   navbar: {
-    main: "rgb(8, 9, 10)",
+    main: "#292929",
   },
   background: {
-    default: "rgb(24, 26, 27)",
+    default: "#1F1F1F",
     paper: "rgb(31, 33, 35)",
   },
   text: {
@@ -222,5 +222,5 @@ export const darkPalette: CustomPalette = {
     disabled: "rgba(255, 255, 255, 0.1)",
     disabledBackground: "rgba(255, 255, 255, 0.12)",
   },
-  divider: "rgba(255, 255, 255, 0.12)",
+  divider: "#383838",
 }
