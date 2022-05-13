@@ -21,3 +21,9 @@ Empty.args = {
   templates: [],
   organizations: [],
 }
+
+export const Loading = Template.bind({})
+Loading.args = {
+  templates: undefined,
+  organizations: [],
+}

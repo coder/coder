@@ -27,3 +27,12 @@ Empty.args = {
     console.info("Create workspace")
   },
 }
+
+export const Loading = Template.bind({})
+Loading.args = {
+  templateInfo: MockTemplate,
+  workspaces: undefined,
+  onCreateWorkspace: () => {
+    console.info("Create workspace")
+  },
+}
