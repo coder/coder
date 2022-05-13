@@ -510,8 +510,10 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(r.Context(), organizationName)
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("no organization found by name %q", organizationName),
+		// Return unauthorized rather than a 404 to not leak if the organization
+		// exists.
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "unauthorized",
 		})
 		return
 	}
