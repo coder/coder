@@ -49,6 +49,7 @@ func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 				httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 					Message: fmt.Sprintf("template %q does not exist", templateID),
 				})
+				return
 			}
 
 			ctx := context.WithValue(r.Context(), templateParamContextKey{}, template)
