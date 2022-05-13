@@ -109,6 +109,11 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 		statusFilter = r.URL.Query().Get("status")
 	)
 
+	// Reading all users across the site
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser) {
+		return
+	}
+
 	paginationParams, ok := parsePagination(rw, r)
 	if !ok {
 		return
@@ -174,6 +179,8 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 		rbac.ResourceOrganizationMember.InOrg(createUser.OrganizationID)) {
 		return
 	}
+
+	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
 	_, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
 		Username: createUser.Username,
@@ -253,6 +260,10 @@ func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+		return
+	}
+
 	var params codersdk.UpdateUserProfileRequest
 	if !httpapi.Read(rw, r, &params) {
 		return
@@ -318,6 +329,10 @@ func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 func (api *api) putUserSuspend(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
+		return
+	}
+
 	suspendedUser, err := api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
 		ID:        user.ID,
 		Status:    database.UserStatusSuspended,
@@ -348,6 +363,10 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		params codersdk.UpdateUserPasswordRequest
 	)
 	if !httpapi.Read(rw, r, &params) {
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
 		return
 	}
 

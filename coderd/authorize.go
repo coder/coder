@@ -3,6 +3,9 @@ package coderd
 import (
 	"net/http"
 
+	"cdr.dev/slog"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -15,6 +18,24 @@ func (api *api) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.A
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: err.Error(),
 		})
+
+		// Log the errors for debugging
+		internalError := new(rbac.UnauthorizedError)
+		logger := api.Logger
+		if xerrors.As(err, internalError) {
+			logger = api.Logger.With(slog.F("internal", internalError.Internal()))
+		}
+		// Log information for debugging. This will be very helpful
+		// in the early days
+		logger.Warn(r.Context(), "unauthorized",
+			slog.F("roles", roles.Roles),
+			slog.F("user_id", roles.ID),
+			slog.F("username", roles.Username),
+			slog.F("route", r.URL.Path),
+			slog.F("action", action),
+			slog.F("object", object),
+		)
+
 		return false
 	}
 	return true
