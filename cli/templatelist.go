@@ -34,10 +34,8 @@ func templateList() *cobra.Command {
 				return nil
 			}
 
-			tableWriter := table.NewWriter()
-			tableWriter.SetStyle(table.StyleLight)
-			tableWriter.Style().Options.SeparateColumns = false
-			tableWriter.AppendHeader(table.Row{"Name", "Source", "Last Updated", "Used By"})
+			tableWriter := cliui.Table()
+			tableWriter.AppendHeader(table.Row{"Name", "Last Updated", "Used By"})
 
 			for _, template := range templates {
 				suffix := ""
@@ -45,8 +43,7 @@ func templateList() *cobra.Command {
 					suffix = "s"
 				}
 				tableWriter.AppendRow(table.Row{
-					cliui.Styles.Bold.Render(template.Name),
-					"Archive",
+					template.Name,
 					template.UpdatedAt.Format("January 2, 2006"),
 					cliui.Styles.Fuschia.Render(fmt.Sprintf("%d developer%s", template.WorkspaceOwnerCount, suffix)),
 				})

@@ -13,9 +13,11 @@ import (
 // nolint
 func delete() *cobra.Command {
 	return &cobra.Command{
-		Use:     "delete <workspace>",
-		Aliases: []string{"rm"},
-		Args:    cobra.ExactArgs(1),
+		Annotations: workspaceCommand,
+		Use:         "delete <workspace>",
+		Short:       "Delete a workspace",
+		Aliases:     []string{"rm"},
+		Args:        cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

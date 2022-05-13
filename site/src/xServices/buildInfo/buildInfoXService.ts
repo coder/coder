@@ -1,10 +1,10 @@
 import { assign, createMachine } from "xstate"
-import * as API from "../../api"
-import * as Types from "../../api/types"
+import * as API from "../../api/api"
+import * as TypesGen from "../../api/typesGenerated"
 
 export interface BuildInfoContext {
   getBuildInfoError?: Error | unknown
-  buildInfo?: Types.BuildInfoResponse
+  buildInfo?: TypesGen.BuildInfoResponse
 }
 
 export const buildInfoMachine = createMachine(
@@ -14,7 +14,7 @@ export const buildInfoMachine = createMachine(
       context: {} as BuildInfoContext,
       services: {} as {
         getBuildInfo: {
-          data: Types.BuildInfoResponse
+          data: TypesGen.BuildInfoResponse
         }
       },
     },

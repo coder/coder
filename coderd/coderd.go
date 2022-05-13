@@ -250,6 +250,8 @@ func New(options *Options) (http.Handler, func()) {
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
 
+					r.Post("/authorization", api.checkPermissions)
+
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
 						r.Post("/", api.postOrganizationsByUser)
@@ -258,6 +260,7 @@ func New(options *Options) (http.Handler, func()) {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
+					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})

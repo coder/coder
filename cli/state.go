@@ -13,7 +13,8 @@ import (
 
 func state() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "state",
+		Use:   "state",
+		Short: "Manually manage Terraform state to fix broken workspaces",
 	}
 	cmd.AddCommand(statePull(), statePush())
 	return cmd

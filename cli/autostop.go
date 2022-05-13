@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/coder/coder/coderd/autostart/schedule"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/codersdk"
 )
 

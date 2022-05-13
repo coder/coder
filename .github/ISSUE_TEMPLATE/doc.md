@@ -2,7 +2,7 @@
 name: Documentation improvement
 about: Suggest a documentation improvement
 title: "Docs: "
-labels: "documentation :memo:"
+labels: ["documentation :memo:", "needs grooming :razor:"]
 ---
 
 ## What is your suggestion?

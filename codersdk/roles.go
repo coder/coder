@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/google/uuid"
 )
 
@@ -45,13 +44,15 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Ro
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
-func ConvertRoles(roles []rbac.Role) []Role {
-	converted := make([]Role, 0, len(roles))
-	for _, role := range roles {
-		converted = append(converted, Role{
-			DisplayName: role.DisplayName,
-			Name:        role.Name,
-		})
+func (c *Client) CheckPermissions(ctx context.Context, checks UserPermissionCheckRequest) (UserPermissionCheckResponse, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/authorization", uuidOrMe(Me)), checks)
+	if err != nil {
+		return nil, err
 	}
-	return converted
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var roles UserPermissionCheckResponse
+	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }

@@ -13,6 +13,23 @@ export const Language = {
   suspendDialogMessagePrefix: "Do you want to suspend the user",
 }
 
+const useRoles = () => {
+  const xServices = useContext(XServiceContext)
+  const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
+  const { roles } = rolesState.context
+
+  /**
+   * Fetch roles on component mount
+   */
+  useEffect(() => {
+    rolesSend({
+      type: "GET_ROLES",
+    })
+  }, [rolesSend])
+
+  return roles
+}
+
 export const UsersPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [usersState, usersSend] = useActor(xServices.usersXService)
@@ -20,6 +37,7 @@ export const UsersPage: React.FC = () => {
   const navigate = useNavigate()
   const userToBeSuspended = users?.find((u) => u.id === userIdToSuspend)
   const userToResetPassword = users?.find((u) => u.id === userIdToResetPassword)
+  const roles = useRoles()
 
   /**
    * Fetch users on component mount
@@ -28,12 +46,13 @@ export const UsersPage: React.FC = () => {
     usersSend("GET_USERS")
   }, [usersSend])
 
-  if (!users) {
+  if (!users || !roles) {
     return <FullScreenLoader />
   } else {
     return (
       <>
         <UsersPageView
+          roles={roles}
           users={users}
           openUserCreationDialog={() => {
             navigate("/users/create")
@@ -44,7 +63,15 @@ export const UsersPage: React.FC = () => {
           onResetUserPassword={(user) => {
             usersSend({ type: "RESET_USER_PASSWORD", userId: user.id })
           }}
+          onUpdateUserRoles={(user, roles) => {
+            usersSend({
+              type: "UPDATE_USER_ROLES",
+              userId: user.id,
+              roles,
+            })
+          }}
           error={getUsersError}
+          isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         />
 
         <ConfirmDialog

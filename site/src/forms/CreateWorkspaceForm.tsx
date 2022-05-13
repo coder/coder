@@ -3,7 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FormikContextType, useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
-import { CreateWorkspaceRequest, Template, Workspace } from "../api/types"
+import * as TypesGen from "../api/typesGenerated"
 import { FormCloseButton } from "../components/FormCloseButton/FormCloseButton"
 import { FormSection } from "../components/FormSection/FormSection"
 import { FormTextField } from "../components/FormTextField/FormTextField"
@@ -12,10 +12,10 @@ import { LoadingButton } from "../components/LoadingButton/LoadingButton"
 import { maxWidth } from "../theme/constants"
 
 export interface CreateWorkspaceForm {
-  template: Template
-  onSubmit: (request: CreateWorkspaceRequest) => Promise<Workspace>
+  template: TypesGen.Template
+  onSubmit: (organizationId: string, request: TypesGen.CreateWorkspaceRequest) => Promise<TypesGen.Workspace>
   onCancel: () => void
-  organization_id: string
+  organizationId: string
 }
 
 const validationSchema = Yup.object({
@@ -26,7 +26,7 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
   template,
   onSubmit,
   onCancel,
-  organization_id,
+  organizationId,
 }) => {
   const styles = useStyles()
 
@@ -37,10 +37,9 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
     enableReinitialize: true,
     validationSchema: validationSchema,
     onSubmit: ({ name }) => {
-      return onSubmit({
+      return onSubmit(organizationId, {
         template_id: template.id,
         name: name,
-        organization_id,
       })
     },
   })

@@ -1,7 +1,7 @@
 import { useActor, useSelector } from "@xstate/react"
 import React, { useContext } from "react"
 import { useNavigate } from "react-router"
-import { CreateUserRequest } from "../../../api/types"
+import * as TypesGen from "../../../api/typesGenerated"
 import { CreateUserForm } from "../../../components/CreateUserForm/CreateUserForm"
 import { Margins } from "../../../components/Margins/Margins"
 import { selectOrgId } from "../../../xServices/auth/authSelectors"
@@ -25,7 +25,7 @@ export const CreateUserPage: React.FC = () => {
     <Margins>
       <CreateUserForm
         formErrors={createUserFormErrors}
-        onSubmit={(user: CreateUserRequest) => usersSend({ type: "CREATE", user })}
+        onSubmit={(user: TypesGen.CreateUserRequest) => usersSend({ type: "CREATE", user })}
         onCancel={() => navigate("/users")}
         isLoading={usersState.hasTag("loading")}
         error={genericError}

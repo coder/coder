@@ -1,9 +1,9 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import React from "react"
-import * as API from "../../../api"
+import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as AccountForm from "../../../components/PreferencesAccountForm/PreferencesAccountForm"
-import { renderWithAuth } from "../../../testHelpers"
+import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
 import { AccountPage, Language } from "./AccountPage"
 
@@ -37,6 +37,7 @@ describe("AccountPage", () => {
           created_at: new Date().toString(),
           status: "active",
           organization_ids: ["123"],
+          roles: [],
           ...data,
         }),
       )

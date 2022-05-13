@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -23,6 +24,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/coderd/rbac"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
@@ -36,6 +39,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
@@ -57,6 +61,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
+	LifecycleTicker      <-chan time.Time
 }
 
 // New constructs an in-memory coderd instance and returns
@@ -72,14 +77,19 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		options.GoogleTokenValidator, err = idtoken.NewValidator(ctx, option.WithoutAuthentication())
 		require.NoError(t, err)
 	}
+	if options.LifecycleTicker == nil {
+		ticker := make(chan time.Time)
+		options.LifecycleTicker = ticker
+		t.Cleanup(func() { close(ticker) })
+	}
 
 	// This can be hotswapped for a live database instance.
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
-		connectionURL, close, err := postgres.Open()
+		connectionURL, closePg, err := postgres.Open()
 		require.NoError(t, err)
-		t.Cleanup(close)
+		t.Cleanup(closePg)
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -96,8 +106,16 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		})
 	}
 
-	srv := httptest.NewUnstartedServer(nil)
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	lifecycleExecutor := executor.New(
+		ctx,
+		db,
+		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
+		options.LifecycleTicker,
+	)
+	lifecycleExecutor.Run()
+
+	srv := httptest.NewUnstartedServer(nil)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
 		return ctx
 	}
@@ -197,14 +215,14 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID) *codersdk.Client {
+func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(1) + "@coder.com",
 		Username:       randomUsername(),
 		Password:       "testpass",
 		OrganizationID: organizationID,
 	}
-	_, err := client.CreateUser(context.Background(), req)
+	user, err := client.CreateUser(context.Background(), req)
 	require.NoError(t, err)
 
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -215,6 +233,40 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 
 	other := codersdk.New(client.URL)
 	other.SessionToken = login.SessionToken
+
+	if len(roles) > 0 {
+		// Find the roles for the org vs the site wide roles
+		orgRoles := make(map[string][]string)
+		var siteRoles []string
+
+		for _, roleName := range roles {
+			roleName := roleName
+			orgID, ok := rbac.IsOrgRole(roleName)
+			if ok {
+				orgRoles[orgID] = append(orgRoles[orgID], roleName)
+			} else {
+				siteRoles = append(siteRoles, roleName)
+			}
+		}
+		// Update the roles
+		for _, r := range user.Roles {
+			siteRoles = append(siteRoles, r.Name)
+		}
+		// TODO: @emyrk switch "other" to "client" when we support updating other
+		//	users.
+		_, err := other.UpdateUserRoles(context.Background(), user.ID, codersdk.UpdateRoles{Roles: siteRoles})
+		require.NoError(t, err, "update site roles")
+
+		// Update org roles
+		for orgID, roles := range orgRoles {
+			organizationID, err := uuid.Parse(orgID)
+			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
+			// TODO: @Emyrk add the member to the organization if they do not already belong.
+			_, err = other.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID,
+				codersdk.UpdateRoles{Roles: append(roles, rbac.RoleOrgMember(organizationID))})
+			require.NoError(t, err, "update org membership roles")
+		}
+	}
 	return other
 }
 
@@ -244,6 +296,23 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 	})
 	require.NoError(t, err)
 	return template
+}
+
+// UpdateTemplateVersion creates a new template version with the "echo" provisioner
+// and associates it with the given templateID.
+func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+	data, err := echo.Tar(res)
+	require.NoError(t, err)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+	require.NoError(t, err)
+	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
+		TemplateID:    templateID,
+		StorageSource: file.Hash,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+		Provisioner:   database.ProvisionerTypeEcho,
+	})
+	require.NoError(t, err)
+	return templateVersion
 }
 
 // AwaitTemplateImportJob awaits for an import job to reach completed status.

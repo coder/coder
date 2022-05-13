@@ -8,6 +8,7 @@ import (
 func templates() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "templates",
+		Short:   "Create, manage, and deploy templates",
 		Aliases: []string{"template"},
 		Example: `
   - Create a template for developers to create workspaces
@@ -24,7 +25,6 @@ func templates() *cobra.Command {
 	}
 	cmd.AddCommand(
 		templateCreate(),
-		templateEdit(),
 		templateInit(),
 		templateList(),
 		templatePlan(),

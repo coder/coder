@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import React from "react"
-import { MockOrganization, MockTemplate, MockWorkspace } from "../testHelpers"
+import { MockOrganization, MockTemplate, MockWorkspace } from "../testHelpers/renderHelpers"
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm"
 
 describe("CreateWorkspaceForm", () => {
@@ -15,7 +15,7 @@ describe("CreateWorkspaceForm", () => {
         template={MockTemplate}
         onSubmit={onSubmit}
         onCancel={onCancel}
-        organization_id={MockOrganization.id}
+        organizationId={MockOrganization.id}
       />,
     )
 

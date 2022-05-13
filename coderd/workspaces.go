@@ -13,7 +13,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/autostart/schedule"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -213,7 +213,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 		state := createBuild.ProvisionerState
-		if state == nil || len(state) == 0 {
+		if len(state) == 0 {
 			state = priorHistory.ProvisionerState
 		}
 

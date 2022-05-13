@@ -77,23 +77,20 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN @after_user :: uuid != '00000000-00000000-00000000-00000000' THEN (
-		    	-- The pagination cursor is the last user of the previous page.
-		    	-- The query is ordered by the created_at field, so select all
-		    	-- users after the cursor. We also want to include any users
-		    	-- that share the created_at (super rare).
-				created_at >= (
-					SELECT
-						created_at
-					FROM
-						users
-					WHERE
-						id = @after_user
-				)
-				-- Omit the cursor from the final.
-				AND id != @after_user
+		WHEN @after_id :: uuid != '00000000-00000000-00000000-00000000' THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the created_at field, so select all
+			-- rows after the cursor.
+			(created_at, id) > (
+				SELECT
+					created_at, id
+				FROM
+					users
+				WHERE
+					id = @after_id
 			)
-			ELSE true
+		)
+		ELSE true
 	END
 	-- Start filters
 	-- Filter by name, email or username
