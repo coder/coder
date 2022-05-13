@@ -1,6 +1,12 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
+import { displayError } from "../../components/GlobalSnackbar/utils"
+
+const Language = {
+  refreshTemplateError: "Error updating workspace: latest template could not be fetched.",
+  buildError: "Workspace action failed."
+}
 
 export interface WorkspaceContext {
   workspace?: TypesGen.Workspace
@@ -10,8 +16,6 @@ export interface WorkspaceContext {
   getWorkspaceError?: Error | unknown
   getTemplateError?: Error | unknown
   getOrganizationError?: Error | unknown
-  // error enqueuing a ProvisionerJob to create a new WorkspaceBuild
-  jobError?: Error | unknown
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   // these are separate from getX errors because they don't make the page unusable
@@ -160,7 +164,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: "assignBuildError",
+                    actions: ["assignBuildError", "displayBuildError"],
                   },
                 },
               },
@@ -175,7 +179,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: "assignBuildError",
+                    actions: ["assignBuildError", "displayBuildError"],
                   },
                 },
               },
@@ -190,7 +194,7 @@ export const workspaceMachine = createMachine(
                   },
                   onError: {
                     target: "idle",
-                    actions: "assignRefreshTemplateError",
+                    actions: ["assignRefreshTemplateError", "displayRefreshTemplateError"],
                   },
                 },
               },
@@ -244,6 +248,9 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: event.data,
         }),
+      displayBuildError: (_, event) => {
+        displayError(Language.buildError)
+      },
       clearBuildError: (_) =>
         assign({
           buildError: undefined,
@@ -260,6 +267,9 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: event.data,
         }),
+      displayRefreshTemplateError: (_, event) => {
+        displayError(Language.refreshTemplateError)
+      },
       clearRefreshTemplateError: (_) =>
         assign({
           refreshTemplateError: undefined,
@@ -273,6 +283,7 @@ export const workspaceMachine = createMachine(
         return await API.getWorkspace(event.workspaceId)
       },
       getTemplate: async (context) => {
+        console.log("get template", context.template?.active_version_id)
         if (context.workspace) {
           return await API.getTemplate(context.workspace.template_id)
         } else {
@@ -287,6 +298,7 @@ export const workspaceMachine = createMachine(
         }
       },
       startWorkspace: async (context) => {
+        console.log("start workspace", context.template?.active_version_id)
         if (context.workspace) {
           return await API.startWorkspace(context.workspace.id, context.template?.active_version_id)
         } else {
