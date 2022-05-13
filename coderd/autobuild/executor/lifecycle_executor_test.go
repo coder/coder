@@ -26,7 +26,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -66,7 +66,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -118,7 +118,7 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -156,7 +156,7 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	var (
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -189,7 +189,7 @@ func TestExecutorAutostopOK(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -229,7 +229,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -267,7 +267,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	var (
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -300,7 +300,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -340,7 +340,7 @@ func TestExecutorWorkspaceTooEarly(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -384,10 +384,10 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		tickCh  = make(chan time.Time)
 		tickCh2 = make(chan time.Time)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh,
+			AutobuildTicker: tickCh,
 		})
 		_ = coderdtest.New(t, &coderdtest.Options{
-			LifecycleTicker: tickCh2,
+			AutobuildTicker: tickCh2,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
