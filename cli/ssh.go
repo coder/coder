@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gen2brain/beeep"
+	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -197,35 +197,20 @@ func ssh() *cobra.Command {
 // avoid spamming the user with notifications in case of multiple instances
 // of the CLI running simultaneously.
 func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace) (stop func()) {
-	lockPath := filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String())
-	lockStat, err := os.Stat(lockPath)
-	if err == nil {
-		// Lock file already exists for this workspace. How old is it?
-		lockAge := time.Now().Sub(lockStat.ModTime())
-		if lockAge < 3*autostopPollInterval {
-			// Lock file exists and is still "fresh". Do nothing.
-			return func() {}
-		}
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		// No permission to write to temp? Not much we can do.
-		return func() {}
-	}
-	lockFile, err := os.Create(lockPath)
-	if err != nil {
-		// Someone got there already?
-		return func() {}
-	}
-
-	condition := notifyCondition(ctx, client, workspace.ID, lockFile)
+	lock := flock.New(filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String()))
+	condition := notifyCondition(ctx, client, workspace.ID, lock)
 	return notify.Notify(condition, autostopPollInterval, autostopNotifyCountdown...)
 }
 
 // Notify the user if the workspace is due to shutdown.
-func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, lockFile *os.File) notify.Condition {
+func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, lock *flock.Flock) notify.Condition {
 	return func(now time.Time) (deadline time.Time, callback func()) {
-		// update lockFile (best effort)
-		_ = os.Chtimes(lockFile.Name(), now, now)
+		// Keep trying to regain the lock.
+		locked, err := lock.TryLockContext(ctx, autostopPollInterval)
+		if err != nil || !locked {
+			return time.Time{}, nil
+		}
+
 		ws, err := client.Workspace(ctx, workspaceID)
 		if err != nil {
 			return time.Time{}, nil
