@@ -83,8 +83,8 @@ func New(options *Options) (http.Handler, func()) {
 	// TODO: @emyrk we should just move this into 'ExtractAPIKey'.
 	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
 
-	authorize := func(f http.HandlerFunc, actions ...rbac.Action) http.HandlerFunc {
-		return httpmw.Authorize(api.Logger, api.Authorizer, actions...)(f).ServeHTTP
+	authorize := func(f http.HandlerFunc, actions rbac.Action) http.HandlerFunc {
+		return httpmw.Authorize(api.Logger, api.Authorizer, actions)(f).ServeHTTP
 	}
 
 	r := chi.NewRouter()
@@ -127,13 +127,9 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 				// This number is arbitrary, but reading/writing
 				// file content is expensive so it should be small.
 				httpmw.RateLimitPerMinute(12),
-				// TODO: @emyrk (rbac) Currently files are owned by the site?
-				//	Should files be org scoped? User scoped?
-				httpmw.WithRBACObject(rbac.ResourceFile),
 			)
 			r.Get("/{hash}", api.fileByHash)
 			r.Post("/", api.postFile)
@@ -141,11 +137,10 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				authRolesMiddleware,
 				httpmw.ExtractOrganizationParam(options.Database),
+				authRolesMiddleware,
 			)
-			r.With(httpmw.WithRBACObject(rbac.ResourceOrganization)).
-				Get("/", authorize(api.organization, rbac.ActionRead))
+			r.Get("/", api.organization)
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
 			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 			r.Route("/templates", func(r chi.Router) {
@@ -154,17 +149,12 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})
 			r.Route("/workspaces", func(r chi.Router) {
-				r.Use(httpmw.WithRBACObject(rbac.ResourceWorkspace))
-				// Posting a workspace is inherently owned by the api key creating it.
-				r.With(httpmw.WithAPIKeyAsOwner()).
-					Post("/", authorize(api.postWorkspacesByOrganization, rbac.ActionCreate))
-				r.Get("/", authorize(api.workspacesByOrganization, rbac.ActionRead))
 				r.Post("/", api.postWorkspacesByOrganization)
+				r.Get("/", api.workspacesByOrganization)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
-					// TODO: @emyrk add the resource id to this authorize.
-					r.Get("/{workspace}", authorize(api.workspaceByOwnerAndName, rbac.ActionRead))
-					r.Get("/", authorize(api.workspacesByOwner, rbac.ActionRead))
+					r.Get("/{workspace}", api.workspaceByOwnerAndName)
+					r.Get("/", api.workspacesByOwner)
 				})
 			})
 			r.Route("/members", func(r chi.Router) {
@@ -238,12 +228,8 @@ func New(options *Options) (http.Handler, func()) {
 					apiKeyMiddleware,
 					authRolesMiddleware,
 				)
-				r.Group(func(r chi.Router) {
-					// Site wide, all users
-					r.Use(httpmw.WithRBACObject(rbac.ResourceUser))
-					r.Post("/", authorize(api.postUser, rbac.ActionCreate))
-					r.Get("/", authorize(api.users, rbac.ActionRead))
-				})
+				r.Post("/", api.postUser)
+				r.Get("/", api.users)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
 					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
@@ -251,45 +237,29 @@ func New(options *Options) (http.Handler, func()) {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Group(func(r chi.Router) {
-						r.Use(httpmw.WithRBACObject(rbac.ResourceUser))
-						r.Get("/", authorize(api.userByName, rbac.ActionRead))
-						r.Put("/profile", authorize(api.putUserProfile, rbac.ActionUpdate))
-						// suspension is deleting for a user
-						r.Put("/suspend", authorize(api.putUserSuspend, rbac.ActionDelete))
-						r.Route("/password", func(r chi.Router) {
-							r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
-						})
-						// This route technically also fetches the organization member struct, but only
-						// returns the roles.
-						r.Get("/roles", authorize(api.userRoles, rbac.ActionRead))
-
-						// This has 2 authorize calls. The second is explicitly called
-						// in the handler.
-						r.Put("/roles", authorize(api.putUserRoles, rbac.ActionUpdate))
-
-						// For now, just use the "user" role for their ssh keys.
-						// We can always split this out to it's own resource if we need to.
-						r.Get("/gitsshkey", authorize(api.gitSSHKey, rbac.ActionRead))
-						r.Put("/gitsshkey", authorize(api.regenerateGitSSHKey, rbac.ActionUpdate))
-
-						r.Post("/authorization", authorize(api.checkPermissions, rbac.ActionRead))
+					r.Get("/", api.userByName)
+					r.Put("/profile", api.putUserProfile)
+					r.Put("/suspend", api.putUserSuspend)
+					r.Route("/password", func(r chi.Router) {
+						r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
 					})
+					r.Get("/organizations", api.organizationsByUser)
+					r.Post("/organizations", api.postOrganizationsByUser)
+					// These roles apply to the site wide permissions.
+					r.Put("/roles", api.putUserRoles)
+					r.Get("/roles", api.userRoles)
 
-					r.With(httpmw.WithRBACObject(rbac.ResourceAPIKey)).Post("/keys", authorize(api.postAPIKey, rbac.ActionCreate))
-					r.Get("/workspaces", api.workspacesByUser)
+					r.Post("/authorization", api.checkPermissions)
 
+					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
-						// TODO: @emyrk This creates an organization, so why is it nested under {user}?
-						//	Shouldn't this be outside the {user} param subpath? Maybe in the organizations/
-						//	path?
 						r.Post("/", api.postOrganizationsByUser)
-
 						r.Get("/", api.organizationsByUser)
-
-						// TODO: @emyrk why is this nested under {user} when the user param is not used?
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
+					r.Get("/gitsshkey", api.gitSSHKey)
+					r.Put("/gitsshkey", api.regenerateGitSSHKey)
+					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})

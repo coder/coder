@@ -163,6 +163,18 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &createUser) {
 		return
 	}
+
+	// Create the user on the site
+	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceUser) {
+		return
+	}
+
+	// Create the organization member in the org.
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceOrganizationMember.InOrg(createUser.OrganizationID)) {
+		return
+	}
+
 	_, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
 		Username: createUser.Username,
 		Email:    createUser.Email,
