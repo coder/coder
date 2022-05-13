@@ -25,11 +25,14 @@ func userStatus() *cobra.Command {
 // setUserStatus sets a user status.
 func setUserStatus(sdkStatus codersdk.UserStatus) *cobra.Command {
 	var verb string
+	var aliases []string
 	switch sdkStatus {
 	case codersdk.UserStatusActive:
 		verb = "active"
+		aliases = []string{"activate"}
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
+		aliases = []string{"rm", "delete"}
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
@@ -41,7 +44,8 @@ func setUserStatus(sdkStatus codersdk.UserStatus) *cobra.Command {
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   fmt.Sprintf("Update a user's status to %q", sdkStatus),
 		Args:    cobra.ExactArgs(1),
-		Example: fmt.Sprintf("coder status %s example_user", verb),
+		Aliases: aliases,
+		Example: fmt.Sprintf("coder users status %s example_user", verb),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
