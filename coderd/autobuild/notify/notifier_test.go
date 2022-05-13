@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
+
+	"github.com/coder/coder/coderd/autobuild/notify"
 )
 
 func TestNotifier(t *testing.T) {
@@ -77,6 +78,7 @@ func TestNotifier(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
 			ch := make(chan time.Time)
 			numConditions := atomic.NewInt64(0)
 			numCalls := atomic.NewInt64(0)
@@ -109,7 +111,7 @@ func durations(ds ...time.Duration) []time.Duration {
 }
 
 func fakeTicker(t time.Time, d time.Duration, n int) []time.Time {
-	ts := make([]time.Time, 0)
+	var ts []time.Time
 	for i := 1; i <= n; i++ {
 		ts = append(ts, t.Add(time.Duration(n)*d))
 	}

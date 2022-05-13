@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +25,9 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
+
+var autostopPollInterval = 30 * time.Second
+var autostopNotifyCountdown = []time.Duration{5 * time.Minute, time.Minute}
 
 func ssh() *cobra.Command {
 	var (
@@ -113,19 +118,8 @@ func ssh() *cobra.Command {
 			}
 			defer conn.Close()
 
-			// Notify the user if the workspace is due to shutdown. This uses
-			// the library gen2brain/beeep under the hood.
-			countdown := []time.Duration{
-				30 * time.Minute,
-				10 * time.Minute,
-				5 * time.Minute,
-				time.Minute,
-			}
-			condition := notifyWorkspaceAutostop(cmd.Context(), client, workspace.ID)
-			notifier := notify.New(condition, countdown...)
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-			go notifier.Poll(ticker.C)
+			stopPolling := tryPollWorkspaceAutostop(cmd.Context(), client, workspace)
+			defer stopPolling()
 
 			if stdio {
 				rawSSH, err := conn.SSH()
@@ -199,7 +193,36 @@ func ssh() *cobra.Command {
 	return cmd
 }
 
-func notifyWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) notify.Condition {
+// Attempt to poll workspace autostop. We write a per-workspace lockfile to
+// avoid spamming the user with notifications in case of multiple instances
+// of the CLI running simultaneously.
+func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace) (stop func()) {
+	lockPath := filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String())
+	lockStat, err := os.Stat(lockPath)
+	if err == nil {
+		// Lock file already exists for this workspace. How old is it?
+		lockAge := lockStat.ModTime().Sub(time.Now())
+		if lockAge < 3*autostopPollInterval {
+			// Lock file exists and is still "fresh". Do nothing.
+			return func() {}
+		}
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		// No permission to write to temp? Not much we can do.
+		return func() {}
+	}
+	lockFile, err := os.Create(lockPath)
+	if err != nil {
+		// Someone got there already?
+		return func() {}
+	}
+
+	condition := notifyCondition(ctx, client, workspace.ID, lockFile)
+	return notify.Notify(condition, autostopPollInterval, autostopNotifyCountdown...)
+}
+
+// Notify the user if the workspace is due to shutdown.
+func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, lockFile *os.File) notify.Condition {
 	return func(now time.Time) (deadline time.Time, callback func()) {
 		ws, err := client.Workspace(ctx, workspaceID)
 		if err != nil {
@@ -230,7 +253,10 @@ func notifyWorkspaceAutostop(ctx context.Context, client *codersdk.Client, works
 				title = fmt.Sprintf("Workspace %s stopping!", ws.Name)
 				body = fmt.Sprintf("Your Coder workspace %s is stopping any time now!", ws.Name)
 			}
-			beeep.Notify(title, body, "")
+			// notify user with a native system notification (best effort)
+			_ = beeep.Notify(title, body, "")
+			// update lockFile (best effort)
+			_ = os.Chtimes(lockFile.Name(), now, now)
 		}
 		return deadline.Truncate(time.Minute), callback
 	}
