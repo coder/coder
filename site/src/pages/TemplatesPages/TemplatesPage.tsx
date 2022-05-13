@@ -1,5 +1,4 @@
 import Box from "@material-ui/core/Box"
-import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -29,7 +28,6 @@ export const Language = {
 }
 
 export const TemplatesPage: React.FC = () => {
-  const styles = useStyles()
   const { data: orgs, error: orgsError } = useSWR<TypesGen.Organization[], Error>("/api/v2/users/me/organizations")
   const { data: templates, error } = useSWR<TypesGen.Template[] | null, Error>(
     orgs ? `/api/v2/organizations/${orgs[0].id}/templates` : null,
@@ -81,12 +79,8 @@ export const TemplatesPage: React.FC = () => {
                     <Box p={4}>
                       <EmptyState
                         message={Language.emptyMessage}
-                        description={
-                          <div>
-                            <div className={styles.descriptionLabel}>{Language.emptyDescription}</div>
-                            <CodeExample code="coder templates create" />
-                          </div>
-                        }
+                        description={Language.emptyDescription}
+                        cta={<CodeExample code="coder templates create" />}
                       />
                     </Box>
                   </TableCell>
@@ -99,9 +93,3 @@ export const TemplatesPage: React.FC = () => {
     </Stack>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  descriptionLabel: {
-    marginBottom: theme.spacing(1),
-  },
-}))

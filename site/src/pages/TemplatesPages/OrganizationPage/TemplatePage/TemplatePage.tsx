@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import React from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
@@ -53,12 +54,13 @@ export const TemplatePage: React.FC = () => {
 
   const emptyState = (
     <EmptyState
-      button={{
-        children: "Create Workspace",
-        onClick: createWorkspace,
-      }}
       message="No workspaces have been created yet"
       description="Create a workspace to get started"
+      cta={
+        <Button variant="contained" color="primary" onClick={createWorkspace}>
+          Create workspace
+        </Button>
+      }
     />
   )
 
