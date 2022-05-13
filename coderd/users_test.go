@@ -452,7 +452,7 @@ func TestPutUserSuspend(t *testing.T) {
 			Password:       "password",
 			OrganizationID: me.OrganizationID,
 		})
-		user, err := client.SuspendUser(context.Background(), user.ID)
+		user, err := client.SetUserStatus(context.Background(), user.ID, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
 	})
@@ -462,7 +462,7 @@ func TestPutUserSuspend(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		client.User(context.Background(), codersdk.Me)
-		suspendedUser, err := client.SuspendUser(context.Background(), codersdk.Me)
+		suspendedUser, err := client.SetUserStatus(context.Background(), codersdk.Me, codersdk.UserStatusSuspended)
 
 		require.NoError(t, err)
 		require.Equal(t, suspendedUser.Status, codersdk.UserStatusSuspended)
@@ -504,7 +504,7 @@ func TestGetUser(t *testing.T) {
 		exp, err := client.User(context.Background(), firstUser.UserID)
 		require.NoError(t, err)
 
-		user, err := client.UserByUsername(context.Background(), exp.Username)
+		user, err := client.UserByIdentifier(context.Background(), exp.Username)
 		require.NoError(t, err)
 		require.Equal(t, exp, user)
 	})
@@ -551,7 +551,7 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 		active = append(active, bruno)
 
-		_, err = client.SuspendUser(context.Background(), first.UserID)
+		_, err = client.SetUserStatus(context.Background(), first.UserID, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/google/uuid"
 )
 
@@ -211,9 +213,19 @@ func (c *Client) UpdateUserProfile(ctx context.Context, userID uuid.UUID, req Up
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
-// SuspendUser enables callers to suspend a user
-func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error) {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/suspend", uuidOrMe(userID)), nil)
+// SetUserStatus sets the user status to the given status
+func (c *Client) SetUserStatus(ctx context.Context, userID uuid.UUID, status UserStatus) (User, error) {
+	path := fmt.Sprintf("/api/v2/users/%s/status/", uuidOrMe(userID))
+	switch status {
+	case UserStatusActive:
+		path += "active"
+	case UserStatusSuspended:
+		path += "suspend"
+	default:
+		return User{}, xerrors.Errorf("status %q is not supported", status)
+	}
+
+	res, err := c.request(ctx, http.MethodPut, path, nil)
 	if err != nil {
 		return User{}, err
 	}
@@ -336,8 +348,8 @@ func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
 	return c.userByIdentifier(ctx, uuidOrMe(id))
 }
 
-// UserByUsername returns a user for the username provided.
-func (c *Client) UserByUsername(ctx context.Context, username string) (User, error) {
+// UserByIdentifier returns a user for the username or uuid provided.
+func (c *Client) UserByIdentifier(ctx context.Context, username string) (User, error) {
 	return c.userByIdentifier(ctx, username)
 }
 
@@ -347,7 +359,7 @@ func (c *Client) userByIdentifier(ctx context.Context, ident string) (User, erro
 		return User{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode > http.StatusOK {
+	if res.StatusCode != http.StatusOK {
 		return User{}, readBodyAsError(res)
 	}
 	var user User
