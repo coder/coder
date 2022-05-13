@@ -18,16 +18,57 @@ The default autostop schedule is at 18:00 in your local timezone (TZ env, UTC by
 
 func autostop() *cobra.Command {
 	autostopCmd := &cobra.Command{
-		Use:     "autostop enable <workspace>",
-		Short:   "schedule a workspace to automatically stop at a regular time",
-		Long:    autostopDescriptionLong,
-		Example: "coder autostop enable my-workspace --minute 0 --hour 18 --days 1-5 -tz Europe/Dublin",
+		Annotations: workspaceCommand,
+		Use:         "autostop enable <workspace>",
+		Short:       "schedule a workspace to automatically stop at a regular time",
+		Long:        autostopDescriptionLong,
+		Example:     "coder autostop enable my-workspace --minute 0 --hour 18 --days 1-5 -tz Europe/Dublin",
 	}
 
+	autostopCmd.AddCommand(autostopShow())
 	autostopCmd.AddCommand(autostopEnable())
 	autostopCmd.AddCommand(autostopDisable())
 
 	return autostopCmd
+}
+
+func autostopShow() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:  "show <workspace_name>",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := createClient(cmd)
+			if err != nil {
+				return err
+			}
+			organization, err := currentOrganization(cmd, client)
+			if err != nil {
+				return err
+			}
+
+			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
+			if err != nil {
+				return err
+			}
+
+			if workspace.AutostopSchedule == "" {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "not enabled\n")
+				return nil
+			}
+
+			validSchedule, err := schedule.Weekly(workspace.AutostopSchedule)
+			if err != nil {
+				// This should never happen.
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "invalid autostop schedule %q for workspace %s: %s\n", workspace.AutostopSchedule, workspace.Name, err.Error())
+				return nil
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "schedule: %s\nnext: %s\n", workspace.AutostopSchedule, validSchedule.Next(time.Now()))
+
+			return nil
+		},
+	}
+	return cmd
 }
 
 func autostopEnable() *cobra.Command {
