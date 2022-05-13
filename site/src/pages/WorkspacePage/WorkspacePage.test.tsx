@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
 import React from "react"

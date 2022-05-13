@@ -5,7 +5,7 @@ import { displayError } from "../../components/GlobalSnackbar/utils"
 
 const Language = {
   refreshTemplateError: "Error updating workspace: latest template could not be fetched.",
-  buildError: "Workspace action failed."
+  buildError: "Workspace action failed.",
 }
 
 export interface WorkspaceContext {
@@ -248,7 +248,7 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: event.data,
         }),
-      displayBuildError: (_, event) => {
+      displayBuildError: () => {
         displayError(Language.buildError)
       },
       clearBuildError: (_) =>
@@ -267,7 +267,7 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: event.data,
         }),
-      displayRefreshTemplateError: (_, event) => {
+      displayRefreshTemplateError: () => {
         displayError(Language.refreshTemplateError)
       },
       clearRefreshTemplateError: (_) =>
