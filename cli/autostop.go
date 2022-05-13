@@ -22,7 +22,6 @@ func autostop() *cobra.Command {
 		Short:   "schedule a workspace to automatically stop at a regular time",
 		Long:    autostopDescriptionLong,
 		Example: "coder autostop enable my-workspace --minute 0 --hour 18 --days 1-5 -tz Europe/Dublin",
-		Hidden:  true,
 	}
 
 	autostopCmd.AddCommand(autostopEnable())
