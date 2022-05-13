@@ -3,6 +3,7 @@ package executor_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -368,6 +369,60 @@ func TestExecutorWorkspaceTooEarly(t *testing.T) {
 	ws := mustWorkspace(t, client, workspace.ID)
 	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
 	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+}
+
+func TestExecutorAutostartMultipleOK(t *testing.T) {
+	if os.Getenv("DB") == "" {
+		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
+	}
+
+	t.Parallel()
+
+	var (
+		ctx     = context.Background()
+		err     error
+		tickCh  = make(chan time.Time)
+		tickCh2 = make(chan time.Time)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh,
+		})
+		_ = coderdtest.New(t, &coderdtest.Options{
+			LifecycleTicker: tickCh2,
+		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
+	)
+	// Given: workspace is stopped
+	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// Given: the workspace initially has autostart disabled
+	require.Empty(t, workspace.AutostartSchedule)
+
+	// When: we enable workspace autostart
+	sched, err := schedule.Weekly("* * * * *")
+	require.NoError(t, err)
+	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+		Schedule: sched.String(),
+	}))
+
+	// When: the autobuild executor ticks
+	go func() {
+		tickCh <- time.Now().UTC().Add(time.Minute)
+		tickCh2 <- time.Now().UTC().Add(time.Minute)
+		close(tickCh)
+		close(tickCh2)
+	}()
+
+	// Then: the workspace should be started
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
+	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
+	builds, err := client.WorkspaceBuilds(ctx, ws.ID)
+	require.NoError(t, err, "fetch list of workspace builds from primary")
+	// One build to start, one stop transition, and one autostart. No more.
+	require.Len(t, builds, 3, "unexpected number of builds for workspace from primary")
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
