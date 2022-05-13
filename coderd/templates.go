@@ -18,6 +18,7 @@ import (
 // Returns a single template.
 func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
+
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
