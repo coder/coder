@@ -201,7 +201,7 @@ func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, work
 	lockStat, err := os.Stat(lockPath)
 	if err == nil {
 		// Lock file already exists for this workspace. How old is it?
-		lockAge := lockStat.ModTime().Sub(time.Now())
+		lockAge := time.Now().Sub(lockStat.ModTime())
 		if lockAge < 3*autostopPollInterval {
 			// Lock file exists and is still "fresh". Do nothing.
 			return func() {}
@@ -224,6 +224,8 @@ func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, work
 // Notify the user if the workspace is due to shutdown.
 func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, lockFile *os.File) notify.Condition {
 	return func(now time.Time) (deadline time.Time, callback func()) {
+		// update lockFile (best effort)
+		_ = os.Chtimes(lockFile.Name(), now, now)
 		ws, err := client.Workspace(ctx, workspaceID)
 		if err != nil {
 			return time.Time{}, nil
@@ -255,8 +257,6 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			}
 			// notify user with a native system notification (best effort)
 			_ = beeep.Notify(title, body, "")
-			// update lockFile (best effort)
-			_ = os.Chtimes(lockFile.Name(), now, now)
 		}
 		return deadline.Truncate(time.Minute), callback
 	}
