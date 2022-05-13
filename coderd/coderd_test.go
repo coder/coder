@@ -95,6 +95,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/organizations/{organization}/templates":                {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/workspaces":              {NoAuthorize: true},
 
 		"POST:/api/v2/parameters/{scope}/{id}":          {NoAuthorize: true},
 		"GET:/api/v2/parameters/{scope}/{id}":           {NoAuthorize: true},
