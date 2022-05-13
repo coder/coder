@@ -7,6 +7,21 @@ export const Language = {
   successProfileUpdate: "Updated preferences.",
 }
 
+export const checks = {
+  readAllUsers: "readAllUsers",
+} as const
+
+export const permissionsToCheck = {
+  [checks.readAllUsers]: {
+    object: {
+      resource_type: "user",
+    },
+    action: "read",
+  },
+} as const
+
+type Permissions = Record<keyof typeof permissionsToCheck, boolean>
+
 export interface AuthContext {
   getUserError?: Error | unknown
   getMethodsError?: Error | unknown
@@ -14,6 +29,8 @@ export interface AuthContext {
   updateProfileError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
+  permissions?: Permissions
+  checkPermissionsError?: Error | unknown
 }
 
 export type AuthEvent =
@@ -49,6 +66,9 @@ export const authMachine =
           }
           updateProfile: {
             data: TypesGen.User
+          }
+          checkPermissions: {
+            data: TypesGen.UserAuthorizationResponse
           }
         },
       },
@@ -88,13 +108,33 @@ export const authMachine =
             onDone: [
               {
                 actions: ["assignMe", "clearGetUserError"],
-                target: "signedIn",
+                target: "gettingPermissions",
               },
             ],
             onError: [
               {
                 actions: "assignGetUserError",
                 target: "gettingMethods",
+              },
+            ],
+          },
+          tags: "loading",
+        },
+        gettingPermissions: {
+          entry: "clearGetPermissionsError",
+          invoke: {
+            src: "checkPermissions",
+            id: "checkPermissions",
+            onDone: [
+              {
+                actions: ["assignPermissions"],
+                target: "signedIn",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignGetPermissionsError",
+                target: "signedOut",
               },
             ],
           },
@@ -200,6 +240,15 @@ export const authMachine =
 
           return API.updateProfile(context.me.id, event.data)
         },
+        checkPermissions: async (context) => {
+          if (!context.me) {
+            throw new Error("No current user found")
+          }
+
+          return API.checkUserPermissions(context.me.id, {
+            checks: permissionsToCheck,
+          })
+        },
       },
       actions: {
         assignMe: assign({
@@ -241,6 +290,17 @@ export const authMachine =
         },
         clearUpdateProfileError: assign({
           updateProfileError: (_) => undefined,
+        }),
+        assignPermissions: assign({
+          // Setting event.data as Permissions to be more stricted. So we know
+          // what permissions we asked for.
+          permissions: (_, event) => event.data as Permissions,
+        }),
+        assignGetPermissionsError: assign({
+          checkPermissionsError: (_, event) => event.data,
+        }),
+        clearGetPermissionsError: assign({
+          checkPermissionsError: (_) => undefined,
         }),
       },
     },

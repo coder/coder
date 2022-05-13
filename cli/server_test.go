@@ -79,7 +79,7 @@ func TestServer(t *testing.T) {
 
 		wantEmail := "admin@coder.com"
 
-		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
+		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0")
 		var buf strings.Builder
 		root.SetOutput(&buf)
 		var wg sync.WaitGroup
@@ -132,7 +132,7 @@ func TestServer(t *testing.T) {
 		t.Setenv("CODER_DEV_ADMIN_EMAIL", wantEmail)
 		t.Setenv("CODER_DEV_ADMIN_PASSWORD", wantPassword)
 
-		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0")
+		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0")
 		var buf strings.Builder
 		root.SetOutput(&buf)
 		var wg sync.WaitGroup
@@ -170,7 +170,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0",
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
 			"--tls-enable", "--tls-min-version", "tls9")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -179,7 +179,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0",
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
 			"--tls-enable", "--tls-client-auth", "something")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -188,7 +188,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0",
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
 			"--tls-enable")
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -199,7 +199,7 @@ func TestServer(t *testing.T) {
 		defer cancelFunc()
 
 		certPath, keyPath := generateTLSCertificate(t)
-		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0",
+		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0",
 			"--tls-enable", "--tls-cert-file", certPath, "--tls-key-file", keyPath)
 		go func() {
 			err := root.ExecuteContext(ctx)
@@ -235,7 +235,7 @@ func TestServer(t *testing.T) {
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0", "--provisioner-daemons", "0")
+		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "0")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -283,7 +283,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--skip-tunnel", "--address", ":0", "--trace-datadog=true")
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace-datadog=true")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)

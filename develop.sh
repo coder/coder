@@ -5,6 +5,9 @@ set -euo pipefail
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 cd "${PROJECT_ROOT}"
 
+echo '== Run "make build" before running this command to build binaries.'
+echo '== Without these binaries, workspaces will fail to start!'
+
 # Run yarn install, to make sure node_modules are ready to go
 "$PROJECT_ROOT/scripts/yarn_install.sh"
 
@@ -18,6 +21,6 @@ export CODER_DEV_ADMIN_PASSWORD=password
 (
   trap 'kill 0' SIGINT
   CODERV2_HOST=http://127.0.0.1:3000 INSPECT_XSTATE=true yarn --cwd=./site dev &
-  go run cmd/coder/main.go server --dev --skip-tunnel &
+  go run -tags embed cmd/coder/main.go server --dev --tunnel=true &
   wait
 )

@@ -7,7 +7,6 @@ import { XServiceContext } from "../../../xServices/StateContext"
 
 export const Language = {
   title: "Account",
-  description: "Update your display name, email, and username.",
   unknownError: "Oops, an unknown error occurred.",
 }
 
@@ -25,7 +24,7 @@ export const AccountPage: React.FC = () => {
   }
 
   return (
-    <Section title={Language.title} description={Language.description}>
+    <Section title={Language.title}>
       <AccountForm
         error={hasUnknownError ? Language.unknownError : undefined}
         formErrors={formErrors}

@@ -2,10 +2,15 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/gen2brain/beeep"
+	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -15,9 +20,14 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/autobuild/notify"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
+
+var autostopPollInterval = 30 * time.Second
+var autostopNotifyCountdown = []time.Duration{5 * time.Minute}
 
 func ssh() *cobra.Command {
 	var (
@@ -108,6 +118,9 @@ func ssh() *cobra.Command {
 			}
 			defer conn.Close()
 
+			stopPolling := tryPollWorkspaceAutostop(cmd.Context(), client, workspace)
+			defer stopPolling()
+
 			if stdio {
 				rawSSH, err := conn.SSH()
 				if err != nil {
@@ -178,4 +191,58 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 
 	return cmd
+}
+
+// Attempt to poll workspace autostop. We write a per-workspace lockfile to
+// avoid spamming the user with notifications in case of multiple instances
+// of the CLI running simultaneously.
+func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace) (stop func()) {
+	lock := flock.New(filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String()))
+	condition := notifyCondition(ctx, client, workspace.ID, lock)
+	return notify.Notify(condition, autostopPollInterval, autostopNotifyCountdown...)
+}
+
+// Notify the user if the workspace is due to shutdown.
+func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, lock *flock.Flock) notify.Condition {
+	return func(now time.Time) (deadline time.Time, callback func()) {
+		// Keep trying to regain the lock.
+		locked, err := lock.TryLockContext(ctx, autostopPollInterval)
+		if err != nil || !locked {
+			return time.Time{}, nil
+		}
+
+		ws, err := client.Workspace(ctx, workspaceID)
+		if err != nil {
+			return time.Time{}, nil
+		}
+
+		if ws.AutostopSchedule == "" {
+			return time.Time{}, nil
+		}
+
+		sched, err := schedule.Weekly(ws.AutostopSchedule)
+		if err != nil {
+			return time.Time{}, nil
+		}
+
+		deadline = sched.Next(now)
+		callback = func() {
+			ttl := deadline.Sub(now)
+			var title, body string
+			if ttl > time.Minute {
+				title = fmt.Sprintf(`Workspace %s stopping in %.0f mins`, ws.Name, ttl.Minutes())
+				body = fmt.Sprintf(
+					`Your Coder workspace %s is scheduled to stop at %s.`,
+					ws.Name,
+					deadline.Format(time.Kitchen),
+				)
+			} else {
+				title = fmt.Sprintf("Workspace %s stopping!", ws.Name)
+				body = fmt.Sprintf("Your Coder workspace %s is stopping any time now!", ws.Name)
+			}
+			// notify user with a native system notification (best effort)
+			_ = beeep.Notify(title, body, "")
+		}
+		return deadline.Truncate(time.Minute), callback
+	}
 }
