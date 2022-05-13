@@ -49,7 +49,7 @@ func list() *cobra.Command {
 			}
 
 			tableWriter := cliui.Table()
-			header := table.Row{"workspace", "template", "status", "last built", "outdated"}
+			header := table.Row{"workspace", "template", "status", "last built", "outdated", "autostart", "autostop"}
 			tableWriter.AppendHeader(header)
 			tableWriter.SortBy([]table.SortBy{{
 				Name: "workspace",
@@ -108,6 +108,16 @@ func list() *cobra.Command {
 					durationDisplay = durationDisplay[:len(durationDisplay)-2]
 				}
 
+				autostartDisplay := "not enabled"
+				if workspace.AutostartSchedule != "" {
+					autostartDisplay = workspace.AutostartSchedule
+				}
+
+				autostopDisplay := "not enabled"
+				if workspace.AutostopSchedule != "" {
+					autostopDisplay = workspace.AutostopSchedule
+				}
+
 				user := usersByID[workspace.OwnerID]
 				tableWriter.AppendRow(table.Row{
 					user.Username + "/" + workspace.Name,
@@ -115,6 +125,8 @@ func list() *cobra.Command {
 					status,
 					durationDisplay,
 					workspace.Outdated,
+					autostartDisplay,
+					autostopDisplay,
 				})
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())

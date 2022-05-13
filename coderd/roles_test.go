@@ -12,6 +12,91 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+func TestAuthorization(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	// Create admin, member, and org admin
+	admin := coderdtest.CreateFirstUser(t, client)
+	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
+
+	// With admin, member, and org admin
+	const (
+		allUsers          = "read-all-users"
+		readOrgWorkspaces = "read-org-workspaces"
+		myself            = "read-myself"
+		myWorkspace       = "read-my-workspace"
+	)
+	params := map[string]codersdk.UserAuthorization{
+		allUsers: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType: "users",
+			},
+			Action: "read",
+		},
+		myself: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType: "users",
+				OwnerID:      "me",
+			},
+			Action: "read",
+		},
+		myWorkspace: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType: "workspaces",
+				OwnerID:      "me",
+			},
+			Action: "read",
+		},
+		readOrgWorkspaces: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType:   "workspaces",
+				OrganizationID: admin.OrganizationID.String(),
+			},
+			Action: "read",
+		},
+	}
+
+	testCases := []struct {
+		Name   string
+		Client *codersdk.Client
+		Check  codersdk.UserAuthorizationResponse
+	}{
+		{
+			Name:   "Admin",
+			Client: client,
+			Check: map[string]bool{
+				allUsers: true, myself: true, myWorkspace: true, readOrgWorkspaces: true,
+			},
+		},
+		{
+			Name:   "Member",
+			Client: member,
+			Check: map[string]bool{
+				allUsers: false, myself: true, myWorkspace: true, readOrgWorkspaces: false,
+			},
+		},
+		{
+			Name:   "OrgAdmin",
+			Client: orgAdmin,
+			Check: map[string]bool{
+				allUsers: false, myself: true, myWorkspace: true, readOrgWorkspaces: true,
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			resp, err := c.Client.CheckPermissions(context.Background(), codersdk.UserAuthorizationRequest{Checks: params})
+			require.NoError(t, err, "check perms")
+			require.Equal(t, resp, c.Check)
+		})
+	}
+}
+
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
@@ -20,19 +105,7 @@ func TestListRoles(t *testing.T) {
 	// Create admin, member, and org admin
 	admin := coderdtest.CreateFirstUser(t, client)
 	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-
-	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	orgAdminUser, err := orgAdmin.User(ctx, codersdk.Me)
-	require.NoError(t, err)
-
-	// TODO: @emyrk switch this to the admin when getting non-personal users is
-	//	supported. `client.UpdateOrganizationMemberRoles(...)`
-	_, err = orgAdmin.UpdateOrganizationMemberRoles(ctx, admin.OrganizationID, orgAdminUser.ID,
-		codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(admin.OrganizationID), rbac.RoleOrgAdmin(admin.OrganizationID)},
-		},
-	)
-	require.NoError(t, err, "update org member roles")
+	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	otherOrg, err := client.CreateOrganization(ctx, admin.UserID, codersdk.CreateOrganizationRequest{
 		Name: "other",

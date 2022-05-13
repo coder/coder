@@ -9,6 +9,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { RoleSelect } from "../RoleSelect/RoleSelect"
 import { TableHeaderRow } from "../TableHeaders/TableHeaders"
+import { TableLoader } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { TableTitle } from "../TableTitle/TableTitle"
 import { UserCell } from "../UserCell/UserCell"
@@ -24,12 +25,12 @@ export const Language = {
 }
 
 export interface UsersTableProps {
-  users: TypesGen.User[]
+  users?: TypesGen.User[]
+  roles?: TypesGen.Role[]
+  isUpdatingUserRoles?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
-  roles: TypesGen.Role[]
-  isUpdatingUserRoles?: boolean
 }
 
 export const UsersTable: React.FC<UsersTableProps> = ({
@@ -40,6 +41,8 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onUpdateUserRoles,
   isUpdatingUserRoles,
 }) => {
+  const isLoading = !users || !roles
+
   return (
     <Table>
       <TableHead>
@@ -52,38 +55,41 @@ export const UsersTable: React.FC<UsersTableProps> = ({
         </TableHeaderRow>
       </TableHead>
       <TableBody>
-        {users.map((u) => (
-          <TableRow key={u.id}>
-            <TableCell>
-              <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
-            </TableCell>
-            <TableCell>
-              <RoleSelect
-                roles={roles}
-                selectedRoles={u.roles}
-                loading={isUpdatingUserRoles}
-                onChange={(roles) => onUpdateUserRoles(u, roles)}
-              />
-            </TableCell>
-            <TableCell>
-              <TableRowMenu
-                data={u}
-                menuItems={[
-                  {
-                    label: Language.suspendMenuItem,
-                    onClick: onSuspendUser,
-                  },
-                  {
-                    label: Language.resetPasswordMenuItem,
-                    onClick: onResetUserPassword,
-                  },
-                ]}
-              />
-            </TableCell>
-          </TableRow>
-        ))}
+        {isLoading && <TableLoader />}
+        {users &&
+          roles &&
+          users.map((u) => (
+            <TableRow key={u.id}>
+              <TableCell>
+                <UserCell Avatar={{ username: u.username }} primaryText={u.username} caption={u.email} />{" "}
+              </TableCell>
+              <TableCell>
+                <RoleSelect
+                  roles={roles}
+                  selectedRoles={u.roles}
+                  loading={isUpdatingUserRoles}
+                  onChange={(roles) => onUpdateUserRoles(u, roles)}
+                />
+              </TableCell>
+              <TableCell>
+                <TableRowMenu
+                  data={u}
+                  menuItems={[
+                    {
+                      label: Language.suspendMenuItem,
+                      onClick: onSuspendUser,
+                    },
+                    {
+                      label: Language.resetPasswordMenuItem,
+                      onClick: onResetUserPassword,
+                    },
+                  ]}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
 
-        {users.length === 0 && (
+        {users && users.length === 0 && (
           <TableRow>
             <TableCell colSpan={999}>
               <Box p={4}>

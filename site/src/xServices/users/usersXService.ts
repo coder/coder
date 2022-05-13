@@ -73,9 +73,6 @@ export const usersMachine = createMachine(
     },
     id: "usersState",
     initial: "idle",
-    context: {
-      users: [],
-    },
     states: {
       idle: {
         on: {

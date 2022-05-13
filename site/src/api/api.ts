@@ -76,6 +76,14 @@ export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   return response.data
 }
 
+export const checkUserPermissions = async (
+  userId: string,
+  params: TypesGen.UserAuthorizationRequest,
+): Promise<TypesGen.UserAuthorizationResponse> => {
+  const response = await axios.post<TypesGen.UserAuthorizationResponse>(`/api/v2/users/${userId}/authorization`, params)
+  return response.data
+}
+
 export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   const response = await axios.post<TypesGen.GenerateAPIKeyResponse>("/api/v2/users/me/keys")
   return response.data

@@ -12,9 +12,10 @@ import { UserDropdown } from "../UserDropdown/UsersDropdown"
 export interface NavbarViewProps {
   user?: TypesGen.User
   onSignOut: () => void
+  displayAdminDropdown: boolean
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, displayAdminDropdown }) => {
   const styles = useStyles()
   return (
     <nav className={styles.root}>
@@ -31,7 +32,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
         </ListItem>
       </List>
       <div className={styles.fullWidth} />
-      {user && user.email === "admin@coder.com" && <AdminDropdown />}
+      {displayAdminDropdown && <AdminDropdown />}
       <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
     </nav>
   )
