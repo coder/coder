@@ -309,7 +309,7 @@ func (api *api) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		apiKey := httpmw.APIKey(r)
 		if status == database.UserStatusSuspended && user.ID == apiKey.UserID {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("You cannot suspend yourself"),
+				Message: "You cannot suspend yourself",
 			})
 			return
 		}
