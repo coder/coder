@@ -35,6 +35,18 @@ Stopping.args = { ...Started.args, workspaceStatus: "stopping" }
 export const Error = Template.bind({})
 Error.args = { ...Started.args, workspaceStatus: "error" }
 
+export const BuildLoading = Template.bind({})
+BuildLoading.args = {...Started.args, workspaceStatus: "loading" }
+
+export const Deleting = Template.bind({})
+Deleting.args = {...Started.args, workspaceStatus: "deleting"}
+
+export const Deleted = Template.bind({})
+Deleted.args = {...Started.args, workspaceStatus: "deleted"}
+
+export const Canceling = Template.bind({})
+Canceling.args = {...Started.args, workspaceStatus: "canceling"}
+
 export const NoBreadcrumb = Template.bind({})
 NoBreadcrumb.args = { ...Started.args, template: undefined }
 

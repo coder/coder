@@ -24,7 +24,10 @@ const Language = {
   error: "Build Failed",
   loading: "Loading Status",
   deleting: "Deleting", 
-  deleted: "Deleted"
+  deleted: "Deleted",
+  // "Canceling" would be misleading because it refers to a build, not the workspace. 
+  // So just stall. When it is canceled it will appear as the error workspaceStatus.
+  canceling: "Loading Status"
 }
 
 export interface WorkspaceStatusBarProps {
@@ -102,7 +105,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
             )}
 
             {/* Workspace will not update while another job is in progress so hide the button until it's usable */}
-            {workspace.outdated && ["started", "stopped", "error"].includes(workspaceStatus) && (
+            {workspace.outdated && ["started", "stopped", "deleted", "error"].includes(workspaceStatus) && (
               <Button onClick={handleUpdate} color="primary">
                 {Language.update}
               </Button>

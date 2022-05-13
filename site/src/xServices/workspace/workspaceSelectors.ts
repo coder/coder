@@ -23,8 +23,8 @@ export const selectWorkspaceStatus = (state: State<WorkspaceContext, WorkspaceEv
     case "succeeded": return succeededToStatus[transition]
     case "pending": return inProgressToStatus[transition]
     case "running": return inProgressToStatus[transition]
+    case "canceling": return "canceling"
     case "canceled": return "error"
-    case "canceling": return "error"
     case "failed": return "error"
   }
 }
