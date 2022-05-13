@@ -399,7 +399,9 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, roleName := range params.Roles {
-		// If the user already has the role, we don't need to check the permission.
+		// If the user already has the role assigned, we don't need to check the permission
+		// to reassign it. Only run permission checks on the difference in the set of
+		// roles.
 		if _, ok := has[roleName]; ok {
 			delete(has, roleName)
 			continue

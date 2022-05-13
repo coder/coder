@@ -240,7 +240,7 @@ func New(options *Options) (http.Handler, func()) {
 				)
 				r.Group(func(r chi.Router) {
 					// Site wide, all users
-					r.Use(httpmw.WithRBACObject(rbac.ResourceUser.All()))
+					r.Use(httpmw.WithRBACObject(rbac.ResourceUser))
 					r.Post("/", authorize(api.postUser, rbac.ActionCreate))
 					r.Get("/", authorize(api.users, rbac.ActionRead))
 				})
