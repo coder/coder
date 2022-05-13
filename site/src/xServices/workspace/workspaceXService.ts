@@ -90,16 +90,16 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "refreshWorkspace",
                   src: "refreshWorkspace",
-                  onDone: { target: "waiting", actions: "assignWorkspace"},
+                  onDone: { target: "waiting", actions: "assignWorkspace" },
                   onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
                 },
               },
               waiting: {
                 after: {
-                  1000: "refreshingWorkspace"
-                }
-              }
-            }
+                  1000: "refreshingWorkspace",
+                },
+              },
+            },
           },
           breadcrumb: {
             initial: "gettingTemplate",
@@ -145,10 +145,7 @@ export const workspaceMachine = createMachine(
                 on: {
                   START: "requestingStart",
                   STOP: "requestingStop",
-                  RETRY: [
-                    { cond: "triedToStart", target: "requestingStart" },
-                    { target: "requestingStop" }
-                  ],
+                  RETRY: [{ cond: "triedToStart", target: "requestingStart" }, { target: "requestingStop" }],
                   UPDATE: "refreshingTemplate",
                 },
               },
@@ -159,13 +156,13 @@ export const workspaceMachine = createMachine(
                   src: "startWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: "assignBuild"
+                    actions: "assignBuild",
                   },
                   onError: {
                     target: "idle",
-                    actions: "assignBuildError"
-                  }
-                }
+                    actions: "assignBuildError",
+                  },
+                },
               },
               requestingStop: {
                 entry: "clearBuildError",
@@ -174,13 +171,13 @@ export const workspaceMachine = createMachine(
                   src: "stopWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: "assignBuild"
+                    actions: "assignBuild",
                   },
                   onError: {
                     target: "idle",
-                    actions: "assignBuildError"
-                  }
-                }
+                    actions: "assignBuildError",
+                  },
+                },
               },
               refreshingTemplate: {
                 entry: "clearRefreshTemplateError",
@@ -189,15 +186,15 @@ export const workspaceMachine = createMachine(
                   src: "getTemplate",
                   onDone: {
                     target: "requestingStart",
-                    actions: "assignTemplate"
+                    actions: "assignTemplate",
                   },
                   onError: {
                     target: "idle",
-                    actions: "assignRefreshTemplateError"
-                  }
-                }
+                    actions: "assignRefreshTemplateError",
+                  },
+                },
               },
-            }
+            },
           },
         },
       },

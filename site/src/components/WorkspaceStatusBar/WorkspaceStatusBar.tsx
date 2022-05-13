@@ -11,7 +11,7 @@ import { combineClasses } from "../../util/combineClasses"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 
-const Language = {
+export const Language = {
   stop: "Stop",
   start: "Start",
   retry: "Retry",
@@ -23,11 +23,11 @@ const Language = {
   stopping: "Stopping",
   error: "Build Failed",
   loading: "Loading Status",
-  deleting: "Deleting", 
+  deleting: "Deleting",
   deleted: "Deleted",
-  // "Canceling" would be misleading because it refers to a build, not the workspace. 
+  // "Canceling" would be misleading because it refers to a build, not the workspace.
   // So just stall. When it is canceled it will appear as the error workspaceStatus.
-  canceling: "Loading Status"
+  canceling: "Loading Status",
 }
 
 export interface WorkspaceStatusBarProps {

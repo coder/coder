@@ -10,7 +10,16 @@ import { firstOrItem } from "../../util/array"
 import { XServiceContext } from "../../xServices/StateContext"
 import { selectWorkspaceStatus } from "../../xServices/workspace/workspaceSelectors"
 
-export type WorkspaceStatus = "started" | "starting" | "stopped" | "stopping" | "error" | "loading" | "deleting" | "deleted" | "canceling"
+export type WorkspaceStatus =
+  | "started"
+  | "starting"
+  | "stopped"
+  | "stopping"
+  | "error"
+  | "loading"
+  | "deleting"
+  | "deleted"
+  | "canceling"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
