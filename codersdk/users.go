@@ -344,15 +344,11 @@ func (c *Client) Logout(ctx context.Context) error {
 // User returns a user for the ID provided.
 // If the uuid is nil, the current user will be returned.
 func (c *Client) User(ctx context.Context, id uuid.UUID) (User, error) {
-	return c.userByIdentifier(ctx, uuidOrMe(id))
+	return c.UserByIdentifier(ctx, uuidOrMe(id))
 }
 
 // UserByIdentifier returns a user for the username or uuid provided.
-func (c *Client) UserByIdentifier(ctx context.Context, username string) (User, error) {
-	return c.userByIdentifier(ctx, username)
-}
-
-func (c *Client) userByIdentifier(ctx context.Context, ident string) (User, error) {
+func (c *Client) UserByIdentifier(ctx context.Context, ident string) (User, error) {
 	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", ident), nil)
 	if err != nil {
 		return User{}, err

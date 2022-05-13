@@ -20,6 +20,7 @@ func TestUserStatus(t *testing.T) {
 	otherUser, err := other.User(context.Background(), codersdk.Me)
 	require.NoError(t, err, "fetch user")
 
+	//nolint:paralleltest
 	t.Run("StatusSelf", func(t *testing.T) {
 		cmd, root := clitest.New(t, "users", "status", "suspend", "me")
 		clitest.SetupConfig(t, client, root)
@@ -31,6 +32,7 @@ func TestUserStatus(t *testing.T) {
 		require.ErrorContains(t, err, "cannot suspend yourself")
 	})
 
+	//nolint:paralleltest
 	t.Run("StatusOther", func(t *testing.T) {
 		require.Equal(t, otherUser.Status, codersdk.UserStatusActive, "start as active")
 

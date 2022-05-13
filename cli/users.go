@@ -3,10 +3,11 @@ package cli
 import (
 	"time"
 
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func users() *cobra.Command {
