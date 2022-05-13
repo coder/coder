@@ -83,10 +83,12 @@ type authObjectKey struct{}
 type RBACObject struct {
 	Object rbac.Object
 
+	// WithOwner will set the Object.Owner field based on the request.
+	// This allows the Owner field to be set dynamically based on the context
+	// of the request.
 	WithOwner func(r *http.Request) uuid.UUID
 }
 
-// APIKey returns the API key from the ExtractAPIKey handler.
 func rbacObject(r *http.Request) RBACObject {
 	obj, ok := r.Context().Value(authObjectKey{}).(RBACObject)
 	if !ok {
