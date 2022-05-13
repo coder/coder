@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func TestPermissionCheck(t *testing.T) {
+func TestAuthorization(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, nil)
@@ -28,29 +28,29 @@ func TestPermissionCheck(t *testing.T) {
 		myself            = "read-myself"
 		myWorkspace       = "read-my-workspace"
 	)
-	params := map[string]codersdk.UserPermissionCheck{
+	params := map[string]codersdk.UserAuthorization{
 		allUsers: {
-			Object: codersdk.UserPermissionCheckObject{
+			Object: codersdk.UserAuthorizationObject{
 				ResourceType: "users",
 			},
 			Action: "read",
 		},
 		myself: {
-			Object: codersdk.UserPermissionCheckObject{
+			Object: codersdk.UserAuthorizationObject{
 				ResourceType: "users",
 				OwnerID:      "me",
 			},
 			Action: "read",
 		},
 		myWorkspace: {
-			Object: codersdk.UserPermissionCheckObject{
+			Object: codersdk.UserAuthorizationObject{
 				ResourceType: "workspaces",
 				OwnerID:      "me",
 			},
 			Action: "read",
 		},
 		readOrgWorkspaces: {
-			Object: codersdk.UserPermissionCheckObject{
+			Object: codersdk.UserAuthorizationObject{
 				ResourceType:   "workspaces",
 				OrganizationID: admin.OrganizationID.String(),
 			},
@@ -61,7 +61,7 @@ func TestPermissionCheck(t *testing.T) {
 	testCases := []struct {
 		Name   string
 		Client *codersdk.Client
-		Check  codersdk.UserPermissionCheckResponse
+		Check  codersdk.UserAuthorizationResponse
 	}{
 		{
 			Name:   "Admin",
@@ -90,7 +90,7 @@ func TestPermissionCheck(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			resp, err := c.Client.CheckPermissions(context.Background(), codersdk.UserPermissionCheckRequest{Checks: params})
+			resp, err := c.Client.CheckPermissions(context.Background(), codersdk.UserAuthorizationRequest{Checks: params})
 			require.NoError(t, err, "check perms")
 			require.Equal(t, resp, c.Check)
 		})

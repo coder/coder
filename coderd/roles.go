@@ -40,12 +40,12 @@ func (api *api) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params codersdk.UserPermissionCheckRequest
+	var params codersdk.UserAuthorizationRequest
 	if !httpapi.Read(rw, r, &params) {
 		return
 	}
 
-	response := make(codersdk.UserPermissionCheckResponse)
+	response := make(codersdk.UserAuthorizationResponse)
 	for k, v := range params.Checks {
 		if v.Object.ResourceType == "" {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{

@@ -316,13 +316,13 @@ export interface User {
 }
 
 // From codersdk/users.go:95:6
-export interface UserPermissionCheck {
-  readonly object: UserPermissionCheckObject
+export interface UserAuthorization {
+  readonly object: UserAuthorizationObject
   readonly action: string
 }
 
 // From codersdk/users.go:111:6
-export interface UserPermissionCheckObject {
+export interface UserAuthorizationObject {
   readonly resource_type: string
   readonly owner_id?: string
   readonly organization_id?: string
@@ -330,12 +330,12 @@ export interface UserPermissionCheckObject {
 }
 
 // From codersdk/users.go:84:6
-export interface UserPermissionCheckRequest {
-  readonly checks: Record<string, UserPermissionCheck>
+export interface UserAuthorizationRequest {
+  readonly checks: Record<string, UserAuthorization>
 }
 
 // From codersdk/users.go:79:6
-export type UserPermissionCheckResponse = Record<string, boolean>
+export type UserAuthorizationResponse = Record<string, boolean>
 
 // From codersdk/users.go:74:6
 export interface UserRoles {

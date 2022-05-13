@@ -76,23 +76,23 @@ type UserRoles struct {
 	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
 }
 
-type UserPermissionCheckResponse map[string]bool
+type UserAuthorizationResponse map[string]bool
 
-// UserPermissionCheckRequest is a structure instead of a map because
+// UserAuthorizationRequest is a structure instead of a map because
 // go-playground/validate can only validate structs. If you attempt to pass
 // a map into 'httpapi.Read', you will get an invalid type error.
-type UserPermissionCheckRequest struct {
+type UserAuthorizationRequest struct {
 	// Checks is a map keyed with an arbitrary string to a permission check.
 	// The key can be any string that is helpful to the caller, and allows
 	// multiple permission checks to be run in a single request.
 	// The key ensures that each permission check has the same key in the
 	// response.
-	Checks map[string]UserPermissionCheck `json:"checks"`
+	Checks map[string]UserAuthorization `json:"checks"`
 }
 
-// UserPermissionCheck is used to check if a user can do a given action
+// UserAuthorization is used to check if a user can do a given action
 // to a given set of objects.
-type UserPermissionCheck struct {
+type UserAuthorization struct {
 	// Object can represent a "set" of objects, such as:
 	//	- All workspaces in an organization
 	//	- All workspaces owned by me
@@ -103,12 +103,12 @@ type UserPermissionCheck struct {
 	// owned by 'me', try to also add an 'OrganizationID' to the settings.
 	// Omitting the 'OrganizationID' could produce the incorrect value, as
 	// workspaces have both `user` and `organization` owners.
-	Object UserPermissionCheckObject `json:"object"`
+	Object UserAuthorizationObject `json:"object"`
 	// Action can be 'create', 'read', 'update', or 'delete'
 	Action string `json:"action"`
 }
 
-type UserPermissionCheckObject struct {
+type UserAuthorizationObject struct {
 	// ResourceType is the name of the resource.
 	// './coderd/rbac/object.go' has the list of valid resource types.
 	ResourceType string `json:"resource_type"`

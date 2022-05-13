@@ -68,7 +68,7 @@ export const authMachine =
             data: TypesGen.User
           }
           checkPermissions: {
-            data: TypesGen.UserPermissionCheckResponse
+            data: TypesGen.UserAuthorizationResponse
           }
         },
       },
