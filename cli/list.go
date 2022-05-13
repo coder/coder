@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
@@ -108,14 +109,18 @@ func list() *cobra.Command {
 					durationDisplay = durationDisplay[:len(durationDisplay)-2]
 				}
 
-				autostartDisplay := "not enabled"
+				autostartDisplay := "-"
 				if workspace.AutostartSchedule != "" {
-					autostartDisplay = workspace.AutostartSchedule
+					if sched, err := schedule.Weekly(workspace.AutostartSchedule); err == nil {
+						autostartDisplay = sched.Cron()
+					}
 				}
 
-				autostopDisplay := "not enabled"
+				autostopDisplay := "-"
 				if workspace.AutostopSchedule != "" {
-					autostopDisplay = workspace.AutostopSchedule
+					if sched, err := schedule.Weekly(workspace.AutostopSchedule); err == nil {
+						autostopDisplay = sched.Cron()
+					}
 				}
 
 				user := usersByID[workspace.OwnerID]
