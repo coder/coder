@@ -34,12 +34,12 @@ var defaultParser = cron.NewParser(parserFormat)
 //  us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
 //  fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //  // Output: 2022-04-04T14:30:00Z
-func Weekly(spec string) (*Schedule, error) {
-	if err := validateWeeklySpec(spec); err != nil {
+func Weekly(raw string) (*Schedule, error) {
+	if err := validateWeeklySpec(raw); err != nil {
 		return nil, xerrors.Errorf("validate weekly schedule: %w", err)
 	}
 
-	specSched, err := defaultParser.Parse(spec)
+	specSched, err := defaultParser.Parse(raw)
 	if err != nil {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
 	}
@@ -49,9 +49,18 @@ func Weekly(spec string) (*Schedule, error) {
 		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
 
+	tz := "UTC"
+	cron := raw
+	if strings.HasPrefix(raw, "CRON_TZ=") {
+		tz = strings.TrimPrefix(strings.Fields(raw)[0], "CRON_TZ=")
+		cron = strings.Join(strings.Fields(raw)[1:], " ")
+	}
+
 	cronSched := &Schedule{
 		sched: schedule,
-		spec:  spec,
+		raw:   raw,
+		tz:    tz,
+		cron:  cron,
 	}
 	return cronSched, nil
 }
@@ -61,12 +70,25 @@ func Weekly(spec string) (*Schedule, error) {
 type Schedule struct {
 	sched *cron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
-	spec string
+	raw  string
+	tz   string
+	cron string
 }
 
 // String serializes the schedule to its original human-friendly format.
 func (s Schedule) String() string {
-	return s.spec
+	return s.raw
+}
+
+// Timezone returns the timezone for the schedule.
+func (s Schedule) Timezone() string {
+	return s.tz
+}
+
+// Cron returns the cron spec for the schedule with the leading CRON_TZ
+// stripped, if present.
+func (s Schedule) Cron() string {
+	return s.cron
 }
 
 // Next returns the next time in the schedule relative to t.
