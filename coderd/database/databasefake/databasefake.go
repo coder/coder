@@ -1061,6 +1061,22 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 	return resources, nil
 }
 
+func (q *fakeQuerier) GetWorkspaces(_ context.Context, deleted bool) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if workspace.Deleted == deleted {
+			workspaces = append(workspaces, workspace)
+		}
+	}
+	if len(workspaces) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaces, nil
+}
+
 func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

@@ -1,3 +1,6 @@
+-- name: GetWorkspaces :many
+SELECT * FROM workspaces WHERE deleted = $1;
+
 -- name: GetWorkspaceByID :one
 SELECT
 	*
