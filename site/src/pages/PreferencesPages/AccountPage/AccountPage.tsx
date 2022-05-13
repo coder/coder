@@ -7,7 +7,7 @@ import { XServiceContext } from "../../../xServices/StateContext"
 
 export const Language = {
   title: "Account",
-  description: "Update your display name, email, and username.",
+  description: "Update your email and username.",
   unknownError: "Oops, an unknown error occurred.",
 }
 
