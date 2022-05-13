@@ -3115,6 +3115,47 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
+const getWorkspaceResources = `-- name: GetWorkspaceResources :many
+SELECT
+	workspace_resources.id, workspace_resources.created_at, workspace_resources.job_id, workspace_resources.transition, workspace_resources.type, workspace_resources.name
+FROM
+	workspace_resources
+INNER JOIN workspace_builds
+	ON workspace_resources.job_id = workspace_builds.job_id
+WHERE
+  workspace_builds.after_id IS NULL
+`
+
+func (q *sqlQuerier) GetWorkspaceResources(ctx context.Context) ([]WorkspaceResource, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceResources)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceResource
+	for rows.Next() {
+		var i WorkspaceResource
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.JobID,
+			&i.Transition,
+			&i.Type,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
 	id, created_at, job_id, transition, type, name

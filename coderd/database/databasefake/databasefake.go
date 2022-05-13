@@ -1044,6 +1044,26 @@ func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) 
 	return database.WorkspaceResource{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceResources(ctx context.Context) ([]database.WorkspaceResource, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	resources := make([]database.WorkspaceResource, 0)
+	for _, workspaceBuild := range q.workspaceBuilds {
+		if !workspaceBuild.AfterID.Valid {
+			rs, err := q.GetWorkspaceResourcesByJobID(ctx, workspaceBuild.JobID)
+			if err != nil {
+				return nil, err
+			}
+			resources = append(resources, rs...)
+		}
+	}
+	if len(resources) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return resources, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

@@ -69,6 +69,7 @@ type querier interface {
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
+	GetWorkspaceResources(ctx context.Context) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, deleted bool) ([]Workspace, error)
 	GetWorkspacesAutostartAutostop(ctx context.Context) ([]Workspace, error)
