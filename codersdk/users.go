@@ -7,9 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // Me is used as a replacement for your own ID.

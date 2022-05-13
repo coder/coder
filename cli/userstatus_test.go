@@ -5,12 +5,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/codersdk"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestUserStatus(t *testing.T) {

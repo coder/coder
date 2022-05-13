@@ -22,10 +22,10 @@ func users() *cobra.Command {
 	return cmd
 }
 
-// DisplayUsers will return a table displaying all users passed in.
+// displayUsers will return a table displaying all users passed in.
 // filterColumns must be a subset of the user fields and will determine which
 // columns to display
-func DisplayUsers(filterColumns []string, users ...codersdk.User) string {
+func displayUsers(filterColumns []string, users ...codersdk.User) string {
 	tableWriter := cliui.Table()
 	header := table.Row{"ID", "Username", "Email", "Created At", "Status"}
 	tableWriter.AppendHeader(header)

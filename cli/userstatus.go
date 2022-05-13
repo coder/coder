@@ -63,7 +63,7 @@ func setUserStatus(sdkStatus codersdk.UserStatus) *cobra.Command {
 			}
 
 			// Display the user
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), DisplayUsers(columns, user))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), displayUsers(columns, user))
 
 			// User status is already set to this
 			if user.Status == sdkStatus {

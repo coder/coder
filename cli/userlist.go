@@ -25,7 +25,7 @@ func userList() *cobra.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), DisplayUsers(columns, users...))
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), displayUsers(columns, users...))
 			return err
 		},
 	}
