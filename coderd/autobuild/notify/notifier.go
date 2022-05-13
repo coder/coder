@@ -64,10 +64,15 @@ func (n *Notifier) pollOnce(tick time.Time) {
 
 	timeRemaining := deadline.Sub(tick)
 	for _, tock := range n.countdown {
-		if timeRemaining <= tock && !n.notifiedAt[tock] {
-			callback()
-			n.notifiedAt[tock] = true
+		if n.notifiedAt[tock] {
+			continue
 		}
+		if timeRemaining > tock {
+			continue
+		}
+		callback()
+		n.notifiedAt[tock] = true
+		return
 	}
 }
 

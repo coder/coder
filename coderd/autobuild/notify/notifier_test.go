@@ -27,7 +27,7 @@ func TestNotifier(t *testing.T) {
 		{
 			Name:              "zero deadline",
 			Countdown:         durations(),
-			Ticks:             ticks(now, 0),
+			Ticks:             fakeTicker(now, time.Second, 0),
 			ConditionDeadline: time.Time{},
 			NumConditions:     1,
 			NumCallbacks:      0,
@@ -35,7 +35,7 @@ func TestNotifier(t *testing.T) {
 		{
 			Name:              "no calls",
 			Countdown:         durations(),
-			Ticks:             ticks(now, 0),
+			Ticks:             fakeTicker(now, time.Second, 0),
 			ConditionDeadline: now,
 			NumConditions:     1,
 			NumCallbacks:      0,
@@ -43,15 +43,15 @@ func TestNotifier(t *testing.T) {
 		{
 			Name:              "exactly one call",
 			Countdown:         durations(time.Second),
-			Ticks:             ticks(now, 2),
-			ConditionDeadline: now.Add(2 * time.Second),
+			Ticks:             fakeTicker(now, time.Second, 1),
+			ConditionDeadline: now.Add(time.Second),
 			NumConditions:     2,
 			NumCallbacks:      1,
 		},
 		{
 			Name:              "two calls",
 			Countdown:         durations(4*time.Second, 2*time.Second),
-			Ticks:             ticks(now, 5),
+			Ticks:             fakeTicker(now, time.Second, 5),
 			ConditionDeadline: now.Add(5 * time.Second),
 			NumConditions:     6,
 			NumCallbacks:      2,
@@ -59,9 +59,17 @@ func TestNotifier(t *testing.T) {
 		{
 			Name:              "wrong order should not matter",
 			Countdown:         durations(2*time.Second, 4*time.Second),
-			Ticks:             ticks(now, 5),
+			Ticks:             fakeTicker(now, time.Second, 5),
 			ConditionDeadline: now.Add(5 * time.Second),
 			NumConditions:     6,
+			NumCallbacks:      2,
+		},
+		{
+			Name:              "ssh autostop notify",
+			Countdown:         durations(5*time.Minute, time.Minute),
+			Ticks:             fakeTicker(now, 30*time.Second, 120),
+			ConditionDeadline: now.Add(30 * time.Minute),
+			NumConditions:     121,
 			NumCallbacks:      2,
 		},
 	}
@@ -91,6 +99,7 @@ func TestNotifier(t *testing.T) {
 			close(ch)
 			wg.Wait()
 			require.Equal(t, testCase.NumCallbacks, numCalls.Load())
+			require.Equal(t, testCase.NumConditions, numConditions.Load())
 		})
 	}
 }
@@ -99,11 +108,10 @@ func durations(ds ...time.Duration) []time.Duration {
 	return ds
 }
 
-func ticks(t time.Time, n int) []time.Time {
-	ts := make([]time.Time, n+1)
-	ts = append(ts, t)
-	for i := 0; i < n; i++ {
-		ts = append(ts, t.Add(time.Duration(n)*time.Second))
+func fakeTicker(t time.Time, d time.Duration, n int) []time.Time {
+	ts := make([]time.Time, 0)
+	for i := 1; i <= n; i++ {
+		ts = append(ts, t.Add(time.Duration(n)*d))
 	}
 	return ts
 }
