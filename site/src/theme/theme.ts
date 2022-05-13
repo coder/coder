@@ -7,9 +7,6 @@ import { props } from "./props"
 import { typography } from "./typography"
 
 const makeTheme = (palette: CustomPalette) => {
-  // Grab defaults to re-use in overrides
-  const { breakpoints } = createMuiTheme()
-
   return createMuiTheme({
     palette,
     typography,
@@ -17,7 +14,7 @@ const makeTheme = (palette: CustomPalette) => {
       borderRadius,
     },
     props,
-    overrides: getOverrides(palette, breakpoints) as Overrides,
+    overrides: getOverrides(palette) as Overrides,
   })
 }
 

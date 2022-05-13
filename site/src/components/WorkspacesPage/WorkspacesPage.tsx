@@ -1,4 +1,5 @@
-import { makeStyles } from "@material-ui/core"
+import { Button } from "@material-ui/core"
+import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import React from "react"
 import { Margins } from "../../components/Margins/Margins"
@@ -19,6 +20,7 @@ export const WorkspacesPage: React.FC = () => {
     <Stack spacing={4}>
       <Margins>
         <img className={styles.boxes} alt="boxes" src="/boxes.png" />
+        <Button>test</Button>
       </Margins>
     </Stack>
   )
