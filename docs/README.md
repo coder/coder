@@ -16,7 +16,7 @@ Provision remote development environments with Terraform.
 
 - Automate development environments for Linux, Windows, and macOS
 - Start writing code with a single command
-- Get started quickly using one of the [examples](./examples) provided
+- Get started quickly using one of the [examples](../examples) provided
 
 ## Installing Coder
 
