@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/monitoring"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -145,10 +146,16 @@ func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersd
 		AzureCertificates:    options.AzureCertificates,
 		GithubOAuth2Config:   options.GithubOAuth2Config,
 		GoogleTokenValidator: options.GoogleTokenValidator,
-		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-		TURNServer:           turnServer,
-		APIRateLimit:         options.APIRateLimit,
-		Authorizer:           options.Authorizer,
+		Monitor: monitoring.New(ctx, &monitoring.Options{
+			Database:        db,
+			Logger:          slogtest.Make(t, nil),
+			RefreshInterval: time.Minute,
+			TelemetryLevel:  monitoring.TelemetryLevelNone,
+		}),
+		SSHKeygenAlgorithm: options.SSHKeygenAlgorithm,
+		TURNServer:         turnServer,
+		APIRateLimit:       options.APIRateLimit,
+		Authorizer:         options.Authorizer,
 	})
 	t.Cleanup(func() {
 		cancelFunc()

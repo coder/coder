@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/monitoring"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
@@ -47,6 +48,7 @@ type Options struct {
 	GoogleTokenValidator *idtoken.Validator
 	GithubOAuth2Config   *GithubOAuth2Config
 	ICEServers           []webrtc.ICEServer
+	Monitor              *monitoring.Monitor
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
@@ -91,7 +93,7 @@ func New(options *Options) (http.Handler, func()) {
 				next.ServeHTTP(middleware.NewWrapResponseWriter(w, r.ProtoMajor), r)
 			})
 		},
-		httpmw.Prometheus,
+		httpmw.Prometheus(options.Monitor),
 		chitrace.Middleware(),
 	)
 

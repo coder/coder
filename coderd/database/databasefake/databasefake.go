@@ -1081,6 +1081,7 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid
 	return resources, nil
 }
 
+// revive:disable-next-line:flag-parameter
 func (q *fakeQuerier) GetWorkspaces(_ context.Context, deleted bool) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/monitoring"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -73,6 +74,7 @@ func server() *cobra.Command {
 		oauth2GithubClientSecret         string
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowSignups         bool
+		telemetryLevelRaw                string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
 		tlsClientAuth                    string
@@ -192,6 +194,11 @@ func server() *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
+			telemetryLevel, err := monitoring.ParseTelemetryLevel(telemetryLevelRaw)
+			if err != nil {
+				return xerrors.Errorf("parse telemetry level %s: %w", telemetryLevelRaw, err)
+			}
+
 			turnServer, err := turnconn.New(&turn.RelayAddressGeneratorStatic{
 				RelayAddress: net.ParseIP(turnRelayAddress),
 				Address:      turnRelayAddress,
@@ -248,6 +255,13 @@ func server() *cobra.Command {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
 			}
+
+			options.Monitor = monitoring.New(cmd.Context(), &monitoring.Options{
+				Database:        options.Database,
+				Logger:          options.Logger,
+				RefreshInterval: time.Hour,
+				TelemetryLevel:  telemetryLevel,
+			})
 
 			handler, closeCoderd := coderd.New(options)
 			client := codersdk.New(localURL)
@@ -461,6 +475,8 @@ func server() *cobra.Command {
 		"Specifies organizations the user must be a member of to authenticate with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
+	cliflag.StringVarP(root.Flags(), &telemetryLevelRaw, "telemetry", "", "CODER_TELEMETRY", "all", "The level of telemetry to send. "+
+		`Accepted values are "all", "core", or "none"`)
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
 	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
 		"Specifies the path to the certificate for TLS. It requires a PEM-encoded file. "+
@@ -569,16 +585,16 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 func printLogo(cmd *cobra.Command, spooky bool) {
 	if spooky {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), `
-		▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███  
+		▄████▄   ▒█████  ▓█████▄ ▓█████  ██▀███
 		▒██▀ ▀█  ▒██▒  ██▒▒██▀ ██▌▓█   ▀ ▓██ ▒ ██▒
 		▒▓█    ▄ ▒██░  ██▒░██   █▌▒███   ▓██ ░▄█ ▒
-		▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄  
+		▒▓▓▄ ▄██▒▒██   ██░░▓█▄   ▌▒▓█  ▄ ▒██▀▀█▄
 		▒ ▓███▀ ░░ ████▓▒░░▒████▓ ░▒████▒░██▓ ▒██▒
 		░ ░▒ ▒  ░░ ▒░▒░▒░  ▒▒▓  ▒ ░░ ▒░ ░░ ▒▓ ░▒▓░
 		  ░  ▒     ░ ▒ ▒░  ░ ▒  ▒  ░ ░  ░  ░▒ ░ ▒░
-		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░ 
-		░ ░          ░ ░     ░       ░  ░   ░     
-		░                  ░                      		
+		░        ░ ░ ░ ▒   ░ ░  ░    ░     ░░   ░
+		░ ░          ░ ░     ░       ░  ░   ░
+		░                  ░
 
 `)
 		return

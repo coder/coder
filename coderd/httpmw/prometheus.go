@@ -9,29 +9,30 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/coder/coder/coderd/monitoring"
 )
 
 var (
-	requestsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
+	requestsProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "requests_processed_total",
 		Help:      "The total number of processed API requests",
 	}, []string{"code", "method", "path"})
-	requestsConcurrent = promauto.NewGauge(prometheus.GaugeOpts{
+	requestsConcurrent = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "concurrent_requests",
 		Help:      "The number of concurrent API requests",
 	})
-	websocketsConcurrent = promauto.NewGauge(prometheus.GaugeOpts{
+	websocketsConcurrent = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "concurrent_websockets",
 		Help:      "The total number of concurrent API websockets",
 	})
-	websocketsDist = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	websocketsDist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "websocket_durations_ms",
@@ -45,7 +46,7 @@ var (
 			durationToFloatMs(30 * time.Hour),
 		},
 	}, []string{"path"})
-	requestsDist = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	requestsDist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "request_latencies_ms",
@@ -58,45 +59,55 @@ func durationToFloatMs(d time.Duration) float64 {
 	return float64(d.Milliseconds())
 }
 
-func Prometheus(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var (
-			start  = time.Now()
-			method = r.Method
-			rctx   = chi.RouteContext(r.Context())
-		)
-		sw, ok := w.(chimw.WrapResponseWriter)
-		if !ok {
-			panic("dev error: http.ResponseWriter is not chimw.WrapResponseWriter")
-		}
+func Prometheus(monitor *monitoring.Monitor) func(http.Handler) http.Handler {
+	monitor.MustRegister(
+		monitoring.TelemetryLevelNone,
+		requestsProcessed,
+		requestsConcurrent,
+		websocketsConcurrent,
+		requestsDist,
+	)
 
-		var (
-			dist     *prometheus.HistogramVec
-			distOpts []string
-		)
-		// We want to count websockets separately.
-		if isWebsocketUpgrade(r) {
-			websocketsConcurrent.Inc()
-			defer websocketsConcurrent.Dec()
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var (
+				start  = time.Now()
+				method = r.Method
+				rctx   = chi.RouteContext(r.Context())
+			)
+			sw, ok := w.(chimw.WrapResponseWriter)
+			if !ok {
+				panic("dev error: http.ResponseWriter is not chimw.WrapResponseWriter")
+			}
 
-			dist = websocketsDist
-		} else {
-			requestsConcurrent.Inc()
-			defer requestsConcurrent.Dec()
+			var (
+				dist     *prometheus.HistogramVec
+				distOpts []string
+			)
+			// We want to count websockets separately.
+			if isWebsocketUpgrade(r) {
+				websocketsConcurrent.Inc()
+				defer websocketsConcurrent.Dec()
 
-			dist = requestsDist
-			distOpts = []string{method}
-		}
+				dist = websocketsDist
+			} else {
+				requestsConcurrent.Inc()
+				defer requestsConcurrent.Dec()
 
-		next.ServeHTTP(w, r)
+				dist = requestsDist
+				distOpts = []string{method}
+			}
 
-		path := rctx.RoutePattern()
-		distOpts = append(distOpts, path)
-		statusStr := strconv.Itoa(sw.Status())
+			next.ServeHTTP(w, r)
 
-		requestsProcessed.WithLabelValues(statusStr, method, path).Inc()
-		dist.WithLabelValues(distOpts...).Observe(float64(time.Since(start)) / 1e6)
-	})
+			path := rctx.RoutePattern()
+			distOpts = append(distOpts, path)
+			statusStr := strconv.Itoa(sw.Status())
+
+			requestsProcessed.WithLabelValues(statusStr, method, path).Inc()
+			dist.WithLabelValues(distOpts...).Observe(float64(time.Since(start)) / 1e6)
+		})
+	}
 }
 
 func isWebsocketUpgrade(r *http.Request) bool {
