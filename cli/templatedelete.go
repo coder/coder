@@ -12,7 +12,7 @@ import (
 
 func templateDelete() *cobra.Command {
 	return &cobra.Command{
-		Use:   "delete [name]",
+		Use:   "delete [name...]",
 		Short: "Delete templates.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var (
