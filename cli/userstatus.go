@@ -3,11 +3,11 @@ package cli
 import (
 	"fmt"
 
-	"github.com/coder/coder/codersdk"
-
-	"github.com/coder/coder/cli/cliui"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func userStatus() *cobra.Command {
