@@ -8,6 +8,9 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetUsersByIDs :many
+SELECT * FROM users WHERE id = ANY(@ids :: uuid [ ]);
+
 -- name: GetUserByEmailOrUsername :one
 SELECT
 	*
