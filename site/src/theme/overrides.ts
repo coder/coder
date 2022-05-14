@@ -1,8 +1,8 @@
-import { emptyBoxShadow, lightButtonShadow } from "./constants"
-import { CustomPalette } from "./palettes"
+import { PaletteOptions } from "@material-ui/core/styles/createPalette"
+import { MONOSPACE_FONT_FAMILY } from "./constants"
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const getOverrides = (palette: CustomPalette) => {
+export const getOverrides = (palette: PaletteOptions) => {
   return {
     MuiAvatar: {
       root: {
@@ -11,86 +11,49 @@ export const getOverrides = (palette: CustomPalette) => {
         fontSize: 24,
       },
     },
-    // MuiButton: {
-    //   root: {
-    //     minHeight: 40,
-    //     paddingLeft: 20,
-    //     paddingRight: 20,
-    //     fontWeight: 500,
-
-    //     "& .MuiSvgIcon-root": {
-    //       verticalAlign: "middle",
-    //     },
-    //   },
-
-    //   contained: {
-    //     backgroundColor: palette.hero.button,
-    //     color: palette.primary.contrastText,
-    //     boxShadow: containedButtonShadow,
-    //     "&:hover": {
-    //       backgroundColor: darken(palette.hero.button, 0.25),
-    //     },
-    //     "&$disabled": {
-    //       color: fade(palette.text.disabled, 0.5),
-    //     },
-    //   },
-    //   containedPrimary: {
-    //     boxShadow: containedButtonShadow,
-    //   },
-    //   containedSecondary: {
-    //     boxShadow: containedButtonShadow,
-    //   },
-
-    //   outlined: {
-    //     borderColor: palette.action.disabled,
-    //     borderWidth: buttonBorderWidth,
-    //     "&:hover": {
-    //       color: palette.primary.main,
-    //       borderColor: palette.primary.main,
-    //       borderWidth: buttonBorderWidth,
-    //     },
-    //     "&$disabled": {
-    //       color: fade(palette.text.disabled, 0.5),
-    //     },
-    //   },
-    //   outlinedPrimary: {
-    //     borderColor: palette.primary.main,
-    //     borderWidth: buttonBorderWidth,
-    //     "&:hover": {
-    //       borderWidth: buttonBorderWidth,
-    //     },
-    //   },
-    //   outlinedSecondary: {
-    //     borderColor: palette.secondary.main,
-    //     borderWidth: buttonBorderWidth,
-    //     "&:hover": {
-    //       color: palette.secondary.main,
-    //       borderWidth: buttonBorderWidth,
-    //     },
-    //   },
-
-    //   text: {
-    //     "&$disabled": {
-    //       color: fade(palette.text.disabled, 0.5),
-    //     },
-    //   },
-
-    //   sizeSmall: {
-    //     minHeight: 32,
-    //     paddingLeft: 10,
-    //     paddingRight: 10,
-    //     letterSpacing: 1.2,
-    //     fontSize: 13,
-
-    //     "&.MuiButton-outlined": {
-    //       borderWidth: 1,
-    //     },
-    //   },
-    //   sizeLarge: {
-    //     minHeight: 46,
-    //     paddingLeft: spacing * 3,
-    //     paddingRight: spacing * 3,
-    //   },
-    // },
+    MuiButton: {
+      root: {
+        fontWeight: "regular",
+        fontFamily: MONOSPACE_FONT_FAMILY,
+        fontSize: 16,
+        textTransform: "none",
+        letterSpacing: "none",
+        border: `1px solid ${palette.divider}`,
+      },
+      contained: {
+        boxShadow: "none",
+      },
+    },
+    MuiTableHead: {
+      root: {
+        fontFamily: MONOSPACE_FONT_FAMILY,
+        textTransform: "uppercase",
+      },
+    },
+    MuiTable: {
+      root: {
+        // Gives the appearance of a border!
+        borderRadius: 2,
+        border: `1px solid ${palette.divider}`,
+      },
+    },
+    MuiTableCell: {
+      head: {
+        color: palette.text?.secondary,
+      },
+      root: {
+        fontFamily: MONOSPACE_FONT_FAMILY,
+        fontSize: 16,
+        background: palette.background?.paper,
+        borderBottom: `1px solid ${palette.divider}`,
+        padding: 8,
+        "&:first-child": {
+          paddingLeft: 32,
+        },
+        "&:last-child": {
+          paddingRight: 32,
+        },
+      },
+    },
   }
 }

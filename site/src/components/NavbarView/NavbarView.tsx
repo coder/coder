@@ -52,7 +52,7 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     alignItems: "center",
     height: navHeight,
-    background: theme.palette.navbar.main,
+    background: theme.palette.background.paper,
     marginTop: 0,
     transition: "margin 150ms ease",
     "@media (display-mode: standalone)": {

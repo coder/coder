@@ -2,13 +2,13 @@ import ThemeProvider from "@material-ui/styles/ThemeProvider"
 import { fireEvent, render } from "@testing-library/react"
 import React from "react"
 import { act } from "react-dom/test-utils"
-import { light } from "../../theme"
+import { dark } from "../../theme"
 import { ConfirmDialog, ConfirmDialogProps } from "./ConfirmDialog"
 
 namespace Helpers {
   export const Component: React.FC<ConfirmDialogProps> = (props: ConfirmDialogProps) => {
     return (
-      <ThemeProvider theme={light}>
+      <ThemeProvider theme={dark}>
         <ConfirmDialog {...props} />
       </ThemeProvider>
     )
