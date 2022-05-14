@@ -426,7 +426,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 
 	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace,
-		convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
+		convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -617,9 +617,16 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+	user, err := api.Database.GetUserByID(r.Context(), apiKey.UserID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get user: %s", err),
+		})
+		return
+	}
 
 	httpapi.Write(rw, http.StatusCreated, convertWorkspace(workspace,
-		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template))
+		convertWorkspaceBuild(workspaceBuild, convertProvisionerJob(templateVersionJob)), template, user))
 }
 
 // convertOrganization consumes the database representation and outputs an API friendly representation.

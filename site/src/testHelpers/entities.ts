@@ -124,6 +124,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_name: MockTemplate.name,
   outdated: false,
   owner_id: MockUser.id,
+  owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
   latest_build: MockWorkspaceBuild,

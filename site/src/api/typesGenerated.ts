@@ -85,7 +85,7 @@ export interface CreateUserRequest {
   readonly organization_id: string
 }
 
-// From codersdk/workspaces.go:33:6
+// From codersdk/workspaces.go:34:6
 export interface CreateWorkspaceBuildRequest {
   readonly template_version_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
@@ -289,12 +289,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:95:6
+// From codersdk/workspaces.go:96:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:115:6
+// From codersdk/workspaces.go:116:6
 export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
@@ -355,6 +355,7 @@ export interface Workspace {
   readonly created_at: string
   readonly updated_at: string
   readonly owner_id: string
+  readonly owner_name: string
   readonly template_id: string
   readonly template_name: string
   readonly latest_build: WorkspaceBuild
