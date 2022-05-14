@@ -27,7 +27,7 @@ variable "docker_image" {
   description = "What docker image would you like to use for your workspace?"
   default     = "codercom/enterprise-base:ubuntu"
   validation {
-    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu", "codercom/enterprise-java:ubuntu"], var.docker_image)
+    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu", "codercom/enterprise-intellij:ubuntu"], var.docker_image)
     error_message = "Invalid Docker Image!"
   }
 }
