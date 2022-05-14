@@ -55,5 +55,19 @@ export const getOverrides = (palette: PaletteOptions) => {
         },
       },
     },
+    MuiInputBase: {
+      root: {
+        background: palette.background?.paper,
+        borderRadius: 2,
+      },
+    },
+    MuiOutlinedInput: {
+      root: {
+        borderColor: palette.divider,
+        "&:hover > .MuiOutlinedInput-notchedOutline": {
+          borderColor: palette.divider,
+        },
+      },
+    },
   }
 }

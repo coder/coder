@@ -1,3 +1,4 @@
+import { TextField } from "@material-ui/core"
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
@@ -28,6 +29,7 @@ export const WorkspacesPage: React.FC = () => {
       <Margins>
         <img className={styles.boxes} alt="boxes" src="/boxes.png" />
         <div className={styles.actions}>
+          <TextField placeholder="Search all workspaces" />
           <Button color="primary">Create Workspace</Button>
         </div>
         <Table>
