@@ -242,6 +242,22 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	return users, nil
 }
 
+func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]database.User, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	users := make([]database.User, 0)
+	for _, user := range q.users {
+		for _, id := range ids {
+			if user.ID.String() != id.String() {
+				continue
+			}
+			users = append(users, user)
+		}
+	}
+	return users, nil
+}
+
 func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (database.GetAllUserRolesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

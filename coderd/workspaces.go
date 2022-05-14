@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
@@ -30,21 +31,34 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
+	var (
+		group    errgroup.Group
+		job      database.ProvisionerJob
+		template database.Template
+		owner    database.User
+	)
+	group.Go(func() (err error) {
+		job, err = api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
+		return err
+	})
+	group.Go(func() (err error) {
+		template, err = api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+		return err
+	})
+	group.Go(func() (err error) {
+		owner, err = api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+		return err
+	})
+	err = group.Wait()
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspace build job: %s", err),
+			Message: fmt.Sprintf("fetch resource: %s", err),
 		})
 		return
 	}
-	template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
+
+	httpapi.Write(rw, http.StatusOK,
+		convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
 }
 
 func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
@@ -359,9 +373,11 @@ func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
 func convertWorkspaces(ctx context.Context, db database.Store, workspaces []database.Workspace) ([]codersdk.Workspace, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
+	ownerIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
 		workspaceIDs = append(workspaceIDs, workspace.ID)
 		templateIDs = append(templateIDs, workspace.TemplateID)
+		ownerIDs = append(ownerIDs, workspace.OwnerID)
 	}
 	workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx, workspaceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -376,6 +392,10 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("get templates: %w", err)
+	}
+	users, err := db.GetUsersByIDs(ctx, ownerIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get users: %w", err)
 	}
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
@@ -397,6 +417,10 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 	for _, template := range templates {
 		templateByID[template.ID] = template
 	}
+	userByID := map[uuid.UUID]database.User{}
+	for _, user := range users {
+		userByID[user.ID] = user
+	}
 	jobByID := map[uuid.UUID]database.ProvisionerJob{}
 	for _, job := range jobs {
 		jobByID[job.ID] = job
@@ -413,20 +437,25 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		}
 		job, exists := jobByID[build.JobID]
 		if !exists {
-			return nil, xerrors.Errorf("build job not found for workspace: %q", err)
+			return nil, xerrors.Errorf("build job not found for workspace: %w", err)
+		}
+		user, exists := userByID[workspace.OwnerID]
+		if !exists {
+			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
 		}
 		apiWorkspaces = append(apiWorkspaces,
-			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template))
+			convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, user))
 	}
 	return apiWorkspaces, nil
 }
 
-func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template) codersdk.Workspace {
+func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.WorkspaceBuild, template database.Template, owner database.User) codersdk.Workspace {
 	return codersdk.Workspace{
 		ID:                workspace.ID,
 		CreatedAt:         workspace.CreatedAt,
 		UpdatedAt:         workspace.UpdatedAt,
 		OwnerID:           workspace.OwnerID,
+		OwnerName:         owner.Username,
 		TemplateID:        workspace.TemplateID,
 		LatestBuild:       workspaceBuild,
 		TemplateName:      template.Name,

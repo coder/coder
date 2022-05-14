@@ -76,6 +76,11 @@ export const SignInForm: React.FC<SignInFormProps> = ({
       password: "",
     },
     validationSchema,
+    // The email field has an autoFocus, but users may login with a button click.
+    // This is set to `false` in order to keep the autoFocus, validateOnChange
+    // and Formik experience friendly. Validation will kick in onChange (any
+    // field), or after a submission attempt.
+    validateOnBlur: false,
     onSubmit,
   })
   const getFieldHelpers = getFormHelpers<BuiltInAuthFormValues>(form)
