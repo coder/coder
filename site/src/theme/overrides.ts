@@ -9,6 +9,7 @@ export const getOverrides = (palette: PaletteOptions) => {
         width: 32,
         height: 32,
         fontSize: 24,
+        border: `1px solid ${palette.divider}`,
       },
     },
     MuiButton: {
@@ -22,6 +23,12 @@ export const getOverrides = (palette: PaletteOptions) => {
       },
       contained: {
         boxShadow: "none",
+        color: palette.text?.primary,
+        backgroundColor: "#151515",
+        "&:hover": {
+          boxShadow: "none",
+          backgroundColor: "#000000",
+        },
       },
     },
     MuiTableHead: {
@@ -57,15 +64,13 @@ export const getOverrides = (palette: PaletteOptions) => {
     },
     MuiInputBase: {
       root: {
-        background: palette.background?.paper,
         borderRadius: 2,
       },
     },
     MuiOutlinedInput: {
       root: {
-        borderColor: palette.divider,
-        "&:hover > .MuiOutlinedInput-notchedOutline": {
-          borderColor: palette.divider,
+        "& input:-webkit-autofill": {
+          WebkitBoxShadow: `0 0 0 1000px ${palette.background?.paper} inset`,
         },
       },
     },

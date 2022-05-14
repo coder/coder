@@ -113,7 +113,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
         {authErrorMessage && <FormHelperText error>{Language.authErrorMessage}</FormHelperText>}
         {methodsErrorMessage && <FormHelperText error>{Language.methodsErrorMessage}</FormHelperText>}
         <div className={styles.submitBtn}>
-          <LoadingButton color="primary" loading={isLoading} fullWidth type="submit" variant="contained">
+          <LoadingButton loading={isLoading} fullWidth type="submit" variant="contained">
             {isLoading ? "" : Language.passwordSignIn}
           </LoadingButton>
         </div>
@@ -121,7 +121,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
       {authMethods?.github && (
         <div className={styles.submitBtn}>
           <Link href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(redirectTo)}`}>
-            <Button color="primary" disabled={isLoading} fullWidth type="submit" variant="contained">
+            <Button disabled={isLoading} fullWidth type="submit" variant="contained">
               {Language.githubSignIn}
             </Button>
           </Link>

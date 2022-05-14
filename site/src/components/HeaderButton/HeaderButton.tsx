@@ -15,7 +15,6 @@ export const HeaderButton: React.FC<HeaderButtonProps> = (props) => {
     <Button
       className={styles.pageButton}
       variant="contained"
-      color="primary"
       onClick={(event: React.MouseEvent): void => {
         if (props.onClick) {
           props.onClick(event.nativeEvent)

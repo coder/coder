@@ -1,4 +1,4 @@
-import { TextField } from "@material-ui/core"
+import { Avatar, Theme } from "@material-ui/core"
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
@@ -6,12 +6,15 @@ import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import useTheme from "@material-ui/styles/useTheme"
 import { useMachine } from "@xstate/react"
 import React from "react"
+import { Link } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
+import { firstLetter } from "../../util/firstLetter"
 import { getTimeSince } from "../../util/time"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 
@@ -22,15 +25,13 @@ export const Language = {
 export const WorkspacesPage: React.FC = () => {
   const styles = useStyles()
   const [workspacesState] = useMachine(workspacesMachine)
-  const theme = useTheme()
+  const theme: Theme = useTheme()
 
   return (
     <Stack spacing={4}>
       <Margins>
-        <img className={styles.boxes} alt="boxes" src="/boxes.png" />
         <div className={styles.actions}>
-          <TextField placeholder="Search all workspaces" />
-          <Button color="primary">Create Workspace</Button>
+          <Button startIcon={<AddCircleOutline />}>Create Workspace</Button>
         </div>
         <Table>
           <TableHead>
@@ -46,11 +47,29 @@ export const WorkspacesPage: React.FC = () => {
             {workspacesState.context.workspaces?.map((workspace) => (
               <TableRow key={workspace.id} className={styles.workspaceRow}>
                 <TableCell>
-                  <b>{workspace.name}</b>
+                  <div className={styles.workspaceName}>
+                    <Avatar variant="square" className={styles.workspaceAvatar}>
+                      {firstLetter(workspace.name)}
+                    </Avatar>
+                    <Link to={`/workspaces/${workspace.id}`} className={styles.workspaceLink}>
+                      <b>{workspace.name}</b>
+                      <span>{workspace.owner_name}</span>
+                    </Link>
+                  </div>
                 </TableCell>
                 <TableCell>{workspace.template_name}</TableCell>
-                <TableCell>{workspace.latest_build.template_version_id}</TableCell>
-                <TableCell>{getTimeSince(new Date(workspace.latest_build.created_at))} ago</TableCell>
+                <TableCell>
+                  {workspace.outdated ? (
+                    <span style={{ color: theme.palette.error.main }}>outdated</span>
+                  ) : (
+                    <span style={{ color: theme.palette.text.secondary }}>up to date</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <span style={{ color: theme.palette.text.secondary }}>
+                    {getTimeSince(new Date(workspace.latest_build.created_at))} ago
+                  </span>
+                </TableCell>
                 <TableCell>{getStatus(theme, workspace.latest_build)}</TableCell>
               </TableRow>
             ))}
@@ -61,7 +80,7 @@ export const WorkspacesPage: React.FC = () => {
   )
 }
 
-const getStatus = (theme: any, build: WorkspaceBuild): JSX.Element => {
+const getStatus = (theme: Theme, build: WorkspaceBuild): JSX.Element => {
   let status = ""
   let color = ""
   const inProgress = build.job.status === "running" || build.job.status === "canceling"
@@ -89,21 +108,43 @@ const getStatus = (theme: any, build: WorkspaceBuild): JSX.Element => {
 
 const useStyles = makeStyles((theme) => ({
   actions: {
-    marginTop: theme.spacing(6),
-    marginBottom: theme.spacing(4),
-  },
-  boxes: {
-    position: "absolute",
-    pointerEvents: "none",
-    top: "0%",
-    left: "50%",
-    transform: "translateX(-50%)",
-    zIndex: -1,
+    marginTop: theme.spacing(3),
+    marginBottom: theme.spacing(3),
+    display: "flex",
+    height: theme.spacing(6),
+
+    "& button": {
+      marginLeft: "auto",
+    },
   },
   workspaceRow: {
     "& > td": {
       paddingTop: theme.spacing(2),
       paddingBottom: theme.spacing(2),
+    },
+  },
+  workspaceAvatar: {
+    borderRadius: 2,
+    marginRight: theme.spacing(1),
+    width: 24,
+    height: 24,
+    fontSize: 16,
+  },
+  workspaceName: {
+    display: "flex",
+    alignItems: "center",
+  },
+  workspaceLink: {
+    display: "flex",
+    flexDirection: "column",
+    color: theme.palette.text.primary,
+    textDecoration: "none",
+    "&:hover": {
+      textDecoration: "underline",
+    },
+    "& span": {
+      fontSize: 12,
+      color: theme.palette.text.secondary,
     },
   },
 }))

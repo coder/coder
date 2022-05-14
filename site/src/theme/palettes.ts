@@ -13,10 +13,10 @@ import { PaletteOptions } from "@material-ui/core/styles/createPalette"
 export const darkPalette: PaletteOptions = {
   type: "dark",
   primary: {
-    main: "#000000",
+    main: "#409BF4",
     contrastText: "#f8f8f8",
-    light: "#1F1F1F",
-    dark: "#000000",
+    light: "#79B8FF",
+    dark: "#1976D2",
   },
   secondary: {
     main: "#008510",
