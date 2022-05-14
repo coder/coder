@@ -3,7 +3,6 @@ import { Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { PreferencesLayout } from "./components/PreferencesLayout/PreferencesLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
-import { WorkspacesPage } from "./components/WorkspacesPage/WorkspacesPage"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
@@ -19,6 +18,7 @@ import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
+import { WorkspacesPage } from "./pages/WorkspacesPage/WorkspacesPage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
 
