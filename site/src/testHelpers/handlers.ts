@@ -1,4 +1,5 @@
 import { rest } from "msw"
+import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
 
 export const handlers = [
@@ -50,6 +51,20 @@ export const handlers = [
   }),
   rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAuthMethods))
+  }),
+  rest.get("/api/v2/users/roles", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockSiteRoles))
+  }),
+  rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+    const permissions = Object.keys(permissionsToCheck)
+    const response = permissions.reduce((obj, permission) => {
+      return {
+        ...obj,
+        [permission]: true,
+      }
+    }, {})
+
+    return res(ctx.status(200), ctx.json(response))
   }),
 
   // workspaces

@@ -1,5 +1,5 @@
 import React from "react"
-import { UserResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../components/Header/Header"
 import { Margins } from "../../components/Margins/Margins"
@@ -12,23 +12,42 @@ export const Language = {
 }
 
 export interface UsersPageViewProps {
-  users: UserResponse[]
-  openUserCreationDialog: () => void
-  onSuspendUser: (user: UserResponse) => void
+  users?: TypesGen.User[]
+  roles?: TypesGen.Role[]
   error?: unknown
+  isUpdatingUserRoles?: boolean
+  openUserCreationDialog: () => void
+  onSuspendUser: (user: TypesGen.User) => void
+  onResetUserPassword: (user: TypesGen.User) => void
+  onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
 }
 
 export const UsersPageView: React.FC<UsersPageViewProps> = ({
   users,
+  roles,
   openUserCreationDialog,
   onSuspendUser,
+  onResetUserPassword,
+  onUpdateUserRoles,
   error,
+  isUpdatingUserRoles,
 }) => {
   return (
     <Stack spacing={4}>
       <Header title={Language.pageTitle} action={{ text: Language.newUserButton, onClick: openUserCreationDialog }} />
       <Margins>
-        {error ? <ErrorSummary error={error} /> : <UsersTable users={users} onSuspendUser={onSuspendUser} />}
+        {error ? (
+          <ErrorSummary error={error} />
+        ) : (
+          <UsersTable
+            users={users}
+            roles={roles}
+            onSuspendUser={onSuspendUser}
+            onResetUserPassword={onResetUserPassword}
+            onUpdateUserRoles={onUpdateUserRoles}
+            isUpdatingUserRoles={isUpdatingUserRoles}
+          />
+        )}
       </Margins>
     </Stack>
   )

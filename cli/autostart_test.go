@@ -11,10 +11,42 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestAutostart(t *testing.T) {
 	t.Parallel()
+
+	t.Run("ShowOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx       = context.Background()
+			client    = coderdtest.New(t, nil)
+			_         = coderdtest.NewProvisionerDaemon(t, client)
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+			cmdArgs   = []string{"autostart", "show", workspace.Name}
+			sched     = "CRON_TZ=Europe/Dublin 30 17 * * 1-5"
+			stdoutBuf = &bytes.Buffer{}
+		)
+
+		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			Schedule: sched,
+		})
+		require.NoError(t, err)
+
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+		cmd.SetOut(stdoutBuf)
+
+		err = cmd.Execute()
+		require.NoError(t, err, "unexpected error")
+		require.Contains(t, stdoutBuf.String(), "schedule: "+sched)
+	})
 
 	t.Run("EnableDisableOK", func(t *testing.T) {
 		t.Parallel()

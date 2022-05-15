@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,19 +21,10 @@ const (
 )
 
 type UsersRequest struct {
-	AfterUser uuid.UUID `json:"after_user"`
-	Search    string    `json:"search"`
-	// Limit sets the maximum number of users to be returned
-	// in a single page. If the limit is <= 0, there is no limit
-	// and all users are returned.
-	Limit int `json:"limit"`
-	// Offset is used to indicate which page to return. An offset of 0
-	// returns the first 'limit' number of users.
-	// To get the next page, use offset=<limit>*<page_number>.
-	// Offset is 0 indexed, so the first record sits at offset 0.
-	Offset int `json:"offset"`
+	Search string `json:"search,omitempty"`
 	// Filter users by status
-	Status string `json:"status"`
+	Status string `json:"status,omitempty"`
+	Pagination
 }
 
 // User represents a user in Coder.
@@ -45,6 +35,7 @@ type User struct {
 	Username        string      `json:"username" validate:"required"`
 	Status          UserStatus  `json:"status"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids"`
+	Roles           []Role      `json:"roles"`
 }
 
 type CreateFirstUserRequest struct {
@@ -72,6 +63,10 @@ type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 }
 
+type UpdateUserPasswordRequest struct {
+	Password string `json:"password" validate:"required"`
+}
+
 type UpdateRoles struct {
 	Roles []string `json:"roles" validate:"required"`
 }
@@ -79,6 +74,56 @@ type UpdateRoles struct {
 type UserRoles struct {
 	Roles             []string               `json:"roles"`
 	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
+}
+
+type UserAuthorizationResponse map[string]bool
+
+// UserAuthorizationRequest is a structure instead of a map because
+// go-playground/validate can only validate structs. If you attempt to pass
+// a map into 'httpapi.Read', you will get an invalid type error.
+type UserAuthorizationRequest struct {
+	// Checks is a map keyed with an arbitrary string to a permission check.
+	// The key can be any string that is helpful to the caller, and allows
+	// multiple permission checks to be run in a single request.
+	// The key ensures that each permission check has the same key in the
+	// response.
+	Checks map[string]UserAuthorization `json:"checks"`
+}
+
+// UserAuthorization is used to check if a user can do a given action
+// to a given set of objects.
+type UserAuthorization struct {
+	// Object can represent a "set" of objects, such as:
+	//	- All workspaces in an organization
+	//	- All workspaces owned by me
+	//	- All workspaces across the entire product
+	// When defining an object, use the most specific language when possible to
+	// produce the smallest set. Meaning to set as many fields on 'Object' as
+	// you can. Example, if you want to check if you can update all workspaces
+	// owned by 'me', try to also add an 'OrganizationID' to the settings.
+	// Omitting the 'OrganizationID' could produce the incorrect value, as
+	// workspaces have both `user` and `organization` owners.
+	Object UserAuthorizationObject `json:"object"`
+	// Action can be 'create', 'read', 'update', or 'delete'
+	Action string `json:"action"`
+}
+
+type UserAuthorizationObject struct {
+	// ResourceType is the name of the resource.
+	// './coderd/rbac/object.go' has the list of valid resource types.
+	ResourceType string `json:"resource_type"`
+	// OwnerID (optional) is a user_id. It adds the set constraint to all resources owned
+	// by a given user.
+	OwnerID string `json:"owner_id,omitempty"`
+	// OrganizationID (optional) is an organization_id. It adds the set constraint to
+	// all resources owned by a given organization.
+	OrganizationID string `json:"organization_id,omitempty"`
+	// ResourceID (optional) reduces the set to a singular resource. This assigns
+	// a resource ID to the resource type, eg: a single workspace.
+	// The rbac library will not fetch the resource from the database, so if you
+	// are using this option, you should also set the 'OwnerID' and 'OrganizationID'
+	// if possible. Be as specific as possible using all the fields relevant.
+	ResourceID string `json:"resource_id,omitempty"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -181,6 +226,20 @@ func (c *Client) SuspendUser(ctx context.Context, userID uuid.UUID) (User, error
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
+// UpdateUserPassword updates a user password.
+// It calls PUT /users/{user}/password
+func (c *Client) UpdateUserPassword(ctx context.Context, userID uuid.UUID, req UpdateUserPasswordRequest) error {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", uuidOrMe(userID)), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
 // UpdateUserRoles grants the userID the specified roles.
 // Include ALL roles the user has.
 func (c *Client) UpdateUserRoles(ctx context.Context, userID uuid.UUID, req UpdateRoles) (User, error) {
@@ -198,17 +257,17 @@ func (c *Client) UpdateUserRoles(ctx context.Context, userID uuid.UUID, req Upda
 
 // UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
 // Include ALL roles the user has.
-func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID, userID uuid.UUID, req UpdateRoles) (User, error) {
+func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID, userID uuid.UUID, req UpdateRoles) (OrganizationMember, error) {
 	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, uuidOrMe(userID)), req)
 	if err != nil {
-		return User{}, err
+		return OrganizationMember{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, readBodyAsError(res)
+		return OrganizationMember{}, readBodyAsError(res)
 	}
-	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	var member OrganizationMember
+	return member, json.NewDecoder(res.Body).Decode(&member)
 }
 
 // GetUserRoles returns all roles the user has
@@ -298,19 +357,15 @@ func (c *Client) userByIdentifier(ctx context.Context, ident string) (User, erro
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
 func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users"), nil, func(r *http.Request) {
-		q := r.URL.Query()
-		if req.AfterUser != uuid.Nil {
-			q.Set("after_user", req.AfterUser.String())
-		}
-		if req.Limit > 0 {
-			q.Set("limit", strconv.Itoa(req.Limit))
-		}
-		q.Set("offset", strconv.Itoa(req.Offset))
-		q.Set("search", req.Search)
-		q.Set("status", req.Status)
-		r.URL.RawQuery = q.Encode()
-	})
+	res, err := c.request(ctx, http.MethodGet, "/api/v2/users", nil,
+		req.Pagination.asRequestOption(),
+		func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("search", req.Search)
+			q.Set("status", req.Status)
+			r.URL.RawQuery = q.Encode()
+		},
+	)
 	if err != nil {
 		return []User{}, err
 	}
@@ -381,6 +436,22 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 
 	var userAuth AuthMethods
 	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
+}
+
+// WorkspacesByUser returns all workspaces a user has access to.
+func (c *Client) WorkspacesByUser(ctx context.Context, userID uuid.UUID) ([]Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", uuidOrMe(userID)), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var workspaces []Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
 
 // uuidOrMe returns the provided uuid as a string if it's valid, ortherwise

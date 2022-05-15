@@ -18,6 +18,7 @@ import (
 // Returns a single template.
 func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
+
 	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -75,9 +76,21 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
 
-	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), template.ID)
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	apiVersion := []codersdk.TemplateVersion{}
+	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
+		TemplateID: template.ID,
+		AfterID:    paginationParams.AfterID,
+		LimitOpt:   int32(paginationParams.Limit),
+		OffsetOpt:  int32(paginationParams.Offset),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
+		httpapi.Write(rw, http.StatusOK, apiVersion)
+		return
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -101,7 +114,6 @@ func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		jobByID[job.ID.String()] = job
 	}
 
-	apiVersion := make([]codersdk.TemplateVersion, 0)
 	for _, version := range versions {
 		job, exists := jobByID[version.JobID.String()]
 		if !exists {

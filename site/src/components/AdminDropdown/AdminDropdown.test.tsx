@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { history, render } from "../../testHelpers"
+import { history, render } from "../../testHelpers/renderHelpers"
 import { AdminDropdown, Language } from "./AdminDropdown"
 
 const renderAndClick = async () => {

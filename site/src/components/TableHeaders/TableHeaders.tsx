@@ -8,10 +8,14 @@ export interface TableHeadersProps {
   hasMenu?: boolean
 }
 
-export const TableHeaders: React.FC<TableHeadersProps> = ({ columns, hasMenu }) => {
+export const TableHeaderRow: React.FC = ({ children }) => {
   const styles = useStyles()
+  return <TableRow className={styles.root}>{children}</TableRow>
+}
+
+export const TableHeaders: React.FC<TableHeadersProps> = ({ columns, hasMenu }) => {
   return (
-    <TableRow className={styles.root}>
+    <TableHeaderRow>
       {columns.map((c, idx) => (
         <TableCell key={idx} size="small">
           {c}
@@ -19,7 +23,7 @@ export const TableHeaders: React.FC<TableHeadersProps> = ({ columns, hasMenu }) 
       ))}
       {/* 1% is a trick to make the table cell width fit the content */}
       {hasMenu && <TableCell width="1%" />}
-    </TableRow>
+    </TableHeaderRow>
   )
 }
 

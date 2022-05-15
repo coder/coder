@@ -33,9 +33,11 @@ type Client struct {
 	URL          *url.URL
 }
 
+type requestOption func(*http.Request)
+
 // request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
-func (c *Client) request(ctx context.Context, method, path string, body interface{}, opts ...func(r *http.Request)) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)

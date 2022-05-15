@@ -12,8 +12,10 @@ import (
 
 func stop() *cobra.Command {
 	return &cobra.Command{
-		Use:  "stop <workspace>",
-		Args: cobra.ExactArgs(1),
+		Annotations: workspaceCommand,
+		Use:         "stop <workspace>",
+		Short:       "Build a workspace with the stop state",
+		Args:        cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

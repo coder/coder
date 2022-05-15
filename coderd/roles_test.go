@@ -12,6 +12,91 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+func TestAuthorization(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	// Create admin, member, and org admin
+	admin := coderdtest.CreateFirstUser(t, client)
+	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
+
+	// With admin, member, and org admin
+	const (
+		allUsers          = "read-all-users"
+		readOrgWorkspaces = "read-org-workspaces"
+		myself            = "read-myself"
+		myWorkspace       = "read-my-workspace"
+	)
+	params := map[string]codersdk.UserAuthorization{
+		allUsers: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType: "users",
+			},
+			Action: "read",
+		},
+		myself: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType: "users",
+				OwnerID:      "me",
+			},
+			Action: "read",
+		},
+		myWorkspace: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType: "workspaces",
+				OwnerID:      "me",
+			},
+			Action: "read",
+		},
+		readOrgWorkspaces: {
+			Object: codersdk.UserAuthorizationObject{
+				ResourceType:   "workspaces",
+				OrganizationID: admin.OrganizationID.String(),
+			},
+			Action: "read",
+		},
+	}
+
+	testCases := []struct {
+		Name   string
+		Client *codersdk.Client
+		Check  codersdk.UserAuthorizationResponse
+	}{
+		{
+			Name:   "Admin",
+			Client: client,
+			Check: map[string]bool{
+				allUsers: true, myself: true, myWorkspace: true, readOrgWorkspaces: true,
+			},
+		},
+		{
+			Name:   "Member",
+			Client: member,
+			Check: map[string]bool{
+				allUsers: false, myself: true, myWorkspace: true, readOrgWorkspaces: false,
+			},
+		},
+		{
+			Name:   "OrgAdmin",
+			Client: orgAdmin,
+			Check: map[string]bool{
+				allUsers: false, myself: true, myWorkspace: true, readOrgWorkspaces: true,
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			resp, err := c.Client.CheckPermissions(context.Background(), codersdk.UserAuthorizationRequest{Checks: params})
+			require.NoError(t, err, "check perms")
+			require.Equal(t, resp, c.Check)
+		})
+	}
+}
+
 func TestListRoles(t *testing.T) {
 	t.Parallel()
 
@@ -20,19 +105,7 @@ func TestListRoles(t *testing.T) {
 	// Create admin, member, and org admin
 	admin := coderdtest.CreateFirstUser(t, client)
 	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-
-	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	orgAdminUser, err := orgAdmin.User(ctx, codersdk.Me)
-	require.NoError(t, err)
-
-	// TODO: @emyrk switch this to the admin when getting non-personal users is
-	//	supported. `client.UpdateOrganizationMemberRoles(...)`
-	_, err = orgAdmin.UpdateOrganizationMemberRoles(ctx, admin.OrganizationID, orgAdminUser.ID,
-		codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOrgMember(admin.OrganizationID), rbac.RoleOrgAdmin(admin.OrganizationID)},
-		},
-	)
-	require.NoError(t, err, "update org member roles")
+	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	otherOrg, err := client.CreateOrganization(ctx, admin.UserID, codersdk.CreateOrganizationRequest{
 		Name: "other",
@@ -45,13 +118,13 @@ func TestListRoles(t *testing.T) {
 	testCases := []struct {
 		Name            string
 		Client          *codersdk.Client
-		APICall         func() ([]string, error)
-		ExpectedRoles   []string
+		APICall         func() ([]codersdk.Role, error)
+		ExpectedRoles   []codersdk.Role
 		AuthorizedError string
 	}{
 		{
 			Name: "MemberListSite",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
@@ -59,14 +132,14 @@ func TestListRoles(t *testing.T) {
 		},
 		{
 			Name: "OrgMemberListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
 			AuthorizedError: unauth,
 		},
 		{
 			Name: "NonOrgMemberListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: notMember,
@@ -74,21 +147,21 @@ func TestListRoles(t *testing.T) {
 		// Org admin
 		{
 			Name: "OrgAdminListSite",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
 			AuthorizedError: unauth,
 		},
 		{
 			Name: "OrgAdminListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
+			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 		{
 			Name: "OrgAdminListOtherOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
 			AuthorizedError: notMember,
@@ -96,17 +169,17 @@ func TestListRoles(t *testing.T) {
 		// Admin
 		{
 			Name: "AdminListSite",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: rbac.SiteRoles(),
+			ExpectedRoles: convertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "AdminListOrg",
-			APICall: func() ([]string, error) {
+			APICall: func() ([]codersdk.Role, error) {
 				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			ExpectedRoles: rbac.OrganizationRoles(admin.OrganizationID),
+			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 	}
 
@@ -126,4 +199,19 @@ func TestListRoles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func convertRole(role rbac.Role) codersdk.Role {
+	return codersdk.Role{
+		DisplayName: role.DisplayName,
+		Name:        role.Name,
+	}
+}
+
+func convertRoles(roles []rbac.Role) []codersdk.Role {
+	converted := make([]codersdk.Role, 0, len(roles))
+	for _, role := range roles {
+		converted = append(converted, convertRole(role))
+	}
+	return converted
 }

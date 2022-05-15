@@ -22,28 +22,30 @@ func TestTemplateCreate(t *testing.T) {
 			Parse:     echo.ParseComplete,
 			Provision: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--provisioner", string(database.ProvisionerTypeEcho))
+		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		_ = coderdtest.NewProvisionerDaemon(t, client)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
+
+		execDone := make(chan error)
 		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			require.NoError(t, err)
+			execDone <- cmd.Execute()
 		}()
-		matches := []string{
-			"Create and upload", "yes",
-			"Confirm create?", "yes",
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "Create and upload", write: "yes"},
+			{match: "Confirm create?", write: "yes"},
 		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			pty.WriteLine(m.write)
 		}
-		<-doneChan
+
+		require.NoError(t, <-execDone)
 	})
 }

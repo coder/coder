@@ -10,8 +10,10 @@ import (
 
 func show() *cobra.Command {
 	return &cobra.Command{
-		Use:  "show",
-		Args: cobra.ExactArgs(1),
+		Annotations: workspaceCommand,
+		Use:         "show",
+		Short:       "Show details of a workspace's resources and agents",
+		Args:        cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {

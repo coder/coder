@@ -16,7 +16,7 @@ Provision remote development environments with Terraform.
 
 - Automate development environments for Linux, Windows, and macOS
 - Start writing code with a single command
-- Get started quickly using one of the [examples](./examples) provided
+- Get started quickly using one of the [examples](../examples) provided
 
 ## Installing Coder
 
@@ -82,11 +82,12 @@ coder templates update gcp-linux
   - [Why remote development](about.md#why-remote-development)
   - [Why Coder](about.md#why-coder)
   - [What Coder is not](about.md#what-coder-is-not)
+  - [Comparison: Coder vs. [product]](about.md#comparison)
 - [Templates](./templates.md)
   - [Manage templates](./templates.md#manage-templates)
   - [Persistent and ephemeral
     resources](./templates.md#persistent-and-ephemeral-resources)
-  - [Variables](./templates.md#variables)
+  - [Parameters](./templates.md#parameters)
 - [Workspaces](./workspaces.md)
   - [Create workspaces](./workspaces.md#create-workspaces)
   - [Connect with SSH](./workspaces.md#connect-with-ssh)
@@ -102,6 +103,11 @@ Read the [contributing docs](./CONTRIBUTING.md).
 
 <!--- Add your row by date (mm/dd/yyyy), most recent date at end of list --->
 
-| Name                | Start Date | First PR Date |           Organization            |                        GitHub User Link |
-| ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------: |
-| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) | [mafredri](https://github.com/mafredri) |
+| Name                | Start Date | First PR Date |           Organization            |                              GitHub User Link |
+| ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------------: |
+| Grey Barkans        | 01/13/2020 |  03/13/2022   | [Coder](https://github.com/coder) |   [vapurrmaid](https://github.com/vapurrmaid) |
+| Ben Potter          | 08/10/2020 |  03/31/2022   | [Coder](https://github.com/coder) | [bpmct](https://github.com/bpmct)       |
+| Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) |       [mafredri](https://github.com/mafredri) |
+| Spike Curtis        | 05/02/2022 |  05/06/2022   | [Coder](https://github.com/coder) | [spikecurtis](https://github.com/spikecurtis) |
+| Kira Pilot          | 05/09/2022 |  05/09/2022   | [Coder](https://github.com/coder) |   [Kira-Pilot](https://github.com/Kira-Pilot) |
+| David Wahler        | 05/09/2022 |  04/05/2022   | [Coder](https://github.com/coder) |         [dwahler](https://github.com/dwahler) |

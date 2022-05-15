@@ -24,14 +24,14 @@ type Organization struct {
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
 	// TemplateID optionally associates a version with a template.
-	TemplateID uuid.UUID `json:"template_id"`
+	TemplateID uuid.UUID `json:"template_id,omitempty"`
 
 	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
 	StorageSource string                            `json:"storage_source" validate:"required"`
 	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 // CreateTemplateRequest provides options when creating a template.
@@ -45,7 +45,7 @@ type CreateTemplateRequest struct {
 	// template works. There is no reason the data-model cannot support
 	// empty templates, but it doesn't make sense for users.
 	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -54,7 +54,7 @@ type CreateWorkspaceRequest struct {
 	Name       string    `json:"name" validate:"username,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {

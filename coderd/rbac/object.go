@@ -17,11 +17,19 @@ var (
 		Type: "template",
 	}
 
+	ResourceUser = Object{
+		Type: "user",
+	}
+
 	// ResourceUserRole might be expanded later to allow more granular permissions
 	// to modifying roles. For now, this covers all possible roles, so having this permission
 	// allows granting/deleting **ALL** roles.
 	ResourceUserRole = Object{
 		Type: "user_role",
+	}
+
+	ResourceUserPasswordRole = Object{
+		Type: "user_password",
 	}
 
 	// ResourceWildcard represents all resource types

@@ -240,11 +240,17 @@ func New(options *Options) (http.Handler, func()) {
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
 					r.Put("/suspend", api.putUserSuspend)
+					r.Route("/password", func(r chi.Router) {
+						r.Use(httpmw.WithRBACObject(rbac.ResourceUserPasswordRole))
+						r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
+					})
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
 					// These roles apply to the site wide permissions.
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
+
+					r.Post("/authorization", api.checkPermissions)
 
 					r.Post("/keys", api.postAPIKey)
 					r.Route("/organizations", func(r chi.Router) {
@@ -254,6 +260,7 @@ func New(options *Options) (http.Handler, func()) {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
+					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})
