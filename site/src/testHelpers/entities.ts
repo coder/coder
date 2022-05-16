@@ -71,6 +71,13 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
 }
 
+export const MockFailedProvisionerJob = { ...MockProvisionerJob, status: "failed" as TypesGen.ProvisionerJobStatus }
+export const MockCancelingProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "canceling" as TypesGen.ProvisionerJobStatus,
+}
+export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "running" as TypesGen.ProvisionerJobStatus }
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "",
@@ -115,6 +122,16 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   workspace_id: "test-workspace",
 }
 
+export const MockWorkspaceBuildStop = {
+  ...MockWorkspaceBuild,
+  transition: "stop",
+}
+
+export const MockWorkspaceBuildDelete = {
+  ...MockWorkspaceBuild,
+  transition: "delete",
+}
+
 export const MockWorkspace: TypesGen.Workspace = {
   id: "test-workspace",
   name: "Test-Workspace",
@@ -129,6 +146,31 @@ export const MockWorkspace: TypesGen.Workspace = {
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
   latest_build: MockWorkspaceBuild,
 }
+
+export const MockStoppedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildStop }
+export const MockStoppingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuildStop, job: MockRunningProvisionerJob },
+}
+export const MockStartingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockRunningProvisionerJob },
+}
+export const MockCancelingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob },
+}
+export const MockFailedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockFailedProvisionerJob },
+}
+export const MockDeletingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
+}
+export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildDelete }
+
+export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockWorkspace, outdated: true }
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   architecture: "amd64",

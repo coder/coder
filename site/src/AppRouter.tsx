@@ -18,6 +18,7 @@ import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
+import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
 
@@ -75,14 +76,24 @@ export const AppRouter: React.FC = () => (
         </Route>
 
         <Route path="workspaces">
-          <Route
-            path=":workspace"
-            element={
-              <AuthAndFrame>
-                <WorkspacePage />
-              </AuthAndFrame>
-            }
-          />
+          <Route path=":workspace">
+            <Route
+              index
+              element={
+                <AuthAndFrame>
+                  <WorkspacePage />
+                </AuthAndFrame>
+              }
+            />
+            <Route
+              path="edit"
+              element={
+                <AuthAndFrame>
+                  <WorkspaceSettingsPage />
+                </AuthAndFrame>
+              }
+            />
+          </Route>
         </Route>
 
         <Route path="users">

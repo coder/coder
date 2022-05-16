@@ -10,3 +10,5 @@ export interface ReconnectingPTYRequest {
   readonly height?: number
   readonly width?: number
 }
+
+export type WorkspaceBuildTransition = "start" | "stop" | "delete"

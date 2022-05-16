@@ -1,5 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
+import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
@@ -131,6 +132,21 @@ export const getWorkspaceResources = async (workspaceBuildID: string): Promise<T
   )
   return response.data
 }
+
+const postWorkspaceBuild =
+  (transition: WorkspaceBuildTransition) =>
+  async (workspaceId: string, template_version_id?: string): Promise<TypesGen.WorkspaceBuild> => {
+    const payload = {
+      transition,
+      template_version_id,
+    }
+    const response = await axios.post(`/api/v2/workspaces/${workspaceId}/builds`, payload)
+    return response.data
+  }
+
+export const startWorkspace = postWorkspaceBuild("start")
+export const stopWorkspace = postWorkspaceBuild("stop")
+export const deleteWorkspace = postWorkspaceBuild("delete")
 
 export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
   const response = await axios.post<TypesGen.User>("/api/v2/users", user)
