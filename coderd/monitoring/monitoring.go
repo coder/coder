@@ -16,25 +16,25 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-type TelemetryLevel string
+type Telemetry string
 
 const (
-	TelemetryLevelAll  TelemetryLevel = "all"
-	TelemetryLevelCore TelemetryLevel = "core"
-	TelemetryLevelNone TelemetryLevel = "none"
+	TelemetryAll  Telemetry = "all"
+	TelemetryCore Telemetry = "core"
+	TelemetryNone Telemetry = "none"
 )
 
-// ParseTelemetryLevel returns a valid TelemetryLevel or error if input is not a valid.
-func ParseTelemetryLevel(t string) (TelemetryLevel, error) {
+// ParseTelemetry returns a valid Telemetry or error if input is not a valid.
+func ParseTelemetry(t string) (Telemetry, error) {
 	ok := []string{
-		string(TelemetryLevelAll),
-		string(TelemetryLevelCore),
-		string(TelemetryLevelNone),
+		string(TelemetryAll),
+		string(TelemetryCore),
+		string(TelemetryNone),
 	}
 
 	for _, a := range ok {
 		if strings.EqualFold(a, t) {
-			return TelemetryLevel(a), nil
+			return Telemetry(a), nil
 		}
 	}
 
@@ -45,7 +45,7 @@ type Options struct {
 	Database        database.Store
 	Logger          slog.Logger
 	RefreshInterval time.Duration
-	TelemetryLevel  TelemetryLevel
+	Telemetry       Telemetry
 }
 
 type Monitor struct {
@@ -58,14 +58,14 @@ type Monitor struct {
 	// coreRegistry registers metrics that will be sent when the telemetry level
 	// is `core` or `all`.
 	coreRegistry *prometheus.Registry
-	// internalRegisry registers metrics that will never be sent.
+	// internalRegistry registers metrics that will never be sent.
 	internalRegistry *prometheus.Registry
 	// refreshMutex is used to prevent multiple refreshes at a time.
 	refreshMutex *sync.Mutex
 	// stats are internally registered metrics that update via Refresh.
 	stats Stats
-	// TelemetryLevel determines which metrics are sent to Coder.
-	TelemetryLevel TelemetryLevel
+	// Telemetry determines which metrics are sent to Coder.
+	Telemetry Telemetry
 }
 
 type Stats struct {
@@ -109,11 +109,11 @@ func New(ctx context.Context, options *Options) *Monitor {
 				"workspace_resource_type",
 			}),
 		},
-		TelemetryLevel: options.TelemetryLevel,
+		Telemetry: options.Telemetry,
 	}
 
 	monitor.MustRegister(
-		TelemetryLevelAll,
+		TelemetryAll,
 		monitor.stats.Users,
 		monitor.stats.Workspaces,
 		monitor.stats.WorkspaceResources,
@@ -137,13 +137,13 @@ func New(ctx context.Context, options *Options) *Monitor {
 }
 
 // MustRegister registers collectors at the specified level.
-func (t Monitor) MustRegister(level TelemetryLevel, cs ...prometheus.Collector) {
+func (t Monitor) MustRegister(level Telemetry, cs ...prometheus.Collector) {
 	switch level {
-	case TelemetryLevelAll:
+	case TelemetryAll:
 		t.allRegistry.MustRegister(cs...)
-	case TelemetryLevelCore:
+	case TelemetryCore:
 		t.coreRegistry.MustRegister(cs...)
-	case TelemetryLevelNone:
+	case TelemetryNone:
 		t.internalRegistry.MustRegister(cs...)
 	}
 }

@@ -61,7 +61,7 @@ func durationToFloatMs(d time.Duration) float64 {
 
 func Prometheus(monitor *monitoring.Monitor) func(http.Handler) http.Handler {
 	monitor.MustRegister(
-		monitoring.TelemetryLevelNone,
+		monitoring.TelemetryNone,
 		requestsProcessed,
 		requestsConcurrent,
 		websocketsConcurrent,

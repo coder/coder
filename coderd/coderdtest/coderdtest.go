@@ -150,7 +150,7 @@ func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersd
 			Database:        db,
 			Logger:          slogtest.Make(t, nil),
 			RefreshInterval: time.Minute,
-			TelemetryLevel:  monitoring.TelemetryLevelNone,
+			Telemetry:       monitoring.TelemetryNone,
 		}),
 		SSHKeygenAlgorithm: options.SSHKeygenAlgorithm,
 		TURNServer:         turnServer,

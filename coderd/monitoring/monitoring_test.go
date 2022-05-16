@@ -28,7 +28,7 @@ func TestMonitoring(t *testing.T) {
 		Database:        db,
 		Logger:          slogtest.Make(t, nil),
 		RefreshInterval: time.Minute,
-		TelemetryLevel:  monitoring.TelemetryLevelNone,
+		Telemetry:       monitoring.TelemetryNone,
 	})
 
 	user, _ := db.InsertUser(ctx, database.InsertUserParams{

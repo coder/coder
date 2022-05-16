@@ -74,7 +74,7 @@ func server() *cobra.Command {
 		oauth2GithubClientSecret         string
 		oauth2GithubAllowedOrganizations []string
 		oauth2GithubAllowSignups         bool
-		telemetryLevelRaw                string
+		telemetryRaw                     string
 		tlsCertFile                      string
 		tlsClientCAFile                  string
 		tlsClientAuth                    string
@@ -194,9 +194,9 @@ func server() *cobra.Command {
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", sshKeygenAlgorithmRaw, err)
 			}
 
-			telemetryLevel, err := monitoring.ParseTelemetryLevel(telemetryLevelRaw)
+			telemetry, err := monitoring.ParseTelemetry(telemetryRaw)
 			if err != nil {
-				return xerrors.Errorf("parse telemetry level %s: %w", telemetryLevelRaw, err)
+				return xerrors.Errorf("parse telemetry %s: %w", telemetryRaw, err)
 			}
 
 			turnServer, err := turnconn.New(&turn.RelayAddressGeneratorStatic{
@@ -260,7 +260,7 @@ func server() *cobra.Command {
 				Database:        options.Database,
 				Logger:          options.Logger,
 				RefreshInterval: time.Hour,
-				TelemetryLevel:  telemetryLevel,
+				Telemetry:       telemetry,
 			})
 
 			handler, closeCoderd := coderd.New(options)
@@ -475,7 +475,7 @@ func server() *cobra.Command {
 		"Specifies organizations the user must be a member of to authenticate with GitHub.")
 	cliflag.BoolVarP(root.Flags(), &oauth2GithubAllowSignups, "oauth2-github-allow-signups", "", "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS", false,
 		"Specifies whether new users can sign up with GitHub.")
-	cliflag.StringVarP(root.Flags(), &telemetryLevelRaw, "telemetry", "", "CODER_TELEMETRY", "all", "The level of telemetry to send. "+
+	cliflag.StringVarP(root.Flags(), &telemetryRaw, "telemetry", "", "CODER_TELEMETRY", "all", "The level of telemetry to send. "+
 		`Accepted values are "all", "core", or "none"`)
 	cliflag.BoolVarP(root.Flags(), &tlsEnable, "tls-enable", "", "CODER_TLS_ENABLE", false, "Specifies if TLS will be enabled")
 	cliflag.StringVarP(root.Flags(), &tlsCertFile, "tls-cert-file", "", "CODER_TLS_CERT_FILE", "",
