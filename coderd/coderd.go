@@ -311,6 +311,7 @@ func New(options *Options) (http.Handler, func()) {
 					r.Put("/", api.putWorkspaceAutostop)
 				})
 			})
+			r.HandleFunc("/watch", api.watchWorkspace)
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
