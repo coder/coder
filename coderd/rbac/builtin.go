@@ -65,7 +65,6 @@ var (
 				Name:        member,
 				DisplayName: "Member",
 				Site: permissions(map[Object][]Action{
-					// TODO: @emyrk in EE we should restrict this to only certain fields.
 					// All users can read all other users and know they exist.
 					ResourceUser: {ActionRead},
 				}),
