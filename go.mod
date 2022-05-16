@@ -83,7 +83,7 @@ require (
 	github.com/lib/pq v1.10.5
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/moby/moby v20.10.15+incompatible
+	github.com/moby/moby v20.10.16+incompatible
 	github.com/open-policy-agent/opa v0.40.0
 	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pion/datachannel v1.5.2
