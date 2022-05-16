@@ -1,3 +1,4 @@
+import { Link } from "@material-ui/core"
 import Avatar from "@material-ui/core/Avatar"
 import Button from "@material-ui/core/Button"
 import { makeStyles, Theme } from "@material-ui/core/styles"
@@ -11,7 +12,7 @@ import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
-import { Link } from "react-router-dom"
+import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
@@ -50,6 +51,20 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
             </TableRow>
           </TableHead>
           <TableBody>
+            {!props.workspaces && (
+              <TableRow>
+                <TableCell colSpan={999}>
+                  <div className={styles.welcome}>
+                    <span>
+                      <Link component={RouterLink} to="/workspaces/new">
+                        Create a workspace
+                      </Link>
+                      &nbsp;so you can check out your repositories, edit your source code, and build and test your software.
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
             {props.workspaces?.map((workspace) => (
               <TableRow key={workspace.id} className={styles.workspaceRow}>
                 <TableCell>
@@ -57,7 +72,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
                     <Avatar variant="square" className={styles.workspaceAvatar}>
                       {firstLetter(workspace.name)}
                     </Avatar>
-                    <Link to={`/workspaces/${workspace.id}`} className={styles.workspaceLink}>
+                    <Link component={RouterLink} to={`/workspaces/${workspace.id}`} className={styles.workspaceLink}>
                       <b>{workspace.name}</b>
                       <span>{workspace.owner_name}</span>
                     </Link>
@@ -137,6 +152,20 @@ const useStyles = makeStyles((theme) => ({
 
     "& button": {
       marginLeft: "auto",
+    },
+  },
+  welcome: {
+    paddingTop: theme.spacing(12),
+    paddingBottom: theme.spacing(12),
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    "& span": {
+      maxWidth: 600,
+      textAlign: "center",
+      fontSize: theme.spacing(2),
+      lineHeight: `${theme.spacing(3)}px`,
     },
   },
   workspaceRow: {

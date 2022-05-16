@@ -1,4 +1,4 @@
-import { PaletteOptions } from "@material-ui/core/styles/createPalette"
+import { PaletteOptions, SimplePaletteColorOptions } from "@material-ui/core/styles/createPalette"
 import { MONOSPACE_FONT_FAMILY } from "./constants"
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
@@ -72,6 +72,11 @@ export const getOverrides = (palette: PaletteOptions) => {
         "& input:-webkit-autofill": {
           WebkitBoxShadow: `0 0 0 1000px ${palette.background?.paper} inset`,
         },
+      },
+    },
+    MuiLink: {
+      root: {
+        color: (palette.primary as SimplePaletteColorOptions).light,
       },
     },
   }

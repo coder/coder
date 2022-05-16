@@ -45,3 +45,6 @@ AllStates.args = {
     createWorkspaceWithStatus("running", "delete"),
   ],
 }
+
+export const Empty = Template.bind({})
+Empty.args = {}
