@@ -47,6 +47,6 @@ SET
 	-- Remove all duplicates from the roles.
 	roles = ARRAY(SELECT DISTINCT UNNEST(@granted_roles :: text[]))
 WHERE
-		user_id = @user_id
-		AND organization_id = @org_id
+	user_id = @user_id
+	AND organization_id = @org_id
 RETURNING *;
