@@ -14,6 +14,8 @@ export const getOverrides = (palette: PaletteOptions) => {
     },
     MuiButton: {
       root: {
+        // Prevents a loading button from collapsing!
+        minHeight: 42,
         fontWeight: "regular",
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
