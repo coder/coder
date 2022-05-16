@@ -20,6 +20,7 @@ type Workspace struct {
 	CreatedAt         time.Time      `json:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at"`
 	OwnerID           uuid.UUID      `json:"owner_id"`
+	OwnerName         string         `json:"owner_name"`
 	TemplateID        uuid.UUID      `json:"template_id"`
 	TemplateName      string         `json:"template_name"`
 	LatestBuild       WorkspaceBuild `json:"latest_build"`

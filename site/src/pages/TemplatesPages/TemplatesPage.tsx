@@ -1,85 +1,37 @@
-import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
-import { Link } from "react-router-dom"
 import useSWR from "swr"
 import * as TypesGen from "../../api/typesGenerated"
-import { CodeExample } from "../../components/CodeExample/CodeExample"
-import { EmptyState } from "../../components/EmptyState/EmptyState"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../components/Header/Header"
-import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
-import { Column, Table } from "../../components/Table/Table"
+import { TemplatesTable } from "../../components/TemplatesTable/TemplatesTable"
+
+export const Language = {
+  title: "Templates",
+  tableTitle: "All templates",
+  nameLabel: "Name",
+  emptyMessage: "No templates have been created yet",
+  emptyDescription: "Run the following command to get started:",
+  totalLabel: "total",
+}
 
 export const TemplatesPage: React.FC = () => {
-  const styles = useStyles()
   const { data: orgs, error: orgsError } = useSWR<TypesGen.Organization[], Error>("/api/v2/users/me/organizations")
-  const { data: templates, error } = useSWR<TypesGen.Template[] | null, Error>(
-    orgs ? `/api/v2/organizations/${orgs[0].id}/templates` : null,
+  const { data: templates, error } = useSWR<TypesGen.Template[] | undefined, Error>(
+    orgs ? `/api/v2/organizations/${orgs[0].id}/templates` : undefined,
   )
-
-  if (error) {
-    return <ErrorSummary error={error} />
-  }
-
-  if (orgsError) {
-    return <ErrorSummary error={error} />
-  }
-
-  if (!templates || !orgs) {
-    return <FullScreenLoader />
-  }
-
-  // Create a dictionary of organization ID -> organization Name
-  // Needed to properly construct links to dive into a template
-  const orgDictionary = orgs.reduce((acc: Record<string, string>, curr: TypesGen.Organization) => {
-    return {
-      ...acc,
-      [curr.id]: curr.name,
-    }
-  }, {})
-
-  const columns: Column<TypesGen.Template>[] = [
-    {
-      key: "name",
-      name: "Name",
-      renderer: (nameField: string, data: TypesGen.Template) => {
-        return <Link to={`/templates/${orgDictionary[data.organization_id]}/${nameField}`}>{nameField}</Link>
-      },
-    },
-  ]
-
-  const description = (
-    <div>
-      <div className={styles.descriptionLabel}>Run the following command to get started:</div>
-      <CodeExample code="coder templates create" />
-    </div>
-  )
-
-  const emptyState = <EmptyState message="No templates have been created yet" description={description} />
-
-  const tableProps = {
-    title: "All Templates",
-    columns: columns,
-    emptyState: emptyState,
-    data: templates,
-  }
-
-  const subTitle = `${templates.length} total`
+  const subTitle = templates ? `${templates.length} ${Language.totalLabel}` : undefined
+  const hasError = orgsError || error
 
   return (
     <Stack spacing={4}>
-      <Header title="Templates" subTitle={subTitle} />
+      <Header title={Language.title} subTitle={subTitle} />
       <Margins>
-        <Table {...tableProps} />
+        {error && <ErrorSummary error={error} />}
+        {orgsError && <ErrorSummary error={orgsError} />}
+        {!hasError && <TemplatesTable organizations={orgs} templates={templates} />}
       </Margins>
     </Stack>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  descriptionLabel: {
-    marginBottom: theme.spacing(1),
-  },
-}))
