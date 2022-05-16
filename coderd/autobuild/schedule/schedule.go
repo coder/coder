@@ -34,12 +34,18 @@ var defaultParser = cron.NewParser(parserFormat)
 //  us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
 //  fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //  // Output: 2022-04-04T14:30:00Z
-func Weekly(spec string) (*Schedule, error) {
-	if err := validateWeeklySpec(spec); err != nil {
+func Weekly(raw string) (*Schedule, error) {
+	if err := validateWeeklySpec(raw); err != nil {
 		return nil, xerrors.Errorf("validate weekly schedule: %w", err)
 	}
 
-	specSched, err := defaultParser.Parse(spec)
+	// If schedule does not specify a timezone, default to UTC. Otherwise,
+	// the library will default to time.Local which we want to avoid.
+	if !strings.HasPrefix(raw, "CRON_TZ=") {
+		raw = "CRON_TZ=UTC " + raw
+	}
+
+	specSched, err := defaultParser.Parse(raw)
 	if err != nil {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
 	}
@@ -49,9 +55,16 @@ func Weekly(spec string) (*Schedule, error) {
 		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
 
+	// Strip the leading CRON_TZ prefix so we just store the cron string.
+	// The timezone info is available in SpecSchedule.
+	cronStr := raw
+	if strings.HasPrefix(raw, "CRON_TZ=") {
+		cronStr = strings.Join(strings.Fields(raw)[1:], " ")
+	}
+
 	cronSched := &Schedule{
-		sched: schedule,
-		spec:  spec,
+		sched:   schedule,
+		cronStr: cronStr,
 	}
 	return cronSched, nil
 }
@@ -61,12 +74,29 @@ func Weekly(spec string) (*Schedule, error) {
 type Schedule struct {
 	sched *cron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
-	spec string
+	cronStr string
 }
 
 // String serializes the schedule to its original human-friendly format.
+// The leading CRON_TZ is maintained.
 func (s Schedule) String() string {
-	return s.spec
+	var sb strings.Builder
+	_, _ = sb.WriteString("CRON_TZ=")
+	_, _ = sb.WriteString(s.sched.Location.String())
+	_, _ = sb.WriteString(" ")
+	_, _ = sb.WriteString(s.cronStr)
+	return sb.String()
+}
+
+// Timezone returns the timezone for the schedule.
+func (s Schedule) Timezone() string {
+	return s.sched.Location.String()
+}
+
+// Cron returns the cron spec for the schedule with the leading CRON_TZ
+// stripped, if present.
+func (s Schedule) Cron() string {
+	return s.cronStr
 }
 
 // Next returns the next time in the schedule relative to t.

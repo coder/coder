@@ -63,7 +63,15 @@ func autostopShow() *cobra.Command {
 				return nil
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "schedule: %s\nnext: %s\n", workspace.AutostopSchedule, validSchedule.Next(time.Now()))
+			next := validSchedule.Next(time.Now())
+			loc, _ := time.LoadLocation(validSchedule.Timezone())
+
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				"schedule: %s\ntimezone: %s\nnext:     %s\n",
+				validSchedule.Cron(),
+				validSchedule.Timezone(),
+				next.In(loc),
+			)
 
 			return nil
 		},
