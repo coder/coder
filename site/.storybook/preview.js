@@ -4,7 +4,7 @@ import { withThemes } from "@react-theming/storybook-addon"
 import { createMemoryHistory } from "history"
 import { addDecorator } from "node_modules/@storybook/react"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
-import { dark, light } from "../src/theme"
+import { dark } from "../src/theme"
 import "../src/theme/globalFonts"
 
 const providerFn = ({ children, theme }) => (
@@ -14,7 +14,7 @@ const providerFn = ({ children, theme }) => (
   </ThemeProvider>
 )
 
-addDecorator(withThemes(null, [light, dark], { providerFn }))
+addDecorator(withThemes(null, [dark], { providerFn }))
 
 const history = createMemoryHistory()
 

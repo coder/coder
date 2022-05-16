@@ -9,14 +9,17 @@ import TableRow from "@material-ui/core/TableRow"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import useTheme from "@material-ui/styles/useTheme"
 import { useMachine } from "@xstate/react"
+import dayjs from "dayjs"
+import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
 import { Link } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { firstLetter } from "../../util/firstLetter"
-import { getTimeSince } from "../../util/time"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
+
+dayjs.extend(relativeTime)
 
 export const Language = {
   title: "Workspaces",
@@ -67,7 +70,7 @@ export const WorkspacesPage: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   <span style={{ color: theme.palette.text.secondary }}>
-                    {getTimeSince(new Date(workspace.latest_build.created_at))} ago
+                    {dayjs().to(dayjs(workspace.latest_build.created_at))}
                   </span>
                 </TableCell>
                 <TableCell>{getStatus(theme, workspace.latest_build)}</TableCell>
