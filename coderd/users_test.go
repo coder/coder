@@ -209,7 +209,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		_, err := client.UpdateUserProfile(context.Background(), uuid.New(), codersdk.UpdateUserProfileRequest{
+		_, err := client.UpdateUserProfile(context.Background(), uuid.New().String(), codersdk.UpdateUserProfileRequest{
 			Username: "newusername",
 			Email:    "newemail@coder.com",
 		})
@@ -295,7 +295,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
 		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		err := member.UpdateUserPassword(context.Background(), admin.UserID, codersdk.UpdateUserPasswordRequest{
+		err := member.UpdateUserPassword(context.Background(), admin.UserID.String(), codersdk.UpdateUserPasswordRequest{
 			Password: "newpassword",
 		})
 		require.Error(t, err, "member should not be able to update admin password")
@@ -312,7 +312,7 @@ func TestUpdateUserPassword(t *testing.T) {
 			OrganizationID: admin.OrganizationID,
 		})
 		require.NoError(t, err, "create member")
-		err = client.UpdateUserPassword(context.Background(), member.ID, codersdk.UpdateUserPasswordRequest{
+		err = client.UpdateUserPassword(context.Background(), member.ID.String(), codersdk.UpdateUserPasswordRequest{
 			Password: "newpassword",
 		})
 		require.NoError(t, err, "admin should be able to update member password")
@@ -339,7 +339,7 @@ func TestGrantRoles(t *testing.T) {
 		})
 		require.Error(t, err, "org role in site")
 
-		_, err = admin.UpdateUserRoles(ctx, uuid.New(), codersdk.UpdateRoles{
+		_, err = admin.UpdateUserRoles(ctx, uuid.New().String(), codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleOrgMember(first.OrganizationID)},
 		})
 		require.Error(t, err, "user does not exist")
@@ -354,12 +354,12 @@ func TestGrantRoles(t *testing.T) {
 		})
 		require.Error(t, err, "role in org without membership")
 
-		_, err = member.UpdateUserRoles(ctx, first.UserID, codersdk.UpdateRoles{
+		_, err = member.UpdateUserRoles(ctx, first.UserID.String(), codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "member cannot change other's roles")
 
-		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID, codersdk.UpdateRoles{
+		_, err = member.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, first.UserID.String(), codersdk.UpdateRoles{
 			Roles: []string{rbac.RoleMember()},
 		})
 		require.Error(t, err, "member cannot change other's org roles")
@@ -452,7 +452,7 @@ func TestPutUserSuspend(t *testing.T) {
 			Password:       "password",
 			OrganizationID: me.OrganizationID,
 		})
-		user, err := client.SuspendUser(context.Background(), user.ID)
+		user, err := client.UpdateUserStatus(context.Background(), user.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
 	})
@@ -462,10 +462,9 @@ func TestPutUserSuspend(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		client.User(context.Background(), codersdk.Me)
-		suspendedUser, err := client.SuspendUser(context.Background(), codersdk.Me)
+		_, err := client.UpdateUserStatus(context.Background(), codersdk.Me, codersdk.UserStatusSuspended)
 
-		require.NoError(t, err)
-		require.Equal(t, suspendedUser.Status, codersdk.UserStatusSuspended)
+		require.ErrorContains(t, err, "suspend yourself", "cannot suspend yourself")
 	})
 }
 
@@ -490,7 +489,7 @@ func TestGetUser(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		user, err := client.User(context.Background(), firstUser.UserID)
+		user, err := client.User(context.Background(), firstUser.UserID.String())
 		require.NoError(t, err)
 		require.Equal(t, firstUser.UserID, user.ID)
 		require.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
@@ -501,10 +500,10 @@ func TestGetUser(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		exp, err := client.User(context.Background(), firstUser.UserID)
+		exp, err := client.User(context.Background(), firstUser.UserID.String())
 		require.NoError(t, err)
 
-		user, err := client.UserByUsername(context.Background(), exp.Username)
+		user, err := client.User(context.Background(), exp.Username)
 		require.NoError(t, err)
 		require.Equal(t, exp, user)
 	})
@@ -530,9 +529,15 @@ func TestGetUsers(t *testing.T) {
 	})
 	t.Run("ActiveUsers", func(t *testing.T) {
 		t.Parallel()
+		active := make([]codersdk.User, 0)
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-		active := make([]codersdk.User, 0)
+
+		firstUser, err := client.User(context.Background(), first.UserID.String())
+		require.NoError(t, err, "")
+		active = append(active, firstUser)
+
+		// Alice will be suspended
 		alice, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "alice@email.com",
 			Username:       "alice",
@@ -540,7 +545,6 @@ func TestGetUsers(t *testing.T) {
 			OrganizationID: first.OrganizationID,
 		})
 		require.NoError(t, err)
-		active = append(active, alice)
 
 		bruno, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "bruno@email.com",
@@ -551,7 +555,7 @@ func TestGetUsers(t *testing.T) {
 		require.NoError(t, err)
 		active = append(active, bruno)
 
-		_, err = client.SuspendUser(context.Background(), first.UserID)
+		_, err = client.UpdateUserStatus(context.Background(), alice.Username, codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
 		users, err := client.Users(context.Background(), codersdk.UsersRequest{

@@ -297,7 +297,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
-		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, user.UserID)
+		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, user.UserID.String())
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
