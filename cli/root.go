@@ -230,7 +230,7 @@ func usageTemplate() string {
 {{end}}
 
 {{- if .HasHelpSubCommands}}
-Additional help topics:
+` + header.Render("Additional help topics:") + `
   {{- range .Commands}}
     {{- if .IsAdditionalHelpTopicCommand}}
   {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
