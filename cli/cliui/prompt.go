@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/bgentry/speakeasy"
@@ -42,8 +43,12 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 
 		inFile, isInputFile := cmd.InOrStdin().(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
+			// we don't install a signal handler here because speakeasy has its own
 			line, err = speakeasy.Ask("")
 		} else {
+			signal.Notify(interrupt, os.Interrupt)
+			defer signal.Stop(interrupt)
+
 			reader := bufio.NewReader(cmd.InOrStdin())
 			line, err = reader.ReadString('\n')
 
