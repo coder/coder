@@ -104,8 +104,6 @@ func New(ctx context.Context, options *Options) *Monitor {
 				Name:      "workspace_resources",
 				Help:      "The workspace resources in a Coder deployment.",
 			}, []string{
-				"workspace_resource_id",
-				"workspace_resource_name",
 				"workspace_resource_type",
 			}),
 		},

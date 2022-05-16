@@ -127,8 +127,7 @@ func TestMonitoring(t *testing.T) {
 			name:  "coder_workspace_resources",
 			total: 2,
 			labels: []labels{
-				{name: "workspace_resource_name", value: "banana2"},
-				{name: "workspace_resource_name", value: "banana3"},
+				{name: "workspace_resource_type", value: "google_compute_instance"},
 			},
 		},
 	}
