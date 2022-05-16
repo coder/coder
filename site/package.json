@@ -42,7 +42,7 @@
     "react-router-dom": "6.3.0",
     "swr": "1.2.2",
     "uuid": "^8.3.2",
-    "xstate": "4.31.0",
+    "xstate": "4.32.1",
     "xterm": "^4.18.0",
     "xterm-addon-fit": "^0.5.0",
     "xterm-addon-web-links": "^0.5.1",
