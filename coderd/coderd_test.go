@@ -47,7 +47,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-	coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -139,6 +139,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/users/{user}/organizations":                     {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspaces":                        {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 		"GET:/api/v2/organizations/{organization}/workspaces/{user}": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
+		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspace}": {
+			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
+		},
+		"GET:/api/v2/organizations/{organization}/workspaces": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 	}
 
 	c, _ := srv.Config.Handler.(*chi.Mux)
@@ -152,13 +156,14 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 				routeAssertions = routeCheck{}
 			}
 			if routeAssertions.StatusCode == 0 {
-				routeAssertions.StatusCode = http.StatusUnauthorized
+				routeAssertions.StatusCode = http.StatusForbidden
 			}
 
 			// Replace all url params with known values
 			route = strings.ReplaceAll(route, "{organization}", admin.OrganizationID.String())
 			route = strings.ReplaceAll(route, "{user}", admin.UserID.String())
 			route = strings.ReplaceAll(route, "{organizationname}", organization.Name)
+			route = strings.ReplaceAll(route, "{workspace}", workspace.Name)
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")

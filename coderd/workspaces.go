@@ -58,12 +58,18 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	httpapi.Write(rw, http.StatusOK,
 		convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
 }
 
 func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
+	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesByOrganizationID(r.Context(), database.GetWorkspacesByOrganizationIDParams{
 		OrganizationID: organization.ID,
 		Deleted:        false,
@@ -77,7 +83,18 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+
+	allowedWorkspaces := make([]database.Workspace, 0)
+	for _, ws := range workspaces {
+		ws := ws
+		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
+		if err == nil {
+			allowedWorkspaces = append(allowedWorkspaces, ws)
+		}
+	}
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -102,6 +119,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ws := range userWorkspaces {
+		ws := ws
 		err = api.Authorizer.ByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead,
 			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
 		if err == nil {
@@ -121,6 +139,7 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
+	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
 		OwnerID: owner.ID,
 	})
@@ -133,7 +152,18 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+
+	allowedWorkspaces := make([]database.Workspace, 0)
+	for _, ws := range workspaces {
+		ws := ws
+		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
+		if err == nil {
+			allowedWorkspaces = append(allowedWorkspaces, ws)
+		}
+	}
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -153,9 +183,8 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		Name:    workspaceName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("no workspace found by name %q", workspaceName),
-		})
+		// Do not leak information if the workspace exists or not
+		httpapi.Forbidden(rw)
 		return
 	}
 	if err != nil {
@@ -169,6 +198,11 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("workspace is not owned by organization %q", organization.Name),
 		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
 		return
 	}
 
