@@ -79,7 +79,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"Username", "Email", "Created At", "Status"},
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"username", "email", "created_at", "status"},
 		"Specify a column to filter in the table.")
 	return cmd
 }

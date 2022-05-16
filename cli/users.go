@@ -29,7 +29,7 @@ func users() *cobra.Command {
 // columns to display
 func displayUsers(filterColumns []string, users ...codersdk.User) string {
 	tableWriter := cliui.Table()
-	header := table.Row{"ID", "Username", "Email", "Created At", "Status"}
+	header := table.Row{"id", "username", "email", "created_at", "status"}
 	tableWriter.AppendHeader(header)
 	tableWriter.SetColumnConfigs(cliui.FilterTableColumns(header, filterColumns))
 	tableWriter.SortBy([]table.SortBy{{

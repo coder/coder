@@ -29,7 +29,7 @@ func userList() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"Username", "Email", "Created At"},
+	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"username", "email", "created_at"},
 		"Specify a column to filter in the table.")
 	return cmd
 }
