@@ -3,7 +3,7 @@ import React from "react"
 import { workspacesMachine } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 
-export const WorkspacesPage: React.FC = () => {
+const WorkspacesPage: React.FC = () => {
   const [workspacesState] = useMachine(workspacesMachine)
 
   return (
@@ -16,3 +16,5 @@ export const WorkspacesPage: React.FC = () => {
     </>
   )
 }
+
+export default WorkspacesPage

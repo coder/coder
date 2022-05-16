@@ -4,7 +4,7 @@ import React from "react"
 import { MockWorkspace } from "../../testHelpers/entities"
 import { history, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { WorkspacesPage } from "./WorkspacesPage"
+import WorkspacesPage from "./WorkspacesPage"
 import { Language } from "./WorkspacesPageView"
 
 describe("WorkspacesPage", () => {
