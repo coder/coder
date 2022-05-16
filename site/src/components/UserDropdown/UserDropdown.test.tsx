@@ -26,7 +26,7 @@ describe("UserDropdown", () => {
   describe("when the trigger is clicked", () => {
     it("opens the menu", async () => {
       await renderAndClick()
-      expect(screen.getByText(Language.settingsLabel)).toBeDefined()
+      expect(screen.getByText(Language.accountLabel)).toBeDefined()
       expect(screen.getByText(Language.docsLabel)).toBeDefined()
       expect(screen.getByText(Language.signOutLabel)).toBeDefined()
     })
@@ -58,7 +58,7 @@ describe("UserDropdown", () => {
   it("has the correct link for the account item", async () => {
     await renderAndClick()
 
-    const link = screen.getByText(Language.settingsLabel).closest("a")
+    const link = screen.getByText(Language.accountLabel).closest("a")
     if (!link) {
       throw new Error("Anchor tag not found for the account menu item")
     }
