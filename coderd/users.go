@@ -245,7 +245,7 @@ func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithOwner(user.ID.String())) {
 		return
 	}
 
@@ -420,7 +420,7 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithOwner(user.ID.String())) {
 		return
 	}
 
