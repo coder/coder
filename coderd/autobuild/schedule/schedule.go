@@ -39,6 +39,12 @@ func Weekly(raw string) (*Schedule, error) {
 		return nil, xerrors.Errorf("validate weekly schedule: %w", err)
 	}
 
+	// If schedule does not specify a timezone, default to UTC. Otherwise,
+	// the library will default to time.Local which we want to avoid.
+	if !strings.HasPrefix(raw, "CRON_TZ=") {
+		raw = "CRON_TZ=UTC " + raw
+	}
+
 	specSched, err := defaultParser.Parse(raw)
 	if err != nil {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
@@ -50,17 +56,17 @@ func Weekly(raw string) (*Schedule, error) {
 	}
 
 	tz := "UTC"
-	cron := raw
+	cronStr := raw
 	if strings.HasPrefix(raw, "CRON_TZ=") {
 		tz = strings.TrimPrefix(strings.Fields(raw)[0], "CRON_TZ=")
-		cron = strings.Join(strings.Fields(raw)[1:], " ")
+		cronStr = strings.Join(strings.Fields(raw)[1:], " ")
 	}
 
 	cronSched := &Schedule{
-		sched: schedule,
-		raw:   raw,
-		tz:    tz,
-		cron:  cron,
+		sched:   schedule,
+		raw:     raw,
+		tz:      tz,
+		cronStr: cronStr,
 	}
 	return cronSched, nil
 }
@@ -71,8 +77,8 @@ type Schedule struct {
 	sched *cron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
 	raw  string
-	tz   string
-	cron string
+	tz      string
+	cronStr string
 }
 
 // String serializes the schedule to its original human-friendly format.
@@ -82,13 +88,13 @@ func (s Schedule) String() string {
 
 // Timezone returns the timezone for the schedule.
 func (s Schedule) Timezone() string {
-	return s.tz
+	return s.sched.Location.String()
 }
 
 // Cron returns the cron spec for the schedule with the leading CRON_TZ
 // stripped, if present.
 func (s Schedule) Cron() string {
-	return s.cron
+	return s.cronStr
 }
 
 // Next returns the next time in the schedule relative to t.

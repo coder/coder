@@ -31,7 +31,7 @@ func Test_Weekly(t *testing.T) {
 		},
 		{
 			name:          "without timezone",
-			spec:          "30 9 * * 1-5",
+			spec:          "CRON_TZ=UTC 30 9 * * 1-5",
 			at:            time.Date(2022, 4, 1, 9, 29, 0, 0, time.Local),
 			expectedNext:  time.Date(2022, 4, 1, 9, 30, 0, 0, time.Local),
 			expectedError: "",
