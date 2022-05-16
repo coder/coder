@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -18,8 +20,15 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (*api) organization(rw http.ResponseWriter, r *http.Request) {
+func (api *api) organization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceOrganization.
+		InOrg(organization.ID).
+		WithID(organization.ID.String())) {
+		return
+	}
+
 	httpapi.Write(rw, http.StatusOK, convertOrganization(organization))
 }
 
@@ -327,6 +336,11 @@ func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 
 func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.InOrg(organization.ID)) {
+		return
+	}
+
 	workspaces, err := api.Database.GetWorkspacesByOrganizationID(r.Context(), database.GetWorkspacesByOrganizationIDParams{
 		OrganizationID: organization.ID,
 		Deleted:        false,
@@ -352,6 +366,8 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 
 func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
+	roles := httpmw.UserRoles(r)
+
 	workspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
 		OwnerID: owner.ID,
 	})
@@ -364,7 +380,19 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+
+	allowed := make([]database.Workspace, 0)
+	for i := range workspaces {
+		w := workspaces[i]
+		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceWorkspace.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String()).WithID(w.ID.String()))
+
+		if err == nil {
+			allowed = append(allowed, w)
+		}
+	}
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowed)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -378,6 +406,10 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	owner := httpmw.UserParam(r)
 	organization := httpmw.OrganizationParam(r)
 	workspaceName := chi.URLParam(r, "workspace")
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(owner.ID.String())) {
+		return
+	}
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: owner.ID,
@@ -431,11 +463,18 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 // Create a new workspace for the currently authenticated user.
 func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
+
 	var createWorkspace codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(rw, r, &createWorkspace) {
 		return
 	}
-	apiKey := httpmw.APIKey(r)
+
+	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(apiKey.UserID.String())) {
+		return
+	}
+
 	template, err := api.Database.GetTemplateByID(r.Context(), createWorkspace.TemplateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
@@ -453,7 +492,7 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-	organization := httpmw.OrganizationParam(r)
+
 	if organization.ID != template.OrganizationID {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
 			Message: fmt.Sprintf("template is not in organization %q", organization.Name),

@@ -11,19 +11,28 @@ import (
 )
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
-func (*api) assignableSiteRoles(rw http.ResponseWriter, _ *http.Request) {
+func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserRole) {
+		return
+	}
 
 	roles := rbac.SiteRoles()
 	httpapi.Write(rw, http.StatusOK, convertRoles(roles))
 }
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
-func (*api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
+func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserRole.InOrg(organization.ID)) {
+		return
+	}
+
 	roles := rbac.OrganizationRoles(organization.ID)
 	httpapi.Write(rw, http.StatusOK, convertRoles(roles))
 }
@@ -31,13 +40,8 @@ func (*api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 func (api *api) checkPermissions(rw http.ResponseWriter, r *http.Request) {
 	roles := httpmw.UserRoles(r)
 	user := httpmw.UserParam(r)
-	if user.ID != roles.ID {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			// TODO: @Emyrk in the future we could have an rbac check here.
-			//	If the user can masquerade/impersonate as the user passed in,
-			//	we could allow this or something like that.
-			Message: "only allowed to check permissions on yourself",
-		})
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
 		return
 	}
 

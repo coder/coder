@@ -54,11 +54,18 @@ var (
 	}
 
 	// ResourceUser is the user in the 'users' table.
+	// ResourceUser never has any owners or in an org, as it's site wide.
 	// 	create/delete = make or delete a new user.
 	// 	read = view all user's settings
 	// 	update = update all user field & settings
 	ResourceUser = Object{
 		Type: "user",
+	}
+
+	// ResourceUserData is any data associated with a user. A user has control
+	// over their data (profile, password, etc). So this resource has an owner.
+	ResourceUserData = Object{
+		Type: "user_data",
 	}
 
 	// ResourceOrganizationMember is a user's membership in an organization.

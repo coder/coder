@@ -42,6 +42,13 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	organization, err := client.Organization(context.Background(), admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
 
+	// Setup some data in the database.
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+	coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
+
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
 
@@ -128,9 +135,10 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/files/{hash}": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
-		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
-		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
-		"GET:/api/v2/users/{user}/workspaces":      {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
+		"GET:/api/v2/organizations/{organization}":                   {AssertObject: rbac.ResourceOrganization.InOrg(admin.OrganizationID)},
+		"GET:/api/v2/users/{user}/organizations":                     {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
+		"GET:/api/v2/users/{user}/workspaces":                        {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
+		"GET:/api/v2/organizations/{organization}/workspaces/{user}": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 	}
 
 	c, _ := srv.Config.Handler.(*chi.Mux)
@@ -159,17 +167,19 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			if !routeAssertions.NoAuthorize {
 				assert.NotNil(t, authorizer.Called, "authorizer expected")
 				assert.Equal(t, routeAssertions.StatusCode, resp.StatusCode, "expect unauthorized")
-				if routeAssertions.AssertObject.Type != "" {
-					assert.Equal(t, routeAssertions.AssertObject.Type, authorizer.Called.Object.Type, "resource type")
-				}
-				if routeAssertions.AssertObject.Owner != "" {
-					assert.Equal(t, routeAssertions.AssertObject.Owner, authorizer.Called.Object.Owner, "resource owner")
-				}
-				if routeAssertions.AssertObject.OrgID != "" {
-					assert.Equal(t, routeAssertions.AssertObject.OrgID, authorizer.Called.Object.OrgID, "resource org")
-				}
-				if routeAssertions.AssertObject.ResourceID != "" {
-					assert.Equal(t, routeAssertions.AssertObject.ResourceID, authorizer.Called.Object.ResourceID, "resource ID")
+				if authorizer.Called != nil {
+					if routeAssertions.AssertObject.Type != "" {
+						assert.Equal(t, routeAssertions.AssertObject.Type, authorizer.Called.Object.Type, "resource type")
+					}
+					if routeAssertions.AssertObject.Owner != "" {
+						assert.Equal(t, routeAssertions.AssertObject.Owner, authorizer.Called.Object.Owner, "resource owner")
+					}
+					if routeAssertions.AssertObject.OrgID != "" {
+						assert.Equal(t, routeAssertions.AssertObject.OrgID, authorizer.Called.Object.OrgID, "resource org")
+					}
+					if routeAssertions.AssertObject.ResourceID != "" {
+						assert.Equal(t, routeAssertions.AssertObject.ResourceID, authorizer.Called.Object.ResourceID, "resource ID")
+					}
 				}
 			} else {
 				assert.Nil(t, authorizer.Called, "authorize not expected")
