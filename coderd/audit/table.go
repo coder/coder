@@ -69,6 +69,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":              ActionTrack,
 		"provisioner":       ActionTrack,
 		"active_version_id": ActionTrack,
+		"description":       ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,
