@@ -13,7 +13,7 @@ interface FormHelpers {
 
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, formErrors?: FormikErrors<T>) =>
-  (name: keyof T): FormHelpers => {
+  (name: keyof T, helperText = ""): FormHelpers => {
     if (typeof name !== "string") {
       throw new Error(`name must be type of string, instead received '${typeof name}'`)
     }
@@ -28,7 +28,7 @@ export const getFormHelpers =
       ...form.getFieldProps(name),
       id: name,
       error: touched && Boolean(error),
-      helperText: touched && error,
+      helperText: touched ? error : helperText,
     }
   }
 
