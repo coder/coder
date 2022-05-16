@@ -33,15 +33,15 @@ var (
 		Type: "organization",
 	}
 
-	// ResourceUserRole might be expanded later to allow more granular permissions
+	// ResourceRoleAssignment might be expanded later to allow more granular permissions
 	// to modifying roles. For now, this covers all possible roles, so having this permission
 	// allows granting/deleting **ALL** roles.
 	//	create  = Assign roles
 	//	update  = ??
 	//	read	= View available roles to assign
 	//	delete	= Remove role
-	ResourceUserRole = Object{
-		Type: "user_role",
+	ResourceRoleAssignment = Object{
+		Type: "assign_role",
 	}
 
 	// ResourceAPIKey is owned by a user.

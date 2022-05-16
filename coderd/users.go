@@ -444,14 +444,14 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Assigning a role requires the create permission.
-		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceUserRole.WithID(roleName)) {
+		if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceRoleAssignment.WithID(roleName)) {
 			return
 		}
 	}
 
 	// Any roles that were removed also need to be checked.
 	for roleName := range has {
-		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceUserRole.WithID(roleName)) {
+		if !api.Authorize(rw, r, rbac.ActionDelete, rbac.ResourceRoleAssignment.WithID(roleName)) {
 			return
 		}
 	}

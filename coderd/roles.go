@@ -15,7 +15,7 @@ func (api *api) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	// TODO: @emyrk in the future, allow granular subsets of roles to be returned based on the
 	// 	role of the user.
 
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserRole) {
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceRoleAssignment) {
 		return
 	}
 
@@ -29,7 +29,7 @@ func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	// 	role of the user.
 	organization := httpmw.OrganizationParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserRole.InOrg(organization.ID)) {
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceRoleAssignment.InOrg(organization.ID)) {
 		return
 	}
 
