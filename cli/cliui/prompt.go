@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/signal"
 	"strings"
 
 	"github.com/bgentry/speakeasy"
@@ -34,8 +33,6 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+opts.Default+") "))
 	}
 	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	defer signal.Stop(interrupt)
 
 	errCh := make(chan error, 1)
 	lineCh := make(chan string)
