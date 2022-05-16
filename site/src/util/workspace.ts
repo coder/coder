@@ -1,7 +1,18 @@
-import { State } from "xstate"
-import { WorkspaceBuildTransition } from "../../api/types"
-import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
-import { WorkspaceContext, WorkspaceEvent } from "./workspaceXService"
+import { WorkspaceBuildTransition } from "../api/types"
+import { WorkspaceBuild } from "../api/typesGenerated"
+
+export type WorkspaceStatus =
+  | "queued"
+  | "started"
+  | "starting"
+  | "stopped"
+  | "stopping"
+  | "error"
+  | "loading"
+  | "deleting"
+  | "deleted"
+  | "canceled"
+  | "canceling"
 
 const inProgressToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
   start: "starting",
@@ -15,22 +26,23 @@ const succeededToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
   delete: "deleted",
 }
 
-export const selectWorkspaceStatus = (state: State<WorkspaceContext, WorkspaceEvent>): WorkspaceStatus => {
-  const transition = state.context.workspace?.latest_build.transition as WorkspaceBuildTransition
-  const jobStatus = state.context.workspace?.latest_build.job.status
+// Converts a workspaces status to a human-readable form.
+export const getWorkspaceStatus = (workspaceBuild?: WorkspaceBuild): WorkspaceStatus => {
+  const transition = workspaceBuild?.transition as WorkspaceBuildTransition
+  const jobStatus = workspaceBuild?.job.status
   switch (jobStatus) {
     case undefined:
       return "loading"
     case "succeeded":
       return succeededToStatus[transition]
     case "pending":
-      return inProgressToStatus[transition]
+      return "queued"
     case "running":
       return inProgressToStatus[transition]
     case "canceling":
       return "canceling"
     case "canceled":
-      return "error"
+      return "canceled"
     case "failed":
       return "error"
   }

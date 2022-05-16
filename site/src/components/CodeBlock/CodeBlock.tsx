@@ -26,7 +26,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     minHeight: 156,
     background: theme.palette.background.default,
-    color: theme.palette.codeBlock.contrastText,
+    color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 13,
     wordBreak: "break-all",

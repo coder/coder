@@ -52,13 +52,13 @@ const useStyles = makeStyles((theme) => ({
   },
   copyButton: {
     borderRadius: 7,
-    background: theme.palette.codeBlock.button.main,
-    color: theme.palette.codeBlock.button.contrastText,
+    background: theme.palette.background.default,
+    color: theme.palette.primary.contrastText,
     padding: theme.spacing(0.85),
     minWidth: 32,
 
     "&:hover": {
-      background: theme.palette.codeBlock.button.hover,
+      background: theme.palette.background.paper,
     },
   },
   fileCopyIcon: {
