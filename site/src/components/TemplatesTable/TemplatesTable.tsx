@@ -69,7 +69,7 @@ export const TemplatesTable: React.FC<TemplatesTableProps> = ({ templates, organ
                 <EmptyState
                   message={Language.emptyMessage}
                   description={Language.emptyDescription}
-                  cta={<CodeExample code="coder templates create" />}
+                  cta={<CodeExample code="coder templates init" />}
                 />
               </Box>
             </TableCell>
