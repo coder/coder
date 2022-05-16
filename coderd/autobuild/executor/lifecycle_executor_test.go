@@ -78,7 +78,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	require.Empty(t, workspace.AutostartSchedule)
 
 	// Given: the workspace template has been updated
-	orgs, err := client.OrganizationsByUser(ctx, workspace.OwnerID)
+	orgs, err := client.OrganizationsByUser(ctx, workspace.OwnerID.String())
 	require.NoError(t, err)
 	require.Len(t, orgs, 1)
 

@@ -3,8 +3,9 @@ package coderd
 import (
 	"net/http"
 
-	"cdr.dev/slog"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"

@@ -8,14 +8,11 @@ const useStyles = makeStyles(() => ({
     maxWidth,
     padding: `0 ${sidePadding}`,
     flex: 1,
+    width: "100%",
   },
 }))
 
 export const Margins: React.FC = ({ children }) => {
   const styles = useStyles()
-  return (
-    <div>
-      <div className={styles.margins}>{children}</div>
-    </div>
-  )
+  return <div className={styles.margins}>{children}</div>
 }

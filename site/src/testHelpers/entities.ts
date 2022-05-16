@@ -71,6 +71,13 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
 }
 
+export const MockFailedProvisionerJob = { ...MockProvisionerJob, status: "failed" as TypesGen.ProvisionerJobStatus }
+export const MockCancelingProvisionerJob = {
+  ...MockProvisionerJob,
+  status: "canceling" as TypesGen.ProvisionerJobStatus,
+}
+export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "running" as TypesGen.ProvisionerJobStatus }
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "",
@@ -80,6 +87,7 @@ export const MockTemplate: TypesGen.Template = {
   provisioner: MockProvisioner.id,
   active_version_id: "",
   workspace_owner_count: 1,
+  description: "This is a test description.",
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
@@ -104,7 +112,7 @@ export const MockWorkspaceAutostopEnabled: TypesGen.UpdateWorkspaceAutostartRequ
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   after_id: "",
   before_id: "",
-  created_at: "",
+  created_at: new Date().toDateString(),
   id: "test-workspace-build",
   initiator_id: "",
   job: MockProvisionerJob,
@@ -113,6 +121,16 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   transition: "start",
   updated_at: "",
   workspace_id: "test-workspace",
+}
+
+export const MockWorkspaceBuildStop = {
+  ...MockWorkspaceBuild,
+  transition: "stop",
+}
+
+export const MockWorkspaceBuildDelete = {
+  ...MockWorkspaceBuild,
+  transition: "delete",
 }
 
 export const MockWorkspace: TypesGen.Workspace = {
@@ -129,6 +147,31 @@ export const MockWorkspace: TypesGen.Workspace = {
   autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
   latest_build: MockWorkspaceBuild,
 }
+
+export const MockStoppedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildStop }
+export const MockStoppingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuildStop, job: MockRunningProvisionerJob },
+}
+export const MockStartingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockRunningProvisionerJob },
+}
+export const MockCancelingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockCancelingProvisionerJob },
+}
+export const MockFailedWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuild, job: MockFailedProvisionerJob },
+}
+export const MockDeletingWorkspace: TypesGen.Workspace = {
+  ...MockWorkspace,
+  latest_build: { ...MockWorkspaceBuildDelete, job: MockRunningProvisionerJob },
+}
+export const MockDeletedWorkspace: TypesGen.Workspace = { ...MockWorkspace, latest_build: MockWorkspaceBuildDelete }
+
+export const MockOutdatedWorkspace: TypesGen.Workspace = { ...MockWorkspace, outdated: true }
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   architecture: "amd64",
@@ -162,4 +205,11 @@ export const MockUserAgent: Types.UserAgent = {
 export const MockAuthMethods: TypesGen.AuthMethods = {
   password: true,
   github: false,
+}
+
+export const MockGitSSHKey: TypesGen.GitSSHKey = {
+  user_id: "1fa0200f-7331-4524-a364-35770666caa7",
+  created_at: "2022-05-16T14:30:34.148205897Z",
+  updated_at: "2022-05-16T15:29:10.302441433Z",
+  public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJOQRIM7kE30rOzrfy+/+R+nQGCk7S9pioihy+2ARbq",
 }

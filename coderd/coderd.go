@@ -140,7 +140,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
 			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 			r.Route("/templates", func(r chi.Router) {
-				r.Post("/", api.postTemplatesByOrganization)
+				r.Post("/", api.postTemplateByOrganization)
 				r.Get("/", api.templatesByOrganization)
 				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})
@@ -231,7 +231,10 @@ func New(options *Options) (http.Handler, func()) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
-					r.Put("/suspend", api.putUserSuspend)
+					r.Route("/status", func(r chi.Router) {
+						r.Put("/suspend", api.putUserStatus(database.UserStatusSuspended))
+						r.Put("/active", api.putUserStatus(database.UserStatusActive))
+					})
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})

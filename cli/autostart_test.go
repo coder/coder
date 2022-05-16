@@ -45,7 +45,8 @@ func TestAutostart(t *testing.T) {
 
 		err = cmd.Execute()
 		require.NoError(t, err, "unexpected error")
-		require.Contains(t, stdoutBuf.String(), "schedule: "+sched)
+		// CRON_TZ gets stripped
+		require.Contains(t, stdoutBuf.String(), "schedule: 30 17 * * 1-5")
 	})
 
 	t.Run("EnableDisableOK", func(t *testing.T) {
