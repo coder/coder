@@ -16,7 +16,7 @@ import { UserAvatar } from "../UserAvatar/UserAvatar"
 import { UserProfileCard } from "../UserProfileCard/UserProfileCard"
 
 export const Language = {
-  accountLabel: "Account",
+  settingsLabel: "Settings",
   docsLabel: "Documentation",
   signOutLabel: "Sign Out",
 }
@@ -73,7 +73,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
               <ListItemIcon className={styles.icon}>
                 <AccountIcon />
               </ListItemIcon>
-              <ListItemText primary={Language.accountLabel} />
+              <ListItemText primary={Language.settingsLabel} />
             </MenuItem>
           </Link>
 
