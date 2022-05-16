@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react"
 import React from "react"
 import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
-import * as AccountForm from "../../../components/PreferencesAccountForm/PreferencesAccountForm"
+import * as AccountForm from "../../../components/SettingsAccountForm/SettingsAccountForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
 import { AccountPage, Language } from "./AccountPage"
@@ -25,7 +25,7 @@ const fillAndSubmitForm = async () => {
   await waitFor(() => screen.findByLabelText("Email"))
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: newData.email } })
   fireEvent.change(screen.getByLabelText("Username"), { target: { value: newData.username } })
-  fireEvent.click(screen.getByText(AccountForm.Language.updatePreferences))
+  fireEvent.click(screen.getByText(AccountForm.Language.updateSettings))
 }
 
 describe("AccountPage", () => {

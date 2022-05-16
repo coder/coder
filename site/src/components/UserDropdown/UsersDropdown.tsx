@@ -68,7 +68,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
 
           <Divider />
 
-          <Link to="/preferences/account" className={styles.link}>
+          <Link to="/settings/account" className={styles.link}>
             <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
               <ListItemIcon className={styles.icon}>
                 <AccountIcon />
