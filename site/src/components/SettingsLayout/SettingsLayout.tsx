@@ -8,20 +8,20 @@ import { TabPanel } from "../TabPanel/TabPanel"
 export const Language = {
   accountLabel: "Account",
   sshKeysLabel: "SSH Keys",
-  preferencesLabel: "Preferences",
+  settingsLabel: "Settings",
 }
 
 const menuItems = [
-  { label: Language.accountLabel, path: "/preferences/account" },
-  { label: Language.sshKeysLabel, path: "/preferences/ssh-keys" },
+  { label: Language.accountLabel, path: "/settings/account" },
+  { label: Language.sshKeysLabel, path: "/settings/ssh-keys" },
 ]
 
-export const PreferencesLayout: React.FC = () => {
+export const SettingsLayout: React.FC = () => {
   return (
     <AuthAndFrame>
       <Box display="flex" flexDirection="column">
         <Margins>
-          <TabPanel title={Language.preferencesLabel} menuItems={menuItems}>
+          <TabPanel title={Language.settingsLabel} menuItems={menuItems}>
             <Outlet />
           </TabPanel>
         </Margins>

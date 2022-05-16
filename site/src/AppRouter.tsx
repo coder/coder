@@ -1,17 +1,17 @@
 import React from "react"
 import { Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
-import { PreferencesLayout } from "./components/PreferencesLayout/PreferencesLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
+import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
 import { OrgsPage } from "./pages/OrgsPage/OrgsPage"
-import { AccountPage } from "./pages/PreferencesPages/AccountPage/AccountPage"
-import { SSHKeysPage } from "./pages/PreferencesPages/SSHKeysPage/SSHKeysPage"
 import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
+import { AccountPage } from "./pages/SettingsPages/AccountPage/AccountPage"
+import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
@@ -108,7 +108,7 @@ export const AppRouter: React.FC = () => (
           }
         />
 
-        <Route path="preferences" element={<PreferencesLayout />}>
+        <Route path="settings" element={<SettingsLayout />}>
           <Route path="account" element={<AccountPage />} />
           <Route path="ssh-keys" element={<SSHKeysPage />} />
         </Route>

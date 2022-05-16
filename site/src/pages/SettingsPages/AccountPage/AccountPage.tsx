@@ -1,8 +1,8 @@
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
 import { isApiError, mapApiErrorToFieldErrors } from "../../../api/errors"
-import { AccountForm } from "../../../components/PreferencesAccountForm/PreferencesAccountForm"
 import { Section } from "../../../components/Section/Section"
+import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
 import { XServiceContext } from "../../../xServices/StateContext"
 
 export const Language = {

@@ -205,3 +205,10 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   password: true,
   github: false,
 }
+
+export const MockGitSSHKey: TypesGen.GitSSHKey = {
+  user_id: "1fa0200f-7331-4524-a364-35770666caa7",
+  created_at: "2022-05-16T14:30:34.148205897Z",
+  updated_at: "2022-05-16T15:29:10.302441433Z",
+  public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJOQRIM7kE30rOzrfy+/+R+nQGCk7S9pioihy+2ARbq",
+}

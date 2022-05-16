@@ -182,21 +182,68 @@ func usageTemplate() string {
 	// Customizes the color of headings to make subcommands
 	// more visually appealing.
 	header := cliui.Styles.Placeholder
+	cobra.AddTemplateFunc("usageHeader", func(s string) string {
+		return header.Render(s)
+	})
 
-	return `{{if .HasExample}}` + header.Render("Get Started:") + `
+	return `{{usageHeader "Usage:"}}
+{{- if .Runnable}}
+  {{.UseLine}}
+{{end}}
+{{- if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]
+{{end}}
+
+{{- if gt (len .Aliases) 0}}
+{{usageHeader "Aliases:"}}
+  {{.NameAndAliases}}
+{{end}}
+
+{{- if .HasExample}}
+{{usageHeader "Get Started:"}}
 {{.Example}}
+{{end}}
 
-{{end}}{{if .HasAvailableLocalFlags}}` + header.Render("Flags:") + `
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+{{- if .HasAvailableSubCommands}}
+{{usageHeader "Commands:"}}
+  {{- range .Commands}}
+    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
 
-` + header.Render("Commands:") + `{{range .Commands}}{{if and .IsAvailableCommand (eq (len .Annotations) 0)}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .HasParent }}
+{{- if and (not .HasParent) .HasAvailableSubCommands}}
+{{usageHeader "Workspace Commands:"}}
+  {{- range .Commands}}
+    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
 
-` + header.Render("Workspace Commands:") + `{{range .Commands}}{{if and .IsAvailableCommand (ne (index .Annotations "workspaces") "")}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}
+{{- if .HasAvailableLocalFlags}}
+{{usageHeader "Flags:"}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
 
+{{- if .HasAvailableInheritedFlags}}
+{{usageHeader "Global Flags:"}}
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
+
+{{- if .HasHelpSubCommands}}
+{{usageHeader "Additional help topics:"}}
+  {{- range .Commands}}
+    {{- if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
+
+{{- if .HasAvailableSubCommands}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.
-`
+{{end}}`
 }
 
 func versionTemplate() string {
