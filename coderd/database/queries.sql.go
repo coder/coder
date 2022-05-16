@@ -587,8 +587,8 @@ SET
 	-- Remove all duplicates from the roles.
 	roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
-		user_id = $2
-		AND organization_id = $3
+	user_id = $2
+	AND organization_id = $3
 RETURNING user_id, organization_id, created_at, updated_at, roles
 `
 
