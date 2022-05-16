@@ -143,6 +143,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
 		},
 		"GET:/api/v2/organizations/{organization}/workspaces": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
+
+		// These endpoints need payloads to get to the auth part.
+		"PUT:/api/v2/users/{user}/roles": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
 
 	c, _ := srv.Config.Handler.(*chi.Mux)

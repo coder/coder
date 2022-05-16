@@ -430,10 +430,6 @@ func (api *api) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithOwner(user.ID.String())) {
-		return
-	}
-
 	var params codersdk.UpdateRoles
 	if !httpapi.Read(rw, r, &params) {
 		return
