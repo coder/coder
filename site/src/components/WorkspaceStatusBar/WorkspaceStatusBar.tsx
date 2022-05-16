@@ -21,6 +21,8 @@ export const Language = {
   stopped: "Stopped",
   starting: "Building",
   stopping: "Stopping",
+  canceled: "Canceled",
+  queued: "Queued",
   error: "Build Failed",
   loading: "Loading Status",
   deleting: "Deleting",

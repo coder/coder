@@ -18,6 +18,7 @@ import { WorkspaceBuild } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { firstLetter } from "../../util/firstLetter"
+import { getWorkspaceStatus } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
 
@@ -106,42 +107,50 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
 const getStatus = (theme: Theme, build: WorkspaceBuild): JSX.Element => {
   let status = ""
   let color = ""
-  const inProgress = build.job.status === "running"
-  switch (build.job.status) {
-    case "running":
-    case "succeeded":
-      switch (build.transition) {
-        case "start":
-          color = theme.palette.success.main
-          status = inProgress ? "⦿ Starting" : "⦿ Running"
-          break
-        case "stop":
-          color = theme.palette.text.secondary
-          status = inProgress ? "◍ Stopping" : "◍ Stopped"
-          break
-        case "delete":
-          color = theme.palette.text.secondary
-          status = inProgress ? "⦸ Deleting" : "⦸ Deleted"
-          break
-      }
+
+  switch (getWorkspaceStatus(build)) {
+    case "started":
+      color = theme.palette.success.main
+      status = "⦿ Running"
+      break
+    case "starting":
+      color = theme.palette.success.main
+      status = "⦿ Starting"
+      break
+    case "stopping":
+      color = theme.palette.text.secondary
+      status = "◍ Stopping"
+      break
+    case "stopped":
+      color = theme.palette.text.secondary
+      status = "◍ Stopped"
+      break
+    case "deleting":
+      color = theme.palette.text.secondary
+      status = "⦸ Deleting"
+      break
+    case "deleted":
+      color = theme.palette.text.secondary
+      status = "⦸ Deleted"
+      break
+    case "canceling":
+      color = theme.palette.warning.light
+      status = "◍ Canceling"
       break
     case "canceled":
       color = theme.palette.text.secondary
       status = "◍ Canceled"
       break
-    case "canceling":
-      color = theme.palette.warning.main
-      status = "◍ Canceling"
-      break
-    case "failed":
+    case "error":
       color = theme.palette.error.main
       status = "ⓧ Failed"
       break
-    case "pending":
+    case "queued":
       color = theme.palette.text.secondary
       status = "◍ Queued"
       break
   }
+
   return <span style={{ color: color }}>{status}</span>
 }
 

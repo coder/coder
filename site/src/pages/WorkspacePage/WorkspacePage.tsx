@@ -7,19 +7,8 @@ import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
+import { getWorkspaceStatus } from "../../util/workspace"
 import { XServiceContext } from "../../xServices/StateContext"
-import { selectWorkspaceStatus } from "../../xServices/workspace/workspaceSelectors"
-
-export type WorkspaceStatus =
-  | "started"
-  | "starting"
-  | "stopped"
-  | "stopping"
-  | "error"
-  | "loading"
-  | "deleting"
-  | "deleted"
-  | "canceling"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
@@ -29,7 +18,9 @@ export const WorkspacePage: React.FC = () => {
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
   const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
     workspaceState.context
-  const workspaceStatus = useSelector(xServices.workspaceXService, selectWorkspaceStatus)
+  const workspaceStatus = useSelector(xServices.workspaceXService, (state) => {
+    return getWorkspaceStatus(state.context.workspace?.latest_build)
+  })
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
