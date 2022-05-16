@@ -3,13 +3,13 @@ import { WorkspaceBuildTransition } from "../../api/types"
 import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
 import { WorkspaceContext, WorkspaceEvent } from "./workspaceXService"
 
-const inProgressToStatus: Record<WorkspaceBuildTransition, Partial<WorkspaceStatus>> = {
+const inProgressToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
   start: "starting",
   stop: "stopping",
   delete: "deleting",
 }
 
-const succeededToStatus: Record<WorkspaceBuildTransition, Partial<WorkspaceStatus>> = {
+const succeededToStatus: Record<WorkspaceBuildTransition, WorkspaceStatus> = {
   start: "started",
   stop: "stopped",
   delete: "deleted",
