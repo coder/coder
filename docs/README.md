@@ -20,8 +20,18 @@ Provision remote development environments with Terraform.
 
 ## Installing Coder
 
-Install [the latest release](https://github.com/coder/coder/releases) on a system with
-at least 1 CPU core and 2 GB RAM.
+We recommend installing [the latest
+release](https://github.com/coder/coder/releases) on a system with at least 1
+CPU core and 2 GB RAM:
+
+1. Download the release appropriate for your operating system
+1. Unzip the folder you just downloaded, and move the `coder` executable to a
+   location that's on your `PATH`
+
+> If necessary, make sure you have the appropriate credentials for your cloud
+> provider (e.g., access key ID and secret access key for AWS).
+
+### Testing
 
 To test, start with dev mode (all data is in-memory and is destroyed on exit):
 
@@ -29,12 +39,16 @@ To test, start with dev mode (all data is in-memory and is destroyed on exit):
 coder server --dev
 ```
 
+### Running a production deployment
+
 To run a production deployment with PostgreSQL:
 
 ```bash
 CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
     coder server
 ```
+
+### Running as a system service
 
 To run as a system service, install with `.deb` (Debian, Ubuntu) or `.rpm`
 (Fedora, CentOS, RHEL, SUSE):
@@ -45,27 +59,32 @@ sudo vim /etc/coder.d/coder.env
 sudo service coder restart
 ```
 
-Use `coder start --help` to get a complete list of flags and environment
+> Use `coder start --help` to get a complete list of flags and environment
 variables.
 
-### Your first workspace
+## Creating your first template and workspace
 
-In a new terminal, create a template (e.g., a template to **Develop in Linux on
-Google Cloud**):
+In a new terminal window, run:
 
 ```bash
 coder templates init
-coder templates create
 ```
 
-Create a workspace and connect to it via SSH:
+Follow the CLI instructions to create a new template (e.g., a template to
+**Develop in Linux on Google Cloud**). Once you've created your template, create
+a workspace using that template:
 
 ```bash
-coder create my-first-workspace
-coder ssh my-first-workspace
+coder create --template="yourTemplate" <workspaceName>
 ```
 
-### Modifying templates
+Connect to your workspace via SSH:
+
+```bash
+coder ssh <workspaceName>
+```
+
+## Modifying templates
 
 You can edit the Terraform template using a sample template:
 
