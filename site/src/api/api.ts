@@ -206,3 +206,13 @@ export const updateUserRoles = async (
   const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/roles`, { roles })
   return response.data
 }
+
+export const getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.get<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+  return response.data
+}
+
+export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.put<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+  return response.data
+}

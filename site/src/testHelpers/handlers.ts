@@ -68,6 +68,9 @@ export const handlers = [
 
     return res(ctx.status(200), ctx.json(response))
   }),
+  rest.get("/api/v2/users/:userId/gitsshkey", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockGitSSHKey))
+  }),
 
   // workspaces
   rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
