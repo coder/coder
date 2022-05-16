@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
-	"golang.org/x/xerrors"
 )
 
 func (api *api) templateVersion(rw http.ResponseWriter, r *http.Request) {
