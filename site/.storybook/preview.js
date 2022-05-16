@@ -6,10 +6,12 @@ import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { dark } from "../src/theme"
 import "../src/theme/globalFonts"
 
-addDecorator((story) =>
+addDecorator((story) => (
   <ThemeProvider theme={dark}>
-    <CssBaseline />{story()}</ThemeProvider>
-)
+    <CssBaseline />
+    {story()}
+  </ThemeProvider>
+))
 
 const history = createMemoryHistory()
 

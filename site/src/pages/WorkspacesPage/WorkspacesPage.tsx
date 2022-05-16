@@ -9,6 +9,7 @@ export const WorkspacesPage: React.FC = () => {
   return (
     <>
       <WorkspacesPageView
+        loading={workspacesState.hasTag("loading")}
         workspaces={workspacesState.context.workspaces}
         error={workspacesState.context.getWorkspacesError}
       />

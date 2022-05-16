@@ -1,6 +1,6 @@
-import { Link } from "@material-ui/core"
 import Avatar from "@material-ui/core/Avatar"
 import Button from "@material-ui/core/Button"
+import Link from "@material-ui/core/Link"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
@@ -22,10 +22,12 @@ import { firstLetter } from "../../util/firstLetter"
 dayjs.extend(relativeTime)
 
 export const Language = {
-  title: "Workspaces",
+  createButton: "Create Workspace",
+  emptyView: "so you can check out your repositories, edit your source code, and build and test your software.",
 }
 
 export interface WorkspacesPageViewProps {
+  loading?: boolean
   workspaces?: TypesGen.Workspace[]
   error?: unknown
 }
@@ -38,7 +40,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
     <Stack spacing={4}>
       <Margins>
         <div className={styles.actions}>
-          <Button startIcon={<AddCircleOutline />}>Create Workspace</Button>
+          <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
         </div>
         <Table>
           <TableHead>
@@ -51,7 +53,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
             </TableRow>
           </TableHead>
           <TableBody>
-            {!props.workspaces && (
+            {!props.loading && !props.workspaces?.length && (
               <TableRow>
                 <TableCell colSpan={999}>
                   <div className={styles.welcome}>
@@ -59,7 +61,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
                       <Link component={RouterLink} to="/workspaces/new">
                         Create a workspace
                       </Link>
-                      &nbsp;so you can check out your repositories, edit your source code, and build and test your software.
+                      &nbsp;{Language.emptyView}
                     </span>
                   </div>
                 </TableCell>
