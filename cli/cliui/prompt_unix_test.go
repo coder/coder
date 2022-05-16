@@ -27,6 +27,7 @@ func TestPasswordTerminalState(t *testing.T) {
 
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState")
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
+	// connect the child process's stdio to the PTY directly, not via a pipe
 	cmd.Stdin = ptty.PTY.PTYFile()
 	cmd.Stdout = ptty.PTY.PTYFile()
 	cmd.Stderr = os.Stderr
