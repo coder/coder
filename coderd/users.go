@@ -826,47 +826,11 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 	})
 }
 
-//
 func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)
 
-	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organizations: %s", err),
-		})
-		return
-	}
-	organizationIDs := make([]uuid.UUID, 0)
-	for _, organization := range organizations {
-		err = api.Authorizer.ByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead, rbac.ResourceWorkspace.All().InOrg(organization.ID))
-		var apiErr *rbac.UnauthorizedError
-		if xerrors.As(err, &apiErr) {
-			continue
-		}
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("authorize: %s", err),
-			})
-			return
-		}
-		organizationIDs = append(organizationIDs, organization.ID)
-	}
-
-	workspaceIDs := map[uuid.UUID]struct{}{}
-	allWorkspaces, err := api.Database.GetWorkspacesByOrganizationIDs(r.Context(), database.GetWorkspacesByOrganizationIDsParams{
-		Ids: organizationIDs,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces for organizations: %s", err),
-		})
-		return
-	}
-	for _, ws := range allWorkspaces {
-		workspaceIDs[ws.ID] = struct{}{}
-	}
+	allWorkspaces := make([]database.Workspace, 0)
 	userWorkspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
 		OwnerID: user.ID,
 	})
@@ -877,11 +841,11 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, ws := range userWorkspaces {
-		_, exists := workspaceIDs[ws.ID]
-		if exists {
-			continue
+		err = api.Authorizer.ByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
+		if err == nil {
+			allWorkspaces = append(allWorkspaces, ws)
 		}
-		allWorkspaces = append(allWorkspaces, ws)
 	}
 
 	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allWorkspaces)
