@@ -12,7 +12,7 @@ templates](./templates.md):
 # create a workspace from the template; specify any variables
 coder create <workspace-name>
 
-# show the resources behind the workspace, and how to connect
+# show the resources behind the workspace and how to connect
 coder show <workspace-name>
 ```
 
@@ -22,9 +22,7 @@ Once you've added your workspaces to your SSH hosts, you can connect from any
 IDE with remote development support:
 
 ```sh
-coder config-ssh
-
-ssh coder.<workspace-name>
+coder ssh <workspaceName>
 ```
 
 ## Editors and IDEs
