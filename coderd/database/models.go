@@ -501,8 +501,7 @@ type WorkspaceBuild struct {
 	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
 	Name              string              `db:"name" json:"name"`
-	BeforeID          uuid.NullUUID       `db:"before_id" json:"before_id"`
-	AfterID           uuid.NullUUID       `db:"after_id" json:"after_id"`
+	BuildNumber       int32               `db:"build_number" json:"build_number"`
 	Transition        WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
 	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`

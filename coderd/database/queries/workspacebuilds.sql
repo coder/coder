@@ -35,25 +35,28 @@ FROM
 WHERE
 	workspace_id = $1;
 
--- name: GetWorkspaceBuildByWorkspaceIDWithoutAfter :one
+-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
 	*
 FROM
 	workspace_builds
 WHERE
 	workspace_id = $1
-	AND after_id IS NULL
+ORDER BY
+    build_number desc
 LIMIT
 	1;
 
--- name: GetWorkspaceBuildsByWorkspaceIDsWithoutAfter :many
-SELECT
-	*
+-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
+SELECT *, MAX(build_number)
 FROM
-	workspace_builds
+    workspace_builds
 WHERE
-	workspace_id = ANY(@ids :: uuid [ ])
-	AND after_id IS NULL;
+    workspace_id = ANY(@ids :: uuid [ ])
+GROUP BY
+    workspace_id
+HAVING
+	build_number = MAX(build_number);
 
 -- name: InsertWorkspaceBuild :one
 INSERT INTO
@@ -63,7 +66,7 @@ INSERT INTO
 		updated_at,
 		workspace_id,
 		template_version_id,
-		before_id,
+		"build_number",
 		"name",
 		transition,
 		initiator_id,
@@ -78,7 +81,6 @@ UPDATE
 	workspace_builds
 SET
 	updated_at = $2,
-	after_id = $3,
-	provisioner_state = $4
+	provisioner_state = $3
 WHERE
 	id = $1;

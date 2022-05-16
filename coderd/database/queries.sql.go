@@ -2729,9 +2729,104 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
+const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
+SELECT
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id
+FROM
+	workspace_builds
+WHERE
+	workspace_id = $1
+ORDER BY
+    build_number desc
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error) {
+	row := q.db.QueryRowContext(ctx, getLatestWorkspaceBuildByWorkspaceID, workspaceID)
+	var i WorkspaceBuild
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.BuildNumber,
+		&i.Transition,
+		&i.InitiatorID,
+		&i.ProvisionerState,
+		&i.JobID,
+	)
+	return i, err
+}
+
+const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
+SELECT id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, MAX(build_number)
+FROM
+    workspace_builds
+WHERE
+    workspace_id = ANY($1 :: uuid [ ])
+GROUP BY
+    workspace_id
+HAVING
+	build_number = MAX(build_number)
+`
+
+type GetLatestWorkspaceBuildsByWorkspaceIDsRow struct {
+	ID                uuid.UUID           `db:"id" json:"id"`
+	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	Name              string              `db:"name" json:"name"`
+	BuildNumber       int32               `db:"build_number" json:"build_number"`
+	Transition        WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
+	Max               interface{}         `db:"max" json:"max"`
+}
+
+func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]GetLatestWorkspaceBuildsByWorkspaceIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuildsByWorkspaceIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLatestWorkspaceBuildsByWorkspaceIDsRow
+	for rows.Next() {
+		var i GetLatestWorkspaceBuildsByWorkspaceIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.BuildNumber,
+			&i.Transition,
+			&i.InitiatorID,
+			&i.ProvisionerState,
+			&i.JobID,
+			&i.Max,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id
 FROM
 	workspace_builds
 WHERE
@@ -2750,8 +2845,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.WorkspaceID,
 		&i.TemplateVersionID,
 		&i.Name,
-		&i.BeforeID,
-		&i.AfterID,
+		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
 		&i.ProvisionerState,
@@ -2762,7 +2856,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id
 FROM
 	workspace_builds
 WHERE
@@ -2781,8 +2875,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.WorkspaceID,
 		&i.TemplateVersionID,
 		&i.Name,
-		&i.BeforeID,
-		&i.AfterID,
+		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
 		&i.ProvisionerState,
@@ -2793,7 +2886,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 
 const getWorkspaceBuildByWorkspaceID = `-- name: GetWorkspaceBuildByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id
 FROM
 	workspace_builds
 WHERE
@@ -2816,8 +2909,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspa
 			&i.WorkspaceID,
 			&i.TemplateVersionID,
 			&i.Name,
-			&i.BeforeID,
-			&i.AfterID,
+			&i.BuildNumber,
 			&i.Transition,
 			&i.InitiatorID,
 			&i.ProvisionerState,
@@ -2838,7 +2930,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspa
 
 const getWorkspaceBuildByWorkspaceIDAndName = `-- name: GetWorkspaceBuildByWorkspaceIDAndName :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
+	id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id
 FROM
 	workspace_builds
 WHERE
@@ -2861,92 +2953,13 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndName(ctx context.Context, 
 		&i.WorkspaceID,
 		&i.TemplateVersionID,
 		&i.Name,
-		&i.BeforeID,
-		&i.AfterID,
+		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
 		&i.ProvisionerState,
 		&i.JobID,
 	)
 	return i, err
-}
-
-const getWorkspaceBuildByWorkspaceIDWithoutAfter = `-- name: GetWorkspaceBuildByWorkspaceIDWithoutAfter :one
-SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
-FROM
-	workspace_builds
-WHERE
-	workspace_id = $1
-	AND after_id IS NULL
-LIMIT
-	1
-`
-
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildByWorkspaceIDWithoutAfter, workspaceID)
-	var i WorkspaceBuild
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.Name,
-		&i.BeforeID,
-		&i.AfterID,
-		&i.Transition,
-		&i.InitiatorID,
-		&i.ProvisionerState,
-		&i.JobID,
-	)
-	return i, err
-}
-
-const getWorkspaceBuildsByWorkspaceIDsWithoutAfter = `-- name: GetWorkspaceBuildsByWorkspaceIDsWithoutAfter :many
-SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
-FROM
-	workspace_builds
-WHERE
-	workspace_id = ANY($1 :: uuid [ ])
-	AND after_id IS NULL
-`
-
-func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildsByWorkspaceIDsWithoutAfter, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceBuild
-	for rows.Next() {
-		var i WorkspaceBuild
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.WorkspaceID,
-			&i.TemplateVersionID,
-			&i.Name,
-			&i.BeforeID,
-			&i.AfterID,
-			&i.Transition,
-			&i.InitiatorID,
-			&i.ProvisionerState,
-			&i.JobID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const insertWorkspaceBuild = `-- name: InsertWorkspaceBuild :one
@@ -2957,7 +2970,7 @@ INSERT INTO
 		updated_at,
 		workspace_id,
 		template_version_id,
-		before_id,
+		"build_number",
 		"name",
 		transition,
 		initiator_id,
@@ -2965,7 +2978,7 @@ INSERT INTO
 		provisioner_state
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, workspace_id, template_version_id, name, before_id, after_id, transition, initiator_id, provisioner_state, job_id
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -2974,7 +2987,7 @@ type InsertWorkspaceBuildParams struct {
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
 	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BeforeID          uuid.NullUUID       `db:"before_id" json:"before_id"`
+	BuildNumber       int32               `db:"build_number" json:"build_number"`
 	Name              string              `db:"name" json:"name"`
 	Transition        WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
@@ -2989,7 +3002,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.UpdatedAt,
 		arg.WorkspaceID,
 		arg.TemplateVersionID,
-		arg.BeforeID,
+		arg.BuildNumber,
 		arg.Name,
 		arg.Transition,
 		arg.InitiatorID,
@@ -3004,8 +3017,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		&i.WorkspaceID,
 		&i.TemplateVersionID,
 		&i.Name,
-		&i.BeforeID,
-		&i.AfterID,
+		&i.BuildNumber,
 		&i.Transition,
 		&i.InitiatorID,
 		&i.ProvisionerState,
@@ -3019,26 +3031,19 @@ UPDATE
 	workspace_builds
 SET
 	updated_at = $2,
-	after_id = $3,
-	provisioner_state = $4
+	provisioner_state = $3
 WHERE
 	id = $1
 `
 
 type UpdateWorkspaceBuildByIDParams struct {
-	ID               uuid.UUID     `db:"id" json:"id"`
-	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
-	AfterID          uuid.NullUUID `db:"after_id" json:"after_id"`
-	ProvisionerState []byte        `db:"provisioner_state" json:"provisioner_state"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	ProvisionerState []byte    `db:"provisioner_state" json:"provisioner_state"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
-		arg.ID,
-		arg.UpdatedAt,
-		arg.AfterID,
-		arg.ProvisionerState,
-	)
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID, arg.ID, arg.UpdatedAt, arg.ProvisionerState)
 	return err
 }
 

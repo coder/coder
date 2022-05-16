@@ -116,7 +116,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if createBuild.TemplateVersionID == uuid.Nil {
-		latestBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
 			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 				Message: fmt.Sprintf("get latest workspace build: %s", err),
@@ -176,9 +176,9 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store prior history ID if it exists to update it after we create new!
-	priorHistoryID := uuid.NullUUID{}
-	priorHistory, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	// Store prior build number to compute new build number
+	var priorBuildNum int32 = 0
+	priorHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err == nil {
 		priorJob, err := api.Database.GetProvisionerJobByID(r.Context(), priorHistory.JobID)
 		if err == nil && convertProvisionerJob(priorJob).Status.Active() {
@@ -188,10 +188,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		priorHistoryID = uuid.NullUUID{
-			UUID:  priorHistory.ID,
-			Valid: true,
-		}
+		priorBuildNum = priorHistory.BuildNumber
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get prior workspace build: %s", err),
@@ -237,7 +234,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			UpdatedAt:         database.Now(),
 			WorkspaceID:       workspace.ID,
 			TemplateVersionID: templateVersion.ID,
-			BeforeID:          priorHistoryID,
+			BuildNumber:       priorBuildNum + 1,
 			Name:              namesgenerator.GetRandomName(1),
 			ProvisionerState:  state,
 			InitiatorID:       apiKey.UserID,
@@ -246,22 +243,6 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
-		}
-
-		if priorHistoryID.Valid {
-			// Update the prior history entries "after" column.
-			err = db.UpdateWorkspaceBuildByID(r.Context(), database.UpdateWorkspaceBuildByIDParams{
-				ID:               priorHistory.ID,
-				ProvisionerState: priorHistory.ProvisionerState,
-				UpdatedAt:        database.Now(),
-				AfterID: uuid.NullUUID{
-					UUID:  workspaceBuild.ID,
-					Valid: true,
-				},
-			})
-			if err != nil {
-				return xerrors.Errorf("update prior workspace build: %w", err)
-			}
 		}
 
 		return nil
@@ -355,8 +336,7 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.
 		UpdatedAt:         workspaceBuild.UpdatedAt,
 		WorkspaceID:       workspaceBuild.WorkspaceID,
 		TemplateVersionID: workspaceBuild.TemplateVersionID,
-		BeforeID:          workspaceBuild.BeforeID.UUID,
-		AfterID:           workspaceBuild.AfterID.UUID,
+		BuildNumber:       workspaceBuild.BuildNumber,
 		Name:              workspaceBuild.Name,
 		Transition:        workspaceBuild.Transition,
 		InitiatorID:       workspaceBuild.InitiatorID,

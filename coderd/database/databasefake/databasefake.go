@@ -419,38 +419,62 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	var row database.WorkspaceBuild
+	var build_num int32 = 0
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() != workspaceID.String() {
-			continue
-		}
-		if !workspaceBuild.AfterID.Valid {
-			return workspaceBuild, nil
+		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > build_num {
+			row = workspaceBuild
+			build_num = workspaceBuild.BuildNumber
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	if build_num == 0 {
+		return database.WorkspaceBuild{}, sql.ErrNoRows
+	}
+	return row, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.GetLatestWorkspaceBuildsByWorkspaceIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	builds := make([]database.WorkspaceBuild, 0)
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
+	build_numbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
-			if id.String() != workspaceBuild.WorkspaceID.String() {
-				continue
+			if id.String() == workspaceBuild.WorkspaceID.String() && workspaceBuild.BuildNumber > build_numbers[id] {
+				builds[id] = workspaceBuild
+				build_numbers[id] = workspaceBuild.BuildNumber
 			}
-			builds = append(builds, workspaceBuild)
 		}
 	}
-	if len(builds) == 0 {
+	var returnBuilds []database.GetLatestWorkspaceBuildsByWorkspaceIDsRow
+	for i, n := range build_numbers {
+		if n > 0 {
+			b := builds[i]
+			returnBuilds = append(returnBuilds, database.GetLatestWorkspaceBuildsByWorkspaceIDsRow{
+				ID:                b.ID,
+				CreatedAt:         b.CreatedAt,
+				UpdatedAt:         b.UpdatedAt,
+				WorkspaceID:       b.WorkspaceID,
+				TemplateVersionID: b.TemplateVersionID,
+				Name:              b.Name,
+				BuildNumber:       b.BuildNumber,
+				Transition:        b.Transition,
+				InitiatorID:       b.InitiatorID,
+				ProvisionerState:  b.ProvisionerState,
+				JobID:             b.JobID,
+				Max:               b.BuildNumber,
+			})
+		}
+	}
+	if len(returnBuilds) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return builds, nil
+	return returnBuilds, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -1444,7 +1468,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		WorkspaceID:       arg.WorkspaceID,
 		Name:              arg.Name,
 		TemplateVersionID: arg.TemplateVersionID,
-		BeforeID:          arg.BeforeID,
+		BuildNumber:       arg.BuildNumber,
 		Transition:        arg.Transition,
 		InitiatorID:       arg.InitiatorID,
 		JobID:             arg.JobID,
@@ -1640,7 +1664,6 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 			continue
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
-		workspaceBuild.AfterID = arg.AfterID
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
