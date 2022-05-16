@@ -182,11 +182,11 @@ func usageTemplate() string {
 	// Customizes the color of headings to make subcommands
 	// more visually appealing.
 	header := cliui.Styles.Placeholder
-	cobra.AddTemplateFunc("header", func(s string) string {
+	cobra.AddTemplateFunc("usageHeader", func(s string) string {
 		return header.Render(s)
 	})
 
-	return `{{header "Usage:"}}
+	return `{{usageHeader "Usage:"}}
 {{- if .Runnable}}
   {{.UseLine}}
 {{end}}
@@ -195,17 +195,17 @@ func usageTemplate() string {
 {{end}}
 
 {{- if gt (len .Aliases) 0}}
-{{header "Aliases:"}}
+{{usageHeader "Aliases:"}}
   {{.NameAndAliases}}
 {{end}}
 
 {{- if .HasExample}}
-{{header "Get Started:"}}
+{{usageHeader "Get Started:"}}
 {{.Example}}
 {{end}}
 
 {{- if .HasAvailableSubCommands}}
-{{header "Commands:"}}
+{{usageHeader "Commands:"}}
   {{- range .Commands}}
     {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}
@@ -214,7 +214,7 @@ func usageTemplate() string {
 {{end}}
 
 {{- if and (not .HasParent) .HasAvailableSubCommands}}
-{{header "Workspace Commands:"}}
+{{usageHeader "Workspace Commands:"}}
   {{- range .Commands}}
     {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
   {{rpad .Name .NamePadding }} {{.Short}}
@@ -223,17 +223,17 @@ func usageTemplate() string {
 {{end}}
 
 {{- if .HasAvailableLocalFlags}}
-{{header "Flags:"}}
+{{usageHeader "Flags:"}}
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasAvailableInheritedFlags}}
-{{header "Global Flags:"}}
+{{usageHeader "Global Flags:"}}
 {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasHelpSubCommands}}
-{{header "Additional help topics:"}}
+{{usageHeader "Additional help topics:"}}
   {{- range .Commands}}
     {{- if .IsAdditionalHelpTopicCommand}}
   {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
