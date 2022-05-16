@@ -61,7 +61,7 @@ const config: Configuration = {
     port: process.env.PORT || 8080,
     proxy: {
       "/api": {
-        target: "https://dev.coder.com",
+        target: "http://localhost:3000",
         ws: true,
         secure: false,
       },
