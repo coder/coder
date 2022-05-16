@@ -78,7 +78,7 @@ type Schedule struct {
 }
 
 // String serializes the schedule to its original human-friendly format.
-// The leading CRON_TZ is stripped.
+// The leading CRON_TZ is maintained.
 func (s Schedule) String() string {
 	var sb strings.Builder
 	_, _ = sb.WriteString("CRON_TZ=")
