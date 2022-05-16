@@ -62,7 +62,7 @@ export interface CreateParameterRequest {
 // From codersdk/organizations.go:38:6
 export interface CreateTemplateRequest {
   readonly name: string
-  readonly description: string
+  readonly description?: string
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
 }

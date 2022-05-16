@@ -40,7 +40,7 @@ type CreateTemplateRequest struct {
 	Name string `json:"name" validate:"username,required"`
 	// Description is a description of what the template contains. It must be
 	// less than 128 bytes.
-	Description string `json:"description" validate:"lt=128"`
+	Description string `json:"description,omitempty" validate:"lt=128"`
 
 	// VersionID is an in-progress or completed job to use as an initial version
 	// of the template.
