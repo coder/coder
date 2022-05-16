@@ -162,8 +162,6 @@ func (api *api) users(rw http.ResponseWriter, r *http.Request) {
 
 // Creates a new user.
 func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
-
 	// Create the user on the site
 	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceUser) {
 		return
@@ -199,7 +197,7 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organization, err := api.Database.GetOrganizationByID(r.Context(), createUser.OrganizationID)
+	_, err = api.Database.GetOrganizationByID(r.Context(), createUser.OrganizationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
 			Message: "organization does not exist with the provided id",
@@ -209,23 +207,6 @@ func (api *api) postUser(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get organization: %s", err),
-		})
-		return
-	}
-	// Check if the caller has permissions to the organization requested.
-	_, err = api.Database.GetOrganizationMemberByUserID(r.Context(), database.GetOrganizationMemberByUserIDParams{
-		OrganizationID: organization.ID,
-		UserID:         apiKey.UserID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "you are not authorized to add members to that organization",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization member: %s", err),
 		})
 		return
 	}

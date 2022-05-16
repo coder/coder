@@ -172,13 +172,14 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
+		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		_, err = notInOrg.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "some@domain.com",
 			Username:       "anotheruser",
 			Password:       "testing",
@@ -582,7 +583,8 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		_, err := client.OrganizationByName(context.Background(), codersdk.Me, "nothing")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		// Returns unauthorized to not leak if the org exists or not
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 
 	t.Run("NoMember", func(t *testing.T) {

@@ -32,7 +32,7 @@ func (c *Client) ListSiteRoles(ctx context.Context) ([]Role, error) {
 // ListOrganizationRoles lists all available roles for a given organization.
 // This is not user specific.
 func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Role, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/roles/", org.String()), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/roles", org.String()), nil)
 	if err != nil {
 		return nil, err
 	}

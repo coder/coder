@@ -64,7 +64,11 @@ var (
 			return Role{
 				Name:        member,
 				DisplayName: "Member",
-				Site:        permissions(map[Object][]Action{}),
+				Site: permissions(map[Object][]Action{
+					// TODO: @emyrk in EE we should restrict this to only certain fields.
+					// All users can read all other users and know they exist.
+					ResourceUser: {ActionRead},
+				}),
 				User: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
 				}),
@@ -117,11 +121,13 @@ var (
 							// All org members can read the other members in their org.
 							ResourceType: ResourceOrganizationMember.Type,
 							Action:       ActionRead,
+							ResourceID:   "*",
 						},
 						{
 							// All org members can read the organization
 							ResourceType: ResourceOrganization.Type,
 							Action:       ActionRead,
+							ResourceID:   "*",
 						},
 					},
 				},
