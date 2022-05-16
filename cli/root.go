@@ -183,19 +183,32 @@ func usageTemplate() string {
 	// more visually appealing.
 	header := cliui.Styles.Placeholder
 
-	return `{{if .HasExample}}` + header.Render("Get Started:") + `
-{{.Example}}
+	return header.Render("Usage:") + `{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
 
-{{end}}{{if .HasAvailableLocalFlags}}` + header.Render("Flags:") + `
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+` + header.Render("Aliases:") + `
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
 
-` + header.Render("Commands:") + `{{range .Commands}}{{if and .IsAvailableCommand (eq (len .Annotations) 0)}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .HasParent }}
+` + header.Render("Get Started:") + `
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
 
-` + header.Render("Workspace Commands:") + `{{range .Commands}}{{if and .IsAvailableCommand (ne (index .Annotations "workspaces") "")}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}
+` + header.Render("Commands:") + `{{range .Commands}}{{if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if and (not .HasParent) .HasAvailableSubCommands}}
 
-Use "{{.CommandPath}} [command] --help" for more information about a command.
+` + header.Render("Workspace Commands:") + `{{range .Commands}}{{if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+` + header.Render("Flags:") + `
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+` + header.Render("Global Flags:") + `
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
 }
 
