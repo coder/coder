@@ -27,6 +27,22 @@ func TestWorkspaceBuild(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestWorkspaceBuilds(t *testing.T) {
+	t.Parallel()
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_, err := client.WorkspaceBuilds(context.Background(), workspace.ID)
+		require.NoError(t, err)
+	})
+}
+
 func TestPatchCancelWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

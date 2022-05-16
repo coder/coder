@@ -1,4 +1,7 @@
 import { rest } from "msw"
+import { WorkspaceBuildTransition } from "../api/types"
+import { CreateWorkspaceBuildRequest } from "../api/typesGenerated"
+import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
 
 export const handlers = [
@@ -54,6 +57,20 @@ export const handlers = [
   rest.get("/api/v2/users/roles", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockSiteRoles))
   }),
+  rest.post("/api/v2/users/:userId/authorization", async (req, res, ctx) => {
+    const permissions = Object.keys(permissionsToCheck)
+    const response = permissions.reduce((obj, permission) => {
+      return {
+        ...obj,
+        [permission]: true,
+      }
+    }, {})
+
+    return res(ctx.status(200), ctx.json(response))
+  }),
+  rest.get("/api/v2/users/:userId/gitsshkey", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockGitSSHKey))
+  }),
 
   // workspaces
   rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
@@ -67,6 +84,16 @@ export const handlers = [
   }),
   rest.put("/api/v2/workspaces/:workspaceId/autostop", async (req, res, ctx) => {
     return res(ctx.status(200))
+  }),
+  rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
+    const { transition } = req.body as CreateWorkspaceBuildRequest
+    const transitionToBuild = {
+      start: M.MockWorkspaceBuild,
+      stop: M.MockWorkspaceBuildStop,
+      delete: M.MockWorkspaceBuildDelete,
+    }
+    const result = transitionToBuild[transition as WorkspaceBuildTransition]
+    return res(ctx.status(200), ctx.json(result))
   }),
 
   // workspace builds

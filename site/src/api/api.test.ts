@@ -2,12 +2,6 @@ import axios from "axios"
 import { getApiKey, login, logout } from "./api"
 import * as TypesGen from "./typesGenerated"
 
-// Mock the axios module so that no real network requests are made, but rather
-// we swap in a resolved or rejected value
-//
-// See: https://jestjs.io/docs/mock-functions#mocking-modules
-jest.mock("axios")
-
 describe("api.ts", () => {
   describe("login", () => {
     it("should return LoginResponse", async () => {
@@ -15,16 +9,13 @@ describe("api.ts", () => {
       const loginResponse: TypesGen.LoginWithPasswordResponse = {
         session_token: "abc_123_test",
       }
-      const axiosMockPost = jest.fn().mockImplementationOnce(() => {
-        return Promise.resolve({ data: loginResponse })
-      })
-      axios.post = axiosMockPost
+      jest.spyOn(axios, "post").mockResolvedValueOnce({ data: loginResponse })
 
       // when
       const result = await login("test", "123")
 
       // then
-      expect(axiosMockPost).toHaveBeenCalled()
+      expect(axios.post).toHaveBeenCalled()
       expect(result).toStrictEqual(loginResponse)
     })
 

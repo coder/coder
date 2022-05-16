@@ -63,6 +63,6 @@ describe("UserDropdown", () => {
       throw new Error("Anchor tag not found for the account menu item")
     }
 
-    expect(link.getAttribute("href")).toBe("/preferences/account")
+    expect(link.getAttribute("href")).toBe("/settings/account")
   })
 })

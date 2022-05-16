@@ -1,5 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
+import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
@@ -76,6 +77,14 @@ export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   return response.data
 }
 
+export const checkUserPermissions = async (
+  userId: string,
+  params: TypesGen.UserAuthorizationRequest,
+): Promise<TypesGen.UserAuthorizationResponse> => {
+  const response = await axios.post<TypesGen.UserAuthorizationResponse>(`/api/v2/users/${userId}/authorization`, params)
+  return response.data
+}
+
 export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   const response = await axios.post<TypesGen.GenerateAPIKeyResponse>("/api/v2/users/me/keys")
   return response.data
@@ -123,6 +132,21 @@ export const getWorkspaceResources = async (workspaceBuildID: string): Promise<T
   )
   return response.data
 }
+
+const postWorkspaceBuild =
+  (transition: WorkspaceBuildTransition) =>
+  async (workspaceId: string, template_version_id?: string): Promise<TypesGen.WorkspaceBuild> => {
+    const payload = {
+      transition,
+      template_version_id,
+    }
+    const response = await axios.post(`/api/v2/workspaces/${workspaceId}/builds`, payload)
+    return response.data
+  }
+
+export const startWorkspace = postWorkspaceBuild("start")
+export const stopWorkspace = postWorkspaceBuild("stop")
+export const deleteWorkspace = postWorkspaceBuild("delete")
 
 export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
   const response = await axios.post<TypesGen.User>("/api/v2/users", user)
@@ -180,5 +204,15 @@ export const updateUserRoles = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.User> => {
   const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/roles`, { roles })
+  return response.data
+}
+
+export const getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.get<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+  return response.data
+}
+
+export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.put<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
   return response.data
 }

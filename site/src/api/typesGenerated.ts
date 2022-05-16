@@ -85,7 +85,7 @@ export interface CreateUserRequest {
   readonly organization_id: string
 }
 
-// From codersdk/workspaces.go:33:6
+// From codersdk/workspaces.go:34:6
 export interface CreateWorkspaceBuildRequest {
   readonly template_version_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
@@ -289,12 +289,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:95:6
+// From codersdk/workspaces.go:96:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:115:6
+// From codersdk/workspaces.go:116:6
 export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
@@ -316,13 +316,13 @@ export interface User {
 }
 
 // From codersdk/users.go:95:6
-export interface UserPermissionCheck {
-  readonly object: UserPermissionCheckObject
+export interface UserAuthorization {
+  readonly object: UserAuthorizationObject
   readonly action: string
 }
 
 // From codersdk/users.go:111:6
-export interface UserPermissionCheckObject {
+export interface UserAuthorizationObject {
   readonly resource_type: string
   readonly owner_id?: string
   readonly organization_id?: string
@@ -330,12 +330,12 @@ export interface UserPermissionCheckObject {
 }
 
 // From codersdk/users.go:84:6
-export interface UserPermissionCheckRequest {
-  readonly checks: Record<string, UserPermissionCheck>
+export interface UserAuthorizationRequest {
+  readonly checks: Record<string, UserAuthorization>
 }
 
 // From codersdk/users.go:79:6
-export type UserPermissionCheckResponse = Record<string, boolean>
+export type UserAuthorizationResponse = Record<string, boolean>
 
 // From codersdk/users.go:74:6
 export interface UserRoles {
@@ -355,6 +355,7 @@ export interface Workspace {
   readonly created_at: string
   readonly updated_at: string
   readonly owner_id: string
+  readonly owner_name: string
   readonly template_id: string
   readonly template_name: string
   readonly latest_build: WorkspaceBuild

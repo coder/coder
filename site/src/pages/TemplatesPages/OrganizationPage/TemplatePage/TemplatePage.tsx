@@ -1,16 +1,18 @@
 import React from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import useSWR from "swr"
 import * as TypesGen from "../../../../api/typesGenerated"
-import { EmptyState } from "../../../../components/EmptyState/EmptyState"
 import { ErrorSummary } from "../../../../components/ErrorSummary/ErrorSummary"
 import { Header } from "../../../../components/Header/Header"
-import { FullScreenLoader } from "../../../../components/Loader/FullScreenLoader"
 import { Margins } from "../../../../components/Margins/Margins"
 import { Stack } from "../../../../components/Stack/Stack"
-import { Column, Table } from "../../../../components/Table/Table"
+import { WorkspacesTable } from "../../../../components/WorkspacesTable/WorkspacesTable"
 import { unsafeSWRArgument } from "../../../../util"
 import { firstOrItem } from "../../../../util/array"
+
+export const Language = {
+  subtitle: "workspaces",
+}
 
 export const TemplatePage: React.FC = () => {
   const navigate = useNavigate()
@@ -26,69 +28,29 @@ export const TemplatePage: React.FC = () => {
 
   // This just grabs all workspaces... and then later filters them to match the
   // current template.
-
   const { data: workspaces, error: workspacesError } = useSWR<TypesGen.Workspace[], Error>(
     () => `/api/v2/organizations/${unsafeSWRArgument(organizationInfo).id}/workspaces`,
   )
 
-  if (organizationError) {
-    return <ErrorSummary error={organizationError} />
-  }
-
-  if (templateError) {
-    return <ErrorSummary error={templateError} />
-  }
-
-  if (workspacesError) {
-    return <ErrorSummary error={workspacesError} />
-  }
-
-  if (!templateInfo || !workspaces) {
-    return <FullScreenLoader />
-  }
+  const hasError = organizationError || templateError || workspacesError
 
   const createWorkspace = () => {
     navigate(`/templates/${organizationName}/${templateName}/create`)
   }
 
-  const emptyState = (
-    <EmptyState
-      button={{
-        children: "Create Workspace",
-        onClick: createWorkspace,
-      }}
-      message="No workspaces have been created yet"
-      description="Create a workspace to get started"
-    />
-  )
-
-  const columns: Column<TypesGen.Workspace>[] = [
-    {
-      key: "name",
-      name: "Name",
-      renderer: (nameField: string | TypesGen.WorkspaceBuild, workspace: TypesGen.Workspace) => {
-        return <Link to={`/workspaces/${workspace.id}`}>{nameField}</Link>
-      },
-    },
-  ]
-
-  const perTemplateWorkspaces = workspaces.filter((workspace) => {
-    return workspace.template_id === templateInfo.id
-  })
-
-  const tableProps = {
-    title: "Workspaces",
-    columns,
-    data: perTemplateWorkspaces,
-    emptyState: emptyState,
-  }
+  const perTemplateWorkspaces =
+    workspaces && templateInfo
+      ? workspaces.filter((workspace) => {
+          return workspace.template_id === templateInfo.id
+        })
+      : undefined
 
   return (
     <Stack spacing={4}>
       <Header
         title={firstOrItem(templateName, "")}
         description={firstOrItem(organizationName, "")}
-        subTitle={`${perTemplateWorkspaces.length} workspaces`}
+        subTitle={perTemplateWorkspaces ? `${perTemplateWorkspaces.length} ${Language.subtitle}` : ""}
         action={{
           text: "Create Workspace",
           onClick: createWorkspace,
@@ -96,7 +58,12 @@ export const TemplatePage: React.FC = () => {
       />
 
       <Margins>
-        <Table {...tableProps} />
+        {organizationError && <ErrorSummary error={organizationError} />}
+        {templateError && <ErrorSummary error={templateError} />}
+        {workspacesError && <ErrorSummary error={workspacesError} />}
+        {!hasError && (
+          <WorkspacesTable templateInfo={templateInfo} workspaces={workspaces} onCreateWorkspace={createWorkspace} />
+        )}
       </Margins>
     </Stack>
   )

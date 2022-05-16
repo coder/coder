@@ -12,14 +12,14 @@ export const Language = {
 }
 
 export interface UsersPageViewProps {
-  users: TypesGen.User[]
+  users?: TypesGen.User[]
+  roles?: TypesGen.Role[]
+  error?: unknown
+  isUpdatingUserRoles?: boolean
   openUserCreationDialog: () => void
   onSuspendUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
-  roles: TypesGen.Role[]
-  error?: unknown
-  isUpdatingUserRoles?: boolean
 }
 
 export const UsersPageView: React.FC<UsersPageViewProps> = ({
@@ -41,10 +41,10 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
         ) : (
           <UsersTable
             users={users}
+            roles={roles}
             onSuspendUser={onSuspendUser}
             onResetUserPassword={onResetUserPassword}
             onUpdateUserRoles={onUpdateUserRoles}
-            roles={roles}
             isUpdatingUserRoles={isUpdatingUserRoles}
           />
         )}

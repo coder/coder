@@ -21,12 +21,12 @@ describe("EmptyState", () => {
     await screen.findByText("Friendly greeting")
   })
 
-  it("renders description component", async () => {
+  it("renders cta component", async () => {
     // Given
-    const description = <button title="Click me" />
+    const cta = <button title="Click me" />
 
     // When
-    render(<EmptyState message="Hello, world" description={description} />)
+    render(<EmptyState message="Hello, world" cta={cta} />)
 
     // Then
     await screen.findByText("Hello, world")

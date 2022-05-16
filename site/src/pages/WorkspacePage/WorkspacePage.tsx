@@ -1,4 +1,4 @@
-import { useActor } from "@xstate/react"
+import { useActor, useSelector } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
@@ -8,6 +8,18 @@ import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { XServiceContext } from "../../xServices/StateContext"
+import { selectWorkspaceStatus } from "../../xServices/workspace/workspaceSelectors"
+
+export type WorkspaceStatus =
+  | "started"
+  | "starting"
+  | "stopped"
+  | "stopping"
+  | "error"
+  | "loading"
+  | "deleting"
+  | "deleted"
+  | "canceling"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
@@ -17,6 +29,7 @@ export const WorkspacePage: React.FC = () => {
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
   const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
     workspaceState.context
+  const workspaceStatus = useSelector(xServices.workspaceXService, selectWorkspaceStatus)
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -28,13 +41,22 @@ export const WorkspacePage: React.FC = () => {
 
   if (workspaceState.matches("error")) {
     return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError} />
-  } else if (!workspace || !template || !organization) {
+  } else if (!workspace) {
     return <FullScreenLoader />
   } else {
     return (
       <Margins>
         <Stack spacing={4}>
-          <Workspace organization={organization} template={template} workspace={workspace} />
+          <Workspace
+            organization={organization}
+            template={template}
+            workspace={workspace}
+            handleStart={() => workspaceSend("START")}
+            handleStop={() => workspaceSend("STOP")}
+            handleRetry={() => workspaceSend("RETRY")}
+            handleUpdate={() => workspaceSend("UPDATE")}
+            workspaceStatus={workspaceStatus}
+          />
         </Stack>
       </Margins>
     )

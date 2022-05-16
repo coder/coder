@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
@@ -49,7 +50,7 @@ func list() *cobra.Command {
 			}
 
 			tableWriter := cliui.Table()
-			header := table.Row{"workspace", "template", "status", "last built", "outdated"}
+			header := table.Row{"workspace", "template", "status", "last built", "outdated", "autostart", "autostop"}
 			tableWriter.AppendHeader(header)
 			tableWriter.SortBy([]table.SortBy{{
 				Name: "workspace",
@@ -108,6 +109,20 @@ func list() *cobra.Command {
 					durationDisplay = durationDisplay[:len(durationDisplay)-2]
 				}
 
+				autostartDisplay := "-"
+				if workspace.AutostartSchedule != "" {
+					if sched, err := schedule.Weekly(workspace.AutostartSchedule); err == nil {
+						autostartDisplay = sched.Cron()
+					}
+				}
+
+				autostopDisplay := "-"
+				if workspace.AutostopSchedule != "" {
+					if sched, err := schedule.Weekly(workspace.AutostopSchedule); err == nil {
+						autostopDisplay = sched.Cron()
+					}
+				}
+
 				user := usersByID[workspace.OwnerID]
 				tableWriter.AppendRow(table.Row{
 					user.Username + "/" + workspace.Name,
@@ -115,6 +130,8 @@ func list() *cobra.Command {
 					status,
 					durationDisplay,
 					workspace.Outdated,
+					autostartDisplay,
+					autostopDisplay,
 				})
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())

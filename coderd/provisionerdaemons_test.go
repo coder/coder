@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -44,5 +45,23 @@ func TestProvisionerDaemons(t *testing.T) {
 			require.NoError(t, err)
 			return version.Job.Error != ""
 		}, 5*time.Second, 25*time.Millisecond)
+	})
+}
+
+func TestProvisionerDaemonsByOrganization(t *testing.T) {
+	t.Parallel()
+	t.Run("NoAuth", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_, err := client.ProvisionerDaemonsByOrganization(context.Background(), uuid.New())
+		require.Error(t, err)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_, err := client.ProvisionerDaemonsByOrganization(context.Background(), user.OrganizationID)
+		require.NoError(t, err)
 	})
 }
