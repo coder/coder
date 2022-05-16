@@ -149,7 +149,6 @@ func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersd
 		Monitor: monitoring.New(ctx, &monitoring.Options{
 			Database:        db,
 			Logger:          slogtest.Make(t, nil),
-			RefreshInterval: time.Minute,
 			Telemetry:       monitoring.TelemetryNone,
 		}),
 		SSHKeygenAlgorithm: options.SSHKeygenAlgorithm,

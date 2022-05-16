@@ -3,7 +3,6 @@ package monitoring
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
@@ -38,10 +37,9 @@ func ParseTelemetry(t string) (Telemetry, error) {
 }
 
 type Options struct {
-	Database        database.Store
-	Logger          slog.Logger
-	RefreshInterval time.Duration
-	Telemetry       Telemetry
+	Database  database.Store
+	Logger    slog.Logger
+	Telemetry Telemetry
 }
 
 // Monitor provides Prometheus registries on which to register metric

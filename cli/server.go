@@ -259,7 +259,6 @@ func server() *cobra.Command {
 			options.Monitor = monitoring.New(cmd.Context(), &monitoring.Options{
 				Database:        options.Database,
 				Logger:          options.Logger,
-				RefreshInterval: time.Hour,
 				Telemetry:       telemetry,
 			})
 
