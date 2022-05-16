@@ -201,8 +201,8 @@ func (c *Client) WorkspacesByOrganization(ctx context.Context, organizationID uu
 }
 
 // WorkspacesByOwner returns all workspaces contained in the organization owned by the user.
-func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID, userID uuid.UUID) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s", organizationID, uuidOrMe(userID)), nil)
+func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID uuid.UUID, user string) ([]Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s", organizationID, user), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +217,8 @@ func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID, userID u
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, organization, owner uuid.UUID, name string) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s/%s", organization, uuidOrMe(owner), name), nil)
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, organization uuid.UUID, owner string, name string) (Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s/%s", organization, owner, name), nil)
 	if err != nil {
 		return Workspace{}, err
 	}
