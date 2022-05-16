@@ -59,7 +59,7 @@ resources](./templates.md#persistent-and-ephemeral-resources).
 > where to store files, install software, etc., so that they persist. Default
 > templates are documented in [../examples](../examples/).
 >
-> You can use `coder workspace show <workspace-name>` to see which resources are
+> You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.
 
 When a workspace is deleted, all of the workspace's resources are deleted.
