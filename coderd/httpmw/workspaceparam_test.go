@@ -92,31 +92,6 @@ func TestWorkspaceParam(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
-	t.Run("NonPersonal", func(t *testing.T) {
-		t.Parallel()
-		db := databasefake.New()
-		rtr := chi.NewRouter()
-		rtr.Use(
-			httpmw.ExtractAPIKey(db, nil),
-			httpmw.ExtractWorkspaceParam(db),
-		)
-		rtr.Get("/", nil)
-		r, _ := setup(db)
-		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
-			ID:      uuid.New(),
-			OwnerID: uuid.New(),
-			Name:    "hello",
-		})
-		require.NoError(t, err)
-		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
-		rw := httptest.NewRecorder()
-		rtr.ServeHTTP(rw, r)
-
-		res := rw.Result()
-		defer res.Body.Close()
-		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
-	})
-
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
