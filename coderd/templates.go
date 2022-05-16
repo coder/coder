@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -73,132 +74,181 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
-	template := httpmw.TemplateParam(r)
-
-	paginationParams, ok := parsePagination(rw, r)
-	if !ok {
+// Create a new template in an organization.
+func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	var createTemplate codersdk.CreateTemplateRequest
+	if !httpapi.Read(rw, r, &createTemplate) {
+		return
+	}
+	organization := httpmw.OrganizationParam(r)
+	_, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{
+		OrganizationID: organization.ID,
+		Name:           createTemplate.Name,
+	})
+	if err == nil {
+		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
+			Message: fmt.Sprintf("template %q already exists", createTemplate.Name),
+			Errors: []httpapi.Error{{
+				Field:  "name",
+				Detail: "this value is already in use and should be unique",
+			}},
+		})
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template by name: %s", err),
+		})
+		return
+	}
+	templateVersion, err := api.Database.GetTemplateVersionByID(r.Context(), createTemplate.VersionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "template version does not exist",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template version by id: %s", err),
+		})
+		return
+	}
+	importJob, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get import job by id: %s", err),
+		})
 		return
 	}
 
-	apiVersion := []codersdk.TemplateVersion{}
-	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
-		TemplateID: template.ID,
-		AfterID:    paginationParams.AfterID,
-		LimitOpt:   int32(paginationParams.Limit),
-		OffsetOpt:  int32(paginationParams.Offset),
+	var template codersdk.Template
+	err = api.Database.InTx(func(db database.Store) error {
+		now := database.Now()
+		dbTemplate, err := db.InsertTemplate(r.Context(), database.InsertTemplateParams{
+			ID:              uuid.New(),
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			OrganizationID:  organization.ID,
+			Name:            createTemplate.Name,
+			Provisioner:     importJob.Provisioner,
+			ActiveVersionID: templateVersion.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert template: %s", err)
+		}
+
+		err = db.UpdateTemplateVersionByID(r.Context(), database.UpdateTemplateVersionByIDParams{
+			ID: templateVersion.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  dbTemplate.ID,
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert template version: %s", err)
+		}
+
+		for _, parameterValue := range createTemplate.ParameterValues {
+			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              parameterValue.Name,
+				CreatedAt:         database.Now(),
+				UpdatedAt:         database.Now(),
+				Scope:             database.ParameterScopeTemplate,
+				ScopeID:           dbTemplate.ID,
+				SourceScheme:      parameterValue.SourceScheme,
+				SourceValue:       parameterValue.SourceValue,
+				DestinationScheme: parameterValue.DestinationScheme,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert parameter value: %w", err)
+			}
+		}
+
+		template = convertTemplate(dbTemplate, 0)
+		return nil
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, template)
+}
+
+func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
+		OrganizationID: organization.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusOK, apiVersion)
-		return
+		err = nil
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version: %s", err),
+			Message: fmt.Sprintf("get templates: %s", err.Error()),
 		})
 		return
 	}
-	jobIDs := make([]uuid.UUID, 0, len(versions))
-	for _, version := range versions {
-		jobIDs = append(jobIDs, version.JobID)
+	templateIDs := make([]uuid.UUID, 0, len(templates))
+	for _, template := range templates {
+		templateIDs = append(templateIDs, template.ID)
 	}
-	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), templateIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get jobs: %s", err),
+			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
 		})
 		return
-	}
-	jobByID := map[string]database.ProvisionerJob{}
-	for _, job := range jobs {
-		jobByID[job.ID.String()] = job
 	}
 
-	for _, version := range versions {
-		job, exists := jobByID[version.JobID.String()]
-		if !exists {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("job %q doesn't exist for version %q", version.JobID, version.ID),
+	httpapi.Write(rw, http.StatusOK, convertTemplates(templates, workspaceCounts))
+}
+
+func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	templateName := chi.URLParam(r, "templatename")
+	template, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{
+		OrganizationID: organization.ID,
+		Name:           templateName,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				Message: fmt.Sprintf("no template found by name %q in the %q organization", templateName, organization.Name),
 			})
 			return
 		}
-		apiVersion = append(apiVersion, convertTemplateVersion(version, convertProvisionerJob(job)))
+
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template by organization and name: %s", err),
+		})
+		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, apiVersion)
-}
-
-func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
-	template := httpmw.TemplateParam(r)
-	templateVersionName := chi.URLParam(r, "templateversionname")
-	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(r.Context(), database.GetTemplateVersionByTemplateIDAndNameParams{
-		TemplateID: uuid.NullUUID{
-			UUID:  template.ID,
-			Valid: true,
-		},
-		Name: templateVersionName,
-	})
+	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(r.Context(), []uuid.UUID{template.ID})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("no template version found by name %q", templateVersionName),
-		})
-		return
+		err = nil
 	}
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version by name: %s", err),
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get provisioner job: %s", err),
+			Message: fmt.Sprintf("get workspace counts: %s", err.Error()),
 		})
 		return
 	}
 
-	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
-}
+	count := uint32(0)
+	if len(workspaceCounts) > 0 {
+		count = uint32(workspaceCounts[0].Count)
+	}
 
-func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
-	var req codersdk.UpdateActiveTemplateVersion
-	if !httpapi.Read(rw, r, &req) {
-		return
-	}
-	template := httpmw.TemplateParam(r)
-	version, err := api.Database.GetTemplateVersionByID(r.Context(), req.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: "template version not found",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get template version: %s", err),
-		})
-		return
-	}
-	if version.TemplateID.UUID.String() != template.ID.String() {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "The provided template version doesn't belong to the specified template.",
-		})
-		return
-	}
-	err = api.Database.UpdateTemplateActiveVersionByID(r.Context(), database.UpdateTemplateActiveVersionByIDParams{
-		ID:              template.ID,
-		ActiveVersionID: req.ID,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update active template version: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, httpapi.Response{
-		Message: "Updated the active template version!",
-	})
+	httpapi.Write(rw, http.StatusOK, convertTemplate(template, count))
 }
 
 func convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow) []codersdk.Template {
