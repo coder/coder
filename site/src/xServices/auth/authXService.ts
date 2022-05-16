@@ -4,7 +4,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { displayError, displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
-  successProfileUpdate: "Updated preferences.",
+  successProfileUpdate: "Updated settings.",
   successRegenerateSSHKey: "SSH Key regenerated successfully",
   errorRegenerateSSHKey: "Error on regenerate the SSH Key",
 }
