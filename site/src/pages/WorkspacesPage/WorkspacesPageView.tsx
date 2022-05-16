@@ -115,7 +115,13 @@ const getStatus = (
   color: string
   status: string
 } => {
-  switch (getWorkspaceStatus(build)) {
+  const status = getWorkspaceStatus(build)
+  switch (status) {
+    case undefined:
+      return {
+        color: theme.palette.text.secondary,
+        status: "Loading...",
+      }
     case "started":
       return {
         color: theme.palette.success.main,
@@ -167,6 +173,7 @@ const getStatus = (
         status: "◍ Queued",
       }
   }
+  throw new Error("unknown status " + status)
 }
 
 const useStyles = makeStyles((theme) => ({
