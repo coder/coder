@@ -25,6 +25,7 @@ export const workspacesMachine = createMachine(
     initial: "gettingWorkspaces",
     states: {
       gettingWorkspaces: {
+        entry: "clearGetWorkspacesError",
         invoke: {
           src: "getWorkspaces",
           id: "getWorkspaces",

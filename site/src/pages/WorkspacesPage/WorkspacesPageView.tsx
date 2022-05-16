@@ -36,7 +36,6 @@ export interface WorkspacesPageViewProps {
 export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => {
   const styles = useStyles()
   const theme: Theme = useTheme()
-
   return (
     <Stack spacing={4}>
       <Margins>
@@ -68,35 +67,40 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
                 </TableCell>
               </TableRow>
             )}
-            {props.workspaces?.map((workspace) => (
-              <TableRow key={workspace.id} className={styles.workspaceRow}>
-                <TableCell>
-                  <div className={styles.workspaceName}>
-                    <Avatar variant="square" className={styles.workspaceAvatar}>
-                      {firstLetter(workspace.name)}
-                    </Avatar>
-                    <Link component={RouterLink} to={`/workspaces/${workspace.id}`} className={styles.workspaceLink}>
-                      <b>{workspace.name}</b>
-                      <span>{workspace.owner_name}</span>
-                    </Link>
-                  </div>
-                </TableCell>
-                <TableCell>{workspace.template_name}</TableCell>
-                <TableCell>
-                  {workspace.outdated ? (
-                    <span style={{ color: theme.palette.error.main }}>outdated</span>
-                  ) : (
-                    <span style={{ color: theme.palette.text.secondary }}>up to date</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>
-                    {dayjs().to(dayjs(workspace.latest_build.created_at))}
-                  </span>
-                </TableCell>
-                <TableCell>{getStatus(theme, workspace.latest_build)}</TableCell>
-              </TableRow>
-            ))}
+            {props.workspaces?.map((workspace) => {
+              const status = getStatus(theme, workspace.latest_build)
+              return (
+                <TableRow key={workspace.id} className={styles.workspaceRow}>
+                  <TableCell>
+                    <div className={styles.workspaceName}>
+                      <Avatar variant="square" className={styles.workspaceAvatar}>
+                        {firstLetter(workspace.name)}
+                      </Avatar>
+                      <Link component={RouterLink} to={`/workspaces/${workspace.id}`} className={styles.workspaceLink}>
+                        <b>{workspace.name}</b>
+                        <span>{workspace.owner_name}</span>
+                      </Link>
+                    </div>
+                  </TableCell>
+                  <TableCell>{workspace.template_name}</TableCell>
+                  <TableCell>
+                    {workspace.outdated ? (
+                      <span style={{ color: theme.palette.error.main }}>outdated</span>
+                    ) : (
+                      <span style={{ color: theme.palette.text.secondary }}>up to date</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span style={{ color: theme.palette.text.secondary }}>
+                      {dayjs().to(dayjs(workspace.latest_build.created_at))}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span style={{ color: status.color }}>{status.status}</span>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </Margins>
@@ -104,54 +108,65 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
   )
 }
 
-const getStatus = (theme: Theme, build: WorkspaceBuild): JSX.Element => {
-  let status = ""
-  let color = ""
-
+const getStatus = (
+  theme: Theme,
+  build: WorkspaceBuild,
+): {
+  color: string
+  status: string
+} => {
   switch (getWorkspaceStatus(build)) {
     case "started":
-      color = theme.palette.success.main
-      status = "⦿ Running"
-      break
+      return {
+        color: theme.palette.success.main,
+        status: "⦿ Running",
+      }
     case "starting":
-      color = theme.palette.success.main
-      status = "⦿ Starting"
-      break
+      return {
+        color: theme.palette.success.main,
+        status: "⦿ Starting",
+      }
     case "stopping":
-      color = theme.palette.text.secondary
-      status = "◍ Stopping"
-      break
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Stopping",
+      }
     case "stopped":
-      color = theme.palette.text.secondary
-      status = "◍ Stopped"
-      break
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Stopped",
+      }
     case "deleting":
-      color = theme.palette.text.secondary
-      status = "⦸ Deleting"
-      break
+      return {
+        color: theme.palette.text.secondary,
+        status: "⦸ Deleting",
+      }
     case "deleted":
-      color = theme.palette.text.secondary
-      status = "⦸ Deleted"
-      break
+      return {
+        color: theme.palette.text.secondary,
+        status: "⦸ Deleted",
+      }
     case "canceling":
-      color = theme.palette.warning.light
-      status = "◍ Canceling"
-      break
+      return {
+        color: theme.palette.warning.light,
+        status: "◍ Canceling",
+      }
     case "canceled":
-      color = theme.palette.text.secondary
-      status = "◍ Canceled"
-      break
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Canceled",
+      }
     case "error":
-      color = theme.palette.error.main
-      status = "ⓧ Failed"
-      break
+      return {
+        color: theme.palette.error.main,
+        status: "ⓧ Failed",
+      }
     case "queued":
-      color = theme.palette.text.secondary
-      status = "◍ Queued"
-      break
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Queued",
+      }
   }
-
-  return <span style={{ color: color }}>{status}</span>
 }
 
 const useStyles = makeStyles((theme) => ({

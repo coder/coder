@@ -22,8 +22,6 @@ export interface WorkspaceProps {
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: React.FC<WorkspaceProps> = ({
-  organization,
-  template,
   workspace,
   handleStart,
   handleStop,
@@ -37,8 +35,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     <div className={styles.root}>
       <div className={styles.vertical}>
         <WorkspaceStatusBar
-          organization={organization}
-          template={template}
           workspace={workspace}
           handleStart={handleStart}
           handleStop={handleStop}

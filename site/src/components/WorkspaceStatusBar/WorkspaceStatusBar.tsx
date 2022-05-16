@@ -48,14 +48,12 @@ export interface WorkspaceStatusBarProps {
  * so check whether workspace job status has reached completion (whether successful or not).
  */
 const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
-  ["started", "stopped", "deleted", "error"].includes(workspaceStatus)
+  ["started", "stopped", "deleted", "error", "canceled"].includes(workspaceStatus)
 
 /**
  * Component for the header at the top of the workspace page
  */
 export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
-  organization,
-  template,
   workspace,
   handleStart,
   handleStop,
@@ -65,7 +63,6 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
 }) => {
   const styles = useStyles()
 
-  const templateLink = `/templates/${organization?.name}/${template?.name}`
   const settingsLink = "edit"
 
   return (
@@ -77,15 +74,6 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
               {Language.settings}
             </Link>
           </div>
-
-          {organization && template && (
-            <Typography variant="body2" color="textSecondary">
-              Back to{" "}
-              <Link className={styles.link} to={templateLink}>
-                {template.name}
-              </Link>
-            </Typography>
-          )}
         </div>
 
         <div className={styles.horizontal}>

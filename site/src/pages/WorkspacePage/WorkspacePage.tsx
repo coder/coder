@@ -16,8 +16,7 @@ export const WorkspacePage: React.FC = () => {
 
   const xServices = useContext(XServiceContext)
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
-  const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
-    workspaceState.context
+  const { workspace, getWorkspaceError, getTemplateError, getOrganizationError } = workspaceState.context
   const workspaceStatus = useSelector(xServices.workspaceXService, (state) => {
     return getWorkspaceStatus(state.context.workspace?.latest_build)
   })
@@ -39,8 +38,6 @@ export const WorkspacePage: React.FC = () => {
       <Margins>
         <Stack spacing={4}>
           <Workspace
-            organization={organization}
-            template={template}
             workspace={workspace}
             handleStart={() => workspaceSend("START")}
             handleStop={() => workspaceSend("STOP")}
