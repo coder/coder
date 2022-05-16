@@ -199,8 +199,8 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 }
 
 // UpdateUserProfile enables callers to update profile information
-func (c *Client) UpdateUserProfile(ctx context.Context, userID string, req UpdateUserProfileRequest) (User, error) {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", userID), req)
+func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", user), req)
 	if err != nil {
 		return User{}, err
 	}
@@ -208,13 +208,13 @@ func (c *Client) UpdateUserProfile(ctx context.Context, userID string, req Updat
 	if res.StatusCode != http.StatusOK {
 		return User{}, readBodyAsError(res)
 	}
-	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateUserStatus sets the user status to the given status
-func (c *Client) UpdateUserStatus(ctx context.Context, userID string, status UserStatus) (User, error) {
-	path := fmt.Sprintf("/api/v2/users/%s/status/", userID)
+func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserStatus) (User, error) {
+	path := fmt.Sprintf("/api/v2/users/%s/status/", user)
 	switch status {
 	case UserStatusActive:
 		path += "active"
@@ -233,14 +233,14 @@ func (c *Client) UpdateUserStatus(ctx context.Context, userID string, status Use
 		return User{}, readBodyAsError(res)
 	}
 
-	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateUserPassword updates a user password.
 // It calls PUT /users/{user}/password
-func (c *Client) UpdateUserPassword(ctx context.Context, userID string, req UpdateUserPasswordRequest) error {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", userID), req)
+func (c *Client) UpdateUserPassword(ctx context.Context, user string, req UpdateUserPasswordRequest) error {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", user), req)
 	if err != nil {
 		return err
 	}
@@ -253,8 +253,8 @@ func (c *Client) UpdateUserPassword(ctx context.Context, userID string, req Upda
 
 // UpdateUserRoles grants the userID the specified roles.
 // Include ALL roles the user has.
-func (c *Client) UpdateUserRoles(ctx context.Context, userID string, req UpdateRoles) (User, error) {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", userID), req)
+func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRoles) (User, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", user), req)
 	if err != nil {
 		return User{}, err
 	}
@@ -262,14 +262,14 @@ func (c *Client) UpdateUserRoles(ctx context.Context, userID string, req UpdateR
 	if res.StatusCode != http.StatusOK {
 		return User{}, readBodyAsError(res)
 	}
-	var user User
-	return user, json.NewDecoder(res.Body).Decode(&user)
+	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
 // Include ALL roles the user has.
-func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID uuid.UUID, userID string, req UpdateRoles) (OrganizationMember, error) {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, userID), req)
+func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID uuid.UUID, user string, req UpdateRoles) (OrganizationMember, error) {
+	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, user), req)
 	if err != nil {
 		return OrganizationMember{}, err
 	}
@@ -282,8 +282,8 @@ func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organization
 }
 
 // GetUserRoles returns all roles the user has
-func (c *Client) GetUserRoles(ctx context.Context, userID string) (UserRoles, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", userID), nil)
+func (c *Client) GetUserRoles(ctx context.Context, user string) (UserRoles, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", user), nil)
 	if err != nil {
 		return UserRoles{}, err
 	}
@@ -296,8 +296,8 @@ func (c *Client) GetUserRoles(ctx context.Context, userID string) (UserRoles, er
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
-func (c *Client) CreateAPIKey(ctx context.Context, userID string) (*GenerateAPIKeyResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", userID), nil)
+func (c *Client) CreateAPIKey(ctx context.Context, user string) (*GenerateAPIKeyResponse, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", user), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -381,8 +381,8 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 }
 
 // OrganizationsByUser returns all organizations the user is a member of.
-func (c *Client) OrganizationsByUser(ctx context.Context, userID string) ([]Organization, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", userID), nil)
+func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organization, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", user), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -394,8 +394,8 @@ func (c *Client) OrganizationsByUser(ctx context.Context, userID string) ([]Orga
 	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
 }
 
-func (c *Client) OrganizationByName(ctx context.Context, userID string, name string) (Organization, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", userID, name), nil)
+func (c *Client) OrganizationByName(ctx context.Context, user string, name string) (Organization, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", user, name), nil)
 	if err != nil {
 		return Organization{}, err
 	}
@@ -408,8 +408,8 @@ func (c *Client) OrganizationByName(ctx context.Context, userID string, name str
 }
 
 // CreateOrganization creates an organization and adds the provided user as an admin.
-func (c *Client) CreateOrganization(ctx context.Context, userID string, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", userID), req)
+func (c *Client) CreateOrganization(ctx context.Context, user string, req CreateOrganizationRequest) (Organization, error) {
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", user), req)
 	if err != nil {
 		return Organization{}, err
 	}
@@ -440,8 +440,8 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 }
 
 // WorkspacesByUser returns all workspaces a user has access to.
-func (c *Client) WorkspacesByUser(ctx context.Context, userID string) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", userID), nil)
+func (c *Client) WorkspacesByUser(ctx context.Context, user string) ([]Workspace, error) {
+	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", user), nil)
 	if err != nil {
 		return nil, err
 	}
