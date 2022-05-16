@@ -44,7 +44,7 @@ func TestUserStatus(t *testing.T) {
 		require.NoError(t, err, "suspend user")
 
 		// Check the user status
-		otherUser, err = client.User(context.Background(), otherUser.ID)
+		otherUser, err = client.User(context.Background(), otherUser.Username)
 		require.NoError(t, err, "fetch suspended user")
 		require.Equal(t, otherUser.Status, codersdk.UserStatusSuspended, "suspended user")
 
@@ -57,7 +57,7 @@ func TestUserStatus(t *testing.T) {
 		require.NoError(t, err, "suspend user")
 
 		// Check the user status
-		otherUser, err = client.User(context.Background(), otherUser.ID)
+		otherUser, err = client.User(context.Background(), otherUser.ID.String())
 		require.NoError(t, err, "fetch active user")
 		require.Equal(t, otherUser.Status, codersdk.UserStatusActive, "active user")
 	})

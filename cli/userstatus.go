@@ -48,7 +48,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 				return xerrors.Errorf("user identifier cannot be an empty string")
 			}
 
-			user, err := client.UserByIdentifier(cmd.Context(), identifier)
+			user, err := client.User(cmd.Context(), identifier)
 			if err != nil {
 				return xerrors.Errorf("fetch user: %w", err)
 			}
@@ -72,7 +72,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 				return err
 			}
 
-			_, err = client.UpdateUserStatus(cmd.Context(), user.ID, sdkStatus)
+			_, err = client.UpdateUserStatus(cmd.Context(), user.ID.String(), sdkStatus)
 			if err != nil {
 				return xerrors.Errorf("%s user: %w", verb, err)
 			}
