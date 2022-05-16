@@ -38,10 +38,16 @@ func (api *api) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) checkPermissions(rw http.ResponseWriter, r *http.Request) {
-	roles := httpmw.UserRoles(r)
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUser.WithOwner(user.ID.String())) {
+		return
+	}
+
+	// use the roles of the user specified, not the person making the request.
+	roles, err := api.Database.GetAllUserRoles(r.Context(), user.ID)
+	if err != nil {
+		httpapi.Forbidden(rw)
 		return
 	}
 

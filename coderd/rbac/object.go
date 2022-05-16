@@ -25,7 +25,7 @@ var (
 		Type: "file",
 	}
 
-	// ResourceOrganization CRUD. Always has an org owner.
+	// ResourceOrganization CRUD. Has an org owner on all but 'create'.
 	//	create/delete = make or delete organizations
 	// 	read = view org information (Can add user owner for read)
 	//	update = ??
@@ -56,8 +56,8 @@ var (
 	// ResourceUser is the user in the 'users' table.
 	// ResourceUser never has any owners or in an org, as it's site wide.
 	// 	create/delete = make or delete a new user.
-	// 	read = view all user's settings
-	// 	update = update all user field & settings
+	// 	read = view all 'user' table data
+	// 	update = update all 'user' table data
 	ResourceUser = Object{
 		Type: "user",
 	}

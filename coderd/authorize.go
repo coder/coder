@@ -15,7 +15,7 @@ func (api *api) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.A
 	roles := httpmw.UserRoles(r)
 	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
 	if err != nil {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
 			Message: err.Error(),
 		})
 

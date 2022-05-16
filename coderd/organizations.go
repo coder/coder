@@ -428,7 +428,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	}
 
 	if workspace.OrganizationID != organization.ID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
 			Message: fmt.Sprintf("workspace is not owned by organization %q", organization.Name),
 		})
 		return
@@ -493,7 +493,7 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	if organization.ID != template.OrganizationID {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
 			Message: fmt.Sprintf("template is not in organization %q", organization.Name),
 		})
 		return
@@ -503,7 +503,7 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		UserID:         apiKey.UserID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
 			Message: "you aren't allowed to access templates in that organization",
 		})
 		return

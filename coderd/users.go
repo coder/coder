@@ -538,15 +538,11 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	if errors.Is(err, sql.ErrNoRows) {
 		// Return unauthorized rather than a 404 to not leak if the organization
 		// exists.
-		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "unauthorized",
-		})
+		httpapi.Forbidden(rw)
 		return
 	}
 	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organization by name: %s", err),
-		})
+		httpapi.Forbidden(rw)
 		return
 	}
 
