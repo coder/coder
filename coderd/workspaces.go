@@ -555,6 +555,7 @@ func (api *api) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close(websocket.StatusInternalError, "internal error")
 
+	// Makes the websocket connection write-only
 	ctx := c.CloseRead(r.Context())
 
 	// Send a heartbeat every 15 seconds to avoid the websocket being killed.
