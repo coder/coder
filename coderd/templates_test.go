@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -26,14 +27,21 @@ func TestTemplate(t *testing.T) {
 	})
 }
 
-func TestPostTemplatesByOrganization(t *testing.T) {
+func TestPostTemplateByOrganization(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expected := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		got, err := client.Template(context.Background(), expected.ID)
+		require.NoError(t, err)
+
+		assert.Equal(t, expected.Name, got.Name)
+		assert.Equal(t, expected.Description, got.Description)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {

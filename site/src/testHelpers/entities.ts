@@ -87,6 +87,7 @@ export const MockTemplate: TypesGen.Template = {
   provisioner: MockProvisioner.id,
   active_version_id: "",
   workspace_owner_count: 1,
+  description: "This is a test description.",
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {

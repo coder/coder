@@ -436,6 +436,7 @@ type Template struct {
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description     string          `db:"description" json:"description"`
 }
 
 type TemplateVersion struct {

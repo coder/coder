@@ -36,14 +36,18 @@ type CreateTemplateVersionRequest struct {
 
 // CreateTemplateRequest provides options when creating a template.
 type CreateTemplateRequest struct {
+	// Name is the name of the template.
 	Name string `json:"name" validate:"username,required"`
+	// Description is a description of what the template contains. It must be
+	// less than 128 bytes.
+	Description string `json:"description,omitempty" validate:"lt=128"`
 
-	// VersionID is an in-progress or completed job to use as
-	// an initial version of the template.
+	// VersionID is an in-progress or completed job to use as an initial version
+	// of the template.
 	//
 	// This is required on creation to enable a user-flow of validating a
-	// template works. There is no reason the data-model cannot support
-	// empty templates, but it doesn't make sense for users.
+	// template works. There is no reason the data-model cannot support empty
+	// templates, but it doesn't make sense for users.
 	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }

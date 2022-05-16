@@ -75,7 +75,7 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Create a new template in an organization.
-func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Request) {
+func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createTemplate codersdk.CreateTemplateRequest
 	if !httpapi.Read(rw, r, &createTemplate) {
 		return
@@ -90,7 +90,7 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 			Message: fmt.Sprintf("template %q already exists", createTemplate.Name),
 			Errors: []httpapi.Error{{
 				Field:  "name",
-				Detail: "this value is already in use and should be unique",
+				Detail: "This value is already in use and should be unique.",
 			}},
 		})
 		return
@@ -133,6 +133,7 @@ func (api *api) postTemplatesByOrganization(rw http.ResponseWriter, r *http.Requ
 			Name:            createTemplate.Name,
 			Provisioner:     importJob.Provisioner,
 			ActiveVersionID: templateVersion.ID,
+			Description:     createTemplate.Description,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -280,5 +281,6 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32) cod
 		Provisioner:         template.Provisioner,
 		ActiveVersionID:     template.ActiveVersionID,
 		WorkspaceOwnerCount: workspaceOwnerCount,
+		Description:         template.Description,
 	}
 }
