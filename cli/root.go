@@ -183,33 +183,64 @@ func usageTemplate() string {
 	// more visually appealing.
 	header := cliui.Styles.Placeholder
 
-	return header.Render("Usage:") + `{{if .Runnable}}
-  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
-  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+	return header.Render("Usage:") + `
+{{- if .Runnable}}
+  {{.UseLine}}
+{{end}}
+{{- if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]
+{{end}}
 
+{{- if gt (len .Aliases) 0}}
 ` + header.Render("Aliases:") + `
-  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+  {{.NameAndAliases}}
+{{end}}
 
+{{- if .HasExample}}
 ` + header.Render("Get Started:") + `
-{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+{{.Example}}
+{{end}}
 
-` + header.Render("Commands:") + `{{range .Commands}}{{if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if and (not .HasParent) .HasAvailableSubCommands}}
+{{- if .HasAvailableSubCommands}}
+` + header.Render("Commands:") + `
+  {{- range .Commands}}
+    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
 
-` + header.Render("Workspace Commands:") + `{{range .Commands}}{{if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+{{- if and (not .HasParent) .HasAvailableSubCommands}}
+` + header.Render("Workspace Commands:") + `
+  {{- range .Commands}}
+    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
 
+{{- if .HasAvailableLocalFlags}}
 ` + header.Render("Flags:") + `
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
 
+{{- if .HasAvailableInheritedFlags}}
 ` + header.Render("Global Flags:") + `
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
 
-Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
-  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+{{- if .HasHelpSubCommands}}
+Additional help topics:
+  {{- range .Commands}}
+    {{- if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
 
-Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
-`
+{{- if .HasAvailableSubCommands}}
+Use "{{.CommandPath}} [command] --help" for more information about a command.
+{{end}}`
 }
 
 func versionTemplate() string {
