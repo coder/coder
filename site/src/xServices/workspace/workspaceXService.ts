@@ -21,6 +21,10 @@ export interface WorkspaceContext {
   // these are separate from getX errors because they don't make the page unusable
   refreshWorkspaceError: Error | unknown
   refreshTemplateError: Error | unknown
+  // Builds
+  builds?: TypesGen.WorkspaceBuild[]
+  getBuildsError?: Error | unknown
+  loadMoreBuildsError?: Error | unknown
 }
 
 export type WorkspaceEvent =
@@ -29,6 +33,7 @@ export type WorkspaceEvent =
   | { type: "STOP" }
   | { type: "RETRY" }
   | { type: "UPDATE" }
+  | { type: "LOAD_MORE_BUILDS" }
 
 export const workspaceMachine = createMachine(
   {
@@ -54,6 +59,12 @@ export const workspaceMachine = createMachine(
         }
         refreshWorkspace: {
           data: TypesGen.Workspace | undefined
+        }
+        getBuilds: {
+          data: TypesGen.WorkspaceBuild[]
+        }
+        loadMoreBuilds: {
+          data: TypesGen.WorkspaceBuild[]
         }
       },
     },
@@ -200,6 +211,54 @@ export const workspaceMachine = createMachine(
               },
             },
           },
+
+          builds: {
+            initial: "gettingBuilds",
+            states: {
+              idle: {},
+              gettingBuilds: {
+                entry: "clearGetBuildsError",
+                invoke: {
+                  src: "getBuilds",
+                  onDone: {
+                    actions: ["assignBuilds"],
+                    target: "loadedBuilds",
+                  },
+                  onError: {
+                    actions: ["assignGetBuildsError"],
+                    target: "idle",
+                  },
+                },
+              },
+              loadedBuilds: {
+                initial: "idle",
+                states: {
+                  idle: {
+                    on: {
+                      LOAD_MORE_BUILDS: {
+                        target: "loadingMoreBuilds",
+                        cond: "hasMoreBuilds",
+                      },
+                    },
+                  },
+                  loadingMoreBuilds: {
+                    entry: "clearLoadMoreBuildsError",
+                    invoke: {
+                      src: "loadMoreBuilds",
+                      onDone: {
+                        actions: ["assignNewBuilds"],
+                        target: "idle",
+                      },
+                      onError: {
+                        actions: ["assignLoadMoreBuildsError"],
+                        target: "idle",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       error: {
@@ -274,9 +333,37 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: undefined,
         }),
+      // Builds
+      assignBuilds: assign({
+        builds: (_, event) => event.data,
+      }),
+      assignGetBuildsError: assign({
+        getBuildsError: (_, event) => event.data,
+      }),
+      clearGetBuildsError: assign({
+        getBuildsError: (_) => undefined,
+      }),
+      assignNewBuilds: assign({
+        builds: (context, event) => {
+          const oldBuilds = context.builds
+
+          if (!oldBuilds) {
+            throw new Error("Builds not loaded")
+          }
+
+          return [...oldBuilds, ...event.data]
+        },
+      }),
+      assignLoadMoreBuildsError: assign({
+        loadMoreBuildsError: (_, event) => event.data,
+      }),
+      clearLoadMoreBuildsError: assign({
+        loadMoreBuildsError: (_) => undefined,
+      }),
     },
     guards: {
       triedToStart: (context) => context.workspace?.latest_build.transition === "start",
+      hasMoreBuilds: (_) => false,
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -313,6 +400,20 @@ export const workspaceMachine = createMachine(
       refreshWorkspace: async (context) => {
         if (context.workspace) {
           return await API.getWorkspace(context.workspace.id)
+        } else {
+          throw Error("Cannot refresh workspace without id")
+        }
+      },
+      getBuilds: async (context) => {
+        if (context.workspace) {
+          return await API.getWorkspaceBuilds(context.workspace.id)
+        } else {
+          throw Error("Cannot refresh workspace without id")
+        }
+      },
+      loadMoreBuilds: async (context) => {
+        if (context.workspace) {
+          return await API.getWorkspaceBuilds(context.workspace.id)
         } else {
           throw Error("Cannot refresh workspace without id")
         }

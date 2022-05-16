@@ -3,6 +3,7 @@ import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
+import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
@@ -16,6 +17,7 @@ export interface WorkspaceProps {
   handleRetry: () => void
   handleUpdate: () => void
   workspaceStatus: WorkspaceStatus
+  builds?: TypesGen.WorkspaceBuild[]
 }
 
 /**
@@ -30,6 +32,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleRetry,
   handleUpdate,
   workspaceStatus,
+  builds,
 }) => {
   const styles = useStyles()
 
@@ -61,12 +64,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           </div>
           <div className={styles.timelineContainer}>
             <WorkspaceSection title="Timeline">
-              <div
-                className={styles.vertical}
-                style={{ justifyContent: "center", alignItems: "center", height: "300px" }}
-              >
-                <Placeholder />
-              </div>
+              <BuildsTable builds={builds} />
             </WorkspaceSection>
           </div>
         </div>
