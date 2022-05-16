@@ -9,7 +9,7 @@ import { Section } from "../../../components/Section/Section"
 import { Stack } from "../../../components/Stack/Stack"
 import { XServiceContext } from "../../../xServices/StateContext"
 
-const Language = {
+export const Language = {
   title: "SSH Keys",
   description:
     "Coder automatically inserts a private key into every workspace; you can add the corresponding public key to any services (such as Git) that you need access to from your workspace.",
@@ -41,7 +41,7 @@ export const SSHKeysPage: React.FC = () => {
 
         {sshKey && (
           <Stack>
-            <CodeBlock lines={[sshKey.public_key]} />
+            <CodeBlock lines={[sshKey.public_key.trim()]} />
             <div>
               <Button
                 color="primary"
