@@ -1,0 +1,1 @@
+ALTER TABLE templates ADD COLUMN description VARCHAR(8192) NOT NULL DEFAULT '';

@@ -291,8 +291,9 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Template {
 	template, err := client.CreateTemplate(context.Background(), organization, codersdk.CreateTemplateRequest{
-		Name:      randomUsername(),
-		VersionID: version,
+		Name:        randomUsername(),
+		Description: randomUsername(),
+		VersionID:   version,
 	})
 	require.NoError(t, err)
 	return template

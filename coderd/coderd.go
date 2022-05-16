@@ -144,7 +144,7 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/provisionerdaemons", api.provisionerDaemonsByOrganization)
 			r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 			r.Route("/templates", func(r chi.Router) {
-				r.Post("/", api.postTemplatesByOrganization)
+				r.Post("/", api.postTemplateByOrganization)
 				r.Get("/", api.templatesByOrganization)
 				r.Get("/{templatename}", api.templateByOrganizationAndName)
 			})

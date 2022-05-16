@@ -23,6 +23,7 @@ type Template struct {
 	Provisioner         database.ProvisionerType `json:"provisioner"`
 	ActiveVersionID     uuid.UUID                `json:"active_version_id"`
 	WorkspaceOwnerCount uint32                   `json:"workspace_owner_count"`
+	Description         string                   `json:"description"`
 }
 
 type UpdateActiveTemplateVersion struct {
