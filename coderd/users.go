@@ -488,7 +488,7 @@ func (api *api) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-			Message: "you are not a member of that organization",
+			Message: fmt.Sprintf("no organization found by name %q", organizationName),
 		})
 		return
 	}
@@ -774,73 +774,6 @@ func (api *api) createUser(ctx context.Context, req codersdk.CreateUserRequest) 
 		}
 		return nil
 	})
-}
-
-func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
-
-	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organizations: %s", err),
-		})
-		return
-	}
-	organizationIDs := make([]uuid.UUID, 0)
-	for _, organization := range organizations {
-		err = api.Authorizer.AuthorizeByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead, rbac.ResourceWorkspace.All().InOrg(organization.ID))
-		var apiErr *rbac.UnauthorizedError
-		if xerrors.As(err, &apiErr) {
-			continue
-		}
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("authorize: %s", err),
-			})
-			return
-		}
-		organizationIDs = append(organizationIDs, organization.ID)
-	}
-
-	workspaceIDs := map[uuid.UUID]struct{}{}
-	allWorkspaces, err := api.Database.GetWorkspacesByOrganizationIDs(r.Context(), database.GetWorkspacesByOrganizationIDsParams{
-		Ids: organizationIDs,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces for organizations: %s", err),
-		})
-		return
-	}
-	for _, ws := range allWorkspaces {
-		workspaceIDs[ws.ID] = struct{}{}
-	}
-	userWorkspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
-		OwnerID: user.ID,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces for user: %s", err),
-		})
-		return
-	}
-	for _, ws := range userWorkspaces {
-		_, exists := workspaceIDs[ws.ID]
-		if exists {
-			continue
-		}
-		allWorkspaces = append(allWorkspaces, ws)
-	}
-
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allWorkspaces)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("convert workspaces: %s", err),
-		})
-		return
-	}
-	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {
