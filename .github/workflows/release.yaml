@@ -13,7 +13,7 @@ jobs:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
       # Docker is not included on macos-latest
-      - uses: docker-practice/actions-setup-docker@v1.0.8
+      - uses: docker-practice/actions-setup-docker@1.0.10
 
       - uses: actions/checkout@v3
         with:
