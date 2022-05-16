@@ -66,3 +66,7 @@ func (p *otherPty) Close() error {
 	}
 	return nil
 }
+
+func (p *otherPty) PTYFile() *os.File {
+	return p.pty
+}

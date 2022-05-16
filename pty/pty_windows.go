@@ -112,3 +112,8 @@ func (p *ptyWindows) Close() error {
 
 	return nil
 }
+
+func (p *ptyWindows) PTYFile() *os.File {
+	// not supported on Windows(?)
+	return nil
+}

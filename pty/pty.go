@@ -2,6 +2,7 @@ package pty
 
 import (
 	"io"
+	"os"
 )
 
 // PTY is a minimal interface for interacting with a TTY.
@@ -26,6 +27,9 @@ type PTY interface {
 
 	// Resize sets the size of the PTY.
 	Resize(height uint16, width uint16) error
+
+	// The file descriptor of the underlying PTY, if available
+	PTYFile() *os.File
 }
 
 // New constructs a new Pty.
