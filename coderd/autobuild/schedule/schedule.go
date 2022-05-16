@@ -55,17 +55,15 @@ func Weekly(raw string) (*Schedule, error) {
 		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
 
-	tz := "UTC"
+	// Strip the leading CRON_TZ prefix so we just store the cron string.
+	// The timezone info is available in SpecSchedule.
 	cronStr := raw
 	if strings.HasPrefix(raw, "CRON_TZ=") {
-		tz = strings.TrimPrefix(strings.Fields(raw)[0], "CRON_TZ=")
 		cronStr = strings.Join(strings.Fields(raw)[1:], " ")
 	}
 
 	cronSched := &Schedule{
 		sched:   schedule,
-		raw:     raw,
-		tz:      tz,
 		cronStr: cronStr,
 	}
 	return cronSched, nil
@@ -76,14 +74,18 @@ func Weekly(raw string) (*Schedule, error) {
 type Schedule struct {
 	sched *cron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
-	raw  string
-	tz      string
 	cronStr string
 }
 
 // String serializes the schedule to its original human-friendly format.
+// The leading CRON_TZ is stripped.
 func (s Schedule) String() string {
-	return s.raw
+	var sb strings.Builder
+	_, _ = sb.WriteString("CRON_TZ=")
+	_, _ = sb.WriteString(s.sched.Location.String())
+	_, _ = sb.WriteString(" ")
+	_, _ = sb.WriteString(s.cronStr)
+	return sb.String()
 }
 
 // Timezone returns the timezone for the schedule.
