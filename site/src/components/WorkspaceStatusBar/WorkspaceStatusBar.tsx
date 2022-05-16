@@ -42,6 +42,13 @@ export interface WorkspaceStatusBarProps {
 }
 
 /**
+ * Jobs submitted while another job is in progress will be discarded,
+ * so check whether workspace job status has reached completion (whether successful or not).
+ */
+const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
+  ["started", "stopped", "deleted", "error"].includes(workspaceStatus)
+
+/**
  * Component for the header at the top of the workspace page
  */
 export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
@@ -104,8 +111,7 @@ export const WorkspaceStatusBar: React.FC<WorkspaceStatusBarProps> = ({
               </Button>
             )}
 
-            {/* Workspace will not update while another job is in progress so hide the button until it's usable */}
-            {workspace.outdated && ["started", "stopped", "deleted", "error"].includes(workspaceStatus) && (
+            {workspace.outdated && canAcceptJobs(workspaceStatus) && (
               <Button onClick={handleUpdate} color="primary">
                 {Language.update}
               </Button>

@@ -1,5 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
+import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
@@ -133,7 +134,7 @@ export const getWorkspaceResources = async (workspaceBuildID: string): Promise<T
 }
 
 const postWorkspaceBuild =
-  (transition: string) =>
+  (transition: WorkspaceBuildTransition) =>
   async (workspaceId: string, template_version_id?: string): Promise<TypesGen.WorkspaceBuild> => {
     const payload = {
       transition,
