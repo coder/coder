@@ -43,7 +43,7 @@ type CreateParameterRequest struct {
 }
 
 func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, req CreateParameterRequest) (Parameter, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), req)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), req)
 	if err != nil {
 		return Parameter{}, err
 	}
@@ -58,7 +58,7 @@ func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id u
 }
 
 func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, name string) error {
-	res, err := c.request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/parameters/%s/%s/%s", scope, id.String(), name), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/parameters/%s/%s/%s", scope, id.String(), name), nil)
 	if err != nil {
 		return err
 	}
@@ -73,7 +73,7 @@ func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id u
 }
 
 func (c *Client) Parameters(ctx context.Context, scope ParameterScope, id uuid.UUID) ([]Parameter, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/parameters/%s/%s", scope, id.String()), nil)
 	if err != nil {
 		return nil, err
 	}

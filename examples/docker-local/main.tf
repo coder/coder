@@ -15,6 +15,10 @@ provider "docker" {
   host = "unix:///var/run/docker.sock"
 }
 
+provider "coder" {
+  url = "http://host.docker.internal:7080"
+}
+
 data "coder_workspace" "me" {
 }
 
@@ -27,7 +31,7 @@ variable "docker_image" {
   description = "What docker image would you like to use for your workspace?"
   default     = "codercom/enterprise-base:ubuntu"
   validation {
-    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu", "codercom/enterprise-java:ubuntu"], var.docker_image)
+    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu", "codercom/enterprise-intellij:ubuntu"], var.docker_image)
     error_message = "Invalid Docker Image!"
   }
 }
@@ -43,6 +47,10 @@ resource "docker_container" "workspace" {
   dns     = ["1.1.1.1"]
   command = ["sh", "-c", coder_agent.dev.init_script]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.coder_volume.name

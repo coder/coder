@@ -311,7 +311,7 @@ type AuditLog struct {
 	Time           time.Time       `db:"time" json:"time"`
 	UserID         uuid.UUID       `db:"user_id" json:"user_id"`
 	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip             pqtype.CIDR     `db:"ip" json:"ip"`
+	Ip             pqtype.Inet     `db:"ip" json:"ip"`
 	UserAgent      string          `db:"user_agent" json:"user_agent"`
 	ResourceType   ResourceType    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID       `db:"resource_id" json:"resource_id"`
@@ -436,6 +436,7 @@ type Template struct {
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description     string          `db:"description" json:"description"`
 }
 
 type TemplateVersion struct {
@@ -445,7 +446,7 @@ type TemplateVersion struct {
 	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
+	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 }
 

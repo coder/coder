@@ -24,28 +24,32 @@ type Organization struct {
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
 	// TemplateID optionally associates a version with a template.
-	TemplateID uuid.UUID `json:"template_id"`
+	TemplateID uuid.UUID `json:"template_id,omitempty"`
 
 	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
 	StorageSource string                            `json:"storage_source" validate:"required"`
 	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 // CreateTemplateRequest provides options when creating a template.
 type CreateTemplateRequest struct {
+	// Name is the name of the template.
 	Name string `json:"name" validate:"username,required"`
+	// Description is a description of what the template contains. It must be
+	// less than 128 bytes.
+	Description string `json:"description,omitempty" validate:"lt=128"`
 
-	// VersionID is an in-progress or completed job to use as
-	// an initial version of the template.
+	// VersionID is an in-progress or completed job to use as an initial version
+	// of the template.
 	//
 	// This is required on creation to enable a user-flow of validating a
-	// template works. There is no reason the data-model cannot support
-	// empty templates, but it doesn't make sense for users.
+	// template works. There is no reason the data-model cannot support empty
+	// templates, but it doesn't make sense for users.
 	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -54,11 +58,11 @@ type CreateWorkspaceRequest struct {
 	Name       string    `json:"name" validate:"username,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s", id.String()), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s", id.String()), nil)
 	if err != nil {
 		return Organization{}, xerrors.Errorf("execute request: %w", err)
 	}
@@ -74,7 +78,7 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 
 // ProvisionerDaemonsByOrganization returns provisioner daemons available for an organization.
 func (c *Client) ProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	res, err := c.request(ctx, http.MethodGet,
+	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
 		nil,
 	)
@@ -94,7 +98,7 @@ func (c *Client) ProvisionerDaemonsByOrganization(ctx context.Context, organizat
 // CreateTemplateVersion processes source-code and optionally associates the version with a template.
 // Executing without a template is useful for validating source-code.
 func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.UUID, req CreateTemplateVersionRequest) (TemplateVersion, error) {
-	res, err := c.request(ctx, http.MethodPost,
+	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/v2/organizations/%s/templateversions", organizationID.String()),
 		req,
 	)
@@ -113,7 +117,7 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 
 // CreateTemplate creates a new template inside an organization.
 func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, request CreateTemplateRequest) (Template, error) {
-	res, err := c.request(ctx, http.MethodPost,
+	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
 		request,
 	)
@@ -132,7 +136,7 @@ func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, r
 
 // TemplatesByOrganization lists all templates inside of an organization.
 func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Template, error) {
-	res, err := c.request(ctx, http.MethodGet,
+	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
 		nil,
 	)
@@ -151,7 +155,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 
 // TemplateByName finds a template inside the organization provided with a case-insensitive name.
 func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, name string) (Template, error) {
-	res, err := c.request(ctx, http.MethodGet,
+	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/templates/%s", organizationID.String(), name),
 		nil,
 	)
@@ -170,7 +174,7 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 
 // CreateWorkspace creates a new workspace for the template specified.
 func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), request)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), request)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -186,7 +190,7 @@ func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, 
 
 // WorkspacesByOrganization returns all workspaces in the specified organization.
 func (c *Client) WorkspacesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces", organizationID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -201,8 +205,8 @@ func (c *Client) WorkspacesByOrganization(ctx context.Context, organizationID uu
 }
 
 // WorkspacesByOwner returns all workspaces contained in the organization owned by the user.
-func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID, userID uuid.UUID) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s", organizationID, uuidOrMe(userID)), nil)
+func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID uuid.UUID, user string) ([]Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s", organizationID, user), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +221,8 @@ func (c *Client) WorkspacesByOwner(ctx context.Context, organizationID, userID u
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, organization, owner uuid.UUID, name string) (Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s/%s", organization, uuidOrMe(owner), name), nil)
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, organization uuid.UUID, owner string, name string) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/workspaces/%s/%s", organization, owner, name), nil)
 	if err != nil {
 		return Workspace{}, err
 	}

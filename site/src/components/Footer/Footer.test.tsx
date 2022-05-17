@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { MockBuildInfo, render } from "../../testHelpers"
+import { MockBuildInfo, render } from "../../testHelpers/renderHelpers"
 import { Footer, Language } from "./Footer"
 
 describe("Footer", () => {

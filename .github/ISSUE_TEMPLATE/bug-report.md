@@ -2,7 +2,7 @@
 name: Bug report
 about: Report a bug
 title: "Bug: "
-labels: "bug :bug:"
+labels: ["bug :bug:", "needs grooming :razor:"]
 ---
 
 ## OS Information

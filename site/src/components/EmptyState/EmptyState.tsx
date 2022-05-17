@@ -1,5 +1,4 @@
 import Box from "@material-ui/core/Box"
-import Button, { ButtonProps } from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
@@ -8,8 +7,8 @@ export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
   message: string
   /** Longer optional description to display below the message */
-  description?: React.ReactNode
-  button?: ButtonProps
+  description?: string
+  cta?: React.ReactNode
 }
 
 /**
@@ -21,17 +20,22 @@ export interface EmptyStateProps {
  * that you can directly pass props through to to customize the shape and layout of it.
  */
 export const EmptyState: React.FC<EmptyStateProps> = (props) => {
-  const { message, description, button, ...boxProps } = props
+  const { message, description, cta, ...boxProps } = props
   const styles = useStyles()
-  const buttonClassName = `${styles.button} ${button && button.className ? button.className : ""}`
 
   return (
     <Box className={styles.root} {...boxProps}>
-      <Typography variant="h5" color="textSecondary" className={styles.header}>
-        {message}
-      </Typography>
-      {description && <div className={styles.description}>{description}</div>}
-      {button && <Button variant="contained" color="primary" {...button} className={buttonClassName} />}
+      <div className={styles.header}>
+        <Typography variant="h5" className={styles.title}>
+          {message}
+        </Typography>
+        {description && (
+          <Typography variant="body2" color="textSecondary" className={styles.description}>
+            {description}
+          </Typography>
+        )}
+      </div>
+      {cta}
     </Box>
   )
 }
@@ -48,22 +52,13 @@ const useStyles = makeStyles(
       padding: theme.spacing(3),
     },
     header: {
+      marginBottom: theme.spacing(3),
+    },
+    title: {
       fontWeight: 400,
     },
     description: {
-      marginTop: theme.spacing(2),
-      marginBottom: theme.spacing(1),
-      color: theme.palette.text.secondary,
-      fontSize: theme.typography.body2.fontSize,
-    },
-    button: {
-      marginTop: theme.spacing(2),
-    },
-    icon: {
-      fontSize: theme.typography.h2.fontSize,
-      color: theme.palette.text.secondary,
-      marginBottom: theme.spacing(1),
-      opacity: 0.5,
+      marginTop: theme.spacing(1),
     },
   }),
   { name: "EmptyState" },

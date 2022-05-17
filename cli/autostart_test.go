@@ -11,10 +11,43 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestAutostart(t *testing.T) {
 	t.Parallel()
+
+	t.Run("ShowOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx       = context.Background()
+			client    = coderdtest.New(t, nil)
+			_         = coderdtest.NewProvisionerDaemon(t, client)
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+			cmdArgs   = []string{"autostart", "show", workspace.Name}
+			sched     = "CRON_TZ=Europe/Dublin 30 17 * * 1-5"
+			stdoutBuf = &bytes.Buffer{}
+		)
+
+		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			Schedule: sched,
+		})
+		require.NoError(t, err)
+
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+		cmd.SetOut(stdoutBuf)
+
+		err = cmd.Execute()
+		require.NoError(t, err, "unexpected error")
+		// CRON_TZ gets stripped
+		require.Contains(t, stdoutBuf.String(), "schedule: 30 17 * * 1-5")
+	})
 
 	t.Run("EnableDisableOK", func(t *testing.T) {
 		t.Parallel()
@@ -77,7 +110,7 @@ func TestAutostart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 404: no workspace found by name", "unexpected error")
+		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
 	})
 
 	t.Run("Disable_NotFound", func(t *testing.T) {
@@ -95,7 +128,7 @@ func TestAutostart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 404: no workspace found by name", "unexpected error")
+		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
 	})
 
 	t.Run("Enable_DefaultSchedule", func(t *testing.T) {

@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { render } from "../../testHelpers"
 import { MockUser } from "../../testHelpers/entities"
+import { render } from "../../testHelpers/renderHelpers"
 import { NavbarView } from "./NavbarView"
 
 describe("NavbarView", () => {
@@ -10,7 +10,7 @@ describe("NavbarView", () => {
   }
   it("renders content", async () => {
     // When
-    render(<NavbarView user={MockUser} onSignOut={noop} />)
+    render(<NavbarView user={MockUser} onSignOut={noop} displayAdminDropdown />)
 
     // Then
     await screen.findAllByText("Coder", { exact: false })
@@ -24,7 +24,7 @@ describe("NavbarView", () => {
     }
 
     // When
-    render(<NavbarView user={mockUser} onSignOut={noop} />)
+    render(<NavbarView user={mockUser} onSignOut={noop} displayAdminDropdown />)
 
     // Then
     // There should be a 'B' avatar!

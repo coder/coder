@@ -140,4 +140,16 @@ func TestLogin(t *testing.T) {
 		cancelFunc()
 		<-doneChan
 	})
+
+	t.Run("TokenFlag", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken)
+		err := root.Execute()
+		require.NoError(t, err)
+		sessionFile, err := cfg.Session().Read()
+		require.NoError(t, err)
+		require.Equal(t, client.SessionToken, sessionFile)
+	})
 }

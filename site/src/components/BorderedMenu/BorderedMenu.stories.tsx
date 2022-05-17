@@ -12,8 +12,14 @@ export default {
 
 const Template: Story<BorderedMenuProps> = (args: BorderedMenuProps) => (
   <BorderedMenu {...args}>
-    <BorderedMenuRow title="Item 1" description="Here's a description" Icon={BuildingIcon} />
-    <BorderedMenuRow active title="Item 2" description="This BorderedMenuRow is active" Icon={UsersOutlinedIcon} />
+    <BorderedMenuRow title="Item 1" description="Here's a description" Icon={BuildingIcon} path="/" />
+    <BorderedMenuRow
+      active
+      title="Item 2"
+      description="This BorderedMenuRow is active"
+      Icon={UsersOutlinedIcon}
+      path="/"
+    />
   </BorderedMenu>
 )
 

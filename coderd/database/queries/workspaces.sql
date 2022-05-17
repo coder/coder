@@ -11,6 +11,23 @@ LIMIT
 -- name: GetWorkspacesByOrganizationID :many
 SELECT * FROM workspaces WHERE organization_id = $1 AND deleted = $2;
 
+-- name: GetWorkspacesByOrganizationIDs :many
+SELECT * FROM workspaces WHERE organization_id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
+
+-- name: GetWorkspacesAutostartAutostop :many
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	deleted = false
+AND
+(
+	autostart_schedule <> ''
+	OR
+	autostop_schedule <> ''
+);
+
 -- name: GetWorkspacesByTemplateID :many
 SELECT
 	*
@@ -48,8 +65,7 @@ FROM
 WHERE
 	template_id = ANY(@ids :: uuid [ ])
 GROUP BY
-	template_id,
-	owner_id;
+	template_id;
 
 -- name: InsertWorkspace :one
 INSERT INTO

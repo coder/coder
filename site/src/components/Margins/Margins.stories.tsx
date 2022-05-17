@@ -9,7 +9,7 @@ export default {
 
 const Template: Story = (args) => (
   <Margins {...args}>
-    <div style={{ width: "100%", background: "lightgrey" }}>Here is some content that will not get too wide!</div>
+    <div style={{ width: "100%", background: "black" }}>Here is some content that will not get too wide!</div>
   </Margins>
 )
 

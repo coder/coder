@@ -3,35 +3,36 @@ import ListItem from "@material-ui/core/ListItem"
 import { fade, makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { NavLink } from "react-router-dom"
-import { UserResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { AdminDropdown } from "../AdminDropdown/AdminDropdown"
 import { Logo } from "../Icons/Logo"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
 export interface NavbarViewProps {
-  user?: UserResponse
+  user?: TypesGen.User
   onSignOut: () => void
+  displayAdminDropdown: boolean
 }
 
-export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut }) => {
+export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, displayAdminDropdown }) => {
   const styles = useStyles()
   return (
     <nav className={styles.root}>
       <List className={styles.fixed}>
         <ListItem className={styles.item}>
-          <NavLink className={styles.logo} to="/">
+          <NavLink className={styles.logo} to="/workspaces">
             <Logo fill="white" opacity={1} width={125} />
           </NavLink>
         </ListItem>
         <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/templates">
-            Templates
+          <NavLink className={styles.link} to="/workspaces">
+            Workspaces
           </NavLink>
         </ListItem>
       </List>
       <div className={styles.fullWidth} />
-      {user && user.email === "admin@coder.com" && <AdminDropdown />}
+      {displayAdminDropdown && <AdminDropdown />}
       <div className={styles.fixed}>{user && <UserDropdown user={user} onSignOut={onSignOut} />}</div>
     </nav>
   )
@@ -46,13 +47,13 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     alignItems: "center",
     height: navHeight,
-    background: theme.palette.navbar.main,
+    background: theme.palette.background.paper,
     marginTop: 0,
     transition: "margin 150ms ease",
     "@media (display-mode: standalone)": {
       borderTop: `1px solid ${theme.palette.divider}`,
     },
-    borderBottom: `1px solid #383838`,
+    borderBottom: `1px solid ${theme.palette.divider}`,
   },
   fixed: {
     flex: 0,
@@ -67,9 +68,9 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     height: navHeight,
     paddingLeft: theme.spacing(4),
-    paddingRight: theme.spacing(2),
+    paddingRight: theme.spacing(4),
     "& svg": {
-      width: 125,
+      width: 109,
     },
   },
   title: {
@@ -97,17 +98,16 @@ const useStyles = makeStyles((theme) => ({
     "&.active": {
       position: "relative",
       color: theme.palette.primary.contrastText,
+      fontWeight: "bold",
 
       "&::before": {
-        content: `"{"`,
-        left: 10,
+        content: `" "`,
+        bottom: 0,
+        left: theme.spacing(3),
+        background: "#C16800",
+        right: theme.spacing(3),
+        height: 2,
         position: "absolute",
-      },
-
-      "&::after": {
-        content: `"}"`,
-        position: "absolute",
-        right: 10,
       },
     },
   },

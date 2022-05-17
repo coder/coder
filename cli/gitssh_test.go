@@ -60,7 +60,7 @@ func TestGitSSH(t *testing.T) {
 
 		// start workspace agent
 		cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
-		agentClient := &*client
+		agentClient := client
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()

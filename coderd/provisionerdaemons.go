@@ -32,6 +32,23 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
+func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http.Request) {
+	daemons, err := api.Database.GetProvisionerDaemons(r.Context())
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner daemons: %s", err),
+		})
+		return
+	}
+	if daemons == nil {
+		daemons = []database.ProvisionerDaemon{}
+	}
+	httpapi.Write(rw, http.StatusOK, daemons)
+}
+
 // Serves the provisioner daemon protobuf API over a WebSocket.
 func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
 	api.websocketWaitMutex.Lock()
@@ -328,6 +345,16 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		err = server.Pubsub.Publish(provisionerJobLogsChannel(parsedID), data)
 		if err != nil {
 			return nil, xerrors.Errorf("publish job log: %w", err)
+		}
+	}
+
+	if len(request.Readme) > 0 {
+		err := server.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
+			JobID:  job.ID,
+			Readme: string(request.Readme),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update template version description: %w", err)
 		}
 	}
 

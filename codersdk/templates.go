@@ -23,6 +23,7 @@ type Template struct {
 	Provisioner         database.ProvisionerType `json:"provisioner"`
 	ActiveVersionID     uuid.UUID                `json:"active_version_id"`
 	WorkspaceOwnerCount uint32                   `json:"workspace_owner_count"`
+	Description         string                   `json:"description"`
 }
 
 type UpdateActiveTemplateVersion struct {
@@ -31,7 +32,7 @@ type UpdateActiveTemplateVersion struct {
 
 // Template returns a single template.
 func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
 		return Template{}, nil
 	}
@@ -44,7 +45,7 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 }
 
 func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
-	res, err := c.request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/templates/%s", template), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
 		return err
 	}
@@ -58,7 +59,7 @@ func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.
 // The template version must be attached to the template.
 func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.UUID, req UpdateActiveTemplateVersion) error {
-	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s/versions", template), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templates/%s/versions", template), req)
 	if err != nil {
 		return nil
 	}
@@ -69,9 +70,16 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 	return nil
 }
 
+// TemplateVersionsByTemplateRequest defines the request parameters for
+// TemplateVersionsByTemplate.
+type TemplateVersionsByTemplateRequest struct {
+	TemplateID uuid.UUID `json:"template_id" validate:"required"`
+	Pagination
+}
+
 // TemplateVersionsByTemplate lists versions associated with a template.
-func (c *Client) TemplateVersionsByTemplate(ctx context.Context, template uuid.UUID) ([]TemplateVersion, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", template), nil)
+func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVersionsByTemplateRequest) ([]TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID), nil, req.Pagination.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +94,7 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, template uuid.U
 // TemplateVersionByName returns a template version by it's friendly name.
 // This is used for path-based routing. Like: /templates/example/versions/helloworld
 func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, name string) (TemplateVersion, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions/%s", template, name), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions/%s", template, name), nil)
 	if err != nil {
 		return TemplateVersion{}, err
 	}
