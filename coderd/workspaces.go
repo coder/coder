@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -17,6 +16,8 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"

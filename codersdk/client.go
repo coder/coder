@@ -81,9 +81,9 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	return resp, err
 }
 
-// websocket opens a websocket connection on that path provided.
-// The caller is responsible for closing the websocket.Conn.
-func (c *Client) websocket(ctx context.Context, path string) (*websocket.Conn, error) {
+// dialWebsocket opens a dialWebsocket connection on that path provided.
+// The caller is responsible for closing the dialWebsocket.Conn.
+func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Conn, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse path: %w", err)
