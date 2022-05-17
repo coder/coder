@@ -35,7 +35,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
 
 	authorizer := &fakeAuthorizer{}
-	srv, client := coderdtest.NewMemoryCoderd(t, &coderdtest.Options{
+	srv, client, coderDaemon := coderdtest.NewMemoryCoderd(t, &coderdtest.Options{
 		Authorizer: authorizer,
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
@@ -43,7 +43,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	require.NoError(t, err, "fetch org")
 
 	// Setup some data in the database.
-	coderdtest.NewProvisionerDaemon(t, client)
+	coderdtest.NewProvisionerDaemon(t, coderDaemon)
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)

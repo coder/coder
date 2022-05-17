@@ -120,6 +120,60 @@ func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request
 	_ = conn.Close(websocket.StatusGoingAway, "")
 }
 
+// ListenProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
+// in the same process.
+func (c *coderD) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCProvisionerDaemonClient, err error) {
+	clientSession, serverSession := provisionersdk.TransportPipe()
+	defer func() {
+		if err != nil {
+			_ = clientSession.Close()
+			_ = serverSession.Close()
+		}
+	}()
+
+	daemon, err := c.api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+		ID:           uuid.New(),
+		CreatedAt:    database.Now(),
+		Name:         namesgenerator.GetRandomName(1),
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	mux := drpcmux.New()
+	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
+		AccessURL:    c.options.AccessURL,
+		ID:           daemon.ID,
+		Database:     c.options.Database,
+		Pubsub:       c.options.Pubsub,
+		Provisioners: daemon.Provisioners,
+		Logger:       c.options.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) {
+				return
+			}
+			c.options.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+		},
+	})
+	go func() {
+		err = server.Serve(ctx, serverSession)
+		if err != nil && !xerrors.Is(err, io.EOF) {
+			c.options.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
+		}
+		// close the sessions so we don't leak goroutines serving them.
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+
+	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(clientSession)), nil
+}
+
 // The input for a "workspace_provision" job.
 type workspaceProvisionJob struct {
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`

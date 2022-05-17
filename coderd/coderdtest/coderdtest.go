@@ -63,11 +63,14 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	APIRateLimit         int
 	AutobuildTicker      <-chan time.Time
+
+	// IncludeProvisionerD when true means to start an in-memory provisionerD
+	IncludeProvisionerD bool
 }
 
 // New constructs an in-memory coderd instance and returns
 // the connected client.
-func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client) {
+func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client, coderd.CoderD) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -123,7 +126,6 @@ func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersd
 	srv.Start()
 	serverURL, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	var closeWait func()
 
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
@@ -134,7 +136,7 @@ func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersd
 	require.NoError(t, err)
 
 	// We set the handler after server creation for the access URL.
-	srv.Config.Handler, closeWait = coderd.New(&coderd.Options{
+	coderDaemon := coderd.New(&coderd.Options{
 		AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 		AccessURL:                      serverURL,
 		Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
@@ -150,27 +152,31 @@ func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersd
 		APIRateLimit:         options.APIRateLimit,
 		Authorizer:           options.Authorizer,
 	})
+	srv.Config.Handler = coderDaemon.Handler()
+	if options.IncludeProvisionerD {
+		_ = NewProvisionerDaemon(t, coderDaemon)
+	}
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = turnServer.Close()
 		srv.Close()
-		closeWait()
+		coderDaemon.CloseWait()
 	})
 
-	return srv, codersdk.New(serverURL)
+	return srv, codersdk.New(serverURL), coderDaemon
 }
 
 // New constructs an in-memory coderd instance and returns
 // the connected client.
 func New(t *testing.T, options *Options) *codersdk.Client {
-	_, cli := NewMemoryCoderd(t, options)
+	_, cli, _ := NewMemoryCoderd(t, options)
 	return cli
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
-func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
+func NewProvisionerDaemon(t *testing.T, coderDaemon coderd.CoderD) io.Closer {
 	echoClient, echoServer := provisionersdk.TransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -185,7 +191,7 @@ func NewProvisionerDaemon(t *testing.T, client *codersdk.Client) io.Closer {
 		require.NoError(t, err)
 	}()
 
-	closer := provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
+	closer := provisionerd.New(coderDaemon.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		PollInterval:        50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
