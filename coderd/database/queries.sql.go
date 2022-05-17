@@ -3498,6 +3498,72 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorks
 	return items, nil
 }
 
+const getWorkspacesWithFilter = `-- name: GetWorkspacesWithFilter :many
+SELECT
+    id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+FROM
+    workspaces
+WHERE
+    -- Optionally include deleted workspaces
+	CASE
+		WHEN $1 :: boolean = true THEN
+			true
+		ELSE deleted = false
+	END
+	-- Filter by organization_id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
+			organization_id = $2
+		ELSE true
+	END
+	-- Filter by owner_id
+	AND CASE
+		  WHEN $3 :: uuid != '00000000-00000000-00000000-00000000' THEN
+				owner_id = $3
+		  ELSE true
+	END
+`
+
+type GetWorkspacesWithFilterParams struct {
+	IncludeDeleted bool      `db:"include_deleted" json:"include_deleted"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter, arg.IncludeDeleted, arg.OrganizationID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.AutostopSchedule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspace = `-- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (

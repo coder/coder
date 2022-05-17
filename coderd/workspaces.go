@@ -70,9 +70,9 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	roles := httpmw.UserRoles(r)
-	workspaces, err := api.Database.GetWorkspacesByOrganizationID(r.Context(), database.GetWorkspacesByOrganizationIDParams{
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OrganizationID: organization.ID,
-		Deleted:        false,
+		IncludeDeleted: false,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -104,30 +104,58 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
-func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
+// workspaces returns all workspaces a user can read.
+// Optional filters with query params
+func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 	roles := httpmw.UserRoles(r)
+	apiKey := httpmw.APIKey(r)
 
-	allWorkspaces := make([]database.Workspace, 0)
-	userWorkspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
-		OwnerID: user.ID,
-	})
+	// Empty strings mean no filter
+	orgFilter := r.URL.Query().Get("organization_id")
+	ownerFilter := r.URL.Query().Get("owner_id")
+
+	filter := database.GetWorkspacesWithFilterParams{IncludeDeleted: false}
+	if orgFilter != "" {
+		orgID, err := uuid.Parse(orgFilter)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("organization_id must be a uuid: %s", err.Error()),
+			})
+			return
+		}
+		filter.OrganizationID = orgID
+	}
+	if ownerFilter == "me" {
+		filter.OwnerID = apiKey.UserID
+	} else if ownerFilter != "" {
+		userID, err := uuid.Parse(orgFilter)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("owner_id must be a uuid: %s", err.Error()),
+			})
+			return
+		}
+		filter.OwnerID = userID
+	}
+
+	allowedWorkspaces := make([]database.Workspace, 0)
+	allWorkspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspaces for user: %s", err),
 		})
 		return
 	}
-	for _, ws := range userWorkspaces {
+	for _, ws := range allWorkspaces {
 		ws := ws
-		err = api.Authorizer.ByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead,
+		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
 			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
 		if err == nil {
-			allWorkspaces = append(allWorkspaces, ws)
+			allowedWorkspaces = append(allowedWorkspaces, ws)
 		}
 	}
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allWorkspaces)
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),

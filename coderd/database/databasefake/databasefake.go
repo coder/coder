@@ -291,6 +291,29 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 	}, nil
 }
 
+func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.GetWorkspacesWithFilterParams) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if arg.OrganizationID != uuid.Nil && workspace.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+		if !arg.IncludeDeleted && workspace.Deleted {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	if len(workspaces) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return workspaces, nil
+}
+
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

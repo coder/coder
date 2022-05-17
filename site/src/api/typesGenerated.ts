@@ -430,6 +430,12 @@ export interface WorkspaceBuild {
   readonly job: ProvisionerJob
 }
 
+// From codersdk/workspaces.go:135:6
+export interface WorkspaceFilter {
+  readonly OrganizationID: string
+  readonly OwnerID: string
+}
+
 // From codersdk/workspaceresources.go:23:6
 export interface WorkspaceResource {
   readonly id: string

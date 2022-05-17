@@ -8,6 +8,32 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspacesWithFilter :many
+SELECT
+    *
+FROM
+    workspaces
+WHERE
+    -- Optionally include deleted workspaces
+	CASE
+		WHEN @include_deleted :: boolean = true THEN
+			true
+		ELSE deleted = false
+	END
+	-- Filter by organization_id
+	AND CASE
+		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			organization_id = @organization_id
+		ELSE true
+	END
+	-- Filter by owner_id
+	AND CASE
+		  WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+				owner_id = @owner_id
+		  ELSE true
+	END
+;
+
 -- name: GetWorkspacesByOrganizationID :many
 SELECT * FROM workspaces WHERE organization_id = $1 AND deleted = $2;
 
