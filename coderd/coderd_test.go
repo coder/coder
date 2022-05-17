@@ -78,7 +78,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}":            {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/":           {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
@@ -95,7 +94,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
 
-		"POST:/api/v2/users/{user}/organizations/":                          {NoAuthorize: true},
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templates":               {NoAuthorize: true},
@@ -143,9 +141,19 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
 		},
 		"GET:/api/v2/organizations/{organization}/workspaces": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
+		"GET:/api/v2/workspaces":                              {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 
 		// These endpoints need payloads to get to the auth part.
 		"PUT:/api/v2/users/{user}/roles": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+	}
+
+	for k, v := range assertRoute {
+		noTrailSlash := strings.TrimRight(k, "/")
+		if _, ok := assertRoute[noTrailSlash]; ok && noTrailSlash != k {
+			t.Errorf("route %q & %q is declared twice", noTrailSlash, k)
+			t.FailNow()
+		}
+		assertRoute[noTrailSlash] = v
 	}
 
 	c, _ := srv.Config.Handler.(*chi.Mux)

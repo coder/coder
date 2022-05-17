@@ -168,8 +168,9 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)
-	workspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
-		OwnerID: owner.ID,
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
+		OwnerID:        owner.ID,
+		IncludeDeleted: false,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
