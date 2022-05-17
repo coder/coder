@@ -64,6 +64,10 @@ var (
 			return Role{
 				Name:        member,
 				DisplayName: "Member",
+				Site: permissions(map[Object][]Action{
+					// All users can read all other users and know they exist.
+					ResourceUser: {ActionRead},
+				}),
 				User: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
 				}),
@@ -111,7 +115,20 @@ var (
 				Name:        roleName(orgMember, organizationID),
 				DisplayName: "Organization Member",
 				Org: map[string][]Permission{
-					organizationID: {},
+					organizationID: {
+						{
+							// All org members can read the other members in their org.
+							ResourceType: ResourceOrganizationMember.Type,
+							Action:       ActionRead,
+							ResourceID:   "*",
+						},
+						{
+							// All org members can read the organization
+							ResourceType: ResourceOrganization.Type,
+							Action:       ActionRead,
+							ResourceID:   "*",
+						},
+					},
 				},
 			}
 		},

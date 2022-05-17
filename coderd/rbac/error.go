@@ -6,7 +6,7 @@ const (
 	// errUnauthorized is the error message that should be returned to
 	// clients when an action is forbidden. It is intentionally vague to prevent
 	// disclosing information that a client should not have access to.
-	errUnauthorized = "unauthorized"
+	errUnauthorized = "forbidden"
 )
 
 // UnauthorizedError is the error type for authorization errors

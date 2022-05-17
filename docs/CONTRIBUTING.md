@@ -9,10 +9,10 @@ Coder requires Go 1.18+, Node 14+, and GNU Make.
 
 Use the following `make` commands and scripts in development:
 
+- `make dev` runs the frontend and backend development server
 - `make build` compiles binaries and release packages
 - `make install` installs binaries to `$GOPATH/bin`
 - `make test`
-- `./develop.sh` hot reloads for front-end development
 
 ## Styling
 
