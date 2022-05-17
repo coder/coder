@@ -86,10 +86,13 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 func (c *Client) websocket(ctx context.Context, path string) (*websocket.Conn, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, xerrors.Errorf("parse path: %w", err)
 	}
 
 	apiURL, err := url.Parse(serverURL.String())
+	if err != nil {
+		return nil, xerrors.Errorf("parse server url: %w", err)
+	}
 	apiURL.Scheme = "ws"
 	if serverURL.Scheme == "https" {
 		apiURL.Scheme = "wss"
@@ -100,7 +103,7 @@ func (c *Client) websocket(ctx context.Context, path string) (*websocket.Conn, e
 	apiURL.RawQuery = q.Encode()
 
 	//nolint:bodyclose
-	conn, _, err := websocket.Dial(context.Background(), apiURL.String(), &websocket.DialOptions{
+	conn, _, err := websocket.Dial(ctx, apiURL.String(), &websocket.DialOptions{
 		HTTPClient: c.HTTPClient,
 	})
 	if err != nil {

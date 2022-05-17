@@ -108,7 +108,7 @@ func (w *WorkspaceWatcher) Read(ctx context.Context) (Workspace, error) {
 	var ws Workspace
 	err := wsjson.Read(ctx, w.conn, &ws)
 	if err != nil {
-		return ws, xerrors.Errorf("read workspace: %w")
+		return ws, xerrors.Errorf("read workspace: %w", err)
 	}
 
 	return ws, nil
