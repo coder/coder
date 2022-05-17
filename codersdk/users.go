@@ -155,7 +155,7 @@ type AuthMethods struct {
 
 // HasFirstUser returns whether the first user has been created.
 func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/users/first", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/first", nil)
 	if err != nil {
 		return false, err
 	}
@@ -172,7 +172,7 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 // CreateFirstUser attempts to create the first user on a Coder deployment.
 // This initial user has superadmin privileges. If >0 users exist, this request will fail.
 func (c *Client) CreateFirstUser(ctx context.Context, req CreateFirstUserRequest) (CreateFirstUserResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/users/first", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/first", req)
 	if err != nil {
 		return CreateFirstUserResponse{}, err
 	}
@@ -186,7 +186,7 @@ func (c *Client) CreateFirstUser(ctx context.Context, req CreateFirstUserRequest
 
 // CreateUser creates a new user.
 func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/users", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users", req)
 	if err != nil {
 		return User{}, err
 	}
@@ -200,7 +200,7 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 
 // UpdateUserProfile enables callers to update profile information
 func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", user), req)
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", user), req)
 	if err != nil {
 		return User{}, err
 	}
@@ -224,7 +224,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 		return User{}, xerrors.Errorf("status %q is not supported", status)
 	}
 
-	res, err := c.request(ctx, http.MethodPut, path, nil)
+	res, err := c.Request(ctx, http.MethodPut, path, nil)
 	if err != nil {
 		return User{}, err
 	}
@@ -240,7 +240,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 // UpdateUserPassword updates a user password.
 // It calls PUT /users/{user}/password
 func (c *Client) UpdateUserPassword(ctx context.Context, user string, req UpdateUserPasswordRequest) error {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", user), req)
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/password", user), req)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (c *Client) UpdateUserPassword(ctx context.Context, user string, req Update
 // UpdateUserRoles grants the userID the specified roles.
 // Include ALL roles the user has.
 func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRoles) (User, error) {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", user), req)
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/roles", user), req)
 	if err != nil {
 		return User{}, err
 	}
@@ -269,7 +269,7 @@ func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRol
 // UpdateOrganizationMemberRoles grants the userID the specified roles in an org.
 // Include ALL roles the user has.
 func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organizationID uuid.UUID, user string, req UpdateRoles) (OrganizationMember, error) {
-	res, err := c.request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, user), req)
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/organizations/%s/members/%s/roles", organizationID, user), req)
 	if err != nil {
 		return OrganizationMember{}, err
 	}
@@ -283,7 +283,7 @@ func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organization
 
 // GetUserRoles returns all roles the user has
 func (c *Client) GetUserRoles(ctx context.Context, user string) (UserRoles, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", user), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", user), nil)
 	if err != nil {
 		return UserRoles{}, err
 	}
@@ -297,7 +297,7 @@ func (c *Client) GetUserRoles(ctx context.Context, user string) (UserRoles, erro
 
 // CreateAPIKey generates an API key for the user ID provided.
 func (c *Client) CreateAPIKey(ctx context.Context, user string) (*GenerateAPIKeyResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", user), nil)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", user), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (*GenerateAPIKey
 // LoginWithPassword creates a session token authenticating with an email and password.
 // Call `SetSessionToken()` to apply the newly acquired token to the client.
 func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordRequest) (LoginWithPasswordResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/users/login", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/login", req)
 	if err != nil {
 		return LoginWithPasswordResponse{}, err
 	}
@@ -333,7 +333,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 func (c *Client) Logout(ctx context.Context) error {
 	// Since `LoginWithPassword` doesn't actually set a SessionToken
 	// (it requires a call to SetSessionToken), this is essentially a no-op
-	res, err := c.request(ctx, http.MethodPost, "/api/v2/users/logout", nil)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/logout", nil)
 	if err != nil {
 		return err
 	}
@@ -343,7 +343,7 @@ func (c *Client) Logout(ctx context.Context) error {
 
 // User returns a user for the ID/username provided.
 func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", userIdent), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", userIdent), nil)
 	if err != nil {
 		return User{}, err
 	}
@@ -358,7 +358,7 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
 func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/users", nil,
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users", nil,
 		req.Pagination.asRequestOption(),
 		func(r *http.Request) {
 			q := r.URL.Query()
@@ -382,7 +382,7 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) ([]User, error) {
 
 // OrganizationsByUser returns all organizations the user is a member of.
 func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organization, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", user), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations", user), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +395,7 @@ func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organi
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, user string, name string) (Organization, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", user, name), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", user, name), nil)
 	if err != nil {
 		return Organization{}, err
 	}
@@ -409,7 +409,7 @@ func (c *Client) OrganizationByName(ctx context.Context, user string, name strin
 
 // CreateOrganization creates an organization and adds the provided user as an admin.
 func (c *Client) CreateOrganization(ctx context.Context, user string, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", user), req)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/organizations", user), req)
 	if err != nil {
 		return Organization{}, err
 	}
@@ -425,7 +425,7 @@ func (c *Client) CreateOrganization(ctx context.Context, user string, req Create
 
 // AuthMethods returns types of authentication available to the user.
 func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/users/authmethods", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/authmethods", nil)
 	if err != nil {
 		return AuthMethods{}, err
 	}
@@ -441,7 +441,7 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 
 // WorkspacesByUser returns all workspaces a user has access to.
 func (c *Client) WorkspacesByUser(ctx context.Context, user string) ([]Workspace, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", user), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", user), nil)
 	if err != nil {
 		return nil, err
 	}

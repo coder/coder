@@ -56,9 +56,7 @@ describe("Workspace Page", () => {
   it("shows a workspace", async () => {
     renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
     const workspaceName = await screen.findByText(MockWorkspace.name)
-    const templateName = await screen.findByText(MockTemplate.name)
     expect(workspaceName).toBeDefined()
-    expect(templateName).toBeDefined()
   })
   it("shows the status of the workspace", async () => {
     renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })

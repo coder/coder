@@ -144,7 +144,7 @@ func (api *api) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	if latestHistory.ID.String() != resourceHistory.ID.String() {
+	if latestHistory.ID != resourceHistory.ID {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("resource found for id %q, but isn't registered on the latest history", instanceID),
 		})

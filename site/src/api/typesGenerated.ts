@@ -231,9 +231,10 @@ export interface TemplateVersion {
   readonly updated_at: string
   readonly name: string
   readonly job: ProvisionerJob
+  readonly readme: string
 }
 
-// From codersdk/templateversions.go:30:6
+// From codersdk/templateversions.go:31:6
 export interface TemplateVersionParameter {
   // Named type "github.com/coder/coder/coderd/database.ParameterValue" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -242,7 +243,7 @@ export interface TemplateVersionParameter {
   readonly default_source_value: boolean
 }
 
-// From codersdk/templateversions.go:27:6
+// From codersdk/templateversions.go:28:6
 export interface TemplateVersionParameterSchema {
   readonly id: string
   readonly created_at: string

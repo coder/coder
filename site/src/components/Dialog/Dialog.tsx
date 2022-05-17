@@ -161,7 +161,7 @@ const useButtonStyles = makeStyles((theme) => ({
     },
   },
   confirmDialogCancelButton: (props: StyleProps) => {
-    const color = props.type === "info" ? theme.palette.confirmDialog.info.text : theme.palette.confirmDialog.error.text
+    const color = props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText
     return {
       background: fade(color, 0.15),
       color,

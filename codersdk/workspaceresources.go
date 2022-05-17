@@ -69,7 +69,7 @@ type WorkspaceAgentInstanceMetadata struct {
 }
 
 func (c *Client) WorkspaceResource(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceresources/%s", id), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceresources/%s", id), nil)
 	if err != nil {
 		return WorkspaceResource{}, err
 	}

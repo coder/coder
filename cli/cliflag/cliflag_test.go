@@ -96,6 +96,16 @@ func TestCliflag(t *testing.T) {
 		require.Equal(t, []string{"wow", "test"}, got)
 	})
 
+	t.Run("StringArrayEnvVarEmpty", func(t *testing.T) {
+		var ptr []string
+		flagset, name, shorthand, env, usage := randomFlag()
+		t.Setenv(env, "")
+		cliflag.StringArrayVarP(flagset, &ptr, name, shorthand, env, nil, usage)
+		got, err := flagset.GetStringArray(name)
+		require.NoError(t, err)
+		require.Equal(t, []string{}, got)
+	})
+
 	t.Run("IntDefault", func(t *testing.T) {
 		var ptr uint8
 		flagset, name, shorthand, env, usage := randomFlag()

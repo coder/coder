@@ -1,5 +1,5 @@
 import Button from "@material-ui/core/Button"
-import { lighten, makeStyles } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 
 export interface HeaderButtonProps {
@@ -28,10 +28,8 @@ export const HeaderButton: React.FC<HeaderButtonProps> = (props) => {
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles(() => ({
   pageButton: {
     whiteSpace: "nowrap",
-    backgroundColor: lighten(theme.palette.hero.main, 0.1),
-    color: "#B5BFD2",
   },
 }))

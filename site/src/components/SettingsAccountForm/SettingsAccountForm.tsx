@@ -72,7 +72,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           {error && <FormHelperText error>{error}</FormHelperText>}
 
           <div>
-            <LoadingButton color="primary" loading={isLoading} type="submit" variant="contained">
+            <LoadingButton loading={isLoading} type="submit" variant="contained">
               {isLoading ? "" : Language.updateSettings}
             </LoadingButton>
           </div>

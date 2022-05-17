@@ -12,15 +12,13 @@ import { OrgsPage } from "./pages/OrgsPage/OrgsPage"
 import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
 import { AccountPage } from "./pages/SettingsPages/AccountPage/AccountPage"
 import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
-import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/CreateWorkspacePage"
-import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/TemplatePage"
-import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
+const WorkspacesPage = React.lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 
 export const AppRouter: React.FC = () => (
   <React.Suspense fallback={<></>}>
@@ -46,36 +44,15 @@ export const AppRouter: React.FC = () => (
           }
         />
 
-        <Route path="templates">
+        <Route path="workspaces">
           <Route
             index
             element={
               <AuthAndFrame>
-                <TemplatesPage />
+                <WorkspacesPage />
               </AuthAndFrame>
             }
           />
-          <Route path=":organization/:template">
-            <Route
-              index
-              element={
-                <AuthAndFrame>
-                  <TemplatePage />
-                </AuthAndFrame>
-              }
-            />
-            <Route
-              path="create"
-              element={
-                <RequireAuth>
-                  <CreateWorkspacePage />
-                </RequireAuth>
-              }
-            />
-          </Route>
-        </Route>
-
-        <Route path="workspaces">
           <Route path=":workspace">
             <Route
               index

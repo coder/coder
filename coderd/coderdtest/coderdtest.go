@@ -56,6 +56,7 @@ import (
 
 type Options struct {
 	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
 	GoogleTokenValidator *idtoken.Validator
@@ -66,7 +67,7 @@ type Options struct {
 
 // New constructs an in-memory coderd instance and returns
 // the connected client.
-func New(t *testing.T, options *Options) *codersdk.Client {
+func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -147,6 +148,7 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 		TURNServer:           turnServer,
 		APIRateLimit:         options.APIRateLimit,
+		Authorizer:           options.Authorizer,
 	})
 	t.Cleanup(func() {
 		cancelFunc()
@@ -155,7 +157,14 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 		closeWait()
 	})
 
-	return codersdk.New(serverURL)
+	return srv, codersdk.New(serverURL)
+}
+
+// New constructs an in-memory coderd instance and returns
+// the connected client.
+func New(t *testing.T, options *Options) *codersdk.Client {
+	_, cli := NewMemoryCoderd(t, options)
+	return cli
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -252,9 +261,8 @@ func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uui
 		for _, r := range user.Roles {
 			siteRoles = append(siteRoles, r.Name)
 		}
-		// TODO: @emyrk switch "other" to "client" when we support updating other
-		//	users.
-		_, err := other.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
+
+		_, err := client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
 		require.NoError(t, err, "update site roles")
 
 		// Update org roles

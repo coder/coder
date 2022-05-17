@@ -234,7 +234,7 @@ CREATE TABLE template_versions (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
-    description character varying(1048576) NOT NULL,
+    readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL
 );
 
