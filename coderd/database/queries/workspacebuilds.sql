@@ -44,7 +44,7 @@ WHERE
 			-- rows after the cursor.
 			build_number > (
 				SELECT
-					build_number, id
+					build_number
 				FROM
 					workspace_builds
 				WHERE
