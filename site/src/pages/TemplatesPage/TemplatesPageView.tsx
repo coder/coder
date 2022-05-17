@@ -21,7 +21,8 @@ dayjs.extend(relativeTime)
 
 export const Language = {
   createButton: "Create Template",
-  emptyView: "to standardize development workspaces for your team.",
+  emptyViewCreate: "to standardize development workspaces for your team.",
+  emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
 }
 
 export interface TemplatesPageViewProps {
@@ -57,10 +58,10 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                         <Link component={RouterLink} to="/templates/new">
                           Create a template
                         </Link>
-                        &nbsp;{Language.emptyView}
+                        &nbsp;{Language.emptyViewCreate}
                       </span>
                     ) : (
-                      <span>No templates have been created! Contact your Coder administrator.</span>
+                      <span>{Language.emptyViewNoPerms}</span>
                     )}
                   </div>
                 </TableCell>
