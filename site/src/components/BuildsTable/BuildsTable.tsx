@@ -33,6 +33,19 @@ export const Language = {
   statusLabel: "Status",
 }
 
+const getDurationInSeconds = (build: TypesGen.WorkspaceBuild) => {
+  let display = Language.inProgressLabel
+
+  if (build.job.started_at && build.job.completed_at) {
+    const startedAt = dayjs(build.job.started_at)
+    const completedAt = dayjs(build.job.completed_at)
+    const diff = completedAt.diff(startedAt, "seconds")
+    display = `${diff} seconds`
+  }
+
+  return display
+}
+
 export interface BuildsTableProps {
   builds?: TypesGen.WorkspaceBuild[]
   className?: string
@@ -57,20 +70,13 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
         {builds &&
           builds.map((b) => {
             const status = getDisplayStatus(theme, b)
-
-            let displayDuration = Language.inProgressLabel
-            if (b.job.started_at && b.job.completed_at) {
-              const startedAt = dayjs(b.job.started_at)
-              const completedAt = dayjs(b.job.completed_at)
-              const diff = completedAt.diff(startedAt, "seconds")
-              displayDuration = `${diff} seconds`
-            }
+            const duration = getDurationInSeconds(b)
 
             return (
               <TableRow key={b.id}>
                 <TableCell>{b.transition}</TableCell>
                 <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>{displayDuration}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>{duration}</span>
                 </TableCell>
                 <TableCell>
                   <span style={{ color: theme.palette.text.secondary }}>{new Date(b.created_at).toLocaleString()}</span>
