@@ -29,7 +29,6 @@ This example policy allows Coder to create EC2 instances and modify instances pr
                 "ec2:RunInstances",
                 "ec2:DescribeInstanceCreditSpecifications",
                 "ec2:DescribeImages",
-                "ec2:ModifyInstanceCreditSpecification",
                 "ec2:ModifyDefaultCreditSpecification",
                 "ec2:DescribeVolumes"
             ],
@@ -49,7 +48,8 @@ This example policy allows Coder to create EC2 instances and modify instances pr
                 "ec2:MonitorInstances",
                 "ec2:CreateTags",
                 "ec2:RunInstances",
-                "ec2:ModifyInstanceAttribute"
+                "ec2:ModifyInstanceAttribute",
+                "ec2:ModifyInstanceCreditSpecification"
             ],
             "Resource": "arn:aws:ec2:*:*:instance/*",
             "Condition": {
