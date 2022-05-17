@@ -63,6 +63,7 @@ const config: Configuration = {
       "/api": {
         target: "http://localhost:3000",
         ws: true,
+        secure: false,
       },
     },
     static: ["./static"],

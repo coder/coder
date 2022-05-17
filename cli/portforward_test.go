@@ -365,7 +365,7 @@ func TestPortForward(t *testing.T) {
 // workspace. The agent will be cleaned up on test completion.
 func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]codersdk.WorkspaceResource, codersdk.Workspace) {
 	ctx := context.Background()
-	user, err := client.User(ctx, userID)
+	user, err := client.User(ctx, userID.String())
 	require.NoError(t, err, "specified user does not exist")
 	require.Greater(t, len(user.OrganizationIDs), 0, "user has no organizations")
 	orgID := user.OrganizationIDs[0]

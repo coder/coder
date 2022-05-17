@@ -67,7 +67,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 
 	results, err := a.query.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w, err"), input, results)
+		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
 	}
 
 	if len(results) != 1 {

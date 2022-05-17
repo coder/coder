@@ -101,7 +101,7 @@ CREATE TABLE audit_logs (
     "time" timestamp with time zone NOT NULL,
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
-    ip cidr NOT NULL,
+    ip inet NOT NULL,
     user_agent character varying(256) NOT NULL,
     resource_type resource_type NOT NULL,
     resource_id uuid NOT NULL,
@@ -246,7 +246,8 @@ CREATE TABLE templates (
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
-    active_version_id uuid NOT NULL
+    active_version_id uuid NOT NULL,
+    description character varying(128) DEFAULT ''::character varying NOT NULL
 );
 
 CREATE TABLE users (

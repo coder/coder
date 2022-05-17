@@ -3,11 +3,11 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { useActor } from "@xstate/react"
 import React, { useContext } from "react"
-import { BuildInfoResponse } from "../../api/types"
+import * as TypesGen from "../../api/typesGenerated"
 import { XServiceContext } from "../../xServices/StateContext"
 
 export const Language = {
-  buildInfoText: (buildInfo: BuildInfoResponse): string => {
+  buildInfoText: (buildInfo: TypesGen.BuildInfoResponse): string => {
     return `Coder ${buildInfo.version}`
   },
 }
@@ -39,8 +39,9 @@ export const Footer: React.FC = ({ children }) => {
 const useFooterStyles = makeStyles((theme) => ({
   root: {
     textAlign: "center",
-    marginBottom: theme.spacing(5),
     flex: "0",
+    paddingTop: theme.spacing(2),
+    paddingBottom: theme.spacing(2),
   },
   copyRight: {
     margin: theme.spacing(0.25),

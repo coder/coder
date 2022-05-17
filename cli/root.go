@@ -3,10 +3,8 @@ package cli
 import (
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -20,6 +18,12 @@ import (
 
 var (
 	caret = cliui.Styles.Prompt.String()
+
+	// Applied as annotations to workspace commands
+	// so they display in a separated "help" section.
+	workspaceCommand = map[string]string{
+		"workspaces": " ",
+	}
 )
 
 const (
@@ -32,39 +36,29 @@ const (
 	varForceTty     = "force-tty"
 )
 
+func init() {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	header := cliui.Styles.Placeholder
+	cobra.AddTemplateFunc("usageHeader", func(s string) string {
+		return header.Render(s)
+	})
+}
+
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
 		Version:       buildinfo.Version(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
-		Long: `    ▄█▀    ▀█▄
-     ▄▄ ▀▀▀  █▌   ██▀▀█▄          ▐█
- ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
-█▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █
-     ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
-  ` + lipgloss.NewStyle().Underline(true).Render("Self-hosted developer workspaces on your infra") + `
-
+		Long: `Coder — A tool for provisioning self-hosted development environments.
 `,
-		Example: cliui.Styles.Paragraph.Render(`Start Coder in "dev" mode. This dev-mode requires no further setup, and your local `+cliui.Styles.Code.Render("coder")+` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.`) + `
+		Example: `  Start Coder in "dev" mode. This dev-mode requires no further setup, and your local ` + cliui.Styles.Code.Render("coder") + ` CLI will be authenticated to talk to it. This makes it easy to experiment with Coder.
+  ` + cliui.Styles.Code.Render("$ coder server --dev") + `
 
-    ` + cliui.Styles.Code.Render("$ coder server --dev") + `
-	` + cliui.Styles.Paragraph.Render("Get started by creating a template from an example.") + `
-
-    ` + cliui.Styles.Code.Render("$ coder templates init"),
+  Get started by creating a template from an example.
+  ` + cliui.Styles.Code.Render("$ coder templates init"),
 	}
-	// Customizes the color of headings to make subcommands
-	// more visually appealing.
-	header := cliui.Styles.Placeholder
-	cmd.SetUsageTemplate(strings.NewReplacer(
-		`Usage:`, header.Render("Usage:"),
-		`Examples:`, header.Render("Examples:"),
-		`Available Commands:`, header.Render("Commands:"),
-		`Global Flags:`, header.Render("Global Flags:"),
-		`Flags:`, header.Render("Flags:"),
-		`Additional help topics:`, header.Render("Additional help:"),
-	).Replace(cmd.UsageTemplate()))
-	cmd.SetVersionTemplate(versionTemplate())
 
 	cmd.AddCommand(
 		autostart(),
@@ -75,8 +69,8 @@ func Root() *cobra.Command {
 		gitssh(),
 		list(),
 		login(),
-		parameters(),
 		publickey(),
+		resetPassword(),
 		server(),
 		show(),
 		start(),
@@ -90,10 +84,15 @@ func Root() *cobra.Command {
 		workspaceAgent(),
 	)
 
+	cmd.SetUsageTemplate(usageTemplate())
+	cmd.SetVersionTemplate(versionTemplate())
+
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
+	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
+	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
 	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
@@ -186,6 +185,68 @@ func isTTY(cmd *cobra.Command) bool {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
+}
+
+func usageTemplate() string {
+	// usageHeader is defined in init().
+	return `{{usageHeader "Usage:"}}
+{{- if .Runnable}}
+  {{.UseLine}}
+{{end}}
+{{- if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]
+{{end}}
+
+{{- if gt (len .Aliases) 0}}
+{{usageHeader "Aliases:"}}
+  {{.NameAndAliases}}
+{{end}}
+
+{{- if .HasExample}}
+{{usageHeader "Get Started:"}}
+{{.Example}}
+{{end}}
+
+{{- if .HasAvailableSubCommands}}
+{{usageHeader "Commands:"}}
+  {{- range .Commands}}
+    {{- if (or (and .IsAvailableCommand (eq (len .Annotations) 0)) (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
+
+{{- if and (not .HasParent) .HasAvailableSubCommands}}
+{{usageHeader "Workspace Commands:"}}
+  {{- range .Commands}}
+    {{- if (and .IsAvailableCommand (ne (index .Annotations "workspaces") ""))}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
+
+{{- if .HasAvailableLocalFlags}}
+{{usageHeader "Flags:"}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
+
+{{- if .HasAvailableInheritedFlags}}
+{{usageHeader "Global Flags:"}}
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}
+{{end}}
+
+{{- if .HasHelpSubCommands}}
+{{usageHeader "Additional help topics:"}}
+  {{- range .Commands}}
+    {{- if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
+    {{- end}}
+  {{- end}}
+{{end}}
+
+{{- if .HasAvailableSubCommands}}
+Use "{{.CommandPath}} [command] --help" for more information about a command.
+{{end}}`
 }
 
 func versionTemplate() string {

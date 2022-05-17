@@ -40,7 +40,11 @@ func StringVarP(flagset *pflag.FlagSet, p *string, name string, shorthand string
 func StringArrayVarP(flagset *pflag.FlagSet, ptr *[]string, name string, shorthand string, env string, def []string, usage string) {
 	val, ok := os.LookupEnv(env)
 	if ok {
-		def = strings.Split(val, ",")
+		if val == "" {
+			def = []string{}
+		} else {
+			def = strings.Split(val, ",")
+		}
 	}
 	flagset.StringArrayVarP(ptr, name, shorthand, def, usage)
 }

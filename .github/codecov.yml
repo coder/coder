@@ -1,0 +1,34 @@
+codecov:
+  require_ci_to_pass: false
+
+comment: false
+
+github_checks:
+  annotations: false
+
+coverage:
+  status:
+    patch:
+      default:
+        informational: yes
+    project:
+      default:
+        target: 70%
+        informational: yes
+
+ignore:
+  # This is generated code.
+  - coderd/database/models.go
+  - coderd/database/query.sql.go
+  - coderd/database/databasefake
+  # These are generated or don't require tests.
+  - cmd
+  - coderd/tunnel
+  - coderd/database/dump
+  - coderd/database/postgres
+  - peerbroker/proto
+  - provisionerd/proto
+  - provisionersdk/proto
+  - scripts/datadog-cireport
+  - site/.storybook
+  - rules.go

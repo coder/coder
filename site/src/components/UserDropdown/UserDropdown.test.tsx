@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import React from "react"
-import { render } from "../../testHelpers"
 import { MockUser } from "../../testHelpers/entities"
+import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdown, UserDropdownProps } from "./UsersDropdown"
 
 const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {
@@ -11,6 +11,18 @@ const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {
 }
 
 describe("UserDropdown", () => {
+  const env = process.env
+
+  // REMARK: copying process.env so we don't mutate that object or encounter conflicts between tests
+  beforeEach(() => {
+    process.env = { ...env }
+  })
+
+  // REMARK: restoring process.env
+  afterEach(() => {
+    process.env = env
+  })
+
   describe("when the trigger is clicked", () => {
     it("opens the menu", async () => {
       await renderAndClick()
@@ -32,6 +44,7 @@ describe("UserDropdown", () => {
   })
 
   it("has the correct link for the documentation item", async () => {
+    process.env.CODER_VERSION = "v0.5.4"
     await renderAndClick()
 
     const link = screen.getByText(Language.docsLabel).closest("a")
@@ -39,7 +52,7 @@ describe("UserDropdown", () => {
       throw new Error("Anchor tag not found for the documentation menu item")
     }
 
-    expect(link.getAttribute("href")).toBe("https://coder.com/docs")
+    expect(link.getAttribute("href")).toBe(`https://github.com/coder/coder/tree/${process.env.CODER_VERSION}/docs`)
   })
 
   it("has the correct link for the account item", async () => {
@@ -50,6 +63,6 @@ describe("UserDropdown", () => {
       throw new Error("Anchor tag not found for the account menu item")
     }
 
-    expect(link.getAttribute("href")).toBe("/preferences/account")
+    expect(link.getAttribute("href")).toBe("/settings/account")
   })
 })

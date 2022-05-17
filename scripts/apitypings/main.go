@@ -176,13 +176,35 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 				st, _ := obj.Type().Underlying().(*types.Struct)
 				codeBlock, err := g.buildStruct(obj, st)
 				if err != nil {
-					return nil, xerrors.Errorf("generate %q: %w", obj.Name())
+					return nil, xerrors.Errorf("generate %q: %w", obj.Name(), err)
 				}
 				structs[obj.Name()] = codeBlock
 			case *types.Basic:
 				// type <Name> string
 				// These are enums. Store to expand later.
 				enums[obj.Name()] = obj
+			case *types.Map:
+				// Declared maps that are not structs are still valid codersdk objects.
+				// Handle them custom by calling 'typescriptType' directly instead of
+				// iterating through each struct field.
+				// These types support no json/typescript tags.
+				// These are **NOT** enums, as a map in Go would never be used for an enum.
+				ts, err := g.typescriptType(obj.Type().Underlying())
+				if err != nil {
+					return nil, xerrors.Errorf("(map) generate %q: %w", obj.Name(), err)
+				}
+
+				var str strings.Builder
+				_, _ = str.WriteString(g.posLine(obj))
+				if ts.AboveTypeLine != "" {
+					str.WriteString(ts.AboveTypeLine)
+					str.WriteRune('\n')
+				}
+				// Use similar output syntax to enums.
+				str.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), ts.ValueType))
+				structs[obj.Name()] = str.String()
+			case *types.Array, *types.Slice:
+				// TODO: @emyrk if you need this, follow the same design as "*types.Map" case.
 			}
 		case *types.Var:
 			// TODO: Are any enums var declarations? This is also codersdk.Me.
@@ -237,10 +259,31 @@ func (g *Generator) posLine(obj types.Object) string {
 func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, error) {
 	var s strings.Builder
 	_, _ = s.WriteString(g.posLine(obj))
+	_, _ = s.WriteString(fmt.Sprintf("export interface %s ", obj.Name()))
 
-	_, _ = s.WriteString(fmt.Sprintf("export interface %s {\n", obj.Name()))
+	// Handle named embedded structs in the codersdk package via extension.
+	var extends []string
+	extendedFields := make(map[int]bool)
+	for i := 0; i < st.NumFields(); i++ {
+		field := st.Field(i)
+		tag := reflect.StructTag(st.Tag(i))
+		// Adding a json struct tag causes the json package to consider
+		// the field unembedded.
+		if field.Embedded() && tag.Get("json") == "" && field.Pkg().Name() == "codersdk" {
+			extendedFields[i] = true
+			extends = append(extends, field.Name())
+		}
+	}
+	if len(extends) > 0 {
+		_, _ = s.WriteString(fmt.Sprintf("extends %s ", strings.Join(extends, ", ")))
+	}
+
+	_, _ = s.WriteString("{\n")
 	// For each field in the struct, we print 1 line of the typescript interface
 	for i := 0; i < st.NumFields(); i++ {
+		if extendedFields[i] {
+			continue
+		}
 		field := st.Field(i)
 		tag := reflect.StructTag(st.Tag(i))
 
@@ -250,6 +293,10 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		jsonName = arr[0]
 		if jsonName == "" {
 			jsonName = field.Name()
+		}
+		jsonOptional := false
+		if len(arr) > 1 && arr[1] == "omitempty" {
+			jsonOptional = true
 		}
 
 		var tsType TypescriptType
@@ -273,7 +320,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			_, _ = s.WriteRune('\n')
 		}
 		optional := ""
-		if tsType.Optional {
+		if jsonOptional || tsType.Optional {
 			optional = "?"
 		}
 		_, _ = s.WriteString(fmt.Sprintf("%sreadonly %s%s: %s\n", indent, jsonName, optional, tsType.ValueType))
@@ -322,7 +369,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		return TypescriptType{
 			ValueType: "any",
 			AboveTypeLine: fmt.Sprintf("%s\n%s",
-				indentedComment("Embedded struct, please fix by naming it"),
+				indentedComment("Embedded anonymous struct, please fix by naming it"),
 				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
 			),
 		}, nil

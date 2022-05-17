@@ -1,5 +1,6 @@
 import { Story } from "@storybook/react"
 import React from "react"
+import { MockUser, MockUser2 } from "../../testHelpers/entities"
 import { NavbarView, NavbarViewProps } from "./NavbarView"
 
 export default {
@@ -14,7 +15,7 @@ const Template: Story<NavbarViewProps> = (args: NavbarViewProps) => <NavbarView 
 
 export const ForAdmin = Template.bind({})
 ForAdmin.args = {
-  user: { id: "1", username: "Administrator", email: "admin@coder.com", created_at: "dawn" },
+  user: MockUser,
   onSignOut: () => {
     return Promise.resolve()
   },
@@ -22,7 +23,7 @@ ForAdmin.args = {
 
 export const ForMember = Template.bind({})
 ForMember.args = {
-  user: { id: "1", username: "CathyCoder", email: "cathy@coder.com", created_at: "dawn" },
+  user: MockUser2,
   onSignOut: () => {
     return Promise.resolve()
   },
