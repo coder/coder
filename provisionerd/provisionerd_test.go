@@ -232,7 +232,7 @@ func TestProvisionerd(t *testing.T) {
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
 							"test.txt":              "content",
-							provisionerd.ReadmeFile: "# A cool template 😎",
+							provisionerd.ReadmeFile: "# A cool template 😎\n",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
 							TemplateImport: &proto.AcquiredJob_TemplateImport{

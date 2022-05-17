@@ -231,7 +231,7 @@ export interface TemplateVersion {
   readonly updated_at: string
   readonly name: string
   readonly job: ProvisionerJob
-  readonly description: string
+  readonly readme: string
 }
 
 // From codersdk/templateversions.go:31:6

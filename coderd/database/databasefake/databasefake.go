@@ -1190,7 +1190,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Name:           arg.Name,
-		Description:    arg.Description,
+		Readme:         arg.Readme,
 		JobID:          arg.JobID,
 	}
 	q.templateVersions = append(q.templateVersions, version)
@@ -1528,7 +1528,7 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 		if templateVersion.JobID != arg.JobID {
 			continue
 		}
-		templateVersion.Description = arg.Description
+		templateVersion.Readme = arg.Readme
 		templateVersion.UpdatedAt = time.Now()
 		q.templateVersions[index] = templateVersion
 		return nil

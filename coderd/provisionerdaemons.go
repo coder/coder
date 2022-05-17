@@ -350,8 +350,8 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 
 	if len(request.Readme) > 0 {
 		err := server.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
-			JobID:       job.ID,
-			Description: string(request.Readme),
+			JobID:  job.ID,
+			Readme: string(request.Readme),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version description: %w", err)

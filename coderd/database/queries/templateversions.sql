@@ -66,7 +66,7 @@ INSERT INTO
 		created_at,
 		updated_at,
 		"name",
-		description,
+		readme,
 		job_id
 	)
 VALUES
@@ -85,7 +85,7 @@ WHERE
 UPDATE
 	template_versions
 SET
-	description = $2,
+	readme = $2,
 	updated_at = now()
 WHERE
 	job_id = $1;
