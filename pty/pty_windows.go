@@ -112,3 +112,12 @@ func (p *ptyWindows) Close() error {
 
 	return nil
 }
+
+func (p *ptyWindows) EchoEnabled() (bool, error) {
+	var state uint32
+	err := windows.GetConsoleMode(p.handle, &state)
+	if err != nil {
+		return err
+	}
+	return (state & windows.ENABLE_ECHO_INPUT) != 0
+}
