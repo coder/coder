@@ -3156,7 +3156,7 @@
   resolved "https://registry.yarnpkg.com/@types/unist/-/unist-2.0.6.tgz#250a7b16c3b91f672a24552ec64678eeb1d3a08d"
   integrity sha512-PBjIUxZHOuj0R15/xuwJYjFi+KZdNFrehocChv4g5hu6aFroHue8m0lBP0POdK2nKzbw0cgV1mws8+V/JAcEkQ==
 
-"@types/uuid@^8.3.4":
+"@types/uuid@8.3.4":
   version "8.3.4"
   resolved "https://registry.yarnpkg.com/@types/uuid/-/uuid-8.3.4.tgz#bd86a43617df0594787d38b735f55c805becf1bc"
   integrity sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==
@@ -5588,7 +5588,7 @@ data-urls@^2.0.0:
     whatwg-mimetype "^2.3.0"
     whatwg-url "^8.0.0"
 
-dayjs@^1.11.2:
+dayjs@1.11.2:
   version "1.11.2"
   resolved "https://registry.yarnpkg.com/dayjs/-/dayjs-1.11.2.tgz#fa0f5223ef0d6724b3d8327134890cfe3d72fbe5"
   integrity sha512-F4LXf1OeU9hrSYRPTTj/6FbO4HTjPKXvEIC1P2kcnFurViINCVk3ZV0xAS3XVx9MkMsXbbqlK6hjseaYbgKEHw==
@@ -8300,7 +8300,7 @@ iterate-value@^1.0.2:
     es-get-iterator "^1.0.2"
     iterate-iterator "^1.0.1"
 
-jest-canvas-mock@^2.4.0:
+jest-canvas-mock@2.4.0:
   version "2.4.0"
   resolved "https://registry.yarnpkg.com/jest-canvas-mock/-/jest-canvas-mock-2.4.0.tgz#947b71442d7719f8e055decaecdb334809465341"
   integrity sha512-mmMpZzpmLzn5vepIaHk5HoH3Ka4WykbSoLuG/EKoJd0x0ID/t+INo1l8ByfcUJuDM+RIsL4QDg/gDnBbrj2/IQ==
@@ -8771,7 +8771,7 @@ jest-watcher@^27.5.1:
     jest-util "^27.5.1"
     string-length "^4.0.1"
 
-jest-websocket-mock@^2.3.0:
+jest-websocket-mock@2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/jest-websocket-mock/-/jest-websocket-mock-2.3.0.tgz#317e7d7f8ba54ba632a7300777b02b7ebb606845"
   integrity sha512-kXhRRApRdT4hLG/4rhsfcR0Ke0OzqIsDj0P5t0dl5aiAftShSgoRqp/0pyjS5bh+b9GrIzmfkrV2cn9LxxvSvA==
@@ -13299,15 +13299,15 @@ uuid-browser@^3.1.0:
   resolved "https://registry.yarnpkg.com/uuid-browser/-/uuid-browser-3.1.0.tgz#0f05a40aef74f9e5951e20efbf44b11871e56410"
   integrity sha1-DwWkCu90+eWVHiDvv0SxGHHlZBA=
 
+uuid@8.3.2, uuid@^8.3.2:
+  version "8.3.2"
+  resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
+  integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
+
 uuid@^3.3.2:
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.4.0.tgz#b23e4358afa8a202fe7a100af1f5f883f02007ee"
   integrity sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==
-
-uuid@^8.3.2:
-  version "8.3.2"
-  resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
-  integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
 v8-compile-cache-lib@^3.0.0:
   version "3.0.0"
@@ -13832,22 +13832,22 @@ xtend@^4.0.0, xtend@^4.0.1, xtend@~4.0.1:
   resolved "https://registry.yarnpkg.com/xtend/-/xtend-4.0.2.tgz#bb72779f5fa465186b1f438f674fa347fdb5db54"
   integrity sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==
 
-xterm-addon-fit@^0.5.0:
+xterm-addon-fit@0.5.0:
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/xterm-addon-fit/-/xterm-addon-fit-0.5.0.tgz#2d51b983b786a97dcd6cde805e700c7f913bc596"
   integrity sha512-DsS9fqhXHacEmsPxBJZvfj2la30Iz9xk+UKjhQgnYNkrUIN5CYLbw7WEfz117c7+S86S/tpHPfvNxJsF5/G8wQ==
 
-xterm-addon-web-links@^0.5.1:
+xterm-addon-web-links@0.5.1:
   version "0.5.1"
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.5.1.tgz#73bfa3ed567af98fba947f638bd12093ee2a0bc6"
   integrity sha512-dBjbOIrCNmxAcUQkkSrKj9BM6yLpmqUpZ9SOCUuZe/sznPl4d8OBZQClK7VcdZ0vf0+5i5Fce2rUUrew/XTZTg==
 
-xterm-addon-webgl@^0.11.4:
+xterm-addon-webgl@0.11.4:
   version "0.11.4"
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.11.4.tgz#e22f3ec0cafca3d4adcabb89bb7c16efaaf3c8db"
   integrity sha512-/a/VFeftc+etGXQYWaaks977j1P7/wickBXn15zDxZzXYYMT9RN17ztqyIDVLXg9krtg28+icKK6lvgIYghJ0w==
 
-xterm-for-react@^1.0.4:
+xterm-for-react@1.0.4:
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/xterm-for-react/-/xterm-for-react-1.0.4.tgz#6b35b9b037a0f9d979e7b57bb1d7c6ab7565b380"
   integrity sha512-DCkLR9ZXeW907YyyaCTk/3Ol34VRHfCnf3MAPOkj3dUNA85sDqHvTXN8efw4g7bx7gWdJQRsEpGt2tJOXKG3EQ==
@@ -13855,7 +13855,7 @@ xterm-for-react@^1.0.4:
     prop-types "^15.7.2"
     xterm "^4.5.0"
 
-xterm@^4.18.0, xterm@^4.5.0:
+xterm@4.18.0, xterm@^4.5.0:
   version "4.18.0"
   resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.18.0.tgz#a1f6ab2c330c3918fb094ae5f4c2562987398ea1"
   integrity sha512-JQoc1S0dti6SQfI0bK1AZvGnAxH4MVw45ZPFSO6FHTInAiau3Ix77fSxNx3mX4eh9OL4AYa8+4C8f5UvnSfppQ==
