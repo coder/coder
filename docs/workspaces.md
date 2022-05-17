@@ -22,6 +22,7 @@ Once you've added your workspaces to your SSH hosts, you can connect from any
 IDE with remote development support:
 
 ```sh
+coder config-ssh
 coder ssh <workspaceName>
 ```
 
