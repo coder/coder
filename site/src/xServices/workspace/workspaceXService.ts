@@ -1,7 +1,15 @@
-import { assign, createMachine } from "xstate"
+import { assign, createMachine, send } from "xstate"
+import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
+
+const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
+  // Cloning builds to not change the origin object with the sort()
+  return [...builds].sort((a, b) => {
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  })[0]
+}
 
 const Language = {
   refreshTemplateError: "Error updating workspace: latest template could not be fetched.",
@@ -34,6 +42,7 @@ export type WorkspaceEvent =
   | { type: "RETRY" }
   | { type: "UPDATE" }
   | { type: "LOAD_MORE_BUILDS" }
+  | { type: "REFRESH_TIMELINE" }
 
 export const workspaceMachine = createMachine(
   {
@@ -105,7 +114,7 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "refreshWorkspace",
                   src: "refreshWorkspace",
-                  onDone: { target: "waiting", actions: "assignWorkspace" },
+                  onDone: { target: "waiting", actions: ["refreshTimeline", "assignWorkspace"] },
                   onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
                 },
               },
@@ -171,7 +180,7 @@ export const workspaceMachine = createMachine(
                   src: "startWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: "assignBuild",
+                    actions: ["assignBuild", "refreshTimeline"],
                   },
                   onError: {
                     target: "idle",
@@ -186,7 +195,7 @@ export const workspaceMachine = createMachine(
                   src: "stopWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: "assignBuild",
+                    actions: ["assignBuild", "refreshTimeline"],
                   },
                   onError: {
                     target: "idle",
@@ -212,7 +221,7 @@ export const workspaceMachine = createMachine(
             },
           },
 
-          builds: {
+          timeline: {
             initial: "gettingBuilds",
             states: {
               idle: {},
@@ -239,6 +248,7 @@ export const workspaceMachine = createMachine(
                         target: "loadingMoreBuilds",
                         cond: "hasMoreBuilds",
                       },
+                      REFRESH_TIMELINE: "#workspaceState.ready.timeline.gettingBuilds",
                     },
                   },
                   loadingMoreBuilds: {
@@ -333,7 +343,7 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: undefined,
         }),
-      // Builds
+      // Timeline
       assignBuilds: assign({
         builds: (_, event) => event.data,
       }),
@@ -359,6 +369,23 @@ export const workspaceMachine = createMachine(
       }),
       clearLoadMoreBuildsError: assign({
         loadMoreBuildsError: (_) => undefined,
+      }),
+      refreshTimeline: pure((context, event) => {
+        // No need to refresh the timeline if it is not loaded
+        if (!context.builds) {
+          return
+        }
+        // When it is a refresh workspace event, we want to check if the latest
+        // build was updated to not over fetch the builds
+        if (event.type === "done.invoke.refreshWorkspace") {
+          const latestBuildInTimeline = latestBuild(context.builds)
+          const isUpdated = event.data?.latest_build.updated_at !== latestBuildInTimeline.updated_at
+          if (isUpdated) {
+            return send({ type: "REFRESH_TIMELINE" })
+          }
+        } else {
+          return send({ type: "REFRESH_TIMELINE" })
+        }
       }),
     },
     guards: {
