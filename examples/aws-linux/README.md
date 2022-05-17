@@ -23,11 +23,9 @@ This example policy allows Coder to create EC2 instances and modify instances pr
             "Effect": "Allow",
             "Action": [
                 "ec2:GetDefaultCreditSpecification",
-                "ec2:DescribeInstances",
                 "ec2:DescribeIamInstanceProfileAssociations",
                 "ec2:DescribeTags",
                 "ec2:CreateTags",
-                "ec2:DescribeInstanceAttribute",
                 "ec2:RunInstances",
                 "ec2:DescribeInstanceCreditSpecifications",
                 "ec2:DescribeImages",
@@ -42,6 +40,7 @@ This example policy allows Coder to create EC2 instances and modify instances pr
             "Effect": "Allow",
             "Action": [
                 "ec2:DescribeInstances",
+                "ec2:DescribeInstanceAttribute",
                 "ec2:UnmonitorInstances",
                 "ec2:TerminateInstances",
                 "ec2:StartInstances",
