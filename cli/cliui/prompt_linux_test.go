@@ -38,7 +38,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	defer process.Kill()
 
 	ptty.ExpectMatch("Password: ")
-	time.Sleep(10 * time.Millisecond) // wait for child process to turn off echo and start reading input
+	time.Sleep(100 * time.Millisecond) // wait for child process to turn off echo and start reading input
 
 	termios, err := unix.IoctlGetTermios(int(ptty.Input().Reader.Fd()), unix.TCGETS)
 	require.NoError(t, err)
