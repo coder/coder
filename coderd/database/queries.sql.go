@@ -3214,8 +3214,7 @@ FROM
 WHERE
 	template_id = ANY($1 :: uuid [ ])
 GROUP BY
-	template_id,
-	owner_id
+	template_id
 `
 
 type GetWorkspaceOwnerCountsByTemplateIDsRow struct {

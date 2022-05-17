@@ -12,7 +12,7 @@ export interface AgentGitSSHKey {
   readonly private_key: string
 }
 
-// From codersdk/users.go:150:6
+// From codersdk/users.go:151:6
 export interface AuthMethods {
   readonly password: boolean
   readonly github: boolean
@@ -30,7 +30,7 @@ export interface BuildInfoResponse {
   readonly version: string
 }
 
-// From codersdk/users.go:41:6
+// From codersdk/users.go:42:6
 export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
@@ -38,13 +38,13 @@ export interface CreateFirstUserRequest {
   readonly organization: string
 }
 
-// From codersdk/users.go:49:6
+// From codersdk/users.go:50:6
 export interface CreateFirstUserResponse {
   readonly user_id: string
   readonly organization_id: string
 }
 
-// From codersdk/users.go:145:6
+// From codersdk/users.go:146:6
 export interface CreateOrganizationRequest {
   readonly name: string
 }
@@ -78,7 +78,7 @@ export interface CreateTemplateVersionRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:54:6
+// From codersdk/users.go:55:6
 export interface CreateUserRequest {
   readonly email: string
   readonly username: string
@@ -102,7 +102,7 @@ export interface CreateWorkspaceRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/users.go:141:6
+// From codersdk/users.go:142:6
 export interface GenerateAPIKeyResponse {
   readonly key: string
 }
@@ -120,13 +120,13 @@ export interface GoogleInstanceIdentityToken {
   readonly json_web_token: string
 }
 
-// From codersdk/users.go:130:6
+// From codersdk/users.go:131:6
 export interface LoginWithPasswordRequest {
   readonly email: string
   readonly password: string
 }
 
-// From codersdk/users.go:136:6
+// From codersdk/users.go:137:6
 export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
@@ -275,17 +275,17 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
-// From codersdk/users.go:70:6
+// From codersdk/users.go:71:6
 export interface UpdateRoles {
   readonly roles: string[]
 }
 
-// From codersdk/users.go:66:6
+// From codersdk/users.go:67:6
 export interface UpdateUserPasswordRequest {
   readonly password: string
 }
 
-// From codersdk/users.go:61:6
+// From codersdk/users.go:62:6
 export interface UpdateUserProfileRequest {
   readonly email: string
   readonly username: string
@@ -306,7 +306,7 @@ export interface UploadResponse {
   readonly hash: string
 }
 
-// From codersdk/users.go:31:6
+// From codersdk/users.go:32:6
 export interface User {
   readonly id: string
   readonly email: string
@@ -317,13 +317,13 @@ export interface User {
   readonly roles: Role[]
 }
 
-// From codersdk/users.go:95:6
+// From codersdk/users.go:96:6
 export interface UserAuthorization {
   readonly object: UserAuthorizationObject
   readonly action: string
 }
 
-// From codersdk/users.go:111:6
+// From codersdk/users.go:112:6
 export interface UserAuthorizationObject {
   readonly resource_type: string
   readonly owner_id?: string
@@ -331,21 +331,21 @@ export interface UserAuthorizationObject {
   readonly resource_id?: string
 }
 
-// From codersdk/users.go:84:6
+// From codersdk/users.go:85:6
 export interface UserAuthorizationRequest {
   readonly checks: Record<string, UserAuthorization>
 }
 
-// From codersdk/users.go:79:6
+// From codersdk/users.go:80:6
 export type UserAuthorizationResponse = Record<string, boolean>
 
-// From codersdk/users.go:74:6
+// From codersdk/users.go:75:6
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>
 }
 
-// From codersdk/users.go:23:6
+// From codersdk/users.go:24:6
 export interface UsersRequest extends Pagination {
   readonly search?: string
   readonly status?: string
@@ -447,7 +447,7 @@ export type ParameterScope = "organization" | "template" | "user" | "workspace"
 // From codersdk/provisionerdaemons.go:26:6
 export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded"
 
-// From codersdk/users.go:16:6
+// From codersdk/users.go:17:6
 export type UserStatus = "active" | "suspended"
 
 // From codersdk/workspaceresources.go:15:6
