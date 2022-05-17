@@ -68,14 +68,14 @@ type ptyWindows struct {
 }
 
 func (p *ptyWindows) Output() io.ReadWriter {
-	return readWriter{
+	return ReadWriter{
 		Reader: p.outputRead,
 		Writer: p.outputWrite,
 	}
 }
 
 func (p *ptyWindows) Input() io.ReadWriter {
-	return readWriter{
+	return ReadWriter{
 		Reader: p.inputRead,
 		Writer: p.inputWrite,
 	}
@@ -110,10 +110,5 @@ func (p *ptyWindows) Close() error {
 		return xerrors.Errorf("close pseudo console: %w", err)
 	}
 
-	return nil
-}
-
-func (p *ptyWindows) PTYFile() *os.File {
-	// not supported on Windows(?)
 	return nil
 }

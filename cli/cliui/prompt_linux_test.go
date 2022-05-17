@@ -29,26 +29,27 @@ func TestPasswordTerminalState(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
 	// connect the child process's stdio to the PTY directly, not via a pipe
-	cmd.Stdin = ptty.PTY.PTYFile()
-	cmd.Stdout = ptty.PTY.PTYFile()
+	cmd.Stdin = ptty.Input().Reader
+	cmd.Stdout = ptty.Output().Writer
 	cmd.Stderr = os.Stderr
 	err := cmd.Start()
 	require.NoError(t, err)
-	defer cmd.Process.Kill()
+	process := cmd.Process
+	defer process.Kill()
 
 	ptty.ExpectMatch("Password: ")
 	time.Sleep(10 * time.Millisecond) // wait for child process to turn off echo and start reading input
 
-	termios, err := unix.IoctlGetTermios(int(ptty.PTY.PTYFile().Fd()), unix.TCGETS)
+	termios, err := unix.IoctlGetTermios(int(ptty.Input().Reader.Fd()), unix.TCGETS)
 	require.NoError(t, err)
 	require.Zero(t, termios.Lflag&unix.ECHO, "echo is on while reading password")
 
-	err = cmd.Process.Signal(os.Interrupt)
+	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)
-	_, err = cmd.Process.Wait()
+	_, err = process.Wait()
 	require.NoError(t, err)
 
-	termios, err = unix.IoctlGetTermios(int(ptty.PTY.PTYFile().Fd()), unix.TCGETS)
+	termios, err = unix.IoctlGetTermios(int(ptty.Input().Reader.Fd()), unix.TCGETS)
 	require.NoError(t, err)
 	require.NotZero(t, termios.Lflag&unix.ECHO, "echo is off after reading password")
 }

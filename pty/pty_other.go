@@ -4,7 +4,6 @@
 package pty
 
 import (
-	"io"
 	"os"
 	"sync"
 
@@ -28,15 +27,15 @@ type otherPty struct {
 	pty, tty *os.File
 }
 
-func (p *otherPty) Input() io.ReadWriter {
-	return readWriter{
+func (p *otherPty) Input() ReadWriter {
+	return ReadWriter{
 		Reader: p.tty,
 		Writer: p.pty,
 	}
 }
 
-func (p *otherPty) Output() io.ReadWriter {
-	return readWriter{
+func (p *otherPty) Output() ReadWriter {
+	return ReadWriter{
 		Reader: p.pty,
 		Writer: p.tty,
 	}
@@ -65,8 +64,4 @@ func (p *otherPty) Close() error {
 		return err
 	}
 	return nil
-}
-
-func (p *otherPty) PTYFile() *os.File {
-	return p.pty
 }
