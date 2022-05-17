@@ -76,7 +76,7 @@ func portForward() *cobra.Command {
 				return err
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(cmd.Context(), client, organization.ID, codersdk.Me, args[0])
+			workspace, agent, err := getWorkspaceAndAgent(cmd, client, organization.ID, codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}
@@ -173,16 +173,19 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *coderag
 	case "tcp":
 		l, err = net.Listen(spec.listenNetwork, spec.listenAddress)
 	case "udp":
-		host, port, err := net.SplitHostPort(spec.listenAddress)
+		var host, port string
+		host, port, err = net.SplitHostPort(spec.listenAddress)
 		if err != nil {
 			return nil, xerrors.Errorf("split %q: %w", spec.listenAddress, err)
 		}
-		portInt, err := strconv.Atoi(port)
+
+		var portInt int
+		portInt, err = strconv.Atoi(port)
 		if err != nil {
 			return nil, xerrors.Errorf("parse port %v from %q as int: %w", port, spec.listenAddress, err)
 		}
 
-		l, err = udp.Listen(spec.listenNetwork, &net.UDPAddr{ //nolint:ineffassign
+		l, err = udp.Listen(spec.listenNetwork, &net.UDPAddr{
 			IP:   net.ParseIP(host),
 			Port: portInt,
 		})

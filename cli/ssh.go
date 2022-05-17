@@ -48,18 +48,9 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(cmd.Context(), client, organization.ID, codersdk.Me, args[0])
+			workspace, agent, err := getWorkspaceAndAgent(cmd, client, organization.ID, codersdk.Me, args[0])
 			if err != nil {
 				return err
-			}
-			if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
-				return xerrors.New("workspace must be in start transition to ssh")
-			}
-			if workspace.LatestBuild.Job.CompletedAt == nil {
-				err = cliui.WorkspaceBuild(cmd.Context(), cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
-				if err != nil {
-					return err
-				}
 			}
 
 			// OpenSSH passes stderr directly to the calling TTY.
@@ -155,13 +146,24 @@ func ssh() *cobra.Command {
 	return cmd
 }
 
-func getWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, orgID uuid.UUID, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
+func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
+	ctx := cmd.Context()
+
 	workspaceParts := strings.Split(in, ".")
 	workspace, err := client.WorkspaceByOwnerAndName(ctx, orgID, userID, workspaceParts[0])
 	if err != nil {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("get workspace %q: %w", workspaceParts[0], err)
 	}
 
+	if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+	}
+	if workspace.LatestBuild.Job.CompletedAt == nil {
+		err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+	}
 	if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
@@ -178,29 +180,20 @@ func getWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, orgID uu
 	if len(agents) == 0 {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
 	}
-
-	var (
-		// We can't use a pointer because linters are mad about using pointers
-		// from loop variables
-		agent   codersdk.WorkspaceAgent
-		agentOK bool
-	)
+	var agent codersdk.WorkspaceAgent
 	if len(workspaceParts) >= 2 {
 		for _, otherAgent := range agents {
 			if otherAgent.Name != workspaceParts[1] {
 				continue
 			}
 			agent = otherAgent
-			agentOK = true
 			break
 		}
-
-		if !agentOK {
+		if agent.ID == uuid.Nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
 		}
 	}
-
-	if !agentOK {
+	if agent.ID == uuid.Nil {
 		if len(agents) > 1 {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
 		}
@@ -208,15 +201,6 @@ func getWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, orgID uu
 	}
 
 	return workspace, agent, nil
-}
-
-type stdioConn struct {
-	io.Reader
-	io.Writer
-}
-
-func (*stdioConn) Close() (err error) {
-	return nil
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to
