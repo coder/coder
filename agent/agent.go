@@ -658,14 +658,16 @@ func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
 	network := u.Scheme
 	addr := u.Host + u.Path
 	if strings.HasPrefix(network, "unix") {
+		if runtime.GOOS == "windows" {
+			_ = writeError(xerrors.New("Unix forwarding is not supported from Windows workspaces"))
+			return
+		}
 		addr, err = ExpandPath(addr)
 		if err != nil {
 			_ = writeError(xerrors.Errorf("expand path %q: %w", addr, err))
 			return
 		}
 	}
-
-	a.logger.Warn(ctx, "yeah", slog.F("network", network), slog.F("addr", addr))
 
 	d := net.Dialer{Timeout: 3 * time.Second}
 	nconn, err := d.DialContext(ctx, network, addr)
