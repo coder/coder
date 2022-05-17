@@ -19,13 +19,7 @@ dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
 export const Language = {
-  pageTitle: "Builds",
-  usersTitle: "All users",
-  emptyMessage: "No users found",
-  usernameLabel: "User",
-  suspendMenuItem: "Suspend",
-  resetPasswordMenuItem: "Reset password",
-  rolesLabel: "Roles",
+  emptyMessage: "No builds found",
   inProgressLabel: "In progress",
   actionLabel: "Action",
   durationLabel: "Duration",
@@ -92,7 +86,7 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
           <TableRow>
             <TableCell colSpan={999}>
               <Box p={4}>
-                <EmptyState message="No builds for this workspace" />
+                <EmptyState message={Language.emptyMessage} />
               </Box>
             </TableCell>
           </TableRow>
