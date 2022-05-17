@@ -14,16 +14,16 @@ export const AllStates = Template.bind({})
 AllStates.args = {
   canCreateTemplate: true,
   templates: [
-      MockTemplate,
-      {
-          ...MockTemplate,
-          description: "🚀 Some magical template that does some magical things!",
-      },
-      {
-          ...MockTemplate,
-          workspace_owner_count: 150,
-          description: "😮 Wow, this one has a bunch of usage!"
-      }
+    MockTemplate,
+    {
+      ...MockTemplate,
+      description: "🚀 Some magical template that does some magical things!",
+    },
+    {
+      ...MockTemplate,
+      workspace_owner_count: 150,
+      description: "😮 Wow, this one has a bunch of usage!",
+    },
   ],
 }
 
