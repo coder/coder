@@ -43,6 +43,10 @@ resource "docker_container" "workspace" {
   dns     = ["1.1.1.1"]
   command = ["sh", "-c", coder_agent.dev.init_script]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.coder_volume.name
