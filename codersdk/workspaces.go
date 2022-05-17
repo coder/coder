@@ -134,8 +134,8 @@ func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req 
 
 type WorkspaceFilter struct {
 	OrganizationID uuid.UUID
-	// OwnerID must be a uuid or "me"
-	OwnerID string
+	// Owner can be a user_id (uuid), "me", or a username
+	Owner string
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -146,8 +146,8 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 		if f.OrganizationID != uuid.Nil {
 			q.Set("organization_id", f.OrganizationID.String())
 		}
-		if f.OwnerID != "" {
-			q.Set("owner_id", f.OwnerID)
+		if f.Owner != "" {
+			q.Set("owner_id", f.Owner)
 		}
 		r.URL.RawQuery = q.Encode()
 	}

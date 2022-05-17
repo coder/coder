@@ -139,11 +139,18 @@ func TestWorkspacesByOwner(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
+		me, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err)
+
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, codersdk.Me)
+		// Use a username
+		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			OrganizationID: user.OrganizationID,
+			Owner:          me.Username,
+		})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
