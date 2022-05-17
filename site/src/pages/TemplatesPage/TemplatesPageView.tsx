@@ -44,10 +44,10 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
-              <TableCell>Description</TableCell>
+              <TableCell>Resources</TableCell>
               <TableCell>Last Updated</TableCell>
               <TableCell>Provisioner</TableCell>
-              <TableCell>Developers</TableCell>
+              <TableCell>Used By</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -83,7 +83,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                   <TableCell>
                     <img alt="Terraform" src="/terraform-logo.svg" />
                   </TableCell>
-                  <TableCell>{template.workspace_owner_count}</TableCell>
+                  <TableCell>{template.workspace_owner_count} developer{template.workspace_owner_count !== 1 && "s"}</TableCell>
                 </TableRow>
               )
             })}
