@@ -128,12 +128,21 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 	if ownerFilter == "me" {
 		filter.OwnerID = apiKey.UserID
 	} else if ownerFilter != "" {
-		userID, err := uuid.Parse(orgFilter)
+		userID, err := uuid.Parse(ownerFilter)
 		if err != nil {
-			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-				Message: fmt.Sprintf("owner_id must be a uuid: %s", err.Error()),
+			// Maybe it's a username
+			user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+				// Why not just accept 1 arg and use it for both in the sql?
+				Username: ownerFilter,
+				Email:    ownerFilter,
 			})
-			return
+			if err != nil {
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: "owner must be a uuid or username",
+				})
+				return
+			}
+			userID = user.ID
 		}
 		filter.OwnerID = userID
 	}
