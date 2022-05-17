@@ -73,7 +73,7 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
                   <span style={{ color: theme.palette.text.secondary }}>{displayDuration}</span>
                 </TableCell>
                 <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>{dayjs().to(dayjs(b.created_at))}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>{new Date(b.created_at).toLocaleString()}</span>
                 </TableCell>
                 <TableCell>
                   <span style={{ color: status.color }}>{status.status}</span>
