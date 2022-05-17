@@ -114,7 +114,7 @@ func (p *ptyWindows) Close() error {
 
 func (p *ptyWindows) EchoEnabled() (bool, error) {
 	var state uint32
-	err := windows.GetConsoleMode(p.console, &state)
+	err := windows.GetConsoleMode(windows.Handle(p.inputRead.Fd()), &state)
 	if err != nil {
 		return false, err
 	}
