@@ -5,6 +5,7 @@ import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
 import { Language } from "../../components/WorkspaceStatusBar/WorkspaceStatusBar"
 import {
+  MockBuilds,
   MockCancelingWorkspace,
   MockDeletedWorkspace,
   MockDeletingWorkspace,
@@ -156,6 +157,9 @@ describe("Workspace Page", () => {
     await testStatus(MockDeletedWorkspace, Language.deleted)
   })
   it("shows the timeline build", async () => {
-    renderWithAuth(<WorkspacePage />, { route: `/workspaces/${MockWorkspace.id}`, path: "/workspaces/:workspace" })
+    await renderWorkspacePage()
+    const table = await screen.findByRole("table")
+    const rows = table.querySelectorAll("tbody > tr")
+    expect(rows).toHaveLength(MockBuilds.length)
   })
 })
