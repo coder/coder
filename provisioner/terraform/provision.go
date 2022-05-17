@@ -290,8 +290,17 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 	resources := make([]*proto.Resource, 0)
 	agents := map[string]*proto.Agent{}
 
+	tfResources := plan.Config.RootModule.Resources
+	var appendResources func(mod *tfjson.ConfigModule)
+	appendResources = func(mod *tfjson.ConfigModule) {
+		for _, module := range mod.ModuleCalls {
+			appendResources(module.Module)
+		}
+		tfResources = append(tfResources, mod.Resources...)
+	}
+
 	// Store all agents inside the maps!
-	for _, resource := range plan.Config.RootModule.Resources {
+	for _, resource := range tfResources {
 		if resource.Type != "coder_agent" {
 			continue
 		}
@@ -340,7 +349,7 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 		agents[resource.Address] = agent
 	}
 
-	for _, resource := range plan.PlannedValues.RootModule.Resources {
+	for _, resource := range tfResources {
 		if resource.Mode == tfjson.DataResourceMode {
 			continue
 		}
@@ -407,8 +416,17 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 		}
 		agents := map[string]*proto.Agent{}
 
+		tfResources := state.Values.RootModule.Resources
+		var appendResources func(resource *tfjson.StateModule)
+		appendResources = func(mod *tfjson.StateModule) {
+			for _, module := range mod.ChildModules {
+				appendResources(module)
+			}
+			tfResources = append(tfResources, mod.Resources...)
+		}
+
 		// Store all agents inside the maps!
-		for _, resource := range state.Values.RootModule.Resources {
+		for _, resource := range tfResources {
 			if resource.Type != "coder_agent" {
 				continue
 			}
@@ -439,7 +457,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 		}
 
 		// Manually associate agents with instance IDs.
-		for _, resource := range state.Values.RootModule.Resources {
+		for _, resource := range tfResources {
 			if resource.Type != "coder_agent_instance" {
 				continue
 			}
@@ -471,7 +489,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			}
 		}
 
-		for _, resource := range state.Values.RootModule.Resources {
+		for _, resource := range tfResources {
 			if resource.Mode == tfjson.DataResourceMode {
 				continue
 			}
