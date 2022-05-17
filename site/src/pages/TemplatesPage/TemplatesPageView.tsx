@@ -1,14 +1,13 @@
 import Avatar from "@material-ui/core/Avatar"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
-import useTheme from "@material-ui/styles/useTheme"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
@@ -16,14 +15,13 @@ import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
-import { combineClasses } from "../../util/combineClasses"
 import { firstLetter } from "../../util/firstLetter"
 
 dayjs.extend(relativeTime)
 
 export const Language = {
   createButton: "Create Template",
-  emptyView: "so you can check out your repositories, edit your source code, and build and test your software.",
+  emptyView: "to standardize development workspaces for your team.",
 }
 
 export interface TemplatesPageViewProps {
@@ -35,14 +33,11 @@ export interface TemplatesPageViewProps {
 
 export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
   const styles = useStyles()
-  const theme: Theme = useTheme()
   return (
     <Stack spacing={4}>
       <Margins>
         <div className={styles.actions}>
-          {props.canCreateTemplate && (
-          <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
-          )}
+          {props.canCreateTemplate && <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>}
         </div>
         <Table>
           <TableHead>
@@ -57,12 +52,16 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
               <TableRow>
                 <TableCell colSpan={999}>
                   <div className={styles.welcome}>
-                    <span>
-                      <Link component={RouterLink} to="/templates/new">
-                        Create a template
-                      </Link>
-                      &nbsp;{Language.emptyView}
-                    </span>
+                    {props.canCreateTemplate ? (
+                      <span>
+                        <Link component={RouterLink} to="/templates/new">
+                          Create a template
+                        </Link>
+                        &nbsp;{Language.emptyView}
+                      </span>
+                    ) : (
+                      <span>No templates have been created! Contact your Coder administrator.</span>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -77,13 +76,13 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                       </Avatar>
                       <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
                         <b>{template.name}</b>
-                        <span>
-                        {template.description}
-                        </span>
+                        <span>{template.description}</span>
                       </Link>
                     </div>
                   </TableCell>
-                  <TableCell>{template.workspace_owner_count} developer{template.workspace_owner_count !== 1 && "s"}</TableCell>
+                  <TableCell>
+                    {template.workspace_owner_count} developer{template.workspace_owner_count !== 1 && "s"}
+                  </TableCell>
                   <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
                 </TableRow>
               )

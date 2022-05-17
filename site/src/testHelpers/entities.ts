@@ -80,8 +80,8 @@ export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "runni
 
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
-  created_at: "",
-  updated_at: "",
+  created_at: new Date().toString(),
+  updated_at: new Date().toString(),
   organization_id: MockOrganization.id,
   name: "Test Template",
   provisioner: MockProvisioner.id,
