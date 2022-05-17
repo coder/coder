@@ -123,7 +123,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	t.Parallel()
 
 	ptty := ptytest.New(t)
-	ptyWithFlags, ok := ptty.PTY.(pty.PTYWithFlags)
+	ptyWithFlags, ok := ptty.PTY.(pty.WithFlags)
 	if !ok {
 		t.Skip("unable to check PTY local echo on this platform")
 	}

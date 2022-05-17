@@ -29,9 +29,9 @@ type PTY interface {
 	Resize(height uint16, width uint16) error
 }
 
-// PTYWithFlags represents a PTY whose flags can be inspected, in particular
+// WithFlags represents a PTY whose flags can be inspected, in particular
 // to determine whether local echo is enabled.
-type PTYWithFlags interface {
+type WithFlags interface {
 	PTY
 
 	// EchoEnabled determines whether local echo is currently enabled for this terminal.

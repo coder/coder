@@ -4,7 +4,6 @@
 package pty
 
 import (
-	"io"
 	"os"
 	"sync"
 	"unsafe"
@@ -67,14 +66,14 @@ type ptyWindows struct {
 	closed     bool
 }
 
-func (p *ptyWindows) Output() io.ReadWriter {
+func (p *ptyWindows) Output() ReadWriter {
 	return ReadWriter{
 		Reader: p.outputRead,
 		Writer: p.outputWrite,
 	}
 }
 
-func (p *ptyWindows) Input() io.ReadWriter {
+func (p *ptyWindows) Input() ReadWriter {
 	return ReadWriter{
 		Reader: p.inputRead,
 		Writer: p.inputWrite,
@@ -115,9 +114,9 @@ func (p *ptyWindows) Close() error {
 
 func (p *ptyWindows) EchoEnabled() (bool, error) {
 	var state uint32
-	err := windows.GetConsoleMode(p.handle, &state)
+	err := windows.GetConsoleMode(p.console, &state)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return (state & windows.ENABLE_ECHO_INPUT) != 0
+	return (state & windows.ENABLE_ECHO_INPUT) != 0, nil
 }
