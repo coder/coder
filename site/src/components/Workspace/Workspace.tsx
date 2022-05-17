@@ -59,8 +59,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             </WorkspaceSection>
           </div>
           <div className={styles.timelineContainer}>
-            <WorkspaceSection title="Timeline">
-              <BuildsTable builds={builds} />
+            <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
+              <BuildsTable builds={builds} className={styles.timelineTable} />
             </WorkspaceSection>
           </div>
         </div>
@@ -102,6 +102,12 @@ export const useStyles = makeStyles(() => {
     },
     timelineContainer: {
       flex: 1,
+    },
+    timelineContents: {
+      margin: 0,
+    },
+    timelineTable: {
+      border: 0,
     },
   }
 })
