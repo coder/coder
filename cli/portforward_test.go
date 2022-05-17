@@ -28,6 +28,8 @@ func TestPortForward(t *testing.T) {
 	t.Parallel()
 
 	t.Run("None", func(t *testing.T) {
+		t.Parallel()
+
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -138,7 +140,7 @@ func TestPortForward(t *testing.T) {
 		},
 	}
 
-	for _, c := range cases {
+	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -346,7 +348,9 @@ func TestPortForward(t *testing.T) {
 		for i, a := range dials {
 			c, err := d.DialContext(ctx, a.network, a.addr)
 			require.NoErrorf(t, err, "open connection %v to 'local' listener %v", i+1, i+1)
-			defer c.Close()
+			t.Cleanup(func() {
+				_ = c.Close()
+			})
 			conns[i] = c
 		}
 

@@ -166,29 +166,35 @@ func getWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, orgID uu
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
 	}
 
-	var agent *codersdk.WorkspaceAgent
+	var (
+		// We can't use a pointer because linters are mad about using pointers
+		// from loop variables
+		agent   codersdk.WorkspaceAgent
+		agentOK bool
+	)
 	if len(workspaceParts) >= 2 {
 		for _, otherAgent := range agents {
 			if otherAgent.Name != workspaceParts[1] {
 				continue
 			}
-			agent = &otherAgent
+			agent = otherAgent
+			agentOK = true
 			break
 		}
 
-		if agent == nil {
+		if !agentOK {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
 		}
 	}
 
-	if agent == nil {
+	if !agentOK {
 		if len(agents) > 1 {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
 		}
-		agent = &agents[0]
+		agent = agents[0]
 	}
 
-	return workspace, *agent, nil
+	return workspace, agent, nil
 }
 
 type stdioConn struct {

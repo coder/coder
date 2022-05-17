@@ -735,20 +735,30 @@ func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 	defer c1.Close()
 	defer c2.Close()
 
-	ctx, cancel := context.WithCancel(ctx)
-
+	var wg sync.WaitGroup
 	copyFunc := func(dst io.WriteCloser, src io.Reader) {
-		defer cancel()
+		defer wg.Done()
 		_, _ = io.Copy(dst, src)
 	}
 
+	wg.Add(2)
 	go copyFunc(c1, c2)
 	go copyFunc(c2, c1)
 
-	<-ctx.Done()
+	// Convert waitgroup to a channel so we can also wait on the context.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wg.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-done:
+	}
 }
 
-// ExpandPath expands the tilde at the beggining of a path to the current user's
+// ExpandPath expands the tilde at the beginning of a path to the current user's
 // home directory and returns a full absolute path.
 func ExpandPath(in string) (string, error) {
 	usr, err := user.Current()

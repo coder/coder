@@ -16,7 +16,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/agent"
 	coderagent "github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -142,7 +141,7 @@ func portForward() *cobra.Command {
 				case <-ctx.Done():
 					closeErr = ctx.Err()
 				case <-sigs:
-					fmt.Fprintln(cmd.OutOrStderr(), "Received signal, closing all listeners and active connections")
+					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Received signal, closing all listeners and active connections")
 					closeErr = xerrors.New("signal received")
 				}
 
@@ -150,7 +149,7 @@ func portForward() *cobra.Command {
 				closeAllListeners()
 			}()
 
-			fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
+			_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
 			wg.Wait()
 			return closeErr
 		},
@@ -163,8 +162,8 @@ func portForward() *cobra.Command {
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *agent.Conn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
-	fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
+func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *coderagent.Conn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (
 		l   net.Listener
@@ -183,7 +182,7 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *agent.C
 			return nil, xerrors.Errorf("parse port %v from %q as int: %w", port, spec.listenAddress, err)
 		}
 
-		l, err = udp.Listen(spec.listenNetwork, &net.UDPAddr{
+		l, err = udp.Listen(spec.listenNetwork, &net.UDPAddr{ //nolint:ineffassign
 			IP:   net.ParseIP(host),
 			Port: portInt,
 		})
@@ -202,8 +201,8 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *agent.C
 		for {
 			netConn, err := l.Accept()
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %+v\n", spec.listenNetwork, spec.listenAddress, err)
-				fmt.Fprintln(cmd.OutOrStderr(), "Killing listener")
+				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %+v\n", spec.listenNetwork, spec.listenAddress, err)
+				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Killing listener")
 				return
 			}
 
@@ -211,7 +210,7 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *agent.C
 				defer netConn.Close()
 				remoteConn, err := conn.DialContext(ctx, spec.dialNetwork, spec.dialAddress)
 				if err != nil {
-					fmt.Fprintf(cmd.OutOrStderr(), "Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
+					_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
 					return
 				}
 				defer remoteConn.Close()
@@ -232,10 +231,10 @@ type portForwardSpec struct {
 	dialAddress string // <ip>:<port> or path
 }
 
-func parsePortForwards(tcp, udp, unix []string) ([]portForwardSpec, error) {
+func parsePortForwards(tcpSpecs, udpSpecs, unixSpecs []string) ([]portForwardSpec, error) {
 	specs := []portForwardSpec{}
 
-	for _, spec := range tcp {
+	for _, spec := range tcpSpecs {
 		local, remote, err := parsePortPort(spec)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to parse TCP port-forward specification %q: %w", spec, err)
@@ -249,7 +248,7 @@ func parsePortForwards(tcp, udp, unix []string) ([]portForwardSpec, error) {
 		})
 	}
 
-	for _, spec := range udp {
+	for _, spec := range udpSpecs {
 		local, remote, err := parsePortPort(spec)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to parse UDP port-forward specification %q: %w", spec, err)
@@ -263,7 +262,7 @@ func parsePortForwards(tcp, udp, unix []string) ([]portForwardSpec, error) {
 		})
 	}
 
-	for _, specStr := range unix {
+	for _, specStr := range unixSpecs {
 		localPath, localTCP, remotePath, err := parseUnixUnix(specStr)
 		if err != nil {
 			return nil, xerrors.Errorf("failed to parse Unix port-forward specification %q: %w", specStr, err)
@@ -312,7 +311,7 @@ func parsePort(in string) (uint16, error) {
 }
 
 func parseUnixPath(in string) (string, error) {
-	path, err := agent.ExpandPath(strings.TrimSpace(in))
+	path, err := coderagent.ExpandPath(strings.TrimSpace(in))
 	if err != nil {
 		return "", xerrors.Errorf("tidy path %q: %w", in, err)
 	}
@@ -320,7 +319,7 @@ func parseUnixPath(in string) (string, error) {
 	return path, nil
 }
 
-func parsePortPort(in string) (uint16, uint16, error) {
+func parsePortPort(in string) (local uint16, remote uint16, err error) {
 	parts := strings.Split(in, ":")
 	if len(parts) > 2 {
 		return 0, 0, xerrors.Errorf("invalid port specification %q", in)
@@ -330,16 +329,16 @@ func parsePortPort(in string) (uint16, uint16, error) {
 		parts = append(parts, parts[0])
 	}
 
-	local, err := parsePort(parts[0])
+	local, err = parsePort(parts[0])
 	if err != nil {
 		return 0, 0, xerrors.Errorf("parse local port from %q: %w", in, err)
 	}
-	remote, err := parsePort(parts[1])
+	remote, err = parsePort(parts[1])
 	if err != nil {
 		return 0, 0, xerrors.Errorf("parse remote port from %q: %w", in, err)
 	}
 
-	return uint16(local), uint16(remote), nil
+	return local, remote, nil
 }
 
 func parsePortOrUnixPath(in string) (string, uint16, error) {
