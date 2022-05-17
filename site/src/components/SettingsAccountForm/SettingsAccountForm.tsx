@@ -17,7 +17,7 @@ export const Language = {
   emailLabel: "Email",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
-  updatePreferences: "Update preferences",
+  updateSettings: "Update settings",
 }
 
 const validationSchema = Yup.object({
@@ -72,8 +72,8 @@ export const AccountForm: React.FC<AccountFormProps> = ({
           {error && <FormHelperText error>{error}</FormHelperText>}
 
           <div>
-            <LoadingButton color="primary" loading={isLoading} type="submit" variant="contained">
-              {isLoading ? "" : Language.updatePreferences}
+            <LoadingButton loading={isLoading} type="submit" variant="contained">
+              {isLoading ? "" : Language.updateSettings}
             </LoadingButton>
           </div>
         </Stack>

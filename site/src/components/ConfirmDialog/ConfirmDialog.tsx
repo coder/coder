@@ -48,14 +48,11 @@ interface StyleProps {
 const useStyles = makeStyles((theme) => ({
   dialogWrapper: (props: StyleProps) => ({
     "& .MuiPaper-root": {
-      background:
-        props.type === "info"
-          ? theme.palette.confirmDialog.info.background
-          : theme.palette.confirmDialog.error.background,
+      background: props.type === "info" ? theme.palette.primary.main : theme.palette.error.dark,
     },
   }),
   dialogContent: (props: StyleProps) => ({
-    color: props.type === "info" ? theme.palette.confirmDialog.info.text : theme.palette.confirmDialog.error.text,
+    color: props.type === "info" ? theme.palette.primary.contrastText : theme.palette.error.contrastText,
     padding: theme.spacing(6),
     textAlign: "center",
   }),
@@ -65,15 +62,15 @@ const useStyles = makeStyles((theme) => ({
   description: (props: StyleProps) => ({
     color:
       props.type === "info"
-        ? fade(theme.palette.confirmDialog.info.text, 0.75)
-        : fade(theme.palette.confirmDialog.error.text, 0.75),
+        ? fade(theme.palette.primary.contrastText, 0.75)
+        : fade(theme.palette.error.contrastText, 0.75),
     lineHeight: "160%",
 
     "& strong": {
       color:
         props.type === "info"
-          ? fade(theme.palette.confirmDialog.info.text, 0.95)
-          : fade(theme.palette.confirmDialog.error.text, 0.95),
+          ? fade(theme.palette.primary.contrastText, 0.95)
+          : fade(theme.palette.error.contrastText, 0.95),
     },
   }),
 }))

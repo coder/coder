@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
+import { WorkspaceStatus } from "../../util/workspace"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -24,8 +24,6 @@ export interface WorkspaceProps {
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: React.FC<WorkspaceProps> = ({
-  organization,
-  template,
   workspace,
   handleStart,
   handleStop,
@@ -40,8 +38,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
     <div className={styles.root}>
       <div className={styles.vertical}>
         <WorkspaceStatusBar
-          organization={organization}
-          template={template}
           workspace={workspace}
           handleStart={handleStart}
           handleStop={handleStop}

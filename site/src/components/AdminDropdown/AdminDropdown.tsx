@@ -51,7 +51,7 @@ export const AdminDropdown: React.FC = () => {
     <>
       <div className={styles.link}>
         <ListItem selected={Boolean(anchorEl)} button onClick={onOpenAdminMenu}>
-          <ListItemText className="no-brace" color="primary" primary={Language.menuTitle} />
+          <ListItemText className="no-brace" primary={Language.menuTitle} />
           {anchorEl ? <CloseDropdown /> : <OpenDropdown />}
         </ListItem>
       </div>

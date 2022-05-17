@@ -25,7 +25,14 @@ func Tar(directory string, limit int64) ([]byte, error) {
 		if err != nil {
 			return err
 		}
-		header, err := tar.FileInfoHeader(fileInfo, file)
+		var link string
+		if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+			link, err = os.Readlink(file)
+			if err != nil {
+				return err
+			}
+		}
+		header, err := tar.FileInfoHeader(fileInfo, link)
 		if err != nil {
 			return err
 		}
@@ -45,7 +52,7 @@ func Tar(directory string, limit int64) ([]byte, error) {
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}
-		if fileInfo.IsDir() {
+		if !fileInfo.Mode().IsRegular() {
 			return nil
 		}
 		data, err := os.Open(file)

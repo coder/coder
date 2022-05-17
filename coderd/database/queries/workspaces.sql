@@ -65,8 +65,7 @@ FROM
 WHERE
 	template_id = ANY(@ids :: uuid [ ])
 GROUP BY
-	template_id,
-	owner_id;
+	template_id;
 
 -- name: InsertWorkspace :one
 INSERT INTO

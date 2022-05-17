@@ -246,7 +246,8 @@ CREATE TABLE templates (
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     provisioner provisioner_type NOT NULL,
-    active_version_id uuid NOT NULL
+    active_version_id uuid NOT NULL,
+    description character varying(128) DEFAULT ''::character varying NOT NULL
 );
 
 CREATE TABLE users (

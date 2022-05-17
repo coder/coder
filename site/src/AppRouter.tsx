@@ -1,26 +1,24 @@
 import React from "react"
 import { Route, Routes } from "react-router-dom"
 import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
-import { PreferencesLayout } from "./components/PreferencesLayout/PreferencesLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
+import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { IndexPage } from "./pages"
 import { NotFoundPage } from "./pages/404Page/404Page"
 import { CliAuthenticationPage } from "./pages/CliAuthPage/CliAuthPage"
 import { HealthzPage } from "./pages/HealthzPage/HealthzPage"
 import { LoginPage } from "./pages/LoginPage/LoginPage"
 import { OrgsPage } from "./pages/OrgsPage/OrgsPage"
-import { AccountPage } from "./pages/PreferencesPages/AccountPage/AccountPage"
-import { SSHKeysPage } from "./pages/PreferencesPages/SSHKeysPage/SSHKeysPage"
 import { SettingsPage } from "./pages/SettingsPage/SettingsPage"
-import { CreateWorkspacePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/CreateWorkspacePage"
-import { TemplatePage } from "./pages/TemplatesPages/OrganizationPage/TemplatePage/TemplatePage"
-import { TemplatesPage } from "./pages/TemplatesPages/TemplatesPage"
+import { AccountPage } from "./pages/SettingsPages/AccountPage/AccountPage"
+import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
+const WorkspacesPage = React.lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
 
 export const AppRouter: React.FC = () => (
   <React.Suspense fallback={<></>}>
@@ -46,36 +44,15 @@ export const AppRouter: React.FC = () => (
           }
         />
 
-        <Route path="templates">
+        <Route path="workspaces">
           <Route
             index
             element={
               <AuthAndFrame>
-                <TemplatesPage />
+                <WorkspacesPage />
               </AuthAndFrame>
             }
           />
-          <Route path=":organization/:template">
-            <Route
-              index
-              element={
-                <AuthAndFrame>
-                  <TemplatePage />
-                </AuthAndFrame>
-              }
-            />
-            <Route
-              path="create"
-              element={
-                <RequireAuth>
-                  <CreateWorkspacePage />
-                </RequireAuth>
-              }
-            />
-          </Route>
-        </Route>
-
-        <Route path="workspaces">
           <Route path=":workspace">
             <Route
               index
@@ -131,7 +108,7 @@ export const AppRouter: React.FC = () => (
           }
         />
 
-        <Route path="preferences" element={<PreferencesLayout />}>
+        <Route path="settings" element={<SettingsLayout />}>
           <Route path="account" element={<AccountPage />} />
           <Route path="ssh-keys" element={<SSHKeysPage />} />
         </Route>

@@ -1,8 +1,8 @@
 import { Page } from "@playwright/test"
 import { BasePom } from "./BasePom"
 
-export class TemplatesPage extends BasePom {
+export class WorkspacesPage extends BasePom {
   constructor(baseURL: string | undefined, page: Page) {
-    super(baseURL, "/templates", page)
+    super(baseURL, "/workspaces", page)
   }
 }

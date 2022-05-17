@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -132,6 +137,242 @@ func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(rw, http.StatusOK, values)
+}
+
+func (api *api) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
+	template := httpmw.TemplateParam(r)
+
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	apiVersion := []codersdk.TemplateVersion{}
+	versions, err := api.Database.GetTemplateVersionsByTemplateID(r.Context(), database.GetTemplateVersionsByTemplateIDParams{
+		TemplateID: template.ID,
+		AfterID:    paginationParams.AfterID,
+		LimitOpt:   int32(paginationParams.Limit),
+		OffsetOpt:  int32(paginationParams.Offset),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusOK, apiVersion)
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template version: %s", err),
+		})
+		return
+	}
+	jobIDs := make([]uuid.UUID, 0, len(versions))
+	for _, version := range versions {
+		jobIDs = append(jobIDs, version.JobID)
+	}
+	jobs, err := api.Database.GetProvisionerJobsByIDs(r.Context(), jobIDs)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get jobs: %s", err),
+		})
+		return
+	}
+	jobByID := map[string]database.ProvisionerJob{}
+	for _, job := range jobs {
+		jobByID[job.ID.String()] = job
+	}
+
+	for _, version := range versions {
+		job, exists := jobByID[version.JobID.String()]
+		if !exists {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("job %q doesn't exist for version %q", version.JobID, version.ID),
+			})
+			return
+		}
+		apiVersion = append(apiVersion, convertTemplateVersion(version, convertProvisionerJob(job)))
+	}
+
+	httpapi.Write(rw, http.StatusOK, apiVersion)
+}
+
+func (api *api) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
+	template := httpmw.TemplateParam(r)
+	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(r.Context(), database.GetTemplateVersionByTemplateIDAndNameParams{
+		TemplateID: uuid.NullUUID{
+			UUID:  template.ID,
+			Valid: true,
+		},
+		Name: templateVersionName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: fmt.Sprintf("no template version found by name %q", templateVersionName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template version by name: %s", err),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(r.Context(), templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get provisioner job: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job)))
+}
+
+func (api *api) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+	var req codersdk.UpdateActiveTemplateVersion
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+	template := httpmw.TemplateParam(r)
+	version, err := api.Database.GetTemplateVersionByID(r.Context(), req.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "template version not found",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get template version: %s", err),
+		})
+		return
+	}
+	if version.TemplateID.UUID.String() != template.ID.String() {
+		httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
+			Message: "The provided template version doesn't belong to the specified template.",
+		})
+		return
+	}
+	err = api.Database.UpdateTemplateActiveVersionByID(r.Context(), database.UpdateTemplateActiveVersionByIDParams{
+		ID:              template.ID,
+		ActiveVersionID: req.ID,
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("update active template version: %s", err),
+		})
+		return
+	}
+	httpapi.Write(rw, http.StatusOK, httpapi.Response{
+		Message: "Updated the active template version!",
+	})
+}
+
+// Creates a new version of a template. An import job is queued to parse the storage method provided.
+func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	organization := httpmw.OrganizationParam(r)
+	var req codersdk.CreateTemplateVersionRequest
+	if !httpapi.Read(rw, r, &req) {
+		return
+	}
+	if req.TemplateID != uuid.Nil {
+		_, err := api.Database.GetTemplateByID(r.Context(), req.TemplateID)
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+				Message: "template does not exist",
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("get template: %s", err),
+			})
+			return
+		}
+	}
+
+	file, err := api.Database.GetFileByHash(r.Context(), req.StorageSource)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
+			Message: "file not found",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("get file: %s", err),
+		})
+		return
+	}
+
+	var templateVersion database.TemplateVersion
+	var provisionerJob database.ProvisionerJob
+	err = api.Database.InTx(func(db database.Store) error {
+		jobID := uuid.New()
+		for _, parameterValue := range req.ParameterValues {
+			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
+				ID:                uuid.New(),
+				Name:              parameterValue.Name,
+				CreatedAt:         database.Now(),
+				UpdatedAt:         database.Now(),
+				Scope:             database.ParameterScopeImportJob,
+				ScopeID:           jobID,
+				SourceScheme:      parameterValue.SourceScheme,
+				SourceValue:       parameterValue.SourceValue,
+				DestinationScheme: parameterValue.DestinationScheme,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert parameter value: %w", err)
+			}
+		}
+
+		provisionerJob, err = api.Database.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
+			ID:             jobID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			OrganizationID: organization.ID,
+			InitiatorID:    apiKey.UserID,
+			Provisioner:    req.Provisioner,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			StorageSource:  file.Hash,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte{'{', '}'},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
+		}
+
+		var templateID uuid.NullUUID
+		if req.TemplateID != uuid.Nil {
+			templateID = uuid.NullUUID{
+				UUID:  req.TemplateID,
+				Valid: true,
+			}
+		}
+
+		templateVersion, err = api.Database.InsertTemplateVersion(r.Context(), database.InsertTemplateVersionParams{
+			ID:             uuid.New(),
+			TemplateID:     templateID,
+			OrganizationID: organization.ID,
+			CreatedAt:      database.Now(),
+			UpdatedAt:      database.Now(),
+			Name:           namesgenerator.GetRandomName(1),
+			Description:    "",
+			JobID:          provisionerJob.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert template version: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob)))
 }
 
 func (api *api) templateVersionResources(rw http.ResponseWriter, r *http.Request) {

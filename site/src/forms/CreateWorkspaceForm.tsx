@@ -1,16 +1,25 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
-import { FormikContextType, useFormik } from "formik"
+import TextField from "@material-ui/core/TextField"
+import { useFormik } from "formik"
 import React from "react"
 import * as Yup from "yup"
 import * as TypesGen from "../api/typesGenerated"
 import { FormCloseButton } from "../components/FormCloseButton/FormCloseButton"
 import { FormSection } from "../components/FormSection/FormSection"
-import { FormTextField } from "../components/FormTextField/FormTextField"
 import { FormTitle } from "../components/FormTitle/FormTitle"
 import { LoadingButton } from "../components/LoadingButton/LoadingButton"
 import { maxWidth } from "../theme/constants"
+import { getFormHelpers, onChangeTrimmed } from "../util/formUtils"
 
+export const Language = {
+  nameHelperText: "A unique name describing your workspace",
+  nameLabel: "Workspace Name",
+  nameMatches: "Name must start with a-Z or 0-9 and can contain a-Z, 0-9 or -",
+  nameMax: "Name cannot be longer than 32 characters",
+  namePlaceholder: "my-workspace",
+  nameRequired: "Name is required",
+}
 export interface CreateWorkspaceForm {
   template: TypesGen.Template
   onSubmit: (organizationId: string, request: TypesGen.CreateWorkspaceRequest) => Promise<TypesGen.Workspace>
@@ -18,8 +27,21 @@ export interface CreateWorkspaceForm {
   organizationId: string
 }
 
-const validationSchema = Yup.object({
-  name: Yup.string().required("Name is required"),
+export interface CreateWorkspaceFormValues {
+  name: string
+}
+
+// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L40
+const maxLenName = 32
+
+// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L18
+const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/
+
+export const validationSchema = Yup.object({
+  name: Yup.string()
+    .matches(usernameRE, Language.nameMatches)
+    .max(maxLenName, Language.nameMax)
+    .required(Language.nameRequired),
 })
 
 export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
@@ -30,19 +52,19 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
 }) => {
   const styles = useStyles()
 
-  const form: FormikContextType<{ name: string }> = useFormik<{ name: string }>({
+  const form = useFormik<CreateWorkspaceFormValues>({
     initialValues: {
       name: "",
     },
-    enableReinitialize: true,
-    validationSchema: validationSchema,
     onSubmit: ({ name }) => {
       return onSubmit(organizationId, {
         template_id: template.id,
         name: name,
       })
     },
+    validationSchema: validationSchema,
   })
+  const getFieldHelpers = getFormHelpers<CreateWorkspaceFormValues>(form)
 
   return (
     <div className={styles.root}>
@@ -57,14 +79,13 @@ export const CreateWorkspaceForm: React.FC<CreateWorkspaceForm> = ({
       <FormCloseButton onClose={onCancel} />
 
       <FormSection title="Name">
-        <FormTextField
-          form={form}
-          formFieldName="name"
+        <TextField
+          {...getFieldHelpers("name", Language.nameHelperText)}
+          onChange={onChangeTrimmed(form)}
+          autoFocus
           fullWidth
-          helperText="A unique name describing your workspace."
-          label="Workspace Name"
-          placeholder="my-workspace"
-          required
+          label={Language.nameLabel}
+          placeholder={Language.namePlaceholder}
         />
       </FormSection>
 

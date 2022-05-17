@@ -45,7 +45,7 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Ro
 }
 
 func (c *Client) CheckPermissions(ctx context.Context, checks UserAuthorizationRequest) (UserAuthorizationResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/authorization", uuidOrMe(Me)), checks)
+	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/authorization", Me), checks)
 	if err != nil {
 		return nil, err
 	}
