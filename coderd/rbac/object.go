@@ -9,6 +9,10 @@ const WildcardSymbol = "*"
 // Resources are just typed objects. Making resources this way allows directly
 // passing them into an Authorize function and use the chaining api.
 var (
+	// ResourceWorkspace CRUD. Org + User owner
+	//	create/delete = make or delete workspaces
+	// 	read = access workspace
+	//	update = edit workspace variables
 	ResourceWorkspace = Object{
 		Type: "workspace",
 	}
@@ -17,19 +21,60 @@ var (
 		Type: "template",
 	}
 
+	ResourceFile = Object{
+		Type: "file",
+	}
+
+	// ResourceOrganization CRUD. Has an org owner on all but 'create'.
+	//	create/delete = make or delete organizations
+	// 	read = view org information (Can add user owner for read)
+	//	update = ??
+	ResourceOrganization = Object{
+		Type: "organization",
+	}
+
+	// ResourceRoleAssignment might be expanded later to allow more granular permissions
+	// to modifying roles. For now, this covers all possible roles, so having this permission
+	// allows granting/deleting **ALL** roles.
+	//	create  = Assign roles
+	//	update  = ??
+	//	read	= View available roles to assign
+	//	delete	= Remove role
+	ResourceRoleAssignment = Object{
+		Type: "assign_role",
+	}
+
+	// ResourceAPIKey is owned by a user.
+	//	create  = Create a new api key for user
+	//	update  = ??
+	//	read	= View api key
+	//	delete	= Delete api key
+	ResourceAPIKey = Object{
+		Type: "api_key",
+	}
+
+	// ResourceUser is the user in the 'users' table.
+	// ResourceUser never has any owners or in an org, as it's site wide.
+	// 	create/delete = make or delete a new user.
+	// 	read = view all 'user' table data
+	// 	update = update all 'user' table data
 	ResourceUser = Object{
 		Type: "user",
 	}
 
-	// ResourceUserRole might be expanded later to allow more granular permissions
-	// to modifying roles. For now, this covers all possible roles, so having this permission
-	// allows granting/deleting **ALL** roles.
-	ResourceUserRole = Object{
-		Type: "user_role",
+	// ResourceUserData is any data associated with a user. A user has control
+	// over their data (profile, password, etc). So this resource has an owner.
+	ResourceUserData = Object{
+		Type: "user_data",
 	}
 
-	ResourceUserPasswordRole = Object{
-		Type: "user_password",
+	// ResourceOrganizationMember is a user's membership in an organization.
+	// Has ONLY an organization owner. The resource ID is the user's ID
+	//	create/delete  = Create/delete member from org.
+	//	update  = Update organization member
+	//	read	= View member
+	ResourceOrganizationMember = Object{
+		Type: "organization_member",
 	}
 
 	// ResourceWildcard represents all resource types

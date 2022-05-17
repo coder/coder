@@ -99,7 +99,7 @@ func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, befo
 	if !before.IsZero() {
 		values["before"] = []string{strconv.FormatInt(before.UTC().UnixMilli(), 10)}
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("%s?%s", path, values.Encode()), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s?%s", path, values.Encode()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	if !after.IsZero() {
 		afterQuery = fmt.Sprintf("&after=%d", after.UTC().UnixMilli())
 	}
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("%s?follow%s", path, afterQuery), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s?follow%s", path, afterQuery), nil)
 	if err != nil {
 		return nil, err
 	}
