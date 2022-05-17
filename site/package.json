@@ -52,7 +52,7 @@
     "yup": "0.32.11"
   },
   "devDependencies": {
-    "@playwright/test": "1.21.1",
+    "@playwright/test": "1.22.1",
     "@pmmmwh/react-refresh-webpack-plugin": "0.5.5",
     "@storybook/addon-actions": "6.4.22",
     "@storybook/addon-essentials": "6.4.22",
