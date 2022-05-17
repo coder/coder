@@ -47,7 +47,7 @@ destroyed on exit):
       coder server
   ```
 
-- To run as a system service, install with `.deb` (Debian, Ubuntu) or `.rpm`
+- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm`
 (Fedora, CentOS, RHEL, SUSE):
 
   ```bash
@@ -56,7 +56,7 @@ destroyed on exit):
   sudo service coder restart
   ```
 
-> Use `coder start --help` to get a complete list of flags and environment
+> Use `coder --help` to get a complete list of flags and environment
 variables.
 
 ## Creating your first template and workspace
