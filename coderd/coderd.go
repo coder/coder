@@ -175,8 +175,8 @@ func New(options *Options) (http.Handler, func()) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
-				httpmw.ExtractOrganizationParam(options.Database),
 			)
+
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
 			r.Route("/versions", func(r chi.Router) {
@@ -189,7 +189,6 @@ func New(options *Options) (http.Handler, func()) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
-				httpmw.ExtractOrganizationParam(options.Database),
 			)
 
 			r.Get("/", api.templateVersion)

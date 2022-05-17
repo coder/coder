@@ -80,3 +80,12 @@ SET
 	updated_at = $3
 WHERE
 	id = $1;
+
+-- name: UpdateTemplateVersionDescriptionByJobID :exec
+UPDATE
+	template_versions
+SET
+	description = $2,
+	updated_at = now()
+WHERE
+	job_id = $1;

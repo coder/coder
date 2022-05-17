@@ -2061,6 +2061,26 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 	return err
 }
 
+const updateTemplateVersionDescriptionByJobID = `-- name: UpdateTemplateVersionDescriptionByJobID :exec
+UPDATE
+	template_versions
+SET
+	description = $2,
+	updated_at = now()
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionDescriptionByJobIDParams struct {
+	JobID       uuid.UUID `db:"job_id" json:"job_id"`
+	Description string    `db:"description" json:"description"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Description)
+	return err
+}
+
 const getAllUserRoles = `-- name: GetAllUserRoles :one
 SELECT
     -- username is returned just to help for logging purposes

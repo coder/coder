@@ -401,11 +401,12 @@ func (api *api) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 
 func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
-		ID:         version.ID,
-		TemplateID: &version.TemplateID.UUID,
-		CreatedAt:  version.CreatedAt,
-		UpdatedAt:  version.UpdatedAt,
-		Name:       version.Name,
-		Job:        job,
+		ID:          version.ID,
+		TemplateID:  &version.TemplateID.UUID,
+		CreatedAt:   version.CreatedAt,
+		UpdatedAt:   version.UpdatedAt,
+		Name:        version.Name,
+		Job:         job,
+		Description: version.Description,
 	}
 }
