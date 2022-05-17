@@ -139,14 +139,11 @@ func TestPortForward(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if c.name != "Unix" {
-			continue
-		}
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			t.Run("One", func(t *testing.T) {
+			t.Run("OnePort", func(t *testing.T) {
 				t.Parallel()
 				var (
 					client       = coderdtest.New(t, nil)
@@ -189,8 +186,175 @@ func TestPortForward(t *testing.T) {
 				testDial(t, c2)
 				testDial(t, c1)
 			})
+
+			t.Run("TwoPorts", func(t *testing.T) {
+				t.Parallel()
+				var (
+					client       = coderdtest.New(t, nil)
+					user         = coderdtest.CreateFirstUser(t, client)
+					_, workspace = runAgent(t, client, user.UserID)
+					l1, p1       = setupTestListener(t, c.setupRemote(t))
+					l2, p2       = setupTestListener(t, c.setupRemote(t))
+				)
+				t.Cleanup(func() {
+					_ = l1.Close()
+					_ = l2.Close()
+				})
+
+				// Create a flags for listener 1 and listener 2.
+				localAddress1, localFlag1 := c.setupLocal(t)
+				localAddress2, localFlag2 := c.setupLocal(t)
+				flag1 := fmt.Sprintf(c.flag, localFlag1, p1)
+				flag2 := fmt.Sprintf(c.flag, localFlag2, p2)
+
+				// Launch port-forward in a goroutine so we can start dialing
+				// the "local" listeners.
+				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag1, flag2)
+				clitest.SetupConfig(t, client, root)
+				buf := new(bytes.Buffer)
+				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				go func() {
+					err := cmd.ExecuteContext(ctx)
+					require.Error(t, err)
+					require.ErrorIs(t, err, context.Canceled)
+				}()
+				waitForPortForwardReady(t, buf)
+
+				// Open a connection to both listener 1 and 2 simultaneously and
+				// then test them out of order.
+				d := net.Dialer{Timeout: 3 * time.Second}
+				c1, err := d.DialContext(ctx, c.network, localAddress1)
+				require.NoError(t, err, "open connection 1 to 'local' listener 1")
+				defer c1.Close()
+				c2, err := d.DialContext(ctx, c.network, localAddress2)
+				require.NoError(t, err, "open connection 2 to 'local' listener 2")
+				defer c2.Close()
+				testDial(t, c2)
+				testDial(t, c1)
+			})
 		})
 	}
+
+	// Test doing a TCP -> Unix forward.
+	t.Run("TCP2Unix", func(t *testing.T) {
+		t.Parallel()
+		var (
+			client       = coderdtest.New(t, nil)
+			user         = coderdtest.CreateFirstUser(t, client)
+			_, workspace = runAgent(t, client, user.UserID)
+
+			// Find the TCP and Unix cases so we can use their setupLocal and
+			// setupRemote methods respectively.
+			tcpCase  = cases[0]
+			unixCase = cases[2]
+
+			// Setup remote Unix listener.
+			l1, p1 = setupTestListener(t, unixCase.setupRemote(t))
+		)
+		t.Cleanup(func() {
+			_ = l1.Close()
+		})
+
+		// Create a flag that forwards from local TCP to Unix listener 1.
+		// Notably this is a --unix flag.
+		localAddress, localFlag := tcpCase.setupLocal(t)
+		flag := fmt.Sprintf(unixCase.flag, localFlag, p1)
+
+		// Launch port-forward in a goroutine so we can start dialing
+		// the "local" listener.
+		cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
+		clitest.SetupConfig(t, client, root)
+		buf := new(bytes.Buffer)
+		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			err := cmd.ExecuteContext(ctx)
+			require.Error(t, err)
+			require.ErrorIs(t, err, context.Canceled)
+		}()
+		waitForPortForwardReady(t, buf)
+
+		// Open two connections simultaneously and test them out of
+		// sync.
+		d := net.Dialer{Timeout: 3 * time.Second}
+		c1, err := d.DialContext(ctx, tcpCase.network, localAddress)
+		require.NoError(t, err, "open connection 1 to 'local' listener")
+		defer c1.Close()
+		c2, err := d.DialContext(ctx, tcpCase.network, localAddress)
+		require.NoError(t, err, "open connection 2 to 'local' listener")
+		defer c2.Close()
+		testDial(t, c2)
+		testDial(t, c1)
+	})
+
+	// Test doing TCP, UDP and Unix at the same time.
+	t.Run("All", func(t *testing.T) {
+		t.Parallel()
+		var (
+			client       = coderdtest.New(t, nil)
+			user         = coderdtest.CreateFirstUser(t, client)
+			_, workspace = runAgent(t, client, user.UserID)
+			// These aren't fixed size because we exclude Unix on Windows.
+			dials = []addr{}
+			flags = []string{}
+		)
+
+		// Start listeners and populate arrays with the cases.
+		for _, c := range cases {
+			if strings.HasPrefix(c.network, "unix") && runtime.GOOS == "windows" {
+				// Unix isn't supported on Windows, but we can still
+				// test other protocols together.
+				continue
+			}
+
+			l, p := setupTestListener(t, c.setupRemote(t))
+			t.Cleanup(func() {
+				_ = l.Close()
+			})
+
+			localAddress, localFlag := c.setupLocal(t)
+			dials = append(dials, addr{
+				network: c.network,
+				addr:    localAddress,
+			})
+			flags = append(flags, fmt.Sprintf(c.flag, localFlag, p))
+		}
+
+		// Launch port-forward in a goroutine so we can start dialing
+		// the "local" listeners.
+		cmd, root := clitest.New(t, append([]string{"port-forward", workspace.Name}, flags...)...)
+		clitest.SetupConfig(t, client, root)
+		buf := new(bytes.Buffer)
+		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() {
+			err := cmd.ExecuteContext(ctx)
+			require.Error(t, err)
+			require.ErrorIs(t, err, context.Canceled)
+		}()
+		waitForPortForwardReady(t, buf)
+
+		// Open connections to all items in the "dial" array.
+		var (
+			d     = net.Dialer{Timeout: 3 * time.Second}
+			conns = make([]net.Conn, len(dials))
+		)
+		for i, a := range dials {
+			c, err := d.DialContext(ctx, a.network, a.addr)
+			require.NoErrorf(t, err, "open connection %v to 'local' listener %v", i+1, i+1)
+			defer c.Close()
+			conns[i] = c
+		}
+
+		// Test each connection in reverse order.
+		for i := len(conns) - 1; i >= 0; i-- {
+			testDial(t, conns[i])
+		}
+	})
 }
 
 // runAgent creates a fake workspace and starts an agent locally for that
@@ -318,4 +482,9 @@ func waitForPortForwardReady(t *testing.T, output *bytes.Buffer) {
 	}
 
 	t.Fatal("port-forward command did not become ready in time")
+}
+
+type addr struct {
+	network string
+	addr    string
 }
