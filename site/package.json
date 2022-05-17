@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "4.5.9",
-    "@fontsource/inter": "4.5.7",
+    "@fontsource/inter": "4.5.10",
     "@material-ui/core": "4.9.4",
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
@@ -90,7 +90,7 @@
     "jest": "27.5.1",
     "jest-canvas-mock": "2.4.0",
     "jest-junit": "13.2.0",
-    "jest-runner-eslint": "1.0.0",
+    "jest-runner-eslint": "1.0.1",
     "jest-websocket-mock": "2.3.0",
     "mini-css-extract-plugin": "2.6.0",
     "msw": "0.39.2",
