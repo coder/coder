@@ -40,7 +40,9 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
     <Stack spacing={4}>
       <Margins>
         <div className={styles.actions}>
-          <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+          <Link component={RouterLink} to="/templates">
+            <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+          </Link>
         </div>
         <Table>
           <TableHead>
@@ -58,7 +60,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
                 <TableCell colSpan={999}>
                   <div className={styles.welcome}>
                     <span>
-                      <Link component={RouterLink} to="/workspaces/new">
+                      <Link component={RouterLink} to="/templates">
                         Create a workspace
                       </Link>
                       &nbsp;{Language.emptyView}
@@ -183,7 +185,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     height: theme.spacing(6),
 
-    "& button": {
+    "& > *": {
       marginLeft: "auto",
     },
   },
