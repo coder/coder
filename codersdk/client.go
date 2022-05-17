@@ -81,8 +81,8 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	return resp, err
 }
 
-// request performs an HTTP request with the body provided.
-// The caller is responsible for closing the response body.
+// websocket opens a websocket connection on that path provided.
+// The caller is responsible for closing the websocket.Conn.
 func (c *Client) websocket(ctx context.Context, path string) (*websocket.Conn, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
@@ -95,15 +95,9 @@ func (c *Client) websocket(ctx context.Context, path string) (*websocket.Conn, e
 		apiURL.Scheme = "wss"
 	}
 	apiURL.Path = path
-
-	client := &http.Client{
-		Jar: c.HTTPClient.Jar,
-	}
-	cookies := append(client.Jar.Cookies(c.URL), &http.Cookie{
-		Name:  httpmw.AuthCookie,
-		Value: c.SessionToken,
-	})
-	client.Jar.SetCookies(c.URL, cookies)
+	q := apiURL.Query()
+	q.Add(httpmw.AuthCookie, c.SessionToken)
+	apiURL.RawQuery = q.Encode()
 
 	//nolint:bodyclose
 	conn, _, err := websocket.Dial(context.Background(), apiURL.String(), &websocket.DialOptions{

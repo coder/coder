@@ -43,14 +43,20 @@ type OAuth2Configs struct {
 func ExtractAPIKey(db database.Store, oauth *OAuth2Configs) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			var cookieValue string
 			cookie, err := r.Cookie(AuthCookie)
 			if err != nil {
+				cookieValue = r.URL.Query().Get(AuthCookie)
+			} else {
+				cookieValue = cookie.Value
+			}
+			if cookieValue == "" {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("%q cookie must be provided", AuthCookie),
+					Message: fmt.Sprintf("%q cookie or query parameter must be provided", AuthCookie),
 				})
 				return
 			}
-			parts := strings.Split(cookie.Value, "-")
+			parts := strings.Split(cookieValue, "-")
 			// APIKeys are formatted: ID-SECRET
 			if len(parts) != 2 {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{

@@ -123,7 +123,7 @@ func (w *WorkspaceWatcher) Close() error {
 	return nil
 }
 
-func (c *Client) WorkspaceWatcher(ctx context.Context, id uuid.UUID) (*WorkspaceWatcher, error) {
+func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (*WorkspaceWatcher, error) {
 	conn, err := c.websocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
 	if err != nil {
 		return nil, err

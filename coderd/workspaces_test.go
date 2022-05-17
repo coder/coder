@@ -621,3 +621,28 @@ func mustLocation(t *testing.T, location string) *time.Location {
 
 	return loc
 }
+
+func TestWorkspaceWatcher(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	w, err := client.Workspace(context.Background(), workspace.ID)
+	require.NoError(t, err)
+
+	ww, err := client.WatchWorkspace(context.Background(), w.ID)
+	require.NoError(t, err)
+	defer ww.Close()
+	for i := 0; i < 5; i++ {
+		_, err := ww.Read(context.Background())
+		require.NoError(t, err)
+	}
+	err = ww.Close()
+	require.NoError(t, err)
+	_, err = ww.Read(context.Background())
+	require.Error(t, err)
+}
