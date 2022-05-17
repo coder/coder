@@ -46,10 +46,10 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
     <Table className={className}>
       <TableHead>
         <TableRow>
-          <TableCell>{Language.actionLabel}</TableCell>
-          <TableCell>{Language.durationLabel}</TableCell>
-          <TableCell>{Language.startedAtLabel}</TableCell>
-          <TableCell>{Language.statusLabel}</TableCell>
+          <TableCell width="20%">{Language.actionLabel}</TableCell>
+          <TableCell width="20%">{Language.durationLabel}</TableCell>
+          <TableCell width="40%">{Language.startedAtLabel}</TableCell>
+          <TableCell width="20%">{Language.statusLabel}</TableCell>
         </TableRow>
       </TableHead>
       <TableBody>
