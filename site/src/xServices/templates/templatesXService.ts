@@ -5,6 +5,8 @@ import * as TypesGen from "../../api/typesGenerated"
 interface TemplatesContext {
   organizations?: TypesGen.Organization[]
   templates?: TypesGen.Template[]
+  canCreateTemplate?: boolean
+  permissionsError?: Error | unknown
   organizationsError?: Error | unknown
   templatesError?: Error | unknown
 }
@@ -17,6 +19,9 @@ export const templatesMachine = createMachine(
       services: {} as {
         getOrganizations: {
           data: TypesGen.Organization[]
+        }
+        getPermissions: {
+          data: boolean
         }
         getTemplates: {
           data: TypesGen.Template[]
@@ -34,12 +39,32 @@ export const templatesMachine = createMachine(
           onDone: [
             {
               actions: ["assignOrganizations", "clearOrganizationsError"],
-              target: "gettingTemplates",
+              target: "gettingPermissions",
             },
           ],
           onError: [
             {
               actions: "assignOrganizationsError",
+              target: "error",
+            },
+          ],
+        },
+        tags: "loading",
+      },
+      gettingPermissions: {
+        entry: "clearPermissionsError",
+        invoke: {
+          src: "getPermissions",
+          id: "getPermissions",
+          onDone: [
+            {
+              target: "gettingTemplates",
+              actions: ["assignPermissions", "clearPermissionsError"],
+            },
+          ],
+          onError: [
+            {
+              actions: "assignPermissionsError",
               target: "error",
             },
           ],
@@ -78,6 +103,16 @@ export const templatesMachine = createMachine(
         ...context,
         organizationsError: undefined,
       })),
+      assignPermissions: assign({
+        canCreateTemplate: (_, event) => event.data,
+      }),
+      assignPermissionsError: assign({
+        permissionsError: (_, event) => event.data,
+      }),
+      clearPermissionsError: assign((context) => ({
+        ...context,
+        permissionsError: undefined,
+      })),
       assignTemplates: assign({
         templates: (_, event) => event.data,
       }),
@@ -88,6 +123,20 @@ export const templatesMachine = createMachine(
     },
     services: {
       getOrganizations: API.getOrganizations,
+      getPermissions: async () => {
+        const permName = "createTemplates"
+        const resp = await API.checkUserPermissions("me", {
+          checks: {
+            [permName]: {
+              action: "write",
+              object: {
+                resource_type: "template",
+              },
+            },
+          },
+        })
+        return resp[permName]
+      },
       getTemplates: async (context) => {
         if (!context.organizations || context.organizations.length === 0) {
           throw new Error("no organizations")

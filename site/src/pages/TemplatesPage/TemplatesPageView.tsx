@@ -16,6 +16,7 @@ import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
+import { combineClasses } from "../../util/combineClasses"
 import { firstLetter } from "../../util/firstLetter"
 
 dayjs.extend(relativeTime)
@@ -27,6 +28,7 @@ export const Language = {
 
 export interface TemplatesPageViewProps {
   loading?: boolean
+  canCreateTemplate?: boolean
   templates?: TypesGen.Template[]
   error?: unknown
 }
@@ -38,16 +40,16 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
     <Stack spacing={4}>
       <Margins>
         <div className={styles.actions}>
+          {props.canCreateTemplate && (
           <Button startIcon={<AddCircleOutline />}>{Language.createButton}</Button>
+          )}
         </div>
         <Table>
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
-              <TableCell>Resources</TableCell>
-              <TableCell>Last Updated</TableCell>
-              <TableCell>Provisioner</TableCell>
               <TableCell>Used By</TableCell>
+              <TableCell>Last Updated</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -76,13 +78,10 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                       <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
                         <b>{template.name}</b>
                       </Link>
+                      {template.description}
                     </div>
                   </TableCell>
-                  <TableCell>{template.description}</TableCell>
                   <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
-                  <TableCell>
-                    <img alt="Terraform" src="/terraform-logo.svg" />
-                  </TableCell>
                   <TableCell>{template.workspace_owner_count} developer{template.workspace_owner_count !== 1 && "s"}</TableCell>
                 </TableRow>
               )
