@@ -77,12 +77,14 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                       </Avatar>
                       <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
                         <b>{template.name}</b>
+                        <span>
+                        {template.description}
+                        </span>
                       </Link>
-                      {template.description}
                     </div>
                   </TableCell>
-                  <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
                   <TableCell>{template.workspace_owner_count} developer{template.workspace_owner_count !== 1 && "s"}</TableCell>
+                  <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
                 </TableRow>
               )
             })}
