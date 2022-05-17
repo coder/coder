@@ -1,11 +1,11 @@
 # Start from base image (built on Docker host)
-FROM coder-base:latest
+FROM coder-base:v0.1
 
 # Install everything as root
 USER root
 
 # Install Node
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_16.x | bash -
 RUN DEBIAN_FRONTEND="noninteractive" apt-get update -y && \
     apt-get install -y nodejs
 

@@ -1,5 +1,5 @@
 # From the base image (built on Docker host)
-FROM coder-base:latest
+FROM coder-base:v0.1
 
 # Install everything as root
 USER root
