@@ -293,6 +293,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/workspaces/{workspace}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
 			r.Get("/", api.workspace)

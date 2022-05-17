@@ -187,7 +187,7 @@ func TestPostUsers(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
 
 	t.Run("Create", func(t *testing.T) {
