@@ -69,11 +69,6 @@ variable "docker_image" {
     error_message = "Invalid Docker Image!"
   }
 
-  validation {
-    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu", "codercom/enterprise-intellij:ubuntu"], var.docker_image)
-    error_message = "Invalid Docker Image!"
-  }
-
 }
 
 resource "docker_volume" "home_volume" {
