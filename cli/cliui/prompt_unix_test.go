@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/pty/ptytest"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestPasswordTerminalState(t *testing.T) {
@@ -25,7 +26,7 @@ func TestPasswordTerminalState(t *testing.T) {
 
 	ptty := ptytest.New(t)
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState")
+	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
 	// connect the child process's stdio to the PTY directly, not via a pipe
 	cmd.Stdin = ptty.PTY.PTYFile()
@@ -42,7 +43,8 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, termios.Lflag&unix.ECHO, "echo is on while reading password")
 
-	cmd.Process.Signal(os.Interrupt)
+	err = cmd.Process.Signal(os.Interrupt)
+	require.NoError(t, err)
 	_, err = cmd.Process.Wait()
 	require.NoError(t, err)
 
