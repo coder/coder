@@ -15,6 +15,10 @@ provider "docker" {
   host = "unix:///var/run/docker.sock"
 }
 
+provider "coder" {
+  url = "http://host.docker.internal:7080"
+}
+
 data "coder_workspace" "me" {
 }
 
