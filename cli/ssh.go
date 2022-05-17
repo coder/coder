@@ -38,16 +38,13 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			workspaceParts := strings.Split(args[0], ".")
-			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceParts[0])
+			workspace, agent, err := getWorkspaceAndAgent(cmd.Context(), client, organization.ID, codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}
-
 			if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
 				return xerrors.New("workspace must be in start transition to ssh")
 			}
-
 			if workspace.LatestBuild.Job.CompletedAt == nil {
 				err = cliui.WorkspaceBuild(cmd.Context(), cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
 				if err != nil {
@@ -55,41 +52,6 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
-				return xerrors.New("workspace is deleting...")
-			}
-
-			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
-			if err != nil {
-				return err
-			}
-
-			agents := make([]codersdk.WorkspaceAgent, 0)
-			for _, resource := range resources {
-				agents = append(agents, resource.Agents...)
-			}
-			if len(agents) == 0 {
-				return xerrors.New("workspace has no agents")
-			}
-			var agent codersdk.WorkspaceAgent
-			if len(workspaceParts) >= 2 {
-				for _, otherAgent := range agents {
-					if otherAgent.Name != workspaceParts[1] {
-						continue
-					}
-					agent = otherAgent
-					break
-				}
-				if agent.ID == uuid.Nil {
-					return xerrors.Errorf("agent not found by name %q", workspaceParts[1])
-				}
-			}
-			if agent.ID == uuid.Nil {
-				if len(agents) > 1 {
-					return xerrors.New("you must specify the name of an agent")
-				}
-				agent = agents[0]
-			}
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
@@ -178,6 +140,55 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 
 	return cmd
+}
+
+func getWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, orgID uuid.UUID, userID uuid.UUID, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
+	workspaceParts := strings.Split(in, ".")
+	workspace, err := client.WorkspaceByOwnerAndName(ctx, orgID, userID, workspaceParts[0])
+	if err != nil {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("get workspace %q: %w", workspaceParts[0], err)
+	}
+
+	if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
+	}
+
+	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	if err != nil {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("fetch workspace resources: %w", err)
+	}
+
+	agents := make([]codersdk.WorkspaceAgent, 0)
+	for _, resource := range resources {
+		agents = append(agents, resource.Agents...)
+	}
+	if len(agents) == 0 {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
+	}
+
+	var agent *codersdk.WorkspaceAgent
+	if len(workspaceParts) >= 2 {
+		for _, otherAgent := range agents {
+			if otherAgent.Name != workspaceParts[1] {
+				continue
+			}
+			agent = &otherAgent
+			break
+		}
+
+		if agent == nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
+		}
+	}
+
+	if agent == nil {
+		if len(agents) > 1 {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
+		}
+		agent = &agents[0]
+	}
+
+	return workspace, *agent, nil
 }
 
 type stdioConn struct {

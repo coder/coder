@@ -87,7 +87,8 @@ func (c *Conn) DialContext(ctx context.Context, network string, addr string) (ne
 	}
 
 	channel, err := c.CreateChannel(ctx, u.String(), &peer.ChannelOptions{
-		Protocol: "dial",
+		Protocol:  "dial",
+		Unordered: strings.HasPrefix(network, "udp"),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create datachannel: %w", err)

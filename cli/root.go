@@ -86,7 +86,7 @@ func Root() *cobra.Command {
 		templates(),
 		update(),
 		users(),
-		tunnel(),
+		portForward(),
 		workspaceAgent(),
 	)
 

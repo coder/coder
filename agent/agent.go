@@ -657,6 +657,14 @@ func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
 
 	network := u.Scheme
 	addr := u.Host + u.Path
+	if strings.HasPrefix(network, "unix") {
+		addr, err = ExpandPath(addr)
+		if err != nil {
+			_ = writeError(xerrors.Errorf("expand path %q: %w", addr, err))
+			return
+		}
+	}
+
 	nconn, err := net.Dial(network, addr)
 	if err != nil {
 		_ = writeError(xerrors.Errorf("dial '%v://%v': %w", network, addr, err))
@@ -668,7 +676,7 @@ func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
 		return
 	}
 
-	bicopy(ctx, conn, nconn)
+	Bicopy(ctx, conn, nconn)
 }
 
 // isClosed returns whether the API is closed or not.
@@ -717,10 +725,10 @@ func (r *reconnectingPTY) Close() {
 	r.timeout.Stop()
 }
 
-// bicopy copies all of the data between the two connections and will close them
+// Bicopy copies all of the data between the two connections and will close them
 // after one or both of them are done writing. If the context is canceled, both
 // of the connections will be closed.
-func bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
+func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 	defer c1.Close()
 	defer c2.Close()
 
@@ -735,4 +743,21 @@ func bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 	go copyFunc(c2, c1)
 
 	<-ctx.Done()
+}
+
+// ExpandPath expands the tilde at the beggining of a path to the current user's
+// home directory and returns a full absolute path.
+func ExpandPath(in string) (string, error) {
+	usr, err := user.Current()
+	if err != nil {
+		return "", xerrors.Errorf("get current user details: %w", err)
+	}
+
+	if in == "~" {
+		in = usr.HomeDir
+	} else if strings.HasPrefix(in, "~/") {
+		in = filepath.Join(usr.HomeDir, in[2:])
+	}
+
+	return filepath.Abs(in)
 }
