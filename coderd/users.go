@@ -690,7 +690,7 @@ func (*api) postLogout(rw http.ResponseWriter, _ *http.Request) {
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now
 		MaxAge: -1,
-		Name:   httpmw.AuthCookie,
+		Name:   httpmw.SessionTokenKey,
 		Path:   "/",
 	}
 
@@ -748,7 +748,7 @@ func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
 	http.SetCookie(rw, &http.Cookie{
-		Name:     httpmw.AuthCookie,
+		Name:     httpmw.SessionTokenKey,
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,

@@ -64,7 +64,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 	req.AddCookie(&http.Cookie{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	})
 	if body != nil {
@@ -99,7 +99,7 @@ func (c *Client) websocket(ctx context.Context, path string) (*websocket.Conn, e
 	}
 	apiURL.Path = path
 	q := apiURL.Query()
-	q.Add(httpmw.AuthCookie, c.SessionToken)
+	q.Add(httpmw.SessionTokenKey, c.SessionToken)
 	apiURL.RawQuery = q.Encode()
 
 	//nolint:bodyclose
