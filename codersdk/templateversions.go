@@ -21,6 +21,7 @@ type TemplateVersion struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 	Name       string         `json:"name"`
 	Job        ProvisionerJob `json:"job"`
+	Readme     string         `json:"readme"`
 }
 
 // TemplateVersionParameterSchema represents a parameter parsed from template version source.

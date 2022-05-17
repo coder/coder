@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
@@ -1189,7 +1190,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Name:           arg.Name,
-		Description:    arg.Description,
+		Readme:         arg.Readme,
 		JobID:          arg.JobID,
 	}
 	q.templateVersions = append(q.templateVersions, version)
@@ -1478,7 +1479,7 @@ func (q *fakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg dat
 	defer q.mutex.Unlock()
 
 	for index, template := range q.templates {
-		if template.ID.String() != arg.ID.String() {
+		if template.ID != arg.ID {
 			continue
 		}
 		template.ActiveVersionID = arg.ActiveVersionID
@@ -1493,7 +1494,7 @@ func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 	defer q.mutex.Unlock()
 
 	for index, template := range q.templates {
-		if template.ID.String() != arg.ID.String() {
+		if template.ID != arg.ID {
 			continue
 		}
 		template.Deleted = arg.Deleted
@@ -1508,11 +1509,27 @@ func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.
 	defer q.mutex.Unlock()
 
 	for index, templateVersion := range q.templateVersions {
-		if templateVersion.ID.String() != arg.ID.String() {
+		if templateVersion.ID != arg.ID {
 			continue
 		}
 		templateVersion.TemplateID = arg.TemplateID
 		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersions[index] = templateVersion
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.JobID != arg.JobID {
+			continue
+		}
+		templateVersion.Readme = arg.Readme
+		templateVersion.UpdatedAt = time.Now()
 		q.templateVersions[index] = templateVersion
 		return nil
 	}
@@ -1524,7 +1541,7 @@ func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg databas
 	defer q.mutex.Unlock()
 
 	for index, daemon := range q.provisionerDaemons {
-		if arg.ID.String() != daemon.ID.String() {
+		if arg.ID != daemon.ID {
 			continue
 		}
 		daemon.UpdatedAt = arg.UpdatedAt
@@ -1540,7 +1557,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 	defer q.mutex.Unlock()
 
 	for index, agent := range q.provisionerJobAgents {
-		if agent.ID.String() != arg.ID.String() {
+		if agent.ID != arg.ID {
 			continue
 		}
 		agent.FirstConnectedAt = arg.FirstConnectedAt
@@ -1557,7 +1574,7 @@ func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 	defer q.mutex.Unlock()
 
 	for index, job := range q.provisionerJobs {
-		if arg.ID.String() != job.ID.String() {
+		if arg.ID != job.ID {
 			continue
 		}
 		job.UpdatedAt = arg.UpdatedAt
@@ -1572,7 +1589,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 	defer q.mutex.Unlock()
 
 	for index, job := range q.provisionerJobs {
-		if arg.ID.String() != job.ID.String() {
+		if arg.ID != job.ID {
 			continue
 		}
 		job.CanceledAt = arg.CanceledAt
@@ -1587,7 +1604,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	defer q.mutex.Unlock()
 
 	for index, job := range q.provisionerJobs {
-		if arg.ID.String() != job.ID.String() {
+		if arg.ID != job.ID {
 			continue
 		}
 		job.UpdatedAt = arg.UpdatedAt
@@ -1604,7 +1621,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	defer q.mutex.Unlock()
 
 	for index, workspace := range q.workspaces {
-		if workspace.ID.String() != arg.ID.String() {
+		if workspace.ID != arg.ID {
 			continue
 		}
 		workspace.AutostartSchedule = arg.AutostartSchedule
@@ -1620,7 +1637,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.Up
 	defer q.mutex.Unlock()
 
 	for index, workspace := range q.workspaces {
-		if workspace.ID.String() != arg.ID.String() {
+		if workspace.ID != arg.ID {
 			continue
 		}
 		workspace.AutostopSchedule = arg.AutostopSchedule
@@ -1636,7 +1653,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 	defer q.mutex.Unlock()
 
 	for index, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.ID.String() != arg.ID.String() {
+		if workspaceBuild.ID != arg.ID {
 			continue
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
@@ -1653,7 +1670,7 @@ func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 	defer q.mutex.Unlock()
 
 	for index, workspace := range q.workspaces {
-		if workspace.ID.String() != arg.ID.String() {
+		if workspace.ID != arg.ID {
 			continue
 		}
 		workspace.Deleted = arg.Deleted
