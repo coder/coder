@@ -16,7 +16,8 @@ import (
 )
 
 func TestResetPassword(t *testing.T) {
-	t.Parallel()
+	// postgres.Open() seems to be creating race conditions when run in parallel.
+	//t.Parallel()
 
 	if runtime.GOOS != "linux" || testing.Short() {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.

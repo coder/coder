@@ -23,7 +23,8 @@ func TestPubsub(t *testing.T) {
 	}
 
 	t.Run("Postgres", func(t *testing.T) {
-		t.Parallel()
+		// postgres.Open() seems to be creating race conditions when run in parallel.
+		//t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
@@ -53,7 +54,8 @@ func TestPubsub(t *testing.T) {
 	})
 
 	t.Run("PostgresCloseCancel", func(t *testing.T) {
-		t.Parallel()
+		// postgres.Open() seems to be creating race conditions when run in parallel.
+		//t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		connectionURL, closePg, err := postgres.Open()

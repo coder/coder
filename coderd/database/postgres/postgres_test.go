@@ -18,7 +18,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestPostgres(t *testing.T) {
-	t.Parallel()
+	// postgres.Open() seems to be creating race conditions when run in parallel.
+	//t.Parallel()
 
 	if testing.Short() {
 		t.Skip()
