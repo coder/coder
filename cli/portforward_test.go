@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func TestPortForward(t *testing.T) {
 
 		cmd, root := clitest.New(t, "port-forward", "blah")
 		clitest.SetupConfig(t, client, root)
-		buf := new(bytes.Buffer)
+		buf := newThreadSafeBuffer()
 		cmd.SetOut(buf)
 
 		err := cmd.Execute()
@@ -165,7 +166,7 @@ func TestPortForward(t *testing.T) {
 				// the "local" listener.
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 				clitest.SetupConfig(t, client, root)
-				buf := new(bytes.Buffer)
+				buf := newThreadSafeBuffer()
 				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -213,7 +214,7 @@ func TestPortForward(t *testing.T) {
 				// the "local" listeners.
 				cmd, root := clitest.New(t, "port-forward", workspace.Name, flag1, flag2)
 				clitest.SetupConfig(t, client, root)
-				buf := new(bytes.Buffer)
+				buf := newThreadSafeBuffer()
 				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -268,7 +269,7 @@ func TestPortForward(t *testing.T) {
 		// the "local" listener.
 		cmd, root := clitest.New(t, "port-forward", workspace.Name, flag)
 		clitest.SetupConfig(t, client, root)
-		buf := new(bytes.Buffer)
+		buf := newThreadSafeBuffer()
 		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -329,7 +330,7 @@ func TestPortForward(t *testing.T) {
 		// the "local" listeners.
 		cmd, root := clitest.New(t, append([]string{"port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
-		buf := new(bytes.Buffer)
+		buf := newThreadSafeBuffer()
 		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -474,7 +475,7 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	require.Equal(t, len(payload), n, "payload length does not match")
 }
 
-func waitForPortForwardReady(t *testing.T, output *bytes.Buffer) {
+func waitForPortForwardReady(t *testing.T, output *threadSafeBuffer) {
 	for i := 0; i < 100; i++ {
 		time.Sleep(250 * time.Millisecond)
 
@@ -490,4 +491,42 @@ func waitForPortForwardReady(t *testing.T, output *bytes.Buffer) {
 type addr struct {
 	network string
 	addr    string
+}
+
+type threadSafeBuffer struct {
+	b   *bytes.Buffer
+	mut *sync.RWMutex
+}
+
+func newThreadSafeBuffer() *threadSafeBuffer {
+	return &threadSafeBuffer{
+		b:   bytes.NewBuffer(nil),
+		mut: new(sync.RWMutex),
+	}
+}
+
+var _ io.Reader = &threadSafeBuffer{}
+var _ io.Writer = &threadSafeBuffer{}
+
+// Read implements io.Reader.
+func (b *threadSafeBuffer) Read(p []byte) (int, error) {
+	b.mut.RLock()
+	defer b.mut.RUnlock()
+
+	return b.b.Read(p)
+}
+
+// Write implements io.Writer.
+func (b *threadSafeBuffer) Write(p []byte) (int, error) {
+	b.mut.Lock()
+	defer b.mut.Unlock()
+
+	return b.b.Write(p)
+}
+
+func (b *threadSafeBuffer) String() string {
+	b.mut.RLock()
+	defer b.mut.RUnlock()
+
+	return b.b.String()
 }
