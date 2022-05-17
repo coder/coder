@@ -2782,41 +2782,31 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT id, created_at, updated_at, workspace_id, template_version_id, name, build_number, transition, initiator_id, provisioner_state, job_id, MAX(build_number)
-FROM
-    workspace_builds
-WHERE
-    workspace_id = ANY($1 :: uuid [ ])
-GROUP BY
-    workspace_id
-HAVING
-	build_number = MAX(build_number)
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.name, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id
+FROM (
+    SELECT
+        workspace_id, MAX(build_number) as max_build_number
+    FROM
+        workspace_builds
+    WHERE
+        workspace_id = ANY($1 :: uuid [ ])
+    GROUP BY
+        workspace_id
+) m
+JOIN
+    workspace_builds wb
+ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
 `
 
-type GetLatestWorkspaceBuildsByWorkspaceIDsRow struct {
-	ID                uuid.UUID           `db:"id" json:"id"`
-	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	Name              string              `db:"name" json:"name"`
-	BuildNumber       int32               `db:"build_number" json:"build_number"`
-	Transition        WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
-	Max               interface{}         `db:"max" json:"max"`
-}
-
-func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]GetLatestWorkspaceBuildsByWorkspaceIDsRow, error) {
+func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
 	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuildsByWorkspaceIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetLatestWorkspaceBuildsByWorkspaceIDsRow
+	var items []WorkspaceBuild
 	for rows.Next() {
-		var i GetLatestWorkspaceBuildsByWorkspaceIDsRow
+		var i WorkspaceBuild
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -2829,7 +2819,6 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.InitiatorID,
 			&i.ProvisionerState,
 			&i.JobID,
-			&i.Max,
 		); err != nil {
 			return nil, err
 		}

@@ -438,7 +438,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	return row, nil
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.GetLatestWorkspaceBuildsByWorkspaceIDsRow, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -452,24 +452,11 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 			}
 		}
 	}
-	var returnBuilds []database.GetLatestWorkspaceBuildsByWorkspaceIDsRow
+	var returnBuilds []database.WorkspaceBuild
 	for i, n := range buildNumbers {
 		if n > 0 {
 			b := builds[i]
-			returnBuilds = append(returnBuilds, database.GetLatestWorkspaceBuildsByWorkspaceIDsRow{
-				ID:                b.ID,
-				CreatedAt:         b.CreatedAt,
-				UpdatedAt:         b.UpdatedAt,
-				WorkspaceID:       b.WorkspaceID,
-				TemplateVersionID: b.TemplateVersionID,
-				Name:              b.Name,
-				BuildNumber:       b.BuildNumber,
-				Transition:        b.Transition,
-				InitiatorID:       b.InitiatorID,
-				ProvisionerState:  b.ProvisionerState,
-				JobID:             b.JobID,
-				Max:               b.BuildNumber,
-			})
+			returnBuilds = append(returnBuilds, b)
 		}
 	}
 	if len(returnBuilds) == 0 {
