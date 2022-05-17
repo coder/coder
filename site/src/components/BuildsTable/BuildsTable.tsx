@@ -73,7 +73,7 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
             const duration = getDurationInSeconds(b)
 
             return (
-              <TableRow key={b.id}>
+              <TableRow key={b.id} data-testid={`build-${b.id}`}>
                 <TableCell>{b.transition}</TableCell>
                 <TableCell>
                   <span style={{ color: theme.palette.text.secondary }}>{duration}</span>

@@ -99,7 +99,7 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(result))
   }),
   rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockWorkspaceBuild, M.MockWorkspaceBuildStop, M.MockWorkspaceBuildDelete]))
+    return res(ctx.status(200), ctx.json(M.MockBuilds))
   }),
 
   // workspace builds
