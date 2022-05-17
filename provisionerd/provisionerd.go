@@ -452,6 +452,8 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	}
 }
 
+// ReadmeFile is the location we look for to extract documentation from template
+// versions.
 const ReadmeFile = "README.md"
 
 func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
@@ -467,7 +469,7 @@ func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
 			JobId: job.GetJobId(),
 			Logs: []*proto.Log{{
 				Source:    proto.LogSource_PROVISIONER_DAEMON,
-				Level:     sdkproto.LogLevel_INFO,
+				Level:     sdkproto.LogLevel_DEBUG,
 				Stage:     "No README.md provided",
 				CreatedAt: time.Now().UTC().UnixMilli(),
 			}},
@@ -484,7 +486,7 @@ func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
 		Logs: []*proto.Log{{
 			Source:    proto.LogSource_PROVISIONER_DAEMON,
 			Level:     sdkproto.LogLevel_INFO,
-			Stage:     "README.md detected",
+			Stage:     "Adding README.md...",
 			CreatedAt: time.Now().UTC().UnixMilli(),
 		}},
 		Readme: fi,
