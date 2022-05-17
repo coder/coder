@@ -291,12 +291,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:96:6
+// From codersdk/workspaces.go:102:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:116:6
+// From codersdk/workspaces.go:122:6
 export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
@@ -426,6 +426,11 @@ export interface WorkspaceBuild {
   readonly transition: string
   readonly initiator_id: string
   readonly job: ProvisionerJob
+}
+
+// From codersdk/workspaces.go:55:6
+export interface WorkspaceBuildsRequest extends Pagination {
+  readonly WorkspaceID: string
 }
 
 // From codersdk/workspaceresources.go:23:6

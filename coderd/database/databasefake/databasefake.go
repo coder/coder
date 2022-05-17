@@ -477,16 +477,55 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	return returnBuilds, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
+	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	history := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() == workspaceID.String() {
+		if workspaceBuild.WorkspaceID.String() == params.WorkspaceID.String() {
 			history = append(history, workspaceBuild)
 		}
 	}
+
+	// Order by build_number
+	slices.SortFunc(history, func(a, b database.WorkspaceBuild) bool {
+		// use greater than since we want descending order
+		return a.BuildNumber > b.BuildNumber
+	})
+
+	if params.AfterID != uuid.Nil {
+		found := false
+		for i, v := range history {
+			if v.ID == params.AfterID {
+				// We want to return all builds after index i.
+				history = history[i+1:]
+				found = true
+				break
+			}
+		}
+
+		// If no builds after the time, then we return an empty list.
+		if !found {
+			return nil, sql.ErrNoRows
+		}
+	}
+
+	if params.OffsetOpt > 0 {
+		if int(params.OffsetOpt) > len(history)-1 {
+			return nil, sql.ErrNoRows
+		}
+		history = history[params.OffsetOpt:]
+	}
+
+	if params.LimitOpt > 0 {
+		if int(params.LimitOpt) > len(history) {
+			params.LimitOpt = int32(len(history))
+		}
+		history = history[:params.LimitOpt]
+	}
+
 	if len(history) == 0 {
 		return nil, sql.ErrNoRows
 	}

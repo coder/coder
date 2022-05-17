@@ -33,7 +33,31 @@ SELECT
 FROM
 	workspace_builds
 WHERE
-	workspace_id = $1;
+	workspace_builds.workspace_id = $1
+    AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN @after_id :: uuid != '00000000-00000000-00000000-00000000' THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the build_number field, so select all
+			-- rows after the cursor.
+			build_number > (
+				SELECT
+					build_number, id
+				FROM
+					workspace_builds
+				WHERE
+					id = @after_id
+			)
+		)
+		ELSE true
+END
+ORDER BY
+    build_number desc OFFSET @offset_opt
+LIMIT
+    -- A null limit means "no limit", so -1 means return all
+    NULLIF(@limit_opt :: int, -1);
 
 -- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT

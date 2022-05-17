@@ -34,7 +34,17 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	builds, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
+		return
+	}
+	req := database.GetWorkspaceBuildByWorkspaceIDParams{
+		WorkspaceID: workspace.ID,
+		AfterID:     paginationParams.AfterID,
+		OffsetOpt:   int32(paginationParams.Offset),
+		LimitOpt:    int32(paginationParams.Limit),
+	}
+	builds, err := api.Database.GetWorkspaceBuildByWorkspaceID(r.Context(), req)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

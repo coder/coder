@@ -2890,11 +2890,47 @@ SELECT
 FROM
 	workspace_builds
 WHERE
-	workspace_id = $1
+	workspace_builds.workspace_id = $1
+    AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the build_number field, so select all
+			-- rows after the cursor.
+			build_number > (
+				SELECT
+					build_number, id
+				FROM
+					workspace_builds
+				WHERE
+					id = $2
+			)
+		)
+		ELSE true
+END
+ORDER BY
+    build_number desc OFFSET $3
+LIMIT
+    -- A null limit means "no limit", so -1 means return all
+    NULLIF($4 :: int, -1)
 `
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildByWorkspaceID, workspaceID)
+type GetWorkspaceBuildByWorkspaceIDParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AfterID     uuid.UUID `db:"after_id" json:"after_id"`
+	OffsetOpt   int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDParams) ([]WorkspaceBuild, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildByWorkspaceID,
+		arg.WorkspaceID,
+		arg.AfterID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
