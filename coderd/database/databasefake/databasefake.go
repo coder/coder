@@ -425,14 +425,14 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	defer q.mutex.RUnlock()
 
 	var row database.WorkspaceBuild
-	var build_num int32 = 0
+	var buildNum int32
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > build_num {
+		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
 			row = workspaceBuild
-			build_num = workspaceBuild.BuildNumber
+			buildNum = workspaceBuild.BuildNumber
 		}
 	}
-	if build_num == 0 {
+	if buildNum == 0 {
 		return database.WorkspaceBuild{}, sql.ErrNoRows
 	}
 	return row, nil
@@ -443,17 +443,17 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	defer q.mutex.RUnlock()
 
 	builds := make(map[uuid.UUID]database.WorkspaceBuild)
-	build_numbers := make(map[uuid.UUID]int32)
+	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
-			if id.String() == workspaceBuild.WorkspaceID.String() && workspaceBuild.BuildNumber > build_numbers[id] {
+			if id.String() == workspaceBuild.WorkspaceID.String() && workspaceBuild.BuildNumber > buildNumbers[id] {
 				builds[id] = workspaceBuild
-				build_numbers[id] = workspaceBuild.BuildNumber
+				buildNumbers[id] = workspaceBuild.BuildNumber
 			}
 		}
 	}
 	var returnBuilds []database.GetLatestWorkspaceBuildsByWorkspaceIDsRow
-	for i, n := range build_numbers {
+	for i, n := range buildNumbers {
 		if n > 0 {
 			b := builds[i]
 			returnBuilds = append(returnBuilds, database.GetLatestWorkspaceBuildsByWorkspaceIDsRow{

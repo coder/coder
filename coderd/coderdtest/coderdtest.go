@@ -301,7 +301,6 @@ func CreateWorkspaceBuild(
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
 	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
-
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: transition,
 	}
