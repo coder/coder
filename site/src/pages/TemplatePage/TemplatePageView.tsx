@@ -10,7 +10,7 @@ dayjs.extend(relativeTime)
 export const Language = {
   createButton: "Create Template",
   emptyViewCreate: "to standardize development workspaces for your team.",
-  emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
+  emptyViewNoPerms: "No template have been created! Contact your Coder administrator.",
 }
 
 export interface TemplatePageViewProps {
@@ -20,7 +20,7 @@ export interface TemplatePageViewProps {
 }
 
 export const TemplatePageView: React.FC<TemplatePageViewProps> = (props) => {
-  //   const styles = useStyles()
+  // const styles = useStyles()
   return (
     <Stack spacing={4}>
       <Margins>Template page! {props.template?.id}</Margins>

@@ -1,4 +1,5 @@
 import Avatar from "@material-ui/core/Avatar"
+import Box from "@material-ui/core/Box"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
@@ -15,12 +16,17 @@ import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
+import { TableLoader } from "../../components/TableLoader/TableLoader"
 import { firstLetter } from "../../util/firstLetter"
 
 dayjs.extend(relativeTime)
 
 export const Language = {
   createButton: "Create Template",
+  developerCount: (ownerCount: number): string => {
+    return `${ownerCount} developer${ownerCount !== 1 && "s"}`
+  },
+  emptyViewCreateCTA: "Create a template",
   emptyViewCreate: "to standardize development workspaces for your team.",
   emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
 }
@@ -29,7 +35,6 @@ export interface TemplatesPageViewProps {
   loading?: boolean
   canCreateTemplate?: boolean
   templates?: TypesGen.Template[]
-  error?: unknown
 }
 
 export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
@@ -49,6 +54,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
             </TableRow>
           </TableHead>
           <TableBody>
+            {props.loading && <TableLoader />}
             {!props.loading && !props.templates?.length && (
               <TableRow>
                 <TableCell colSpan={999}>
@@ -56,7 +62,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                     {props.canCreateTemplate ? (
                       <span>
                         <Link component={RouterLink} to="/templates/new">
-                          Create a template
+                          {Language.emptyViewCreateCTA}
                         </Link>
                         &nbsp;{Language.emptyViewCreate}
                       </span>
@@ -67,27 +73,25 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                 </TableCell>
               </TableRow>
             )}
-            {props.templates?.map((template) => {
-              return (
-                <TableRow key={template.id} className={styles.templateRow}>
-                  <TableCell>
-                    <div className={styles.templateName}>
-                      <Avatar variant="square" className={styles.templateAvatar}>
-                        {firstLetter(template.name)}
-                      </Avatar>
-                      <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
-                        <b>{template.name}</b>
-                        <span>{template.description}</span>
-                      </Link>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {template.workspace_owner_count} developer{template.workspace_owner_count !== 1 && "s"}
-                  </TableCell>
-                  <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
-                </TableRow>
-              )
-            })}
+            {props.templates?.map((template) => (
+              <TableRow key={template.id} className={styles.templateRow}>
+                <TableCell>
+                  <Box alignItems="center" display="flex">
+                    <Avatar variant="square" className={styles.templateAvatar}>
+                      {firstLetter(template.name)}
+                    </Avatar>
+                    <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
+                      <b>{template.name}</b>
+                      <span>{template.description}</span>
+                    </Link>
+                  </Box>
+                </TableCell>
+
+                <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
+
+                <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </Margins>
@@ -132,10 +136,6 @@ const useStyles = makeStyles((theme) => ({
     width: 24,
     height: 24,
     fontSize: 16,
-  },
-  templateName: {
-    display: "flex",
-    alignItems: "center",
   },
   templateLink: {
     display: "flex",
