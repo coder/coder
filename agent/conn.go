@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/peer"
 	"github.com/coder/coder/peerbroker/proto"
+	"github.com/google/uuid"
 )
 
 // ReconnectingPTYRequest is sent from the client to the server
@@ -78,7 +79,8 @@ func (c *Conn) SSHClient() (*ssh.Client, error) {
 // proxies it through the provided net.Conn.
 func (c *Conn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	u := &url.URL{
-		Scheme: network,
+		Scheme:   network,
+		RawQuery: "test=" + uuid.Must(uuid.NewRandom()).String(),
 	}
 	if strings.HasPrefix(network, "unix") {
 		u.Path = addr

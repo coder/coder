@@ -298,22 +298,20 @@ func TestAgent(t *testing.T) {
 							return
 						}
 
-						testAccept(t, c)
+						go testAccept(t, c)
 					}
 				}()
 
-				// Try to dial the listener over WebRTC
+				// Dial the listener over WebRTC twice and test out of order
 				conn := setupAgent(t, agent.Metadata{}, 0)
 				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 				require.NoError(t, err)
 				defer conn1.Close()
-				testDial(t, conn1)
-
-				// Dial again using the same WebRTC client
 				conn2, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 				require.NoError(t, err)
 				defer conn2.Close()
 				testDial(t, conn2)
+				testDial(t, conn1)
 			})
 		}
 	})
@@ -418,30 +416,28 @@ var dialTestPayload = []byte("dean-was-here123")
 func testDial(t *testing.T, c net.Conn) {
 	t.Helper()
 
-	// Dials will write and then expect echo back
-	n, err := c.Write(dialTestPayload)
-	require.NoError(t, err, "write test payload")
-	require.Equal(t, len(dialTestPayload), n, "test payload length does not match")
-
-	b := make([]byte, len(dialTestPayload)+16)
-	n, err = c.Read(b)
-	require.NoError(t, err, "read test payload")
-	require.Equal(t, len(dialTestPayload), n, "read payload length does not match")
-	require.Equal(t, dialTestPayload, b[:n])
+	assertWritePayload(t, c, dialTestPayload)
+	assertReadPayload(t, c, dialTestPayload)
 }
 
 func testAccept(t *testing.T, c net.Conn) {
 	t.Helper()
 	defer c.Close()
 
-	// Accepts will read then echo
-	b := make([]byte, len(dialTestPayload)+16)
-	n, err := c.Read(b)
-	require.NoError(t, err, "read test payload")
-	require.Equal(t, len(dialTestPayload), n, "read payload length does not match")
-	require.Equal(t, dialTestPayload, b[:n])
+	assertReadPayload(t, c, dialTestPayload)
+	assertWritePayload(t, c, dialTestPayload)
+}
 
-	n, err = c.Write(dialTestPayload)
-	require.NoError(t, err, "write test payload")
-	require.Equal(t, len(dialTestPayload), n, "test payload length does not match")
+func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
+	b := make([]byte, len(payload)+16)
+	n, err := r.Read(b)
+	require.NoError(t, err, "read payload")
+	require.Equal(t, len(payload), n, "read payload length does not match")
+	require.Equal(t, payload, b[:n])
+}
+
+func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
+	n, err := w.Write(payload)
+	require.NoError(t, err, "write payload")
+	require.Equal(t, len(payload), n, "payload length does not match")
 }

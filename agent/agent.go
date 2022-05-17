@@ -665,7 +665,10 @@ func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
 		}
 	}
 
-	nconn, err := net.Dial(network, addr)
+	a.logger.Warn(ctx, "yeah", slog.F("network", network), slog.F("addr", addr))
+
+	d := net.Dialer{Timeout: 3 * time.Second}
+	nconn, err := d.DialContext(ctx, network, addr)
 	if err != nil {
 		_ = writeError(xerrors.Errorf("dial '%v://%v': %w", network, addr, err))
 		return

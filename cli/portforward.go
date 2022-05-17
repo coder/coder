@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
@@ -72,6 +75,13 @@ func portForward() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
 			}
+			if len(specs) == 0 {
+				err = cmd.Help()
+				if err != nil {
+					return xerrors.Errorf("generate help output: %w", err)
+				}
+				return xerrors.New("no port-forwards requested")
+			}
 
 			fmt.Println("SPECS:")
 			for _, spec := range specs {
@@ -118,13 +128,26 @@ func portForward() *cobra.Command {
 			defer conn.Close()
 
 			// Start all listeners
-			var wg sync.WaitGroup
-			for _, spec := range specs {
+			var (
+				ctx, cancel       = context.WithCancel(cmd.Context())
+				wg                sync.WaitGroup
+				listeners         = make([]net.Listener, len(specs))
+				closeAllListeners = func() {
+					for _, l := range listeners {
+						if l == nil {
+							continue
+						}
+						_ = l.Close()
+					}
+				}
+			)
+			defer cancel()
+			for i, spec := range specs {
 				var (
 					l   net.Listener
 					err error
 				)
-				fmt.Printf("Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
+				fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 				switch spec.listenNetwork {
 				case "tcp":
 					l, err = net.Listen(spec.listenNetwork, spec.listenAddress)
@@ -145,11 +168,14 @@ func portForward() *cobra.Command {
 				case "unix":
 					l, err = net.Listen(spec.listenNetwork, spec.listenAddress)
 				default:
+					closeAllListeners()
 					return xerrors.Errorf("unknown listen network %q", spec.listenNetwork)
 				}
 				if err != nil {
+					closeAllListeners()
 					return xerrors.Errorf("listen '%v://%v': %w", spec.listenNetwork, spec.listenAddress, err)
 				}
+				listeners[i] = l
 
 				wg.Add(1)
 				go func(spec portForwardSpec) {
@@ -157,28 +183,48 @@ func portForward() *cobra.Command {
 					for {
 						netConn, err := l.Accept()
 						if err != nil {
-							fmt.Printf("Error accepting connection from '%v://%v': %+v\n", spec.listenNetwork, spec.listenAddress, err)
-							fmt.Println("Killing listener")
+							fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %+v\n", spec.listenNetwork, spec.listenAddress, err)
+							fmt.Fprintln(cmd.OutOrStderr(), "Killing listener")
 							return
 						}
 
 						go func(netConn net.Conn) {
 							defer netConn.Close()
-							remoteConn, err := conn.DialContext(cmd.Context(), spec.dialNetwork, spec.dialAddress)
+							remoteConn, err := conn.DialContext(ctx, spec.dialNetwork, spec.dialAddress)
 							if err != nil {
-								fmt.Printf("Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
+								fmt.Fprintf(cmd.OutOrStderr(), "Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
 								return
 							}
 							defer remoteConn.Close()
 
-							coderagent.Bicopy(cmd.Context(), netConn, remoteConn)
+							coderagent.Bicopy(ctx, netConn, remoteConn)
 						}(netConn)
 					}
 				}(spec)
 			}
 
+			// Wait for the context to be canceled or for a signal and close
+			// all listeners.
+			var closeErr error
+			go func() {
+				sigs := make(chan os.Signal, 1)
+				signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+				select {
+				case <-ctx.Done():
+					closeErr = ctx.Err()
+				case <-sigs:
+					fmt.Fprintln(cmd.OutOrStderr(), "Received signal, closing all listeners and active connections")
+					closeErr = xerrors.New("signal received")
+				}
+
+				cancel()
+				closeAllListeners()
+			}()
+
+			fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
 			wg.Wait()
-			return nil
+			return closeErr
 		},
 	}
 
