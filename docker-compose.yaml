@@ -5,8 +5,10 @@ services:
     ports:
       - "7080:7080"
     environment:
-      CODER_PG_CONNECTION_URL: "postgresql://username:password@database/coder?sslmode=disable"
+      CODER_PG_CONNECTION_URL: "postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}@database/${POSTGRES_DB:-coder}?sslmode=disable"
       CODER_ADDRESS: "0.0.0.0:7080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       database:
         condition: service_healthy
