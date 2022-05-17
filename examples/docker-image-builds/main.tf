@@ -31,7 +31,7 @@ variable "step1_docker_host_warning" {
 variable "step2_arch" {
   description = "arch: What archicture is your Docker host on?"
   validation {
-    condition     = contains(["amd64", "arm64", "armv7"], var.arch)
+    condition     = contains(["amd64", "arm64", "armv7"], var.step2_arch)
     error_message = "Value must be amd64, arm64 or armv7."
   }
   sensitive = true
