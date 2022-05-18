@@ -31,9 +31,9 @@ CPU core and 2 GB RAM:
 > Make sure you have the appropriate credentials for your cloud provider (e.g.,
 > access key ID and secret access key for AWS).
 
-You can set up a demo deployment, a production deployment, or a system service:
+You can set up a temporary deployment, a production deployment, or a system service:
 
-- To set up a **demo deployment**, start with dev mode (all data is in-memory and is
+- To set up a **temporary deployment**, start with dev mode (all data is in-memory and is
 destroyed on exit):
 
   ```bash
