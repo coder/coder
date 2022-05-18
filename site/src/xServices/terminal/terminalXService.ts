@@ -14,13 +14,16 @@ export interface TerminalContext {
   websocketError?: Error | unknown
 
   // Assigned by connecting!
+  // The workspace agent is entirely optional.  If the agent is omitted the
+  // first agent will be used.
+  agentName?: string
   username?: string
   workspaceName?: string
   reconnection?: string
 }
 
 export type TerminalEvent =
-  | { type: "CONNECT"; reconnection?: string; workspaceName?: string; username?: string }
+  | { type: "CONNECT"; agentName?: string; reconnection?: string; workspaceName?: string; username?: string }
   | { type: "WRITE"; request: Types.ReconnectingPTYRequest }
   | { type: "READ"; data: ArrayBuffer }
   | { type: "DISCONNECT" }
@@ -153,7 +156,7 @@ export const terminalMachine =
         getOrganizations: API.getOrganizations,
         getWorkspace: async (context) => {
           if (!context.organizations || !context.workspaceName) {
-            throw new Error("organizations or workspace not set")
+            throw new Error("organizations or workspace name not set")
           }
           return API.getWorkspaceByOwnerAndName(context.organizations[0].id, context.username, context.workspaceName)
         },
@@ -161,11 +164,6 @@ export const terminalMachine =
           if (!context.workspace || !context.workspaceName) {
             throw new Error("workspace or workspace name is not set")
           }
-          // The workspace name is in the format:
-          // <workspace name>[.<agent name>]
-          // The workspace agent is entirely optional.
-          const workspaceNameParts = context.workspaceName.split(".")
-          const agentName = workspaceNameParts[1]
 
           const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
 
@@ -174,10 +172,10 @@ export const terminalMachine =
               if (!resource.agents || resource.agents.length < 1) {
                 return
               }
-              if (!agentName) {
+              if (!context.agentName) {
                 return resource.agents[0]
               }
-              return resource.agents.find((agent) => agent.name === agentName)
+              return resource.agents.find((agent) => agent.name === context.agentName)
             })
             .filter((a) => a)[0]
           if (!agent) {
@@ -218,6 +216,7 @@ export const terminalMachine =
       actions: {
         assignConnection: assign((context, event) => ({
           ...context,
+          agentName: event.agentName ?? context.agentName,
           reconnection: event.reconnection ?? context.reconnection,
           workspaceName: event.workspaceName ?? context.workspaceName,
         })),
