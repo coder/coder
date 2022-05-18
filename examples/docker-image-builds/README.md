@@ -16,7 +16,7 @@ Pick this template in `coder templates init` and follow instructions.
 
 ## Adding images
 
-Create a Dockerfile (e.g `images/golang.Dockerfile`)
+Create a Dockerfile (e.g `images/golang.Dockerfile`):
 
 ```sh
 vim images/golang.Dockerfile
