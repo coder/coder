@@ -84,18 +84,22 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/me/metadata":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/turn":                     {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}":            {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/{workspaceagent}/":           {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/dial":       {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/iceservers": {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/pty":        {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"GET:/api/v2/workspaceresources/{workspaceresource}": {NoAuthorize: true},
+		"GET:/api/v2/workspaceresources/{workspaceresource}":             {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}":                   {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/logs":              {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/resources":         {NoAuthorize: true},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/state":             {NoAuthorize: true},
+		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel":          {NoAuthorize: true},
+		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {NoAuthorize: true},
 
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
 
-		"POST:/api/v2/users/{user}/organizations/":                          {NoAuthorize: true},
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templates":               {NoAuthorize: true},
@@ -133,6 +137,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/users/{user}/organizations":                     {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspaces":                        {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 		"GET:/api/v2/organizations/{organization}/workspaces/{user}": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
+		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspace}": {
+			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
 		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
@@ -182,6 +188,15 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+	}
+
+	for k, v := range assertRoute {
+		noTrailSlash := strings.TrimRight(k, "/")
+		if _, ok := assertRoute[noTrailSlash]; ok && noTrailSlash != k {
+			t.Errorf("route %q & %q is declared twice", noTrailSlash, k)
+			t.FailNow()
+		}
+		assertRoute[noTrailSlash] = v
 	}
 
 	c, _ := srv.Config.Handler.(*chi.Mux)

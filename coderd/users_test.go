@@ -599,7 +599,9 @@ func TestWorkspacesByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		workspaces, err := client.WorkspacesByUser(context.Background(), codersdk.Me)
+		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
@@ -628,11 +630,11 @@ func TestWorkspacesByUser(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		workspaces, err := newUserClient.WorkspacesByUser(context.Background(), codersdk.Me)
+		workspaces, err := newUserClient.Workspaces(context.Background(), codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 
-		workspaces, err = client.WorkspacesByUser(context.Background(), codersdk.Me)
+		workspaces, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})

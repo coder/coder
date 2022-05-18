@@ -16,6 +16,8 @@ provider "docker" {
 }
 
 provider "coder" {
+  # The below assumes your Coder deployment is running in docker-compose.
+  # If this is not the case, either comment or edit the below.
   url = "http://host.docker.internal:7080"
 }
 
