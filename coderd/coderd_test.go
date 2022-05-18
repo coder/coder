@@ -35,7 +35,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
 
 	authorizer := &fakeAuthorizer{}
-	srv, client := coderdtest.NewMemoryCoderd(t, &coderdtest.Options{
+	srv, client := coderdtest.NewWithServer(t, &coderdtest.Options{
 		Authorizer: authorizer,
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
