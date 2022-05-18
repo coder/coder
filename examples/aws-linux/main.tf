@@ -11,6 +11,9 @@ variable "access_key" {
   description = <<EOT
 Create an AWS access key to provision resources with Coder:
 - https://console.aws.amazon.com/iam/home#/users
+
+See the template README for an example permissions policy,
+if needed.
   
 AWS Access Key ID
 EOT
@@ -138,5 +141,7 @@ resource "aws_instance" "dev" {
   user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    # Required if you are using our example policy, see template README
+    Coder_Provisioned = "true"
   }
 }

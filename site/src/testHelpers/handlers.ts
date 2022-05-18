@@ -17,6 +17,9 @@ export const handlers = [
   rest.get("/api/v2/organizations/:organizationId/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
+  rest.get("/api/v2/organizations/:organizationId/templates", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json([M.MockTemplate]))
+  }),
 
   // templates
   rest.get("/api/v2/templates/:templateId", async (req, res, ctx) => {
@@ -32,6 +35,9 @@ export const handlers = [
   }),
   rest.post("/api/v2/users/me/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
+  }),
+  rest.get("/api/v2/workspaces", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json([M.MockWorkspace]))
   }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockOrganization]))
@@ -68,10 +74,22 @@ export const handlers = [
 
     return res(ctx.status(200), ctx.json(response))
   }),
+  rest.get("/api/v2/users/:userId/gitsshkey", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockGitSSHKey))
+  }),
 
   // workspaces
   rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockWorkspace))
+    if (req.params.workspaceName !== M.MockWorkspace.name) {
+      return res(
+        ctx.status(404),
+        ctx.json({
+          message: "workspace not found",
+        }),
+      )
+    } else {
+      return res(ctx.status(200), ctx.json(M.MockWorkspace))
+    }
   }),
   rest.get("/api/v2/workspaces/:workspaceId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
@@ -91,6 +109,9 @@ export const handlers = [
     }
     const result = transitionToBuild[transition as WorkspaceBuildTransition]
     return res(ctx.status(200), ctx.json(result))
+  }),
+  rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockBuilds))
   }),
 
   // workspace builds

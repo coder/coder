@@ -28,7 +28,7 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "space-between",
     alignItems: "center",
     background: theme.palette.background.default,
-    color: theme.palette.codeBlock.contrastText,
+    color: theme.palette.primary.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 13,
     padding: theme.spacing(2),

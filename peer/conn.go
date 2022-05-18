@@ -68,7 +68,7 @@ func newWithClientOrServer(servers []webrtc.ICEServer, client bool, opts *ConnOp
 		closed:                          make(chan struct{}),
 		closedRTC:                       make(chan struct{}),
 		closedICE:                       make(chan struct{}),
-		dcOpenChannel:                   make(chan *webrtc.DataChannel),
+		dcOpenChannel:                   make(chan *webrtc.DataChannel, 8),
 		dcDisconnectChannel:             make(chan struct{}),
 		dcFailedChannel:                 make(chan struct{}),
 		localCandidateChannel:           make(chan webrtc.ICECandidateInit),
@@ -264,12 +264,13 @@ func (c *Conn) init() error {
 		}()
 	})
 	c.rtc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		select {
-		case <-c.closed:
-			return
-		case c.dcOpenChannel <- dc:
-		default:
-		}
+		go func() {
+			select {
+			case <-c.closed:
+				return
+			case c.dcOpenChannel <- dc:
+			}
+		}()
 	})
 	_, err := c.pingChannel()
 	if err != nil {
@@ -469,8 +470,8 @@ func (c *Conn) Accept(ctx context.Context) (*Channel, error) {
 	return newChannel(c, dataChannel, &ChannelOptions{}), nil
 }
 
-// Dial creates a new DataChannel.
-func (c *Conn) Dial(ctx context.Context, label string, opts *ChannelOptions) (*Channel, error) {
+// CreateChannel creates a new DataChannel.
+func (c *Conn) CreateChannel(ctx context.Context, label string, opts *ChannelOptions) (*Channel, error) {
 	if opts == nil {
 		opts = &ChannelOptions{}
 	}

@@ -14,7 +14,15 @@ terraform {
 variable "step1_use_kubeconfig" {
   type        = bool
   sensitive   = true
-  description = "Use local ~/.kube/config? (true/false)"
+  description = <<-EOF
+  Use host kubeconfig? (true/false)
+
+  If true, a valid "~/.kube/config" must be present on the Coder host. This
+  is likely not your local machine unless you are using `coder server --dev.`
+
+  If false, proceed for instructions creating a ServiceAccount on your existing
+  Kubernetes cluster.
+  EOF
 }
 
 variable "step2_cluster_host" {

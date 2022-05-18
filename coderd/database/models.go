@@ -436,6 +436,7 @@ type Template struct {
 	Name            string          `db:"name" json:"name"`
 	Provisioner     ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description     string          `db:"description" json:"description"`
 }
 
 type TemplateVersion struct {
@@ -445,7 +446,7 @@ type TemplateVersion struct {
 	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
+	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 }
 
@@ -500,8 +501,7 @@ type WorkspaceBuild struct {
 	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
 	Name              string              `db:"name" json:"name"`
-	BeforeID          uuid.NullUUID       `db:"before_id" json:"before_id"`
-	AfterID           uuid.NullUUID       `db:"after_id" json:"after_id"`
+	BuildNumber       int32               `db:"build_number" json:"build_number"`
 	Transition        WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
 	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`

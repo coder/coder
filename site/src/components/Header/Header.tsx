@@ -68,7 +68,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     height: 126,
-    background: theme.palette.hero.main,
+    background: theme.palette.background.default,
     boxShadow: theme.shadows[3],
   },
   topInner: {

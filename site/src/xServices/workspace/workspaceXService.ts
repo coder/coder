@@ -1,7 +1,15 @@
-import { assign, createMachine } from "xstate"
+import { assign, createMachine, send } from "xstate"
+import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
 import { displayError } from "../../components/GlobalSnackbar/utils"
+
+const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
+  // Cloning builds to not change the origin object with the sort()
+  return [...builds].sort((a, b) => {
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  })[0]
+}
 
 const Language = {
   refreshTemplateError: "Error updating workspace: latest template could not be fetched.",
@@ -23,6 +31,10 @@ export interface WorkspaceContext {
   refreshWorkspaceError: Error | unknown
   refreshTemplateError: Error | unknown
   getResourcesError: Error | unknown
+  // Builds
+  builds?: TypesGen.WorkspaceBuild[]
+  getBuildsError?: Error | unknown
+  loadMoreBuildsError?: Error | unknown
 }
 
 export type WorkspaceEvent =
@@ -31,6 +43,8 @@ export type WorkspaceEvent =
   | { type: "STOP" }
   | { type: "RETRY" }
   | { type: "UPDATE" }
+  | { type: "LOAD_MORE_BUILDS" }
+  | { type: "REFRESH_TIMELINE" }
 
 export const workspaceMachine = createMachine(
   {
@@ -59,6 +73,12 @@ export const workspaceMachine = createMachine(
         }
         getResources: {
           data: TypesGen.WorkspaceResource[]
+        }
+        getBuilds: {
+          data: TypesGen.WorkspaceBuild[]
+        }
+        loadMoreBuilds: {
+          data: TypesGen.WorkspaceBuild[]
         }
       },
     },
@@ -99,7 +119,7 @@ export const workspaceMachine = createMachine(
                 invoke: {
                   id: "refreshWorkspace",
                   src: "refreshWorkspace",
-                  onDone: { target: "waiting", actions: "assignWorkspace" },
+                  onDone: { target: "waiting", actions: ["refreshTimeline", "assignWorkspace"] },
                   onError: { target: "waiting", actions: "assignRefreshWorkspaceError" },
                 },
               },
@@ -165,7 +185,7 @@ export const workspaceMachine = createMachine(
                   src: "startWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: "assignBuild",
+                    actions: ["assignBuild", "refreshTimeline"],
                   },
                   onError: {
                     target: "idle",
@@ -180,7 +200,7 @@ export const workspaceMachine = createMachine(
                   src: "stopWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: "assignBuild",
+                    actions: ["assignBuild", "refreshTimeline"],
                   },
                   onError: {
                     target: "idle",
@@ -220,6 +240,55 @@ export const workspaceMachine = createMachine(
               waiting: {
                 after: {
                   5000: "gettingResources",
+                },
+              },
+            },
+          },
+
+          timeline: {
+            initial: "gettingBuilds",
+            states: {
+              idle: {},
+              gettingBuilds: {
+                entry: "clearGetBuildsError",
+                invoke: {
+                  src: "getBuilds",
+                  onDone: {
+                    actions: ["assignBuilds"],
+                    target: "loadedBuilds",
+                  },
+                  onError: {
+                    actions: ["assignGetBuildsError"],
+                    target: "idle",
+                  },
+                },
+              },
+              loadedBuilds: {
+                initial: "idle",
+                states: {
+                  idle: {
+                    on: {
+                      LOAD_MORE_BUILDS: {
+                        target: "loadingMoreBuilds",
+                        cond: "hasMoreBuilds",
+                      },
+                      REFRESH_TIMELINE: "#workspaceState.ready.timeline.gettingBuilds",
+                    },
+                  },
+                  loadingMoreBuilds: {
+                    entry: "clearLoadMoreBuildsError",
+                    invoke: {
+                      src: "loadMoreBuilds",
+                      onDone: {
+                        actions: ["assignNewBuilds"],
+                        target: "idle",
+                      },
+                      onError: {
+                        actions: ["assignLoadMoreBuildsError"],
+                        target: "idle",
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -310,9 +379,54 @@ export const workspaceMachine = createMachine(
         assign({
           getResourcesError: undefined,
         }),
+      // Timeline
+      assignBuilds: assign({
+        builds: (_, event) => event.data,
+      }),
+      assignGetBuildsError: assign({
+        getBuildsError: (_, event) => event.data,
+      }),
+      clearGetBuildsError: assign({
+        getBuildsError: (_) => undefined,
+      }),
+      assignNewBuilds: assign({
+        builds: (context, event) => {
+          const oldBuilds = context.builds
+
+          if (!oldBuilds) {
+            throw new Error("Builds not loaded")
+          }
+
+          return [...oldBuilds, ...event.data]
+        },
+      }),
+      assignLoadMoreBuildsError: assign({
+        loadMoreBuildsError: (_, event) => event.data,
+      }),
+      clearLoadMoreBuildsError: assign({
+        loadMoreBuildsError: (_) => undefined,
+      }),
+      refreshTimeline: pure((context, event) => {
+        // No need to refresh the timeline if it is not loaded
+        if (!context.builds) {
+          return
+        }
+        // When it is a refresh workspace event, we want to check if the latest
+        // build was updated to not over fetch the builds
+        if (event.type === "done.invoke.refreshWorkspace") {
+          const latestBuildInTimeline = latestBuild(context.builds)
+          const isUpdated = event.data?.latest_build.updated_at !== latestBuildInTimeline.updated_at
+          if (isUpdated) {
+            return send({ type: "REFRESH_TIMELINE" })
+          }
+        } else {
+          return send({ type: "REFRESH_TIMELINE" })
+        }
+      }),
     },
     guards: {
       triedToStart: (context) => context.workspace?.latest_build.transition === "start",
+      hasMoreBuilds: (_) => false,
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -358,6 +472,20 @@ export const workspaceMachine = createMachine(
           return await API.getWorkspaceResources(context.workspace.latest_build.id)
         } else {
           throw Error("Cannot fetch workspace resources without workspace")
+        }
+      },
+      getBuilds: async (context) => {
+        if (context.workspace) {
+          return await API.getWorkspaceBuilds(context.workspace.id)
+        } else {
+          throw Error("Cannot refresh workspace without id")
+        }
+      },
+      loadMoreBuilds: async (context) => {
+        if (context.workspace) {
+          return await API.getWorkspaceBuilds(context.workspace.id)
+        } else {
+          throw Error("Cannot refresh workspace without id")
         }
       },
     },

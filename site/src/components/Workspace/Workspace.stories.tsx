@@ -2,9 +2,7 @@ import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import React from "react"
 import {
-  MockOrganization,
   MockOutdatedWorkspace,
-  MockTemplate,
   MockWorkspace,
   MockWorkspaceResource,
   MockWorkspaceResource2,
@@ -21,8 +19,6 @@ const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />
 
 export const Started = Template.bind({})
 Started.args = {
-  organization: MockOrganization,
-  template: MockTemplate,
   workspace: MockWorkspace,
   handleStart: action("start"),
   handleStop: action("stop"),

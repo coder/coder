@@ -107,12 +107,12 @@ func TestListRoles(t *testing.T) {
 	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
-	otherOrg, err := client.CreateOrganization(ctx, admin.UserID, codersdk.CreateOrganizationRequest{
+	otherOrg, err := client.CreateOrganization(ctx, admin.UserID.String(), codersdk.CreateOrganizationRequest{
 		Name: "other",
 	})
 	require.NoError(t, err, "create org")
 
-	const unauth = "unauthorized"
+	const unauth = "forbidden"
 	const notMember = "not a member of the organization"
 
 	testCases := []struct {
@@ -191,7 +191,7 @@ func TestListRoles(t *testing.T) {
 			if c.AuthorizedError != "" {
 				var apiErr *codersdk.Error
 				require.ErrorAs(t, err, &apiErr)
-				require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+				require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 				require.Contains(t, apiErr.Message, c.AuthorizedError)
 			} else {
 				require.NoError(t, err)

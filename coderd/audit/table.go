@@ -69,6 +69,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":              ActionTrack,
 		"provisioner":       ActionTrack,
 		"active_version_id": ActionTrack,
+		"description":       ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,
@@ -77,7 +78,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"name":            ActionTrack,
-		"description":     ActionTrack,
+		"readme":          ActionTrack,
 		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
 	},
 	&database.User{}: {

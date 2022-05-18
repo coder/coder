@@ -80,13 +80,14 @@ export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "runni
 
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
-  created_at: "",
-  updated_at: "",
+  created_at: new Date().toString(),
+  updated_at: new Date().toString(),
   organization_id: MockOrganization.id,
   name: "Test Template",
   provisioner: MockProvisioner.id,
   active_version_id: "",
   workspace_owner_count: 1,
+  description: "This is a test description.",
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
@@ -109,28 +110,31 @@ export const MockWorkspaceAutostopEnabled: TypesGen.UpdateWorkspaceAutostartRequ
 }
 
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
-  after_id: "",
-  before_id: "",
-  created_at: "",
-  id: "test-workspace-build",
+  build_number: 1,
+  created_at: new Date().toString(),
+  id: "1",
   initiator_id: "",
   job: MockProvisionerJob,
   name: "a-workspace-build",
   template_version_id: "",
   transition: "start",
-  updated_at: "",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_id: "test-workspace",
 }
 
 export const MockWorkspaceBuildStop = {
   ...MockWorkspaceBuild,
+  id: "2",
   transition: "stop",
 }
 
 export const MockWorkspaceBuildDelete = {
   ...MockWorkspaceBuild,
+  id: "3",
   transition: "delete",
 }
+
+export const MockBuilds = [MockWorkspaceBuild, MockWorkspaceBuildStop, MockWorkspaceBuildDelete]
 
 export const MockWorkspace: TypesGen.Workspace = {
   id: "test-workspace",
@@ -216,4 +220,11 @@ export const MockUserAgent: Types.UserAgent = {
 export const MockAuthMethods: TypesGen.AuthMethods = {
   password: true,
   github: false,
+}
+
+export const MockGitSSHKey: TypesGen.GitSSHKey = {
+  user_id: "1fa0200f-7331-4524-a364-35770666caa7",
+  created_at: "2022-05-16T14:30:34.148205897Z",
+  updated_at: "2022-05-16T15:29:10.302441433Z",
+  public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFJOQRIM7kE30rOzrfy+/+R+nQGCk7S9pioihy+2ARbq",
 }

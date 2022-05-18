@@ -110,8 +110,20 @@ export const getTemplate = async (templateId: string): Promise<TypesGen.Template
   return response.data
 }
 
+export const getTemplates = async (organizationId: string): Promise<TypesGen.Template[]> => {
+  const response = await axios.get<TypesGen.Template[]>(`/api/v2/organizations/${organizationId}/templates`)
+  return response.data
+}
+
 export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
   const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
+  return response.data
+}
+
+// TODO: @emyrk add query params as arguments. Supports 'organization_id' and 'owner'
+//  'owner' can be a username, user_id, or 'me'
+export const getWorkspaces = async (): Promise<TypesGen.Workspace[]> => {
+  const response = await axios.get<TypesGen.Workspace[]>(`/api/v2/workspaces`)
   return response.data
 }
 
@@ -204,5 +216,20 @@ export const updateUserRoles = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.User> => {
   const response = await axios.put<TypesGen.User>(`/api/v2/users/${userId}/roles`, { roles })
+  return response.data
+}
+
+export const getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.get<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+  return response.data
+}
+
+export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+  const response = await axios.put<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+  return response.data
+}
+
+export const getWorkspaceBuilds = async (workspaceId: string): Promise<TypesGen.WorkspaceBuild[]> => {
+  const response = await axios.get<TypesGen.WorkspaceBuild[]>(`/api/v2/workspaces/${workspaceId}/builds`)
   return response.data
 }
