@@ -20,7 +20,7 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
-dev: build
+dev:
 	./scripts/develop.sh
 .PHONY: dev
 
