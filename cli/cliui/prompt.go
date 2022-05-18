@@ -34,8 +34,6 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+opts.Default+") "))
 	}
 	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-	defer signal.Stop(interrupt)
 
 	errCh := make(chan error, 1)
 	lineCh := make(chan string)
@@ -45,8 +43,12 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 
 		inFile, isInputFile := cmd.InOrStdin().(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
+			// we don't install a signal handler here because speakeasy has its own
 			line, err = speakeasy.Ask("")
 		} else {
+			signal.Notify(interrupt, os.Interrupt)
+			defer signal.Stop(interrupt)
+
 			reader := bufio.NewReader(cmd.InOrStdin())
 			line, err = reader.ReadString('\n')
 
