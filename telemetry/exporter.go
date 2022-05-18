@@ -21,6 +21,9 @@ func TracerProvider(ctx context.Context, service string) (*sdktrace.TracerProvid
 		),
 	)
 
+	// By default we send span data to a local otel collector.
+	// The endpoint we push to can be configured with env vars.
+	// See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
 	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(otlptracegrpc.WithInsecure()))
 	if err != nil {
 		return nil, xerrors.Errorf("creating otlp exporter: %w", err)
