@@ -184,14 +184,26 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   updated_at: "",
 }
 
+export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  name: "another-workspace-agent",
+  status: "disconnected",
+}
+
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent, MockWorkspaceAgent],
+  agents: [MockWorkspaceAgent, MockWorkspaceAgentDisconnected],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",
   name: "a-workspace-resource",
   type: "google_compute_disk",
   workspace_transition: "start",
+}
+
+export const MockWorkspaceResource2 = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-2",
+  name: "another-workspace-resource",
 }
 
 export const MockUserAgent: Types.UserAgent = {

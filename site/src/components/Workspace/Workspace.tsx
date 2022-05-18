@@ -18,6 +18,7 @@ export interface WorkspaceProps {
   handleUpdate: () => void
   workspaceStatus: WorkspaceStatus
   resources?: TypesGen.WorkspaceResource[]
+  getResourcesError?: Error
 }
 
 /**
@@ -33,6 +34,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleUpdate,
   workspaceStatus,
   resources,
+  getResourcesError,
 }) => {
   const styles = useStyles()
 
@@ -49,7 +51,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           handleUpdate={handleUpdate}
           workspaceStatus={workspaceStatus}
         />
-        <Resources resources={resources} />
+        <Resources resources={resources} getResourcesError={getResourcesError} />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
             <WorkspaceSection title="Applications">

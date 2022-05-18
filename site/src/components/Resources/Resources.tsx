@@ -18,44 +18,49 @@ const Language = {
 
 interface ResourcesProps {
   resources?: WorkspaceResource[]
+  getResourcesError?: Error
 }
 
-export const Resources: React.FC<ResourcesProps> = ({ resources }) => {
+export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesError }) => {
   return (
     <WorkspaceSection title={Language.resources}>
-      <Table>
-        <TableHead>
-          <TableHeaderRow>
-            <TableCell size="small">{Language.resourceLabel}</TableCell>
-            <TableCell size="small">{Language.agentsLabel}</TableCell>
-          </TableHeaderRow>
-        </TableHead>
-        <TableBody>
-          {resources?.map((resource) => (
-            <TableRow key={resource.id}>
-              <TableCell size="small">{resource.name}</TableCell>
-              <TableCell>
-                <Table>
-                  <TableHead>
-                    <TableHeaderRow>
-                      <TableCell size="small">{Language.agentLabel}</TableCell>
-                      <TableCell size="small">{Language.statusLabel}</TableCell>
-                    </TableHeaderRow>
-                  </TableHead>
-                  <TableBody>
-                    {resource.agents?.map((agent) => (
-                      <TableRow key={agent.id}>
-                        <TableCell size="small">{agent.name}</TableCell>
-                        <TableCell size="small">{agent.status}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      {getResourcesError ? (
+        { getResourcesError }
+      ) : (
+        <Table>
+          <TableHead>
+            <TableHeaderRow>
+              <TableCell size="small">{Language.resourceLabel}</TableCell>
+              <TableCell size="small">{Language.agentsLabel}</TableCell>
+            </TableHeaderRow>
+          </TableHead>
+          <TableBody>
+            {resources?.map((resource) => (
+              <TableRow key={resource.id}>
+                <TableCell size="small">{resource.name}</TableCell>
+                <TableCell>
+                  <Table>
+                    <TableHead>
+                      <TableHeaderRow>
+                        <TableCell size="small">{Language.agentLabel}</TableCell>
+                        <TableCell size="small">{Language.statusLabel}</TableCell>
+                      </TableHeaderRow>
+                    </TableHead>
+                    <TableBody>
+                      {resource.agents?.map((agent) => (
+                        <TableRow key={agent.id}>
+                          <TableCell size="small">{agent.name}</TableCell>
+                          <TableCell size="small">{agent.status}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </WorkspaceSection>
   )
 }

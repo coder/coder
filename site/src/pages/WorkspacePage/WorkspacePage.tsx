@@ -27,8 +27,7 @@ export const WorkspacePage: React.FC = () => {
 
   const xServices = useContext(XServiceContext)
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
-  const { workspace, template, organization, getWorkspaceError, getTemplateError, getOrganizationError } =
-    workspaceState.context
+  const { workspace, template, organization, resources, getWorkspaceError, getResourcesError } = workspaceState.context
   const workspaceStatus = useSelector(xServices.workspaceXService, selectWorkspaceStatus)
 
   /**
@@ -40,7 +39,7 @@ export const WorkspacePage: React.FC = () => {
   }, [workspaceId, workspaceSend])
 
   if (workspaceState.matches("error")) {
-    return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError} />
+    return <ErrorSummary error={getWorkspaceError} />
   } else if (!workspace) {
     return <FullScreenLoader />
   } else {
@@ -56,6 +55,8 @@ export const WorkspacePage: React.FC = () => {
             handleRetry={() => workspaceSend("RETRY")}
             handleUpdate={() => workspaceSend("UPDATE")}
             workspaceStatus={workspaceStatus}
+            resources={resources}
+            getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
           />
         </Stack>
       </Margins>
