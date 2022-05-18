@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -52,7 +54,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleAdmin())
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
