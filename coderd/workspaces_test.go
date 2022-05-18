@@ -634,15 +634,14 @@ func TestWorkspaceWatcher(t *testing.T) {
 	w, err := client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
 
-	ww, err := client.WatchWorkspace(context.Background(), w.ID)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wc, err := client.WatchWorkspace(ctx, w.ID)
 	require.NoError(t, err)
-	defer ww.Close()
-	for i := 0; i < 5; i++ {
-		_, err := ww.Read(context.Background())
-		require.NoError(t, err)
+	for i := 0; i < 3; i++ {
+		_, more := <-wc
+		require.True(t, more)
 	}
-	err = ww.Close()
-	require.NoError(t, err)
-	_, err = ww.Read(context.Background())
-	require.Error(t, err)
+	cancel()
+	require.EqualValues(t, codersdk.Workspace{}, <-wc)
 }

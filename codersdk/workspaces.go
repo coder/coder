@@ -100,38 +100,34 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
-type WorkspaceWatcher struct {
-	conn *websocket.Conn
-}
-
-func (w *WorkspaceWatcher) Read(ctx context.Context) (Workspace, error) {
-	var ws Workspace
-	err := wsjson.Read(ctx, w.conn, &ws)
-	if err != nil {
-		return ws, xerrors.Errorf("read workspace: %w", err)
-	}
-
-	return ws, nil
-}
-
-func (w *WorkspaceWatcher) Close() error {
-	err := w.conn.Close(websocket.StatusNormalClosure, "")
-	if err != nil {
-		return xerrors.Errorf("closing workspace watcher: %w", err)
-	}
-
-	return nil
-}
-
-func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (*WorkspaceWatcher, error) {
+func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
 	conn, err := c.dialWebsocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
 	if err != nil {
 		return nil, err
 	}
+	wc := make(chan Workspace, 256)
 
-	return &WorkspaceWatcher{
-		conn: conn,
-	}, nil
+	go func() {
+		defer close(wc)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				var ws Workspace
+				err := wsjson.Read(ctx, conn, &ws)
+				if err != nil {
+					conn.Close(websocket.StatusInternalError, "failed to read workspace")
+					return
+				}
+				wc <- ws
+			}
+		}
+	}()
+
+	return wc, nil
 }
 
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
