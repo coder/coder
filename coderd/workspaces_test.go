@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -18,7 +20,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func TestWorkspace(t *testing.T) {
+func TestAdminViewAllWorkspaces(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
@@ -27,8 +29,25 @@ func TestWorkspace(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	_, err := client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
+
+	otherOrg, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		Name: "default-test",
+	})
+	require.NoError(t, err, "create other org")
+
+	// This other user is not in the first user's org. Since other is an admin, they can
+	// still see the "first" user's workspace.
+	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin(), rbac.RoleMember())
+	otherWorkspaces, err := other.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(other) fetch workspaces")
+
+	firstWorkspaces, err := other.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(first) fetch workspaces")
+
+	require.ElementsMatch(t, otherWorkspaces, firstWorkspaces)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
@@ -52,7 +71,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleAdmin())
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})

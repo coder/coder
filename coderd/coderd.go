@@ -149,7 +149,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.workspacesByOrganization)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/{workspace}", api.workspaceByOwnerAndName)
+					r.Get("/{workspacename}", api.workspaceByOwnerAndName)
 					r.Get("/", api.workspacesByOwner)
 				})
 			})
@@ -237,8 +237,6 @@ func New(options *Options) (http.Handler, func()) {
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})
-					r.Get("/organizations", api.organizationsByUser)
-					r.Post("/organizations", api.postOrganizationsByUser)
 					// These roles apply to the site wide permissions.
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
@@ -316,6 +314,7 @@ func New(options *Options) (http.Handler, func()) {
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
