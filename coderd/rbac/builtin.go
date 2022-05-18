@@ -66,7 +66,8 @@ var (
 				DisplayName: "Member",
 				Site: permissions(map[Object][]Action{
 					// All users can read all other users and know they exist.
-					ResourceUser: {ActionRead},
+					ResourceUser:           {ActionRead},
+					ResourceRoleAssignment: {ActionRead},
 				}),
 				User: permissions(map[Object][]Action{
 					ResourceWildcard: {WildcardSymbol},
