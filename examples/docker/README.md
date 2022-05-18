@@ -77,5 +77,5 @@ add the following features to your Coder template:
 - Custom container spec
 - More
 
-Contributions are also welcome!
+We also welcome contributions!
 
