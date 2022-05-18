@@ -295,6 +295,20 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
+// CreateWorkspaceBuild creates a workspace build for the given workspace and transition.
+func CreateWorkspaceBuild(
+	t *testing.T,
+	client *codersdk.Client,
+	workspace codersdk.Workspace,
+	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
+	req := codersdk.CreateWorkspaceBuildRequest{
+		Transition: transition,
+	}
+	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, req)
+	require.NoError(t, err)
+	return build
+}
+
 // CreateTemplate creates a template with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
 func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID) codersdk.Template {

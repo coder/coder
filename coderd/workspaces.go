@@ -25,7 +25,7 @@ import (
 func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build: %s", err),
@@ -244,7 +244,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build: %s", err),
@@ -446,6 +446,7 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransitionStart,
 			JobID:             provisionerJob.ID,
+			BuildNumber:       1, // First build!
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -543,7 +544,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		templateIDs = append(templateIDs, workspace.TemplateID)
 		ownerIDs = append(ownerIDs, workspace.OwnerID)
 	}
-	workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx, workspaceIDs)
+	workspaceBuilds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -575,7 +576,19 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 
 	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
 	for _, workspaceBuild := range workspaceBuilds {
-		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
+		buildByWorkspaceID[workspaceBuild.WorkspaceID] = database.WorkspaceBuild{
+			ID:                workspaceBuild.ID,
+			CreatedAt:         workspaceBuild.CreatedAt,
+			UpdatedAt:         workspaceBuild.UpdatedAt,
+			WorkspaceID:       workspaceBuild.WorkspaceID,
+			TemplateVersionID: workspaceBuild.TemplateVersionID,
+			Name:              workspaceBuild.Name,
+			BuildNumber:       workspaceBuild.BuildNumber,
+			Transition:        workspaceBuild.Transition,
+			InitiatorID:       workspaceBuild.InitiatorID,
+			ProvisionerState:  workspaceBuild.ProvisionerState,
+			JobID:             workspaceBuild.JobID,
+		}
 	}
 	templateByID := map[uuid.UUID]database.Template{}
 	for _, template := range templates {

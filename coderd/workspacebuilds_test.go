@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -38,8 +39,49 @@ func TestWorkspaceBuilds(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_, err := client.WorkspaceBuilds(context.Background(), workspace.ID)
+		builds, err := client.WorkspaceBuilds(context.Background(),
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID})
+		require.Len(t, builds, 1)
+		require.Equal(t, int32(1), builds[0].BuildNumber)
 		require.NoError(t, err)
+	})
+
+	t.Run("PaginateLimitOffset", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		var expectedBuilds []codersdk.WorkspaceBuild
+		extraBuilds := 4
+		for i := 0; i < extraBuilds; i++ {
+			b := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+			expectedBuilds = append(expectedBuilds, b)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, b.ID)
+		}
+
+		pageSize := 3
+		firstPage, err := client.WorkspaceBuilds(context.Background(), codersdk.WorkspaceBuildsRequest{
+			WorkspaceID: workspace.ID,
+			Pagination:  codersdk.Pagination{Limit: pageSize, Offset: 0},
+		})
+		require.NoError(t, err)
+		require.Len(t, firstPage, pageSize)
+		for i := 0; i < pageSize; i++ {
+			require.Equal(t, expectedBuilds[extraBuilds-i-1].ID, firstPage[i].ID)
+		}
+		secondPage, err := client.WorkspaceBuilds(context.Background(), codersdk.WorkspaceBuildsRequest{
+			WorkspaceID: workspace.ID,
+			Pagination:  codersdk.Pagination{Limit: pageSize, Offset: pageSize},
+		})
+		require.NoError(t, err)
+		require.Len(t, secondPage, 2)
+		require.Equal(t, expectedBuilds[0].ID, secondPage[0].ID)
+		require.Equal(t, workspace.LatestBuild.ID, secondPage[1].ID) // build created while creating workspace
 	})
 }
 

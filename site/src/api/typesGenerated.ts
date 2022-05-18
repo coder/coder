@@ -292,12 +292,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:96:6
+// From codersdk/workspaces.go:102:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:116:6
+// From codersdk/workspaces.go:122:6
 export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
@@ -421,8 +421,7 @@ export interface WorkspaceBuild {
   readonly updated_at: string
   readonly workspace_id: string
   readonly template_version_id: string
-  readonly before_id: string
-  readonly after_id: string
+  readonly build_number: number
   readonly name: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
   readonly transition: string
@@ -430,10 +429,15 @@ export interface WorkspaceBuild {
   readonly job: ProvisionerJob
 }
 
-// From codersdk/workspaces.go:135:6
+// From codersdk/workspaces.go:55:6
+export interface WorkspaceBuildsRequest extends Pagination {
+  readonly WorkspaceID: string
+}
+
+// From codersdk/workspaces.go:141:6
 export interface WorkspaceFilter {
   readonly OrganizationID: string
-  readonly OwnerID: string
+  readonly Owner: string
 }
 
 // From codersdk/workspaceresources.go:23:6

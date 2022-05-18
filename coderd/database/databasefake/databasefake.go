@@ -441,50 +441,100 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	var row database.WorkspaceBuild
+	var buildNum int32
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() != workspaceID.String() {
-			continue
-		}
-		if !workspaceBuild.AfterID.Valid {
-			return workspaceBuild, nil
+		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
+			row = workspaceBuild
+			buildNum = workspaceBuild.BuildNumber
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	if buildNum == 0 {
+		return database.WorkspaceBuild{}, sql.ErrNoRows
+	}
+	return row, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	builds := make([]database.WorkspaceBuild, 0)
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
+	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
-			if id.String() != workspaceBuild.WorkspaceID.String() {
-				continue
+			if id.String() == workspaceBuild.WorkspaceID.String() && workspaceBuild.BuildNumber > buildNumbers[id] {
+				builds[id] = workspaceBuild
+				buildNumbers[id] = workspaceBuild.BuildNumber
 			}
-			builds = append(builds, workspaceBuild)
 		}
 	}
-	if len(builds) == 0 {
+	var returnBuilds []database.WorkspaceBuild
+	for i, n := range buildNumbers {
+		if n > 0 {
+			b := builds[i]
+			returnBuilds = append(returnBuilds, b)
+		}
+	}
+	if len(returnBuilds) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return builds, nil
+	return returnBuilds, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
+	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	history := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() == workspaceID.String() {
+		if workspaceBuild.WorkspaceID.String() == params.WorkspaceID.String() {
 			history = append(history, workspaceBuild)
 		}
 	}
+
+	// Order by build_number
+	slices.SortFunc(history, func(a, b database.WorkspaceBuild) bool {
+		// use greater than since we want descending order
+		return a.BuildNumber > b.BuildNumber
+	})
+
+	if params.AfterID != uuid.Nil {
+		found := false
+		for i, v := range history {
+			if v.ID == params.AfterID {
+				// We want to return all builds after index i.
+				history = history[i+1:]
+				found = true
+				break
+			}
+		}
+
+		// If no builds after the time, then we return an empty list.
+		if !found {
+			return nil, sql.ErrNoRows
+		}
+	}
+
+	if params.OffsetOpt > 0 {
+		if int(params.OffsetOpt) > len(history)-1 {
+			return nil, sql.ErrNoRows
+		}
+		history = history[params.OffsetOpt:]
+	}
+
+	if params.LimitOpt > 0 {
+		if int(params.LimitOpt) > len(history) {
+			params.LimitOpt = int32(len(history))
+		}
+		history = history[:params.LimitOpt]
+	}
+
 	if len(history) == 0 {
 		return nil, sql.ErrNoRows
 	}
@@ -1429,7 +1479,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		WorkspaceID:       arg.WorkspaceID,
 		Name:              arg.Name,
 		TemplateVersionID: arg.TemplateVersionID,
-		BeforeID:          arg.BeforeID,
+		BuildNumber:       arg.BuildNumber,
 		Transition:        arg.Transition,
 		InitiatorID:       arg.InitiatorID,
 		JobID:             arg.JobID,
@@ -1641,7 +1691,6 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 			continue
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
-		workspaceBuild.AfterID = arg.AfterID
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
