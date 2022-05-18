@@ -120,6 +120,11 @@ export const getTemplateByName = async (organizationId: string, name: string): P
   return response.data
 }
 
+export const getTemplateVersion = async (versionId: string): Promise<TypesGen.TemplateVersion> => {
+  const response = await axios.get<TypesGen.TemplateVersion>(`/api/v2/templateversions/${versionId}`)
+  return response.data
+}
+
 export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
   const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
   return response.data

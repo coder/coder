@@ -9,6 +9,8 @@ interface TemplateContext {
   organizationsError?: Error | unknown
   template?: TypesGen.Template
   templateError?: Error | unknown
+  templateVersion?: TypesGen.TemplateVersion
+  templateVersionError?: Error | unknown
 }
 
 export const templateMachine = createMachine(
@@ -25,6 +27,9 @@ export const templateMachine = createMachine(
         }
         getTemplate: {
           data: TypesGen.Template
+        }
+        getTemplateVersion: {
+          data: TypesGen.TemplateVersion
         }
       },
     },
@@ -57,7 +62,7 @@ export const templateMachine = createMachine(
           src: "getTemplate",
           id: "getTemplate",
           onDone: {
-            target: "done",
+            target: "gettingTemplateVersion",
             actions: ["assignTemplate", "clearTemplateError"],
           },
           onError: {
@@ -66,6 +71,21 @@ export const templateMachine = createMachine(
           },
         },
         tags: "loading",
+      },
+      gettingTemplateVersion: {
+        entry: "clearTemplateVersionError",
+        invoke: {
+          src: "getTemplateVersion",
+          id: "getTemplateVersion",
+          onDone: {
+            target: "done",
+            actions: ["assignTemplateVersion", "clearTemplateVersionError"],
+          },
+          onError: {
+            target: "error",
+            actions: "assignTemplateVersionError",
+          },
+        },
       },
       done: {},
       error: {},
@@ -89,7 +109,14 @@ export const templateMachine = createMachine(
       assignTemplateError: assign({
         templateError: (_, event) => event.data,
       }),
-      clearTemplateError: (context) => assign({ ...context, getWorkspacesError: undefined }),
+      clearTemplateError: (context) => assign({ ...context, templateError: undefined }),
+      assignTemplateVersion: assign({
+        templateVersion: (_, event) => event.data,
+      }),
+      assignTemplateVersionError: assign({
+        templateVersionError: (_, event) => event.data,
+      }),
+      clearTemplateVersionError: (context) => assign({ ...context, templateVersionError: undefined }),
     },
     services: {
       getOrganizations: API.getOrganizations,
@@ -99,6 +126,12 @@ export const templateMachine = createMachine(
         }
         return API.getTemplateByName(context.organizations[0].id, context.name)
       },
+      getTemplateVersion: async (context) => {
+        if (!context.template) {
+          throw new Error("no template")
+        }
+        return API.getTemplateVersion(context.template.active_version_id)
+      }
     },
   },
 )
