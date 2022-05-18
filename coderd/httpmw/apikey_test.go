@@ -56,7 +56,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: "test-wow-hello",
 		})
 
@@ -74,7 +74,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: "test-wow",
 		})
 
@@ -92,7 +92,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: "testtestid-wow",
 		})
 
@@ -111,7 +111,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -130,7 +130,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -157,7 +157,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -182,7 +182,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -209,6 +209,37 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
+	t.Run("QueryParameter", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db         = databasefake.New()
+			id, secret = randomAPIKeyParts()
+			hashed     = sha256.Sum256([]byte(secret))
+			r          = httptest.NewRequest("GET", "/", nil)
+			rw         = httptest.NewRecorder()
+		)
+		q := r.URL.Query()
+		q.Add(httpmw.SessionTokenKey, fmt.Sprintf("%s-%s", id, secret))
+		r.URL.RawQuery = q.Encode()
+
+		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
+			ID:           id,
+			HashedSecret: hashed[:],
+			ExpiresAt:    database.Now().AddDate(0, 0, 1),
+		})
+		require.NoError(t, err)
+		httpmw.ExtractAPIKey(db, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Checks that it exists on the context!
+			_ = httpmw.APIKey(r)
+			httpapi.Write(rw, http.StatusOK, httpapi.Response{
+				Message: "it worked!",
+			})
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
 	t.Run("ValidUpdateLastUsed", func(t *testing.T) {
 		t.Parallel()
 		var (
@@ -219,7 +250,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -252,7 +283,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -285,7 +316,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -319,7 +350,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 

@@ -122,7 +122,7 @@ func TestPostLogout(t *testing.T) {
 		cookies := response.Cookies()
 		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, cookies[0].Name, httpmw.AuthCookie, "Cookie should be the auth cookie")
+		require.Equal(t, cookies[0].Name, httpmw.SessionTokenKey, "Cookie should be the auth cookie")
 		require.Equal(t, cookies[0].MaxAge, -1, "Cookie should be set to delete")
 	})
 }
