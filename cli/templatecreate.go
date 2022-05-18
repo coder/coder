@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -192,7 +191,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		parameterValuesFromFile := make(map[string]string)
 		if parameterFile != "" {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-			parameterFileContents, err := ioutil.ReadFile(parameterFile)
+			parameterFileContents, err := os.ReadFile(parameterFile)
 
 			if err != nil {
 				return nil, nil, err

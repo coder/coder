@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -123,7 +123,7 @@ func create() *cobra.Command {
 			parameterValues := make(map[string]string)
 
 			if parameterFile != "" {
-				parameterFileContents, err := ioutil.ReadFile(parameterFile)
+				parameterFileContents, err := os.ReadFile(parameterFile)
 
 				if err != nil {
 					return err
