@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -52,7 +53,6 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/tracing"
 )
 
 // nolint:gocyclo
