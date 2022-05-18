@@ -531,6 +531,7 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	return nil
 }
 
+// nolint:revive
 func newProvisionerDaemon(ctx context.Context, coderDaemon coderd.CoderD,
 	logger slog.Logger, cacheDir string, errChan chan error, dev bool) (*provisionerd.Server, error) {
 	err := os.MkdirAll(cacheDir, 0700)
