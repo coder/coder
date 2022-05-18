@@ -102,7 +102,11 @@ func newRouter(options *Options, a *api) chi.Router {
 			})
 		},
 		httpmw.Prometheus,
+<<<<<<< HEAD
 		tracing.HTTPMW(a.TracerProvider, "coderd.http"),
+=======
+		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
+>>>>>>> move to coderd
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {

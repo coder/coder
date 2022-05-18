@@ -15,7 +15,6 @@ import (
 func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			// do not trace if exporter has not be initialized
 			if tracerProvider == nil {
 				next.ServeHTTP(rw, r)
 				return
