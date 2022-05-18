@@ -662,7 +662,7 @@ func (a *agent) handleDial(ctx context.Context, label string, conn net.Conn) {
 			_ = writeError(xerrors.New("Unix forwarding is not supported from Windows workspaces"))
 			return
 		}
-		addr, err = ExpandPath(addr)
+		addr, err = ExpandRelativeHomePath(addr)
 		if err != nil {
 			_ = writeError(xerrors.Errorf("expand path %q: %w", addr, err))
 			return
@@ -760,9 +760,9 @@ func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 	}
 }
 
-// ExpandPath expands the tilde at the beginning of a path to the current user's
-// home directory and returns a full absolute path.
-func ExpandPath(in string) (string, error) {
+// ExpandRelativeHomePath expands the tilde at the beginning of a path to the
+// current user's home directory and returns a full absolute path.
+func ExpandRelativeHomePath(in string) (string, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", xerrors.Errorf("get current user details: %w", err)

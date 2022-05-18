@@ -314,7 +314,7 @@ func parsePort(in string) (uint16, error) {
 }
 
 func parseUnixPath(in string) (string, error) {
-	path, err := coderagent.ExpandPath(strings.TrimSpace(in))
+	path, err := coderagent.ExpandRelativeHomePath(strings.TrimSpace(in))
 	if err != nil {
 		return "", xerrors.Errorf("tidy path %q: %w", in, err)
 	}
