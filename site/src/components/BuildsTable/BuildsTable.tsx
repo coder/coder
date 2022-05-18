@@ -1,5 +1,5 @@
 import Box from "@material-ui/core/Box"
-import { Theme } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -10,6 +10,7 @@ import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
+import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { getDisplayStatus } from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
@@ -48,6 +49,8 @@ export interface BuildsTableProps {
 export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) => {
   const isLoading = !builds
   const theme: Theme = useTheme()
+  const navigate = useNavigate()
+  const styles = useStyles()
 
   return (
     <Table className={className}>
@@ -66,8 +69,24 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
             const status = getDisplayStatus(theme, b)
             const duration = getDurationInSeconds(b)
 
+            const navigateToBuildPage = () => {
+              navigate(`/builds/${b.id}`)
+            }
+
             return (
-              <TableRow key={b.id} data-testid={`build-${b.id}`}>
+              <TableRow
+                hover
+                key={b.id}
+                data-testid={`build-${b.id}`}
+                tabIndex={0}
+                onClick={navigateToBuildPage}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    navigateToBuildPage()
+                  }
+                }}
+                className={styles.clickableTableRow}
+              >
                 <TableCell>{b.transition}</TableCell>
                 <TableCell>
                   <span style={{ color: theme.palette.text.secondary }}>{duration}</span>
@@ -95,3 +114,17 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
     </Table>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  clickableTableRow: {
+    cursor: "pointer",
+
+    "&:hover td": {
+      backgroundColor: theme.palette.background.default,
+    },
+
+    "&:focus": {
+      outline: `1px solid ${theme.palette.primary.dark}`,
+    },
+  },
+}))

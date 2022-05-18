@@ -1,6 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
-import { WorkspaceBuildTransition } from "./types"
+import { ProvisionerJobLog, WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
@@ -231,5 +231,10 @@ export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitS
 
 export const getWorkspaceBuilds = async (workspaceId: string): Promise<TypesGen.WorkspaceBuild[]> => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(`/api/v2/workspaces/${workspaceId}/builds`)
+  return response.data
+}
+
+export const getBuildLogs = async (buildname: string): Promise<ProvisionerJobLog[]> => {
+  const response = await axios.get<ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
   return response.data
 }
