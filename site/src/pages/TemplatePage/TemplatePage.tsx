@@ -12,7 +12,12 @@ const TemplatePage: React.FC = () => {
     },
   })
 
-  return <TemplatePageView template={templateState.context.template} />
+  return (
+    <TemplatePageView
+      template={templateState.context.template}
+      templateVersion={templateState.context.templateVersion}
+    />
+  )
 }
 
 export default TemplatePage

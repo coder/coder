@@ -81,5 +81,11 @@ export const getOverrides = (palette: PaletteOptions) => {
         color: (palette.primary as SimplePaletteColorOptions).light,
       },
     },
+    MuiPaper: {
+      root: {
+        borderRadius: 2,
+        border: `1px solid ${palette.divider}`,
+      },
+    },
   }
 }

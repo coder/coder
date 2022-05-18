@@ -1,6 +1,9 @@
+import { makeStyles } from "@material-ui/core"
+import Paper from "@material-ui/core/Paper"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
+import ReactMarkdown from "react-markdown"
 import * as TypesGen from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
@@ -16,71 +19,34 @@ export const Language = {
 export interface TemplatePageViewProps {
   loading?: boolean
   template?: TypesGen.Template
+  templateVersion?: TypesGen.TemplateVersion
   error?: unknown
 }
 
 export const TemplatePageView: React.FC<TemplatePageViewProps> = (props) => {
-  // const styles = useStyles()
+  const styles = useStyles()
   return (
     <Stack spacing={4}>
-      <Margins>Template page! {props.template?.id}</Margins>
+      <Margins>
+        Template page! {props.template?.name}
+        {props.templateVersion?.readme && (
+          <Paper className={styles.readme}>
+            <ReactMarkdown>{props.templateVersion.readme}</ReactMarkdown>
+          </Paper>
+        )}
+      </Margins>
     </Stack>
   )
 }
 
-// const useStyles = makeStyles((theme) => ({
-//   actions: {
-//     marginTop: theme.spacing(3),
-//     marginBottom: theme.spacing(3),
-//     display: "flex",
-//     height: theme.spacing(6),
+const useStyles = makeStyles((theme) => ({
+  readme: {
+    paddingLeft: theme.spacing(2),
+    paddingRight: theme.spacing(2),
 
-//     "& button": {
-//       marginLeft: "auto",
-//     },
-//   },
-//   welcome: {
-//     paddingTop: theme.spacing(12),
-//     paddingBottom: theme.spacing(12),
-//     display: "flex",
-//     flexDirection: "column",
-//     alignItems: "center",
-//     justifyContent: "center",
-//     "& span": {
-//       maxWidth: 600,
-//       textAlign: "center",
-//       fontSize: theme.spacing(2),
-//       lineHeight: `${theme.spacing(3)}px`,
-//     },
-//   },
-//   templateRow: {
-//     "& > td": {
-//       paddingTop: theme.spacing(2),
-//       paddingBottom: theme.spacing(2),
-//     },
-//   },
-//   templateAvatar: {
-//     borderRadius: 2,
-//     marginRight: theme.spacing(1),
-//     width: 24,
-//     height: 24,
-//     fontSize: 16,
-//   },
-//   templateName: {
-//     display: "flex",
-//     alignItems: "center",
-//   },
-//   templateLink: {
-//     display: "flex",
-//     flexDirection: "column",
-//     color: theme.palette.text.primary,
-//     textDecoration: "none",
-//     "&:hover": {
-//       textDecoration: "underline",
-//     },
-//     "& span": {
-//       fontSize: 12,
-//       color: theme.palette.text.secondary,
-//     },
-//   },
-// }))
+    "& img": {
+      // Prevents overflow!
+      maxWidth: "100%",
+    },
+  },
+}))
