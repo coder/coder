@@ -61,7 +61,7 @@ resource "coder_agent" "dev" {
 }
 
 variable "docker_image" {
-  description = "What docker image would you like to use for your workspace?"
+  description = "Which Docker image would you like to use for your workspace?"
   # The codercom/enterprise-* images are only built for amd64
   default = "codercom/enterprise-base:ubuntu"
   validation {
