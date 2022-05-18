@@ -31,13 +31,23 @@ func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Hand
 			next.ServeHTTP(rw, r)
 
 			// set the resource name as we get it only once the handler is executed
-			resourceName := chi.RouteContext(r.Context()).RoutePattern()
-			if resourceName == "" {
-				resourceName = "unknown"
+			route := chi.RouteContext(r.Context()).RoutePattern()
+			if route == "" {
+				route = "unknown"
 			}
-			resourceName = r.Method + " " + resourceName
-			fmt.Println(resourceName)
-			span.SetName(resourceName)
+			span.SetName(fmt.Sprintf("%s %s", r.Method, route))
+			span.SetAttributes(attribute.KeyValue{
+				Key:   "http.method",
+				Value: attribute.StringValue(r.Method),
+			})
+			span.SetAttributes(attribute.KeyValue{
+				Key:   "http.route",
+				Value: attribute.StringValue(route),
+			})
+			span.SetAttributes(attribute.KeyValue{
+				Key:   "http.path",
+				Value: attribute.StringValue(r.URL.EscapedPath()),
+			})
 
 			// set the status code
 			status := wrw.Status()
