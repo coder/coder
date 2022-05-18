@@ -156,7 +156,6 @@ func TestPasswordTerminalState(t *testing.T) {
 	require.True(t, echo, "echo is off after reading password")
 }
 
-// Platform-specific function to get the
 func passwordHelper() {
 	cmd := &cobra.Command{
 		Run: func(cmd *cobra.Command, args []string) {
