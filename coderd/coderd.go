@@ -253,7 +253,6 @@ func New(options *Options) (http.Handler, func()) {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
-					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})
@@ -289,23 +288,28 @@ func New(options *Options) (http.Handler, func()) {
 			)
 			r.Get("/", api.workspaceResource)
 		})
-		r.Route("/workspaces/{workspace}", func(r chi.Router) {
+		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				authRolesMiddleware,
-				httpmw.ExtractWorkspaceParam(options.Database),
 			)
-			r.Get("/", api.workspace)
-			r.Route("/builds", func(r chi.Router) {
-				r.Get("/", api.workspaceBuilds)
-				r.Post("/", api.postWorkspaceBuilds)
-				r.Get("/{workspacebuildname}", api.workspaceBuildByName)
-			})
-			r.Route("/autostart", func(r chi.Router) {
-				r.Put("/", api.putWorkspaceAutostart)
-			})
-			r.Route("/autostop", func(r chi.Router) {
-				r.Put("/", api.putWorkspaceAutostop)
+			r.Get("/", api.workspaces)
+			r.Route("/{workspace}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractWorkspaceParam(options.Database),
+				)
+				r.Get("/", api.workspace)
+				r.Route("/builds", func(r chi.Router) {
+					r.Get("/", api.workspaceBuilds)
+					r.Post("/", api.postWorkspaceBuilds)
+					r.Get("/{workspacebuildname}", api.workspaceBuildByName)
+				})
+				r.Route("/autostart", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceAutostart)
+				})
+				r.Route("/autostop", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceAutostop)
+				})
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

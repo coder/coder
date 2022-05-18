@@ -134,16 +134,29 @@ func TestWorkspacesByOwner(t *testing.T) {
 		_, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, codersdk.Me)
 		require.NoError(t, err)
 	})
-	t.Run("List", func(t *testing.T) {
+
+	t.Run("ListMine", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.NewProvisionerDaemon(t, client)
 		user := coderdtest.CreateFirstUser(t, client)
+		me, err := client.User(context.Background(), codersdk.Me)
+		require.NoError(t, err)
+
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, codersdk.Me)
+
+		// Create noise workspace that should be filtered out
+		other := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_ = coderdtest.CreateWorkspace(t, other, user.OrganizationID, template.ID)
+
+		// Use a username
+		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			OrganizationID: user.OrganizationID,
+			Owner:          me.Username,
+		})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})
@@ -235,7 +248,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("UpdatePriorAfterField", func(t *testing.T) {
+	t.Run("IncrementBuildNumber", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -250,11 +263,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
-
-		firstBuild, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
-		require.NoError(t, err)
-		require.Equal(t, build.ID.String(), firstBuild.AfterID.String())
+		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 	})
 
 	t.Run("WithState", func(t *testing.T) {
@@ -294,7 +303,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition: database.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err)
-		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
+		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
 		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, user.UserID.String())

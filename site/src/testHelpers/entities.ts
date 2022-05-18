@@ -110,8 +110,7 @@ export const MockWorkspaceAutostopEnabled: TypesGen.UpdateWorkspaceAutostartRequ
 }
 
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
-  after_id: "",
-  before_id: "",
+  build_number: 1,
   created_at: new Date().toString(),
   id: "1",
   initiator_id: "",

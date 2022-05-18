@@ -50,94 +50,23 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			var workspace codersdk.Workspace
-			var workspaceParts []string
 			if shuffle {
 				err := cobra.ExactArgs(0)(cmd, args)
 				if err != nil {
 					return err
 				}
-
-				workspaces, err := client.WorkspacesByOwner(cmd.Context(), organization.ID, codersdk.Me)
-				if err != nil {
-					return err
-				}
-				if len(workspaces) == 0 {
-					return xerrors.New("no workspaces to shuffle")
-				}
-
-				idx, err := cryptorand.Intn(len(workspaces))
-				if err != nil {
-					return err
-				}
-				workspace = workspaces[idx]
 			} else {
 				err := cobra.MinimumNArgs(1)(cmd, args)
 				if err != nil {
 					return err
 				}
-
-				workspaceParts = strings.Split(args[0], ".")
-				workspace, err = client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, workspaceParts[0])
-				if err != nil {
-					return err
-				}
 			}
 
-			if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
-				return xerrors.New("workspace must be in start transition to ssh")
-			}
-
-			if workspace.LatestBuild.Job.CompletedAt == nil {
-				err = cliui.WorkspaceBuild(cmd.Context(), cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
-				if err != nil {
-					return err
-				}
-			}
-
-			if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
-				return xerrors.New("workspace is deleting...")
-			}
-
-			resources, err := client.WorkspaceResourcesByBuild(cmd.Context(), workspace.LatestBuild.ID)
+			workspace, agent, err := getWorkspaceAndAgent(cmd, client, organization.ID, codersdk.Me, args[0], shuffle)
 			if err != nil {
 				return err
 			}
 
-			agents := make([]codersdk.WorkspaceAgent, 0)
-			for _, resource := range resources {
-				agents = append(agents, resource.Agents...)
-			}
-			if len(agents) == 0 {
-				return xerrors.New("workspace has no agents")
-			}
-			var agent codersdk.WorkspaceAgent
-			if len(workspaceParts) >= 2 {
-				for _, otherAgent := range agents {
-					if otherAgent.Name != workspaceParts[1] {
-						continue
-					}
-					agent = otherAgent
-					break
-				}
-				if agent.ID == uuid.Nil {
-					return xerrors.Errorf("agent not found by name %q", workspaceParts[1])
-				}
-			}
-			if agent.ID == uuid.Nil {
-				if len(agents) > 1 {
-					if !shuffle {
-						return xerrors.New("you must specify the name of an agent")
-					}
-					idx, err := cryptorand.Intn(len(agents))
-					if err != nil {
-						return err
-					}
-					agent = agents[idx]
-				} else {
-					agent = agents[0]
-				}
-			}
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(cmd.Context(), cmd.ErrOrStderr(), cliui.AgentOptions{
@@ -231,6 +160,92 @@ func ssh() *cobra.Command {
 	_ = cmd.Flags().MarkHidden("shuffle")
 
 	return cmd
+}
+
+// getWorkspaceAgent returns the workspace and agent selected using either the
+// `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
+// if `shuffle` is true.
+func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+	ctx := cmd.Context()
+
+	var (
+		workspace      codersdk.Workspace
+		workspaceParts = strings.Split(in, ".")
+		err            error
+	)
+	if shuffle {
+		workspaces, err := client.WorkspacesByOwner(cmd.Context(), orgID, userID)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+		if len(workspaces) == 0 {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("no workspaces to shuffle")
+		}
+
+		workspace, err = cryptorand.Element(workspaces)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+	} else {
+		workspace, err = client.WorkspaceByOwnerAndName(cmd.Context(), orgID, userID, workspaceParts[0])
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+	}
+
+	if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+	}
+	if workspace.LatestBuild.Job.CompletedAt == nil {
+		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+	}
+	if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
+	}
+
+	resources, err := client.WorkspaceResourcesByBuild(ctx, workspace.LatestBuild.ID)
+	if err != nil {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("fetch workspace resources: %w", err)
+	}
+
+	agents := make([]codersdk.WorkspaceAgent, 0)
+	for _, resource := range resources {
+		agents = append(agents, resource.Agents...)
+	}
+	if len(agents) == 0 {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
+	}
+	var agent codersdk.WorkspaceAgent
+	if len(workspaceParts) >= 2 {
+		for _, otherAgent := range agents {
+			if otherAgent.Name != workspaceParts[1] {
+				continue
+			}
+			agent = otherAgent
+			break
+		}
+		if agent.ID == uuid.Nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
+		}
+	}
+	if agent.ID == uuid.Nil {
+		if len(agents) > 1 {
+			if !shuffle {
+				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
+			}
+			agent, err = cryptorand.Element(agents)
+			if err != nil {
+				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+			}
+		} else {
+			agent = agents[0]
+		}
+	}
+
+	return workspace, agent, nil
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to

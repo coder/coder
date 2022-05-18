@@ -419,10 +419,17 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
 	require.Equal(t, codersdk.ProvisionerJobSucceeded, ws.LatestBuild.Job.Status, "expected provisioner job to have succeeded")
 	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected latest transition to be start")
-	builds, err := client.WorkspaceBuilds(ctx, ws.ID)
+	builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: ws.ID})
 	require.NoError(t, err, "fetch list of workspace builds from primary")
 	// One build to start, one stop transition, and one autostart. No more.
+	require.Equal(t, database.WorkspaceTransitionStart, builds[0].Transition)
+	require.Equal(t, database.WorkspaceTransitionStop, builds[1].Transition)
+	require.Equal(t, database.WorkspaceTransitionStart, builds[2].Transition)
 	require.Len(t, builds, 3, "unexpected number of builds for workspace from primary")
+
+	// Builds are returned most recent first.
+	require.True(t, builds[0].CreatedAt.After(builds[1].CreatedAt))
+	require.True(t, builds[1].CreatedAt.After(builds[2].CreatedAt))
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
