@@ -44,7 +44,7 @@ ENV PATH $PATH:$GOBIN
 USER coder
 ```
 
-Edit the template Terraform (`main.tf`)
+Edit the Terraform template (`main.tf`):
 
 ```sh
 vim main.tf
