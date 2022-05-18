@@ -589,7 +589,7 @@ func (api *api) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
 				_ = wsjson.Write(ctx, c, httpapi.Response{
 					Message: fmt.Sprintf("get workspace build: %s", err),
