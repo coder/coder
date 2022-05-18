@@ -32,6 +32,8 @@ import (
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/cli/cliflag"
@@ -50,8 +52,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/telemetry"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"github.com/coder/coder/tracing"
 )
 
 // nolint:gocyclo
@@ -102,11 +103,13 @@ func server() *cobra.Command {
 			var tracerProvider *sdktrace.TracerProvider
 			var err error
 			if trace {
-				tracerProvider, err = telemetry.TracerProvider(cmd.Context(), "coderd")
+				tracerProvider, err = tracing.TracerProvider(cmd.Context(), "coderd")
 				if err != nil {
 					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
 				} else {
-					defer tracerProvider.Shutdown(cmd.Context())
+					defer func() {
+						_ = tracerProvider.Shutdown(cmd.Context())
+					}()
 				}
 			}
 
