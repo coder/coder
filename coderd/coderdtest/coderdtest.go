@@ -288,8 +288,8 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		StorageSource: file.Hash,
-		StorageMethod: database.ProvisionerStorageMethodFile,
-		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
 	return templateVersion
@@ -331,8 +331,8 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
 		StorageSource: file.Hash,
-		StorageMethod: database.ProvisionerStorageMethodFile,
-		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
 	return templateVersion

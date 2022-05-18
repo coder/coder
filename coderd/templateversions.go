@@ -317,9 +317,9 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeImportJob,
 				ScopeID:           jobID,
-				SourceScheme:      parameterValue.SourceScheme,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)
@@ -332,7 +332,7 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			UpdatedAt:      database.Now(),
 			OrganizationID: organization.ID,
 			InitiatorID:    apiKey.UserID,
-			Provisioner:    req.Provisioner,
+			Provisioner:    database.ProvisionerType(req.Provisioner),
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			StorageSource:  file.Hash,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,

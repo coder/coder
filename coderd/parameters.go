@@ -47,9 +47,9 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		UpdatedAt:         database.Now(),
 		Scope:             scope,
 		ScopeID:           scopeID,
-		SourceScheme:      createRequest.SourceScheme,
+		SourceScheme:      database.ParameterSourceScheme(createRequest.SourceScheme),
 		SourceValue:       createRequest.SourceValue,
-		DestinationScheme: createRequest.DestinationScheme,
+		DestinationScheme: database.ParameterDestinationScheme(createRequest.DestinationScheme),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -130,8 +130,8 @@ func convertParameterValue(parameterValue database.ParameterValue) codersdk.Para
 		Scope:             codersdk.ParameterScope(parameterValue.Scope),
 		ScopeID:           parameterValue.ScopeID,
 		Name:              parameterValue.Name,
-		SourceScheme:      parameterValue.SourceScheme,
-		DestinationScheme: parameterValue.DestinationScheme,
+		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
+		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
 	}
 }
 

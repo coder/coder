@@ -15,11 +15,7 @@ func xerrors(m dsl.Matcher) {
 		Suggest("xerrors.New($args)").
 		Report("Use xerrors to provide additional stacktrace information!")
 
-	m.Match("fmt.Errorf($*args)").
-		Suggest("xerrors.Errorf($args)").
-		Report("Use xerrors to provide additional stacktrace information!")
-
-	m.Match("errors.New($msg)").
+	m.Match("errors.$_($msg)").
 		Where(m["msg"].Type.Is("string")).
 		Suggest("xerrors.New($msg)").
 		Report("Use xerrors to provide additional stacktrace information!")

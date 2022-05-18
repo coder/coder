@@ -103,7 +103,7 @@ linters-settings:
     settings:
       ruleguard:
         failOn: all
-        rules: rules.go
+        rules: '${configDir}/gorules/*.go'
 
   staticcheck:
     # https://staticcheck.io/docs/options#checks

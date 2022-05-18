@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/coderd/database"
 )
 
 type ParameterScope string
@@ -22,24 +20,39 @@ const (
 	ParameterWorkspace    ParameterScope = "workspace"
 )
 
+type ParameterSourceScheme string
+
+const (
+	ParameterSourceSchemeNone ParameterSourceScheme = "none"
+	ParameterSourceSchemeData ParameterSourceScheme = "data"
+)
+
+type ParameterDestinationScheme string
+
+const (
+	ParameterDestinationSchemeNone                ParameterDestinationScheme = "none"
+	ParameterDestinationSchemeEnvironmentVariable ParameterDestinationScheme = "environment_variable"
+	ParameterDestinationSchemeProvisionerVariable ParameterDestinationScheme = "provisioner_variable"
+)
+
 // Parameter represents a set value for the scope.
 type Parameter struct {
-	ID                uuid.UUID                           `db:"id" json:"id"`
-	CreatedAt         time.Time                           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                           `db:"updated_at" json:"updated_at"`
-	Scope             ParameterScope                      `db:"scope" json:"scope"`
-	ScopeID           uuid.UUID                           `db:"scope_id" json:"scope_id"`
-	Name              string                              `db:"name" json:"name"`
-	SourceScheme      database.ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
-	DestinationScheme database.ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
+	ID                uuid.UUID                  `db:"id" json:"id"`
+	CreatedAt         time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time                  `db:"updated_at" json:"updated_at"`
+	Scope             ParameterScope             `db:"scope" json:"scope"`
+	ScopeID           uuid.UUID                  `db:"scope_id" json:"scope_id"`
+	Name              string                     `db:"name" json:"name"`
+	SourceScheme      ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
+	DestinationScheme ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
 }
 
 // CreateParameterRequest is used to create a new parameter value for a scope.
 type CreateParameterRequest struct {
-	Name              string                              `json:"name" validate:"required"`
-	SourceValue       string                              `json:"source_value" validate:"required"`
-	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
-	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
+	Name              string                     `json:"name" validate:"required"`
+	SourceValue       string                     `json:"source_value" validate:"required"`
+	SourceScheme      ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
+	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
 }
 
 func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, req CreateParameterRequest) (Parameter, error) {
