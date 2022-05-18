@@ -41,7 +41,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   isUpdatingUserRoles,
   canEditUsers,
 }) => {
-  const isLoading = !users || (canEditUsers && roles)
+  const isLoading = !users || (canEditUsers && !roles)
 
   return (
     <Table>
