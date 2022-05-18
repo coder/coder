@@ -53,7 +53,7 @@ variable "docker_image" {
 -    condition     = contains(["my-org/base-development:v1.1", "myorg-java-development:v1.1"], var.docker_image)
 +    condition     = contains(["my-org/base-development:v1.1", "myorg-java-development:v1.2"], var.docker_image)
 
-    error_message = "Invalid Docker Image!"
+    error_message = "Invalid Docker image!"
   }
 }
 ```
