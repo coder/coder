@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -48,13 +49,18 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
 
+	// Some quick reused objects
+	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String())
+
 	// skipRoutes allows skipping routes from being checked.
 	type routeCheck struct {
 		NoAuthorize  bool
+		AssertAction rbac.Action
 		AssertObject rbac.Object
 		StatusCode   int
 	}
@@ -85,13 +91,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"GET:/api/v2/workspaceresources/{workspaceresource}":             {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}":                   {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}/logs":              {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}/resources":         {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}/state":             {NoAuthorize: true},
-		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel":          {NoAuthorize: true},
-		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {NoAuthorize: true},
+		"GET:/api/v2/workspaceresources/{workspaceresource}": {NoAuthorize: true},
 
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
 
@@ -125,12 +125,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
 
-		"GET:/api/v2/workspaces/{workspace}":           {NoAuthorize: true},
-		"PUT:/api/v2/workspaces/{workspace}/autostart": {NoAuthorize: true},
-		"PUT:/api/v2/workspaces/{workspace}/autostop":  {NoAuthorize: true},
-		"GET:/api/v2/workspaces/{workspace}/builds":    {NoAuthorize: true},
-		"POST:/api/v2/workspaces/{workspace}/builds":   {NoAuthorize: true},
-
 		"POST:/api/v2/files":       {NoAuthorize: true},
 		"GET:/api/v2/files/{hash}": {NoAuthorize: true},
 
@@ -139,13 +133,55 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/users/{user}/organizations":                     {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspaces":                        {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 		"GET:/api/v2/organizations/{organization}/workspaces/{user}": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
-		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspace}": {
-			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
+		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspacename}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/organizations/{organization}/workspaces": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/logs": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaces/{workspace}/builds": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaces/{workspace}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"PUT:/api/v2/workspaces/{workspace}/autostart": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: workspaceRBACObj,
+		},
+		"PUT:/api/v2/workspaces/{workspace}/autostop": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: workspaceRBACObj,
+		},
+		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel": {
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/resources": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
 
-		// These endpoints need payloads to get to the auth part.
-		"PUT:/api/v2/users/{user}/roles": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		// These endpoints need payloads to get to the auth part. Payloads will be required
+		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 	}
 
 	c, _ := srv.Config.Handler.(*chi.Mux)
@@ -166,16 +202,24 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{organization}", admin.OrganizationID.String())
 			route = strings.ReplaceAll(route, "{user}", admin.UserID.String())
 			route = strings.ReplaceAll(route, "{organizationname}", organization.Name)
-			route = strings.ReplaceAll(route, "{workspace}", workspace.Name)
+			route = strings.ReplaceAll(route, "{workspace}", workspace.ID.String())
+			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
+			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
+			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
+			body, _ := io.ReadAll(resp.Body)
+			t.Logf("Response Body: %q", string(body))
 			_ = resp.Body.Close()
 
 			if !routeAssertions.NoAuthorize {
 				assert.NotNil(t, authorizer.Called, "authorizer expected")
 				assert.Equal(t, routeAssertions.StatusCode, resp.StatusCode, "expect unauthorized")
 				if authorizer.Called != nil {
+					if routeAssertions.AssertAction != "" {
+						assert.Equal(t, routeAssertions.AssertAction, authorizer.Called.Action, "resource action")
+					}
 					if routeAssertions.AssertObject.Type != "" {
 						assert.Equal(t, routeAssertions.AssertObject.Type, authorizer.Called.Object.Type, "resource type")
 					}

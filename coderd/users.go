@@ -568,6 +568,14 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
+
+	// Create organization uses the organization resource without an OrgID.
+	// This means you need the site wide permission to make a new organization.
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceOrganization) {
+		return
+	}
+
 	_, err := api.Database.GetOrganizationByName(r.Context(), req.Name)
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
