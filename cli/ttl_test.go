@@ -3,9 +3,9 @@ package cli_test
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func TestAutostop(t *testing.T) {
+func TestTTL(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ShowOK", func(t *testing.T) {
@@ -29,13 +29,13 @@ func TestAutostop(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"autostop", "show", workspace.Name}
-			sched     = "CRON_TZ=Europe/Dublin 30 17 * * 1-5"
+			cmdArgs   = []string{"ttl", "show", workspace.Name}
+			ttl       = 8 * time.Hour
 			stdoutBuf = &bytes.Buffer{}
 		)
 
-		err := client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
-			Schedule: sched,
+		err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTL: &ttl,
 		})
 		require.NoError(t, err)
 
@@ -45,8 +45,7 @@ func TestAutostop(t *testing.T) {
 
 		err = cmd.Execute()
 		require.NoError(t, err, "unexpected error")
-		// CRON_TZ gets stripped
-		require.Contains(t, stdoutBuf.String(), "schedule: 30 17 * * 1-5")
+		require.Equal(t, strings.TrimSpace(stdoutBuf.String()), ttl.String())
 	})
 
 	t.Run("EnableDisableOK", func(t *testing.T) {
@@ -61,8 +60,8 @@ func TestAutostop(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			cmdArgs   = []string{"autostop", "enable", workspace.Name, "--minute", "30", "--hour", "17", "--days", "1-5", "--tz", "Europe/Dublin"}
-			sched     = "CRON_TZ=Europe/Dublin 30 17 * * 1-5"
+			ttl       = 8*time.Hour + 30*time.Minute
+			cmdArgs   = []string{"ttl", "enable", workspace.Name, ttl.String()}
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -72,26 +71,24 @@ func TestAutostop(t *testing.T) {
 
 		err := cmd.Execute()
 		require.NoError(t, err, "unexpected error")
-		require.Contains(t, stdoutBuf.String(), "will automatically stop at", "unexpected output")
 
 		// Ensure autostop schedule updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, sched, updated.AutostopSchedule, "expected autostop schedule to be set")
+		require.Equal(t, *updated.TTL, ttl)
 
 		// Disable schedule
-		cmd, root = clitest.New(t, "autostop", "disable", workspace.Name)
+		cmd, root = clitest.New(t, "ttl", "disable", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
 		err = cmd.Execute()
 		require.NoError(t, err, "unexpected error")
-		require.Contains(t, stdoutBuf.String(), "will no longer automatically stop", "unexpected output")
 
 		// Ensure autostop schedule updated
 		updated, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Empty(t, updated.AutostopSchedule, "expected autostop schedule to not be set")
+		require.Nil(t, updated.TTL, "expected ttl to not be set")
 	})
 
 	t.Run("Enable_NotFound", func(t *testing.T) {
@@ -105,7 +102,7 @@ func TestAutostop(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "autostop", "enable", "doesnotexist")
+		cmd, root := clitest.New(t, "ttl", "enable", "doesnotexist", "8h30m")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
@@ -123,43 +120,10 @@ func TestAutostop(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "autostop", "disable", "doesnotexist")
+		cmd, root := clitest.New(t, "ttl", "disable", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
 		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
-	})
-
-	t.Run("Enable_DefaultSchedule", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		)
-
-		// check current TZ env var
-		currTz := os.Getenv("TZ")
-		if currTz == "" {
-			currTz = "UTC"
-		}
-		expectedSchedule := fmt.Sprintf("CRON_TZ=%s 0 18 * * 1-5", currTz)
-
-		cmd, root := clitest.New(t, "autostop", "enable", workspace.Name)
-		clitest.SetupConfig(t, client, root)
-
-		err := cmd.Execute()
-		require.NoError(t, err, "unexpected error")
-
-		// Ensure nothing happened
-		updated, err := client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, expectedSchedule, updated.AutostopSchedule, "expected default autostop schedule")
 	})
 }

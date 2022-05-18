@@ -49,7 +49,7 @@ func list() *cobra.Command {
 			}
 
 			tableWriter := cliui.Table()
-			header := table.Row{"workspace", "template", "status", "last built", "outdated", "autostart", "autostop"}
+			header := table.Row{"workspace", "template", "status", "last built", "outdated", "autostart", "ttl"}
 			tableWriter.AppendHeader(header)
 			tableWriter.SortBy([]table.SortBy{{
 				Name: "workspace",
@@ -116,10 +116,8 @@ func list() *cobra.Command {
 				}
 
 				autostopDisplay := "-"
-				if workspace.AutostopSchedule != "" {
-					if sched, err := schedule.Weekly(workspace.AutostopSchedule); err == nil {
-						autostopDisplay = sched.Cron()
-					}
+				if workspace.TTL != nil {
+					autostopDisplay = workspace.TTL.String()
 				}
 
 				user := usersByID[workspace.OwnerID]

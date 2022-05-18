@@ -306,7 +306,7 @@ func New(options *Options) (http.Handler, func()) {
 					r.Put("/", api.putWorkspaceAutostart)
 				})
 				r.Route("/autostop", func(r chi.Router) {
-					r.Put("/", api.putWorkspaceAutostop)
+					r.Put("/", api.putWorkspaceTTL)
 				})
 				r.Get("/watch", api.watchWorkspace)
 			})
