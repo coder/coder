@@ -90,13 +90,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/turn":       {NoAuthorize: true},
 
 		// TODO: @emyrk these need to be fixed by adding authorize calls
-		"GET:/api/v2/workspaceresources/{workspaceresource}":             {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}":                   {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}/logs":              {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}/resources":         {NoAuthorize: true},
-		"GET:/api/v2/workspacebuilds/{workspacebuild}/state":             {NoAuthorize: true},
-		"PATCH:/api/v2/workspacebuilds/{workspacebuild}/cancel":          {NoAuthorize: true},
-		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {NoAuthorize: true},
+		"GET:/api/v2/workspaceresources/{workspaceresource}": {NoAuthorize: true},
 
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
 
@@ -139,6 +133,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/organizations/{organization}/workspaces/{user}": {StatusCode: http.StatusOK, AssertObject: rbac.ResourceWorkspace},
 		"GET:/api/v2/organizations/{organization}/workspaces/{user}/{workspace}": {
 			AssertObject: rbac.ResourceWorkspace.InOrg(organization.ID).WithID(workspace.ID.String()).WithOwner(workspace.OwnerID.String()),
+		},
 		"GET:/api/v2/workspaces/{workspace}/builds/{workspacebuildname}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
@@ -181,6 +176,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaces/": {
+			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
 		},
