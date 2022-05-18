@@ -35,6 +35,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	otherOrg, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 		Name: "default-test",
 	})
+	require.NoError(t, err, "create other org")
 
 	// This other user is not in the first user's org. Since other is an admin, they can
 	// still see the "first" user's workspace.
@@ -46,7 +47,6 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	require.NoError(t, err, "(first) fetch workspaces")
 
 	require.ElementsMatch(t, otherWorkspaces, firstWorkspaces)
-
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
