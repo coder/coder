@@ -25,7 +25,7 @@ import (
 func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 
-	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build: %s", err),
@@ -58,13 +58,19 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	httpapi.Write(rw, http.StatusOK,
 		convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
 }
 
 func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	workspaces, err := api.Database.GetWorkspacesByOrganizationID(r.Context(), database.GetWorkspacesByOrganizationIDParams{
+	roles := httpmw.UserRoles(r)
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OrganizationID: organization.ID,
 		Deleted:        false,
 	})
@@ -77,7 +83,18 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+
+	allowedWorkspaces := make([]database.Workspace, 0)
+	for _, ws := range workspaces {
+		ws := ws
+		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
+		if err == nil {
+			allowedWorkspaces = append(allowedWorkspaces, ws)
+		}
+	}
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -87,64 +104,67 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(rw, http.StatusOK, apiWorkspaces)
 }
 
-func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
+// workspaces returns all workspaces a user can read.
+// Optional filters with query params
+func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 	roles := httpmw.UserRoles(r)
+	apiKey := httpmw.APIKey(r)
 
-	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get organizations: %s", err),
-		})
-		return
-	}
-	organizationIDs := make([]uuid.UUID, 0)
-	for _, organization := range organizations {
-		err = api.Authorizer.AuthorizeByRoleName(r.Context(), user.ID.String(), roles.Roles, rbac.ActionRead, rbac.ResourceWorkspace.All().InOrg(organization.ID))
-		var apiErr *rbac.UnauthorizedError
-		if xerrors.As(err, &apiErr) {
-			continue
-		}
+	// Empty strings mean no filter
+	orgFilter := r.URL.Query().Get("organization_id")
+	ownerFilter := r.URL.Query().Get("owner_id")
+
+	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
+	if orgFilter != "" {
+		orgID, err := uuid.Parse(orgFilter)
 		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("authorize: %s", err),
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("organization_id must be a uuid: %s", err.Error()),
 			})
 			return
 		}
-		organizationIDs = append(organizationIDs, organization.ID)
+		filter.OrganizationID = orgID
+	}
+	if ownerFilter == "me" {
+		filter.OwnerID = apiKey.UserID
+	} else if ownerFilter != "" {
+		userID, err := uuid.Parse(ownerFilter)
+		if err != nil {
+			// Maybe it's a username
+			user, err := api.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+				// Why not just accept 1 arg and use it for both in the sql?
+				Username: ownerFilter,
+				Email:    ownerFilter,
+			})
+			if err != nil {
+				httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+					Message: "owner must be a uuid or username",
+				})
+				return
+			}
+			userID = user.ID
+		}
+		filter.OwnerID = userID
 	}
 
-	workspaceIDs := map[uuid.UUID]struct{}{}
-	allWorkspaces, err := api.Database.GetWorkspacesByOrganizationIDs(r.Context(), database.GetWorkspacesByOrganizationIDsParams{
-		Ids: organizationIDs,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("get workspaces for organizations: %s", err),
-		})
-		return
-	}
-	for _, ws := range allWorkspaces {
-		workspaceIDs[ws.ID] = struct{}{}
-	}
-	userWorkspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
-		OwnerID: user.ID,
-	})
+	allowedWorkspaces := make([]database.Workspace, 0)
+	allWorkspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), filter)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspaces for user: %s", err),
 		})
 		return
 	}
-	for _, ws := range userWorkspaces {
-		_, exists := workspaceIDs[ws.ID]
-		if exists {
-			continue
+	for _, ws := range allWorkspaces {
+		ws := ws
+		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
+		if err == nil {
+			allowedWorkspaces = append(allowedWorkspaces, ws)
 		}
-		allWorkspaces = append(allWorkspaces, ws)
 	}
 
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allWorkspaces)
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -156,8 +176,10 @@ func (api *api) workspacesByUser(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
-	workspaces, err := api.Database.GetWorkspacesByOwnerID(r.Context(), database.GetWorkspacesByOwnerIDParams{
+	roles := httpmw.UserRoles(r)
+	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OwnerID: owner.ID,
+		Deleted: false,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -168,7 +190,18 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, workspaces)
+
+	allowedWorkspaces := make([]database.Workspace, 0)
+	for _, ws := range workspaces {
+		ws := ws
+		err = api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
+			rbac.ResourceWorkspace.InOrg(ws.OrganizationID).WithOwner(ws.OwnerID.String()).WithID(ws.ID.String()))
+		if err == nil {
+			allowedWorkspaces = append(allowedWorkspaces, ws)
+		}
+	}
+
+	apiWorkspaces, err := convertWorkspaces(r.Context(), api.Database, allowedWorkspaces)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("convert workspaces: %s", err),
@@ -188,9 +221,8 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		Name:    workspaceName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(rw, http.StatusNotFound, httpapi.Response{
-			Message: fmt.Sprintf("no workspace found by name %q", workspaceName),
-		})
+		// Do not leak information if the workspace exists or not
+		httpapi.Forbidden(rw)
 		return
 	}
 	if err != nil {
@@ -207,7 +239,12 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	build, err := api.Database.GetWorkspaceBuildByWorkspaceIDWithoutAfter(r.Context(), workspace.ID)
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get workspace build: %s", err),
@@ -409,6 +446,7 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			InitiatorID:       apiKey.UserID,
 			Transition:        database.WorkspaceTransitionStart,
 			JobID:             provisionerJob.ID,
+			BuildNumber:       1, // First build!
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
@@ -506,7 +544,7 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 		templateIDs = append(templateIDs, workspace.TemplateID)
 		ownerIDs = append(ownerIDs, workspace.OwnerID)
 	}
-	workspaceBuilds, err := db.GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(ctx, workspaceIDs)
+	workspaceBuilds, err := db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -538,7 +576,19 @@ func convertWorkspaces(ctx context.Context, db database.Store, workspaces []data
 
 	buildByWorkspaceID := map[uuid.UUID]database.WorkspaceBuild{}
 	for _, workspaceBuild := range workspaceBuilds {
-		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
+		buildByWorkspaceID[workspaceBuild.WorkspaceID] = database.WorkspaceBuild{
+			ID:                workspaceBuild.ID,
+			CreatedAt:         workspaceBuild.CreatedAt,
+			UpdatedAt:         workspaceBuild.UpdatedAt,
+			WorkspaceID:       workspaceBuild.WorkspaceID,
+			TemplateVersionID: workspaceBuild.TemplateVersionID,
+			Name:              workspaceBuild.Name,
+			BuildNumber:       workspaceBuild.BuildNumber,
+			Transition:        workspaceBuild.Transition,
+			InitiatorID:       workspaceBuild.InitiatorID,
+			ProvisionerState:  workspaceBuild.ProvisionerState,
+			JobID:             workspaceBuild.JobID,
+		}
 	}
 	templateByID := map[uuid.UUID]database.Template{}
 	for _, template := range templates {

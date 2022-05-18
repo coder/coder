@@ -50,7 +50,7 @@ type Options struct {
 	SecureAuthCookie     bool
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
-	Authorizer           *rbac.RegoAuthorizer
+	Authorizer           rbac.Authorizer
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -82,10 +82,6 @@ func New(options *Options) (http.Handler, func()) {
 
 	// TODO: @emyrk we should just move this into 'ExtractAPIKey'.
 	authRolesMiddleware := httpmw.ExtractUserRoles(options.Database)
-
-	authorize := func(f http.HandlerFunc, actions rbac.Action) http.HandlerFunc {
-		return httpmw.Authorize(api.Logger, api.Authorizer, actions)(f).ServeHTTP
-	}
 
 	r := chi.NewRouter()
 
@@ -158,10 +154,7 @@ func New(options *Options) (http.Handler, func()) {
 				})
 			})
 			r.Route("/members", func(r chi.Router) {
-				r.Route("/roles", func(r chi.Router) {
-					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
-					r.Get("/", authorize(api.assignableOrgRoles, rbac.ActionRead))
-				})
+				r.Get("/roles", api.assignableOrgRoles)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(
 						httpmw.ExtractUserParam(options.Database),
@@ -182,8 +175,8 @@ func New(options *Options) (http.Handler, func()) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
-				httpmw.ExtractOrganizationParam(options.Database),
 			)
+
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
 			r.Route("/versions", func(r chi.Router) {
@@ -196,7 +189,6 @@ func New(options *Options) (http.Handler, func()) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
-				httpmw.ExtractOrganizationParam(options.Database),
 			)
 
 			r.Get("/", api.templateVersion)
@@ -232,8 +224,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.users)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
-					r.Use(httpmw.WithRBACObject(rbac.ResourceUserRole))
-					r.Get("/", authorize(api.assignableSiteRoles, rbac.ActionRead))
+					r.Get("/", api.assignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
@@ -244,8 +235,7 @@ func New(options *Options) (http.Handler, func()) {
 						r.Put("/active", api.putUserStatus(database.UserStatusActive))
 					})
 					r.Route("/password", func(r chi.Router) {
-						r.Use(httpmw.WithRBACObject(rbac.ResourceUserPasswordRole))
-						r.Put("/", authorize(api.putUserPassword, rbac.ActionUpdate))
+						r.Put("/", api.putUserPassword)
 					})
 					r.Get("/organizations", api.organizationsByUser)
 					r.Post("/organizations", api.postOrganizationsByUser)
@@ -263,7 +253,6 @@ func New(options *Options) (http.Handler, func()) {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
-					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})
@@ -299,22 +288,28 @@ func New(options *Options) (http.Handler, func()) {
 			)
 			r.Get("/", api.workspaceResource)
 		})
-		r.Route("/workspaces/{workspace}", func(r chi.Router) {
+		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractWorkspaceParam(options.Database),
+				authRolesMiddleware,
 			)
-			r.Get("/", api.workspace)
-			r.Route("/builds", func(r chi.Router) {
-				r.Get("/", api.workspaceBuilds)
-				r.Post("/", api.postWorkspaceBuilds)
-				r.Get("/{workspacebuildname}", api.workspaceBuildByName)
-			})
-			r.Route("/autostart", func(r chi.Router) {
-				r.Put("/", api.putWorkspaceAutostart)
-			})
-			r.Route("/autostop", func(r chi.Router) {
-				r.Put("/", api.putWorkspaceAutostop)
+			r.Get("/", api.workspaces)
+			r.Route("/{workspace}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractWorkspaceParam(options.Database),
+				)
+				r.Get("/", api.workspace)
+				r.Route("/builds", func(r chi.Router) {
+					r.Get("/", api.workspaceBuilds)
+					r.Post("/", api.postWorkspaceBuilds)
+					r.Get("/{workspacebuildname}", api.workspaceBuildByName)
+				})
+				r.Route("/autostart", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceAutostart)
+				})
+				r.Route("/autostop", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceAutostop)
+				})
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

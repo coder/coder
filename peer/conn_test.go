@@ -90,7 +90,7 @@ func TestConn(t *testing.T) {
 		_, err := server.Ping()
 		require.NoError(t, err)
 		// Create a channel that closes on disconnect.
-		channel, err := server.Dial(context.Background(), "wow", nil)
+		channel, err := server.CreateChannel(context.Background(), "wow", nil)
 		assert.NoError(t, err)
 		err = wan.Stop()
 		require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
+		cch, err := client.CreateChannel(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 
 		sch, err := server.Accept(context.Background())
@@ -124,7 +124,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, wan := createPair(t)
 		exchange(t, client, server)
-		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
+		cch, err := client.CreateChannel(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestConn(t *testing.T) {
 		t.Parallel()
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
-		cch, err := client.Dial(context.Background(), "hello", &peer.ChannelOptions{})
+		cch, err := client.CreateChannel(context.Background(), "hello", &peer.ChannelOptions{})
 		require.NoError(t, err)
 		sch, err := server.Accept(context.Background())
 		require.NoError(t, err)
@@ -196,7 +196,7 @@ func TestConn(t *testing.T) {
 		defaultTransport := http.DefaultTransport.(*http.Transport).Clone()
 		var cch *peer.Channel
 		defaultTransport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			cch, err = client.Dial(ctx, "hello", &peer.ChannelOptions{})
+			cch, err = client.CreateChannel(ctx, "hello", &peer.ChannelOptions{})
 			if err != nil {
 				return nil, err
 			}
@@ -234,7 +234,7 @@ func TestConn(t *testing.T) {
 		require.NoError(t, err)
 		expectedErr := xerrors.New("wow")
 		_ = conn.CloseWithError(expectedErr)
-		_, err = conn.Dial(context.Background(), "", nil)
+		_, err = conn.CreateChannel(context.Background(), "", nil)
 		require.ErrorIs(t, err, expectedErr)
 	})
 
@@ -274,7 +274,7 @@ func TestConn(t *testing.T) {
 		client, server, _ := createPair(t)
 		exchange(t, client, server)
 		go func() {
-			channel, err := client.Dial(context.Background(), "test", nil)
+			channel, err := client.CreateChannel(context.Background(), "test", nil)
 			require.NoError(t, err)
 			_, err = channel.Write([]byte{1, 2})
 			require.NoError(t, err)

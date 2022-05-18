@@ -6,11 +6,19 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
-func (*api) organization(rw http.ResponseWriter, r *http.Request) {
+func (api *api) organization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceOrganization.
+		InOrg(organization.ID).
+		WithID(organization.ID.String())) {
+		return
+	}
+
 	httpapi.Write(rw, http.StatusOK, convertOrganization(organization))
 }
 

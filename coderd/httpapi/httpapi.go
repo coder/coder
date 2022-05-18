@@ -62,6 +62,12 @@ type Error struct {
 	Detail string `json:"detail" validate:"required"`
 }
 
+func Forbidden(rw http.ResponseWriter) {
+	Write(rw, http.StatusForbidden, Response{
+		Message: "forbidden",
+	})
+}
+
 // Write outputs a standardized format to an HTTP response body.
 func Write(rw http.ResponseWriter, status int, response interface{}) {
 	buf := &bytes.Buffer{}

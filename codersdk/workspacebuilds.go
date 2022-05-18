@@ -14,15 +14,14 @@ import (
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
-// Iterate on before/after to determine a chronological history.
+// BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
 	ID                uuid.UUID                    `json:"id"`
 	CreatedAt         time.Time                    `json:"created_at"`
 	UpdatedAt         time.Time                    `json:"updated_at"`
 	WorkspaceID       uuid.UUID                    `json:"workspace_id"`
 	TemplateVersionID uuid.UUID                    `json:"template_version_id"`
-	BeforeID          uuid.UUID                    `json:"before_id"`
-	AfterID           uuid.UUID                    `json:"after_id"`
+	BuildNumber       int32                        `json:"build_number"`
 	Name              string                       `json:"name"`
 	Transition        database.WorkspaceTransition `json:"transition"`
 	InitiatorID       uuid.UUID                    `json:"initiator_id"`
@@ -32,7 +31,7 @@ type WorkspaceBuild struct {
 // WorkspaceBuild returns a single workspace build for a workspace.
 // If history is "", the latest version is returned.
 func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s", id), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s", id), nil)
 	if err != nil {
 		return WorkspaceBuild{}, err
 	}
@@ -46,7 +45,7 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 
 // CancelWorkspaceBuild marks a workspace build job as canceled.
 func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
-	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil)
 	if err != nil {
 		return err
 	}
@@ -59,7 +58,7 @@ func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
 
 // WorkspaceResourcesByBuild returns resources for a workspace build.
 func (c *Client) WorkspaceResourcesByBuild(ctx context.Context, build uuid.UUID) ([]WorkspaceResource, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/resources", build), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/resources", build), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +82,7 @@ func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, a
 
 // WorkspaceBuildState returns the provisioner state of the build.
 func (c *Client) WorkspaceBuildState(ctx context.Context, build uuid.UUID) ([]byte, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/state", build), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/state", build), nil)
 	if err != nil {
 		return nil, err
 	}
