@@ -209,11 +209,6 @@ func newRouter(options *Options, a *api) chi.Router {
 			r.Get("/resources", a.templateVersionResources)
 			r.Get("/logs", a.templateVersionLogs)
 		})
-		r.Route("/provisionerdaemons", func(r chi.Router) {
-			r.Route("/me", func(r chi.Router) {
-				r.Get("/listen", a.provisionerDaemonsListen)
-			})
-		})
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", a.firstUser)
 			r.Post("/first", a.postFirstUser)
