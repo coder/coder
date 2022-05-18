@@ -127,8 +127,8 @@ export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
   if (filter?.OrganizationID) {
     searchParams.append("organization_id", filter.OrganizationID)
   }
-  if (filter?.OwnerID) {
-    searchParams.append("owner_id", filter.OwnerID)
+  if (filter?.Owner) {
+    searchParams.append("owner_id", filter.Owner)
   }
 
   const searchString = searchParams.toString()
