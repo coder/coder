@@ -280,11 +280,11 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		<-done
 	})
-	t.Run("DatadogTracerNoLeak", func(t *testing.T) {
+	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace-datadog=true")
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace=true")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)

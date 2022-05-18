@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/telemetry"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Options are requires parameters for Coder to start.
@@ -50,6 +51,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
 	Authorizer           rbac.Authorizer
+	TracerProvider       *sdktrace.TracerProvider
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -91,7 +93,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		},
 		httpmw.Prometheus,
-		telemetry.HTTPMW("coderd.http"),
+		telemetry.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {

@@ -6,17 +6,23 @@ import (
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // HTTPMW adds tracing to http routes.
-func HTTPMW(tracer string) func(http.Handler) http.Handler {
+func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// // do not trace if exporter has not be initialized
+			if tracerProvider == nil {
+				next.ServeHTTP(rw, r)
+				return
+			}
+
 			// start span with default span name. Span name will be updated once request finishes
-			_, span := otel.Tracer(tracer).Start(r.Context(), "http.request")
+			_, span := tracerProvider.Tracer(name).Start(r.Context(), "http.request")
 			defer span.End()
 
 			wrw := middleware.NewWrapResponseWriter(rw, r.ProtoMajor)
@@ -30,6 +36,7 @@ func HTTPMW(tracer string) func(http.Handler) http.Handler {
 				resourceName = "unknown"
 			}
 			resourceName = r.Method + " " + resourceName
+			fmt.Println(resourceName)
 			span.SetName(resourceName)
 
 			// set the status code

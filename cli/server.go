@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/telemetry"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // nolint:gocyclo
@@ -98,12 +99,15 @@ func server() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
+			var tracerProvider *sdktrace.TracerProvider
+			var err error
 			if trace {
-				stop, err := telemetry.Exporter(cmd.Context(), "coderd")
+				tracerProvider, err = telemetry.TracerProvider(cmd.Context(), "coderd")
 				if err != nil {
 					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
+				} else {
+					defer tracerProvider.Shutdown(cmd.Context())
 				}
-				defer stop()
 			}
 
 			printLogo(cmd, spooky)
@@ -217,6 +221,7 @@ func server() *cobra.Command {
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 				TURNServer:           turnServer,
+				TracerProvider:       tracerProvider,
 			}
 
 			if oauth2GithubClientSecret != "" {
