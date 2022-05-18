@@ -24,8 +24,11 @@ dayjs.extend(relativeTime)
 export const Language = {
   createButton: "Create Template",
   developerCount: (ownerCount: number): string => {
-    return `${ownerCount} developer${ownerCount !== 1 && "s"}`
+    return `${ownerCount} developer${ownerCount !== 1 ? "s" : ""}`
   },
+  nameLabel: "Name",
+  usedByLabel: "Used By",
+  lastUpdatedLabel: "Last Updated",
   emptyViewCreateCTA: "Create a template",
   emptyViewCreate: "to standardize development workspaces for your team.",
   emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
@@ -48,9 +51,9 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Used By</TableCell>
-              <TableCell>Last Updated</TableCell>
+              <TableCell>{Language.nameLabel}</TableCell>
+              <TableCell>{Language.usedByLabel}</TableCell>
+              <TableCell>{Language.lastUpdatedLabel}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

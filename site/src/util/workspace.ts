@@ -1,3 +1,4 @@
+import { Theme } from "@material-ui/core/styles"
 import { WorkspaceBuildTransition } from "../api/types"
 import { WorkspaceBuild } from "../api/typesGenerated"
 
@@ -46,4 +47,72 @@ export const getWorkspaceStatus = (workspaceBuild?: WorkspaceBuild): WorkspaceSt
     case "failed":
       return "error"
   }
+}
+
+export const getDisplayStatus = (
+  theme: Theme,
+  build: WorkspaceBuild,
+): {
+  color: string
+  status: string
+} => {
+  const status = getWorkspaceStatus(build)
+  switch (status) {
+    case undefined:
+      return {
+        color: theme.palette.text.secondary,
+        status: "Loading...",
+      }
+    case "started":
+      return {
+        color: theme.palette.success.main,
+        status: "⦿ Running",
+      }
+    case "starting":
+      return {
+        color: theme.palette.success.main,
+        status: "⦿ Starting",
+      }
+    case "stopping":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Stopping",
+      }
+    case "stopped":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Stopped",
+      }
+    case "deleting":
+      return {
+        color: theme.palette.text.secondary,
+        status: "⦸ Deleting",
+      }
+    case "deleted":
+      return {
+        color: theme.palette.text.secondary,
+        status: "⦸ Deleted",
+      }
+    case "canceling":
+      return {
+        color: theme.palette.warning.light,
+        status: "◍ Canceling",
+      }
+    case "canceled":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Canceled",
+      }
+    case "error":
+      return {
+        color: theme.palette.error.main,
+        status: "ⓧ Failed",
+      }
+    case "queued":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Queued",
+      }
+  }
+  throw new Error("unknown status " + status)
 }

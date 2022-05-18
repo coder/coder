@@ -112,26 +112,30 @@ export const MockWorkspaceAutostopEnabled: TypesGen.UpdateWorkspaceAutostartRequ
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   after_id: "",
   before_id: "",
-  created_at: new Date().toDateString(),
-  id: "test-workspace-build",
+  created_at: new Date().toString(),
+  id: "1",
   initiator_id: "",
   job: MockProvisionerJob,
   name: "a-workspace-build",
   template_version_id: "",
   transition: "start",
-  updated_at: "",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_id: "test-workspace",
 }
 
 export const MockWorkspaceBuildStop = {
   ...MockWorkspaceBuild,
+  id: "2",
   transition: "stop",
 }
 
 export const MockWorkspaceBuildDelete = {
   ...MockWorkspaceBuild,
+  id: "3",
   transition: "delete",
 }
+
+export const MockBuilds = [MockWorkspaceBuild, MockWorkspaceBuildStop, MockWorkspaceBuildDelete]
 
 export const MockWorkspace: TypesGen.Workspace = {
   id: "test-workspace",

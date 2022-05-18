@@ -172,13 +172,14 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
+		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		_, err = notInOrg.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "some@domain.com",
 			Username:       "anotheruser",
 			Password:       "testing",
@@ -186,7 +187,7 @@ func TestPostUsers(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
 
 	t.Run("Create", func(t *testing.T) {
@@ -401,10 +402,11 @@ func TestGrantRoles(t *testing.T) {
 			[]string{rbac.RoleOrgMember(first.OrganizationID)},
 		)
 
+		memberUser, err := member.User(ctx, codersdk.Me)
+		require.NoError(t, err, "fetch member")
+
 		// Grant
-		// TODO: @emyrk this should be 'admin.UpdateUserRoles' once proper authz
-		//		is enforced.
-		_, err = member.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
+		_, err = admin.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to site admin
 				rbac.RoleMember(),

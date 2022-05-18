@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -361,8 +362,8 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 			return
 		}
 		// #nosec
-		path := filepath.Join(p.opts.WorkDirectory, header.Name)
-		if !strings.HasPrefix(path, filepath.Clean(p.opts.WorkDirectory)) {
+		headerPath := filepath.Join(p.opts.WorkDirectory, header.Name)
+		if !strings.HasPrefix(headerPath, filepath.Clean(p.opts.WorkDirectory)) {
 			p.failActiveJobf("tar attempts to target relative upper directory")
 			return
 		}
@@ -372,36 +373,36 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
-			err = os.MkdirAll(path, mode)
+			err = os.MkdirAll(headerPath, mode)
 			if err != nil {
-				p.failActiveJobf("mkdir %q: %s", path, err)
+				p.failActiveJobf("mkdir %q: %s", headerPath, err)
 				return
 			}
-			p.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", path))
+			p.opts.Logger.Debug(context.Background(), "extracted directory", slog.F("path", headerPath))
 		case tar.TypeReg:
-			file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
+			file, err := os.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
-				p.failActiveJobf("create file %q (mode %s): %s", path, mode, err)
+				p.failActiveJobf("create file %q (mode %s): %s", headerPath, mode, err)
 				return
 			}
-			// Max file size of 10MB.
-			size, err := io.CopyN(file, reader, (1<<20)*10)
+			// Max file size of 10MiB.
+			size, err := io.CopyN(file, reader, 10<<20)
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			if err != nil {
 				_ = file.Close()
-				p.failActiveJobf("copy file %q: %s", path, err)
+				p.failActiveJobf("copy file %q: %s", headerPath, err)
 				return
 			}
 			err = file.Close()
 			if err != nil {
-				p.failActiveJobf("close file %q: %s", path, err)
+				p.failActiveJobf("close file %q: %s", headerPath, err)
 				return
 			}
 			p.opts.Logger.Debug(context.Background(), "extracted file",
 				slog.F("size_bytes", size),
-				slog.F("path", path),
+				slog.F("path", headerPath),
 				slog.F("mode", mode),
 			)
 		}
@@ -411,6 +412,7 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 	case *proto.AcquiredJob_TemplateImport_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is template import")
 
+		p.runReadmeParse(ctx, job)
 		p.runTemplateImport(ctx, shutdown, provisioner, job)
 	case *proto.AcquiredJob_WorkspaceBuild_:
 		p.opts.Logger.Debug(context.Background(), "acquired job is workspace provision",
@@ -447,6 +449,51 @@ func (p *Server) runJob(ctx context.Context, job *proto.AcquiredJob) {
 		}
 
 		p.opts.Logger.Info(context.Background(), "completed job", slog.F("id", job.JobId))
+	}
+}
+
+// ReadmeFile is the location we look for to extract documentation from template
+// versions.
+const ReadmeFile = "README.md"
+
+func (p *Server) runReadmeParse(ctx context.Context, job *proto.AcquiredJob) {
+	client, ok := p.client()
+	if !ok {
+		p.failActiveJobf("client disconnected")
+		return
+	}
+
+	fi, err := os.ReadFile(path.Join(p.opts.WorkDirectory, ReadmeFile))
+	if err != nil {
+		_, err := client.UpdateJob(ctx, &proto.UpdateJobRequest{
+			JobId: job.GetJobId(),
+			Logs: []*proto.Log{{
+				Source:    proto.LogSource_PROVISIONER_DAEMON,
+				Level:     sdkproto.LogLevel_DEBUG,
+				Stage:     "No README.md provided",
+				CreatedAt: time.Now().UTC().UnixMilli(),
+			}},
+		})
+		if err != nil {
+			p.failActiveJobf("write log: %s", err)
+		}
+
+		return
+	}
+
+	_, err = client.UpdateJob(ctx, &proto.UpdateJobRequest{
+		JobId: job.GetJobId(),
+		Logs: []*proto.Log{{
+			Source:    proto.LogSource_PROVISIONER_DAEMON,
+			Level:     sdkproto.LogLevel_INFO,
+			Stage:     "Adding README.md...",
+			CreatedAt: time.Now().UTC().UnixMilli(),
+		}},
+		Readme: fi,
+	})
+	if err != nil {
+		p.failActiveJobf("write log: %s", err)
+		return
 	}
 }
 

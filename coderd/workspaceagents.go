@@ -216,7 +216,7 @@ func (api *api) workspaceAgentListen(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if build.ID.String() != latestBuild.ID.String() {
+		if build.ID != latestBuild.ID {
 			return xerrors.New("build is outdated")
 		}
 		return nil
