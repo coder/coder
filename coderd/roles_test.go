@@ -128,14 +128,14 @@ func TestListRoles(t *testing.T) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
-			AuthorizedError: unauth,
+			ExpectedRoles: convertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "OrgMemberListOrg",
 			APICall: func() ([]codersdk.Role, error) {
 				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
 			},
-			AuthorizedError: unauth,
+			ExpectedRoles: convertRoles(rbac.OrganizationRoles(admin.OrganizationID)),
 		},
 		{
 			Name: "NonOrgMemberListOrg",
@@ -150,7 +150,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func() ([]codersdk.Role, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
-			AuthorizedError: unauth,
+			ExpectedRoles: convertRoles(rbac.SiteRoles()),
 		},
 		{
 			Name: "OrgAdminListOrg",
