@@ -15,8 +15,6 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
-	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
@@ -28,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
+	"github.com/coder/coder/telemetry"
 )
 
 // Options are requires parameters for Coder to start.
@@ -92,7 +91,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		},
 		httpmw.Prometheus,
-		chitrace.Middleware(),
+		telemetry.HTTPMW("coderd.http"),
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {

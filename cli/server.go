@@ -31,7 +31,6 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -51,6 +50,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/telemetry"
 )
 
 // nolint:gocyclo
@@ -82,7 +82,7 @@ func server() *cobra.Command {
 		turnRelayAddress                 string
 		tunnel                           bool
 		stunServers                      []string
-		traceDatadog                     bool
+		trace                            bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
 		spooky                           bool
@@ -98,11 +98,12 @@ func server() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			if traceDatadog {
-				tracer.Start(tracer.WithLogStartup(false), tracer.WithLogger(&datadogLogger{
-					logger: logger.Named("datadog"),
-				}))
-				defer tracer.Stop()
+			if trace {
+				stop, err := telemetry.Exporter(cmd.Context(), "coderd")
+				if err != nil {
+					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
+				}
+				defer stop()
 			}
 
 			printLogo(cmd, spooky)
@@ -480,7 +481,7 @@ func server() *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
 	}, "Specify URLs for STUN servers to enable P2P connections.")
-	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &trace, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
 		"Specifies the address to bind TURN connections.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
