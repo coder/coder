@@ -18,7 +18,7 @@ type BuildInfoResponse struct {
 
 // BuildInfo returns build information for this instance of Coder.
 func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
 	if err != nil {
 		return BuildInfoResponse{}, err
 	}

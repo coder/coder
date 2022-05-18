@@ -20,6 +20,10 @@ coderd/database/dump.sql: $(wildcard coderd/database/migrations/*.sql)
 coderd/database/querier.go: coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	coderd/database/generate.sh
 
+dev: build
+	./scripts/develop.sh
+.PHONY: dev
+
 dist/artifacts.json: site/out/index.html $(shell find . -not -path './vendor/*' -type f -name '*.go') go.mod go.sum
 	goreleaser release --snapshot --rm-dist --skip-sign
 

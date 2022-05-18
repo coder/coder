@@ -17,7 +17,7 @@ type Role struct {
 // ListSiteRoles lists all available site wide roles.
 // This is not user specific.
 func (c *Client) ListSiteRoles(ctx context.Context) ([]Role, error) {
-	res, err := c.request(ctx, http.MethodGet, "/api/v2/users/roles", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/roles", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func (c *Client) ListSiteRoles(ctx context.Context) ([]Role, error) {
 // ListOrganizationRoles lists all available roles for a given organization.
 // This is not user specific.
 func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Role, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/roles/", org.String()), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/roles", org.String()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]Ro
 }
 
 func (c *Client) CheckPermissions(ctx context.Context, checks UserAuthorizationRequest) (UserAuthorizationResponse, error) {
-	res, err := c.request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/authorization", Me), checks)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/authorization", Me), checks)
 	if err != nil {
 		return nil, err
 	}

@@ -1830,7 +1830,7 @@ func (q *sqlQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTe
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, description, job_id
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -1847,7 +1847,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
-		&i.Description,
+		&i.Readme,
 		&i.JobID,
 	)
 	return i, err
@@ -1855,7 +1855,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, description, job_id
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -1872,7 +1872,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
-		&i.Description,
+		&i.Readme,
 		&i.JobID,
 	)
 	return i, err
@@ -1880,7 +1880,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, description, job_id
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -1903,7 +1903,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
-		&i.Description,
+		&i.Readme,
 		&i.JobID,
 	)
 	return i, err
@@ -1911,7 +1911,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, description, job_id
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 FROM
 	template_versions
 WHERE
@@ -1972,7 +1972,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Name,
-			&i.Description,
+			&i.Readme,
 			&i.JobID,
 		); err != nil {
 			return nil, err
@@ -1997,11 +1997,11 @@ INSERT INTO
 		created_at,
 		updated_at,
 		"name",
-		description,
+		readme,
 		job_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, template_id, organization_id, created_at, updated_at, name, description, job_id
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id
 `
 
 type InsertTemplateVersionParams struct {
@@ -2011,7 +2011,7 @@ type InsertTemplateVersionParams struct {
 	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
+	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 }
 
@@ -2023,7 +2023,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Name,
-		arg.Description,
+		arg.Readme,
 		arg.JobID,
 	)
 	var i TemplateVersion
@@ -2034,7 +2034,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
-		&i.Description,
+		&i.Readme,
 		&i.JobID,
 	)
 	return i, err
@@ -2058,6 +2058,26 @@ type UpdateTemplateVersionByIDParams struct {
 
 func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionByID, arg.ID, arg.TemplateID, arg.UpdatedAt)
+	return err
+}
+
+const updateTemplateVersionDescriptionByJobID = `-- name: UpdateTemplateVersionDescriptionByJobID :exec
+UPDATE
+	template_versions
+SET
+	readme = $2,
+	updated_at = now()
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionDescriptionByJobIDParams struct {
+	JobID  uuid.UUID `db:"job_id" json:"job_id"`
+	Readme string    `db:"readme" json:"readme"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme)
 	return err
 }
 

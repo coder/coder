@@ -73,6 +73,10 @@
       {
         "match": "database/queries/*.sql",
         "cmd": "make gen"
+      },
+      {
+        "match": "provisionerd/proto/provisionerd.proto",
+        "cmd": "make provisionerd/proto/provisionerd.pb.go",
       }
     ]
   },

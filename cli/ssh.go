@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 )
 
 var autostopPollInterval = 30 * time.Second
@@ -31,13 +32,14 @@ var autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 
 func ssh() *cobra.Command {
 	var (
-		stdio bool
+		stdio   bool
+		shuffle bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "SSH into a workspace",
-		Args:        cobra.MinimumNArgs(1),
+		Args:        cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
@@ -48,7 +50,19 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			workspace, agent, err := getWorkspaceAndAgent(cmd, client, organization.ID, codersdk.Me, args[0])
+			if shuffle {
+				err := cobra.ExactArgs(0)(cmd, args)
+				if err != nil {
+					return err
+				}
+			} else {
+				err := cobra.MinimumNArgs(1)(cmd, args)
+				if err != nil {
+					return err
+				}
+			}
+
+			workspace, agent, err := getWorkspaceAndAgent(cmd, client, organization.ID, codersdk.Me, args[0], shuffle)
 			if err != nil {
 				return err
 			}
@@ -142,24 +156,48 @@ func ssh() *cobra.Command {
 		},
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
+	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
+	_ = cmd.Flags().MarkHidden("shuffle")
 
 	return cmd
 }
 
-func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
+// getWorkspaceAgent returns the workspace and agent selected using either the
+// `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
+// if `shuffle` is true.
+func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uuid.UUID, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	ctx := cmd.Context()
 
-	workspaceParts := strings.Split(in, ".")
-	workspace, err := client.WorkspaceByOwnerAndName(ctx, orgID, userID, workspaceParts[0])
-	if err != nil {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("get workspace %q: %w", workspaceParts[0], err)
+	var (
+		workspace      codersdk.Workspace
+		workspaceParts = strings.Split(in, ".")
+		err            error
+	)
+	if shuffle {
+		workspaces, err := client.WorkspacesByOwner(cmd.Context(), orgID, userID)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+		if len(workspaces) == 0 {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("no workspaces to shuffle")
+		}
+
+		workspace, err = cryptorand.Element(workspaces)
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+	} else {
+		workspace, err = client.WorkspaceByOwnerAndName(cmd.Context(), orgID, userID, workspaceParts[0])
+		if err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
 	}
 
 	if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
-		err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
+		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID, workspace.CreatedAt)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
@@ -195,9 +233,16 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 	}
 	if agent.ID == uuid.Nil {
 		if len(agents) > 1 {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
+			if !shuffle {
+				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
+			}
+			agent, err = cryptorand.Element(agents)
+			if err != nil {
+				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+			}
+		} else {
+			agent = agents[0]
 		}
-		agent = agents[0]
 	}
 
 	return workspace, agent, nil

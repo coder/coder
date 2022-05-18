@@ -9,6 +9,10 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 )
 
+type Authorizer interface {
+	ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error
+}
+
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
 	query rego.PreparedEvalQuery
@@ -38,10 +42,10 @@ type authSubject struct {
 	Roles []Role `json:"roles"`
 }
 
-// AuthorizeByRoleName will expand all roleNames into roles before calling Authorize().
+// ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) AuthorizeByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, action Action, object Object) error {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)
