@@ -18,7 +18,7 @@ Start-Process -FilePath $env:TEMP\sshd.exe -ArgumentList "agent" -PassThru`
 
 	linuxScript = `#!/usr/bin/env sh
 set -eux pipefail
-export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
+BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
 BINARY_URL=${ACCESS_URL}bin/coder-linux-${ARCH}
 if which curl >/dev/null 2>&1; then
 	curl -fsSL "${BINARY_URL}" -o "${BINARY_LOCATION}"
@@ -37,7 +37,7 @@ exec $BINARY_LOCATION agent`
 
 	darwinScript = `#!/usr/bin/env sh
 set -eux pipefail
-export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
+BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
 curl -fsSL "${ACCESS_URL}bin/coder-darwin-${ARCH}" -o "${BINARY_LOCATION}"
 chmod +x $BINARY_LOCATION
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
