@@ -59,6 +59,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/telemetry"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // nolint:gocyclo

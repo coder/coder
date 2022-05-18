@@ -3,18 +3,17 @@ package telemetry
 import (
 	"context"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"golang.org/x/xerrors"
 )
 
-// Exporter creates a grpc otlp exporter and sets it as the global trace provider.
-// Caller is responsible for closing exporter to ensure all data is flushed.
-func Exporter(ctx context.Context, service string) (func(), error) {
+// TracerProvider creates a grpc otlp exporter and configures a trace provider.
+// Caller is responsible for calling TracerProvider.Shutdown to ensure all data is flushed.
+func TracerProvider(ctx context.Context, service string) (*sdktrace.TracerProvider, error) {
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			// the service name used to display traces in backends
@@ -22,8 +21,7 @@ func Exporter(ctx context.Context, service string) (func(), error) {
 		),
 	)
 
-	otlptracegrpc.NewClient()
-	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient())
+	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient())
 	if err != nil {
 		return nil, xerrors.Errorf("creating otlp exporter: %w", err)
 	}
@@ -32,9 +30,6 @@ func Exporter(ctx context.Context, service string) (func(), error) {
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
 	)
-	otel.SetTracerProvider(tracerProvider)
 
-	return func() {
-		_ = tracerProvider.Shutdown(ctx)
-	}, nil
+	return tracerProvider, nil
 }
