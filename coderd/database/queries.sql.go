@@ -3413,11 +3413,7 @@ FROM
     workspaces
 WHERE
     -- Optionally include deleted workspaces
-	CASE
-		WHEN $1 :: boolean = true THEN
-			true
-		ELSE deleted = false
-	END
+	deleted = $1
 	-- Filter by organization_id
 	AND CASE
 		WHEN $2 :: uuid != '00000000-00000000-00000000-00000000' THEN
@@ -3433,13 +3429,13 @@ WHERE
 `
 
 type GetWorkspacesWithFilterParams struct {
-	IncludeDeleted bool      `db:"include_deleted" json:"include_deleted"`
+	Deleted        bool      `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 }
 
 func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspacesWithFilterParams) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter, arg.IncludeDeleted, arg.OrganizationID, arg.OwnerID)
+	rows, err := q.db.QueryContext(ctx, getWorkspacesWithFilter, arg.Deleted, arg.OrganizationID, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}

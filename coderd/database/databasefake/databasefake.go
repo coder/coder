@@ -303,7 +303,7 @@ func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.Ge
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
 			continue
 		}
-		if !arg.IncludeDeleted && workspace.Deleted {
+		if !arg.Deleted && workspace.Deleted {
 			continue
 		}
 		workspaces = append(workspaces, workspace)

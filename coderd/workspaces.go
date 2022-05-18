@@ -72,7 +72,7 @@ func (api *api) workspacesByOrganization(rw http.ResponseWriter, r *http.Request
 	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
 		OrganizationID: organization.ID,
-		IncludeDeleted: false,
+		Deleted:        false,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -114,7 +114,7 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 	orgFilter := r.URL.Query().Get("organization_id")
 	ownerFilter := r.URL.Query().Get("owner_id")
 
-	filter := database.GetWorkspacesWithFilterParams{IncludeDeleted: false}
+	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 	if orgFilter != "" {
 		orgID, err := uuid.Parse(orgFilter)
 		if err != nil {
@@ -178,8 +178,8 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
 	roles := httpmw.UserRoles(r)
 	workspaces, err := api.Database.GetWorkspacesWithFilter(r.Context(), database.GetWorkspacesWithFilterParams{
-		OwnerID:        owner.ID,
-		IncludeDeleted: false,
+		OwnerID: owner.ID,
+		Deleted: false,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil

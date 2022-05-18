@@ -15,11 +15,7 @@ FROM
     workspaces
 WHERE
     -- Optionally include deleted workspaces
-	CASE
-		WHEN @include_deleted :: boolean = true THEN
-			true
-		ELSE deleted = false
-	END
+	deleted = @deleted
 	-- Filter by organization_id
 	AND CASE
 		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
