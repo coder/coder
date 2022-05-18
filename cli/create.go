@@ -2,11 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -18,6 +20,7 @@ func create() *cobra.Command {
 	var (
 		workspaceName string
 		templateName  string
+		parameterFile string
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -117,23 +120,49 @@ func create() *cobra.Command {
 				return err
 			}
 
-			printed := false
+			parameterValues := make(map[string]string)
+
+			if parameterFile != "" {
+				parameterFileContents, err := ioutil.ReadFile(parameterFile)
+
+				if err != nil {
+					return err
+				}
+
+				err = yaml.Unmarshal(parameterFileContents, &parameterValues)
+
+				if err != nil {
+					return err
+				}
+			}
+
+			disclaimerPrinted := false
 			parameters := make([]codersdk.CreateParameterRequest, 0)
 			for _, parameterSchema := range parameterSchemas {
 				if !parameterSchema.AllowOverrideSource {
 					continue
 				}
-				if !printed {
+				if !disclaimerPrinted {
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
-					printed = true
+					disclaimerPrinted = true
 				}
-				value, err := cliui.ParameterSchema(cmd, parameterSchema)
+
+				var parameterValue string
+				if parameterFile != "" {
+					if parameterValues[parameterSchema.Name] == "" {
+						return xerrors.Errorf("Parameter value absent in parameter file for %q!", parameterSchema.Name)
+					}
+					parameterValue = parameterValues[parameterSchema.Name]
+				} else {
+					parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
+				}
+
 				if err != nil {
 					return err
 				}
 				parameters = append(parameters, codersdk.CreateParameterRequest{
 					Name:              parameterSchema.Name,
-					SourceValue:       value,
+					SourceValue:       parameterValue,
 					SourceScheme:      database.ParameterSourceSchemeData,
 					DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				})
@@ -195,5 +224,6 @@ func create() *cobra.Command {
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
+	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
 	return cmd
 }
