@@ -30,6 +30,11 @@ export const NavbarView: React.FC<NavbarViewProps> = ({ user, onSignOut, display
             Workspaces
           </NavLink>
         </ListItem>
+        <ListItem button className={styles.item}>
+          <NavLink className={styles.link} to="/templates">
+            Templates
+          </NavLink>
+        </ListItem>
       </List>
       <div className={styles.fullWidth} />
       {displayAdminDropdown && <AdminDropdown />}

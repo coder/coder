@@ -11,6 +11,7 @@ export const Language = {
 
 export const checks = {
   readAllUsers: "readAllUsers",
+  createTemplates: "createTemplates",
 } as const
 
 export const permissionsToCheck = {
@@ -19,6 +20,12 @@ export const permissionsToCheck = {
       resource_type: "user",
     },
     action: "read",
+  },
+  [checks.createTemplates]: {
+    object: {
+      resource_type: "template",
+    },
+    action: "write",
   },
 } as const
 

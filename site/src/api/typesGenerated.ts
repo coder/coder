@@ -434,6 +434,12 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
+// From codersdk/workspaces.go:141:6
+export interface WorkspaceFilter {
+  readonly OrganizationID: string
+  readonly Owner: string
+}
+
 // From codersdk/workspaceresources.go:23:6
 export interface WorkspaceResource {
   readonly id: string

@@ -438,19 +438,3 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 	var userAuth AuthMethods
 	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
-
-// WorkspacesByUser returns all workspaces a user has access to.
-func (c *Client) WorkspacesByUser(ctx context.Context, user string) ([]Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspaces", user), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
-	}
-
-	var workspaces []Workspace
-	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
-}
