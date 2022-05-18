@@ -21,7 +21,7 @@ set -eux pipefail
 export BINARY_LOCATION=$(mktemp -d -t tmp.coderXXXXXX)/coder
 export BINARY_URL="${ACCESS_URL}bin/coder-linux-${ARCH}"
 if which curl >/dev/null 2>&1; then
-	curl -fsSL "${BINARY_URL}" -o $BINARY_LOCATION
+	curl -fsSL "${BINARY_URL}" -o "${BINARY_LOCATION}"
 elif which wget >/dev/null 2>&1; then
 	wget -q "${BINARY_URL}" -O $BINARY_LOCATION
 elif which busybox >/dev/null 2>&1; then
