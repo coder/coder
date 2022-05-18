@@ -98,6 +98,9 @@ export const handlers = [
     const result = transitionToBuild[transition as WorkspaceBuildTransition]
     return res(ctx.status(200), ctx.json(result))
   }),
+  rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockBuilds))
+  }),
 
   // workspace builds
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/resources", (req, res, ctx) => {

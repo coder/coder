@@ -14,11 +14,10 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
 import { Link as RouterLink } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { WorkspaceBuild } from "../../api/typesGenerated"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { firstLetter } from "../../util/firstLetter"
-import { getWorkspaceStatus } from "../../util/workspace"
+import { getDisplayStatus } from "../../util/workspace"
 
 dayjs.extend(relativeTime)
 
@@ -68,7 +67,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
               </TableRow>
             )}
             {props.workspaces?.map((workspace) => {
-              const status = getStatus(theme, workspace.latest_build)
+              const status = getDisplayStatus(theme, workspace.latest_build)
               return (
                 <TableRow key={workspace.id} className={styles.workspaceRow}>
                   <TableCell>
@@ -106,74 +105,6 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
       </Margins>
     </Stack>
   )
-}
-
-const getStatus = (
-  theme: Theme,
-  build: WorkspaceBuild,
-): {
-  color: string
-  status: string
-} => {
-  const status = getWorkspaceStatus(build)
-  switch (status) {
-    case undefined:
-      return {
-        color: theme.palette.text.secondary,
-        status: "Loading...",
-      }
-    case "started":
-      return {
-        color: theme.palette.success.main,
-        status: "⦿ Running",
-      }
-    case "starting":
-      return {
-        color: theme.palette.success.main,
-        status: "⦿ Starting",
-      }
-    case "stopping":
-      return {
-        color: theme.palette.text.secondary,
-        status: "◍ Stopping",
-      }
-    case "stopped":
-      return {
-        color: theme.palette.text.secondary,
-        status: "◍ Stopped",
-      }
-    case "deleting":
-      return {
-        color: theme.palette.text.secondary,
-        status: "⦸ Deleting",
-      }
-    case "deleted":
-      return {
-        color: theme.palette.text.secondary,
-        status: "⦸ Deleted",
-      }
-    case "canceling":
-      return {
-        color: theme.palette.warning.light,
-        status: "◍ Canceling",
-      }
-    case "canceled":
-      return {
-        color: theme.palette.text.secondary,
-        status: "◍ Canceled",
-      }
-    case "error":
-      return {
-        color: theme.palette.error.main,
-        status: "ⓧ Failed",
-      }
-    case "queued":
-      return {
-        color: theme.palette.text.secondary,
-        status: "◍ Queued",
-      }
-  }
-  throw new Error("unknown status " + status)
 }
 
 const useStyles = makeStyles((theme) => ({

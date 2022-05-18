@@ -221,3 +221,8 @@ export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitS
   const response = await axios.put<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
   return response.data
 }
+
+export const getWorkspaceBuilds = async (workspaceId: string): Promise<TypesGen.WorkspaceBuild[]> => {
+  const response = await axios.get<TypesGen.WorkspaceBuild[]>(`/api/v2/workspaces/${workspaceId}/builds`)
+  return response.data
+}
