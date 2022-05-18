@@ -6,7 +6,7 @@ tags: [local, docker]
 
 # docker-image-builds
 
-This example bundles Dockerfiles in the Coder template, allowing the Docker host to build images itself instead of relying on an external registry.
+This example bundles Dockerfiles with the Coder template, allowing the Docker host to build images itself instead of relying on an external registry.
 
 For large use cases, we recommend building images using CI/CD pipelines and registries instead of at workspace "runtime." However, this example is practical for tinkering and iterating on Dockerfiles.
 
