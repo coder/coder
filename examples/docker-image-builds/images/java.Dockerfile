@@ -18,13 +18,13 @@ ENV MAVEN_HOME /usr/share/maven
 ENV MAVEN_CONFIG "/home/coder/.m2"
 
 RUN mkdir -p $MAVEN_HOME $MAVEN_HOME/ref \
-    && echo "Downloading maven" \
+    && echo "Downloading Maven" \
     && curl -fsSL -o /tmp/apache-maven.tar.gz https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
     \
     && echo "Checking downloaded file hash" \
     && echo "${MAVEN_SHA512}  /tmp/apache-maven.tar.gz" | sha512sum -c - \
     \
-    && echo "Unzipping maven" \
+    && echo "Unzipping Maven" \
     && tar -xzf /tmp/apache-maven.tar.gz -C $MAVEN_HOME --strip-components=1 \
     \
     && echo "Cleaning and setting links" \
@@ -38,7 +38,7 @@ ARG GRADLE_SHA512=d495bc65379d2a854d2cca843bd2eeb94f381e5a7dcae89e6ceb6ef4c58355
 ENV GRADLE_HOME /usr/bin/gradle
 
 RUN mkdir -p /usr/share/gradle /usr/share/gradle/ref \
-    && echo "Downloading gradle" \
+    && echo "Downloading Gradle" \
     && curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip \
     \
     && echo "Checking downloaded file hash" \

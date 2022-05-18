@@ -54,7 +54,7 @@ Edit the validation to include the new image:
 
 ```diff
 variable "docker_image" {
-    description = "What docker image would you like to use for your workspace?"
+    description = "What Docker imagewould you like to use for your workspace?"
     default     = "base"
 
     # List of images available for the user to choose from.
@@ -62,7 +62,7 @@ variable "docker_image" {
     validation {
 -       condition     = contains(["base", "java", "node"], var.docker_image)
 +       condition     = contains(["base", "java", "node", "golang], var.docker_image)
-        error_message = "Invalid Docker Image!"
+        error_message = "Invalid Docker image!"
     }
 }
 ```
@@ -91,11 +91,11 @@ coder template update docker-image-builds
 ```
 
 You can also remove images from the validation list. Workspaces using older template versions will continue using
-the removed image until the workspace is updated to the latest version.
+the removed image until you update the workspace to the latest version.
 
 ## Updating images
 
-Edit the Dockerfile (or related assets)
+Edit the Dockerfile (or related assets):
 
 ```sh
 vim images/node.Dockerfile
@@ -109,7 +109,7 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update -y && \
     apt-get install -y nodejs
 ```
 
-1. Edit the template Terraform (`main.tf`)
+1. Edit the Terraform template (`main.tf`)
 
 ```sh
 vim main.tf
@@ -156,4 +156,4 @@ add the following features to your Coder template:
 - Custom container spec
 - More
 
-Contributions are also welcome!
+We also welcome all contributions!

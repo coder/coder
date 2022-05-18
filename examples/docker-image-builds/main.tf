@@ -32,7 +32,7 @@ variable "step2_arch" {
   description = "arch: What archicture is your Docker host on?"
   validation {
     condition     = contains(["amd64", "arm64", "armv7"], var.step2_arch)
-    error_message = "Value must be amd64, arm64 or armv7."
+    error_message = "Value must be amd64, arm64, or armv7."
   }
   sensitive = true
 }
@@ -54,20 +54,20 @@ resource "coder_agent" "dev" {
 }
 
 variable "docker_image" {
-  description = "What docker image would you like to use for your workspace?"
+  description = "What Docker imagewould you like to use for your workspace?"
   default     = "base"
 
   # List of images available for the user to choose from.
   # Delete this condition to give users free text input.
   validation {
     condition     = contains(["base", "java", "node"], var.docker_image)
-    error_message = "Invalid Docker Image!"
+    error_message = "Invalid Docker image!"
   }
 
   # Prevents admin errors when the image is not found
   validation {
     condition     = fileexists("images/${var.docker_image}.Dockerfile")
-    error_message = "Invalid docker image. The file does not exist in the images directory."
+    error_message = "Invalid Docker image. The file does not exist in the images directory."
   }
 }
 
