@@ -15,8 +15,6 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/awsidentity"
@@ -30,6 +28,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/site"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Options are requires parameters for Coder to start.

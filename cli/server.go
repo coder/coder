@@ -33,8 +33,11 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+<<<<<<< HEAD
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+=======
+>>>>>>> feat: Move from datadog to generic otel
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -55,6 +58,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/telemetry"
 )
 
 // nolint:gocyclo
