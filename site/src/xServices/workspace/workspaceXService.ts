@@ -298,12 +298,10 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: undefined,
         }),
-      assignResources: (_, event) => {
-        console.log("here", event.data)
-        return assign({
+      assignResources: (_, event) =>
+        assign({
           resources: event.data,
-        })
-      },
+        }),
       assignGetResourcesError: (_, event) =>
         assign({
           getResourcesError: event.data,
