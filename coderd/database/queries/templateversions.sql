@@ -66,7 +66,7 @@ INSERT INTO
 		created_at,
 		updated_at,
 		"name",
-		description,
+		readme,
 		job_id
 	)
 VALUES
@@ -80,3 +80,12 @@ SET
 	updated_at = $3
 WHERE
 	id = $1;
+
+-- name: UpdateTemplateVersionDescriptionByJobID :exec
+UPDATE
+	template_versions
+SET
+	readme = $2,
+	updated_at = now()
+WHERE
+	job_id = $1;

@@ -348,6 +348,16 @@ func (server *provisionerdServer) UpdateJob(ctx context.Context, request *proto.
 		}
 	}
 
+	if len(request.Readme) > 0 {
+		err := server.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
+			JobID:  job.ID,
+			Readme: string(request.Readme),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update template version description: %w", err)
+		}
+	}
+
 	if len(request.ParameterSchemas) > 0 {
 		for _, protoParameter := range request.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
