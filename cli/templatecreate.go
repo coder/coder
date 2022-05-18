@@ -193,7 +193,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 				Name:              parameterSchema.Name,
 				SourceValue:       value,
 				SourceScheme:      codersdk.ParameterSourceSchemeData,
-				DestinationScheme: codersdk.ParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
+				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 		}
