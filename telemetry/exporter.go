@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -21,7 +21,7 @@ func TracerProvider(ctx context.Context, service string) (*sdktrace.TracerProvid
 		),
 	)
 
-	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient())
+	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(otlptracegrpc.WithInsecure()))
 	if err != nil {
 		return nil, xerrors.Errorf("creating otlp exporter: %w", err)
 	}
