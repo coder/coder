@@ -188,7 +188,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context, logger slog.Logger) (
 		return agent.Metadata{}, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -263,7 +263,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{
@@ -351,7 +351,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	}})
 	httpClient := &http.Client{

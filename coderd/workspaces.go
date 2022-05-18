@@ -7,12 +7,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
@@ -532,6 +537,95 @@ func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
 			Message: fmt.Sprintf("update workspace autostop schedule: %s", err),
 		})
 		return
+	}
+}
+
+func (api *api) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+
+	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		// Fix for Safari 15.1:
+		// There is a bug in latest Safari in which compressed web socket traffic
+		// isn't handled correctly. Turning off compression is a workaround:
+		// https://github.com/nhooyr/websocket/issues/218
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		api.Logger.Warn(r.Context(), "accept websocket connection", slog.Error(err))
+		return
+	}
+	defer c.Close(websocket.StatusInternalError, "internal error")
+
+	// Makes the websocket connection write-only
+	ctx := c.CloseRead(r.Context())
+
+	// Send a heartbeat every 15 seconds to avoid the websocket being killed.
+	go func() {
+		ticker := time.NewTicker(time.Second * 15)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := c.Ping(ctx)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	t := time.NewTicker(time.Second * 1)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
+			if err != nil {
+				_ = wsjson.Write(ctx, c, httpapi.Response{
+					Message: fmt.Sprintf("get workspace: %s", err),
+				})
+				return
+			}
+			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+			if err != nil {
+				_ = wsjson.Write(ctx, c, httpapi.Response{
+					Message: fmt.Sprintf("get workspace build: %s", err),
+				})
+				return
+			}
+			var (
+				group    errgroup.Group
+				job      database.ProvisionerJob
+				template database.Template
+				owner    database.User
+			)
+			group.Go(func() (err error) {
+				job, err = api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
+				return err
+			})
+			group.Go(func() (err error) {
+				template, err = api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+				return err
+			})
+			group.Go(func() (err error) {
+				owner, err = api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+				return err
+			})
+			err = group.Wait()
+			if err != nil {
+				_ = wsjson.Write(ctx, c, httpapi.Response{
+					Message: fmt.Sprintf("fetch resource: %s", err),
+				})
+				return
+			}
+
+			_ = wsjson.Write(ctx, c, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
