@@ -131,3 +131,41 @@ func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req 
 	}
 	return nil
 }
+
+type WorkspaceFilter struct {
+	OrganizationID uuid.UUID
+	// Owner can be a user_id (uuid), "me", or a username
+	Owner string
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (f WorkspaceFilter) asRequestOption() requestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if f.OrganizationID != uuid.Nil {
+			q.Set("organization_id", f.OrganizationID.String())
+		}
+		if f.Owner != "" {
+			q.Set("owner_id", f.Owner)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// Workspaces returns all workspaces the authenticated user has access to.
+func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
+
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var workspaces []Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
+}

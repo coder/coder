@@ -36,7 +36,7 @@ export const handlers = [
   rest.post("/api/v2/users/me/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
   }),
-  rest.get("/api/v2/users/me/workspaces", async (req, res, ctx) => {
+  rest.get("/api/v2/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockWorkspace]))
   }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
