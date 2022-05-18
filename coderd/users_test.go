@@ -172,14 +172,13 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
 		require.NoError(t, err)
 
-		_, err = notInOrg.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		_, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "some@domain.com",
 			Username:       "anotheruser",
 			Password:       "testing",
@@ -187,7 +186,7 @@ func TestPostUsers(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 
 	t.Run("Create", func(t *testing.T) {
@@ -402,11 +401,10 @@ func TestGrantRoles(t *testing.T) {
 			[]string{rbac.RoleOrgMember(first.OrganizationID)},
 		)
 
-		memberUser, err := member.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch member")
-
 		// Grant
-		_, err = admin.UpdateUserRoles(ctx, memberUser.ID.String(), codersdk.UpdateRoles{
+		// TODO: @emyrk this should be 'admin.UpdateUserRoles' once proper authz
+		//		is enforced.
+		_, err = member.UpdateUserRoles(ctx, codersdk.Me, codersdk.UpdateRoles{
 			Roles: []string{
 				// Promote to site admin
 				rbac.RoleMember(),
@@ -599,9 +597,7 @@ func TestWorkspacesByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
-			Owner: codersdk.Me,
-		})
+		workspaces, err := client.WorkspacesByUser(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
@@ -630,11 +626,11 @@ func TestWorkspacesByUser(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		workspaces, err := newUserClient.Workspaces(context.Background(), codersdk.WorkspaceFilter{Owner: codersdk.Me})
+		workspaces, err := newUserClient.WorkspacesByUser(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 
-		workspaces, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{Owner: codersdk.Me})
+		workspaces, err = client.WorkspacesByUser(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})

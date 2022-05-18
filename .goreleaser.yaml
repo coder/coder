@@ -1,7 +1,7 @@
 archives:
   - id: coder-linux
     builds: [coder-linux]
-    format: tar.gz
+    format: tar
     files:
       - src: docs/README.md
         dst: README.md

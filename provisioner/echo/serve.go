@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"golang.org/x/xerrors"
+
 	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/provisionersdk"

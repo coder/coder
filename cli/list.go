@@ -29,7 +29,7 @@ func list() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspaces, err := client.Workspaces(cmd.Context(), codersdk.WorkspaceFilter{})
+			workspaces, err := client.WorkspacesByUser(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return err
 			}

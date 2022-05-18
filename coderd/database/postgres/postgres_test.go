@@ -17,10 +17,8 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
 
-// nolint:paralleltest
 func TestPostgres(t *testing.T) {
-	// postgres.Open() seems to be creating race conditions when run in parallel.
-	// t.Parallel()
+	t.Parallel()
 
 	if testing.Short() {
 		t.Skip()

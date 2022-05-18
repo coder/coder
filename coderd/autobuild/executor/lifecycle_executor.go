@@ -57,7 +57,7 @@ func (e *Executor) runOnce(t time.Time) error {
 
 		for _, ws := range eligibleWorkspaces {
 			// Determine the workspace state based on its latest build.
-			priorHistory, err := db.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
+			priorHistory, err := db.GetWorkspaceBuildByWorkspaceIDWithoutAfter(e.ctx, ws.ID)
 			if err != nil {
 				e.log.Warn(e.ctx, "get latest workspace build",
 					slog.F("workspace_id", ws.ID),
@@ -152,8 +152,12 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		return xerrors.Errorf("get workspace template: %w", err)
 	}
 
-	priorBuildNumber := priorHistory.BuildNumber
+	priorHistoryID := uuid.NullUUID{
+		UUID:  priorHistory.ID,
+		Valid: true,
+	}
 
+	var newWorkspaceBuild database.WorkspaceBuild
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	workspaceBuildID := uuid.New()
@@ -182,13 +186,13 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job: %w", err)
 	}
-	_, err = store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+	newWorkspaceBuild, err = store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 		ID:                workspaceBuildID,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		WorkspaceID:       workspace.ID,
 		TemplateVersionID: priorHistory.TemplateVersionID,
-		BuildNumber:       priorBuildNumber + 1,
+		BeforeID:          priorHistoryID,
 		Name:              namesgenerator.GetRandomName(1),
 		ProvisionerState:  priorHistory.ProvisionerState,
 		InitiatorID:       workspace.OwnerID,
@@ -197,6 +201,22 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 	})
 	if err != nil {
 		return xerrors.Errorf("insert workspace build: %w", err)
+	}
+
+	if priorHistoryID.Valid {
+		// Update the prior history entries "after" column.
+		err = store.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			ID:               priorHistory.ID,
+			ProvisionerState: priorHistory.ProvisionerState,
+			UpdatedAt:        now,
+			AfterID: uuid.NullUUID{
+				UUID:  newWorkspaceBuild.ID,
+				Valid: true,
+			},
+		})
+		if err != nil {
+			return xerrors.Errorf("update prior workspace build: %w", err)
+		}
 	}
 	return nil
 }

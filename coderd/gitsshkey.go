@@ -8,17 +8,11 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
 func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
-		return
-	}
-
 	privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -59,11 +53,6 @@ func (api *api) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-
-	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
-		return
-	}
-
 	gitSSHKey, err := api.Database.GetGitSSHKey(r.Context(), user.ID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{

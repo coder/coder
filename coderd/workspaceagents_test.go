@@ -1,13 +1,11 @@
 package coderd_test
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
@@ -232,11 +230,6 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	require.NoError(t, err)
 	_, err = conn.Write(data)
 	require.NoError(t, err)
-	bufRead := bufio.NewReader(conn)
-
-	// Brief pause to reduce the likelihood that we send keystrokes while
-	// the shell is simultaneously sending a prompt.
-	time.Sleep(100 * time.Millisecond)
 
 	data, err = json.Marshal(agent.ReconnectingPTYRequest{
 		Data: "echo test\r\n",
@@ -245,22 +238,16 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 	_, err = conn.Write(data)
 	require.NoError(t, err)
 
-	expectLine := func(matcher func(string) bool) {
+	findEcho := func() {
 		for {
-			line, err := bufRead.ReadString('\n')
+			read, err := conn.Read(data)
 			require.NoError(t, err)
-			if matcher(line) {
-				break
+			if strings.Contains(string(data[:read]), "test") {
+				return
 			}
 		}
 	}
-	matchEchoCommand := func(line string) bool {
-		return strings.Contains(line, "echo test")
-	}
-	matchEchoOutput := func(line string) bool {
-		return strings.Contains(line, "test") && !strings.Contains(line, "echo")
-	}
 
-	expectLine(matchEchoCommand)
-	expectLine(matchEchoOutput)
+	findEcho()
+	findEcho()
 }

@@ -15,10 +15,8 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-// nolint:paralleltest
 func TestResetPassword(t *testing.T) {
-	// postgres.Open() seems to be creating race conditions when run in parallel.
-	// t.Parallel()
+	t.Parallel()
 
 	if runtime.GOOS != "linux" || testing.Short() {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.

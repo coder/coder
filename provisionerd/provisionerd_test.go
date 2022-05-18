@@ -214,7 +214,6 @@ func TestProvisionerd(t *testing.T) {
 			didLog        atomic.Bool
 			didAcquireJob atomic.Bool
 			didDryRun     atomic.Bool
-			didReadme     atomic.Bool
 			completeChan  = make(chan struct{})
 			completeOnce  sync.Once
 		)
@@ -231,8 +230,7 @@ func TestProvisionerd(t *testing.T) {
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt":              "content",
-							provisionerd.ReadmeFile: "# A cool template 😎\n",
+							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
 							TemplateImport: &proto.AcquiredJob_TemplateImport{
@@ -242,11 +240,8 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-					if len(update.Logs) > 0 {
+					if len(update.Logs) != 0 {
 						didLog.Store(true)
-					}
-					if len(update.Readme) > 0 {
-						didReadme.Store(true)
 					}
 					return &proto.UpdateJobResponse{}, nil
 				},

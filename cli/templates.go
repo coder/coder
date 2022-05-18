@@ -1,9 +1,8 @@
 package cli
 
 import (
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-
-	"github.com/coder/coder/cli/cliui"
 )
 
 func templates() *cobra.Command {
@@ -14,15 +13,15 @@ func templates() *cobra.Command {
 		Example: `
   - Create a template for developers to create workspaces
 
-    ` + cliui.Styles.Code.Render("$ coder templates create") + `
+    ` + color.New(color.FgHiMagenta).Sprint("$ coder templates create") + `
 
   - Make changes to your template, and plan the changes
  
-    ` + cliui.Styles.Code.Render("$ coder templates plan <name>") + `
+    ` + color.New(color.FgHiMagenta).Sprint("$ coder templates plan <name>") + `
 
   - Update the template. Your developers can update their workspaces
 
-    ` + cliui.Styles.Code.Render("$ coder templates update <name>"),
+    ` + color.New(color.FgHiMagenta).Sprint("$ coder templates update <name>"),
 	}
 	cmd.AddCommand(
 		templateCreate(),
