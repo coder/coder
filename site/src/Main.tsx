@@ -8,7 +8,6 @@ import { App } from "./app"
 if (process.env.NODE_ENV === "development" && process.env.INSPECT_XSTATE === "true") {
   // configure the XState inspector to open in a new tab
   inspect({
-    url: "https://stately.ai/viz?inspect",
     iframe: false,
   })
   // configure all XServices to use the inspector
