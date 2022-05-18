@@ -183,5 +183,4 @@ describe("Workspace Page", () => {
       expect(rows).toHaveLength(MockBuilds.length)
     })
   })
-
 })
