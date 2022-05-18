@@ -3092,42 +3092,29 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 	return err
 }
 
-const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
-SELECT
-	id, created_at, job_id, transition, type, name
-FROM
-	workspace_resources
-WHERE
-	id = $1
+const getLatestWorkspaceResources = `-- name: GetLatestWorkspaceResources :many
+SELECT workspace_resources.id, workspace_resources.created_at, workspace_resources.job_id, workspace_resources.transition, workspace_resources.type, workspace_resources.name
+FROM (
+    SELECT
+        workspace_id, MAX(build_number) as max_build_number
+    FROM
+        workspace_builds
+    GROUP BY
+        workspace_id
+) latest_workspace_builds
+INNER JOIN
+  workspace_builds
+ON
+  workspace_builds.workspace_id = latest_workspace_builds.workspace_id
+  AND workspace_builds.build_number = latest_workspace_builds.max_build_number
+INNER JOIN
+  workspace_resources
+ON
+  workspace_resources.job_id = workspace_builds.job_id
 `
 
-func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceResourceByID, id)
-	var i WorkspaceResource
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.JobID,
-		&i.Transition,
-		&i.Type,
-		&i.Name,
-	)
-	return i, err
-}
-
-const getWorkspaceResources = `-- name: GetWorkspaceResources :many
-SELECT
-	workspace_resources.id, workspace_resources.created_at, workspace_resources.job_id, workspace_resources.transition, workspace_resources.type, workspace_resources.name
-FROM
-	workspace_resources
-INNER JOIN workspace_builds
-	ON workspace_resources.job_id = workspace_builds.job_id
-WHERE
-  workspace_builds.after_id IS NULL
-`
-
-func (q *sqlQuerier) GetWorkspaceResources(ctx context.Context) ([]WorkspaceResource, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceResources)
+func (q *sqlQuerier) GetLatestWorkspaceResources(ctx context.Context) ([]WorkspaceResource, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceResources)
 	if err != nil {
 		return nil, err
 	}
@@ -3154,6 +3141,29 @@ func (q *sqlQuerier) GetWorkspaceResources(ctx context.Context) ([]WorkspaceReso
 		return nil, err
 	}
 	return items, nil
+}
+
+const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
+SELECT
+	id, created_at, job_id, transition, type, name
+FROM
+	workspace_resources
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceResourceByID, id)
+	var i WorkspaceResource
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.JobID,
+		&i.Transition,
+		&i.Type,
+		&i.Name,
+	)
+	return i, err
 }
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many

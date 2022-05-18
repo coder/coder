@@ -486,6 +486,35 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	return returnBuilds, nil
 }
 
+func (q *fakeQuerier) GetLatestWorkspaceResources(ctx context.Context) ([]database.WorkspaceResource, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// Get latest workspace builds.
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
+	buildNumbers := make(map[uuid.UUID]int32)
+	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.BuildNumber > buildNumbers[workspaceBuild.WorkspaceID] {
+			builds[workspaceBuild.WorkspaceID] = workspaceBuild
+			buildNumbers[workspaceBuild.WorkspaceID] = workspaceBuild.BuildNumber
+		}
+	}
+	
+	// Get resources for each latest build.
+	resources := make([]database.WorkspaceResource, 0)
+	for _, workspaceBuild := range q.workspaceBuilds {
+		rs, err := q.GetWorkspaceResourcesByJobID(ctx, workspaceBuild.JobID)
+		if err != nil {
+			return nil, err
+		}
+		resources = append(resources, rs...)
+	}
+	if len(resources) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return resources, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
 	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
@@ -1042,26 +1071,6 @@ func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) 
 		}
 	}
 	return database.WorkspaceResource{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetWorkspaceResources(ctx context.Context) ([]database.WorkspaceResource, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	resources := make([]database.WorkspaceResource, 0)
-	for _, workspaceBuild := range q.workspaceBuilds {
-		if !workspaceBuild.AfterID.Valid {
-			rs, err := q.GetWorkspaceResourcesByJobID(ctx, workspaceBuild.JobID)
-			if err != nil {
-				return nil, err
-			}
-			resources = append(resources, rs...)
-		}
-	}
-	if len(resources) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return resources, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceResourcesByJobID(_ context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {

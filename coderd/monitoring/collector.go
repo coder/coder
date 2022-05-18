@@ -97,7 +97,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	go func() {
 		defer wg.Done()
 
-		dbWorkspaceResources, err := c.db.GetWorkspaceResources(c.ctx)
+		dbWorkspaceResources, err := c.db.GetLatestWorkspaceResources(c.ctx)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			ch <- prometheus.NewInvalidMetric(c.workspaceResources, err)
 			return
