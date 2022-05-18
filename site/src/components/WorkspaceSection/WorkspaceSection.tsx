@@ -1,14 +1,16 @@
 import Paper from "@material-ui/core/Paper"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React from "react"
+import React, { HTMLProps } from "react"
 import { CardPadding, CardRadius } from "../../theme/constants"
+import { combineClasses } from "../../util/combineClasses"
 
 export interface WorkspaceSectionProps {
   title?: string
+  contentsProps?: HTMLProps<HTMLDivElement>
 }
 
-export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, children }) => {
+export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, children, contentsProps }) => {
   const styles = useStyles()
 
   return (
@@ -21,7 +23,9 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, child
         </div>
       )}
 
-      <div className={styles.contents}>{children}</div>
+      <div {...contentsProps} className={combineClasses([styles.contents, contentsProps?.className])}>
+        {children}
+      </div>
     </Paper>
   )
 }

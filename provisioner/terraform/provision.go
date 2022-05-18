@@ -290,7 +290,7 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 	resources := make([]*proto.Resource, 0)
 	agents := map[string]*proto.Agent{}
 
-	tfResources := plan.Config.RootModule.Resources
+	tfResources := make([]*tfjson.ConfigResource, 0)
 	var appendResources func(mod *tfjson.ConfigModule)
 	appendResources = func(mod *tfjson.ConfigModule) {
 		for _, module := range mod.ModuleCalls {
@@ -298,6 +298,7 @@ func parseTerraformPlan(ctx context.Context, terraform *tfexec.Terraform, planfi
 		}
 		tfResources = append(tfResources, mod.Resources...)
 	}
+	appendResources(plan.Config.RootModule)
 
 	// Store all agents inside the maps!
 	for _, resource := range tfResources {
@@ -416,7 +417,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 		}
 		agents := map[string]*proto.Agent{}
 
-		tfResources := state.Values.RootModule.Resources
+		tfResources := make([]*tfjson.StateResource, 0)
 		var appendResources func(resource *tfjson.StateModule)
 		appendResources = func(mod *tfjson.StateModule) {
 			for _, module := range mod.ChildModules {
@@ -424,6 +425,7 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			}
 			tfResources = append(tfResources, mod.Resources...)
 		}
+		appendResources(state.Values.RootModule)
 
 		// Store all agents inside the maps!
 		for _, resource := range tfResources {

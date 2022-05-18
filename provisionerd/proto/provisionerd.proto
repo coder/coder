@@ -83,6 +83,7 @@ message UpdateJobRequest {
     string job_id = 1;
     repeated Log logs = 2;
     repeated provisioner.ParameterSchema parameter_schemas = 3;
+    bytes readme = 4;
 }
 
 message UpdateJobResponse {

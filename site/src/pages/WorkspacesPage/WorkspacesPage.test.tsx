@@ -15,7 +15,7 @@ describe("WorkspacesPage", () => {
   it("renders an empty workspaces page", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/users/me/workspaces", async (req, res, ctx) => {
+      rest.get("/api/v2/workspaces", async (req, res, ctx) => {
         return res(ctx.status(200), ctx.json([]))
       }),
     )

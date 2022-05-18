@@ -357,7 +357,7 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			Name:           namesgenerator.GetRandomName(1),
-			Description:    "",
+			Readme:         "",
 			JobID:          provisionerJob.ID,
 		})
 		if err != nil {
@@ -407,5 +407,6 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		UpdatedAt:  version.UpdatedAt,
 		Name:       version.Name,
 		Job:        job,
+		Readme:     version.Readme,
 	}
 }

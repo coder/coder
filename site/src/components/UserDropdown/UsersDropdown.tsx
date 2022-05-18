@@ -8,6 +8,7 @@ import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { navHeight } from "../../theme/constants"
 import { BorderedMenu } from "../BorderedMenu/BorderedMenu"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { DocsIcon } from "../Icons/DocsIcon"
@@ -38,7 +39,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({ user, onSignOut }: U
 
   return (
     <>
-      <MenuItem onClick={handleDropdownClick} data-testid="user-dropdown-trigger">
+      <MenuItem className={styles.menuItem} onClick={handleDropdownClick} data-testid="user-dropdown-trigger">
         <div className={styles.inner}>
           <Badge overlap="circle">
             <UserAvatar username={user.username} />
@@ -121,7 +122,7 @@ export const useStyles = makeStyles((theme) => ({
   },
 
   menuItem: {
-    height: 44,
+    height: navHeight,
     padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
 
     "&:hover": {

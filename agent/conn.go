@@ -2,8 +2,11 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -32,7 +35,7 @@ type Conn struct {
 // ReconnectingPTY returns a connection serving a TTY that can
 // be reconnected to via ID.
 func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error) {
-	channel, err := c.Dial(context.Background(), fmt.Sprintf("%s:%d:%d", id, height, width), &peer.ChannelOptions{
+	channel, err := c.CreateChannel(context.Background(), fmt.Sprintf("%s:%d:%d", id, height, width), &peer.ChannelOptions{
 		Protocol: "reconnecting-pty",
 	})
 	if err != nil {
@@ -43,7 +46,7 @@ func (c *Conn) ReconnectingPTY(id string, height, width uint16) (net.Conn, error
 
 // SSH dials the built-in SSH server.
 func (c *Conn) SSH() (net.Conn, error) {
-	channel, err := c.Dial(context.Background(), "ssh", &peer.ChannelOptions{
+	channel, err := c.CreateChannel(context.Background(), "ssh", &peer.ChannelOptions{
 		Protocol: "ssh",
 	})
 	if err != nil {
@@ -69,6 +72,42 @@ func (c *Conn) SSHClient() (*ssh.Client, error) {
 		return nil, xerrors.Errorf("ssh conn: %w", err)
 	}
 	return ssh.NewClient(sshConn, channels, requests), nil
+}
+
+// DialContext dials an arbitrary protocol+address from inside the workspace and
+// proxies it through the provided net.Conn.
+func (c *Conn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+	u := &url.URL{
+		Scheme: network,
+	}
+	if strings.HasPrefix(network, "unix") {
+		u.Path = addr
+	} else {
+		u.Host = addr
+	}
+
+	channel, err := c.CreateChannel(ctx, u.String(), &peer.ChannelOptions{
+		Protocol:  "dial",
+		Unordered: strings.HasPrefix(network, "udp"),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("create datachannel: %w", err)
+	}
+
+	// The first message written from the other side is a JSON payload
+	// containing the dial error.
+	dec := json.NewDecoder(channel)
+	var res dialResponse
+	err = dec.Decode(&res)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to decode initial packet: %w", err)
+	}
+	if res.Error != "" {
+		_ = channel.Close()
+		return nil, xerrors.Errorf("remote dial error: %v", res.Error)
+	}
+
+	return channel.NetConn(), nil
 }
 
 func (c *Conn) Close() error {
