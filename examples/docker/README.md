@@ -58,7 +58,7 @@ variable "docker_image" {
 }
 ```
 
-Optional: Update workspaces to the latest template version
+Optional: Update workspaces to the latest template version:
 
 ```sh
 coder ls
