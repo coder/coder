@@ -29,7 +29,7 @@ func TestOrganizationParam(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 

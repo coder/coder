@@ -29,7 +29,7 @@ func TestTemplateVersionParam(t *testing.T) {
 		)
 		r := httptest.NewRequest("GET", "/", nil)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 

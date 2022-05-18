@@ -94,7 +94,7 @@ func TestExtractUserRoles(t *testing.T) {
 
 			req := httptest.NewRequest("GET", "/", nil)
 			req.AddCookie(&http.Cookie{
-				Name:  httpmw.AuthCookie,
+				Name:  httpmw.SessionTokenKey,
 				Value: token,
 			})
 

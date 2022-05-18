@@ -35,7 +35,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
 
 	authorizer := &fakeAuthorizer{}
-	srv, client := coderdtest.NewMemoryCoderd(t, &coderdtest.Options{
+	srv, client := coderdtest.NewWithServer(t, &coderdtest.Options{
 		Authorizer: authorizer,
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
@@ -128,6 +128,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"PUT:/api/v2/workspaces/{workspace}/autostop":  {NoAuthorize: true},
 		"GET:/api/v2/workspaces/{workspace}/builds":    {NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds":   {NoAuthorize: true},
+		"GET:/api/v2/workspaces/{workspace}/watch":     {NoAuthorize: true},
 
 		"POST:/api/v2/files":       {NoAuthorize: true},
 		"GET:/api/v2/files/{hash}": {NoAuthorize: true},

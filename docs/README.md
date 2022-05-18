@@ -3,7 +3,7 @@
 [!["GitHub
 Discussions"](https://img.shields.io/badge/%20GitHub-%20Discussions-gray.svg?longCache=true&logo=github&colorB=purple)](https://github.com/coder/coder/discussions)
 [!["Join us on
-Slack"](https://img.shields.io/badge/join-us%20on%20slack-gray.svg?longCache=true&logo=slack&colorB=brightgreen)](https://coder.com/community)
+Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache=true&logo=discord&colorB=purple)](https://discord.gg/coder)
 [![Twitter
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
@@ -106,7 +106,7 @@ Read the [contributing docs](./CONTRIBUTING.md).
 | Name                | Start Date | First PR Date |           Organization            |                              GitHub User Link |
 | ------------------- | :--------: | :-----------: | :-------------------------------: | --------------------------------------------: |
 | Grey Barkans        | 01/13/2020 |  03/13/2022   | [Coder](https://github.com/coder) |   [vapurrmaid](https://github.com/vapurrmaid) |
-| Ben Potter          | 08/10/2020 |  03/31/2022   | [Coder](https://github.com/coder) | [bpmct](https://github.com/bpmct)       |
+| Ben Potter          | 08/10/2020 |  03/31/2022   | [Coder](https://github.com/coder) |             [bpmct](https://github.com/bpmct) |
 | Mathias Fredriksson | 04/25/2022 |  04/25/2022   | [Coder](https://github.com/coder) |       [mafredri](https://github.com/mafredri) |
 | Spike Curtis        | 05/02/2022 |  05/06/2022   | [Coder](https://github.com/coder) | [spikecurtis](https://github.com/spikecurtis) |
 | Kira Pilot          | 05/09/2022 |  05/09/2022   | [Coder](https://github.com/coder) |   [Kira-Pilot](https://github.com/Kira-Pilot) |
