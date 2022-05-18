@@ -53,13 +53,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         <Resources resources={resources} getResourcesError={getResourcesError} />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
-            <WorkspaceSection title="Applications">
-              <Placeholder />
-            </WorkspaceSection>
             <WorkspaceSchedule autostart={workspace.autostart_schedule} autostop={workspace.autostop_schedule} />
-            <WorkspaceSection title="Dev URLs">
-              <Placeholder />
-            </WorkspaceSection>
           </div>
           <div className={styles.timelineContainer}>
             <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
