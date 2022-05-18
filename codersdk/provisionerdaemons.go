@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,12 +16,35 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 )
 
-type ProvisionerDaemon database.ProvisionerDaemon
+type LogSource string
+
+const (
+	LogSourceProvisionerDaemon LogSource = "provisioner_daemon"
+	LogSourceProvisioner       LogSource = "provisioner"
+)
+
+type LogLevel string
+
+const (
+	LogLevelTrace LogLevel = "trace"
+	LogLevelDebug LogLevel = "debug"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
+	LogLevelError LogLevel = "error"
+)
+
+type ProvisionerDaemon struct {
+	ID             uuid.UUID         `json:"id"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      sql.NullTime      `json:"updated_at"`
+	OrganizationID uuid.NullUUID     `json:"organization_id"`
+	Name           string            `json:"name"`
+	Provisioners   []ProvisionerType `json:"provisioners"`
+}
 
 // ProvisionerJobStaus represents the at-time state of a job.
 type ProvisionerJobStatus string
@@ -54,12 +78,12 @@ type ProvisionerJob struct {
 }
 
 type ProvisionerJobLog struct {
-	ID        uuid.UUID          `json:"id"`
-	CreatedAt time.Time          `json:"created_at"`
-	Source    database.LogSource `json:"log_source"`
-	Level     database.LogLevel  `json:"log_level"`
-	Stage     string             `json:"stage"`
-	Output    string             `json:"output"`
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Source    LogSource `json:"log_source"`
+	Level     LogLevel  `json:"log_level"`
+	Stage     string    `json:"stage"`
+	Output    string    `json:"output"`
 }
 
 // ListenProvisionerDaemon returns the gRPC service for a provisioner daemon implementation.

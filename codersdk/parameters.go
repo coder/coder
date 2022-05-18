@@ -35,6 +35,13 @@ const (
 	ParameterDestinationSchemeProvisionerVariable ParameterDestinationScheme = "provisioner_variable"
 )
 
+type ParameterTypeSystem string
+
+const (
+	ParameterTypeSystemNone ParameterTypeSystem = "none"
+	ParameterTypeSystemHCL  ParameterTypeSystem = "hcl"
+)
+
 // Parameter represents a set value for the scope.
 type Parameter struct {
 	ID                uuid.UUID                  `db:"id" json:"id"`

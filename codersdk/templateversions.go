@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/parameter"
 )
 
 // TemplateVersion represents a single version of a template.
@@ -25,10 +22,39 @@ type TemplateVersion struct {
 }
 
 // TemplateVersionParameterSchema represents a parameter parsed from template version source.
-type TemplateVersionParameterSchema database.ParameterSchema
+type TemplateVersionParameterSchema struct {
+	ID                       uuid.UUID                  `json:"id"`
+	CreatedAt                time.Time                  `json:"created_at"`
+	JobID                    uuid.UUID                  `json:"job_id"`
+	Name                     string                     `json:"name"`
+	Description              string                     `json:"description"`
+	DefaultSourceScheme      ParameterSourceScheme      `json:"default_source_scheme"`
+	DefaultSourceValue       string                     `json:"default_source_value"`
+	AllowOverrideSource      bool                       `json:"allow_override_source"`
+	DefaultDestinationScheme ParameterDestinationScheme `json:"default_destination_scheme"`
+	AllowOverrideDestination bool                       `json:"allow_override_destination"`
+	DefaultRefresh           string                     `json:"default_refresh"`
+	RedisplayValue           bool                       `json:"redisplay_value"`
+	ValidationError          string                     `json:"validation_error"`
+	ValidationCondition      string                     `json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem        `json:"validation_type_system"`
+	ValidationValueType      string                     `json:"validation_value_type"`
+}
 
 // TemplateVersionParameter represents a computed parameter value.
-type TemplateVersionParameter parameter.ComputedValue
+type TemplateVersionParameter struct {
+	ID                 uuid.UUID                  `json:"id"`
+	CreatedAt          time.Time                  `json:"created_at"`
+	UpdatedAt          time.Time                  `json:"updated_at"`
+	Scope              ParameterScope             `json:"scope"`
+	ScopeID            uuid.UUID                  `json:"scope_id"`
+	Name               string                     `json:"name"`
+	SourceScheme       ParameterSourceScheme      `json:"source_scheme"`
+	SourceValue        string                     `json:"source_value"`
+	DestinationScheme  ParameterDestinationScheme `json:"destination_scheme"`
+	SchemaID           uuid.UUID                  `json:"schema_id"`
+	DefaultSourceValue bool                       `json:"default_source_value"`
+}
 
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {

@@ -248,7 +248,7 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Name:              namesgenerator.GetRandomName(1),
 			ProvisionerState:  state,
 			InitiatorID:       apiKey.UserID,
-			Transition:        createBuild.Transition,
+			Transition:        database.WorkspaceTransition(createBuild.Transition),
 			JobID:             provisionerJob.ID,
 		})
 		if err != nil {
@@ -348,7 +348,7 @@ func convertWorkspaceBuild(workspaceBuild database.WorkspaceBuild, job codersdk.
 		TemplateVersionID: workspaceBuild.TemplateVersionID,
 		BuildNumber:       workspaceBuild.BuildNumber,
 		Name:              workspaceBuild.Name,
-		Transition:        workspaceBuild.Transition,
+		Transition:        codersdk.WorkspaceTransition(workspaceBuild.Transition),
 		InitiatorID:       workspaceBuild.InitiatorID,
 		Job:               job,
 	}
@@ -359,7 +359,7 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		ID:         resource.ID,
 		CreatedAt:  resource.CreatedAt,
 		JobID:      resource.JobID,
-		Transition: resource.Transition,
+		Transition: codersdk.WorkspaceTransition(resource.Transition),
 		Type:       resource.Type,
 		Name:       resource.Name,
 		Agents:     agents,
