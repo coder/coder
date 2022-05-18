@@ -21,26 +21,27 @@ interface ResourcesProps {
 }
 
 export const Resources: React.FC<ResourcesProps> = ({ resources }) => {
-  return <WorkspaceSection title={Language.resources}>
-    <Table>
-      <TableHead>
-        <TableHeaderRow>
-          <TableCell size="small">{Language.resourceLabel}</TableCell>
-          <TableCell size="small">{Language.agentsLabel}</TableCell>
-        </TableHeaderRow>
-      </TableHead>
-      <TableBody>
-        {resources?.map((resource) => (
-          <TableRow key={resource.id}>
-            <TableCell size="small">{resource.name}</TableCell>
-            <TableCell>
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableCell size="small">{Language.agentLabel}</TableCell>
-                    <TableCell size="small">{Language.statusLabel}</TableCell>
-                  </TableHeaderRow>
-                </TableHead>
+  return (
+    <WorkspaceSection title={Language.resources}>
+      <Table>
+        <TableHead>
+          <TableHeaderRow>
+            <TableCell size="small">{Language.resourceLabel}</TableCell>
+            <TableCell size="small">{Language.agentsLabel}</TableCell>
+          </TableHeaderRow>
+        </TableHead>
+        <TableBody>
+          {resources?.map((resource) => (
+            <TableRow key={resource.id}>
+              <TableCell size="small">{resource.name}</TableCell>
+              <TableCell>
+                <Table>
+                  <TableHead>
+                    <TableHeaderRow>
+                      <TableCell size="small">{Language.agentLabel}</TableCell>
+                      <TableCell size="small">{Language.statusLabel}</TableCell>
+                    </TableHeaderRow>
+                  </TableHead>
                   <TableBody>
                     {resource.agents?.map((agent) => (
                       <TableRow key={agent.id}>
@@ -49,12 +50,12 @@ export const Resources: React.FC<ResourcesProps> = ({ resources }) => {
                       </TableRow>
                     ))}
                   </TableBody>
-              </Table>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-
-    </Table>
-  </WorkspaceSection>
+                </Table>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </WorkspaceSection>
+  )
 }

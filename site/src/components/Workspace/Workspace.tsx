@@ -32,7 +32,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleRetry,
   handleUpdate,
   workspaceStatus,
-  resources
+  resources,
 }) => {
   const styles = useStyles()
 
