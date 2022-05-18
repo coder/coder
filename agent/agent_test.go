@@ -207,6 +207,10 @@ func TestAgent(t *testing.T) {
 		require.NoError(t, err)
 		bufRead := bufio.NewReader(netConn)
 
+		// Brief pause to reduce the likelihood that we send keystrokes while
+		// the shell is simultaneously sending a prompt.
+		time.Sleep(100 * time.Millisecond)
+
 		data, err := json.Marshal(agent.ReconnectingPTYRequest{
 			Data: "echo test\r\n",
 		})
