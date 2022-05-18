@@ -3,6 +3,7 @@ import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceStatus } from "../../pages/WorkspacePage/WorkspacePage"
+import { Resources } from "../Resources/Resources"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
@@ -16,6 +17,7 @@ export interface WorkspaceProps {
   handleRetry: () => void
   handleUpdate: () => void
   workspaceStatus: WorkspaceStatus
+  resources?: TypesGen.WorkspaceResource[]
 }
 
 /**
@@ -30,6 +32,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleRetry,
   handleUpdate,
   workspaceStatus,
+  resources
 }) => {
   const styles = useStyles()
 
@@ -46,6 +49,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           handleUpdate={handleUpdate}
           workspaceStatus={workspaceStatus}
         />
+        <Resources resources={resources} />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
             <WorkspaceSection title="Applications">
@@ -53,9 +57,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             </WorkspaceSection>
             <WorkspaceSchedule autostart={workspace.autostart_schedule} autostop={workspace.autostop_schedule} />
             <WorkspaceSection title="Dev URLs">
-              <Placeholder />
-            </WorkspaceSection>
-            <WorkspaceSection title="Resources">
               <Placeholder />
             </WorkspaceSection>
           </div>

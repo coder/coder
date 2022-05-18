@@ -185,7 +185,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [MockWorkspaceAgent],
+  agents: [MockWorkspaceAgent, MockWorkspaceAgent],
   created_at: "",
   id: "test-workspace-resource",
   job_id: "",
