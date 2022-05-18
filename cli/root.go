@@ -36,6 +36,15 @@ const (
 	varForceTty     = "force-tty"
 )
 
+func init() {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	header := cliui.Styles.Placeholder
+	cobra.AddTemplateFunc("usageHeader", func(s string) string {
+		return header.Render(s)
+	})
+}
+
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
@@ -71,7 +80,7 @@ func Root() *cobra.Command {
 		templates(),
 		update(),
 		users(),
-		tunnel(),
+		portForward(),
 		workspaceAgent(),
 	)
 
@@ -179,13 +188,7 @@ func isTTY(cmd *cobra.Command) bool {
 }
 
 func usageTemplate() string {
-	// Customizes the color of headings to make subcommands
-	// more visually appealing.
-	header := cliui.Styles.Placeholder
-	cobra.AddTemplateFunc("usageHeader", func(s string) string {
-		return header.Render(s)
-	})
-
+	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
 {{- if .Runnable}}
   {{.UseLine}}
