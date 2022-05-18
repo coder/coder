@@ -90,7 +90,7 @@ Update the template:
 coder template update docker-image-builds
 ```
 
-Images can also be removed from the validation list. Workspaces using older template versions will continue using
+You can also remove images from the validation list. Workspaces using older template versions will continue using
 the removed image until the workspace is updated to the latest version.
 
 ## Updating images
