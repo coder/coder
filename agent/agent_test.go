@@ -1,6 +1,7 @@
 package agent_test
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -204,6 +205,7 @@ func TestAgent(t *testing.T) {
 		id := uuid.NewString()
 		netConn, err := conn.ReconnectingPTY(id, 100, 100)
 		require.NoError(t, err)
+		bufRead := bufio.NewReader(netConn)
 
 		data, err := json.Marshal(agent.ReconnectingPTYRequest{
 			Data: "echo test\r\n",
@@ -212,28 +214,35 @@ func TestAgent(t *testing.T) {
 		_, err = netConn.Write(data)
 		require.NoError(t, err)
 
-		findEcho := func() {
+		expectLine := func(matcher func(string) bool) {
 			for {
-				read, err := netConn.Read(data)
+				line, err := bufRead.ReadString('\n')
 				require.NoError(t, err)
-				if strings.Contains(string(data[:read]), "test") {
+				if matcher(line) {
 					break
 				}
 			}
 		}
+		matchEchoCommand := func(line string) bool {
+			return strings.Contains(line, "echo test")
+		}
+		matchEchoOutput := func(line string) bool {
+			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+		}
 
 		// Once for typing the command...
-		findEcho()
+		expectLine(matchEchoCommand)
 		// And another time for the actual output.
-		findEcho()
+		expectLine(matchEchoOutput)
 
 		_ = netConn.Close()
 		netConn, err = conn.ReconnectingPTY(id, 100, 100)
 		require.NoError(t, err)
+		bufRead = bufio.NewReader(netConn)
 
 		// Same output again!
-		findEcho()
-		findEcho()
+		expectLine(matchEchoCommand)
+		expectLine(matchEchoOutput)
 	})
 
 	t.Run("Dial", func(t *testing.T) {
