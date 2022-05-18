@@ -1,6 +1,6 @@
 ---
 name: Develop in Docker with custom image builds
-description: Builds images and runs workspaces on the Docker host, no image registry required
+description: Build images and run workspaces on the Docker host with no image registry required
 tags: [local, docker]
 ---
 
