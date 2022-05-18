@@ -728,11 +728,3 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 
 	return func() { _ = srv.Close() }
 }
-
-type datadogLogger struct {
-	logger slog.Logger
-}
-
-func (d *datadogLogger) Log(msg string) {
-	d.logger.Debug(context.Background(), msg)
-}
