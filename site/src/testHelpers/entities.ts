@@ -78,6 +78,15 @@ export const MockCancelingProvisionerJob = {
 }
 export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "running" as TypesGen.ProvisionerJobStatus }
 
+export const MockTemplateVersion: TypesGen.TemplateVersion = {
+  id: "test-template-version",
+  created_at: "",
+  updated_at: "",
+  job: MockProvisionerJob,
+  name: "test-version",
+  readme: "",
+}
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -85,7 +94,7 @@ export const MockTemplate: TypesGen.Template = {
   organization_id: MockOrganization.id,
   name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],
-  active_version_id: "",
+  active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 1,
   description: "This is a test description.",
 }

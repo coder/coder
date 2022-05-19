@@ -25,6 +25,12 @@ export const handlers = [
   rest.get("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
+  rest.get("/api/v2/templateversions/:templateVersionId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
+  }),
+  rest.get("/api/v2/templateversions/:templateVersionId/schema", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json([]))
+  }),
 
   // users
   rest.get("/api/v2/users", async (req, res, ctx) => {
@@ -76,9 +82,6 @@ export const handlers = [
   }),
 
   // workspaces
-
-  // REMARK: This endpoint works with query parameters, but they won't be
-  //         reflected in the return.
   rest.get("/api/v2/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockWorkspace]))
   }),

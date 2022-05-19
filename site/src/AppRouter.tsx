@@ -21,6 +21,7 @@ import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSe
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = React.lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
+const CreateWorkspacePage = React.lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 
 export const AppRouter: React.FC = () => (
   <React.Suspense fallback={<></>}>
@@ -84,6 +85,17 @@ export const AppRouter: React.FC = () => (
               </AuthAndFrame>
             }
           />
+
+          <Route path=":template">
+            <Route
+              path="new"
+              element={
+                <RequireAuth>
+                  <CreateWorkspacePage />
+                </RequireAuth>
+              }
+            />
+          </Route>
         </Route>
 
         <Route path="users">
