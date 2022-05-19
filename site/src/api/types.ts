@@ -1,5 +1,3 @@
-import * as TypesGen from "./typesGenerated"
-
 export interface UserAgent {
   readonly browser: string
   readonly device: string
@@ -14,10 +12,3 @@ export interface ReconnectingPTYRequest {
 }
 
 export type WorkspaceBuildTransition = "start" | "stop" | "delete"
-
-// The generated type for ProvisionerJobLog is different than the one returned
-// by the API.
-export interface ProvisionerJobLog extends TypesGen.ProvisionerJobLog {
-  readonly source: string
-  readonly level: string
-}

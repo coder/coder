@@ -1,6 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import { mutate } from "swr"
-import { ProvisionerJobLog, WorkspaceBuildTransition } from "./types"
+import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
@@ -254,7 +254,7 @@ export const getWorkspaceBuild = async (workspaceId: string): Promise<TypesGen.W
   return response.data
 }
 
-export const getWorkspaceBuildLogs = async (buildname: string): Promise<ProvisionerJobLog[]> => {
-  const response = await axios.get<ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
+export const getWorkspaceBuildLogs = async (buildname: string): Promise<TypesGen.ProvisionerJobLog[]> => {
+  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
   return response.data
 }

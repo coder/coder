@@ -1,7 +1,6 @@
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
-import { ProvisionerJobLog } from "../../api/types"
-import { WorkspaceBuild } from "../../api/typesGenerated"
+import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 
 type LogsContext = {
   // Build
