@@ -69,6 +69,7 @@ func Root() *cobra.Command {
 		gitssh(),
 		list(),
 		login(),
+		logout(),
 		publickey(),
 		resetPassword(),
 		server(),
