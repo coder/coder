@@ -14,7 +14,7 @@ Before proceeding, please ensure that you have Docker installed.
 
 1. Navigate into the `coder` folder. Coder requires a non-`localhost` access URL
     for non-Docker-based examples; if you have a public IP or a domain/reverse
-    proxy, you can provide this value prior to running `docker-compose up` to
+    proxy, you can provide this value before running `docker-compose up` to
     start the service:
 
     ```console
@@ -23,7 +23,7 @@ Before proceeding, please ensure that you have Docker installed.
     docker-compose up
     ```
 
-    Otherwise, you can simply start the service:
+    Otherwise, you can start the service:
 
     ```console
     cd coder
@@ -39,4 +39,58 @@ Before proceeding, please ensure that you have Docker installed.
     ghcr.io/coder/coder:v0.5.10
     ```
 
-1. Follow the on-screen prompts to create your first user and workspace.
+1. Open a new terminal window, and run `coder login <yourAccessURL>` to create
+   your first user (once you've done so, you can navigate to `yourAccessURL` and
+   log in with these credentials).
+
+1. Next, copy a sample template into a new directory so that you can create a custom template in a
+   subsequent step (be sure that you're working in the directory where you want
+   your templates stored):
+
+   ```console
+   coder templates init
+   ```
+
+1. Navigate into the new directory and create a new template:
+
+    ```console
+    cd ./docker-local && coder templates create 
+    ```
+
+    Follow the prompts displayed to proceed. When done, you'll see the following
+    message:
+
+    ```console
+    The docker-local template has been created! Developers can
+    provision a workspace with this template using:           
+
+    coder create --template="docker-local" [workspace name] 
+    ```
+
+1. At this point, you're ready to provision your first workspace:
+
+    ```console
+    coder create --template="docker-local" <yourWorkspaceName>
+    ```
+
+    Follow the on-screen prompts to set the parameters for your workspace. If
+    the process is successful, you'll get information regarding your workspace:
+
+    ```console
+    ┌─────────────────────────────────────────────────────────────────┐
+    │ RESOURCE                    STATUS             ACCESS           │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ docker_container.workspace  ephemeral                           │
+    │ └─ dev (linux, amd64)       ⦾ connecting [0s]   coder ssh main  │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ docker_volume.coder_volume  ephemeral                           │
+    └─────────────────────────────────────────────────────────────────┘
+    The main workspace has been created!
+    ```
+
+You can now access your workspace via your web browser by navigating to your
+access URL, or you can connect to it via ssh by running:
+
+```console
+coder ssh main
+```
