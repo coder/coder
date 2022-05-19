@@ -194,6 +194,7 @@ func create() *cobra.Command {
 		},
 	}
 
+	cliui.AllowSkipPrompt(cmd)
 	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
 	return cmd
 }
