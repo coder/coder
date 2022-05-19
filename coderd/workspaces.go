@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -31,6 +32,40 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead,
 		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	// The `deleted` query parameter (which defaults to `false`) MUST match the
+	// `Deleted` field on the workspace otherwise you will get a 410 Gone.
+	var (
+		deletedStr  = r.URL.Query().Get("deleted")
+		showDeleted = false
+	)
+	if deletedStr != "" {
+		var err error
+		showDeleted, err = strconv.ParseBool(deletedStr)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("invalid bool for 'deleted' query param: %s", err),
+			})
+			return
+		}
+	}
+	if workspace.Deleted && !showDeleted {
+		httpapi.Write(rw, http.StatusGone, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again", workspace.ID.String()),
+		})
+		return
+	}
+	if !workspace.Deleted && showDeleted {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q is not deleted, please remove '?deleted=true' and try again", workspace.ID.String()),
+		})
 		return
 	}
 

@@ -42,7 +42,16 @@ type CreateWorkspaceBuildRequest struct {
 
 // Workspace returns a single workspace.
 func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil)
+	return c.getWorkspace(ctx, id)
+}
+
+// DeletedWorkspace returns a single workspace that was deleted.
+func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
+	return c.getWorkspace(ctx, id, queryParam("deleted", "true"))
+}
+
+func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil, opts...)
 	if err != nil {
 		return Workspace{}, err
 	}

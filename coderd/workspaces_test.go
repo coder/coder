@@ -20,6 +20,58 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+func TestWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		_, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("Deleted", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Getting with deleted=true should fail.
+		_, err := client.DeletedWorkspace(context.Background(), workspace.ID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "400") // bad request
+
+		// Delete the workspace
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: database.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Getting with deleted=true should work.
+		workspaceNew, err := client.DeletedWorkspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Getting with deleted=false should not work.
+		_, err = client.Workspace(context.Background(), workspace.ID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "410") // gone
+	})
+}
+
 func TestAdminViewAllWorkspaces(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
