@@ -92,7 +92,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
 
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
-                <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
+                <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
               </TableRow>
             ))}
           </TableBody>

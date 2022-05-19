@@ -54,7 +54,7 @@ Edit the validation to include the new image:
 
 ```diff
 variable "docker_image" {
-    description = "What Docker imagewould you like to use for your workspace?"
+    description = "What Docker image would you like to use for your workspace?"
     default     = "base"
 
     # List of images available for the user to choose from.
