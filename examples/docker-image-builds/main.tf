@@ -94,8 +94,9 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
-  command  = ["sh", "-c", coder_agent.dev.init_script]
-  env      = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  # Use the docker gateway if the access URL is 127.0.0.1 
+  command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
+  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
