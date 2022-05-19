@@ -42,9 +42,6 @@ provider "docker" {
 }
 
 provider "coder" {
-  # The below assumes your Coder deployment is running in docker-compose.
-  # If this is not the case, either comment or edit the below.
-  url = "http://host.docker.internal:7080"
 }
 
 data "coder_workspace" "me" {
@@ -56,7 +53,7 @@ resource "coder_agent" "dev" {
 }
 
 variable "docker_image" {
-  description = "What Docker imagewould you like to use for your workspace?"
+  description = "What Docker image would you like to use for your workspace?"
   default     = "base"
 
   # List of images available for the user to choose from.
