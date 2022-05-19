@@ -53,6 +53,7 @@ func TestPrompt(t *testing.T) {
 	})
 
 	t.Run("Skip", func(t *testing.T) {
+		t.Parallel()
 		ptty := ptytest.New(t)
 		var buf bytes.Buffer
 
@@ -89,7 +90,7 @@ func TestPrompt(t *testing.T) {
 		// Wait for the IO copy to finish
 		<-dataRead.Done()
 		// Timeout error means the output was hanging
-		require.ErrorIs(t, dataRead.Err(), context.Canceled, "should be cancelled")
+		require.ErrorIs(t, dataRead.Err(), context.Canceled, "should be canceled")
 		require.Len(t, buf.Bytes(), 0, "expect no output")
 	})
 	t.Run("JSON", func(t *testing.T) {
