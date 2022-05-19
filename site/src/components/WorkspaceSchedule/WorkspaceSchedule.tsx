@@ -41,7 +41,7 @@ const Language = {
       const updatedAt = dayjs(latest.updated_at)
       const deadline = updatedAt.add(workspace.ttl / 1_000_000, "ms")
       if (now.isAfter(deadline)) {
-        return "WORKING ON THIS"
+        return "workspace is shutting down now"
       } else {
         return now.to(deadline)
       }
