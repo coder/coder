@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
+    "buildname",
     "circbuf",
     "cliflag",
     "cliui",
@@ -56,6 +57,7 @@
     "TCGETS",
     "tcpip",
     "TCSETS",
+    "testid",
     "tfexec",
     "tfjson",
     "tfstate",

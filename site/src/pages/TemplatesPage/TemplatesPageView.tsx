@@ -83,7 +83,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                     <Avatar variant="square" className={styles.templateAvatar}>
                       {firstLetter(template.name)}
                     </Avatar>
-                    <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
+                    <Link component={RouterLink} to={`/templates/${template.name}/new`} className={styles.templateLink}>
                       <b>{template.name}</b>
                       <span>{template.description}</span>
                     </Link>
