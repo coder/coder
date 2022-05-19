@@ -9,8 +9,19 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+)
 
-	"github.com/coder/coder/coderd/database"
+type ProvisionerStorageMethod string
+
+const (
+	ProvisionerStorageMethodFile ProvisionerStorageMethod = "file"
+)
+
+type ProvisionerType string
+
+const (
+	ProvisionerTypeEcho      ProvisionerType = "echo"
+	ProvisionerTypeTerraform ProvisionerType = "terraform"
 )
 
 // Organization is the JSON representation of a Coder organization.
@@ -26,9 +37,9 @@ type CreateTemplateVersionRequest struct {
 	// TemplateID optionally associates a version with a template.
 	TemplateID uuid.UUID `json:"template_id,omitempty"`
 
-	StorageMethod database.ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	StorageSource string                            `json:"storage_source" validate:"required"`
-	Provisioner   database.ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	StorageMethod ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	StorageSource string                   `json:"storage_source" validate:"required"`
+	Provisioner   ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`

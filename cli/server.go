@@ -395,7 +395,7 @@ func server() *cobra.Command {
 				for _, workspace := range workspaces {
 					before := time.Now()
 					build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-						Transition: database.WorkspaceTransitionDelete,
+						Transition: codersdk.WorkspaceTransitionDelete,
 					})
 					if err != nil {
 						return xerrors.Errorf("delete workspace: %w", err)

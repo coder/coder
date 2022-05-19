@@ -49,9 +49,9 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		UpdatedAt:         database.Now(),
 		Scope:             scope,
 		ScopeID:           scopeID,
-		SourceScheme:      createRequest.SourceScheme,
+		SourceScheme:      database.ParameterSourceScheme(createRequest.SourceScheme),
 		SourceValue:       createRequest.SourceValue,
-		DestinationScheme: createRequest.DestinationScheme,
+		DestinationScheme: database.ParameterDestinationScheme(createRequest.DestinationScheme),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -140,10 +140,10 @@ func convertParameterSchema(parameterSchema database.ParameterSchema) (codersdk.
 		JobID:                    parameterSchema.JobID,
 		Name:                     parameterSchema.Name,
 		Description:              parameterSchema.Description,
-		DefaultSourceScheme:      string(parameterSchema.DefaultSourceScheme),
+		DefaultSourceScheme:      codersdk.ParameterSourceScheme(parameterSchema.DefaultSourceScheme),
 		DefaultSourceValue:       parameterSchema.DefaultSourceValue,
 		AllowOverrideSource:      parameterSchema.AllowOverrideSource,
-		DefaultDestinationScheme: string(parameterSchema.DefaultDestinationScheme),
+		DefaultDestinationScheme: codersdk.ParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
 		AllowOverrideDestination: parameterSchema.AllowOverrideDestination,
 		DefaultRefresh:           parameterSchema.DefaultRefresh,
 		RedisplayValue:           parameterSchema.RedisplayValue,
@@ -163,8 +163,8 @@ func convertParameterValue(parameterValue database.ParameterValue) codersdk.Para
 		Scope:             codersdk.ParameterScope(parameterValue.Scope),
 		ScopeID:           parameterValue.ScopeID,
 		Name:              parameterValue.Name,
-		SourceScheme:      parameterValue.SourceScheme,
-		DestinationScheme: parameterValue.DestinationScheme,
+		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
+		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
 	}
 }
 

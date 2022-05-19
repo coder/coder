@@ -471,7 +471,7 @@ type Workspace struct {
 	Deleted           bool           `db:"deleted" json:"deleted"`
 	Name              string         `db:"name" json:"name"`
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	AutostopSchedule  sql.NullString `db:"autostop_schedule" json:"autostop_schedule"`
+	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
 }
 
 type WorkspaceAgent struct {

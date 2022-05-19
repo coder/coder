@@ -41,7 +41,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 	// Address on stop indexes whether a resource still exists when in the stopped transition.
 	addressOnStop := map[string]codersdk.WorkspaceResource{}
 	for _, resource := range resources {
-		if resource.Transition != database.WorkspaceTransitionStop {
+		if resource.Transition != codersdk.WorkspaceTransitionStop {
 			continue
 		}
 		addressOnStop[resource.Type+"."+resource.Name] = resource

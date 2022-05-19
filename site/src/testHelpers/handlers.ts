@@ -36,9 +36,6 @@ export const handlers = [
   rest.post("/api/v2/users/me/workspaces", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspace))
   }),
-  rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockWorkspace]))
-  }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockOrganization]))
   }),
@@ -79,6 +76,12 @@ export const handlers = [
   }),
 
   // workspaces
+
+  // REMARK: This endpoint works with query parameters, but they won't be
+  //         reflected in the return.
+  rest.get("/api/v2/workspaces", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json([M.MockWorkspace]))
+  }),
   rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
     if (req.params.workspaceName !== M.MockWorkspace.name) {
       return res(
@@ -97,7 +100,7 @@ export const handlers = [
   rest.put("/api/v2/workspaces/:workspaceId/autostart", async (req, res, ctx) => {
     return res(ctx.status(200))
   }),
-  rest.put("/api/v2/workspaces/:workspaceId/autostop", async (req, res, ctx) => {
+  rest.put("/api/v2/workspaces/:workspaceId/ttl", async (req, res, ctx) => {
     return res(ctx.status(200))
   }),
   rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {

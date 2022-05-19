@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -134,8 +133,8 @@ func create() *cobra.Command {
 				parameters = append(parameters, codersdk.CreateParameterRequest{
 					Name:              parameterSchema.Name,
 					SourceValue:       value,
-					SourceScheme:      database.ParameterSourceSchemeData,
-					DestinationScheme: database.ParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
+					SourceScheme:      codersdk.ParameterSourceSchemeData,
+					DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				})
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
