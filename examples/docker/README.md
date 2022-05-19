@@ -20,7 +20,7 @@ Edit the template:
 vim main.tf
 ```
 variable "docker_image" {
-  description = "What Docker imagewould you like to use for your workspace?"
+  description = "What Docker image would you like to use for your workspace?"
   default     = "codercom/enterprise-base:ubuntu"
   validation {
 -    condition     = contains(["codercom/enterprise-base:ubuntu", "codercom/enterprise-node:ubuntu", "codercom/enterprise-intellij:ubuntu"], var.docker_image)
@@ -46,7 +46,7 @@ To reduce drift, we recommend versioning images in your registry by creating tag
 
 ```sh
 variable "docker_image" {
-  description = "What Docker imagewould you like to use for your workspace?"
+  description = "What Docker image would you like to use for your workspace?"
   default     = "codercom/enterprise-base:ubuntu"
   validation {
 -    condition     = contains(["my-org/base-development:v1.1", "myorg-java-development:v1.1"], var.docker_image)
