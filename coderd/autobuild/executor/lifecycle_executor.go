@@ -50,7 +50,7 @@ func (e *Executor) Run() {
 func (e *Executor) runOnce(t time.Time) error {
 	currentTick := t.Truncate(time.Minute)
 	return e.db.InTx(func(db database.Store) error {
-		eligibleWorkspaces, err := db.GetWorkspacesAutostartAutostop(e.ctx)
+		eligibleWorkspaces, err := db.GetWorkspacesAutostart(e.ctx)
 		if err != nil {
 			return xerrors.Errorf("get eligible workspaces for autostart or autostop: %w", err)
 		}
@@ -84,21 +84,25 @@ func (e *Executor) runOnce(t time.Time) error {
 			}
 
 			var validTransition database.WorkspaceTransition
-			var sched *schedule.Schedule
+			var nextTransition time.Time
 			switch priorHistory.Transition {
 			case database.WorkspaceTransitionStart:
 				validTransition = database.WorkspaceTransitionStop
-				sched, err = schedule.Weekly(ws.AutostopSchedule.String)
-				if err != nil {
-					e.log.Warn(e.ctx, "workspace has invalid autostop schedule, skipping",
+				if !ws.Ttl.Valid || ws.Ttl.Int64 == 0 {
+					e.log.Debug(e.ctx, "invalid or zero ws ttl, skipping",
 						slog.F("workspace_id", ws.ID),
-						slog.F("autostart_schedule", ws.AutostopSchedule.String),
+						slog.F("ttl", time.Duration(ws.Ttl.Int64)),
 					)
 					continue
 				}
+				ttl := time.Duration(ws.Ttl.Int64)
+				// Measure TTL from the time the workspace finished building.
+				// Truncate to nearest minute for consistency with autostart
+				// behavior, and add one minute for padding.
+				nextTransition = priorHistory.UpdatedAt.Truncate(time.Minute).Add(ttl + time.Minute)
 			case database.WorkspaceTransitionStop:
 				validTransition = database.WorkspaceTransitionStart
-				sched, err = schedule.Weekly(ws.AutostartSchedule.String)
+				sched, err := schedule.Weekly(ws.AutostartSchedule.String)
 				if err != nil {
 					e.log.Warn(e.ctx, "workspace has invalid autostart schedule, skipping",
 						slog.F("workspace_id", ws.ID),
@@ -106,6 +110,9 @@ func (e *Executor) runOnce(t time.Time) error {
 					)
 					continue
 				}
+				// Round down to the nearest minute, as this is the finest granularity cron supports.
+				// Truncate is probably not necessary here, but doing it anyway to be sure.
+				nextTransition = sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
 			default:
 				e.log.Debug(e.ctx, "last transition not valid for autostart or autostop",
 					slog.F("workspace_id", ws.ID),
@@ -114,13 +121,10 @@ func (e *Executor) runOnce(t time.Time) error {
 				continue
 			}
 
-			// Round time down to the nearest minute, as this is the finest granularity cron supports.
-			// Truncate is probably not necessary here, but doing it anyway to be sure.
-			nextTransitionAt := sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
-			if currentTick.Before(nextTransitionAt) {
+			if currentTick.Before(nextTransition) {
 				e.log.Debug(e.ctx, "skipping workspace: too early",
 					slog.F("workspace_id", ws.ID),
-					slog.F("next_transition_at", nextTransitionAt),
+					slog.F("next_transition_at", nextTransition),
 					slog.F("transition", validTransition),
 					slog.F("current_tick", currentTick),
 				)

@@ -314,8 +314,8 @@ func newRouter(options *Options, a *api) chi.Router {
 				r.Route("/autostart", func(r chi.Router) {
 					r.Put("/", a.putWorkspaceAutostart)
 				})
-				r.Route("/autostop", func(r chi.Router) {
-					r.Put("/", a.putWorkspaceAutostop)
+				r.Route("/ttl", func(r chi.Router) {
+					r.Put("/", a.putWorkspaceTTL)
 				})
 				r.Get("/watch", a.watchWorkspace)
 			})

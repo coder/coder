@@ -547,38 +547,32 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
+func (api *api) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
 		return
 	}
 
-	var req codersdk.UpdateWorkspaceAutostopRequest
+	var req codersdk.UpdateWorkspaceTTLRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
 
-	var dbSched sql.NullString
-	if req.Schedule != "" {
-		validSched, err := schedule.Weekly(req.Schedule)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("invalid autostop schedule: %s", err),
-			})
-			return
-		}
-		dbSched.String = validSched.String()
-		dbSched.Valid = true
+	var dbTTL sql.NullInt64
+	if req.TTL != nil && *req.TTL > 0 {
+		truncated := req.TTL.Truncate(time.Minute)
+		dbTTL.Int64 = int64(truncated)
+		dbTTL.Valid = true
 	}
 
-	err := api.Database.UpdateWorkspaceAutostop(r.Context(), database.UpdateWorkspaceAutostopParams{
-		ID:               workspace.ID,
-		AutostopSchedule: dbSched,
+	err := api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
+		ID:  workspace.ID,
+		Ttl: dbTTL,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update workspace autostop schedule: %s", err),
+			Message: fmt.Sprintf("update workspace ttl: %s", err),
 		})
 		return
 	}
@@ -777,6 +771,14 @@ func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.Work
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
 		AutostartSchedule: workspace.AutostartSchedule.String,
-		AutostopSchedule:  workspace.AutostopSchedule.String,
+		TTL:               convertSQLNullInt64(workspace.Ttl),
 	}
+}
+
+func convertSQLNullInt64(i sql.NullInt64) *time.Duration {
+	if !i.Valid {
+		return nil
+	}
+
+	return (*time.Duration)(&i.Int64)
 }

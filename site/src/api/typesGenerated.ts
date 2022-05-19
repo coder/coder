@@ -291,8 +291,9 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go:161:6
-export interface UpdateWorkspaceAutostopRequest {
-  readonly schedule: string
+export interface UpdateWorkspaceTTLRequest {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly ttl?: number
 }
 
 // From codersdk/files.go:16:6
@@ -358,7 +359,8 @@ export interface Workspace {
   readonly outdated: boolean
   readonly name: string
   readonly autostart_schedule: string
-  readonly autostop_schedule: string
+  // This is likely an enum in an external package ("time.Duration")
+  readonly ttl?: number
 }
 
 // From codersdk/workspaceresources.go:31:6
