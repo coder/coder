@@ -53,16 +53,21 @@ func TestPrompt(t *testing.T) {
 	})
 
 	t.Run("Skip", func(t *testing.T) {
-		t.Parallel()
 		ptty := ptytest.New(t)
 		var buf bytes.Buffer
 
 		// Copy all data written out to a buffer. When we close the ptty, we can
 		// no longer read from the ptty.Output(), but we can read what was
 		// written to the buffer.
+		dataRead, doneReading := context.WithTimeout(context.Background(), time.Second*2)
 		go func() {
-			_, err := io.Copy(&buf, ptty.Output())
-			require.NoError(t, err, "copy")
+			// This will throw an error sometimes. The underlying ptty
+			// has its own cleanup routines in t.Cleanup. Instead of
+			// trying to control the close perfectly, just let the ptty
+			// double close. This error isn't important, we just
+			// want to know the ptty is done sending output.
+			_, _ = io.Copy(&buf, ptty.Output())
+			doneReading()
 		}()
 
 		doneChan := make(chan string)
@@ -79,10 +84,14 @@ func TestPrompt(t *testing.T) {
 		}()
 
 		require.Equal(t, "yes", <-doneChan)
-		require.NoError(t, ptty.Close(), "close ptty")
+		// Close the reader to end the io.Copy
+		require.NoError(t, ptty.Close(), "close eof reader")
+		// Wait for the IO copy to finish
+		<-dataRead.Done()
+		// Timeout error means the output was hanging
+		require.ErrorIs(t, dataRead.Err(), context.Canceled, "should be cancelled")
 		require.Len(t, buf.Bytes(), 0, "expect no output")
 	})
-
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
@@ -104,7 +113,6 @@ func TestPrompt(t *testing.T) {
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
 		go func() {
-
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
