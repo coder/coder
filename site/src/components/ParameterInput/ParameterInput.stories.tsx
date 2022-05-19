@@ -10,7 +10,7 @@ export default {
 
 const Template: Story<ParameterInputProps> = (args: ParameterInputProps) => <ParameterInput {...args} />
 
-const createParameterSchema = (partial: Partial<ParameterSchema>): ParameterSchema => {
+export const createParameterSchema = (partial: Partial<ParameterSchema>): ParameterSchema => {
   return {
     id: "000000",
     job_id: "000000",

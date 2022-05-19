@@ -99,5 +99,8 @@ export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (
 const useStyles = makeStyles((theme) => ({
   parameters: {
     paddingTop: theme.spacing(4),
+    "& > *": {
+      marginBottom: theme.spacing(4),
+    },
   },
 }))
