@@ -1,5 +1,5 @@
-import { makeStyles } from "@material-ui/core"
 import Paper from "@material-ui/core/Paper"
+import { makeStyles } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
