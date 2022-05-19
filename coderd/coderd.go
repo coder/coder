@@ -15,7 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
-	chitrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/go-chi/chi.v5"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -51,6 +52,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
 	Authorizer           rbac.Authorizer
+	TracerProvider       *sdktrace.TracerProvider
 }
 
 // New constructs the Coder API into an HTTP handler.
@@ -92,7 +94,7 @@ func New(options *Options) (http.Handler, func()) {
 			})
 		},
 		httpmw.Prometheus,
-		chitrace.Middleware(),
+		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {

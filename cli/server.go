@@ -31,7 +31,8 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -44,6 +45,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -82,7 +84,7 @@ func server() *cobra.Command {
 		turnRelayAddress                 string
 		tunnel                           bool
 		stunServers                      []string
-		traceDatadog                     bool
+		trace                            bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
 		spooky                           bool
@@ -98,11 +100,20 @@ func server() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			if traceDatadog {
-				tracer.Start(tracer.WithLogStartup(false), tracer.WithLogger(&datadogLogger{
-					logger: logger.Named("datadog"),
-				}))
-				defer tracer.Stop()
+			var tracerProvider *sdktrace.TracerProvider
+			var err error
+			if trace {
+				tracerProvider, err = tracing.TracerProvider(cmd.Context(), "coderd")
+				if err != nil {
+					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
+				} else {
+					defer func() {
+						// allow time for traces to flush even if command context is cancelled
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						_ = tracerProvider.Shutdown(ctx)
+					}()
+				}
 			}
 
 			printLogo(cmd, spooky)
@@ -216,6 +227,7 @@ func server() *cobra.Command {
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 				TURNServer:           turnServer,
+				TracerProvider:       tracerProvider,
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -480,7 +492,7 @@ func server() *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
 	}, "Specify URLs for STUN servers to enable P2P connections.")
-	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &trace, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
 		"Specifies the address to bind TURN connections.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
@@ -718,12 +730,4 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}()
 
 	return func() { _ = srv.Close() }
-}
-
-type datadogLogger struct {
-	logger slog.Logger
-}
-
-func (d *datadogLogger) Log(msg string) {
-	d.logger.Debug(context.Background(), msg)
 }
