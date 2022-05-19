@@ -3,17 +3,25 @@ import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import Check from "@material-ui/icons/Check"
 import React, { useState } from "react"
+import { combineClasses } from "../../util/combineClasses"
 import { FileCopyIcon } from "../Icons/FileCopyIcon"
 
 interface CopyButtonProps {
   text: string
-  className?: string
+  ctaCopy?: string
+  wrapperClassName?: string
+  buttonClassName?: string
 }
 
 /**
  * Copy button used inside the CodeBlock component internally
  */
-export const CopyButton: React.FC<CopyButtonProps> = ({ className = "", text }) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({
+  text,
+  ctaCopy,
+  wrapperClassName = "",
+  buttonClassName = "",
+}) => {
   const styles = useStyles()
   const [isCopied, setIsCopied] = useState<boolean>(false)
 
@@ -36,9 +44,16 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ className = "", text }) 
 
   return (
     <Tooltip title="Copy to Clipboard" placement="top">
-      <div className={`${styles.copyButtonWrapper} ${className}`}>
-        <Button className={styles.copyButton} onClick={copyToClipboard} size="small">
-          {isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />}
+      <div className={combineClasses([styles.copyButtonWrapper, wrapperClassName])}>
+        <Button
+          className={combineClasses([styles.copyButton, buttonClassName])}
+          onClick={copyToClipboard}
+          size="small"
+          startIcon={
+            isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />
+          }
+        >
+          {ctaCopy && ctaCopy}
         </Button>
       </div>
     </Tooltip>

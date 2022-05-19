@@ -14,6 +14,8 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export const Stack: React.FC<StackProps> = ({ children, spacing = 2 }) => {
+  throw new Error("uh oh")
+
   const styles = useStyles({ spacing })
   return <div className={styles.stack}>{children}</div>
 }
