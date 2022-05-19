@@ -35,7 +35,9 @@ func init() {
 }
 
 type SelectOptions struct {
-	Options    []string
+	Options []string
+	// Default will be highlighted first if it's a valid option.
+	Default    string
 	Size       int
 	HideSearch bool
 }
@@ -50,9 +52,16 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 	if flag.Lookup("test.v") != nil {
 		return opts.Options[0], nil
 	}
+
+	var defaultOption interface{}
+	if opts.Default != "" {
+		defaultOption = opts.Default
+	}
+
 	var value string
 	err := survey.AskOne(&survey.Select{
 		Options:  opts.Options,
+		Default:  defaultOption,
 		PageSize: opts.Size,
 	}, &value, survey.WithIcons(func(is *survey.IconSet) {
 		is.Help.Text = "Type to search"

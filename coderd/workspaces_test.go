@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +22,58 @@ import (
 
 func TestWorkspace(t *testing.T) {
 	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		_, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("Deleted", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Getting with deleted=true should fail.
+		_, err := client.DeletedWorkspace(context.Background(), workspace.ID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "400") // bad request
+
+		// Delete the workspace
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: database.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Getting with deleted=true should work.
+		workspaceNew, err := client.DeletedWorkspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Getting with deleted=false should not work.
+		_, err = client.Workspace(context.Background(), workspace.ID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "410") // gone
+	})
+}
+
+func TestAdminViewAllWorkspaces(t *testing.T) {
+	t.Parallel()
 	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	coderdtest.NewProvisionerDaemon(t, client)
@@ -27,8 +81,25 @@ func TestWorkspace(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	_, err := client.Workspace(context.Background(), workspace.ID)
 	require.NoError(t, err)
+
+	otherOrg, err := client.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
+		Name: "default-test",
+	})
+	require.NoError(t, err, "create other org")
+
+	// This other user is not in the first user's org. Since other is an admin, they can
+	// still see the "first" user's workspace.
+	other := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleAdmin(), rbac.RoleMember())
+	otherWorkspaces, err := other.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(other) fetch workspaces")
+
+	firstWorkspaces, err := other.Workspaces(context.Background(), codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(first) fetch workspaces")
+
+	require.ElementsMatch(t, otherWorkspaces, firstWorkspaces)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
@@ -52,7 +123,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleAdmin())
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
@@ -248,7 +319,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("UpdatePriorAfterField", func(t *testing.T) {
+	t.Run("IncrementBuildNumber", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -263,11 +334,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
-		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
-
-		firstBuild, err := client.WorkspaceBuild(context.Background(), workspace.LatestBuild.ID)
-		require.NoError(t, err)
-		require.Equal(t, build.ID.String(), firstBuild.AfterID.String())
+		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 	})
 
 	t.Run("WithState", func(t *testing.T) {
@@ -307,7 +374,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition: database.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err)
-		require.Equal(t, workspace.LatestBuild.ID.String(), build.BeforeID.String())
+		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 
 		workspaces, err := client.WorkspacesByOwner(context.Background(), user.OrganizationID, user.UserID.String())
@@ -624,4 +691,28 @@ func mustLocation(t *testing.T, location string) *time.Location {
 	}
 
 	return loc
+}
+
+func TestWorkspaceWatcher(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	coderdtest.NewProvisionerDaemon(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	w, err := client.Workspace(context.Background(), workspace.ID)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wc, err := client.WatchWorkspace(ctx, w.ID)
+	require.NoError(t, err)
+	for i := 0; i < 3; i++ {
+		_, more := <-wc
+		require.True(t, more)
+	}
+	cancel()
+	require.EqualValues(t, codersdk.Workspace{}, <-wc)
 }

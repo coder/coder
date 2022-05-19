@@ -32,10 +32,11 @@ import (
 )
 
 // This cannot be ran in parallel because it uses a signal.
-// nolint:tparallel
+// nolint:paralleltest
 func TestServer(t *testing.T) {
 	t.Run("Production", func(t *testing.T) {
-		t.Parallel()
+		// postgres.Open() seems to be creating race conditions when run in parallel.
+		// t.Parallel()
 		if runtime.GOOS != "linux" || testing.Short() {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()

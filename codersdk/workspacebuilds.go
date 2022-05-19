@@ -14,15 +14,14 @@ import (
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
-// Iterate on before/after to determine a chronological history.
+// BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
 	ID                uuid.UUID                    `json:"id"`
 	CreatedAt         time.Time                    `json:"created_at"`
 	UpdatedAt         time.Time                    `json:"updated_at"`
 	WorkspaceID       uuid.UUID                    `json:"workspace_id"`
 	TemplateVersionID uuid.UUID                    `json:"template_version_id"`
-	BeforeID          uuid.UUID                    `json:"before_id"`
-	AfterID           uuid.UUID                    `json:"after_id"`
+	BuildNumber       int32                        `json:"build_number"`
 	Name              string                       `json:"name"`
 	Transition        database.WorkspaceTransition `json:"transition"`
 	InitiatorID       uuid.UUID                    `json:"initiator_id"`

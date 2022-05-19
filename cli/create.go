@@ -135,7 +135,7 @@ func create() *cobra.Command {
 					Name:              parameterSchema.Name,
 					SourceValue:       value,
 					SourceScheme:      database.ParameterSourceSchemeData,
-					DestinationScheme: parameterSchema.DefaultDestinationScheme,
+					DestinationScheme: database.ParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
 				})
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())

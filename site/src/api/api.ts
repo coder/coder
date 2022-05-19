@@ -120,10 +120,25 @@ export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Worksp
   return response.data
 }
 
-// TODO: @emyrk add query params as arguments. Supports 'organization_id' and 'owner'
-//  'owner' can be a username, user_id, or 'me'
-export const getWorkspaces = async (): Promise<TypesGen.Workspace[]> => {
-  const response = await axios.get<TypesGen.Workspace[]>(`/api/v2/workspaces`)
+export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
+  const basePath = "/api/v2/workspaces"
+  const searchParams = new URLSearchParams()
+
+  if (filter?.OrganizationID) {
+    searchParams.append("organization_id", filter.OrganizationID)
+  }
+  if (filter?.Owner) {
+    searchParams.append("owner", filter.Owner)
+  }
+
+  const searchString = searchParams.toString()
+
+  return searchString ? `${basePath}?${searchString}` : basePath
+}
+
+export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<TypesGen.Workspace[]> => {
+  const url = getWorkspacesURL(filter)
+  const response = await axios.get<TypesGen.Workspace[]>(url)
   return response.data
 }
 
