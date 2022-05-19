@@ -1,7 +1,9 @@
 package cliui_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"testing"
@@ -24,7 +26,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			msgChan <- resp
 		}()
@@ -41,13 +43,44 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "Example",
 				IsConfirm: true,
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("yes")
 		require.Equal(t, "yes", <-doneChan)
+	})
+
+	t.Run("Skip", func(t *testing.T) {
+		t.Parallel()
+		ptty := ptytest.New(t)
+		var buf bytes.Buffer
+
+		// Copy all data written out to a buffer. When we close the ptty, we can
+		// no longer read from the ptty.Output(), but we can read what was
+		// written to the buffer.
+		go func() {
+			_, err := io.Copy(&buf, ptty.Output())
+			require.NoError(t, err, "copy")
+		}()
+
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ptty, cliui.PromptOptions{
+				Text:      "ShouldNotSeeThis",
+				IsConfirm: true,
+			}, func(cmd *cobra.Command) {
+				cliui.AllowSkipPrompt(cmd)
+				cmd.SetArgs([]string{"-y"})
+			})
+			require.NoError(t, err)
+			doneChan <- resp
+		}()
+
+		require.Equal(t, "yes", <-doneChan)
+		require.NoError(t, ptty.Close(), "close ptty")
+		require.Len(t, buf.Bytes(), 0, "expect no output")
 	})
 
 	t.Run("JSON", func(t *testing.T) {
@@ -57,7 +90,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -71,9 +104,10 @@ func TestPrompt(t *testing.T) {
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
 		go func() {
+
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -89,7 +123,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -101,7 +135,7 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cobra.Command)) (string, error) {
 	value := ""
 	cmd := &cobra.Command{
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -109,6 +143,10 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
 			value, err = cliui.Prompt(cmd, opts)
 			return err
 		},
+	}
+	// Optionally modify the cmd
+	if cmdOpt != nil {
+		cmdOpt(cmd)
 	}
 	cmd.SetOutput(ptty.Output())
 	cmd.SetIn(ptty.Input())
