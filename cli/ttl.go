@@ -37,16 +37,16 @@ func ttlShow() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
-				return err
+				return xerrors.Errorf("create client: %w", err)
 			}
 			organization, err := currentOrganization(cmd, client)
 			if err != nil {
-				return err
+				return xerrors.Errorf("get current org: %w", err)
 			}
 
 			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
 			if err != nil {
-				return err
+				return xerrors.Errorf("get workspace: %w", err)
 			}
 
 			if workspace.TTL == nil {
@@ -69,21 +69,21 @@ func ttlset() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
-				return err
+				return xerrors.Errorf("create client: %w", err)
 			}
 			organization, err := currentOrganization(cmd, client)
 			if err != nil {
-				return err
+				return xerrors.Errorf("get current org: %w", err)
 			}
 
 			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
 			if err != nil {
-				return err
+				return xerrors.Errorf("get workspace: %w", err)
 			}
 
 			ttl, err := time.ParseDuration(args[1])
 			if err != nil {
-				return err
+				return xerrors.Errorf("parse ttl: %w", err)
 			}
 
 			truncated := ttl.Truncate(time.Minute)
@@ -100,7 +100,7 @@ func ttlset() *cobra.Command {
 				TTL: &truncated,
 			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("update workspace ttl: %w", err)
 			}
 
 			return nil
@@ -117,23 +117,23 @@ func ttlunset() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
 			if err != nil {
-				return err
+				return xerrors.Errorf("create client: %w", err)
 			}
 			organization, err := currentOrganization(cmd, client)
 			if err != nil {
-				return err
+				return xerrors.Errorf("get current org: %w", err)
 			}
 
 			workspace, err := client.WorkspaceByOwnerAndName(cmd.Context(), organization.ID, codersdk.Me, args[0])
 			if err != nil {
-				return err
+				return xerrors.Errorf("get workspace: %w", err)
 			}
 
 			err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 				TTL: nil,
 			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("update workspace ttl: %w", err)
 			}
 
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), "ttl unset\n", workspace.Name)
