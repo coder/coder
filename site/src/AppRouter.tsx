@@ -15,6 +15,7 @@ import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
+import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"
 
@@ -137,6 +138,15 @@ export const AppRouter: React.FC = () => (
             />
           </Route>
         </Route>
+
+        <Route
+          path="builds/:buildId"
+          element={
+            <AuthAndFrame>
+              <WorkspaceBuildPage />
+            </AuthAndFrame>
+          }
+        />
 
         {/* Using path="*"" means "match anything", so this route
         acts like a catch-all for URLs that we don't have explicit

@@ -1,4 +1,5 @@
 import { Theme } from "@material-ui/core/styles"
+import dayjs from "dayjs"
 import { WorkspaceBuildTransition } from "../api/types"
 import { WorkspaceBuild } from "../api/typesGenerated"
 
@@ -115,4 +116,21 @@ export const getDisplayStatus = (
       }
   }
   throw new Error("unknown status " + status)
+}
+
+export const getWorkspaceBuildDurationInSeconds = (build: WorkspaceBuild): number | undefined => {
+  const isCompleted = build.job.started_at && build.job.completed_at
+
+  if (!isCompleted) {
+    return
+  }
+
+  const startedAt = dayjs(build.job.started_at)
+  const completedAt = dayjs(build.job.completed_at)
+  return completedAt.diff(startedAt, "seconds")
+}
+
+export const displayWorkspaceBuildDuration = (build: WorkspaceBuild, inProgressLabel = "In progress"): string => {
+  const duration = getWorkspaceBuildDurationInSeconds(build)
+  return duration ? `${duration} seconds` : inProgressLabel
 }
