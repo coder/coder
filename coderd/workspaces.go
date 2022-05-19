@@ -32,14 +32,14 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// The `deleted` query parameter (which defaults to `false`) MUST match the
-	// `deleted` field on the workspace otherwise you will get a 410 Gone.
+	// `Deleted` field on the workspace otherwise you will get a 410 Gone.
 	var (
-		deletedStr = r.URL.Query().Get("deleted")
-		deleted    = false
+		deletedStr  = r.URL.Query().Get("deleted")
+		showDeleted = false
 	)
 	if deletedStr != "" {
 		var err error
-		deleted, err = strconv.ParseBool(deletedStr)
+		showDeleted, err = strconv.ParseBool(deletedStr)
 		if err != nil {
 			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 				Message: fmt.Sprintf("invalid bool for 'deleted' query param: %s", err),
@@ -47,14 +47,13 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if workspace.Deleted != deleted {
-		if workspace.Deleted {
-			httpapi.Write(rw, http.StatusGone, httpapi.Response{
-				Message: fmt.Sprintf("workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again", workspace.ID.String()),
-			})
-			return
-		}
-
+	if workspace.Deleted && !showDeleted {
+		httpapi.Write(rw, http.StatusGone, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again", workspace.ID.String()),
+		})
+		return
+	}
+	if !workspace.Deleted && showDeleted {
 		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
 			Message: fmt.Sprintf("workspace %q is not deleted, please remove '?deleted=true' and try again", workspace.ID.String()),
 		})
