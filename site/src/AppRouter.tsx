@@ -140,7 +140,7 @@ export const AppRouter: React.FC = () => (
         </Route>
 
         <Route
-          path="builds/:buildname"
+          path="builds/:buildId"
           element={
             <AuthAndFrame>
               <WorkspaceBuildPage />

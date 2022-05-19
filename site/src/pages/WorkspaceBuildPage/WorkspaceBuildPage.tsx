@@ -8,7 +8,7 @@ import { Loader } from "../../components/Loader/Loader"
 import { Logs } from "../../components/Logs/Logs"
 import { Margins } from "../../components/Margins/Margins"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { logsMachine } from "../../xServices/logs/logsXService"
+import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
 
 type Stage = ProvisionerJobLog["stage"]
 
@@ -33,14 +33,14 @@ const groupLogsByStage = (logs: ProvisionerJobLog[]) => {
   return logsByStage
 }
 
-const useBuildname = () => {
-  const { buildname } = useParams()
+const useBuildId = () => {
+  const { buildId } = useParams()
 
-  if (!buildname) {
-    throw new Error("buildname param is required.")
+  if (!buildId) {
+    throw new Error("buildId param is required.")
   }
 
-  return buildname
+  return buildId
 }
 
 const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
@@ -54,9 +54,9 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 }
 
 export const WorkspaceBuildPage: React.FC = () => {
-  const buildname = useBuildname()
-  const [logsState] = useMachine(logsMachine, { context: { buildname } })
-  const { logs } = logsState.context
+  const buildId = useBuildId()
+  const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId } })
+  const { logs } = buildState.context
   const groupedLogsByStage = logs ? groupLogsByStage(logs) : undefined
   const stages = groupedLogsByStage ? Object.keys(groupedLogsByStage) : undefined
   const styles = useStyles()

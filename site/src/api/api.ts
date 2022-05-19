@@ -249,7 +249,12 @@ export const getWorkspaceBuilds = async (workspaceId: string): Promise<TypesGen.
   return response.data
 }
 
-export const getBuildLogs = async (buildname: string): Promise<ProvisionerJobLog[]> => {
+export const getWorkspaceBuild = async (workspaceId: string): Promise<TypesGen.WorkspaceBuild> => {
+  const response = await axios.get<TypesGen.WorkspaceBuild>(`/api/v2/workspacebuilds/${workspaceId}`)
+  return response.data
+}
+
+export const getWorkspaceBuildLogs = async (buildname: string): Promise<ProvisionerJobLog[]> => {
   const response = await axios.get<ProvisionerJobLog[]>(`/api/v2/workspacebuilds/${buildname}/logs`)
   return response.data
 }
