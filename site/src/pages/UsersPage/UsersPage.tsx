@@ -24,6 +24,11 @@ export const UsersPage: React.FC = () => {
   const permissions = useSelector(xServices.authXService, selectPermissions)
   const canEditUsers = permissions && permissions.updateUsers
   const { roles } = rolesState.context
+  // Is loading if
+  // - permissions are not loaded or
+  // - users are not loaded or
+  // - the user can edit the users but the roles are not loaded yet
+  const isLoading = !permissions || !users || (canEditUsers && !roles)
 
   // Fetch users on component mount
   useEffect(() => {
@@ -63,6 +68,7 @@ export const UsersPage: React.FC = () => {
         }}
         error={getUsersError}
         isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
+        isLoading={isLoading}
         canEditUsers={canEditUsers}
       />
 

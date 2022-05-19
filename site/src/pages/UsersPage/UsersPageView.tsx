@@ -17,6 +17,7 @@ export interface UsersPageViewProps {
   error?: unknown
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
+  isLoading?: boolean
   openUserCreationDialog: () => void
   onSuspendUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
@@ -33,6 +34,7 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
   error,
   isUpdatingUserRoles,
   canEditUsers,
+  isLoading,
 }) => {
   return (
     <Stack spacing={4}>
@@ -49,6 +51,7 @@ export const UsersPageView: React.FC<UsersPageViewProps> = ({
             onUpdateUserRoles={onUpdateUserRoles}
             isUpdatingUserRoles={isUpdatingUserRoles}
             canEditUsers={canEditUsers}
+            isLoading={isLoading}
           />
         )}
       </Margins>

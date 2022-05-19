@@ -27,6 +27,7 @@ export interface UsersTableProps {
   roles?: TypesGen.Role[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
+  isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (user: TypesGen.User, roles: TypesGen.Role["name"][]) => void
@@ -40,9 +41,8 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onUpdateUserRoles,
   isUpdatingUserRoles,
   canEditUsers,
+  isLoading,
 }) => {
-  const isLoading = !users || (canEditUsers && !roles)
-
   return (
     <Table>
       <TableHead>
@@ -56,6 +56,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       <TableBody>
         {isLoading && <TableLoader />}
         {!isLoading &&
+          users &&
           users.map((u) => (
             <TableRow key={u.id}>
               <TableCell>

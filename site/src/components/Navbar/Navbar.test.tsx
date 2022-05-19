@@ -11,10 +11,10 @@ beforeEach(() => {
 })
 
 describe("Navbar", () => {
-  describe("when user has permission to read all users", () => {
+  describe("when user has permission to update users", () => {
     it("displays the admin menu", async () => {
       const checkUserPermissionsSpy = jest.spyOn(API, "checkUserPermissions").mockResolvedValueOnce({
-        [checks.readAllUsers]: true,
+        [checks.updateUsers]: true,
       })
 
       renderWithAuth(<Navbar />)
@@ -25,10 +25,10 @@ describe("Navbar", () => {
     })
   })
 
-  describe("when user has NO permission to read all users", () => {
+  describe("when user has NO permission to update users", () => {
     it("does not display the admin menu", async () => {
       const checkUserPermissionsSpy = jest.spyOn(API, "checkUserPermissions").mockResolvedValueOnce({
-        [checks.readAllUsers]: false,
+        [checks.updateUsers]: false,
       })
       renderWithAuth(<Navbar />)
 
