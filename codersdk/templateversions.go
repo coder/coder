@@ -21,26 +21,6 @@ type TemplateVersion struct {
 	Readme     string         `json:"readme"`
 }
 
-// TemplateVersionParameterSchema represents a parameter parsed from template version source.
-type TemplateVersionParameterSchema struct {
-	ID                       uuid.UUID                  `json:"id"`
-	CreatedAt                time.Time                  `json:"created_at"`
-	JobID                    uuid.UUID                  `json:"job_id"`
-	Name                     string                     `json:"name"`
-	Description              string                     `json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `json:"default_source_scheme"`
-	DefaultSourceValue       string                     `json:"default_source_value"`
-	AllowOverrideSource      bool                       `json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `json:"default_destination_scheme"`
-	AllowOverrideDestination bool                       `json:"allow_override_destination"`
-	DefaultRefresh           string                     `json:"default_refresh"`
-	RedisplayValue           bool                       `json:"redisplay_value"`
-	ValidationError          string                     `json:"validation_error"`
-	ValidationCondition      string                     `json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem        `json:"validation_type_system"`
-	ValidationValueType      string                     `json:"validation_value_type"`
-}
-
 // TemplateVersionParameter represents a computed parameter value.
 type TemplateVersionParameter struct {
 	ID                 uuid.UUID                  `json:"id"`
@@ -84,7 +64,7 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 }
 
 // TemplateVersionSchema returns schemas for a template version by ID.
-func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]TemplateVersionParameterSchema, error) {
+func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/schema", version), nil)
 	if err != nil {
 		return nil, err
@@ -93,7 +73,7 @@ func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) (
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []TemplateVersionParameterSchema
+	var params []ParameterSchema
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 

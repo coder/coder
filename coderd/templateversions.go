@@ -95,11 +95,18 @@ func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if schemas == nil {
-		schemas = []database.ParameterSchema{}
+	apiSchemas := make([]codersdk.ParameterSchema, 0)
+	for _, schema := range schemas {
+		apiSchema, err := convertParameterSchema(schema)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("convert: %s", err),
+			})
+			return
+		}
+		apiSchemas = append(apiSchemas, apiSchema)
 	}
-
-	httpapi.Write(rw, http.StatusOK, schemas)
+	httpapi.Write(rw, http.StatusOK, apiSchemas)
 }
 
 func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {

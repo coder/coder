@@ -360,7 +360,7 @@ export interface Workspace {
   readonly autostop_schedule: string
 }
 
-// From codersdk/workspaceresources.go:31:6
+// From codersdk/workspaceresources.go:33:6
 export interface WorkspaceAgent {
   readonly id: string
   readonly created_at: string
@@ -384,7 +384,7 @@ export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
 
-// From codersdk/workspaceresources.go:57:6
+// From codersdk/workspaceresources.go:59:6
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -397,7 +397,7 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go:49:6
+// From codersdk/workspaceresources.go:51:6
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number
@@ -406,7 +406,7 @@ export interface WorkspaceAgentResourceMetadata {
   readonly cpu_mhz: number
 }
 
-// From codersdk/workspacebuilds.go:24:6
+// From codersdk/workspacebuilds.go:18:6
 export interface WorkspaceBuild {
   readonly id: string
   readonly created_at: string
@@ -415,7 +415,8 @@ export interface WorkspaceBuild {
   readonly template_version_id: string
   readonly build_number: number
   readonly name: string
-  readonly transition: WorkspaceTransition
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
+  readonly transition: string
   readonly initiator_id: string
   readonly job: ProvisionerJob
 }
@@ -425,55 +426,32 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:171:6
+// From codersdk/workspaces.go:141:6
 export interface WorkspaceFilter {
   readonly OrganizationID: string
   readonly Owner: string
 }
 
-// From codersdk/workspaceresources.go:21:6
+// From codersdk/workspaceresources.go:23:6
 export interface WorkspaceResource {
   readonly id: string
   readonly created_at: string
   readonly job_id: string
-  readonly workspace_transition: WorkspaceTransition
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
+  readonly workspace_transition: string
   readonly type: string
   readonly name: string
   readonly agents?: WorkspaceAgent[]
 }
 
-// From codersdk/provisionerdaemons.go:30:6
-export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
-
-// From codersdk/provisionerdaemons.go:23:6
-export type LogSource = "provisioner" | "provisioner_daemon"
-
-// From codersdk/parameters.go:30:6
-export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
-
-// From codersdk/parameters.go:14:6
+// From codersdk/parameters.go:16:6
 export type ParameterScope = "organization" | "template" | "user" | "workspace"
 
-// From codersdk/parameters.go:23:6
-export type ParameterSourceScheme = "data" | "none"
-
-// From codersdk/parameters.go:38:6
-export type ParameterTypeSystem = "hcl" | "none"
-
-// From codersdk/provisionerdaemons.go:50:6
+// From codersdk/provisionerdaemons.go:26:6
 export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded"
-
-// From codersdk/organizations.go:14:6
-export type ProvisionerStorageMethod = "file"
-
-// From codersdk/organizations.go:20:6
-export type ProvisionerType = "echo" | "terraform"
 
 // From codersdk/users.go:17:6
 export type UserStatus = "active" | "suspended"
 
-// From codersdk/workspaceresources.go:13:6
+// From codersdk/workspaceresources.go:15:6
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
-
-// From codersdk/workspacebuilds.go:14:6
-export type WorkspaceTransition = "delete" | "start" | "stop"

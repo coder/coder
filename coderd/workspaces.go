@@ -29,6 +29,10 @@ import (
 
 func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
 
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
@@ -60,11 +64,6 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("fetch resource: %s", err),
 		})
-		return
-	}
-
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
 		return
 	}
 
@@ -219,7 +218,7 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
 	organization := httpmw.OrganizationParam(r)
-	workspaceName := chi.URLParam(r, "workspace")
+	workspaceName := chi.URLParam(r, "workspacename")
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: owner.ID,
@@ -477,6 +476,12 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	var req codersdk.UpdateWorkspaceAutostartRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -495,7 +500,6 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		dbSched.Valid = true
 	}
 
-	workspace := httpmw.WorkspaceParam(r)
 	err := api.Database.UpdateWorkspaceAutostart(r.Context(), database.UpdateWorkspaceAutostartParams{
 		ID:                workspace.ID,
 		AutostartSchedule: dbSched,
@@ -509,6 +513,12 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	var req codersdk.UpdateWorkspaceAutostopRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -527,7 +537,6 @@ func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
 		dbSched.Valid = true
 	}
 
-	workspace := httpmw.WorkspaceParam(r)
 	err := api.Database.UpdateWorkspaceAutostop(r.Context(), database.UpdateWorkspaceAutostopParams{
 		ID:               workspace.ID,
 		AutostopSchedule: dbSched,
