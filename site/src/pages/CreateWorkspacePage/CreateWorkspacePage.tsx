@@ -24,7 +24,7 @@ const CreateWorkspacePage: React.FC = () => {
       template={templateState.context.template}
       templateSchema={templateState.context.templateSchema}
       loading={loading}
-      onCancel={() => navigate("/templates/" + templateState.context.template?.name)}
+      onCancel={() => navigate("/templates")}
       onSubmit={async (req) => {
         if (!templateState.context.template) {
           throw new Error("template isn't valid")
