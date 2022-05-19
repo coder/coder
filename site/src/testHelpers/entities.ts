@@ -80,8 +80,8 @@ export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "runni
 
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
-  created_at: new Date().toString(),
-  updated_at: new Date().toString(),
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
   name: "Test Template",
   provisioner: MockProvisioner.id,
@@ -111,7 +111,7 @@ export const MockWorkspaceAutostopEnabled: TypesGen.UpdateWorkspaceAutostartRequ
 
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   build_number: 1,
-  created_at: new Date().toString(),
+  created_at: "2022-05-17T17:39:01.382927298Z",
   id: "1",
   initiator_id: "",
   job: MockProvisionerJob,
