@@ -17,8 +17,8 @@ Minimum TTL is 1 minute.
 func ttl() *cobra.Command {
 	ttlCmd := &cobra.Command{
 		Annotations: workspaceCommand,
-		Use:         "ttl set <workspace>",
-		Short:       "schedule a workspace to automatically stop after a configurable interval",
+		Use:         "ttl [command]",
+		Short:       "Schedule a workspace to automatically stop after a configurable interval",
 		Long:        ttlDescriptionLong,
 		Example:     "coder ttl set my-workspace 8h30m",
 	}
@@ -50,7 +50,7 @@ func ttlShow() *cobra.Command {
 			}
 
 			if workspace.TTL == nil {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "not setd\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "not set\n")
 				return nil
 			}
 
@@ -93,7 +93,7 @@ func ttlset() *cobra.Command {
 			}
 
 			if truncated != ttl {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "warning: ttl rounded down to %s", truncated)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "warning: ttl rounded down to %s\n", truncated)
 			}
 
 			err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
@@ -136,7 +136,7 @@ func ttlunset() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace will no longer automatically stop.\n\n", workspace.Name)
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), "ttl unset\n", workspace.Name)
 
 			return nil
 		},

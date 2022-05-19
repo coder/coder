@@ -165,10 +165,10 @@ type UpdateWorkspaceTTLRequest struct {
 // UpdateWorkspaceTTL sets the ttl for workspace by id.
 // If the provided duration is nil, autostop is disabled for the workspace.
 func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req UpdateWorkspaceTTLRequest) error {
-	path := fmt.Sprintf("/api/v2/workspaces/%s/autostop", id.String())
+	path := fmt.Sprintf("/api/v2/workspaces/%s/ttl", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace autostop: %w", err)
+		return xerrors.Errorf("update workspace ttl: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
