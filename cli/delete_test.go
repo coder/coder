@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/pty/ptytest"
@@ -35,14 +34,5 @@ func TestDelete(t *testing.T) {
 		}()
 		pty.ExpectMatch("Cleaning Up")
 		<-doneChan
-	})
-	t.Run("WithoutParameters/FormatCobraError", func(t *testing.T) {
-		t.Parallel()
-
-		cmd, _ := clitest.New(t, "delete")
-
-		cmd, err := cmd.ExecuteC()
-		errStr := cli.FormatCobraError(err, cmd)
-		require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
 	})
 }
