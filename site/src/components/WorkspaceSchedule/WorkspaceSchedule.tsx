@@ -42,9 +42,8 @@ const Language = {
       const deadline = updatedAt.add(workspace.ttl / 1_000_000, "ms")
       if (now.isAfter(deadline)) {
         return "workspace is shutting down now"
-      } else {
-        return now.to(deadline)
       }
+      return now.to(deadline)
     }
 
     const duration = dayjs.duration(workspace.ttl / 1_000_000, "milliseconds")
