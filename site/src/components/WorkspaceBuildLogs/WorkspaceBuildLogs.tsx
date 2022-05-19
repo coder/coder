@@ -46,10 +46,10 @@ export const WorkspaceBuildLogs: React.FC<WorkspaceBuildLogsProps> = ({ logs }) 
     <div className={styles.logs}>
       {stages.map((stage) => {
         const logs = groupedLogsByStage[stage]
-        const isEmpty = logs.every((l) => l.output === "")
-        const lines = logs.map((l) => ({
-          time: l.created_at,
-          output: l.output,
+        const isEmpty = logs.every((log) => log.output === "")
+        const lines = logs.map((log) => ({
+          time: log.created_at,
+          output: log.output,
         }))
         const duration = getStageDurationInSeconds(logs)
 

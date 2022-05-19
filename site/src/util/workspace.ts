@@ -127,8 +127,7 @@ export const getWorkspaceBuildDurationInSeconds = (build: WorkspaceBuild): numbe
 
   const startedAt = dayjs(build.job.started_at)
   const completedAt = dayjs(build.job.completed_at)
-  const diff = completedAt.diff(startedAt, "seconds")
-  return diff
+  return completedAt.diff(startedAt, "seconds")
 }
 
 export const displayWorkspaceBuildDuration = (build: WorkspaceBuild, inProgressLabel = "In progress"): string => {
