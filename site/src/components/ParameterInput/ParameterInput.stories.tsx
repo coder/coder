@@ -10,14 +10,14 @@ export default {
 
 const Template: Story<ParameterInputProps> = (args: ParameterInputProps) => <ParameterInput {...args} />
 
-export const createParameterSchema = (partial: Partial<ParameterSchema>): ParameterSchema => {
+const createParameterSchema = (partial: Partial<ParameterSchema>): ParameterSchema => {
   return {
     id: "000000",
     job_id: "000000",
     allow_override_destination: false,
     allow_override_source: true,
     created_at: "",
-    default_destination_scheme: "",
+    default_destination_scheme: "none",
     default_refresh: "",
     default_source_scheme: "data",
     default_source_value: "default-value",
