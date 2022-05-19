@@ -46,18 +46,18 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
       <TableBody>
         {isLoading && <TableLoader />}
         {builds &&
-          builds.map((b) => {
-            const status = getDisplayStatus(theme, b)
+          builds.map((build) => {
+            const status = getDisplayStatus(theme, build)
 
             const navigateToBuildPage = () => {
-              navigate(`/builds/${b.id}`)
+              navigate(`/builds/${build.id}`)
             }
 
             return (
               <TableRow
                 hover
-                key={b.id}
-                data-testid={`build-${b.id}`}
+                key={build.id}
+                data-testid={`build-${build.id}`}
                 tabIndex={0}
                 onClick={navigateToBuildPage}
                 onKeyDown={(event) => {
@@ -67,12 +67,14 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
                 }}
                 className={styles.clickableTableRow}
               >
-                <TableCell>{b.transition}</TableCell>
+                <TableCell>{build.transition}</TableCell>
                 <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>{displayWorkspaceBuildDuration(b)}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>{displayWorkspaceBuildDuration(build)}</span>
                 </TableCell>
                 <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>{new Date(b.created_at).toLocaleString()}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>
+                    {new Date(build.created_at).toLocaleString()}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <span style={{ color: status.color }}>{status.status}</span>
