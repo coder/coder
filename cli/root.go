@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"net/url"
 	"os"
 	"time"
@@ -258,4 +259,10 @@ func versionTemplate() string {
 	template += "\r\n" + buildinfo.ExternalURL()
 	template += "\r\n"
 	return template
+}
+
+// FormatCobraError colorizes and adds "--help" docs to cobra commands.
+func FormatCobraError(err error, cmd *cobra.Command) string {
+	helpErrMsg := fmt.Sprintf("Run '%s %s --help' for usage.", cmd.Root().Name(), cmd.Name())
+	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
 }

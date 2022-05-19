@@ -19,8 +19,8 @@ func main() {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
 		}
-		helpErrMsg := fmt.Sprintf("Run '%s %s --help' for usage.", cmd.Root().Name(), cmd.Name())
-		_, _ = fmt.Fprintln(os.Stderr, cliui.Styles.Error.Render(err.Error()+"/n"+helpErrMsg))
+		cobraErr := cli.FormatCobraError(err, cmd)
+		_, _ = fmt.Fprintln(os.Stderr, cobraErr)
 		os.Exit(1)
 	}
 }
