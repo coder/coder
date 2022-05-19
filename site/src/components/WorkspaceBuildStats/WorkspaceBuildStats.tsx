@@ -7,7 +7,11 @@ import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
 
-export const WorkspaceBuildStats: React.FC<{ build: WorkspaceBuild }> = ({ build }) => {
+export interface WorkspaceBuildStatsProps {
+  build: WorkspaceBuild
+}
+
+export const WorkspaceBuildStats: React.FC<WorkspaceBuildStatsProps> = ({ build }) => {
   const styles = useStyles()
   const theme = useTheme()
   const status = getDisplayStatus(theme, build)
