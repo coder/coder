@@ -11,7 +11,7 @@ interface TemplateContext {
   templateError?: Error | unknown
   templateVersion?: TypesGen.TemplateVersion
   templateVersionError?: Error | unknown
-  templateSchema?: TypesGen.TemplateVersion[]
+  templateSchema?: TypesGen.ParameterSchema[]
   templateSchemaError?: Error | unknown
 }
 
@@ -34,7 +34,7 @@ export const templateMachine = createMachine(
           data: TypesGen.TemplateVersion
         }
         getTemplateSchema: {
-          data: TypesGen.TemplateVersion[]
+          data: TypesGen.ParameterSchema[]
         }
       },
     },
@@ -159,9 +159,12 @@ export const templateMachine = createMachine(
         }
         return API.getTemplateVersion(context.template.active_version_id)
       },
-      getTemplateSchema: async () => {
-        return [] as any
-      }
+      getTemplateSchema: async (context) => {
+        if (!context.templateVersion) {
+          throw new Error("no template version")
+        }
+        return API.getTemplateVersionSchema(context.templateVersion.id)
+      },
     },
   },
 )

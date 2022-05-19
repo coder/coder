@@ -1,5 +1,4 @@
 import axios, { AxiosRequestHeaders } from "axios"
-import { mutate } from "swr"
 import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
@@ -21,34 +20,6 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     provisioners: [],
   },
 ]
-
-export namespace Workspace {
-  export const create = async (
-    organizationId: string,
-    request: TypesGen.CreateWorkspaceRequest,
-  ): Promise<TypesGen.Workspace> => {
-    const response = await fetch(`/api/v2/organizations/${organizationId}/workspaces`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-    })
-
-    const body = await response.json()
-    if (!response.ok) {
-      throw new Error(body.message)
-    }
-
-    // Let SWR know that both the /api/v2/workspaces/* and /api/v2/templates/*
-    // endpoints will need to fetch new data.
-    const mutateWorkspacesPromise = mutate("/api/v2/workspaces")
-    const mutateTemplatesPromise = mutate("/api/v2/templates")
-    await Promise.all([mutateWorkspacesPromise, mutateTemplatesPromise])
-
-    return body
-  }
-}
 
 export const login = async (email: string, password: string): Promise<TypesGen.LoginWithPasswordResponse> => {
   const payload = JSON.stringify({
@@ -125,6 +96,11 @@ export const getTemplateVersion = async (versionId: string): Promise<TypesGen.Te
   return response.data
 }
 
+export const getTemplateVersionSchema = async (versionId: string): Promise<TypesGen.ParameterSchema[]> => {
+  const response = await axios.get<TypesGen.ParameterSchema[]>(`/api/v2/templateversions/${versionId}/schema`)
+  return response.data
+}
+
 export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
   const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
   return response.data
@@ -172,6 +148,14 @@ export const deleteWorkspace = postWorkspaceBuild("delete")
 
 export const createUser = async (user: TypesGen.CreateUserRequest): Promise<TypesGen.User> => {
   const response = await axios.post<TypesGen.User>("/api/v2/users", user)
+  return response.data
+}
+
+export const createWorkspace = async (
+  organizationId: string,
+  workspace: TypesGen.CreateWorkspaceRequest,
+): Promise<TypesGen.Workspace> => {
+  const response = await axios.post<TypesGen.Workspace>(`/api/v2/organizations/${organizationId}/workspaces`, workspace)
   return response.data
 }
 

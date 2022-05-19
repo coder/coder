@@ -74,6 +74,9 @@ export const getOverrides = (palette: PaletteOptions) => {
         "& input:-webkit-autofill": {
           WebkitBoxShadow: `0 0 0 1000px ${palette.background?.paper} inset`,
         },
+        "&:hover .MuiOutlinedInput-notchedOutline": {
+          borderColor: (palette.primary as SimplePaletteColorOptions).light,
+        },
       },
     },
     MuiLink: {

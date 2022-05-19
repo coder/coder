@@ -1,6 +1,8 @@
 import { useMachine } from "@xstate/react"
 import React from "react"
+import { useNavigate } from "react-router"
 import { useParams } from "react-router-dom"
+import { createWorkspace } from "../../api/api"
 import { templateMachine } from "../../xServices/template/templateXService"
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
 
@@ -11,11 +13,25 @@ const CreateWorkspacePage: React.FC = () => {
       name: template,
     },
   })
+  const navigate = useNavigate()
+  const loading = templateState.hasTag("loading")
+  if (!templateState.context.template || !templateState.context.templateSchema) {
+    return null
+  }
 
   return (
     <CreateWorkspacePageView
       template={templateState.context.template}
-      templateVersion={templateState.context.templateVersion}
+      templateSchema={templateState.context.templateSchema}
+      loading={loading}
+      onCancel={() => navigate("/templates/" + templateState.context.template?.name)}
+      onSubmit={async (req) => {
+        if (!templateState.context.template) {
+          throw new Error("template isn't valid")
+        }
+        const workspace = await createWorkspace(templateState.context.template.organization_id, req)
+        navigate("/workspaces/" + workspace.id)
+      }}
     />
   )
 }
