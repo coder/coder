@@ -334,6 +334,9 @@ func newRouter(options *Options, a *api) chi.Router {
 			r.Get("/state", a.workspaceBuildState)
 		})
 	})
+
+	var _ = xerrors.New("test")
+
 	r.NotFound(site.DefaultHandler().ServeHTTP)
 	return r
 }

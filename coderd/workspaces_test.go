@@ -14,11 +14,60 @@ import (
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
+
+func TestWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		_, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("Deleted", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Getting with deleted=true should fail.
+		_, err := client.DeletedWorkspace(context.Background(), workspace.ID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "400") // bad request
+
+		// Delete the workspace
+		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		})
+		require.NoError(t, err, "delete the workspace")
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Getting with deleted=true should work.
+		workspaceNew, err := client.DeletedWorkspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, workspaceNew.ID)
+
+		// Getting with deleted=false should not work.
+		_, err = client.Workspace(context.Background(), workspace.ID)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "410") // gone
+	})
+}
 
 func TestAdminViewAllWorkspaces(t *testing.T) {
 	t.Parallel()
@@ -212,7 +261,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: uuid.New(),
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -251,7 +300,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -270,7 +319,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
@@ -290,7 +339,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		wantState := []byte("something")
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 			ProvisionerState:  wantState,
 		})
 		require.NoError(t, err)
@@ -309,7 +358,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: database.WorkspaceTransitionDelete,
+			Transition: codersdk.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)

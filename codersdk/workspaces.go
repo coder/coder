@@ -11,8 +11,6 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
-
-	"github.com/coder/coder/coderd/database"
 )
 
 // Workspace is a deployment of a template. It references a specific
@@ -34,15 +32,24 @@ type Workspace struct {
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	TemplateVersionID uuid.UUID                    `json:"template_version_id,omitempty"`
-	Transition        database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-	DryRun            bool                         `json:"dry_run,omitempty"`
-	ProvisionerState  []byte                       `json:"state,omitempty"`
+	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
+	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+	DryRun            bool                `json:"dry_run,omitempty"`
+	ProvisionerState  []byte              `json:"state,omitempty"`
 }
 
 // Workspace returns a single workspace.
 func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil)
+	return c.getWorkspace(ctx, id)
+}
+
+// DeletedWorkspace returns a single workspace that was deleted.
+func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
+	return c.getWorkspace(ctx, id, queryParam("deleted", "true"))
+}
+
+func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil, opts...)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -185,7 +192,7 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 			q.Set("organization_id", f.OrganizationID.String())
 		}
 		if f.Owner != "" {
-			q.Set("owner_id", f.Owner)
+			q.Set("owner", f.Owner)
 		}
 		r.URL.RawQuery = q.Encode()
 	}

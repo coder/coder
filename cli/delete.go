@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -33,7 +32,7 @@ func delete() *cobra.Command {
 			}
 			before := time.Now()
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition: database.WorkspaceTransitionDelete,
+				Transition: codersdk.WorkspaceTransitionDelete,
 			})
 			if err != nil {
 				return err
