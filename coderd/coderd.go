@@ -103,7 +103,7 @@ func newRouter(options *Options, a *api) chi.Router {
 			})
 		},
 		httpmw.Prometheus,
-		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
+		tracing.HTTPMW(a.TracerProvider, "coderd.http"),
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {
