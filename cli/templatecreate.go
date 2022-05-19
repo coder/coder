@@ -175,7 +175,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		sort.Slice(parameterSchemas, func(i, j int) bool {
 			return parameterSchemas[i].Name < parameterSchemas[j].Name
 		})
-		missingSchemas := make([]codersdk.TemplateVersionParameterSchema, 0)
+		missingSchemas := make([]codersdk.ParameterSchema, 0)
 		for _, parameterSchema := range parameterSchemas {
 			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
 			if ok {
@@ -193,7 +193,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 				Name:              parameterSchema.Name,
 				SourceValue:       value,
 				SourceScheme:      database.ParameterSourceSchemeData,
-				DestinationScheme: parameterSchema.DefaultDestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
 			})
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 		}

@@ -87,7 +87,7 @@ func (api *api) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			logs = []database.ProvisionerJobLog{}
 		}
 
-		httpapi.Write(rw, http.StatusOK, logs)
+		httpapi.Write(rw, http.StatusOK, convertProvisionerJobLogs(logs))
 		return
 	}
 
@@ -230,6 +230,14 @@ func (api *api) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	}
 
 	httpapi.Write(rw, http.StatusOK, apiResources)
+}
+
+func convertProvisionerJobLogs(provisionerJobLogs []database.ProvisionerJobLog) []codersdk.ProvisionerJobLog {
+	sdk := make([]codersdk.ProvisionerJobLog, 0, len(provisionerJobLogs))
+	for _, log := range provisionerJobLogs {
+		sdk = append(sdk, convertProvisionerJobLog(log))
+	}
+	return sdk
 }
 
 func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) codersdk.ProvisionerJobLog {

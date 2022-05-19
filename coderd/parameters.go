@@ -8,9 +8,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -120,6 +122,37 @@ func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(rw, http.StatusOK, httpapi.Response{
 		Message: "parameter deleted",
 	})
+}
+
+func convertParameterSchema(parameterSchema database.ParameterSchema) (codersdk.ParameterSchema, error) {
+	contains := []string{}
+	if parameterSchema.ValidationCondition != "" {
+		var err error
+		contains, _, err = parameter.Contains(parameterSchema.ValidationCondition)
+		if err != nil {
+			return codersdk.ParameterSchema{}, xerrors.Errorf("parse validation condition for %q: %w", parameterSchema.Name, err)
+		}
+	}
+
+	return codersdk.ParameterSchema{
+		ID:                       parameterSchema.ID,
+		CreatedAt:                parameterSchema.CreatedAt,
+		JobID:                    parameterSchema.JobID,
+		Name:                     parameterSchema.Name,
+		Description:              parameterSchema.Description,
+		DefaultSourceScheme:      string(parameterSchema.DefaultSourceScheme),
+		DefaultSourceValue:       parameterSchema.DefaultSourceValue,
+		AllowOverrideSource:      parameterSchema.AllowOverrideSource,
+		DefaultDestinationScheme: string(parameterSchema.DefaultDestinationScheme),
+		AllowOverrideDestination: parameterSchema.AllowOverrideDestination,
+		DefaultRefresh:           parameterSchema.DefaultRefresh,
+		RedisplayValue:           parameterSchema.RedisplayValue,
+		ValidationError:          parameterSchema.ValidationError,
+		ValidationCondition:      parameterSchema.ValidationCondition,
+		ValidationTypeSystem:     string(parameterSchema.ValidationTypeSystem),
+		ValidationValueType:      parameterSchema.ValidationValueType,
+		ValidationContains:       contains,
+	}, nil
 }
 
 func convertParameterValue(parameterValue database.ParameterValue) codersdk.Parameter {

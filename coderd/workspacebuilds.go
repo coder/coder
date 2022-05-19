@@ -15,11 +15,25 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
 func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -33,6 +47,11 @@ func (api *api) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
 
 	paginationParams, ok := parsePagination(rw, r)
 	if !ok {
@@ -90,6 +109,11 @@ func (api *api) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) workspaceBuildByName(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	workspaceBuildName := chi.URLParam(r, "workspacebuildname")
 	workspaceBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndName(r.Context(), database.GetWorkspaceBuildByWorkspaceIDAndNameParams{
 		WorkspaceID: workspace.ID,
@@ -125,6 +149,25 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(rw, r, &createBuild) {
 		return
 	}
+
+	// Rbac action depends on the transition
+	var action rbac.Action
+	switch createBuild.Transition {
+	case database.WorkspaceTransitionDelete:
+		action = rbac.ActionDelete
+	case database.WorkspaceTransitionStart, database.WorkspaceTransitionStop:
+		action = rbac.ActionUpdate
+	default:
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: fmt.Sprintf("transition not supported: %q", createBuild.Transition),
+		})
+		return
+	}
+	if !api.Authorize(rw, r, action, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	if createBuild.TemplateVersionID == uuid.Nil {
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 		if err != nil {
@@ -269,6 +312,19 @@ func (api *api) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -308,6 +364,19 @@ func (api *api) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 
 func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -320,6 +389,19 @@ func (api *api) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 
 func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	job, err := api.Database.GetProvisionerJobByID(r.Context(), workspaceBuild.JobID)
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -330,8 +412,20 @@ func (api *api) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func (*api) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
+func (api *api) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+			Message: "no workspace exists for this job",
+		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)

@@ -49,7 +49,7 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go:38:6
+// From codersdk/parameters.go:61:6
 export interface CreateParameterRequest {
   readonly name: string
   readonly source_value: string
@@ -86,7 +86,7 @@ export interface CreateUserRequest {
   readonly organization_id: string
 }
 
-// From codersdk/workspaces.go:34:6
+// From codersdk/workspaces.go:36:6
 export interface CreateWorkspaceBuildRequest {
   readonly template_version_id?: string
   // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
@@ -169,6 +169,30 @@ export interface Parameter {
   readonly destination_scheme: string
 }
 
+// From codersdk/parameters.go:37:6
+export interface ParameterSchema {
+  readonly id: string
+  readonly created_at: string
+  readonly job_id: string
+  readonly name: string
+  readonly description: string
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
+  readonly default_source_scheme: string
+  readonly default_source_value: string
+  readonly allow_override_source: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
+  readonly default_destination_scheme: string
+  readonly allow_override_destination: boolean
+  readonly default_refresh: string
+  readonly redisplay_value: boolean
+  readonly validation_error: string
+  readonly validation_condition: string
+  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterTypeSystem")
+  readonly validation_type_system: string
+  readonly validation_value_type: string
+  readonly validation_contains: string[]
+}
+
 // From codersdk/provisionerdaemons.go:23:6
 export interface ProvisionerDaemon {
   readonly id: string
@@ -223,7 +247,7 @@ export interface Template {
   readonly description: string
 }
 
-// From codersdk/templateversions.go:17:6
+// From codersdk/templateversions.go:16:6
 export interface TemplateVersion {
   readonly id: string
   readonly template_id?: string
@@ -234,36 +258,13 @@ export interface TemplateVersion {
   readonly readme: string
 }
 
-// From codersdk/templateversions.go:31:6
+// From codersdk/templateversions.go:27:6
 export interface TemplateVersionParameter {
   // Named type "github.com/coder/coder/coderd/database.ParameterValue" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly ParameterValue: any
   readonly schema_id: string
   readonly default_source_value: boolean
-}
-
-// From codersdk/templateversions.go:28:6
-export interface TemplateVersionParameterSchema {
-  readonly id: string
-  readonly created_at: string
-  readonly job_id: string
-  readonly name: string
-  readonly description: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
-  readonly default_source_scheme: string
-  readonly default_source_value: string
-  readonly allow_override_source: boolean
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
-  readonly default_destination_scheme: string
-  readonly allow_override_destination: boolean
-  readonly default_refresh: string
-  readonly redisplay_value: boolean
-  readonly validation_error: string
-  readonly validation_condition: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterTypeSystem")
-  readonly validation_type_system: string
-  readonly validation_value_type: string
 }
 
 // From codersdk/templates.go:75:6
@@ -292,12 +293,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:102:6
+// From codersdk/workspaces.go:134:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:122:6
+// From codersdk/workspaces.go:154:6
 export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
@@ -352,7 +353,7 @@ export interface UsersRequest extends Pagination {
   readonly status?: string
 }
 
-// From codersdk/workspaces.go:18:6
+// From codersdk/workspaces.go:20:6
 export interface Workspace {
   readonly id: string
   readonly created_at: string
@@ -429,12 +430,12 @@ export interface WorkspaceBuild {
   readonly job: ProvisionerJob
 }
 
-// From codersdk/workspaces.go:55:6
+// From codersdk/workspaces.go:57:6
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:141:6
+// From codersdk/workspaces.go:173:6
 export interface WorkspaceFilter {
   readonly OrganizationID: string
   readonly Owner: string
