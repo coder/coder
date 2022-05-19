@@ -24,9 +24,6 @@ export const templateMachine = createMachine(
         getOrganizations: {
           data: TypesGen.Organization[]
         }
-        getPermissions: {
-          data: boolean
-        }
         getTemplate: {
           data: TypesGen.Template
         }

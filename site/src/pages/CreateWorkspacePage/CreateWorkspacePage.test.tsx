@@ -38,8 +38,13 @@ describe("CreateWorkspacePage", () => {
 
   it("succeeds", async () => {
     render(<CreateWorkspacePage />)
+    // You have to spy the method before it is used.
+    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
     await fillForm({ name: "test" })
-    await jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
+    // Check if the request was made
+    expect(API.createWorkspace).haveBeenCalledTimes(1)
+    // It is good to check if the API was called with the right parameters
+    expect(API.createWorkspace).toHaveBeenCalledWith({ name: "test" })
   })
 
   describe("validationSchema", () => {
