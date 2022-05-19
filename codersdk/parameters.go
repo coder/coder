@@ -24,14 +24,37 @@ const (
 
 // Parameter represents a set value for the scope.
 type Parameter struct {
-	ID                uuid.UUID                           `db:"id" json:"id"`
-	CreatedAt         time.Time                           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time                           `db:"updated_at" json:"updated_at"`
-	Scope             ParameterScope                      `db:"scope" json:"scope"`
-	ScopeID           uuid.UUID                           `db:"scope_id" json:"scope_id"`
-	Name              string                              `db:"name" json:"name"`
-	SourceScheme      database.ParameterSourceScheme      `db:"source_scheme" json:"source_scheme"`
-	DestinationScheme database.ParameterDestinationScheme `db:"destination_scheme" json:"destination_scheme"`
+	ID                uuid.UUID                           `json:"id"`
+	CreatedAt         time.Time                           `json:"created_at"`
+	UpdatedAt         time.Time                           `json:"updated_at"`
+	Scope             ParameterScope                      `json:"scope"`
+	ScopeID           uuid.UUID                           `json:"scope_id"`
+	Name              string                              `json:"name"`
+	SourceScheme      database.ParameterSourceScheme      `json:"source_scheme"`
+	DestinationScheme database.ParameterDestinationScheme `json:"destination_scheme"`
+}
+
+type ParameterSchema struct {
+	ID                       uuid.UUID `json:"id"`
+	CreatedAt                time.Time `json:"created_at"`
+	JobID                    uuid.UUID `json:"job_id"`
+	Name                     string    `json:"name"`
+	Description              string    `json:"description"`
+	DefaultSourceScheme      string    `json:"default_source_scheme"`
+	DefaultSourceValue       string    `json:"default_source_value"`
+	AllowOverrideSource      bool      `json:"allow_override_source"`
+	DefaultDestinationScheme string    `json:"default_destination_scheme"`
+	AllowOverrideDestination bool      `json:"allow_override_destination"`
+	DefaultRefresh           string    `json:"default_refresh"`
+	RedisplayValue           bool      `json:"redisplay_value"`
+	ValidationError          string    `json:"validation_error"`
+	ValidationCondition      string    `json:"validation_condition"`
+	ValidationTypeSystem     string    `json:"validation_type_system"`
+	ValidationValueType      string    `json:"validation_value_type"`
+
+	// This is a special array of items provided if the validation condition
+	// explicitly states the value must be one of a set.
+	ValidationContains []string `json:"validation_contains"`
 }
 
 // CreateParameterRequest is used to create a new parameter value for a scope.

@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
 )
 
@@ -23,9 +22,6 @@ type TemplateVersion struct {
 	Job        ProvisionerJob `json:"job"`
 	Readme     string         `json:"readme"`
 }
-
-// TemplateVersionParameterSchema represents a parameter parsed from template version source.
-type TemplateVersionParameterSchema database.ParameterSchema
 
 // TemplateVersionParameter represents a computed parameter value.
 type TemplateVersionParameter parameter.ComputedValue
@@ -58,7 +54,7 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 }
 
 // TemplateVersionSchema returns schemas for a template version by ID.
-func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]TemplateVersionParameterSchema, error) {
+func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/schema", version), nil)
 	if err != nil {
 		return nil, err
@@ -67,7 +63,7 @@ func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) (
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []TemplateVersionParameterSchema
+	var params []ParameterSchema
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
