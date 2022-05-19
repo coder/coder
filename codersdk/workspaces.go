@@ -157,7 +157,7 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	return nil
 }
 
-// UpdateWorkspaceAutostopRequest is a request to update a workspace's autostop schedule.
+// UpdateWorkspaceTTLRequest is a request to update a workspace's TTL.
 type UpdateWorkspaceTTLRequest struct {
 	TTL *time.Duration `json:"ttl"`
 }

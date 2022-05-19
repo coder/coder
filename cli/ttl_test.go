@@ -72,7 +72,7 @@ func TestTTL(t *testing.T) {
 		err := cmd.Execute()
 		require.NoError(t, err, "unexpected error")
 
-		// Ensure autostop schedule updated
+		// Ensure ttl updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
 		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
@@ -86,7 +86,7 @@ func TestTTL(t *testing.T) {
 		err = cmd.Execute()
 		require.NoError(t, err, "unexpected error")
 
-		// Ensure autostop schedule updated
+		// Ensure ttl updated
 		updated, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
 		require.Nil(t, updated.TTL, "expected ttl to not be set")
