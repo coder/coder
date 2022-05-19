@@ -7,6 +7,7 @@
     "postinstall": "yarn typegen",
     "build": "NODE_ENV=production webpack build --config=webpack.prod.ts",
     "build:analyze": "NODE_ENV=production webpack --profile --progress --json --config=webpack.prod.ts > out/stats.json && webpack-bundle-analyzer out/stats.json out",
+    "check:all": "yarn format:check && yarn lint && yarn test",
     "chromatic": "chromatic",
     "dev": "webpack-dev-server --config=webpack.dev.ts",
     "format:check": "prettier --check '**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",

@@ -151,7 +151,7 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	// Empty strings mean no filter
 	orgFilter := r.URL.Query().Get("organization_id")
-	ownerFilter := r.URL.Query().Get("owner_id")
+	ownerFilter := r.URL.Query().Get("owner")
 
 	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 	if orgFilter != "" {
