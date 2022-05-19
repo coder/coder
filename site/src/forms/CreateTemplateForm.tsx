@@ -43,7 +43,8 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = ({
 
   const form: FormikContextType<CreateTemplateFields> = useFormik<CreateTemplateFields>({
     initialValues: {
-      provisioner: provisioners[0].id,
+      // This value is currently harcoded until it is needed. It will likely never be used and deleted soon.
+      provisioner: "echo",
       organizationId: organizations[0].name,
       name: "",
     },
