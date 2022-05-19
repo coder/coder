@@ -11,7 +11,6 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
-	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -188,31 +187,16 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set.")+"\r\n")
 
-		parameterValuesFromFile := make(map[string]string)
+		var parameterMap map[string]string
 		if parameterFile != "" {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-			parameterFileContents, err := os.ReadFile(parameterFile)
-
-			if err != nil {
-				return nil, nil, err
-			}
-
-			err = yaml.Unmarshal(parameterFileContents, &parameterValuesFromFile)
-
+			parameterMap, err = createParameterMapFromFile(parameterFile)
 			if err != nil {
 				return nil, nil, err
 			}
 		}
 		for _, parameterSchema := range missingSchemas {
-			var parameterValue string
-			if parameterFile != "" {
-				if parameterValuesFromFile[parameterSchema.Name] == "" {
-					return nil, nil, xerrors.Errorf("Required parameter value absent in parameter file for %q!", parameterSchema.Name)
-				}
-				parameterValue = parameterValuesFromFile[parameterSchema.Name]
-			} else {
-				parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
-			}
+			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMap, parameterSchema)
 			if err != nil {
 				return nil, nil, err
 			}

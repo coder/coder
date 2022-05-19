@@ -2,13 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
-	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -120,17 +118,10 @@ func create() *cobra.Command {
 				return err
 			}
 
-			parameterValues := make(map[string]string)
-
+			var parameterMap map[string]string
 			if parameterFile != "" {
-				parameterFileContents, err := os.ReadFile(parameterFile)
-
-				if err != nil {
-					return err
-				}
-
-				err = yaml.Unmarshal(parameterFileContents, &parameterValues)
-
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+				parameterMap, err = createParameterMapFromFile(parameterFile)
 				if err != nil {
 					return err
 				}
@@ -146,17 +137,7 @@ func create() *cobra.Command {
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 					disclaimerPrinted = true
 				}
-
-				var parameterValue string
-				if parameterFile != "" {
-					if parameterValues[parameterSchema.Name] == "" {
-						return xerrors.Errorf("Parameter value absent in parameter file for %q!", parameterSchema.Name)
-					}
-					parameterValue = parameterValues[parameterSchema.Name]
-				} else {
-					parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
-				}
-
+				parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMap, parameterSchema)
 				if err != nil {
 					return err
 				}
