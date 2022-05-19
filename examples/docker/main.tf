@@ -47,11 +47,10 @@ variable "step2_arch" {
 provider "docker" {
   host = "unix:///var/run/docker.sock"
 }
-
-data "coder_workspace" "me" {
+provider "coder" {
 }
 
-provider "coder" {
+data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "dev" {
