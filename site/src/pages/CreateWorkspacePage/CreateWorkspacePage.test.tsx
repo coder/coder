@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import React from "react"
 import { reach, StringSchema } from "yup"
@@ -42,9 +42,7 @@ describe("CreateWorkspacePage", () => {
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
     await fillForm({ name: "test" })
     // Check if the request was made
-    expect(API.createWorkspace).haveBeenCalledTimes(1)
-    // It is good to check if the API was called with the right parameters
-    expect(API.createWorkspace).toHaveBeenCalledWith({ name: "test" })
+    await waitFor(() => expect(API.createWorkspace).toBeCalledTimes(1))
   })
 
   describe("validationSchema", () => {
