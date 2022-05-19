@@ -108,7 +108,10 @@ func server() *cobra.Command {
 					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
 				} else {
 					defer func() {
-						_ = tracerProvider.Shutdown(cmd.Context())
+						// allow time for traces to flush even if command context is cancelled
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						_ = tracerProvider.Shutdown(ctx)
 					}()
 				}
 			}

@@ -15,14 +15,14 @@ import (
 func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			// // do not trace if exporter has not be initialized
+			// do not trace if exporter has not be initialized
 			if tracerProvider == nil {
 				next.ServeHTTP(rw, r)
 				return
 			}
 
-			// start span with default span name. Span name will be updated once request finishes
-			_, span := tracerProvider.Tracer(name).Start(r.Context(), "http.request")
+			// start span with default span name. Span name will be updated to "method route" format once request finishes.
+			_, span := tracerProvider.Tracer(name).Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.RequestURI))
 			defer span.End()
 
 			wrw := middleware.NewWrapResponseWriter(rw, r.ProtoMajor)
@@ -32,10 +32,9 @@ func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Hand
 
 			// set the resource name as we get it only once the handler is executed
 			route := chi.RouteContext(r.Context()).RoutePattern()
-			if route == "" {
-				route = "unknown"
+			if route != "" {
+				span.SetName(fmt.Sprintf("%s %s", r.Method, route))
 			}
-			span.SetName(fmt.Sprintf("%s %s", r.Method, route))
 			span.SetAttributes(attribute.KeyValue{
 				Key:   "http.method",
 				Value: attribute.StringValue(r.Method),
