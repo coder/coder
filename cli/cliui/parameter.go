@@ -30,6 +30,7 @@ func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.TemplateVersio
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\033[1A")
 		value, err = Select(cmd, SelectOptions{
 			Options:    options,
+			Default:    parameterSchema.DefaultSourceValue,
 			HideSearch: true,
 		})
 		if err == nil {
@@ -37,9 +38,24 @@ func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.TemplateVersio
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(value))
 		}
 	} else {
+		text := "Enter a value"
+		if parameterSchema.DefaultSourceValue != "" {
+			text += fmt.Sprintf(" (default: %q)", parameterSchema.DefaultSourceValue)
+		}
+		text += ":"
+
 		value, err = Prompt(cmd, PromptOptions{
-			Text: Styles.Bold.Render("Enter a value:"),
+			Text: Styles.Bold.Render(text),
 		})
 	}
-	return value, err
+	if err != nil {
+		return "", err
+	}
+
+	// If they didn't specify anything, use the default value if set.
+	if len(options) == 0 && value == "" {
+		value = parameterSchema.DefaultSourceValue
+	}
+
+	return value, nil
 }
