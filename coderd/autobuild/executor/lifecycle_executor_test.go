@@ -404,7 +404,7 @@ func TestExecutorWorkspaceTTLTooEarly(t *testing.T) {
 	<-time.After(5 * time.Second)
 	ws := mustWorkspace(t, client, workspace.ID)
 	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
-	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
