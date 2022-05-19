@@ -17,15 +17,15 @@ Minimum TTL is 1 minute.
 func ttl() *cobra.Command {
 	ttlCmd := &cobra.Command{
 		Annotations: workspaceCommand,
-		Use:         "ttl enable <workspace>",
+		Use:         "ttl set <workspace>",
 		Short:       "schedule a workspace to automatically stop after a configurable interval",
 		Long:        ttlDescriptionLong,
-		Example:     "coder ttl enable my-workspace 8h30m",
+		Example:     "coder ttl set my-workspace 8h30m",
 	}
 
 	ttlCmd.AddCommand(ttlShow())
-	ttlCmd.AddCommand(ttlEnable())
-	ttlCmd.AddCommand(ttlDisable())
+	ttlCmd.AddCommand(ttlset())
+	ttlCmd.AddCommand(ttlunset())
 
 	return ttlCmd
 }
@@ -50,7 +50,7 @@ func ttlShow() *cobra.Command {
 			}
 
 			if workspace.TTL == nil {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "not enabled\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "not setd\n")
 				return nil
 			}
 
@@ -62,9 +62,9 @@ func ttlShow() *cobra.Command {
 	return cmd
 }
 
-func ttlEnable() *cobra.Command {
+func ttlset() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:  "enable <workspace_name> <ttl>",
+		Use:  "set <workspace_name> <ttl>",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)
@@ -110,9 +110,9 @@ func ttlEnable() *cobra.Command {
 	return cmd
 }
 
-func ttlDisable() *cobra.Command {
+func ttlunset() *cobra.Command {
 	return &cobra.Command{
-		Use:  "disable <workspace_name>",
+		Use:  "unset <workspace_name>",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := createClient(cmd)

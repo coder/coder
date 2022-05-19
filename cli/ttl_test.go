@@ -48,7 +48,7 @@ func TestTTL(t *testing.T) {
 		require.Equal(t, ttl.Truncate(time.Minute).String(), strings.TrimSpace(stdoutBuf.String()))
 	})
 
-	t.Run("EnableDisableOK", func(t *testing.T) {
+	t.Run("SetUnsetOK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -61,7 +61,7 @@ func TestTTL(t *testing.T) {
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			ttl       = 8*time.Hour + 30*time.Minute + 30*time.Second
-			cmdArgs   = []string{"ttl", "enable", workspace.Name, ttl.String()}
+			cmdArgs   = []string{"ttl", "set", workspace.Name, ttl.String()}
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -78,8 +78,8 @@ func TestTTL(t *testing.T) {
 		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
 		require.Contains(t, stdoutBuf.String(), "warning: ttl rounded down")
 
-		// Disable schedule
-		cmd, root = clitest.New(t, "ttl", "disable", workspace.Name)
+		// unset schedule
+		cmd, root = clitest.New(t, "ttl", "unset", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
@@ -105,7 +105,7 @@ func TestTTL(t *testing.T) {
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			ttl       = 8*time.Hour + 30*time.Minute + 30*time.Second
-			cmdArgs   = []string{"ttl", "enable", workspace.Name, ttl.String()}
+			cmdArgs   = []string{"ttl", "set", workspace.Name, ttl.String()}
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -124,7 +124,7 @@ func TestTTL(t *testing.T) {
 
 		// A TTL of zero is not considered valid.
 		stdoutBuf.Reset()
-		cmd, root = clitest.New(t, "ttl", "enable", workspace.Name, "0s")
+		cmd, root = clitest.New(t, "ttl", "set", workspace.Name, "0s")
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
@@ -137,7 +137,7 @@ func TestTTL(t *testing.T) {
 		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
 	})
 
-	t.Run("Enable_NotFound", func(t *testing.T) {
+	t.Run("Set_NotFound", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -148,14 +148,14 @@ func TestTTL(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "ttl", "enable", "doesnotexist", "8h30m")
+		cmd, root := clitest.New(t, "ttl", "set", "doesnotexist", "8h30m")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
 		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
 	})
 
-	t.Run("Disable_NotFound", func(t *testing.T) {
+	t.Run("Unset_NotFound", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -166,7 +166,7 @@ func TestTTL(t *testing.T) {
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		)
 
-		cmd, root := clitest.New(t, "ttl", "disable", "doesnotexist")
+		cmd, root := clitest.New(t, "ttl", "unset", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
