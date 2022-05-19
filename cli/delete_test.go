@@ -41,6 +41,6 @@ func TestDelete(t *testing.T) {
 		cmd, _ := clitest.New(t, "delete")
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "Run 'coder workspaces delete --help' for usage.")
+		require.ErrorContains(t, err, "Run 'coder delete --help' for usage.")
 	})
 }
