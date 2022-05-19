@@ -35,22 +35,22 @@ type Parameter struct {
 }
 
 type ParameterSchema struct {
-	ID                       uuid.UUID                           `json:"id"`
-	CreatedAt                time.Time                           `json:"created_at"`
-	JobID                    uuid.UUID                           `json:"job_id"`
-	Name                     string                              `json:"name"`
-	Description              string                              `json:"description"`
-	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme"`
-	DefaultSourceValue       string                              `json:"default_source_value"`
-	AllowOverrideSource      bool                                `json:"allow_override_source"`
-	DefaultDestinationScheme database.ParameterDestinationScheme `json:"default_destination_scheme"`
-	AllowOverrideDestination bool                                `json:"allow_override_destination"`
-	DefaultRefresh           string                              `json:"default_refresh"`
-	RedisplayValue           bool                                `json:"redisplay_value"`
-	ValidationError          string                              `json:"validation_error"`
-	ValidationCondition      string                              `json:"validation_condition"`
-	ValidationTypeSystem     database.ParameterTypeSystem        `json:"validation_type_system"`
-	ValidationValueType      string                              `json:"validation_value_type"`
+	ID                       uuid.UUID `json:"id"`
+	CreatedAt                time.Time `json:"created_at"`
+	JobID                    uuid.UUID `json:"job_id"`
+	Name                     string    `json:"name"`
+	Description              string    `json:"description"`
+	DefaultSourceScheme      string    `json:"default_source_scheme"`
+	DefaultSourceValue       string    `json:"default_source_value"`
+	AllowOverrideSource      bool      `json:"allow_override_source"`
+	DefaultDestinationScheme string    `json:"default_destination_scheme"`
+	AllowOverrideDestination bool      `json:"allow_override_destination"`
+	DefaultRefresh           string    `json:"default_refresh"`
+	RedisplayValue           bool      `json:"redisplay_value"`
+	ValidationError          string    `json:"validation_error"`
+	ValidationCondition      string    `json:"validation_condition"`
+	ValidationTypeSystem     string    `json:"validation_type_system"`
+	ValidationValueType      string    `json:"validation_value_type"`
 
 	// This is a special array of items provided if the validation condition
 	// explicitly states the value must be one of a set.
