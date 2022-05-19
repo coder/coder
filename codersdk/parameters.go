@@ -37,7 +37,7 @@ type Parameter struct {
 type ParameterSchema struct {
 	ID                       uuid.UUID                           `json:"id"`
 	CreatedAt                time.Time                           `json:"created_at"`
-	JobID                    uuid.UUID                           ` json:"job_id"`
+	JobID                    uuid.UUID                           `json:"job_id"`
 	Name                     string                              `json:"name"`
 	Description              string                              `json:"description"`
 	DefaultSourceScheme      database.ParameterSourceScheme      `json:"default_source_scheme"`
