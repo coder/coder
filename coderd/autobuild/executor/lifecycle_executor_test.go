@@ -194,27 +194,27 @@ func TestExecutorAutostopOK(t *testing.T) {
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
+		ttl       = time.Minute
 	)
 	// Given: workspace is running
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 
 	// Given: the workspace initially has autostop disabled
-	require.Empty(t, workspace.AutostopSchedule)
+	require.Nil(t, workspace.TTL)
 
 	// When: we enable workspace autostop
-	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
-	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
-		Schedule: sched.String(),
+	require.NoError(t, client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+		TTL: &ttl,
 	}))
 
-	// When: the autobuild executor ticks
+	// When: the autobuild executor ticks *after* the TTL:
 	go func() {
-		tickCh <- time.Now().UTC().Add(time.Minute)
+		tickCh <- time.Now().UTC().Add(ttl + time.Minute)
 		close(tickCh)
 	}()
 
-	// Then: the workspace should be started
+	// Then: the workspace should be stopped
 	<-time.After(5 * time.Second)
 	ws := mustWorkspace(t, client, workspace.ID)
 	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
@@ -234,24 +234,24 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
+		ttl       = time.Minute
 	)
 
 	// Given: workspace is stopped
 	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 	// Given: the workspace initially has autostop disabled
-	require.Empty(t, workspace.AutostopSchedule)
+	require.Nil(t, workspace.TTL)
 
-	// When: we enable workspace autostart
-	sched, err := schedule.Weekly("* * * * *")
+	// When: we set the TTL on the workspace
 	require.NoError(t, err)
-	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
-		Schedule: sched.String(),
+	require.NoError(t, client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+		TTL: &ttl,
 	}))
 
-	// When: the autobuild executor ticks
+	// When: the autobuild executor ticks past the TTL
 	go func() {
-		tickCh <- time.Now().UTC().Add(time.Minute)
+		tickCh <- time.Now().UTC().Add(ttl)
 		close(tickCh)
 	}()
 
@@ -278,7 +278,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 
 	// Given: the workspace has autostop disabled
-	require.Empty(t, workspace.AutostopSchedule)
+	require.Empty(t, workspace.TTL)
 
 	// When: the autobuild executor ticks
 	go func() {
@@ -308,12 +308,12 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	)
 
 	// Given: the workspace initially has autostart disabled
-	require.Empty(t, workspace.AutostopSchedule)
+	require.Empty(t, workspace.AutostartSchedule)
 
 	// When: we enable workspace autostart
 	sched, err := schedule.Weekly("* * * * *")
 	require.NoError(t, err)
-	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
+	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 		Schedule: sched.String(),
 	}))
 
@@ -333,7 +333,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceTransitionDelete, ws.LatestBuild.Transition, "expected workspace to be deleted")
 }
 
-func TestExecutorWorkspaceTooEarly(t *testing.T) {
+func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -348,15 +348,50 @@ func TestExecutorWorkspaceTooEarly(t *testing.T) {
 	)
 
 	// Given: the workspace initially has autostart disabled
-	require.Empty(t, workspace.AutostopSchedule)
+	require.Empty(t, workspace.AutostartSchedule)
 
 	// When: we enable workspace autostart with some time in the future
 	futureTime := time.Now().Add(time.Hour)
 	futureTimeCron := fmt.Sprintf("%d %d * * *", futureTime.Minute(), futureTime.Hour())
 	sched, err := schedule.Weekly(futureTimeCron)
 	require.NoError(t, err)
-	require.NoError(t, client.UpdateWorkspaceAutostop(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostopRequest{
+	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 		Schedule: sched.String(),
+	}))
+
+	// When: the autobuild executor ticks
+	go func() {
+		tickCh <- time.Now().UTC()
+		close(tickCh)
+	}()
+
+	// Then: nothing should happen
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+}
+
+func TestExecutorWorkspaceTTLTooEarly(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
+		ttl       = time.Hour
+	)
+
+	// Given: the workspace initially has TTL unset
+	require.Nil(t, workspace.TTL)
+
+	// When: we set the TTL to some time in the distant future
+	require.NoError(t, client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+		TTL: &ttl,
 	}))
 
 	// When: the autobuild executor ticks

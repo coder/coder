@@ -3193,7 +3193,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 FROM
 	workspaces
 WHERE
@@ -3215,14 +3215,14 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.Deleted,
 		&i.Name,
 		&i.AutostartSchedule,
-		&i.AutostopSchedule,
+		&i.Ttl,
 	)
 	return i, err
 }
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 FROM
 	workspaces
 WHERE
@@ -3250,7 +3250,7 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.Deleted,
 		&i.Name,
 		&i.AutostartSchedule,
-		&i.AutostopSchedule,
+		&i.Ttl,
 	)
 	return i, err
 }
@@ -3295,23 +3295,23 @@ func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, i
 	return items, nil
 }
 
-const getWorkspacesAutostartAutostop = `-- name: GetWorkspacesAutostartAutostop :many
+const getWorkspacesAutostart = `-- name: GetWorkspacesAutostart :many
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 FROM
 	workspaces
 WHERE
 	deleted = false
 AND
 (
-	autostart_schedule <> ''
+	(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
 	OR
-	autostop_schedule <> ''
+	(ttl IS NOT NULL AND ttl > 0)
 )
 `
 
-func (q *sqlQuerier) GetWorkspacesAutostartAutostop(ctx context.Context) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesAutostartAutostop)
+func (q *sqlQuerier) GetWorkspacesAutostart(ctx context.Context) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesAutostart)
 	if err != nil {
 		return nil, err
 	}
@@ -3329,7 +3329,7 @@ func (q *sqlQuerier) GetWorkspacesAutostartAutostop(ctx context.Context) ([]Work
 			&i.Deleted,
 			&i.Name,
 			&i.AutostartSchedule,
-			&i.AutostopSchedule,
+			&i.Ttl,
 		); err != nil {
 			return nil, err
 		}
@@ -3345,7 +3345,7 @@ func (q *sqlQuerier) GetWorkspacesAutostartAutostop(ctx context.Context) ([]Work
 }
 
 const getWorkspacesByOrganizationIDs = `-- name: GetWorkspacesByOrganizationIDs :many
-SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule FROM workspaces WHERE organization_id = ANY($1 :: uuid [ ]) AND deleted = $2
+SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl FROM workspaces WHERE organization_id = ANY($1 :: uuid [ ]) AND deleted = $2
 `
 
 type GetWorkspacesByOrganizationIDsParams struct {
@@ -3372,7 +3372,7 @@ func (q *sqlQuerier) GetWorkspacesByOrganizationIDs(ctx context.Context, arg Get
 			&i.Deleted,
 			&i.Name,
 			&i.AutostartSchedule,
-			&i.AutostopSchedule,
+			&i.Ttl,
 		); err != nil {
 			return nil, err
 		}
@@ -3389,7 +3389,7 @@ func (q *sqlQuerier) GetWorkspacesByOrganizationIDs(ctx context.Context, arg Get
 
 const getWorkspacesByTemplateID = `-- name: GetWorkspacesByTemplateID :many
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 FROM
 	workspaces
 WHERE
@@ -3421,7 +3421,7 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorks
 			&i.Deleted,
 			&i.Name,
 			&i.AutostartSchedule,
-			&i.AutostopSchedule,
+			&i.Ttl,
 		); err != nil {
 			return nil, err
 		}
@@ -3438,7 +3438,7 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, arg GetWorks
 
 const getWorkspacesWithFilter = `-- name: GetWorkspacesWithFilter :many
 SELECT
-    id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+    id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 FROM
     workspaces
 WHERE
@@ -3483,7 +3483,7 @@ func (q *sqlQuerier) GetWorkspacesWithFilter(ctx context.Context, arg GetWorkspa
 			&i.Deleted,
 			&i.Name,
 			&i.AutostartSchedule,
-			&i.AutostopSchedule,
+			&i.Ttl,
 		); err != nil {
 			return nil, err
 		}
@@ -3510,7 +3510,7 @@ INSERT INTO
 		name
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, autostop_schedule
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl
 `
 
 type InsertWorkspaceParams struct {
@@ -3544,7 +3544,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.Deleted,
 		&i.Name,
 		&i.AutostartSchedule,
-		&i.AutostopSchedule,
+		&i.Ttl,
 	)
 	return i, err
 }
@@ -3568,25 +3568,6 @@ func (q *sqlQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWor
 	return err
 }
 
-const updateWorkspaceAutostop = `-- name: UpdateWorkspaceAutostop :exec
-UPDATE
-	workspaces
-SET
-	autostop_schedule = $2
-WHERE
-	id = $1
-`
-
-type UpdateWorkspaceAutostopParams struct {
-	ID               uuid.UUID      `db:"id" json:"id"`
-	AutostopSchedule sql.NullString `db:"autostop_schedule" json:"autostop_schedule"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceAutostop(ctx context.Context, arg UpdateWorkspaceAutostopParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAutostop, arg.ID, arg.AutostopSchedule)
-	return err
-}
-
 const updateWorkspaceDeletedByID = `-- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
 	workspaces
@@ -3603,5 +3584,24 @@ type UpdateWorkspaceDeletedByIDParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceDeletedByID, arg.ID, arg.Deleted)
+	return err
+}
+
+const updateWorkspaceTTL = `-- name: UpdateWorkspaceTTL :exec
+UPDATE
+	workspaces
+SET
+	ttl = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceTTLParams struct {
+	ID  uuid.UUID     `db:"id" json:"id"`
+	Ttl sql.NullInt64 `db:"ttl" json:"ttl"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceTTL, arg.ID, arg.Ttl)
 	return err
 }

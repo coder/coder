@@ -50,7 +50,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             <WorkspaceSection title="Applications">
               <Placeholder />
             </WorkspaceSection>
-            <WorkspaceSchedule autostart={workspace.autostart_schedule} autostop={workspace.autostop_schedule} />
+            <WorkspaceSchedule workspace={workspace} />
             <WorkspaceSection title="Dev URLs">
               <Placeholder />
             </WorkspaceSection>

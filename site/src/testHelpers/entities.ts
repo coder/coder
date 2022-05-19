@@ -100,15 +100,6 @@ export const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartReq
   schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
 }
 
-export const MockWorkspaceAutostopDisabled: TypesGen.UpdateWorkspaceAutostartRequest = {
-  schedule: "",
-}
-
-export const MockWorkspaceAutostopEnabled: TypesGen.UpdateWorkspaceAutostartRequest = {
-  // Runs at 9:30pm Monday through Friday using America/Toronto
-  schedule: "CRON_TZ=America/Toronto 30 21 * * 1-5",
-}
-
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   build_number: 1,
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -147,7 +138,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   owner_id: MockUser.id,
   owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  autostop_schedule: MockWorkspaceAutostopEnabled.schedule,
+  ttl: 2 * 60 * 60 * 1000 * 1_000_000, // 2 hours as nanoseconds
   latest_build: MockWorkspaceBuild,
 }
 

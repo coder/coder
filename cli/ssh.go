@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
@@ -270,16 +269,11 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		if ws.AutostopSchedule == "" {
+		if ws.TTL == nil || *ws.TTL == 0 {
 			return time.Time{}, nil
 		}
 
-		sched, err := schedule.Weekly(ws.AutostopSchedule)
-		if err != nil {
-			return time.Time{}, nil
-		}
-
-		deadline = sched.Next(now)
+		deadline = ws.LatestBuild.UpdatedAt.Add(*ws.TTL)
 		callback = func() {
 			ttl := deadline.Sub(now)
 			var title, body string

@@ -27,7 +27,7 @@ type Workspace struct {
 	Outdated          bool           `json:"outdated"`
 	Name              string         `json:"name"`
 	AutostartSchedule string         `json:"autostart_schedule"`
-	AutostopSchedule  string         `json:"autostop_schedule"`
+	TTL               *time.Duration `json:"ttl"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -157,18 +157,18 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	return nil
 }
 
-// UpdateWorkspaceAutostopRequest is a request to update a workspace's autostop schedule.
-type UpdateWorkspaceAutostopRequest struct {
-	Schedule string `json:"schedule"`
+// UpdateWorkspaceTTLRequest is a request to update a workspace's TTL.
+type UpdateWorkspaceTTLRequest struct {
+	TTL *time.Duration `json:"ttl"`
 }
 
-// UpdateWorkspaceAutostop sets the autostop schedule for workspace by id.
-// If the provided schedule is empty, autostop is disabled for the workspace.
-func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostopRequest) error {
-	path := fmt.Sprintf("/api/v2/workspaces/%s/autostop", id.String())
+// UpdateWorkspaceTTL sets the ttl for workspace by id.
+// If the provided duration is nil, autostop is disabled for the workspace.
+func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req UpdateWorkspaceTTLRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/ttl", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace autostop: %w", err)
+		return xerrors.Errorf("update workspace ttl: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
