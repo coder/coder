@@ -4,7 +4,7 @@ import RefreshIcon from "@material-ui/icons/Refresh"
 import React from "react"
 import { CopyButton } from "../CopyButton/CopyButton"
 
-const Language = {
+export const Language = {
   reloadApp: "Reload Application",
   copyReport: "Copy Report",
 }

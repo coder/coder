@@ -1,15 +1,15 @@
 import Box from "@material-ui/core/Box"
+import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
 import React, { useEffect, useReducer } from "react"
-import { Link } from "react-router-dom"
 import { mapStackTrace } from "sourcemapped-stacktrace"
 import { Margins } from "../Margins/Margins"
 import { Section } from "../Section/Section"
 import { Typography } from "../Typography/Typography"
 import { reducer, RuntimeErrorReport, stackTraceAvailable, stackTraceUnavailable } from "./RuntimeErrorReport"
 
-const Language = {
+export const Language = {
   title: "Coder encountered an error",
   body: "Please copy the crash log using the button below and",
   link: "send it to us.",
@@ -40,14 +40,7 @@ const ErrorStateDescription = () => {
   return (
     <Typography variant="body2" color="textSecondary">
       {Language.body}&nbsp;
-      <Link
-        to="#"
-        onClick={(e) => {
-          window.location.href = "mailto:support@coder.com"
-          e.preventDefault()
-        }}
-        className={styles.link}
-      >
+      <Link href="mailto:support@coder.com" className={styles.link}>
         {Language.link}
       </Link>
     </Typography>
