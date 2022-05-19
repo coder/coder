@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/site"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Options are requires parameters for Coder to start.
@@ -103,11 +102,7 @@ func newRouter(options *Options, a *api) chi.Router {
 			})
 		},
 		httpmw.Prometheus,
-<<<<<<< HEAD
 		tracing.HTTPMW(a.TracerProvider, "coderd.http"),
-=======
-		tracing.HTTPMW(api.TracerProvider, "coderd.http"),
->>>>>>> move to coderd
 	)
 
 	r.Route("/api/v2", func(r chi.Router) {

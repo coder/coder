@@ -28,6 +28,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
