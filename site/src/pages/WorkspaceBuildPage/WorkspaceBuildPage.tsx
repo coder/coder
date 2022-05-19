@@ -1,4 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
+import Typography from "@material-ui/core/Typography"
 import { useMachine } from "@xstate/react"
 import dayjs from "dayjs"
 import React from "react"
@@ -7,6 +8,8 @@ import { ProvisionerJobLog } from "../../api/types"
 import { Loader } from "../../components/Loader/Loader"
 import { Logs } from "../../components/Logs/Logs"
 import { Margins } from "../../components/Margins/Margins"
+import { Stack } from "../../components/Stack/Stack"
+import { WorkspaceBuildStats } from "../../components/WorkspaceBuildStats/WorkspaceBuildStats"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
 
@@ -14,20 +17,15 @@ type Stage = ProvisionerJobLog["stage"]
 
 const groupLogsByStage = (logs: ProvisionerJobLog[]) => {
   const logsByStage: Record<Stage, ProvisionerJobLog[]> = {}
-  let latestStage: Stage = logs[0].stage
 
   for (const log of logs) {
-    if (log.stage !== "") {
-      latestStage = log.stage
-
-      // If there is no log in the stage record, add an empty array
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (logsByStage[latestStage] === undefined) {
-        logsByStage[latestStage] = []
-      }
+    // If there is no log in the stage record, add an empty array
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (logsByStage[log.stage] === undefined) {
+      logsByStage[log.stage] = []
     }
 
-    logsByStage[latestStage].push(log)
+    logsByStage[log.stage].push(log)
   }
 
   return logsByStage
@@ -56,48 +54,57 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 export const WorkspaceBuildPage: React.FC = () => {
   const buildId = useBuildId()
   const [buildState] = useMachine(workspaceBuildMachine, { context: { buildId } })
-  const { logs } = buildState.context
+  const { logs, build } = buildState.context
   const groupedLogsByStage = logs ? groupLogsByStage(logs) : undefined
   const stages = groupedLogsByStage ? Object.keys(groupedLogsByStage) : undefined
   const styles = useStyles()
 
   return (
     <Margins>
-      {!groupedLogsByStage && <Loader />}
+      <Stack>
+        <Typography variant="h4" className={styles.title}>
+          Logs
+        </Typography>
 
-      <div className={styles.logs}>
-        {groupedLogsByStage &&
-          stages &&
-          stages.map((stage) => {
-            const logs = groupedLogsByStage[stage]
-            const isEmpty = logs.every((l) => l.output === "")
-            const lines = logs.map((l) => ({
-              time: l.created_at,
-              output: l.output,
-            }))
-            const duration = getStageDurationInSeconds(logs)
+        {build && <WorkspaceBuildStats build={build} />}
+        {!groupedLogsByStage && <Loader />}
+        {groupedLogsByStage && stages && (
+          <div className={styles.logs}>
+            {stages.map((stage) => {
+              const logs = groupedLogsByStage[stage]
+              const isEmpty = logs.every((l) => l.output === "")
+              const lines = logs.map((l) => ({
+                time: l.created_at,
+                output: l.output,
+              }))
+              const duration = getStageDurationInSeconds(logs)
 
-            return (
-              <div key={stage}>
-                <div className={styles.header}>
-                  <div>{stage}</div>
-                  {duration && <div className={styles.duration}>{duration} seconds</div>}
+              return (
+                <div key={stage}>
+                  <div className={styles.header}>
+                    <div>{stage}</div>
+                    {duration && <div className={styles.duration}>{duration} seconds</div>}
+                  </div>
+                  {!isEmpty && <Logs lines={lines} className={styles.codeBlock} />}
                 </div>
-                {!isEmpty && <Logs lines={lines} className={styles.codeBlock} />}
-              </div>
-            )
-          })}
-      </div>
+              )
+            })}
+          </div>
+        )}
+      </Stack>
     </Margins>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
+  title: {
+    marginTop: theme.spacing(5),
+  },
+
   logs: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: 2,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    marginTop: theme.spacing(4),
   },
 
   header: {

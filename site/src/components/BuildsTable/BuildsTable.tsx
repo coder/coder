@@ -6,18 +6,12 @@ import TableCell from "@material-ui/core/TableCell"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import useTheme from "@material-ui/styles/useTheme"
-import dayjs from "dayjs"
-import duration from "dayjs/plugin/duration"
-import relativeTime from "dayjs/plugin/relativeTime"
 import React from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { getDisplayStatus } from "../../util/workspace"
+import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
 import { EmptyState } from "../EmptyState/EmptyState"
 import { TableLoader } from "../TableLoader/TableLoader"
-
-dayjs.extend(relativeTime)
-dayjs.extend(duration)
 
 export const Language = {
   emptyMessage: "No builds found",
@@ -26,19 +20,6 @@ export const Language = {
   durationLabel: "Duration",
   startedAtLabel: "Started at",
   statusLabel: "Status",
-}
-
-const getDurationInSeconds = (build: TypesGen.WorkspaceBuild) => {
-  let display = Language.inProgressLabel
-
-  if (build.job.started_at && build.job.completed_at) {
-    const startedAt = dayjs(build.job.started_at)
-    const completedAt = dayjs(build.job.completed_at)
-    const diff = completedAt.diff(startedAt, "seconds")
-    display = `${diff} seconds`
-  }
-
-  return display
 }
 
 export interface BuildsTableProps {
@@ -67,7 +48,6 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
         {builds &&
           builds.map((b) => {
             const status = getDisplayStatus(theme, b)
-            const duration = getDurationInSeconds(b)
 
             const navigateToBuildPage = () => {
               navigate(`/builds/${b.id}`)
@@ -89,7 +69,7 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
               >
                 <TableCell>{b.transition}</TableCell>
                 <TableCell>
-                  <span style={{ color: theme.palette.text.secondary }}>{duration}</span>
+                  <span style={{ color: theme.palette.text.secondary }}>{displayWorkspaceBuildDuration(b)}</span>
                 </TableCell>
                 <TableCell>
                   <span style={{ color: theme.palette.text.secondary }}>{new Date(b.created_at).toLocaleString()}</span>
