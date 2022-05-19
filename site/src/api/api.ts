@@ -110,13 +110,35 @@ export const getTemplate = async (templateId: string): Promise<TypesGen.Template
   return response.data
 }
 
+export const getTemplates = async (organizationId: string): Promise<TypesGen.Template[]> => {
+  const response = await axios.get<TypesGen.Template[]>(`/api/v2/organizations/${organizationId}/templates`)
+  return response.data
+}
+
 export const getWorkspace = async (workspaceId: string): Promise<TypesGen.Workspace> => {
   const response = await axios.get<TypesGen.Workspace>(`/api/v2/workspaces/${workspaceId}`)
   return response.data
 }
 
-export const getWorkspaces = async (userID = "me"): Promise<TypesGen.Workspace[]> => {
-  const response = await axios.get<TypesGen.Workspace[]>(`/api/v2/users/${userID}/workspaces`)
+export const getWorkspacesURL = (filter?: TypesGen.WorkspaceFilter): string => {
+  const basePath = "/api/v2/workspaces"
+  const searchParams = new URLSearchParams()
+
+  if (filter?.OrganizationID) {
+    searchParams.append("organization_id", filter.OrganizationID)
+  }
+  if (filter?.Owner) {
+    searchParams.append("owner", filter.Owner)
+  }
+
+  const searchString = searchParams.toString()
+
+  return searchString ? `${basePath}?${searchString}` : basePath
+}
+
+export const getWorkspaces = async (filter?: TypesGen.WorkspaceFilter): Promise<TypesGen.Workspace[]> => {
+  const url = getWorkspacesURL(filter)
+  const response = await axios.get<TypesGen.Workspace[]>(url)
   return response.data
 }
 
@@ -175,10 +197,10 @@ export const putWorkspaceAutostart = async (
 
 export const putWorkspaceAutostop = async (
   workspaceID: string,
-  autostop: TypesGen.UpdateWorkspaceAutostopRequest,
+  ttl: TypesGen.UpdateWorkspaceTTLRequest,
 ): Promise<void> => {
-  const payload = JSON.stringify(autostop)
-  await axios.put(`/api/v2/workspaces/${workspaceID}/autostop`, payload, {
+  const payload = JSON.stringify(ttl)
+  await axios.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
     headers: { ...CONTENT_TYPE_JSON },
   })
 }
@@ -219,5 +241,10 @@ export const getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> 
 
 export const regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
   const response = await axios.put<TypesGen.GitSSHKey>(`/api/v2/users/${userId}/gitsshkey`)
+  return response.data
+}
+
+export const getWorkspaceBuilds = async (workspaceId: string): Promise<TypesGen.WorkspaceBuild[]> => {
+  const response = await axios.get<TypesGen.WorkspaceBuild[]>(`/api/v2/workspaces/${workspaceId}/builds`)
   return response.data
 }

@@ -11,7 +11,7 @@ export const Navbar: React.FC = () => {
   const permissions = useSelector(xServices.authXService, selectPermissions)
   // When we have more options in the admin dropdown we may want to check this
   // for more permissions
-  const displayAdminDropdown = !!permissions?.readAllUsers
+  const displayAdminDropdown = !!permissions?.updateUsers
   const onSignOut = () => authSend("SIGN_OUT")
 
   return <NavbarView user={me} onSignOut={onSignOut} displayAdminDropdown={displayAdminDropdown} />

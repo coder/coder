@@ -291,6 +291,27 @@ func (q *fakeQuerier) GetAllUserRoles(_ context.Context, userID uuid.UUID) (data
 	}, nil
 }
 
+func (q *fakeQuerier) GetWorkspacesWithFilter(_ context.Context, arg database.GetWorkspacesWithFilterParams) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if arg.OrganizationID != uuid.Nil && workspace.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+		if !arg.Deleted && workspace.Deleted {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+
+	return workspaces, nil
+}
+
 func (q *fakeQuerier) GetWorkspacesByTemplateID(_ context.Context, arg database.GetWorkspacesByTemplateIDParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -342,14 +363,14 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesAutostartAutostop(_ context.Context) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	workspaces := make([]database.Workspace, 0)
 	for _, ws := range q.workspaces {
 		if ws.AutostartSchedule.String != "" {
 			workspaces = append(workspaces, ws)
-		} else if ws.AutostopSchedule.String != "" {
+		} else if ws.Ttl.Valid {
 			workspaces = append(workspaces, ws)
 		}
 	}
@@ -420,50 +441,100 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDWithoutAfter(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	var row database.WorkspaceBuild
+	var buildNum int32
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() != workspaceID.String() {
-			continue
-		}
-		if !workspaceBuild.AfterID.Valid {
-			return workspaceBuild, nil
+		if workspaceBuild.WorkspaceID.String() == workspaceID.String() && workspaceBuild.BuildNumber > buildNum {
+			row = workspaceBuild
+			buildNum = workspaceBuild.BuildNumber
 		}
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	if buildNum == 0 {
+		return database.WorkspaceBuild{}, sql.ErrNoRows
+	}
+	return row, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceIDsWithoutAfter(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	builds := make([]database.WorkspaceBuild, 0)
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
+	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
-			if id.String() != workspaceBuild.WorkspaceID.String() {
-				continue
+			if id.String() == workspaceBuild.WorkspaceID.String() && workspaceBuild.BuildNumber > buildNumbers[id] {
+				builds[id] = workspaceBuild
+				buildNumbers[id] = workspaceBuild.BuildNumber
 			}
-			builds = append(builds, workspaceBuild)
 		}
 	}
-	if len(builds) == 0 {
+	var returnBuilds []database.WorkspaceBuild
+	for i, n := range buildNumbers {
+		if n > 0 {
+			b := builds[i]
+			returnBuilds = append(returnBuilds, b)
+		}
+	}
+	if len(returnBuilds) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return builds, nil
+	return returnBuilds, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceID(_ context.Context,
+	params database.GetWorkspaceBuildByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	history := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.WorkspaceID.String() == workspaceID.String() {
+		if workspaceBuild.WorkspaceID.String() == params.WorkspaceID.String() {
 			history = append(history, workspaceBuild)
 		}
 	}
+
+	// Order by build_number
+	slices.SortFunc(history, func(a, b database.WorkspaceBuild) bool {
+		// use greater than since we want descending order
+		return a.BuildNumber > b.BuildNumber
+	})
+
+	if params.AfterID != uuid.Nil {
+		found := false
+		for i, v := range history {
+			if v.ID == params.AfterID {
+				// We want to return all builds after index i.
+				history = history[i+1:]
+				found = true
+				break
+			}
+		}
+
+		// If no builds after the time, then we return an empty list.
+		if !found {
+			return nil, sql.ErrNoRows
+		}
+	}
+
+	if params.OffsetOpt > 0 {
+		if int(params.OffsetOpt) > len(history)-1 {
+			return nil, sql.ErrNoRows
+		}
+		history = history[params.OffsetOpt:]
+	}
+
+	if params.LimitOpt > 0 {
+		if int(params.LimitOpt) > len(history) {
+			params.LimitOpt = int32(len(history))
+		}
+		history = history[:params.LimitOpt]
+	}
+
 	if len(history) == 0 {
 		return nil, sql.ErrNoRows
 	}
@@ -486,26 +557,6 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndName(_ context.Context, a
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesByOrganizationID(_ context.Context, req database.GetWorkspacesByOrganizationIDParams) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspaces {
-		if workspace.OrganizationID != req.OrganizationID {
-			continue
-		}
-		if workspace.Deleted != req.Deleted {
-			continue
-		}
-		workspaces = append(workspaces, workspace)
-	}
-	if len(workspaces) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return workspaces, nil
-}
-
 func (q *fakeQuerier) GetWorkspacesByOrganizationIDs(_ context.Context, req database.GetWorkspacesByOrganizationIDsParams) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -521,23 +572,6 @@ func (q *fakeQuerier) GetWorkspacesByOrganizationIDs(_ context.Context, req data
 			}
 			workspaces = append(workspaces, workspace)
 		}
-	}
-	return workspaces, nil
-}
-
-func (q *fakeQuerier) GetWorkspacesByOwnerID(_ context.Context, req database.GetWorkspacesByOwnerIDParams) ([]database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	workspaces := make([]database.Workspace, 0)
-	for _, workspace := range q.workspaces {
-		if workspace.OwnerID != req.OwnerID {
-			continue
-		}
-		if workspace.Deleted != req.Deleted {
-			continue
-		}
-		workspaces = append(workspaces, workspace)
 	}
 	return workspaces, nil
 }
@@ -1445,7 +1479,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		WorkspaceID:       arg.WorkspaceID,
 		Name:              arg.Name,
 		TemplateVersionID: arg.TemplateVersionID,
-		BeforeID:          arg.BeforeID,
+		BuildNumber:       arg.BuildNumber,
 		Transition:        arg.Transition,
 		InitiatorID:       arg.InitiatorID,
 		JobID:             arg.JobID,
@@ -1632,7 +1666,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.UpdateWorkspaceAutostopParams) error {
+func (q *fakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateWorkspaceTTLParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1640,7 +1674,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.Up
 		if workspace.ID != arg.ID {
 			continue
 		}
-		workspace.AutostopSchedule = arg.AutostopSchedule
+		workspace.Ttl = arg.Ttl
 		q.workspaces[index] = workspace
 		return nil
 	}
@@ -1657,7 +1691,6 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 			continue
 		}
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
-		workspaceBuild.AfterID = arg.AfterID
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil

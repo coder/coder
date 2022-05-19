@@ -288,8 +288,7 @@ CREATE TABLE workspace_builds (
     workspace_id uuid NOT NULL,
     template_version_id uuid NOT NULL,
     name character varying(64) NOT NULL,
-    before_id uuid,
-    after_id uuid,
+    build_number integer NOT NULL,
     transition workspace_transition NOT NULL,
     initiator_id uuid NOT NULL,
     provisioner_state bytea,
@@ -315,7 +314,7 @@ CREATE TABLE workspaces (
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     autostart_schedule text,
-    autostop_schedule text
+    ttl bigint
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);
@@ -388,6 +387,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_name_key UNIQUE (workspace_id, name);
@@ -481,4 +483,3 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
-

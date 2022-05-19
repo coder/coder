@@ -149,7 +149,7 @@ func New(options *Options) (http.Handler, func()) {
 				r.Get("/", api.workspacesByOrganization)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/{workspace}", api.workspaceByOwnerAndName)
+					r.Get("/{workspacename}", api.workspaceByOwnerAndName)
 					r.Get("/", api.workspacesByOwner)
 				})
 			})
@@ -237,8 +237,6 @@ func New(options *Options) (http.Handler, func()) {
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
 					})
-					r.Get("/organizations", api.organizationsByUser)
-					r.Post("/organizations", api.postOrganizationsByUser)
 					// These roles apply to the site wide permissions.
 					r.Put("/roles", api.putUserRoles)
 					r.Get("/roles", api.userRoles)
@@ -253,7 +251,6 @@ func New(options *Options) (http.Handler, func()) {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
-					r.Get("/workspaces", api.workspacesByUser)
 				})
 			})
 		})
@@ -289,28 +286,35 @@ func New(options *Options) (http.Handler, func()) {
 			)
 			r.Get("/", api.workspaceResource)
 		})
-		r.Route("/workspaces/{workspace}", func(r chi.Router) {
+		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				authRolesMiddleware,
-				httpmw.ExtractWorkspaceParam(options.Database),
 			)
-			r.Get("/", api.workspace)
-			r.Route("/builds", func(r chi.Router) {
-				r.Get("/", api.workspaceBuilds)
-				r.Post("/", api.postWorkspaceBuilds)
-				r.Get("/{workspacebuildname}", api.workspaceBuildByName)
-			})
-			r.Route("/autostart", func(r chi.Router) {
-				r.Put("/", api.putWorkspaceAutostart)
-			})
-			r.Route("/autostop", func(r chi.Router) {
-				r.Put("/", api.putWorkspaceAutostop)
+			r.Get("/", api.workspaces)
+			r.Route("/{workspace}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractWorkspaceParam(options.Database),
+				)
+				r.Get("/", api.workspace)
+				r.Route("/builds", func(r chi.Router) {
+					r.Get("/", api.workspaceBuilds)
+					r.Post("/", api.postWorkspaceBuilds)
+					r.Get("/{workspacebuildname}", api.workspaceBuildByName)
+				})
+				r.Route("/autostart", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceAutostart)
+				})
+				r.Route("/ttl", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceTTL)
+				})
+				r.Get("/watch", api.watchWorkspace)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractWorkspaceBuildParam(options.Database),
 				httpmw.ExtractWorkspaceParam(options.Database),
 			)
@@ -321,6 +325,9 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
+
+	var _ = xerrors.New("test")
+
 	r.NotFound(site.DefaultHandler().ServeHTTP)
 	return r, func() {
 		api.websocketWaitMutex.Lock()

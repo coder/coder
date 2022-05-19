@@ -8,13 +8,32 @@ WHERE
 LIMIT
 	1;
 
--- name: GetWorkspacesByOrganizationID :many
-SELECT * FROM workspaces WHERE organization_id = $1 AND deleted = $2;
+-- name: GetWorkspacesWithFilter :many
+SELECT
+    *
+FROM
+    workspaces
+WHERE
+    -- Optionally include deleted workspaces
+	deleted = @deleted
+	-- Filter by organization_id
+	AND CASE
+		WHEN @organization_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+			organization_id = @organization_id
+		ELSE true
+	END
+	-- Filter by owner_id
+	AND CASE
+		  WHEN @owner_id :: uuid != '00000000-00000000-00000000-00000000' THEN
+				owner_id = @owner_id
+		  ELSE true
+	END
+;
 
 -- name: GetWorkspacesByOrganizationIDs :many
 SELECT * FROM workspaces WHERE organization_id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
 
--- name: GetWorkspacesAutostartAutostop :many
+-- name: GetWorkspacesAutostart :many
 SELECT
 	*
 FROM
@@ -23,9 +42,9 @@ WHERE
 	deleted = false
 AND
 (
-	autostart_schedule <> ''
+	(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
 	OR
-	autostop_schedule <> ''
+	(ttl IS NOT NULL AND ttl > 0)
 );
 
 -- name: GetWorkspacesByTemplateID :many
@@ -35,15 +54,6 @@ FROM
 	workspaces
 WHERE
 	template_id = $1
-	AND deleted = $2;
-
--- name: GetWorkspacesByOwnerID :many
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	owner_id = $1
 	AND deleted = $2;
 
 -- name: GetWorkspaceByOwnerIDAndName :one
@@ -97,10 +107,10 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspaceAutostop :exec
+-- name: UpdateWorkspaceTTL :exec
 UPDATE
 	workspaces
 SET
-	autostop_schedule = $2
+	ttl = $2
 WHERE
 	id = $1;

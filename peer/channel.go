@@ -53,8 +53,8 @@ type ChannelOptions struct {
 	// Arbitrary string that can be parsed on `Accept`.
 	Protocol string
 
-	// Ordered determines whether the channel acts like
-	// a TCP connection. Defaults to false.
+	// Unordered determines whether the channel acts like
+	// a UDP connection. Defaults to false.
 	Unordered bool
 
 	// Whether the channel will be left open on disconnect or not.

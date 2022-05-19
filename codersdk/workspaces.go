@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/coderd/database"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 )
 
 // Workspace is a deployment of a template. It references a specific
@@ -27,20 +27,29 @@ type Workspace struct {
 	Outdated          bool           `json:"outdated"`
 	Name              string         `json:"name"`
 	AutostartSchedule string         `json:"autostart_schedule"`
-	AutostopSchedule  string         `json:"autostop_schedule"`
+	TTL               *time.Duration `json:"ttl"`
 }
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	TemplateVersionID uuid.UUID                    `json:"template_version_id,omitempty"`
-	Transition        database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-	DryRun            bool                         `json:"dry_run,omitempty"`
-	ProvisionerState  []byte                       `json:"state,omitempty"`
+	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
+	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+	DryRun            bool                `json:"dry_run,omitempty"`
+	ProvisionerState  []byte              `json:"state,omitempty"`
 }
 
 // Workspace returns a single workspace.
 func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil)
+	return c.getWorkspace(ctx, id)
+}
+
+// DeletedWorkspace returns a single workspace that was deleted.
+func (c *Client) DeletedWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
+	return c.getWorkspace(ctx, id, queryParam("deleted", "true"))
+}
+
+func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...requestOption) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s", id), nil, opts...)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -52,8 +61,14 @@ func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error)
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-func (c *Client) WorkspaceBuilds(ctx context.Context, workspace uuid.UUID) ([]WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", workspace), nil)
+type WorkspaceBuildsRequest struct {
+	WorkspaceID uuid.UUID
+	Pagination
+}
+
+func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
+		nil, req.Pagination.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +107,36 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
+	conn, err := c.dialWebsocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
+	if err != nil {
+		return nil, err
+	}
+	wc := make(chan Workspace, 256)
+
+	go func() {
+		defer close(wc)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				var ws Workspace
+				err := wsjson.Read(ctx, conn, &ws)
+				if err != nil {
+					conn.Close(websocket.StatusInternalError, "failed to read workspace")
+					return
+				}
+				wc <- ws
+			}
+		}
+	}()
+
+	return wc, nil
+}
+
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
 type UpdateWorkspaceAutostartRequest struct {
 	Schedule string `json:"schedule"`
@@ -112,22 +157,60 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	return nil
 }
 
-// UpdateWorkspaceAutostopRequest is a request to update a workspace's autostop schedule.
-type UpdateWorkspaceAutostopRequest struct {
-	Schedule string `json:"schedule"`
+// UpdateWorkspaceTTLRequest is a request to update a workspace's TTL.
+type UpdateWorkspaceTTLRequest struct {
+	TTL *time.Duration `json:"ttl"`
 }
 
-// UpdateWorkspaceAutostop sets the autostop schedule for workspace by id.
-// If the provided schedule is empty, autostop is disabled for the workspace.
-func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req UpdateWorkspaceAutostopRequest) error {
-	path := fmt.Sprintf("/api/v2/workspaces/%s/autostop", id.String())
+// UpdateWorkspaceTTL sets the ttl for workspace by id.
+// If the provided duration is nil, autostop is disabled for the workspace.
+func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req UpdateWorkspaceTTLRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/ttl", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace autostop: %w", err)
+		return xerrors.Errorf("update workspace ttl: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return readBodyAsError(res)
 	}
 	return nil
+}
+
+type WorkspaceFilter struct {
+	OrganizationID uuid.UUID
+	// Owner can be a user_id (uuid), "me", or a username
+	Owner string
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (f WorkspaceFilter) asRequestOption() requestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if f.OrganizationID != uuid.Nil {
+			q.Set("organization_id", f.OrganizationID.String())
+		}
+		if f.Owner != "" {
+			q.Set("owner", f.Owner)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// Workspaces returns all workspaces the authenticated user has access to.
+func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
+
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var workspaces []Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }

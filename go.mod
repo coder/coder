@@ -90,6 +90,7 @@ require (
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.13.0
 	github.com/pion/turn/v2 v2.0.8
+	github.com/pion/udp v0.1.1
 	github.com/pion/webrtc/v3 v3.1.39
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/sftp v1.13.4
@@ -217,7 +218,6 @@ require (
 	github.com/pion/sdp/v3 v3.0.5 // indirect
 	github.com/pion/srtp/v2 v2.0.7 // indirect
 	github.com/pion/stun v0.3.5 // indirect
-	github.com/pion/udp v0.1.1 // indirect
 	github.com/pires/go-proxyproto v0.6.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

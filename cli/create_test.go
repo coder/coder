@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -44,6 +45,7 @@ func TestCreate(t *testing.T) {
 		}
 		<-doneChan
 	})
+
 	t.Run("CreateFromList", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -74,6 +76,7 @@ func TestCreate(t *testing.T) {
 		}
 		<-doneChan
 	})
+
 	t.Run("FromNothing", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -105,33 +108,52 @@ func TestCreate(t *testing.T) {
 		}
 		<-doneChan
 	})
+
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdtest.NewProvisionerDaemon(t, client)
+
+		defaultValue := "something"
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: []*proto.Parse_Response{{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							AllowOverrideSource: true,
-							Name:                "region",
-							Description:         "description",
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
-								Value:  "something",
+						ParameterSchemas: []*proto.ParameterSchema{
+							{
+								AllowOverrideSource: true,
+								Name:                "region",
+								Description:         "description 1",
+								DefaultSource: &proto.ParameterSource{
+									Scheme: proto.ParameterSource_DATA,
+									Value:  defaultValue,
+								},
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
 							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							{
+								AllowOverrideSource: true,
+								Name:                "username",
+								Description:         "description 2",
+								DefaultSource: &proto.ParameterSource{
+									Scheme: proto.ParameterSource_DATA,
+									// No default value
+									Value: "",
+								},
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
 							},
-						}},
+						},
 					},
 				},
 			}},
 			Provision:       echo.ProvisionComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
+
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		cmd, root := clitest.New(t, "create", "")
@@ -145,9 +167,11 @@ func TestCreate(t *testing.T) {
 			err := cmd.Execute()
 			require.NoError(t, err)
 		}()
+
 		matches := []string{
 			"Specify a name", "my-workspace",
-			"Enter a value", "bananas",
+			fmt.Sprintf("Enter a value (default: %q):", defaultValue), "bingo",
+			"Enter a value:", "boingo",
 			"Confirm create?", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {

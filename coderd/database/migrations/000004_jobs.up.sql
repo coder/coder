@@ -165,8 +165,7 @@ CREATE TABLE workspace_builds (
     workspace_id uuid NOT NULL REFERENCES workspaces (id) ON DELETE CASCADE,
     template_version_id uuid NOT NULL REFERENCES template_versions (id) ON DELETE CASCADE,
     name varchar(64) NOT NULL,
-    before_id uuid,
-    after_id uuid,
+    build_number integer NOT NULL,
     transition workspace_transition NOT NULL,
     initiator_id uuid NOT NULL,
     -- State stored by the provisioner
@@ -174,5 +173,6 @@ CREATE TABLE workspace_builds (
     -- Job ID of the action
     job_id uuid NOT NULL UNIQUE REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
     PRIMARY KEY (id),
-    UNIQUE(workspace_id, name)
+    UNIQUE(workspace_id, name),
+    UNIQUE(workspace_id, build_number)
 );
