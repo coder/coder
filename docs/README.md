@@ -20,52 +20,69 @@ Provision remote development environments with Terraform.
 
 ## Installing Coder
 
-Install [the latest release](https://github.com/coder/coder/releases) on a system with
-at least 1 CPU core and 2 GB RAM.
+We recommend installing [the latest
+release](https://github.com/coder/coder/releases) on a system with at least 1
+CPU core and 2 GB RAM:
 
-To test, start with dev mode (all data is in-memory and is destroyed on exit):
+1. Download the release appropriate for your operating system
+1. Unzip the folder you just downloaded, and move the `coder` executable to a
+   location that's on your `PATH`
 
-```bash
-coder server --dev
-```
+> Make sure you have the appropriate credentials for your cloud provider (e.g.,
+> access key ID and secret access key for AWS).
 
-To run a production deployment with PostgreSQL:
+You can set up a temporary deployment, a production deployment, or a system service:
 
-```bash
-CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
-    coder server
-```
+- To set up a **temporary deployment**, start with dev mode (all data is in-memory and is
+destroyed on exit):
 
-To run as a system service, install with `.deb` (Debian, Ubuntu) or `.rpm`
+  ```bash
+  coder server --dev
+  ```
+
+- To run a **production deployment** with PostgreSQL:
+
+  ```bash
+  CODER_PG_CONNECTION_URL="postgres://<username>@<host>/<database>?password=<password>" \
+      coder server
+  ```
+
+- To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm`
 (Fedora, CentOS, RHEL, SUSE):
 
-```bash
-# Edit the configuration!
-sudo vim /etc/coder.d/coder.env
-sudo service coder restart
-```
+  ```bash
+  # Edit the configuration!
+  sudo vim /etc/coder.d/coder.env
+  sudo service coder restart
+  ```
 
-Use `coder start --help` to get a complete list of flags and environment
+> Use `coder --help` to get a complete list of flags and environment
 variables.
 
-### Your first workspace
+## Creating your first template and workspace
 
-In a new terminal, create a template (e.g., a template to **Develop in Linux on
-Google Cloud**):
+In a new terminal window, run the following to copy a sample template:
 
 ```bash
 coder templates init
-coder templates create
 ```
 
-Create a workspace and connect to it via SSH:
+Follow the CLI instructions to modify and create the template specific for your
+usage (e.g., a template to **Develop in Linux on Google Cloud**).
+
+Create a workspace using your template:
 
 ```bash
-coder create my-first-workspace
-coder ssh my-first-workspace
+coder create --template="yourTemplate" <workspaceName>
 ```
 
-### Modifying templates
+Connect to your workspace via SSH:
+
+```bash
+coder ssh <workspaceName>
+```
+
+## Modifying templates
 
 You can edit the Terraform template using a sample template:
 
