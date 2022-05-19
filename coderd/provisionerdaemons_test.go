@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionersdk"
 )
@@ -34,9 +33,9 @@ func TestProvisionerDaemons(t *testing.T) {
 		t.Log(resp.Hash)
 
 		version, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
-			StorageMethod: database.ProvisionerStorageMethodFile,
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			StorageSource: resp.Hash,
-			Provisioner:   database.ProvisionerTypeEcho,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {

@@ -101,7 +101,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"deleted":            ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":               ActionTrack,
 		"autostart_schedule": ActionTrack,
-		"autostop_schedule":  ActionTrack,
+		"ttl":                ActionTrack,
 	},
 })
 

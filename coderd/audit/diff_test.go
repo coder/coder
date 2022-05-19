@@ -172,7 +172,7 @@ func TestDiff(t *testing.T) {
 				TemplateID:        uuid.UUID{3},
 				Name:              "rust workspace",
 				AutostartSchedule: sql.NullString{String: "0 12 * * 1-5", Valid: true},
-				AutostopSchedule:  sql.NullString{String: "0 2 * * 2-6", Valid: true},
+				Ttl:               sql.NullInt64{Int64: int64(8 * time.Hour), Valid: true},
 			},
 			exp: audit.Map{
 				"id":                 uuid.UUID{1}.String(),
@@ -180,7 +180,7 @@ func TestDiff(t *testing.T) {
 				"template_id":        uuid.UUID{3}.String(),
 				"name":               "rust workspace",
 				"autostart_schedule": "0 12 * * 1-5",
-				"autostop_schedule":  "0 2 * * 2-6",
+				"ttl":                int64(28800000000000), // XXX: pq still does not support time.Duration
 			},
 		},
 		{
@@ -194,7 +194,7 @@ func TestDiff(t *testing.T) {
 				TemplateID:        uuid.UUID{3},
 				Name:              "rust workspace",
 				AutostartSchedule: sql.NullString{},
-				AutostopSchedule:  sql.NullString{},
+				Ttl:               sql.NullInt64{},
 			},
 			exp: audit.Map{
 				"id":          uuid.UUID{1}.String(),

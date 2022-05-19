@@ -305,8 +305,8 @@ func New(options *Options) (http.Handler, func()) {
 				r.Route("/autostart", func(r chi.Router) {
 					r.Put("/", api.putWorkspaceAutostart)
 				})
-				r.Route("/autostop", func(r chi.Router) {
-					r.Put("/", api.putWorkspaceAutostop)
+				r.Route("/ttl", func(r chi.Router) {
+					r.Put("/", api.putWorkspaceTTL)
 				})
 				r.Get("/watch", api.watchWorkspace)
 			})
@@ -325,6 +325,9 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
+
+	var _ = xerrors.New("test")
+
 	r.NotFound(site.DefaultHandler().ServeHTTP)
 	return r, func() {
 		api.websocketWaitMutex.Lock()
