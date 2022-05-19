@@ -28,10 +28,10 @@ Parameters.args = {
       validation_contains: ["🏈 US Central", "⚽ Brazil East", "💶 EU West", "🦘 Australia South"],
     }),
     createParameterSchema({
-        name: "instance_size",
-        default_source_value: "Big",
-        description: "How large should you instance be?",
-        validation_contains: ["Small", "Medium", "Big"],
-      }),
+      name: "instance_size",
+      default_source_value: "Big",
+      description: "How large should you instance be?",
+      validation_contains: ["Small", "Medium", "Big"],
+    }),
   ],
 }

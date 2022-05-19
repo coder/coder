@@ -25,6 +25,12 @@ export const handlers = [
   rest.get("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
+  rest.get("/api/v2/templateversions/:templateVersionId", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
+  }),
+  rest.get("/api/v2/templateversions/:templateVersionId/schema", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json([]))
+  }),
 
   // users
   rest.get("/api/v2/users", async (req, res, ctx) => {
@@ -79,6 +85,9 @@ export const handlers = [
   }),
 
   // workspaces
+  rest.post("/api/v2/organizations/:organizationId/workspaces", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockWorkspace))
+  }),
   rest.get("/api/v2/organizations/:organizationId/workspaces/:userName/:workspaceName", (req, res, ctx) => {
     if (req.params.workspaceName !== M.MockWorkspace.name) {
       return res(

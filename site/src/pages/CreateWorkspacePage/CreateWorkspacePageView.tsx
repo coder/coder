@@ -11,8 +11,17 @@ import { ParameterInput } from "../../components/ParameterInput/ParameterInput"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 
 export const Language = {
+  nameLabel: "Name",
   nameRequired: "Please enter a name.",
+  nameMatches: "Name must start with a-Z or 0-9 and can contain a-Z, 0-9 or -",
+  nameMax: "Name cannot be longer than 32 characters",
 }
+
+// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L40
+const maxLenName = 32
+
+// REMARK: Keep in sync with coderd/httpapi/httpapi.go#L18
+const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/
 
 export interface CreateWorkspacePageViewProps {
   loading?: boolean
@@ -23,8 +32,11 @@ export interface CreateWorkspacePageViewProps {
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => Promise<void>
 }
 
-const validationSchema = Yup.object({
-  name: Yup.string().required(Language.nameRequired),
+export const validationSchema = Yup.object({
+  name: Yup.string()
+    .required(Language.nameRequired)
+    .matches(usernameRE, Language.nameMatches)
+    .max(maxLenName, Language.nameMax),
 })
 
 export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (props) => {
@@ -68,7 +80,7 @@ export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
-            label="Name"
+            label={Language.nameLabel}
             variant="outlined"
           />
           {props.templateSchema.length > 0 && (
