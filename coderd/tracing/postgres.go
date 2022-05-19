@@ -1,8 +1,12 @@
 package tracing
 
 import (
+	"context"
+	"fmt"
+	"strings"
+
 	"github.com/nhatthm/otelsql"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 )
@@ -17,10 +21,22 @@ func PostgresDriver(tp trace.TracerProvider, service string) (string, error) {
 		otelsql.TraceQueryWithoutArgs(),
 		otelsql.WithSystem(semconv.DBSystemPostgreSQL),
 		otelsql.WithTracerProvider(tp),
+		otelsql.WithSpanNameFormatter(formatPostgresSpan),
 	)
 	if err != nil {
 		return "", xerrors.Errorf("registering postgres tracing driver: %w", err)
 	}
 
 	return driverName, nil
+}
+
+func formatPostgresSpan(ctx context.Context, op string) string {
+	const qPrefix = "-- name: "
+	q := otelsql.QueryFromContext(ctx)
+	if q == "" || !strings.HasPrefix(q, qPrefix) {
+		return strings.ToUpper(op)
+	}
+
+	s := strings.Split(strings.TrimPrefix(q, qPrefix), " ")[0]
+	return fmt.Sprintf("%s %s", strings.ToUpper(op), s)
 }
