@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.TemplateVersionParameterSchema) (string, error) {
+func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.ParameterSchema) (string, error) {
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), Styles.Bold.Render("var."+parameterSchema.Name))
 	if parameterSchema.Description != "" {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(parameterSchema.Description, "\n"), "\n  "))+"\n")
