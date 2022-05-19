@@ -26,8 +26,6 @@ import (
 var (
 	// noStateRegex is matched against the output from `terraform state show`
 	noStateRegex = regexp.MustCompile(`(?i)State read error.*no state`)
-
-	noStateError = xerrors.New("no state")
 )
 
 // Provision executes `terraform apply`.
@@ -198,10 +196,14 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 		}
 	}()
 
-	// If we're destroying, exit early if there's no state.
+	// If we're destroying, exit early if there's no state. This is necessary to
+	// avoid any cases where a workspace is "locked out" of terraform due to
+	// e.g. bad template param values and cannot be deleted. This is just for
+	// contingency, in the future we will try harder to prevent workspaces being
+	// broken this hard.
 	if start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY {
 		_, err := getTerraformState(shutdown, terraform, statefilePath)
-		if xerrors.Is(err, noStateError) {
+		if xerrors.Is(err, os.ErrNotExist) {
 			_ = stream.Send(&proto.Provision_Response{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{
@@ -213,9 +215,7 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 
 			return stream.Send(&proto.Provision_Response{
 				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Error: "",
-					},
+					Complete: &proto.Provision_Complete{},
 				},
 			})
 		}
@@ -589,8 +589,8 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 }
 
 // getTerraformState pulls and merges any remote terraform state into the given
-// path and reads the merged state. If there is no state, `noStateError` will be
-// returned.
+// path and reads the merged state. If there is no state, `os.ErrNotExist` will
+// be returned.
 func getTerraformState(ctx context.Context, terraform *tfexec.Terraform, statefilePath string) (*tfjson.State, error) {
 	statefile, err := os.OpenFile(statefilePath, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
@@ -610,7 +610,7 @@ func getTerraformState(ctx context.Context, terraform *tfexec.Terraform, statefi
 	state, err := terraform.ShowStateFile(ctx, statefilePath)
 	if err != nil {
 		if noStateRegex.MatchString(err.Error()) {
-			return nil, noStateError
+			return nil, os.ErrNotExist
 		}
 
 		return nil, xerrors.Errorf("show terraform state: %w", err)
