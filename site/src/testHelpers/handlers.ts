@@ -100,7 +100,7 @@ export const handlers = [
   rest.put("/api/v2/workspaces/:workspaceId/autostart", async (req, res, ctx) => {
     return res(ctx.status(200))
   }),
-  rest.put("/api/v2/workspaces/:workspaceId/autostop", async (req, res, ctx) => {
+  rest.put("/api/v2/workspaces/:workspaceId/ttl", async (req, res, ctx) => {
     return res(ctx.status(200))
   }),
   rest.post("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {

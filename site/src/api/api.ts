@@ -200,7 +200,7 @@ export const putWorkspaceAutostop = async (
   ttl: TypesGen.UpdateWorkspaceTTLRequest,
 ): Promise<void> => {
   const payload = JSON.stringify(ttl)
-  await axios.put(`/api/v2/workspaces/${workspaceID}/autostop`, payload, {
+  await axios.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
     headers: { ...CONTENT_TYPE_JSON },
   })
 }
