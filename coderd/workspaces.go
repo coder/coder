@@ -445,9 +445,9 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeWorkspace,
 				ScopeID:           workspace.ID,
-				SourceScheme:      parameterValue.SourceScheme,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)

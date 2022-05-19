@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/schedule"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -66,17 +65,17 @@ func list() *cobra.Command {
 				}
 
 				switch workspace.LatestBuild.Transition {
-				case database.WorkspaceTransitionStart:
+				case codersdk.WorkspaceTransitionStart:
 					status = "Running"
 					if inProgress {
 						status = "Starting"
 					}
-				case database.WorkspaceTransitionStop:
+				case codersdk.WorkspaceTransitionStop:
 					status = "Stopped"
 					if inProgress {
 						status = "Stopping"
 					}
-				case database.WorkspaceTransitionDelete:
+				case codersdk.WorkspaceTransitionDelete:
 					status = "Deleted"
 					if inProgress {
 						status = "Deleting"

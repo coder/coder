@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/coder/coder/coderd/autobuild/schedule"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
@@ -193,7 +192,7 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 		}
 	}
 
-	if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
+	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
@@ -202,7 +201,7 @@ func getWorkspaceAndAgent(cmd *cobra.Command, client *codersdk.Client, orgID uui
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
 	}
-	if workspace.LatestBuild.Transition == database.WorkspaceTransitionDelete {
+	if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 

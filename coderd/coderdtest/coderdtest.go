@@ -288,8 +288,8 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		StorageSource: file.Hash,
-		StorageMethod: database.ProvisionerStorageMethodFile,
-		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
 	return templateVersion
@@ -302,7 +302,7 @@ func CreateWorkspaceBuild(
 	workspace codersdk.Workspace,
 	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
 	req := codersdk.CreateWorkspaceBuildRequest{
-		Transition: transition,
+		Transition: codersdk.WorkspaceTransition(transition),
 	}
 	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, req)
 	require.NoError(t, err)
@@ -331,8 +331,8 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
 		StorageSource: file.Hash,
-		StorageMethod: database.ProvisionerStorageMethodFile,
-		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
 	require.NoError(t, err)
 	return templateVersion

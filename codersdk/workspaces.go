@@ -11,8 +11,6 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
-
-	"github.com/coder/coder/coderd/database"
 )
 
 // Workspace is a deployment of a template. It references a specific
@@ -34,10 +32,10 @@ type Workspace struct {
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	TemplateVersionID uuid.UUID                    `json:"template_version_id,omitempty"`
-	Transition        database.WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
-	DryRun            bool                         `json:"dry_run,omitempty"`
-	ProvisionerState  []byte                       `json:"state,omitempty"`
+	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
+	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+	DryRun            bool                `json:"dry_run,omitempty"`
+	ProvisionerState  []byte              `json:"state,omitempty"`
 }
 
 // Workspace returns a single workspace.

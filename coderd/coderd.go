@@ -325,6 +325,9 @@ func New(options *Options) (http.Handler, func()) {
 			r.Get("/state", api.workspaceBuildState)
 		})
 	})
+
+	var _ = xerrors.New("test")
+
 	r.NotFound(site.DefaultHandler().ServeHTTP)
 	return r, func() {
 		api.websocketWaitMutex.Lock()

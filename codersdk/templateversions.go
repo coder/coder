@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/coderd/parameter"
 )
 
 // TemplateVersion represents a single version of a template.
@@ -24,7 +22,19 @@ type TemplateVersion struct {
 }
 
 // TemplateVersionParameter represents a computed parameter value.
-type TemplateVersionParameter parameter.ComputedValue
+type TemplateVersionParameter struct {
+	ID                 uuid.UUID                  `json:"id"`
+	CreatedAt          time.Time                  `json:"created_at"`
+	UpdatedAt          time.Time                  `json:"updated_at"`
+	Scope              ParameterScope             `json:"scope"`
+	ScopeID            uuid.UUID                  `json:"scope_id"`
+	Name               string                     `json:"name"`
+	SourceScheme       ParameterSourceScheme      `json:"source_scheme"`
+	SourceValue        string                     `json:"source_value"`
+	DestinationScheme  ParameterDestinationScheme `json:"destination_scheme"`
+	SchemaID           uuid.UUID                  `json:"schema_id"`
+	DefaultSourceValue bool                       `json:"default_source_value"`
+}
 
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {

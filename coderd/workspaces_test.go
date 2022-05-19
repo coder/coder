@@ -14,7 +14,6 @@ import (
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -55,7 +54,7 @@ func TestWorkspace(t *testing.T) {
 
 		// Delete the workspace
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: database.WorkspaceTransitionDelete,
+			Transition: codersdk.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err, "delete the workspace")
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
@@ -271,7 +270,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: uuid.New(),
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -311,7 +310,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -331,7 +330,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
@@ -351,7 +350,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		wantState := []byte("something")
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
-			Transition:        database.WorkspaceTransitionStart,
+			Transition:        codersdk.WorkspaceTransitionStart,
 			ProvisionerState:  wantState,
 		})
 		require.NoError(t, err)
@@ -371,7 +370,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: database.WorkspaceTransitionDelete,
+			Transition: codersdk.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)

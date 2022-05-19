@@ -62,7 +62,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   created_at: "",
   id: "test-provisioner",
   name: "Test Provisioner",
-  provisioners: [],
+  provisioners: ["echo"],
 }
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -84,7 +84,7 @@ export const MockTemplate: TypesGen.Template = {
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
   name: "Test Template",
-  provisioner: MockProvisioner.id,
+  provisioner: MockProvisioner.provisioners[0],
   active_version_id: "",
   workspace_owner_count: 1,
   description: "This is a test description.",
@@ -122,13 +122,13 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   workspace_id: "test-workspace",
 }
 
-export const MockWorkspaceBuildStop = {
+export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
   ...MockWorkspaceBuild,
   id: "2",
   transition: "stop",
 }
 
-export const MockWorkspaceBuildDelete = {
+export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
   ...MockWorkspaceBuild,
   id: "3",
   transition: "delete",

@@ -49,17 +49,15 @@ export interface CreateOrganizationRequest {
   readonly name: string
 }
 
-// From codersdk/parameters.go:61:6
+// From codersdk/parameters.go:81:6
 export interface CreateParameterRequest {
   readonly name: string
   readonly source_value: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
-  readonly source_scheme: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
-  readonly destination_scheme: string
+  readonly source_scheme: ParameterSourceScheme
+  readonly destination_scheme: ParameterDestinationScheme
 }
 
-// From codersdk/organizations.go:38:6
+// From codersdk/organizations.go:49:6
 export interface CreateTemplateRequest {
   readonly name: string
   readonly description?: string
@@ -67,14 +65,12 @@ export interface CreateTemplateRequest {
   readonly parameter_values?: CreateParameterRequest[]
 }
 
-// From codersdk/organizations.go:25:6
+// From codersdk/organizations.go:36:6
 export interface CreateTemplateVersionRequest {
   readonly template_id?: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerStorageMethod")
-  readonly storage_method: string
+  readonly storage_method: ProvisionerStorageMethod
   readonly storage_source: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
-  readonly provisioner: string
+  readonly provisioner: ProvisionerType
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -86,16 +82,15 @@ export interface CreateUserRequest {
   readonly organization_id: string
 }
 
-// From codersdk/workspaces.go:36:6
+// From codersdk/workspaces.go:34:6
 export interface CreateWorkspaceBuildRequest {
   readonly template_version_id?: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
-  readonly transition: string
+  readonly transition: WorkspaceTransition
   readonly dry_run?: boolean
   readonly state?: string
 }
 
-// From codersdk/organizations.go:56:6
+// From codersdk/organizations.go:67:6
 export interface CreateWorkspaceRequest {
   readonly template_id: string
   readonly name: string
@@ -131,7 +126,7 @@ export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
-// From codersdk/organizations.go:17:6
+// From codersdk/organizations.go:28:6
 export interface Organization {
   readonly id: string
   readonly name: string
@@ -155,7 +150,7 @@ export interface Pagination {
   readonly offset?: number
 }
 
-// From codersdk/parameters.go:26:6
+// From codersdk/parameters.go:46:6
 export interface Parameter {
   readonly id: string
   readonly created_at: string
@@ -163,48 +158,42 @@ export interface Parameter {
   readonly scope: ParameterScope
   readonly scope_id: string
   readonly name: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
-  readonly source_scheme: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
-  readonly destination_scheme: string
+  readonly source_scheme: ParameterSourceScheme
+  readonly destination_scheme: ParameterDestinationScheme
 }
 
-// From codersdk/parameters.go:37:6
+// From codersdk/parameters.go:57:6
 export interface ParameterSchema {
   readonly id: string
   readonly created_at: string
   readonly job_id: string
   readonly name: string
   readonly description: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterSourceScheme")
-  readonly default_source_scheme: string
+  readonly default_source_scheme: ParameterSourceScheme
   readonly default_source_value: string
   readonly allow_override_source: boolean
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterDestinationScheme")
-  readonly default_destination_scheme: string
+  readonly default_destination_scheme: ParameterDestinationScheme
   readonly allow_override_destination: boolean
   readonly default_refresh: string
   readonly redisplay_value: boolean
   readonly validation_error: string
   readonly validation_condition: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ParameterTypeSystem")
   readonly validation_type_system: string
   readonly validation_value_type: string
   readonly validation_contains: string[]
 }
 
-// From codersdk/provisionerdaemons.go:23:6
+// From codersdk/provisionerdaemons.go:40:6
 export interface ProvisionerDaemon {
   readonly id: string
   readonly created_at: string
   readonly updated_at?: string
   readonly organization_id?: string
   readonly name: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
-  readonly provisioners: string[]
+  readonly provisioners: ProvisionerType[]
 }
 
-// From codersdk/provisionerdaemons.go:46:6
+// From codersdk/provisionerdaemons.go:70:6
 export interface ProvisionerJob {
   readonly id: string
   readonly created_at: string
@@ -215,14 +204,12 @@ export interface ProvisionerJob {
   readonly worker_id?: string
 }
 
-// From codersdk/provisionerdaemons.go:56:6
+// From codersdk/provisionerdaemons.go:80:6
 export interface ProvisionerJobLog {
   readonly id: string
   readonly created_at: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.LogSource")
-  readonly log_source: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.LogLevel")
-  readonly log_level: string
+  readonly log_source: LogSource
+  readonly log_level: LogLevel
   readonly stage: string
   readonly output: string
 }
@@ -233,21 +220,20 @@ export interface Role {
   readonly display_name: string
 }
 
-// From codersdk/templates.go:17:6
+// From codersdk/templates.go:15:6
 export interface Template {
   readonly id: string
   readonly created_at: string
   readonly updated_at: string
   readonly organization_id: string
   readonly name: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.ProvisionerType")
-  readonly provisioner: string
+  readonly provisioner: ProvisionerType
   readonly active_version_id: string
   readonly workspace_owner_count: number
   readonly description: string
 }
 
-// From codersdk/templateversions.go:16:6
+// From codersdk/templateversions.go:14:6
 export interface TemplateVersion {
   readonly id: string
   readonly template_id?: string
@@ -258,21 +244,27 @@ export interface TemplateVersion {
   readonly readme: string
 }
 
-// From codersdk/templateversions.go:27:6
+// From codersdk/templateversions.go:25:6
 export interface TemplateVersionParameter {
-  // Named type "github.com/coder/coder/coderd/database.ParameterValue" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  readonly ParameterValue: any
+  readonly id: string
+  readonly created_at: string
+  readonly updated_at: string
+  readonly scope: ParameterScope
+  readonly scope_id: string
+  readonly name: string
+  readonly source_scheme: ParameterSourceScheme
+  readonly source_value: string
+  readonly destination_scheme: ParameterDestinationScheme
   readonly schema_id: string
   readonly default_source_value: boolean
 }
 
-// From codersdk/templates.go:75:6
+// From codersdk/templates.go:73:6
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
 }
 
-// From codersdk/templates.go:29:6
+// From codersdk/templates.go:27:6
 export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
@@ -293,12 +285,12 @@ export interface UpdateUserProfileRequest {
   readonly username: string
 }
 
-// From codersdk/workspaces.go:134:6
+// From codersdk/workspaces.go:141:6
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule: string
 }
 
-// From codersdk/workspaces.go:154:6
+// From codersdk/workspaces.go:161:6
 export interface UpdateWorkspaceAutostopRequest {
   readonly schedule: string
 }
@@ -353,7 +345,7 @@ export interface UsersRequest extends Pagination {
   readonly status?: string
 }
 
-// From codersdk/workspaces.go:20:6
+// From codersdk/workspaces.go:18:6
 export interface Workspace {
   readonly id: string
   readonly created_at: string
@@ -369,7 +361,7 @@ export interface Workspace {
   readonly autostop_schedule: string
 }
 
-// From codersdk/workspaceresources.go:33:6
+// From codersdk/workspaceresources.go:31:6
 export interface WorkspaceAgent {
   readonly id: string
   readonly created_at: string
@@ -393,7 +385,7 @@ export interface WorkspaceAgentAuthenticateResponse {
   readonly session_token: string
 }
 
-// From codersdk/workspaceresources.go:59:6
+// From codersdk/workspaceresources.go:57:6
 export interface WorkspaceAgentInstanceMetadata {
   readonly jail_orchestrator: string
   readonly operating_system: string
@@ -406,7 +398,7 @@ export interface WorkspaceAgentInstanceMetadata {
   readonly vnc: boolean
 }
 
-// From codersdk/workspaceresources.go:51:6
+// From codersdk/workspaceresources.go:49:6
 export interface WorkspaceAgentResourceMetadata {
   readonly memory_total: number
   readonly disk_total: number
@@ -415,7 +407,7 @@ export interface WorkspaceAgentResourceMetadata {
   readonly cpu_mhz: number
 }
 
-// From codersdk/workspacebuilds.go:18:6
+// From codersdk/workspacebuilds.go:24:6
 export interface WorkspaceBuild {
   readonly id: string
   readonly created_at: string
@@ -424,43 +416,65 @@ export interface WorkspaceBuild {
   readonly template_version_id: string
   readonly build_number: number
   readonly name: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
-  readonly transition: string
+  readonly transition: WorkspaceTransition
   readonly initiator_id: string
   readonly job: ProvisionerJob
 }
 
-// From codersdk/workspaces.go:57:6
+// From codersdk/workspaces.go:64:6
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
 }
 
-// From codersdk/workspaces.go:173:6
+// From codersdk/workspaces.go:180:6
 export interface WorkspaceFilter {
   readonly OrganizationID: string
   readonly Owner: string
 }
 
-// From codersdk/workspaceresources.go:23:6
+// From codersdk/workspaceresources.go:21:6
 export interface WorkspaceResource {
   readonly id: string
   readonly created_at: string
   readonly job_id: string
-  // This is likely an enum in an external package ("github.com/coder/coder/coderd/database.WorkspaceTransition")
-  readonly workspace_transition: string
+  readonly workspace_transition: WorkspaceTransition
   readonly type: string
   readonly name: string
   readonly agents?: WorkspaceAgent[]
 }
 
-// From codersdk/parameters.go:16:6
+// From codersdk/provisionerdaemons.go:30:6
+export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
+
+// From codersdk/provisionerdaemons.go:23:6
+export type LogSource = "provisioner" | "provisioner_daemon"
+
+// From codersdk/parameters.go:30:6
+export type ParameterDestinationScheme = "environment_variable" | "none" | "provisioner_variable"
+
+// From codersdk/parameters.go:14:6
 export type ParameterScope = "organization" | "template" | "user" | "workspace"
 
-// From codersdk/provisionerdaemons.go:26:6
+// From codersdk/parameters.go:23:6
+export type ParameterSourceScheme = "data" | "none"
+
+// From codersdk/parameters.go:38:6
+export type ParameterTypeSystem = "hcl" | "none"
+
+// From codersdk/provisionerdaemons.go:50:6
 export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded"
+
+// From codersdk/organizations.go:14:6
+export type ProvisionerStorageMethod = "file"
+
+// From codersdk/organizations.go:20:6
+export type ProvisionerType = "echo" | "terraform"
 
 // From codersdk/users.go:17:6
 export type UserStatus = "active" | "suspended"
 
-// From codersdk/workspaceresources.go:15:6
+// From codersdk/workspaceresources.go:13:6
 export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected"
+
+// From codersdk/workspacebuilds.go:14:6
+export type WorkspaceTransition = "delete" | "start" | "stop"
