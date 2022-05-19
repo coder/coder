@@ -4,7 +4,6 @@
 package pty
 
 import (
-	"io"
 	"os"
 	"sync"
 	"unsafe"
@@ -67,15 +66,15 @@ type ptyWindows struct {
 	closed     bool
 }
 
-func (p *ptyWindows) Output() io.ReadWriter {
-	return readWriter{
+func (p *ptyWindows) Output() ReadWriter {
+	return ReadWriter{
 		Reader: p.outputRead,
 		Writer: p.outputWrite,
 	}
 }
 
-func (p *ptyWindows) Input() io.ReadWriter {
-	return readWriter{
+func (p *ptyWindows) Input() ReadWriter {
+	return ReadWriter{
 		Reader: p.inputRead,
 		Writer: p.inputWrite,
 	}

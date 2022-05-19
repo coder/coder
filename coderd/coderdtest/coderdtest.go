@@ -67,7 +67,14 @@ type Options struct {
 
 // New constructs an in-memory coderd instance and returns
 // the connected client.
-func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client) {
+func New(t *testing.T, options *Options) *codersdk.Client {
+	_, cli := NewWithServer(t, options)
+	return cli
+}
+
+// NewWithServer returns an in-memory coderd instance and
+// the HTTP server it started with.
+func NewWithServer(t *testing.T, options *Options) (*httptest.Server, *codersdk.Client) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -158,13 +165,6 @@ func NewMemoryCoderd(t *testing.T, options *Options) (*httptest.Server, *codersd
 	})
 
 	return srv, codersdk.New(serverURL)
-}
-
-// New constructs an in-memory coderd instance and returns
-// the connected client.
-func New(t *testing.T, options *Options) *codersdk.Client {
-	_, cli := NewMemoryCoderd(t, options)
-	return cli
 }
 
 // NewProvisionerDaemon launches a provisionerd instance configured to work
@@ -293,6 +293,20 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	})
 	require.NoError(t, err)
 	return templateVersion
+}
+
+// CreateWorkspaceBuild creates a workspace build for the given workspace and transition.
+func CreateWorkspaceBuild(
+	t *testing.T,
+	client *codersdk.Client,
+	workspace codersdk.Workspace,
+	transition database.WorkspaceTransition) codersdk.WorkspaceBuild {
+	req := codersdk.CreateWorkspaceBuildRequest{
+		Transition: transition,
+	}
+	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, req)
+	require.NoError(t, err)
+	return build
 }
 
 // CreateTemplate creates a template with the "echo" provisioner for

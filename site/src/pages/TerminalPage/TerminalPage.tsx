@@ -34,10 +34,14 @@ const TerminalPage: React.FC<{
     const search = new URLSearchParams(location.search)
     return search.get("reconnect") ?? uuidv4()
   })
+  // The workspace name is in the format:
+  // <workspace name>[.<agent name>]
+  const workspaceNameParts = workspace?.split(".")
   const [terminalState, sendEvent] = useMachine(terminalMachine, {
     context: {
+      agentName: workspaceNameParts?.[1],
       reconnection: reconnectionToken,
-      workspaceName: workspace,
+      workspaceName: workspaceNameParts?.[0],
       username: username,
     },
     actions: {

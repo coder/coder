@@ -122,7 +122,7 @@ func TestPostLogout(t *testing.T) {
 		cookies := response.Cookies()
 		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, cookies[0].Name, httpmw.AuthCookie, "Cookie should be the auth cookie")
+		require.Equal(t, cookies[0].Name, httpmw.SessionTokenKey, "Cookie should be the auth cookie")
 		require.Equal(t, cookies[0].MaxAge, -1, "Cookie should be set to delete")
 	})
 }
@@ -173,7 +173,7 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin(), rbac.RoleMember())
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
@@ -599,7 +599,9 @@ func TestWorkspacesByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		workspaces, err := client.WorkspacesByUser(context.Background(), codersdk.Me)
+		workspaces, err := client.Workspaces(context.Background(), codersdk.WorkspaceFilter{
+			Owner: codersdk.Me,
+		})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 	})
@@ -628,11 +630,11 @@ func TestWorkspacesByUser(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		workspaces, err := newUserClient.WorkspacesByUser(context.Background(), codersdk.Me)
+		workspaces, err := newUserClient.Workspaces(context.Background(), codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 0)
 
-		workspaces, err = client.WorkspacesByUser(context.Background(), codersdk.Me)
+		workspaces, err = client.Workspaces(context.Background(), codersdk.WorkspaceFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
 		require.Len(t, workspaces, 1)
 	})

@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 
 	"github.com/coder/coder/coderd/database"
 )
@@ -61,8 +63,14 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...request
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-func (c *Client) WorkspaceBuilds(ctx context.Context, workspace uuid.UUID) ([]WorkspaceBuild, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", workspace), nil)
+type WorkspaceBuildsRequest struct {
+	WorkspaceID uuid.UUID
+	Pagination
+}
+
+func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest) ([]WorkspaceBuild, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/builds", req.WorkspaceID),
+		nil, req.Pagination.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +107,36 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	}
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+}
+
+func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
+	conn, err := c.dialWebsocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
+	if err != nil {
+		return nil, err
+	}
+	wc := make(chan Workspace, 256)
+
+	go func() {
+		defer close(wc)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				var ws Workspace
+				err := wsjson.Read(ctx, conn, &ws)
+				if err != nil {
+					conn.Close(websocket.StatusInternalError, "failed to read workspace")
+					return
+				}
+				wc <- ws
+			}
+		}
+	}()
+
+	return wc, nil
 }
 
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
@@ -139,4 +177,42 @@ func (c *Client) UpdateWorkspaceAutostop(ctx context.Context, id uuid.UUID, req 
 		return readBodyAsError(res)
 	}
 	return nil
+}
+
+type WorkspaceFilter struct {
+	OrganizationID uuid.UUID
+	// Owner can be a user_id (uuid), "me", or a username
+	Owner string
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (f WorkspaceFilter) asRequestOption() requestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if f.OrganizationID != uuid.Nil {
+			q.Set("organization_id", f.OrganizationID.String())
+		}
+		if f.Owner != "" {
+			q.Set("owner_id", f.Owner)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// Workspaces returns all workspaces the authenticated user has access to.
+func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil, filter.asRequestOption())
+
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+
+	var workspaces []Workspace
+	return workspaces, json.NewDecoder(res.Body).Decode(&workspaces)
 }
