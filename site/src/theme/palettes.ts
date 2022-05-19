@@ -37,7 +37,4 @@ export const darkPalette: PaletteOptions = {
   success: {
     main: "#6BBE00",
   },
-  error: {
-    main: "#DD4764",
-  },
 }

@@ -15,7 +15,7 @@ const Language = {
   link: "send it to us.",
 }
 
-interface RuntimeErrorStateProps {
+export interface RuntimeErrorStateProps {
   error: Error
 }
 

@@ -1,4 +1,4 @@
-import Button from "@material-ui/core/Button"
+import IconButton from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import Check from "@material-ui/icons/Check"
@@ -45,16 +45,14 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
   return (
     <Tooltip title="Copy to Clipboard" placement="top">
       <div className={combineClasses([styles.copyButtonWrapper, wrapperClassName])}>
-        <Button
+        <IconButton
           className={combineClasses([styles.copyButton, buttonClassName])}
           onClick={copyToClipboard}
           size="small"
-          startIcon={
-            isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />
-          }
         >
-          {ctaCopy && ctaCopy}
-        </Button>
+          {isCopied ? <Check className={styles.fileCopyIcon} /> : <FileCopyIcon className={styles.fileCopyIcon} />}
+          {ctaCopy && <div className={styles.buttonCopy}>{ctaCopy}</div>}
+        </IconButton>
       </div>
     </Tooltip>
   )
@@ -79,5 +77,8 @@ const useStyles = makeStyles((theme) => ({
   fileCopyIcon: {
     width: 20,
     height: 20,
+  },
+  buttonCopy: {
+    marginLeft: theme.spacing(1),
   },
 }))

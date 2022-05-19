@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { CodeBlock } from "../CodeBlock/CodeBlock"
-import { createCtas } from "./ReportButtons"
+import { createCtas } from "./createCtas"
 
 const Language = {
   reportLoading: "Generating crash report...",
