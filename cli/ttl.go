@@ -5,11 +5,14 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
 
-const ttlDescriptionLong = `To have your workspace stop automatically after a configurable interval has passed.`
+const ttlDescriptionLong = `To have your workspace stop automatically after a configurable interval has passed.
+Minimum TTL is 1 minute.
+`
 
 func ttl() *cobra.Command {
 	ttlCmd := &cobra.Command{
@@ -83,8 +86,18 @@ func ttlEnable() *cobra.Command {
 				return err
 			}
 
+			truncated := ttl.Truncate(time.Minute)
+
+			if truncated == 0 {
+				return xerrors.Errorf("ttl must be at least 1m")
+			}
+
+			if truncated != ttl {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "warning: ttl rounded down to %s", truncated)
+			}
+
 			err = client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-				TTL: &ttl,
+				TTL: &truncated,
 			})
 			if err != nil {
 				return err

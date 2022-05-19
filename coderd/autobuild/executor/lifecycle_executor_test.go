@@ -208,13 +208,13 @@ func TestExecutorAutostopOK(t *testing.T) {
 		TTL: &ttl,
 	}))
 
-	// When: the autobuild executor ticks
+	// When: the autobuild executor ticks *after* the TTL:
 	go func() {
 		tickCh <- time.Now().UTC().Add(ttl + time.Minute)
 		close(tickCh)
 	}()
 
-	// Then: the workspace should be started
+	// Then: the workspace should be stopped
 	<-time.After(5 * time.Second)
 	ws := mustWorkspace(t, client, workspace.ID)
 	require.NotEqual(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected a workspace build to occur")
@@ -333,7 +333,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceTransitionDelete, ws.LatestBuild.Transition, "expected workspace to be deleted")
 }
 
-func TestExecutorWorkspaceTooEarly(t *testing.T) {
+func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -370,6 +370,41 @@ func TestExecutorWorkspaceTooEarly(t *testing.T) {
 	ws := mustWorkspace(t, client, workspace.ID)
 	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
 	require.Equal(t, codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
+}
+
+func TestExecutorWorkspaceTTLTooEarly(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx    = context.Background()
+		tickCh = make(chan time.Time)
+		client = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker: tickCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
+		ttl       = time.Hour
+	)
+
+	// Given: the workspace initially has TTL unset
+	require.Nil(t, workspace.TTL)
+
+	// When: we set the TTL to some time in the distant future
+	require.NoError(t, client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+		TTL: &ttl,
+	}))
+
+	// When: the autobuild executor ticks
+	go func() {
+		tickCh <- time.Now().UTC()
+		close(tickCh)
+	}()
+
+	// Then: nothing should happen
+	<-time.After(5 * time.Second)
+	ws := mustWorkspace(t, client, workspace.ID)
+	require.Equal(t, workspace.LatestBuild.ID, ws.LatestBuild.ID, "expected no further workspace builds to occur")
+	require.Equal(t, database.WorkspaceTransitionStart, ws.LatestBuild.Transition, "expected workspace to be running")
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {

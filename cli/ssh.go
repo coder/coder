@@ -269,11 +269,11 @@ func notifyCondition(ctx context.Context, client *codersdk.Client, workspaceID u
 			return time.Time{}, nil
 		}
 
-		if ws.TTL == nil {
+		if ws.TTL == nil || *ws.TTL == 0 {
 			return time.Time{}, nil
 		}
 
-		deadline = now.Add(*ws.TTL)
+		deadline = ws.LatestBuild.UpdatedAt.Add(*ws.TTL)
 		callback = func() {
 			ttl := deadline.Sub(now)
 			var title, body string

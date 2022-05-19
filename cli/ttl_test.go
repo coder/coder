@@ -30,7 +30,7 @@ func TestTTL(t *testing.T) {
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			cmdArgs   = []string{"ttl", "show", workspace.Name}
-			ttl       = 8 * time.Hour
+			ttl       = 8*time.Hour + 30*time.Minute + 30*time.Second
 			stdoutBuf = &bytes.Buffer{}
 		)
 
@@ -45,7 +45,7 @@ func TestTTL(t *testing.T) {
 
 		err = cmd.Execute()
 		require.NoError(t, err, "unexpected error")
-		require.Equal(t, strings.TrimSpace(stdoutBuf.String()), ttl.String())
+		require.Equal(t, ttl.Truncate(time.Minute).String(), strings.TrimSpace(stdoutBuf.String()))
 	})
 
 	t.Run("EnableDisableOK", func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestTTL(t *testing.T) {
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-			ttl       = 8*time.Hour + 30*time.Minute
+			ttl       = 8*time.Hour + 30*time.Minute + 30*time.Second
 			cmdArgs   = []string{"ttl", "enable", workspace.Name, ttl.String()}
 			stdoutBuf = &bytes.Buffer{}
 		)
@@ -75,7 +75,8 @@ func TestTTL(t *testing.T) {
 		// Ensure autostop schedule updated
 		updated, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
-		require.Equal(t, *updated.TTL, ttl)
+		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
+		require.Contains(t, stdoutBuf.String(), "warning: ttl rounded down")
 
 		// Disable schedule
 		cmd, root = clitest.New(t, "ttl", "disable", workspace.Name)
@@ -89,6 +90,51 @@ func TestTTL(t *testing.T) {
 		updated, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch updated workspace")
 		require.Nil(t, updated.TTL, "expected ttl to not be set")
+	})
+
+	t.Run("ZeroInvalid", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx       = context.Background()
+			client    = coderdtest.New(t, nil)
+			_         = coderdtest.NewProvisionerDaemon(t, client)
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+			ttl       = 8*time.Hour + 30*time.Minute + 30*time.Second
+			cmdArgs   = []string{"ttl", "enable", workspace.Name, ttl.String()}
+			stdoutBuf = &bytes.Buffer{}
+		)
+
+		cmd, root := clitest.New(t, cmdArgs...)
+		clitest.SetupConfig(t, client, root)
+		cmd.SetOut(stdoutBuf)
+
+		err := cmd.Execute()
+		require.NoError(t, err, "unexpected error")
+
+		// Ensure ttl updated
+		updated, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch updated workspace")
+		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
+		require.Contains(t, stdoutBuf.String(), "warning: ttl rounded down")
+
+		// A TTL of zero is not considered valid.
+		stdoutBuf.Reset()
+		cmd, root = clitest.New(t, "ttl", "enable", workspace.Name, "0s")
+		clitest.SetupConfig(t, client, root)
+		cmd.SetOut(stdoutBuf)
+
+		err = cmd.Execute()
+		require.EqualError(t, err, "ttl must be at least 1m", "unexpected error")
+
+		// Ensure ttl remains as before
+		updated, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch updated workspace")
+		require.Equal(t, ttl.Truncate(time.Minute), *updated.TTL)
 	})
 
 	t.Run("Enable_NotFound", func(t *testing.T) {

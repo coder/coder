@@ -560,8 +560,9 @@ func (api *api) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var dbTTL sql.NullInt64
-	if req.TTL != nil {
-		dbTTL.Int64 = int64(*req.TTL)
+	if req.TTL != nil && *req.TTL > 0 {
+		truncated := req.TTL.Truncate(time.Minute)
+		dbTTL.Int64 = int64(truncated)
 		dbTTL.Valid = true
 	}
 
