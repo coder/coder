@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/tracing"
@@ -102,8 +103,11 @@ func server() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			var tracerProvider *sdktrace.TracerProvider
-			var err error
+			var (
+				tracerProvider *sdktrace.TracerProvider
+				err            error
+				sqlDriver      = "postgres"
+			)
 			if trace {
 				tracerProvider, err = tracing.TracerProvider(cmd.Context(), "coderd")
 				if err != nil {
@@ -115,6 +119,11 @@ func server() *cobra.Command {
 						defer cancel()
 						_ = tracerProvider.Shutdown(ctx)
 					}()
+				}
+
+				sqlDriver, err = tracing.PostgresDriver(tracerProvider, "coderd.database")
+				if err != nil {
+					logger.Warn(cmd.Context(), "failed to start postgres tracing driver", slog.Error(err))
 				}
 			}
 
@@ -244,7 +253,12 @@ func server() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 			if !dev {
-				sqlDB, err := sql.Open("postgres", postgresURL)
+				postgresURL, cleanup, err := postgres.Open()
+				if err != nil {
+					return xerrors.Errorf("open postgres: %w", err)
+				}
+				defer cleanup()
+				sqlDB, err := sql.Open(sqlDriver, postgresURL)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
 				}

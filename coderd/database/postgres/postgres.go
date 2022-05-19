@@ -110,12 +110,12 @@ func Open() (string, func(), error) {
 	dbURL := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", hostAndPort)
 
 	// Docker should hard-kill the container after 120 seconds.
-	err = resource.Expire(120)
+	err = resource.Expire(600)
 	if err != nil {
 		return "", nil, xerrors.Errorf("expire resource: %w", err)
 	}
 
-	pool.MaxWait = 120 * time.Second
+	pool.MaxWait = 600 * time.Second
 	err = pool.Retry(func() error {
 		db, err := sql.Open("postgres", dbURL)
 		if err != nil {
