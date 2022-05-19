@@ -106,8 +106,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/parameters/{scope}/{id}":           {NoAuthorize: true},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {NoAuthorize: true},
 
-		"GET:/api/v2/provisionerdaemons/me/listen": {NoAuthorize: true},
-
 		"DELETE:/api/v2/templates/{template}":                             {NoAuthorize: true},
 		"GET:/api/v2/templates/{template}":                                {NoAuthorize: true},
 		"GET:/api/v2/templates/{template}/versions":                       {NoAuthorize: true},
