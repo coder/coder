@@ -3,12 +3,17 @@ import Typography from "@material-ui/core/Typography"
 import { useMachine } from "@xstate/react"
 import React from "react"
 import { useParams } from "react-router-dom"
+import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { WorkspaceBuildStats } from "../../components/WorkspaceBuildStats/WorkspaceBuildStats"
 import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
+
+const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
+  return [...logs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+}
 
 const useBuildId = () => {
   const { buildId } = useParams()
@@ -35,7 +40,7 @@ export const WorkspaceBuildPage: React.FC = () => {
 
         {build && <WorkspaceBuildStats build={build} />}
         {!logs && <Loader />}
-        {logs && <WorkspaceBuildLogs logs={logs} />}
+        {logs && <WorkspaceBuildLogs logs={sortLogsByCreatedAt(logs)} />}
       </Stack>
     </Margins>
   )
