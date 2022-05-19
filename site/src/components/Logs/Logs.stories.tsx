@@ -10,9 +10,9 @@ export default {
 
 const Template: Story<LogsProps> = (args) => <Logs {...args} />
 
-const lines = MockWorkspaceBuildLogs.map((l) => ({
-  time: l.created_at,
-  output: l.output,
+const lines = MockWorkspaceBuildLogs.map((log) => ({
+  time: log.created_at,
+  output: log.output,
 }))
 export const Example = Template.bind({})
 Example.args = {
