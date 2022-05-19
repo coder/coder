@@ -153,7 +153,7 @@ func (f WorkspaceFilter) asRequestOption() requestOption {
 			q.Set("organization_id", f.OrganizationID.String())
 		}
 		if f.Owner != "" {
-			q.Set("owner_id", f.Owner)
+			q.Set("owner", f.Owner)
 		}
 		r.URL.RawQuery = q.Encode()
 	}
