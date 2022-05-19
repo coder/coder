@@ -28,10 +28,10 @@ func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			cookie, err := r.Cookie(AuthCookie)
+			cookie, err := r.Cookie(SessionTokenKey)
 			if err != nil {
 				httpapi.Write(rw, http.StatusUnauthorized, httpapi.Response{
-					Message: fmt.Sprintf("%q cookie must be provided", AuthCookie),
+					Message: fmt.Sprintf("%q cookie must be provided", SessionTokenKey),
 				})
 				return
 			}

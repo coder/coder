@@ -568,6 +568,14 @@ func (api *api) postOrganizationsByUser(rw http.ResponseWriter, r *http.Request)
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
+
+	// Create organization uses the organization resource without an OrgID.
+	// This means you need the site wide permission to make a new organization.
+	if !api.Authorize(rw, r, rbac.ActionCreate,
+		rbac.ResourceOrganization) {
+		return
+	}
+
 	_, err := api.Database.GetOrganizationByName(r.Context(), req.Name)
 	if err == nil {
 		httpapi.Write(rw, http.StatusConflict, httpapi.Response{
@@ -690,7 +698,7 @@ func (*api) postLogout(rw http.ResponseWriter, _ *http.Request) {
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now
 		MaxAge: -1,
-		Name:   httpmw.AuthCookie,
+		Name:   httpmw.SessionTokenKey,
 		Path:   "/",
 	}
 
@@ -748,7 +756,7 @@ func (api *api) createAPIKey(rw http.ResponseWriter, r *http.Request, params dat
 	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
 	http.SetCookie(rw, &http.Cookie{
-		Name:     httpmw.AuthCookie,
+		Name:     httpmw.SessionTokenKey,
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,

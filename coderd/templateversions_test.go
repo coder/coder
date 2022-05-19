@@ -198,6 +198,36 @@ func TestTemplateVersionSchema(t *testing.T) {
 		require.NotNil(t, schemas)
 		require.Len(t, schemas, 1)
 	})
+	t.Run("ListContains", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		coderdtest.NewProvisionerDaemon(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: []*proto.Parse_Response{{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                 "example",
+							ValidationTypeSystem: proto.ParameterSchema_HCL,
+							ValidationValueType:  "string",
+							ValidationCondition:  `contains(["first", "second"], var.example)`,
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
+				},
+			}},
+			Provision: echo.ProvisionComplete,
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		schemas, err := client.TemplateVersionSchema(context.Background(), version.ID)
+		require.NoError(t, err)
+		require.NotNil(t, schemas)
+		require.Len(t, schemas, 1)
+		require.Equal(t, []string{"first", "second"}, schemas[0].ValidationContains)
+	})
 }
 
 func TestTemplateVersionParameters(t *testing.T) {
