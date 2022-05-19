@@ -35,4 +35,12 @@ func TestDelete(t *testing.T) {
 		pty.ExpectMatch("Cleaning Up")
 		<-doneChan
 	})
+	t.Run("WithoutParameters", func(t *testing.T) {
+		t.Parallel()
+
+		cmd, _ := clitest.New(t, "delete")
+
+		err := cmd.Execute()
+		require.ErrorContains(t, err, "Run 'coder workspaces delete --help' for usage.")
+	})
 }
