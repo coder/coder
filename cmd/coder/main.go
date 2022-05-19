@@ -14,12 +14,13 @@ import (
 
 func main() {
 	dadjoke()
-	_, err := cli.Root().ExecuteC()
+	cmd, err := cli.Root().ExecuteC()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
 		}
-		_, _ = fmt.Fprintln(os.Stderr, cliui.Styles.Error.Render(err.Error()))
+		helpErrMsg := fmt.Sprintf("Run '%s %s --help' for usage.", cmd.Root().Name(), cmd.Name())
+		_, _ = fmt.Fprintln(os.Stderr, cliui.Styles.Error.Render(err.Error()+"/n"+helpErrMsg))
 		os.Exit(1)
 	}
 }
