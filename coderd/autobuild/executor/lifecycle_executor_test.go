@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -470,6 +471,9 @@ func mustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 func mustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
 	ctx := context.Background()
 	ws, err := client.Workspace(ctx, workspaceID)
+	if err != nil && strings.Contains(err.Error(), "status code 410") {
+		ws, err = client.DeletedWorkspace(ctx, workspaceID)
+	}
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
 }
