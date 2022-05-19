@@ -133,8 +133,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - name: "make fmt"
-        run: "make --output-sync -j fmt"
+      - run: "make --output-sync -j -B fmt"
 
   test-go:
     name: "test/go"
@@ -355,7 +354,7 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Build site
-        run: make site/out/index.html
+        run: make -B site/out/index.html
 
       - name: Build Release
         uses: goreleaser/goreleaser-action@v2.9.1
@@ -488,7 +487,7 @@ jobs:
 
       - name: Build
         run: |
-          make site/out/index.html
+          make -B site/out/index.html
 
       - run: yarn playwright:install
         working-directory: site
