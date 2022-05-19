@@ -2,7 +2,7 @@
 
 This article walks you through the various ways of installing and deploying Coder.
 
-## Docker Compose
+## docker-compose
 
 Before proceeding, please ensure that you have Docker installed.
 
@@ -70,7 +70,7 @@ Before proceeding, please ensure that you have Docker installed.
 1. At this point, you're ready to provision your first workspace:
 
     ```console
-    coder create --template="docker-local" <yourWorkspaceName>
+    coder create --template="docker-local" [workspace name]
     ```
 
     Follow the on-screen prompts to set the parameters for your workspace. If
@@ -92,5 +92,5 @@ You can now access your workspace via your web browser by navigating to your
 access URL, or you can connect to it via ssh by running:
 
 ```console
-coder ssh main
+coder ssh <workspace name>
 ```
