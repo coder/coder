@@ -54,7 +54,7 @@ func TestWorkspace(t *testing.T) {
 
 		// Delete the workspace
 		build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: database.WorkspaceTransitionDelete,
+			Transition: codersdk.WorkspaceTransitionDelete,
 		})
 		require.NoError(t, err, "delete the workspace")
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
