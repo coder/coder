@@ -44,7 +44,6 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/tracing"
@@ -254,11 +253,6 @@ func server() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 			if !dev {
-				postgresURL, cleanup, err := postgres.Open()
-				if err != nil {
-					return xerrors.Errorf("open postgres: %w", err)
-				}
-				defer cleanup()
 				sqlDB, err := sql.Open(sqlDriver, postgresURL)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
