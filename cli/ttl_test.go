@@ -22,8 +22,7 @@ func TestTTL(t *testing.T) {
 
 		var (
 			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -53,8 +52,7 @@ func TestTTL(t *testing.T) {
 
 		var (
 			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -97,8 +95,7 @@ func TestTTL(t *testing.T) {
 
 		var (
 			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -141,8 +138,7 @@ func TestTTL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client  = coderdtest.New(t, nil)
-			_       = coderdtest.NewProvisionerDaemon(t, client)
+			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -159,8 +155,7 @@ func TestTTL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client  = coderdtest.New(t, nil)
-			_       = coderdtest.NewProvisionerDaemon(t, client)
+			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

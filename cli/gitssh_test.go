@@ -22,7 +22,7 @@ import (
 func TestGitSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("Dial", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// get user public key
@@ -31,9 +31,8 @@ func TestGitSSH(t *testing.T) {
 		publicKey, _, _, _, err := gossh.ParseAuthorizedKey([]byte(keypair.PublicKey))
 		require.NoError(t, err)
 
-		// setup provisioner
+		// setup template
 		agentToken := uuid.NewString()
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,

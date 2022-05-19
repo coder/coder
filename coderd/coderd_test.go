@@ -36,15 +36,15 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
 
 	authorizer := &fakeAuthorizer{}
-	srv, client := coderdtest.NewWithServer(t, &coderdtest.Options{
-		Authorizer: authorizer,
+	srv, client, _ := coderdtest.NewWithServer(t, &coderdtest.Options{
+		Authorizer:          authorizer,
+		IncludeProvisionerD: true,
 	})
 	admin := coderdtest.CreateFirstUser(t, client)
 	organization, err := client.Organization(context.Background(), admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
 
 	// Setup some data in the database.
-	coderdtest.NewProvisionerDaemon(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)

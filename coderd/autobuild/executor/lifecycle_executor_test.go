@@ -27,7 +27,8 @@ func TestExecutorAutostartOK(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -67,7 +68,8 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -119,7 +121,8 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -157,7 +160,8 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 	var (
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -190,7 +194,8 @@ func TestExecutorAutostopOK(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -230,7 +235,8 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -268,7 +274,8 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	var (
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -301,7 +308,8 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -341,7 +349,8 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 		err    error
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -379,7 +388,8 @@ func TestExecutorWorkspaceTTLTooEarly(t *testing.T) {
 		ctx    = context.Background()
 		tickCh = make(chan time.Time)
 		client = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		// Given: we have a user with a workspace
 		workspace = mustProvisionWorkspace(t, client)
@@ -420,7 +430,8 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		tickCh  = make(chan time.Time)
 		tickCh2 = make(chan time.Time)
 		client  = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh,
+			AutobuildTicker:     tickCh,
+			IncludeProvisionerD: true,
 		})
 		_ = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker: tickCh2,
@@ -470,7 +481,6 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client) codersdk.Workspace {
 	t.Helper()
-	coderdtest.NewProvisionerDaemon(t, client)
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
