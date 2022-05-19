@@ -81,7 +81,7 @@ export const MockRunningProvisionerJob = { ...MockProvisionerJob, status: "runni
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
-  updated_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
   name: "Test Template",
   provisioner: MockProvisioner.id,
