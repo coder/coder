@@ -153,6 +153,9 @@ docker_manifests:
 
 release:
   ids: [coder-linux, coder-darwin, coder-windows, packages]
+  footer: |
+    ## Container Image
+    - `docker pull ghcr.io/coder/coder:{{ .Tag }}`
 
 signs:
   - ids: [coder-darwin]
