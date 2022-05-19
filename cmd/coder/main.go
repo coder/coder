@@ -14,7 +14,7 @@ import (
 
 func main() {
 	dadjoke()
-	err := cli.Root().Execute()
+	_, err := cli.Root().ExecuteC()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
