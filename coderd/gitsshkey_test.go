@@ -79,7 +79,7 @@ func TestGitSSHKey(t *testing.T) {
 func TestAgentGitSSHKey(t *testing.T) {
 	t.Parallel()
 
-	_, client, coderDaemon := coderdtest.NewMemoryCoderd(t, nil)
+	_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderDaemon)
 	authToken := uuid.NewString()

@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 
 	"github.com/coder/coder/coderd/database"
 )
@@ -96,6 +98,36 @@ func (c *Client) WorkspaceBuildByName(ctx context.Context, workspace uuid.UUID, 
 	}
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+}
+
+func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Workspace, error) {
+	conn, err := c.dialWebsocket(ctx, fmt.Sprintf("/api/v2/workspaces/%s/watch", id))
+	if err != nil {
+		return nil, err
+	}
+	wc := make(chan Workspace, 256)
+
+	go func() {
+		defer close(wc)
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				var ws Workspace
+				err := wsjson.Read(ctx, conn, &ws)
+				if err != nil {
+					conn.Close(websocket.StatusInternalError, "failed to read workspace")
+					return
+				}
+				wc <- ws
+			}
+		}
+	}()
+
+	return wc, nil
 }
 
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.

@@ -14,7 +14,7 @@ func TestMain(m *testing.M) {
 
 func TestNew(t *testing.T) {
 	t.Parallel()
-	_, client, coderDaemon := coderdtest.NewMemoryCoderd(t, nil)
+	_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	closer := coderdtest.NewProvisionerDaemon(t, coderDaemon)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

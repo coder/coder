@@ -27,7 +27,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
-		_, client, coderDaemon := coderdtest.NewMemoryCoderd(t, nil)
+		_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		daemonCloser := coderdtest.NewProvisionerDaemon(t, coderDaemon)
 		authToken := uuid.NewString()
@@ -68,7 +68,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 func TestWorkspaceAgentListen(t *testing.T) {
 	t.Parallel()
-	_, client, coderDaemon := coderdtest.NewMemoryCoderd(t, nil)
+	_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderDaemon)
 	authToken := uuid.NewString()
@@ -118,7 +118,7 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 func TestWorkspaceAgentTURN(t *testing.T) {
 	t.Parallel()
-	_, client, coderDaemon := coderdtest.NewMemoryCoderd(t, nil)
+	_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderDaemon)
 	authToken := uuid.NewString()
@@ -179,7 +179,7 @@ func TestWorkspaceAgentPTY(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	_, client, coderDaemon := coderdtest.NewMemoryCoderd(t, nil)
+	_, client, coderDaemon := coderdtest.NewWithServer(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	daemonCloser := coderdtest.NewProvisionerDaemon(t, coderDaemon)
 	authToken := uuid.NewString()
