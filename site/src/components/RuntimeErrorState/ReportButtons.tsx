@@ -59,6 +59,7 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: 0,
     flex: theme.spacing(1),
     textTransform: "uppercase",
+    fontSize: theme.typography.button.fontSize,
   },
 
   copyButton: {
@@ -66,5 +67,6 @@ const useStyles = makeStyles((theme) => ({
     marginRight: theme.spacing(1),
     backgroundColor: theme.palette.primary.main,
     textTransform: "uppercase",
+    fontSize: theme.typography.button.fontSize,
   },
 }))

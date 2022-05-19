@@ -35,6 +35,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ lines, ctas, className = "
 const useStyles = makeStyles((theme) => ({
   root: {
     minHeight: 156,
+    maxHeight: 240,
+    overflowY: "scroll",
     background: theme.palette.background.default,
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
