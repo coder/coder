@@ -187,7 +187,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set.")+"\r\n")
 
-		// parameterMapFromFile can be nil if the file is not specified or invalid
+		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string
 		if parameterFile != "" {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
