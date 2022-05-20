@@ -157,7 +157,8 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cob
 	if cmdOpt != nil {
 		cmdOpt(cmd)
 	}
-	cmd.SetOutput(ptty.Output())
+	cmd.SetOut(ptty.Output())
+	cmd.SetErr(ptty.Output())
 	cmd.SetIn(ptty.Input())
 	return value, cmd.ExecuteContext(context.Background())
 }
