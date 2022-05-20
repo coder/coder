@@ -11,13 +11,11 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
 export interface WorkspaceProps {
-  organization?: TypesGen.Organization
-  workspace: TypesGen.Workspace
-  template?: TypesGen.Template
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void
   handleUpdate: () => void
+  workspace: TypesGen.Workspace
   workspaceStatus: WorkspaceStatus
   builds?: TypesGen.WorkspaceBuild[]
 }
@@ -26,11 +24,11 @@ export interface WorkspaceProps {
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: React.FC<WorkspaceProps> = ({
-  workspace,
   handleStart,
   handleStop,
   handleRetry,
   handleUpdate,
+  workspace,
   workspaceStatus,
   builds,
 }) => {

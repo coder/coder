@@ -21,9 +21,10 @@ import (
 
 func templateCreate() *cobra.Command {
 	var (
-		yes         bool
-		directory   string
-		provisioner string
+		yes           bool
+		directory     string
+		provisioner   string
+		parameterFile string
 	)
 	cmd := &cobra.Command{
 		Use:   "create [name]",
@@ -79,7 +80,7 @@ func templateCreate() *cobra.Command {
 			}
 			spin.Stop()
 
-			job, parameters, err := createValidTemplateVersion(cmd, client, organization, database.ProvisionerType(provisioner), resp.Hash)
+			job, parameters, err := createValidTemplateVersion(cmd, client, organization, database.ProvisionerType(provisioner), resp.Hash, parameterFile)
 			if err != nil {
 				return err
 			}
@@ -116,6 +117,7 @@ func templateCreate() *cobra.Command {
 	currentDirectory, _ := os.Getwd()
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
+	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
 	if err != nil {
@@ -125,7 +127,7 @@ func templateCreate() *cobra.Command {
 	return cmd
 }
 
-func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, hash string, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, hash string, parameterFile string, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	before := time.Now()
 	version, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
@@ -184,20 +186,33 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 			missingSchemas = append(missingSchemas, parameterSchema)
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set.")+"\r\n")
+
+		// parameterMapFromFile can be nil if parameter file is not specified
+		var parameterMapFromFile map[string]string
+		if parameterFile != "" {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+			parameterMapFromFile, err = createParameterMapFromFile(parameterFile)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 		for _, parameterSchema := range missingSchemas {
-			value, err := cliui.ParameterSchema(cmd, parameterSchema)
+			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 			if err != nil {
 				return nil, nil, err
 			}
 			parameters = append(parameters, codersdk.CreateParameterRequest{
 				Name:              parameterSchema.Name,
-				SourceValue:       value,
+				SourceValue:       parameterValue,
 				SourceScheme:      codersdk.ParameterSourceSchemeData,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 		}
-		return createValidTemplateVersion(cmd, client, organization, provisioner, hash, parameters...)
+
+		// This recursion is only 1 level deep in practice.
+		// The first pass populates the missing parameters, so it does not enter this `if` block again.
+		return createValidTemplateVersion(cmd, client, organization, provisioner, hash, parameterFile, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {

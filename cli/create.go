@@ -17,6 +17,7 @@ func create() *cobra.Command {
 	var (
 		workspaceName string
 		templateName  string
+		parameterFile string
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -116,23 +117,33 @@ func create() *cobra.Command {
 				return err
 			}
 
-			printed := false
+			// parameterMapFromFile can be nil if parameter file is not specified
+			var parameterMapFromFile map[string]string
+			if parameterFile != "" {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+				parameterMapFromFile, err = createParameterMapFromFile(parameterFile)
+				if err != nil {
+					return err
+				}
+			}
+
+			disclaimerPrinted := false
 			parameters := make([]codersdk.CreateParameterRequest, 0)
 			for _, parameterSchema := range parameterSchemas {
 				if !parameterSchema.AllowOverrideSource {
 					continue
 				}
-				if !printed {
+				if !disclaimerPrinted {
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
-					printed = true
+					disclaimerPrinted = true
 				}
-				value, err := cliui.ParameterSchema(cmd, parameterSchema)
+				parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 				if err != nil {
 					return err
 				}
 				parameters = append(parameters, codersdk.CreateParameterRequest{
 					Name:              parameterSchema.Name,
-					SourceValue:       value,
+					SourceValue:       parameterValue,
 					SourceScheme:      codersdk.ParameterSourceSchemeData,
 					DestinationScheme: parameterSchema.DefaultDestinationScheme,
 				})
@@ -194,5 +205,6 @@ func create() *cobra.Command {
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
+	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
 	return cmd
 }
