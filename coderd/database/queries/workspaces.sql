@@ -86,10 +86,12 @@ INSERT INTO
 		owner_id,
 		organization_id,
 		template_id,
-		name
+		name,
+		autostart_schedule,
+		ttl
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
