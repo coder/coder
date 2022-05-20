@@ -1,8 +1,10 @@
 package cli_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -59,8 +61,10 @@ func TestCreate(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+			defer cancel()
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.ExecuteContext(ctx)
 			require.NoError(t, err)
 		}()
 		// No pty interaction needed since we use the -y skip prompt flag
