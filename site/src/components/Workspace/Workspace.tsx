@@ -66,18 +66,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   )
 }
 
-/**
- * Temporary placeholder component until we have the sections implemented
- * Can be removed once the Workspace page has all the necessary sections
- */
-const Placeholder: React.FC = () => {
-  return (
-    <div style={{ textAlign: "center", opacity: "0.5" }}>
-      <Typography variant="caption">Not yet implemented</Typography>
-    </div>
-  )
-}
-
 export const useStyles = makeStyles(() => {
   return {
     root: {

@@ -368,8 +368,8 @@ export const workspaceMachine = createMachine(
           refreshTemplateError: undefined,
         }),
       assignResources: assign({
-          resources: (_, event) => event.data,
-        }),
+        resources: (_, event) => event.data,
+      }),
       assignGetResourcesError: (_, event) =>
         assign({
           getResourcesError: event.data,
