@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"net/url"
 	"os"
 	"time"
@@ -36,6 +37,15 @@ const (
 	varForceTty     = "force-tty"
 )
 
+func init() {
+	// Customizes the color of headings to make subcommands more visually
+	// appealing.
+	header := cliui.Styles.Placeholder
+	cobra.AddTemplateFunc("usageHeader", func(s string) string {
+		return header.Render(s)
+	})
+}
+
 func Root() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
@@ -53,13 +63,13 @@ func Root() *cobra.Command {
 
 	cmd.AddCommand(
 		autostart(),
-		autostop(),
 		configSSH(),
 		create(),
 		delete(),
 		gitssh(),
 		list(),
 		login(),
+		logout(),
 		publickey(),
 		resetPassword(),
 		server(),
@@ -69,9 +79,10 @@ func Root() *cobra.Command {
 		stop(),
 		ssh(),
 		templates(),
+		ttl(),
 		update(),
 		users(),
-		tunnel(),
+		portForward(),
 		workspaceAgent(),
 	)
 
@@ -179,13 +190,7 @@ func isTTY(cmd *cobra.Command) bool {
 }
 
 func usageTemplate() string {
-	// Customizes the color of headings to make subcommands
-	// more visually appealing.
-	header := cliui.Styles.Placeholder
-	cobra.AddTemplateFunc("usageHeader", func(s string) string {
-		return header.Render(s)
-	})
-
+	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
 {{- if .Runnable}}
   {{.UseLine}}
@@ -255,4 +260,10 @@ func versionTemplate() string {
 	template += "\r\n" + buildinfo.ExternalURL()
 	template += "\r\n"
 	return template
+}
+
+// FormatCobraError colorizes and adds "--help" docs to cobra commands.
+func FormatCobraError(err error, cmd *cobra.Command) string {
+	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
+	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
 }

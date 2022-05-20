@@ -22,8 +22,7 @@ func TestAutostart(t *testing.T) {
 
 		var (
 			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -54,8 +53,7 @@ func TestAutostart(t *testing.T) {
 
 		var (
 			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -99,8 +97,7 @@ func TestAutostart(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client  = coderdtest.New(t, nil)
-			_       = coderdtest.NewProvisionerDaemon(t, client)
+			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -110,15 +107,14 @@ func TestAutostart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 404: no workspace found by name", "unexpected error")
+		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
 	})
 
 	t.Run("Disable_NotFound", func(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client  = coderdtest.New(t, nil)
-			_       = coderdtest.NewProvisionerDaemon(t, client)
+			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -128,7 +124,7 @@ func TestAutostart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Execute()
-		require.ErrorContains(t, err, "status code 404: no workspace found by name", "unexpected error")
+		require.ErrorContains(t, err, "status code 403: forbidden", "unexpected error")
 	})
 
 	t.Run("Enable_DefaultSchedule", func(t *testing.T) {
@@ -136,8 +132,7 @@ func TestAutostart(t *testing.T) {
 
 		var (
 			ctx       = context.Background()
-			client    = coderdtest.New(t, nil)
-			_         = coderdtest.NewProvisionerDaemon(t, client)
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

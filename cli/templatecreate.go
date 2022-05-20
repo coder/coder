@@ -128,9 +128,9 @@ func templateCreate() *cobra.Command {
 func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, organization codersdk.Organization, provisioner database.ProvisionerType, hash string, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	before := time.Now()
 	version, err := client.CreateTemplateVersion(cmd.Context(), organization.ID, codersdk.CreateTemplateVersionRequest{
-		StorageMethod:   database.ProvisionerStorageMethodFile,
+		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
 		StorageSource:   hash,
-		Provisioner:     provisioner,
+		Provisioner:     codersdk.ProvisionerType(provisioner),
 		ParameterValues: parameters,
 	})
 	if err != nil {
@@ -175,7 +175,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		sort.Slice(parameterSchemas, func(i, j int) bool {
 			return parameterSchemas[i].Name < parameterSchemas[j].Name
 		})
-		missingSchemas := make([]codersdk.TemplateVersionParameterSchema, 0)
+		missingSchemas := make([]codersdk.ParameterSchema, 0)
 		for _, parameterSchema := range parameterSchemas {
 			_, ok := valuesBySchemaID[parameterSchema.ID.String()]
 			if ok {
@@ -192,7 +192,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 			parameters = append(parameters, codersdk.CreateParameterRequest{
 				Name:              parameterSchema.Name,
 				SourceValue:       value,
-				SourceScheme:      database.ParameterSourceSchemeData,
+				SourceScheme:      codersdk.ParameterSourceSchemeData,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())

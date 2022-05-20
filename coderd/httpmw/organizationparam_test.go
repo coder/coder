@@ -29,7 +29,7 @@ func TestOrganizationParam(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  httpmw.AuthCookie,
+			Name:  httpmw.SessionTokenKey,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -141,7 +141,7 @@ func TestOrganizationParam(t *testing.T) {
 		rtr.ServeHTTP(rw, r)
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
 	})
 
 	t.Run("Success", func(t *testing.T) {

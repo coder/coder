@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/coderd/database"
 )
 
 type WorkspaceAgentStatus string
@@ -21,13 +19,13 @@ const (
 )
 
 type WorkspaceResource struct {
-	ID         uuid.UUID                    `json:"id"`
-	CreatedAt  time.Time                    `json:"created_at"`
-	JobID      uuid.UUID                    `json:"job_id"`
-	Transition database.WorkspaceTransition `json:"workspace_transition"`
-	Type       string                       `json:"type"`
-	Name       string                       `json:"name"`
-	Agents     []WorkspaceAgent             `json:"agents,omitempty"`
+	ID         uuid.UUID           `json:"id"`
+	CreatedAt  time.Time           `json:"created_at"`
+	JobID      uuid.UUID           `json:"job_id"`
+	Transition WorkspaceTransition `json:"workspace_transition"`
+	Type       string              `json:"type"`
+	Name       string              `json:"name"`
+	Agents     []WorkspaceAgent    `json:"agents,omitempty"`
 }
 
 type WorkspaceAgent struct {
@@ -69,7 +67,7 @@ type WorkspaceAgentInstanceMetadata struct {
 }
 
 func (c *Client) WorkspaceResource(ctx context.Context, id uuid.UUID) (WorkspaceResource, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceresources/%s", id), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceresources/%s", id), nil)
 	if err != nil {
 		return WorkspaceResource{}, err
 	}

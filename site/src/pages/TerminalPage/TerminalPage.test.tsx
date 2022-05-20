@@ -6,7 +6,7 @@ import React from "react"
 import { Route, Routes } from "react-router-dom"
 import { TextDecoder, TextEncoder } from "util"
 import { ReconnectingPTYRequest } from "../../api/types"
-import { history, MockWorkspaceAgent, render } from "../../testHelpers/renderHelpers"
+import { history, MockWorkspace, MockWorkspaceAgent, render } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
 
@@ -52,7 +52,7 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
 
 describe("TerminalPage", () => {
   beforeEach(() => {
-    history.push("/some-user/my-workspace/terminal")
+    history.push(`/some-user/${MockWorkspace.name}/terminal`)
   })
 
   it("shows an error if fetching organizations fails", async () => {
@@ -144,6 +144,22 @@ describe("TerminalPage", () => {
 
     expect(req.height).toBeGreaterThan(0)
     expect(req.width).toBeGreaterThan(0)
+    server.close()
+  })
+
+  it("supports workspace.agent syntax", async () => {
+    // Given
+    const server = new WS("ws://localhost/api/v2/workspaceagents/" + MockWorkspaceAgent.id + "/pty")
+    const text = "something to render"
+
+    // When
+    history.push(`/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`)
+    const { container } = renderTerminal()
+
+    // Then
+    await server.connected
+    server.send(text)
+    await expectTerminalText(container, text)
     server.close()
   })
 })

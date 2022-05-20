@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -35,9 +36,17 @@ type Client struct {
 
 type requestOption func(*http.Request)
 
-// request performs an HTTP request with the body provided.
+func queryParam(k, v string) requestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set(k, v)
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// Request performs an HTTP request with the body provided.
 // The caller is responsible for closing the response body.
-func (c *Client) request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {
+func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...requestOption) (*http.Response, error) {
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
@@ -63,7 +72,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
 	req.AddCookie(&http.Cookie{
-		Name:  httpmw.AuthCookie,
+		Name:  httpmw.SessionTokenKey,
 		Value: c.SessionToken,
 	})
 	if body != nil {
@@ -78,6 +87,38 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 		return nil, xerrors.Errorf("do: %w", err)
 	}
 	return resp, err
+}
+
+// dialWebsocket opens a dialWebsocket connection on that path provided.
+// The caller is responsible for closing the dialWebsocket.Conn.
+func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Conn, error) {
+	serverURL, err := c.URL.Parse(path)
+	if err != nil {
+		return nil, xerrors.Errorf("parse path: %w", err)
+	}
+
+	apiURL, err := url.Parse(serverURL.String())
+	if err != nil {
+		return nil, xerrors.Errorf("parse server url: %w", err)
+	}
+	apiURL.Scheme = "ws"
+	if serverURL.Scheme == "https" {
+		apiURL.Scheme = "wss"
+	}
+	apiURL.Path = path
+	q := apiURL.Query()
+	q.Add(httpmw.SessionTokenKey, c.SessionToken)
+	apiURL.RawQuery = q.Encode()
+
+	//nolint:bodyclose
+	conn, _, err := websocket.Dial(ctx, apiURL.String(), &websocket.DialOptions{
+		HTTPClient: c.HTTPClient,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("dial websocket: %w", err)
+	}
+
+	return conn, nil
 }
 
 // readBodyAsError reads the response as an httpapi.Message, and

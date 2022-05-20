@@ -1,3 +1,5 @@
+import { Theme } from "@material-ui/core/styles"
+import dayjs from "dayjs"
 import { WorkspaceBuildTransition } from "../api/types"
 import { WorkspaceBuild } from "../api/typesGenerated"
 
@@ -46,4 +48,89 @@ export const getWorkspaceStatus = (workspaceBuild?: WorkspaceBuild): WorkspaceSt
     case "failed":
       return "error"
   }
+}
+
+export const getDisplayStatus = (
+  theme: Theme,
+  build: WorkspaceBuild,
+): {
+  color: string
+  status: string
+} => {
+  const status = getWorkspaceStatus(build)
+  switch (status) {
+    case undefined:
+      return {
+        color: theme.palette.text.secondary,
+        status: "Loading...",
+      }
+    case "started":
+      return {
+        color: theme.palette.success.main,
+        status: "⦿ Running",
+      }
+    case "starting":
+      return {
+        color: theme.palette.success.main,
+        status: "⦿ Starting",
+      }
+    case "stopping":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Stopping",
+      }
+    case "stopped":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Stopped",
+      }
+    case "deleting":
+      return {
+        color: theme.palette.text.secondary,
+        status: "⦸ Deleting",
+      }
+    case "deleted":
+      return {
+        color: theme.palette.text.secondary,
+        status: "⦸ Deleted",
+      }
+    case "canceling":
+      return {
+        color: theme.palette.warning.light,
+        status: "◍ Canceling",
+      }
+    case "canceled":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Canceled",
+      }
+    case "error":
+      return {
+        color: theme.palette.error.main,
+        status: "ⓧ Failed",
+      }
+    case "queued":
+      return {
+        color: theme.palette.text.secondary,
+        status: "◍ Queued",
+      }
+  }
+  throw new Error("unknown status " + status)
+}
+
+export const getWorkspaceBuildDurationInSeconds = (build: WorkspaceBuild): number | undefined => {
+  const isCompleted = build.job.started_at && build.job.completed_at
+
+  if (!isCompleted) {
+    return
+  }
+
+  const startedAt = dayjs(build.job.started_at)
+  const completedAt = dayjs(build.job.completed_at)
+  return completedAt.diff(startedAt, "seconds")
+}
+
+export const displayWorkspaceBuildDuration = (build: WorkspaceBuild, inProgressLabel = "In progress"): string => {
+  const duration = getWorkspaceBuildDurationInSeconds(build)
+  return duration ? `${duration} seconds` : inProgressLabel
 }

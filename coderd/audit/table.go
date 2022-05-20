@@ -78,7 +78,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"name":            ActionTrack,
-		"description":     ActionTrack,
+		"readme":          ActionTrack,
 		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
 	},
 	&database.User{}: {
@@ -101,7 +101,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"deleted":            ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":               ActionTrack,
 		"autostart_schedule": ActionTrack,
-		"autostop_schedule":  ActionTrack,
+		"ttl":                ActionTrack,
 	},
 })
 

@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/parameter"
 )
 
 // TemplateVersion represents a single version of a template.
@@ -21,17 +18,27 @@ type TemplateVersion struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 	Name       string         `json:"name"`
 	Job        ProvisionerJob `json:"job"`
+	Readme     string         `json:"readme"`
 }
 
-// TemplateVersionParameterSchema represents a parameter parsed from template version source.
-type TemplateVersionParameterSchema database.ParameterSchema
-
 // TemplateVersionParameter represents a computed parameter value.
-type TemplateVersionParameter parameter.ComputedValue
+type TemplateVersionParameter struct {
+	ID                 uuid.UUID                  `json:"id"`
+	CreatedAt          time.Time                  `json:"created_at"`
+	UpdatedAt          time.Time                  `json:"updated_at"`
+	Scope              ParameterScope             `json:"scope"`
+	ScopeID            uuid.UUID                  `json:"scope_id"`
+	Name               string                     `json:"name"`
+	SourceScheme       ParameterSourceScheme      `json:"source_scheme"`
+	SourceValue        string                     `json:"source_value"`
+	DestinationScheme  ParameterDestinationScheme `json:"destination_scheme"`
+	SchemaID           uuid.UUID                  `json:"schema_id"`
+	DefaultSourceValue bool                       `json:"default_source_value"`
+}
 
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
 	if err != nil {
 		return TemplateVersion{}, err
 	}
@@ -45,7 +52,7 @@ func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVer
 
 // CancelTemplateVersion marks a template version job as canceled.
 func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) error {
-	res, err := c.request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s/cancel", version), nil)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s/cancel", version), nil)
 	if err != nil {
 		return err
 	}
@@ -57,8 +64,8 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 }
 
 // TemplateVersionSchema returns schemas for a template version by ID.
-func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]TemplateVersionParameterSchema, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/schema", version), nil)
+func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) ([]ParameterSchema, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/schema", version), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -66,13 +73,13 @@ func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) (
 	if res.StatusCode != http.StatusOK {
 		return nil, readBodyAsError(res)
 	}
-	var params []TemplateVersionParameterSchema
+	var params []ParameterSchema
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
 // TemplateVersionParameters returns computed parameters for a template version.
 func (c *Client) TemplateVersionParameters(ctx context.Context, version uuid.UUID) ([]TemplateVersionParameter, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/parameters", version), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/parameters", version), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +93,7 @@ func (c *Client) TemplateVersionParameters(ctx context.Context, version uuid.UUI
 
 // TemplateVersionResources returns resources a template version declares.
 func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID) ([]WorkspaceResource, error) {
-	res, err := c.request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/resources", version), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/resources", version), nil)
 	if err != nil {
 		return nil, err
 	}

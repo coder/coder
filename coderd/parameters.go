@@ -8,9 +8,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -47,9 +49,9 @@ func (api *api) postParameter(rw http.ResponseWriter, r *http.Request) {
 		UpdatedAt:         database.Now(),
 		Scope:             scope,
 		ScopeID:           scopeID,
-		SourceScheme:      createRequest.SourceScheme,
+		SourceScheme:      database.ParameterSourceScheme(createRequest.SourceScheme),
 		SourceValue:       createRequest.SourceValue,
-		DestinationScheme: createRequest.DestinationScheme,
+		DestinationScheme: database.ParameterDestinationScheme(createRequest.DestinationScheme),
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
@@ -122,6 +124,37 @@ func (api *api) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func convertParameterSchema(parameterSchema database.ParameterSchema) (codersdk.ParameterSchema, error) {
+	contains := []string{}
+	if parameterSchema.ValidationCondition != "" {
+		var err error
+		contains, _, err = parameter.Contains(parameterSchema.ValidationCondition)
+		if err != nil {
+			return codersdk.ParameterSchema{}, xerrors.Errorf("parse validation condition for %q: %w", parameterSchema.Name, err)
+		}
+	}
+
+	return codersdk.ParameterSchema{
+		ID:                       parameterSchema.ID,
+		CreatedAt:                parameterSchema.CreatedAt,
+		JobID:                    parameterSchema.JobID,
+		Name:                     parameterSchema.Name,
+		Description:              parameterSchema.Description,
+		DefaultSourceScheme:      codersdk.ParameterSourceScheme(parameterSchema.DefaultSourceScheme),
+		DefaultSourceValue:       parameterSchema.DefaultSourceValue,
+		AllowOverrideSource:      parameterSchema.AllowOverrideSource,
+		DefaultDestinationScheme: codersdk.ParameterDestinationScheme(parameterSchema.DefaultDestinationScheme),
+		AllowOverrideDestination: parameterSchema.AllowOverrideDestination,
+		DefaultRefresh:           parameterSchema.DefaultRefresh,
+		RedisplayValue:           parameterSchema.RedisplayValue,
+		ValidationError:          parameterSchema.ValidationError,
+		ValidationCondition:      parameterSchema.ValidationCondition,
+		ValidationTypeSystem:     string(parameterSchema.ValidationTypeSystem),
+		ValidationValueType:      parameterSchema.ValidationValueType,
+		ValidationContains:       contains,
+	}, nil
+}
+
 func convertParameterValue(parameterValue database.ParameterValue) codersdk.Parameter {
 	return codersdk.Parameter{
 		ID:                parameterValue.ID,
@@ -130,8 +163,8 @@ func convertParameterValue(parameterValue database.ParameterValue) codersdk.Para
 		Scope:             codersdk.ParameterScope(parameterValue.Scope),
 		ScopeID:           parameterValue.ScopeID,
 		Name:              parameterValue.Name,
-		SourceScheme:      parameterValue.SourceScheme,
-		DestinationScheme: parameterValue.DestinationScheme,
+		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
+		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
 	}
 }
 
