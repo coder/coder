@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/pion/webrtc/v3"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/site"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Options are requires parameters for Coder to start.
@@ -52,7 +52,7 @@ type Options struct {
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
 	TURNServer           *turnconn.Server
 	Authorizer           rbac.Authorizer
-	TracerProvider       trace.TracerProvider
+	TracerProvider       *sdktrace.TracerProvider
 }
 
 type CoderD interface {
