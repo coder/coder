@@ -77,7 +77,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
               </TableRow>
             )}
             {props.templates?.map((template) => (
-              <TableRow key={template.id} className={styles.templateRow}>
+              <TableRow key={template.id}>
                 <TableCell>
                   <Box alignItems="center" display="flex">
                     <Avatar variant="square" className={styles.templateAvatar}>
@@ -125,12 +125,6 @@ const useStyles = makeStyles((theme) => ({
       textAlign: "center",
       fontSize: theme.spacing(2),
       lineHeight: `${theme.spacing(3)}px`,
-    },
-  },
-  templateRow: {
-    "& > td": {
-      paddingTop: theme.spacing(2),
-      paddingBottom: theme.spacing(2),
     },
   },
   templateAvatar: {
