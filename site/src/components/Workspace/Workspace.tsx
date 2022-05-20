@@ -41,6 +41,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           <Typography variant="h4" className={styles.title}>
             {workspace.name}
           </Typography>
+
           <Typography color="textSecondary" className={styles.subtitle}>
             {workspace.owner_name}
           </Typography>
