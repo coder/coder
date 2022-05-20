@@ -30,15 +30,6 @@ func AllowSkipPrompt(cmd *cobra.Command) {
 
 // Prompt asks the user for input.
 func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
-	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
-	// If it's not a "Confirm" prompt, then don't skip. As the default value of
-	// "yes" makes no sense.
-	if opts.IsConfirm && cmd.Flags().Lookup("yes") != nil {
-		if skip, _ := cmd.Flags().GetBool("yes"); skip {
-			return "yes", nil
-		}
-	}
-
 	_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+opts.Text+" ")
 	if opts.IsConfirm {
 		opts.Default = "yes"
