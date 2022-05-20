@@ -12,7 +12,8 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 	t.Parallel()
 	t.Run("CreateParameterMapFromFile", func(t *testing.T) {
 		t.Parallel()
-		parameterFile, _ := os.CreateTemp(t.TempDir(), "testParameterFile*.yaml")
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("region: \"bananas\"\ndisk: \"20\"\n")
 
 		parameterMapFromFile, err := createParameterMapFromFile(parameterFile.Name())
@@ -25,7 +26,7 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 		assert.Equal(t, expectedMap, parameterMapFromFile)
 		assert.Nil(t, err)
 
-		removeTmpDirUntilSuccess(t)
+		removeTmpDirUntilSuccess(t, tempDir)
 	})
 	t.Run("WithEmptyFilename", func(t *testing.T) {
 		t.Parallel()
@@ -52,7 +53,8 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 	})
 	t.Run("WithInvalidYAML", func(t *testing.T) {
 		t.Parallel()
-		parameterFile, _ := os.CreateTemp(t.TempDir(), "testParameterFile*.yaml")
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("region = \"bananas\"\ndisk = \"20\"\n")
 
 		parameterMapFromFile, err := createParameterMapFromFile(parameterFile.Name())
@@ -60,15 +62,16 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 		assert.Nil(t, parameterMapFromFile)
 		assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `region ...` into map[string]string")
 
-		removeTmpDirUntilSuccess(t)
+		removeTmpDirUntilSuccess(t, tempDir)
 	})
 }
 
-func removeTmpDirUntilSuccess(t *testing.T) {
+func removeTmpDirUntilSuccess(t *testing.T, tempDir string) {
+	t.Helper()
 	t.Cleanup(func() {
-		err := os.RemoveAll(t.TempDir())
+		err := os.RemoveAll(tempDir)
 		for err != nil {
-			err = os.RemoveAll(t.TempDir())
+			err = os.RemoveAll(tempDir)
 		}
 	})
 }

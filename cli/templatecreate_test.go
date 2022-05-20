@@ -95,7 +95,8 @@ func TestTemplateCreate(t *testing.T) {
 			Provision:       echo.ProvisionComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
-		parameterFile, _ := os.CreateTemp(t.TempDir(), "testParameterFile*.yaml")
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("region: \"bananas\"")
 		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
@@ -121,6 +122,7 @@ func TestTemplateCreate(t *testing.T) {
 		}
 
 		require.NoError(t, <-execDone)
+		removeTmpDirUntilSuccess(t, tempDir)
 	})
 
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
@@ -132,7 +134,8 @@ func TestTemplateCreate(t *testing.T) {
 			Provision:       echo.ProvisionComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
-		parameterFile, _ := os.CreateTemp(t.TempDir(), "testParameterFile*.yaml")
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("zone: \"bananas\"")
 		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
@@ -157,6 +160,7 @@ func TestTemplateCreate(t *testing.T) {
 		}
 
 		require.EqualError(t, <-execDone, "Parameter value absent in parameter file for \"region\"!")
+		removeTmpDirUntilSuccess(t, tempDir)
 	})
 }
 
@@ -175,4 +179,14 @@ func createTestParseResponse() []*proto.Parse_Response {
 			},
 		},
 	}}
+}
+
+func removeTmpDirUntilSuccess(t *testing.T, tempDir string) {
+	t.Helper()
+	t.Cleanup(func() {
+		err := os.RemoveAll(tempDir)
+		for err != nil {
+			err = os.RemoveAll(tempDir)
+		}
+	})
 }

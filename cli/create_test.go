@@ -162,7 +162,8 @@ func TestCreate(t *testing.T) {
 
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		parameterFile, _ := os.CreateTemp(t.TempDir(), "testParameterFile*.yaml")
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("region: \"bingo\"\nusername: \"boingo\"")
 		cmd, root := clitest.New(t, "create", "", "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
@@ -187,6 +188,7 @@ func TestCreate(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		<-doneChan
+		removeTmpDirUntilSuccess(t, tempDir)
 	})
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
 		t.Parallel()
@@ -201,7 +203,8 @@ func TestCreate(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		parameterFile, _ := os.CreateTemp(t.TempDir(), "testParameterFile*.yaml")
+		tempDir := t.TempDir()
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("zone: \"bananas\"")
 		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
@@ -215,6 +218,7 @@ func TestCreate(t *testing.T) {
 			require.EqualError(t, err, "Parameter value absent in parameter file for \"region\"!")
 		}()
 		<-doneChan
+		removeTmpDirUntilSuccess(t, tempDir)
 	})
 }
 
