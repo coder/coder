@@ -91,7 +91,7 @@ const useStyles = makeStyles((theme) => ({
     width: 1,
     height: theme.spacing(5),
     backgroundColor: theme.palette.divider,
-    marginRight: theme.spacing(3),
+    marginRight: theme.spacing(2),
   },
 
   capitalize: {
