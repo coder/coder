@@ -35,7 +35,7 @@ const (
 	varGlobalConfig = "global-config"
 	varNoOpen       = "no-open"
 	varForceTty     = "force-tty"
-	varLogRequests  = "log-requests"
+	varVerbose      = "verbose"
 )
 
 func init() {
@@ -93,7 +93,7 @@ func Root() *cobra.Command {
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
 	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
-	cmd.PersistentFlags().Bool(varLogRequests, false, "Log requests made to remote API endpoints.")
+	cmd.PersistentFlags().CountP("verbose", "v", "Print more verbose output. Can be specified multiple times.")
 
 	// Hidden flags for internal use.
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
@@ -130,14 +130,19 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 			return nil, err
 		}
 	}
-	logRequests, err := cmd.Flags().GetBool(varLogRequests)
+
+	verbosityLevel, err := cmd.Flags().GetCount(varVerbose)
 	if err != nil {
 		return nil, err
 	}
 
 	var client *codersdk.Client
-	if logRequests {
-		client = codersdk.NewWithRoundTripper(serverURL, newLoggingRoundTripper(cmd.OutOrStderr()))
+	if verbosityLevel >= 1 {
+		client = codersdk.NewWithRoundTripper(serverURL, &loggingRoundTripper{
+			Writer:            cmd.OutOrStderr(),
+			logRequestBodies:  verbosityLevel >= 2,
+			logResponseBodies: verbosityLevel >= 3,
+		})
 	} else {
 		client = codersdk.New(serverURL)
 	}

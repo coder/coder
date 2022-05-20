@@ -18,7 +18,7 @@ func TestRequestLogging(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		_ = coderdtest.CreateFirstUser(t, client)
-		cmd, root := clitest.New(t, "ls", "--log-requests")
+		cmd, root := clitest.New(t, "ls", "--verbose")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -29,14 +29,14 @@ func TestRequestLogging(t *testing.T) {
 			err := cmd.Execute()
 			require.NoError(t, err)
 		}()
-		pty.ExpectMatch("GET " + client.URL.String() + "/api/v2/workspaces 200")
+		pty.ExpectMatch("GET " + client.URL.String() + "/api/v2/workspaces status: 200")
 		<-doneChan
 	})
 
 	t.Run("NoAuthentication", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		cmd, root := clitest.New(t, "ls", "--log-requests")
+		cmd, root := clitest.New(t, "ls", "--verbose")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -47,7 +47,7 @@ func TestRequestLogging(t *testing.T) {
 			err := cmd.Execute()
 			require.Error(t, err)
 		}()
-		pty.ExpectMatch("GET " + client.URL.String() + "/api/v2/workspaces 401")
+		pty.ExpectMatch("GET " + client.URL.String() + "/api/v2/workspaces status: 401")
 		<-doneChan
 	})
 
@@ -56,7 +56,7 @@ func TestRequestLogging(t *testing.T) {
 		parsedURL, err := url.Parse("invalidprotocol://foobar")
 		require.NoError(t, err)
 		client := codersdk.New(parsedURL)
-		cmd, root := clitest.New(t, "ls", "--log-requests")
+		cmd, root := clitest.New(t, "ls", "--verbose")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -67,7 +67,7 @@ func TestRequestLogging(t *testing.T) {
 			err := cmd.Execute()
 			require.Error(t, err)
 		}()
-		pty.ExpectMatch("GET " + client.URL.String() + "/api/v2/workspaces (err)")
+		pty.ExpectMatch("GET " + client.URL.String() + "/api/v2/workspaces status: (err)")
 		<-doneChan
 	})
 }
