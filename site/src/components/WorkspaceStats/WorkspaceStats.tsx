@@ -78,7 +78,9 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>Status</span>
         <span className={styles.statsValue}>
-          <span style={{ color: status.color }}>{status.status}</span>
+          <span style={{ color: status.color }} role="status">
+            {status.status}
+          </span>
         </span>
       </div>
       <div className={styles.statsDivider} />
