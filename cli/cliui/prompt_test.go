@@ -24,7 +24,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			}, nil)
+			})
 			require.NoError(t, err)
 			msgChan <- resp
 		}()
@@ -41,7 +41,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "Example",
 				IsConfirm: true,
-			}, nil)
+			})
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -57,7 +57,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			}, nil)
+			})
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -73,7 +73,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			}, nil)
+			})
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -89,7 +89,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			}, nil)
+			})
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -101,7 +101,7 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cobra.Command)) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
 	value := ""
 	cmd := &cobra.Command{
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -110,10 +110,7 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cob
 			return err
 		},
 	}
-	// Optionally modify the cmd
-	if cmdOpt != nil {
-		cmdOpt(cmd)
-	}
+
 	cmd.SetOutput(ptty.Output())
 	cmd.SetIn(ptty.Input())
 	return value, cmd.ExecuteContext(context.Background())
