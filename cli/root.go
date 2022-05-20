@@ -264,6 +264,6 @@ func versionTemplate() string {
 
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.
 func FormatCobraError(err error, cmd *cobra.Command) string {
-	helpErrMsg := fmt.Sprintf("Run '%s %s --help' for usage.", cmd.Root().Name(), cmd.Name())
+	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
 	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
 }
