@@ -42,6 +42,7 @@
     "react": "17.0.2",
     "react-dom": "17.0.2",
     "react-router-dom": "6.3.0",
+    "sourcemapped-stacktrace": "1.1.11",
     "swr": "1.2.2",
     "uuid": "8.3.2",
     "xstate": "4.32.1",

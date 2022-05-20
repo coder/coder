@@ -3,7 +3,7 @@ import { makeStyles, useTheme } from "@material-ui/core/styles"
 import React from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { WorkspaceBuild } from "../../api/typesGenerated"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
+import { CardRadius, MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 import { displayWorkspaceBuildDuration, getDisplayStatus } from "../../util/workspace"
 
@@ -57,17 +57,21 @@ export const WorkspaceBuildStats: React.FC<WorkspaceBuildStatsProps> = ({ build 
 
 const useStyles = makeStyles((theme) => ({
   stats: {
-    paddingTop: theme.spacing(3),
-    paddingBottom: theme.spacing(3),
+    paddingLeft: theme.spacing(2),
+    paddingRight: theme.spacing(2),
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: CardRadius,
     display: "flex",
     alignItems: "center",
     color: theme.palette.text.secondary,
     fontFamily: MONOSPACE_FONT_FAMILY,
+    border: `1px solid ${theme.palette.divider}`,
   },
 
   statItem: {
     minWidth: theme.spacing(20),
-    paddingRight: theme.spacing(3),
+    padding: theme.spacing(2),
+    paddingTop: theme.spacing(1.75),
   },
 
   statsLabel: {
@@ -80,14 +84,14 @@ const useStyles = makeStyles((theme) => ({
   statsValue: {
     fontSize: 16,
     marginTop: theme.spacing(0.25),
-    display: "block",
+    display: "inline-block",
   },
 
   statsDivider: {
     width: 1,
     height: theme.spacing(5),
     backgroundColor: theme.palette.divider,
-    marginRight: theme.spacing(3),
+    marginRight: theme.spacing(2),
   },
 
   capitalize: {

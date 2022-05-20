@@ -3,7 +3,7 @@ import { rest } from "msw"
 import React from "react"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/WorkspaceStatusBar/WorkspaceStatusBar"
+import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
 import {
   MockBuilds,
   MockCancelingWorkspace,
@@ -20,6 +20,7 @@ import {
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
+import { DisplayStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
@@ -133,28 +134,28 @@ describe("Workspace Page", () => {
     await testButton(Language.update, getTemplateMock)
   })
   it("shows the Stopping status when the workspace is stopping", async () => {
-    await testStatus(MockStoppingWorkspace, Language.stopping)
+    await testStatus(MockStoppingWorkspace, DisplayStatusLanguage.stopping)
   })
   it("shows the Stopped status when the workspace is stopped", async () => {
-    await testStatus(MockStoppedWorkspace, Language.stopped)
+    await testStatus(MockStoppedWorkspace, DisplayStatusLanguage.stopped)
   })
   it("shows the Building status when the workspace is starting", async () => {
-    await testStatus(MockStartingWorkspace, Language.starting)
+    await testStatus(MockStartingWorkspace, DisplayStatusLanguage.starting)
   })
   it("shows the Running status when the workspace is started", async () => {
-    await testStatus(MockWorkspace, Language.started)
+    await testStatus(MockWorkspace, DisplayStatusLanguage.started)
   })
-  it("shows the Error status when the workspace is failed or canceled", async () => {
-    await testStatus(MockFailedWorkspace, Language.error)
+  it("shows the Failed status when the workspace is failed or canceled", async () => {
+    await testStatus(MockFailedWorkspace, DisplayStatusLanguage.failed)
   })
-  it("shows the Loading status when the workspace is canceling", async () => {
-    await testStatus(MockCancelingWorkspace, Language.canceling)
+  it("shows the Canceling status when the workspace is canceling", async () => {
+    await testStatus(MockCancelingWorkspace, DisplayStatusLanguage.canceling)
   })
   it("shows the Deleting status when the workspace is deleting", async () => {
-    await testStatus(MockDeletingWorkspace, Language.deleting)
+    await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
   })
   it("shows the Deleted status when the workspace is deleted", async () => {
-    await testStatus(MockDeletedWorkspace, Language.deleted)
+    await testStatus(MockDeletedWorkspace, DisplayStatusLanguage.deleted)
   })
   it("shows the timeline build", async () => {
     await renderWorkspacePage()

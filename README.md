@@ -10,13 +10,13 @@ Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=soc
 
 Provision remote development environments with Terraform.
 
-![Kubernetes workspace in Coder v2](./screenshot.png)
+![Kubernetes workspace in Coder v2](./docs/screenshot.png)
 
 ## Highlights
 
 - Automate development environments for Linux, Windows, and macOS
 - Start writing code with a single command
-- Get started quickly using one of the [examples](../examples) provided
+- Get started quickly using one of the [examples](./examples) provided
 
 ## Installing Coder
 
@@ -34,7 +34,7 @@ CPU core and 2 GB RAM:
 You can set up a temporary deployment, a production deployment, or a system service:
 
 - To set up a **temporary deployment**, start with dev mode (all data is in-memory and is
-destroyed on exit):
+  destroyed on exit):
 
   ```bash
   coder server --dev
@@ -48,7 +48,7 @@ destroyed on exit):
   ```
 
 - To run as a **system service**, install with `.deb` (Debian, Ubuntu) or `.rpm`
-(Fedora, CentOS, RHEL, SUSE):
+  (Fedora, CentOS, RHEL, SUSE):
 
   ```bash
   # Edit the configuration!
@@ -57,7 +57,7 @@ destroyed on exit):
   ```
 
 > Use `coder --help` to get a complete list of flags and environment
-variables.
+> variables.
 
 ## Creating your first template and workspace
 
@@ -95,26 +95,26 @@ coder templates update gcp-linux
 
 ## Documentation
 
-- [About Coder](./about.md#about-coder)
-  - [Why remote development](about.md#why-remote-development)
-  - [Why Coder](about.md#why-coder)
-  - [What Coder is not](about.md#what-coder-is-not)
-  - [Comparison: Coder vs. [product]](about.md#comparison)
-- [Templates](./templates.md)
-  - [Manage templates](./templates.md#manage-templates)
+- [About Coder](./docs/about.md#about-coder)
+  - [Why remote development](./docs/about.md#why-remote-development)
+  - [Why Coder](./docs/about.md#why-coder)
+  - [What Coder is not](./docs/about.md#what-coder-is-not)
+  - [Comparison: Coder vs. [product]](./docs/about.md#comparison)
+- [Templates](./docs/templates.md)
+  - [Manage templates](./docs/templates.md#manage-templates)
   - [Persistent and ephemeral
-    resources](./templates.md#persistent-and-ephemeral-resources)
-  - [Parameters](./templates.md#parameters)
-- [Workspaces](./workspaces.md)
-  - [Create workspaces](./workspaces.md#create-workspaces)
-  - [Connect with SSH](./workspaces.md#connect-with-ssh)
-  - [Editors and IDEs](./workspaces.md#editors-and-ides)
-  - [Workspace lifecycle](./workspaces.md#workspace-lifecycle)
-  - [Updating workspaces](./workspaces.md#updating-workspaces)
+    resources](./docs/templates.md#persistent-and-ephemeral-resources)
+  - [Parameters](./docs/templates.md#parameters)
+- [Workspaces](./docs/workspaces.md)
+  - [Create workspaces](./docs/workspaces.md#create-workspaces)
+  - [Connect with SSH](./docs/workspaces.md#connect-with-ssh)
+  - [Editors and IDEs](./docs/workspaces.md#editors-and-ides)
+  - [Workspace lifecycle](./docs/workspaces.md#workspace-lifecycle)
+  - [Updating workspaces](./docs/workspaces.md#updating-workspaces)
 
 ## Contributing
 
-Read the [contributing docs](./CONTRIBUTING.md).
+Read the [contributing docs](./docs/CONTRIBUTING.md).
 
 ## Contributors
 

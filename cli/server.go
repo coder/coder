@@ -28,13 +28,12 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
-
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -103,8 +102,11 @@ func server() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			var tracerProvider *sdktrace.TracerProvider
-			var err error
+			var (
+				tracerProvider *sdktrace.TracerProvider
+				err            error
+				sqlDriver      = "postgres"
+			)
 			if trace {
 				tracerProvider, err = tracing.TracerProvider(cmd.Context(), "coderd")
 				if err != nil {
@@ -116,6 +118,13 @@ func server() *cobra.Command {
 						defer cancel()
 						_ = tracerProvider.Shutdown(ctx)
 					}()
+
+					d, err := tracing.PostgresDriver(tracerProvider, "coderd.database")
+					if err != nil {
+						logger.Warn(cmd.Context(), "failed to start postgres tracing driver", slog.Error(err))
+					} else {
+						sqlDriver = d
+					}
 				}
 			}
 
@@ -245,7 +254,7 @@ func server() *cobra.Command {
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 
 			if !dev {
-				sqlDB, err := sql.Open("postgres", postgresURL)
+				sqlDB, err := sql.Open(sqlDriver, postgresURL)
 				if err != nil {
 					return xerrors.Errorf("dial postgres: %w", err)
 				}

@@ -2,14 +2,14 @@ import { Story } from "@storybook/react"
 import dayjs from "dayjs"
 import React from "react"
 import * as Mocks from "../../testHelpers/renderHelpers"
-import { WorkspaceSchedule, WorkspaceScheduleProps } from "./WorkspaceSchedule"
+import { WorkspaceStats, WorkspaceStatsProps } from "../WorkspaceStats/WorkspaceStats"
 
 export default {
-  title: "components/WorkspaceSchedule",
-  component: WorkspaceSchedule,
+  title: "components/WorkspaceStats",
+  component: WorkspaceStats,
 }
 
-const Template: Story<WorkspaceScheduleProps> = (args) => <WorkspaceSchedule {...args} />
+const Template: Story<WorkspaceStatsProps> = (args) => <WorkspaceStats {...args} />
 
 export const NoTTL = Template.bind({})
 NoTTL.args = {

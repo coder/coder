@@ -20,7 +20,7 @@ func TestDelete(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		cmd, root := clitest.New(t, "delete", workspace.Name)
+		cmd, root := clitest.New(t, "delete", workspace.Name, "-y")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
