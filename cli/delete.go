@@ -11,13 +11,21 @@ import (
 
 // nolint
 func delete() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
 		Aliases:     []string{"rm"},
 		Args:        cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      "Confirm delete workspace?",
+				IsConfirm: true,
+			})
+			if err != nil {
+				return err
+			}
+
 			client, err := createClient(cmd)
 			if err != nil {
 				return err
@@ -40,4 +48,6 @@ func delete() *cobra.Command {
 			return cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID, before)
 		},
 	}
+	cliui.AllowSkipPrompt(cmd)
+	return cmd
 }

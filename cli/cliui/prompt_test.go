@@ -1,7 +1,9 @@
 package cliui_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"testing"
@@ -24,7 +26,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			msgChan <- resp
 		}()
@@ -41,7 +43,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "Example",
 				IsConfirm: true,
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -50,6 +52,47 @@ func TestPrompt(t *testing.T) {
 		require.Equal(t, "yes", <-doneChan)
 	})
 
+	t.Run("Skip", func(t *testing.T) {
+		t.Parallel()
+		ptty := ptytest.New(t)
+		var buf bytes.Buffer
+
+		// Copy all data written out to a buffer. When we close the ptty, we can
+		// no longer read from the ptty.Output(), but we can read what was
+		// written to the buffer.
+		dataRead, doneReading := context.WithTimeout(context.Background(), time.Second*2)
+		go func() {
+			// This will throw an error sometimes. The underlying ptty
+			// has its own cleanup routines in t.Cleanup. Instead of
+			// trying to control the close perfectly, just let the ptty
+			// double close. This error isn't important, we just
+			// want to know the ptty is done sending output.
+			_, _ = io.Copy(&buf, ptty.Output())
+			doneReading()
+		}()
+
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ptty, cliui.PromptOptions{
+				Text:      "ShouldNotSeeThis",
+				IsConfirm: true,
+			}, func(cmd *cobra.Command) {
+				cliui.AllowSkipPrompt(cmd)
+				cmd.SetArgs([]string{"-y"})
+			})
+			require.NoError(t, err)
+			doneChan <- resp
+		}()
+
+		require.Equal(t, "yes", <-doneChan)
+		// Close the reader to end the io.Copy
+		require.NoError(t, ptty.Close(), "close eof reader")
+		// Wait for the IO copy to finish
+		<-dataRead.Done()
+		// Timeout error means the output was hanging
+		require.ErrorIs(t, dataRead.Err(), context.Canceled, "should be canceled")
+		require.Len(t, buf.Bytes(), 0, "expect no output")
+	})
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 		ptty := ptytest.New(t)
@@ -57,7 +100,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -73,7 +116,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -89,7 +132,7 @@ func TestPrompt(t *testing.T) {
 		go func() {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text: "Example",
-			})
+			}, nil)
 			require.NoError(t, err)
 			doneChan <- resp
 		}()
@@ -101,7 +144,7 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cobra.Command)) (string, error) {
 	value := ""
 	cmd := &cobra.Command{
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -110,7 +153,12 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions) (string, error) {
 			return err
 		},
 	}
-	cmd.SetOutput(ptty.Output())
+	// Optionally modify the cmd
+	if cmdOpt != nil {
+		cmdOpt(cmd)
+	}
+	cmd.SetOut(ptty.Output())
+	cmd.SetErr(ptty.Output())
 	cmd.SetIn(ptty.Input())
 	return value, cmd.ExecuteContext(context.Background())
 }

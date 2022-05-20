@@ -21,7 +21,6 @@ import (
 
 func templateCreate() *cobra.Command {
 	var (
-		yes           bool
 		directory     string
 		provisioner   string
 		parameterFile string
@@ -85,14 +84,12 @@ func templateCreate() *cobra.Command {
 				return err
 			}
 
-			if !yes {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      "Confirm create?",
-					IsConfirm: true,
-				})
-				if err != nil {
-					return err
-				}
+			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				Text:      "Confirm create?",
+				IsConfirm: true,
+			})
+			if err != nil {
+				return err
 			}
 
 			_, err = client.CreateTemplate(cmd.Context(), organization.ID, codersdk.CreateTemplateRequest{
@@ -123,7 +120,7 @@ func templateCreate() *cobra.Command {
 	if err != nil {
 		panic(err)
 	}
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Bypass prompts")
+	cliui.AllowSkipPrompt(cmd)
 	return cmd
 }
 

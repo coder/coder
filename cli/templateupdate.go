@@ -108,6 +108,7 @@ func templateUpdate() *cobra.Command {
 	currentDirectory, _ := os.Getwd()
 	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
+	cliui.AllowSkipPrompt(cmd)
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
 	if err != nil {
