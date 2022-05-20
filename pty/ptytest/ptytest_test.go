@@ -20,7 +20,7 @@ func TestPtytest(t *testing.T) {
 	})
 	// nolint:paralleltest
 	t.Run("Do not hang on Intel macOS", func(t *testing.T) {
-		cmd := exec.Command("sh", "-c", "for i in $(seq 1 1000); do echo $i; done")
+		cmd := exec.Command("sh", "-c", "echo hi, I will cause a hang")
 		pty := ptytest.New(t)
 		cmd.Stdin = pty.Input()
 		cmd.Stdout = pty.Output()
