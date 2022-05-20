@@ -14,12 +14,13 @@ import (
 
 func main() {
 	dadjoke()
-	err := cli.Root().Execute()
+	cmd, err := cli.Root().ExecuteC()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
 		}
-		_, _ = fmt.Fprintln(os.Stderr, cliui.Styles.Error.Render(err.Error()))
+		cobraErr := cli.FormatCobraError(err, cmd)
+		_, _ = fmt.Fprintln(os.Stderr, cobraErr)
 		os.Exit(1)
 	}
 }

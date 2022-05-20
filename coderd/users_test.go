@@ -607,9 +607,8 @@ func TestWorkspacesByUser(t *testing.T) {
 	})
 	t.Run("Access", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "test@coder.com",
 			Username:       "someone",
