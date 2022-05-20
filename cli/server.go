@@ -60,17 +60,18 @@ import (
 // nolint:gocyclo
 func server() *cobra.Command {
 	var (
-		accessURL       string
-		address         string
-		promEnabled     bool
-		promAddress     string
-		pprofEnabled    bool
-		pprofAddress    string
-		cacheDir        string
-		dev             bool
-		devUserEmail    string
-		devUserPassword string
-		postgresURL     string
+		accessURL             string
+		address               string
+		autobuildPollInterval time.Duration
+		promEnabled           bool
+		promAddress           string
+		pprofEnabled          bool
+		pprofAddress          string
+		cacheDir              string
+		dev                   bool
+		devUserEmail          string
+		devUserPassword       string
+		postgresURL           string
 		// provisionerDaemonCount is a uint8 to ensure a number > 0.
 		provisionerDaemonCount           uint8
 		oauth2GithubClientID             string
@@ -361,10 +362,10 @@ func server() *cobra.Command {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			lifecyclePoller := time.NewTicker(time.Minute)
-			defer lifecyclePoller.Stop()
-			lifecycleExecutor := executor.New(cmd.Context(), options.Database, logger, lifecyclePoller.C)
-			lifecycleExecutor.Run()
+			autobuildPoller := time.NewTicker(autobuildPollInterval)
+			defer autobuildPoller.Stop()
+			autobuildExecutor := executor.New(cmd.Context(), options.Database, logger, autobuildPoller.C)
+			autobuildExecutor.Run()
 
 			// Because the graceful shutdown includes cleaning up workspaces in dev mode, we're
 			// going to make it harder to accidentally skip the graceful shutdown by hitting ctrl+c
@@ -454,6 +455,7 @@ func server() *cobra.Command {
 		},
 	}
 
+	cliflag.DurationVarP(root.Flags(), &autobuildPollInterval, "autobuild-poll-interval", "", "CODER_AUTOBUILD_POLL_INTERVAL", time.Minute, "Specifies the interval at which to poll for and execute automated workspace build operations.")
 	cliflag.StringVarP(root.Flags(), &accessURL, "access-url", "", "CODER_ACCESS_URL", "", "Specifies the external URL to access Coder.")
 	cliflag.StringVarP(root.Flags(), &address, "address", "a", "CODER_ADDRESS", "127.0.0.1:3000", "The address to serve the API and dashboard.")
 	cliflag.BoolVarP(root.Flags(), &promEnabled, "prometheus-enable", "", "CODER_PROMETHEUS_ENABLE", false, "Enable serving prometheus metrics on the addressdefined by --prometheus-address.")
