@@ -21,6 +21,7 @@ export interface WorkspaceContext {
   template?: TypesGen.Template
   organization?: TypesGen.Organization
   build?: TypesGen.WorkspaceBuild
+  resources?: TypesGen.WorkspaceResource[]
   getWorkspaceError?: Error | unknown
   getTemplateError?: Error | unknown
   getOrganizationError?: Error | unknown
@@ -29,6 +30,7 @@ export interface WorkspaceContext {
   // these are separate from getX errors because they don't make the page unusable
   refreshWorkspaceError: Error | unknown
   refreshTemplateError: Error | unknown
+  getResourcesError: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
@@ -68,6 +70,9 @@ export const workspaceMachine = createMachine(
         }
         refreshWorkspace: {
           data: TypesGen.Workspace | undefined
+        }
+        getResources: {
+          data: TypesGen.WorkspaceResource[]
         }
         getBuilds: {
           data: TypesGen.WorkspaceBuild[]
@@ -220,6 +225,25 @@ export const workspaceMachine = createMachine(
               },
             },
           },
+          pollingResources: {
+            initial: "gettingResources",
+            states: {
+              gettingResources: {
+                entry: "clearGetResourcesError",
+                invoke: {
+                  id: "getResources",
+                  src: "getResources",
+                  onDone: { target: "waiting", actions: "assignResources" },
+                  onError: { target: "waiting", actions: "assignGetResourcesError" },
+                },
+              },
+              waiting: {
+                after: {
+                  5000: "gettingResources",
+                },
+              },
+            },
+          },
 
           timeline: {
             initial: "gettingBuilds",
@@ -343,6 +367,17 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: undefined,
         }),
+      assignResources: assign({
+        resources: (_, event) => event.data,
+      }),
+      assignGetResourcesError: (_, event) =>
+        assign({
+          getResourcesError: event.data,
+        }),
+      clearGetResourcesError: (_) =>
+        assign({
+          getResourcesError: undefined,
+        }),
       // Timeline
       assignBuilds: assign({
         builds: (_, event) => event.data,
@@ -429,6 +464,14 @@ export const workspaceMachine = createMachine(
           return await API.getWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot refresh workspace without id")
+        }
+      },
+      getResources: async (context) => {
+        if (context.workspace) {
+          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
+          return resources
+        } else {
+          throw Error("Cannot fetch workspace resources without workspace")
         }
       },
       getBuilds: async (context) => {
