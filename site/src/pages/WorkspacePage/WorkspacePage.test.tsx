@@ -3,7 +3,7 @@ import { rest } from "msw"
 import React from "react"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
-import { Language } from "../../components/WorkspaceStatusBar/WorkspaceStatusBar"
+import { Language } from "../../components/WorkspaceActions/WorkspaceActions"
 import {
   MockBuilds,
   MockCancelingWorkspace,
@@ -22,6 +22,7 @@ import {
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
+import { DisplayStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
@@ -65,99 +66,106 @@ describe("Workspace Page", () => {
     const workspaceName = screen.getByText(MockWorkspace.name)
     expect(workspaceName).toBeDefined()
   })
-  describe("Status", () => {
-    it("shows the status of the workspace", async () => {
+  it("shows the status of the workspace", async () => {
+    await renderWorkspacePage()
+    const status = screen.getByRole("status")
+    expect(status).toHaveTextContent("Running")
+  })
+  it("requests a stop job when the user presses Stop", async () => {
+    const stopWorkspaceMock = jest.spyOn(api, "stopWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    await testButton(Language.stop, stopWorkspaceMock)
+  })
+  it("requests a start job when the user presses Start", async () => {
+    server.use(
+      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockStoppedWorkspace))
+      }),
+    )
+    const startWorkspaceMock = jest
+      .spyOn(api, "startWorkspace")
+      .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
+    await testButton(Language.start, startWorkspaceMock)
+  })
+  it("requests a start job when the user presses Retry after trying to start", async () => {
+    // Use a workspace that failed during start
+    server.use(
+      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            ...MockFailedWorkspace,
+            latest_build: {
+              ...MockFailedWorkspace.latest_build,
+              transition: "start",
+            },
+          }),
+        )
+      }),
+    )
+    const startWorkSpaceMock = jest.spyOn(api, "startWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
+    await testButton(Language.retry, startWorkSpaceMock)
+  })
+  it("requests a stop job when the user presses Retry after trying to stop", async () => {
+    // Use a workspace that failed during stop
+    server.use(
+      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            ...MockFailedWorkspace,
+            latest_build: {
+              ...MockFailedWorkspace.latest_build,
+              transition: "stop",
+            },
+          }),
+        )
+      }),
+    )
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
+    await testButton(Language.retry, stopWorkspaceMock)
+  })
+  it("requests a template when the user presses Update", async () => {
+    const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
+    server.use(
+      rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
+      }),
+    )
+    await testButton(Language.update, getTemplateMock)
+  })
+  it("shows the Stopping status when the workspace is stopping", async () => {
+    await testStatus(MockStoppingWorkspace, DisplayStatusLanguage.stopping)
+  })
+  it("shows the Stopped status when the workspace is stopped", async () => {
+    await testStatus(MockStoppedWorkspace, DisplayStatusLanguage.stopped)
+  })
+  it("shows the Building status when the workspace is starting", async () => {
+    await testStatus(MockStartingWorkspace, DisplayStatusLanguage.starting)
+  })
+  it("shows the Running status when the workspace is started", async () => {
+    await testStatus(MockWorkspace, DisplayStatusLanguage.started)
+  })
+  it("shows the Failed status when the workspace is failed or canceled", async () => {
+    await testStatus(MockFailedWorkspace, DisplayStatusLanguage.failed)
+  })
+  it("shows the Canceling status when the workspace is canceling", async () => {
+    await testStatus(MockCancelingWorkspace, DisplayStatusLanguage.canceling)
+  })
+  it("shows the Deleting status when the workspace is deleting", async () => {
+    await testStatus(MockDeletingWorkspace, DisplayStatusLanguage.deleting)
+  })
+  it("shows the Deleted status when the workspace is deleted", async () => {
+    await testStatus(MockDeletedWorkspace, DisplayStatusLanguage.deleted)
+  })
+
+  describe("Timeline", () => {
+    it("shows the timeline build", async () => {
       await renderWorkspacePage()
-      const status = screen.getByRole("status")
-      expect(status).toHaveTextContent("Running")
-    })
-    it("requests a stop job when the user presses Stop", async () => {
-      const stopWorkspaceMock = jest.spyOn(api, "stopWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
-      await testButton(Language.stop, stopWorkspaceMock)
-    })
-    it("requests a start job when the user presses Start", async () => {
-      server.use(
-        rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockStoppedWorkspace))
-        }),
-      )
-      const startWorkspaceMock = jest
-        .spyOn(api, "startWorkspace")
-        .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-      await testButton(Language.start, startWorkspaceMock)
-    })
-    it("requests a start job when the user presses Retry after trying to start", async () => {
-      // Use a workspace that failed during start
-      server.use(
-        rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-          return res(
-            ctx.status(200),
-            ctx.json({
-              ...MockFailedWorkspace,
-              latest_build: {
-                ...MockFailedWorkspace.latest_build,
-                transition: "start",
-              },
-            }),
-          )
-        }),
-      )
-      const startWorkSpaceMock = jest.spyOn(api, "startWorkspace").mockResolvedValueOnce(MockWorkspaceBuild)
-      await testButton(Language.retry, startWorkSpaceMock)
-    })
-    it("requests a stop job when the user presses Retry after trying to stop", async () => {
-      // Use a workspace that failed during stop
-      server.use(
-        rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-          return res(
-            ctx.status(200),
-            ctx.json({
-              ...MockFailedWorkspace,
-              latest_build: {
-                ...MockFailedWorkspace.latest_build,
-                transition: "stop",
-              },
-            }),
-          )
-        }),
-      )
-      const stopWorkspaceMock = jest
-        .spyOn(api, "stopWorkspace")
-        .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-      await testButton(Language.retry, stopWorkspaceMock)
-    })
-    it("requests a template when the user presses Update", async () => {
-      const getTemplateMock = jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
-      server.use(
-        rest.get(`/api/v2/workspaces/${MockWorkspace.id}`, (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
-        }),
-      )
-      await testButton(Language.update, getTemplateMock)
-    })
-    it("shows the Stopping status when the workspace is stopping", async () => {
-      await testStatus(MockStoppingWorkspace, Language.stopping)
-    })
-    it("shows the Stopped status when the workspace is stopped", async () => {
-      await testStatus(MockStoppedWorkspace, Language.stopped)
-    })
-    it("shows the Building status when the workspace is starting", async () => {
-      await testStatus(MockStartingWorkspace, Language.starting)
-    })
-    it("shows the Running status when the workspace is started", async () => {
-      await testStatus(MockWorkspace, Language.started)
-    })
-    it("shows the Error status when the workspace is failed or canceled", async () => {
-      await testStatus(MockFailedWorkspace, Language.error)
-    })
-    it("shows the Loading status when the workspace is canceling", async () => {
-      await testStatus(MockCancelingWorkspace, Language.canceling)
-    })
-    it("shows the Deleting status when the workspace is deleting", async () => {
-      await testStatus(MockDeletingWorkspace, Language.deleting)
-    })
-    it("shows the Deleted status when the workspace is deleted", async () => {
-      await testStatus(MockDeletedWorkspace, Language.deleted)
+      const table = await screen.findByTestId("builds-table")
+      const rows = table.querySelectorAll("tbody > tr")
+      expect(rows).toHaveLength(MockBuilds.length)
     })
   })
 
@@ -172,15 +180,6 @@ describe("Workspace Page", () => {
       expect(agent1Status.length).toEqual(2)
       const agent2Status = await screen.findAllByText(MockWorkspaceAgentDisconnected.status)
       expect(agent2Status.length).toEqual(2)
-    })
-  })
-
-  describe("Timeline", () => {
-    it("shows the timeline build", async () => {
-      await renderWorkspacePage()
-      const table = await screen.findByTestId("builds-table")
-      const rows = table.querySelectorAll("tbody > tr")
-      expect(rows).toHaveLength(MockBuilds.length)
     })
   })
 })
