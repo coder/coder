@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"runtime"
 	"strings"
 
@@ -171,7 +172,9 @@ func login() *cobra.Command {
 			sessionToken, _ := cmd.Flags().GetString(varToken)
 			if sessionToken == "" {
 				authURL := *serverURL
-				authURL.Path = serverURL.Path + "/cli-auth"
+				// Don't use filepath.Join, we don't want to use the os separator
+				// for a url.
+				authURL.Path = path.Join(serverURL.Path, "/cli-auth")
 				if err := openURL(cmd, authURL.String()); err != nil {
 					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 				} else {
