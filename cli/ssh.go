@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-var autostopPollInterval = 30 * time.Second
+var autostopPollInterval = 5 * time.Second
 var autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 
 func ssh() *cobra.Command {
