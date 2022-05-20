@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestConn(t *testing.T) {
-	t.Skip("peer tests are known to be flaky")
+	t.Skip("known flake -- https://github.com/coder/coder/issues/1644")
 	t.Parallel()
 
 	t.Run("Ping", func(t *testing.T) {
