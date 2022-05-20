@@ -121,8 +121,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		"POST:/api/v2/users/{user}/organizations": {NoAuthorize: true},
 
-		"POST:/api/v2/files":                       {NoAuthorize: true},
-		"GET:/api/v2/files/{hash}":                 {NoAuthorize: true},
 		"GET:/api/v2/workspaces/{workspace}/watch": {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
@@ -184,6 +182,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: workspaceRBACObj,
 		},
 
+		"POST:/api/v2/files":       {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
+		"GET:/api/v2/files/{hash}": {AssertAction: rbac.ActionRead, AssertObject: rbac.ResourceFile},
+
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/workspaces/{workspace}/builds": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
@@ -197,7 +198,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		}
 		assertRoute[noTrailSlash] = v
 	}
-
+	
 	c, _ := srv.Config.Handler.(*chi.Mux)
 	err = chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
