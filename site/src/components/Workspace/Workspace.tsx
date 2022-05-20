@@ -9,13 +9,11 @@ import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStatusBar } from "../WorkspaceStatusBar/WorkspaceStatusBar"
 
 export interface WorkspaceProps {
-  organization?: TypesGen.Organization
-  workspace: TypesGen.Workspace
-  template?: TypesGen.Template
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void
   handleUpdate: () => void
+  workspace: TypesGen.Workspace
   workspaceStatus: WorkspaceStatus
   builds?: TypesGen.WorkspaceBuild[]
 }
@@ -24,11 +22,11 @@ export interface WorkspaceProps {
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: React.FC<WorkspaceProps> = ({
-  workspace,
   handleStart,
   handleStop,
   handleRetry,
   handleUpdate,
+  workspace,
   workspaceStatus,
   builds,
 }) => {
@@ -45,19 +43,23 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           handleUpdate={handleUpdate}
           workspaceStatus={workspaceStatus}
         />
+
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
             <WorkspaceSection title="Applications">
               <Placeholder />
             </WorkspaceSection>
             <WorkspaceSchedule workspace={workspace} />
+
             <WorkspaceSection title="Dev URLs">
               <Placeholder />
             </WorkspaceSection>
+
             <WorkspaceSection title="Resources">
               <Placeholder />
             </WorkspaceSection>
           </div>
+
           <div className={styles.timelineContainer}>
             <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
               <BuildsTable builds={builds} className={styles.timelineTable} />
