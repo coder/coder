@@ -275,10 +275,7 @@ jobs:
           done
 
       - name: Test with PostgreSQL Database
-        run: DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -coverpkg=./...,github.com/coder/coder/codersdk
-          -count=1 -parallel=2 -race -failfast
+        run: "make test-postgres"
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
