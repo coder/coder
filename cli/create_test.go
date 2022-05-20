@@ -57,8 +57,8 @@ func TestCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetOut(pty.Output())
+		//var output bytes.Buffer
+		//cmd.SetOut(&output)
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 			defer cancel()
