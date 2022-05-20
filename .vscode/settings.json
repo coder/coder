@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
+    "buildname",
     "circbuf",
     "cliflag",
     "cliui",
@@ -51,10 +52,12 @@
     "rpty",
     "sdkproto",
     "Signup",
+    "sourcemapped",
     "stretchr",
     "TCGETS",
     "tcpip",
     "TCSETS",
+    "testid",
     "tfexec",
     "tfjson",
     "tfstate",
@@ -76,7 +79,7 @@
       },
       {
         "match": "provisionerd/proto/provisionerd.proto",
-        "cmd": "make provisionerd/proto/provisionerd.pb.go",
+        "cmd": "make provisionerd/proto/provisionerd.pb.go"
       }
     ]
   },
@@ -104,5 +107,5 @@
   },
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib",
+  "typescript.tsdk": "./site/node_modules/typescript/lib"
 }

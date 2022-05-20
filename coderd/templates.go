@@ -158,9 +158,9 @@ func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeTemplate,
 				ScopeID:           dbTemplate.ID,
-				SourceScheme:      parameterValue.SourceScheme,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)
@@ -278,7 +278,7 @@ func convertTemplate(template database.Template, workspaceOwnerCount uint32) cod
 		UpdatedAt:           template.UpdatedAt,
 		OrganizationID:      template.OrganizationID,
 		Name:                template.Name,
-		Provisioner:         template.Provisioner,
+		Provisioner:         codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:     template.ActiveVersionID,
 		WorkspaceOwnerCount: workspaceOwnerCount,
 		Description:         template.Description,

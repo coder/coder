@@ -7,12 +7,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
@@ -24,6 +30,44 @@ import (
 
 func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	// The `deleted` query parameter (which defaults to `false`) MUST match the
+	// `Deleted` field on the workspace otherwise you will get a 410 Gone.
+	var (
+		deletedStr  = r.URL.Query().Get("deleted")
+		showDeleted = false
+	)
+	if deletedStr != "" {
+		var err error
+		showDeleted, err = strconv.ParseBool(deletedStr)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("invalid bool for 'deleted' query param: %s", err),
+			})
+			return
+		}
+	}
+	if workspace.Deleted && !showDeleted {
+		httpapi.Write(rw, http.StatusGone, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again", workspace.ID.String()),
+		})
+		return
+	}
+	if !workspace.Deleted && showDeleted {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q is not deleted, please remove '?deleted=true' and try again", workspace.ID.String()),
+		})
+		return
+	}
 
 	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 	if err != nil {
@@ -55,11 +99,6 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("fetch resource: %s", err),
 		})
-		return
-	}
-
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
 		return
 	}
 
@@ -112,7 +151,7 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	// Empty strings mean no filter
 	orgFilter := r.URL.Query().Get("organization_id")
-	ownerFilter := r.URL.Query().Get("owner_id")
+	ownerFilter := r.URL.Query().Get("owner")
 
 	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 	if orgFilter != "" {
@@ -214,7 +253,7 @@ func (api *api) workspacesByOwner(rw http.ResponseWriter, r *http.Request) {
 func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	owner := httpmw.UserParam(r)
 	organization := httpmw.OrganizationParam(r)
-	workspaceName := chi.URLParam(r, "workspace")
+	workspaceName := chi.URLParam(r, "workspacename")
 
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: owner.ID,
@@ -406,9 +445,9 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeWorkspace,
 				ScopeID:           workspace.ID,
-				SourceScheme:      parameterValue.SourceScheme,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)
@@ -472,6 +511,12 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
 	var req codersdk.UpdateWorkspaceAutostartRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
@@ -490,7 +535,6 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		dbSched.Valid = true
 	}
 
-	workspace := httpmw.WorkspaceParam(r)
 	err := api.Database.UpdateWorkspaceAutostart(r.Context(), database.UpdateWorkspaceAutostartParams{
 		ID:                workspace.ID,
 		AutostartSchedule: dbSched,
@@ -503,35 +547,123 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
-	var req codersdk.UpdateWorkspaceAutostopRequest
+func (api *api) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
+		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	var req codersdk.UpdateWorkspaceTTLRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
 
-	var dbSched sql.NullString
-	if req.Schedule != "" {
-		validSched, err := schedule.Weekly(req.Schedule)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("invalid autostop schedule: %s", err),
-			})
-			return
-		}
-		dbSched.String = validSched.String()
-		dbSched.Valid = true
+	var dbTTL sql.NullInt64
+	if req.TTL != nil && *req.TTL > 0 {
+		truncated := req.TTL.Truncate(time.Minute)
+		dbTTL.Int64 = int64(truncated)
+		dbTTL.Valid = true
 	}
 
-	workspace := httpmw.WorkspaceParam(r)
-	err := api.Database.UpdateWorkspaceAutostop(r.Context(), database.UpdateWorkspaceAutostopParams{
-		ID:               workspace.ID,
-		AutostopSchedule: dbSched,
+	err := api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
+		ID:  workspace.ID,
+		Ttl: dbTTL,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update workspace autostop schedule: %s", err),
+			Message: fmt.Sprintf("update workspace ttl: %s", err),
 		})
 		return
+	}
+}
+
+func (api *api) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+
+	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		// Fix for Safari 15.1:
+		// There is a bug in latest Safari in which compressed web socket traffic
+		// isn't handled correctly. Turning off compression is a workaround:
+		// https://github.com/nhooyr/websocket/issues/218
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		api.Logger.Warn(r.Context(), "accept websocket connection", slog.Error(err))
+		return
+	}
+	defer c.Close(websocket.StatusInternalError, "internal error")
+
+	// Makes the websocket connection write-only
+	ctx := c.CloseRead(r.Context())
+
+	// Send a heartbeat every 15 seconds to avoid the websocket being killed.
+	go func() {
+		ticker := time.NewTicker(time.Second * 15)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				err := c.Ping(ctx)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	t := time.NewTicker(time.Second * 1)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			workspace, err := api.Database.GetWorkspaceByID(r.Context(), workspace.ID)
+			if err != nil {
+				_ = wsjson.Write(ctx, c, httpapi.Response{
+					Message: fmt.Sprintf("get workspace: %s", err),
+				})
+				return
+			}
+			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+			if err != nil {
+				_ = wsjson.Write(ctx, c, httpapi.Response{
+					Message: fmt.Sprintf("get workspace build: %s", err),
+				})
+				return
+			}
+			var (
+				group    errgroup.Group
+				job      database.ProvisionerJob
+				template database.Template
+				owner    database.User
+			)
+			group.Go(func() (err error) {
+				job, err = api.Database.GetProvisionerJobByID(r.Context(), build.JobID)
+				return err
+			})
+			group.Go(func() (err error) {
+				template, err = api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+				return err
+			})
+			group.Go(func() (err error) {
+				owner, err = api.Database.GetUserByID(r.Context(), workspace.OwnerID)
+				return err
+			})
+			err = group.Wait()
+			if err != nil {
+				_ = wsjson.Write(ctx, c, httpapi.Response{
+					Message: fmt.Sprintf("fetch resource: %s", err),
+				})
+				return
+			}
+
+			_ = wsjson.Write(ctx, c, convertWorkspace(workspace, convertWorkspaceBuild(build, convertProvisionerJob(job)), template, owner))
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -639,6 +771,14 @@ func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.Work
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
 		AutostartSchedule: workspace.AutostartSchedule.String,
-		AutostopSchedule:  workspace.AutostopSchedule.String,
+		TTL:               convertSQLNullInt64(workspace.Ttl),
 	}
+}
+
+func convertSQLNullInt64(i sql.NullInt64) *time.Duration {
+	if !i.Valid {
+		return nil
+	}
+
+	return (*time.Duration)(&i.Int64)
 }

@@ -1,5 +1,4 @@
 import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
 import React from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { WorkspaceStatus } from "../../util/workspace"
@@ -53,7 +52,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         <Resources resources={resources} getResourcesError={getResourcesError} />
         <div className={styles.horizontal}>
           <div className={styles.sidebarContainer}>
-            <WorkspaceSchedule autostart={workspace.autostart_schedule} autostop={workspace.autostop_schedule} />
+            <WorkspaceSchedule workspace={workspace} />
           </div>
           <div className={styles.timelineContainer}>
             <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>

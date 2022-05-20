@@ -18,7 +18,6 @@ import (
 
 	coderagent "github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -80,7 +79,7 @@ func portForward() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if workspace.LatestBuild.Transition != database.WorkspaceTransitionStart {
+			if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 				return xerrors.New("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {

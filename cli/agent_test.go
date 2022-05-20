@@ -19,10 +19,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
-			AzureCertificates: certificates,
+			AzureCertificates:   certificates,
+			IncludeProvisionerD: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -73,10 +73,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		instanceID := "instanceidentifier"
 		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
-			AWSCertificates: certificates,
+			AWSCertificates:     certificates,
+			IncludeProvisionerD: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{
@@ -128,9 +128,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
+			IncludeProvisionerD:  true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			Provision: []*proto.Provision_Response{{

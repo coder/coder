@@ -95,11 +95,18 @@ func (api *api) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if schemas == nil {
-		schemas = []database.ParameterSchema{}
+	apiSchemas := make([]codersdk.ParameterSchema, 0)
+	for _, schema := range schemas {
+		apiSchema, err := convertParameterSchema(schema)
+		if err != nil {
+			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
+				Message: fmt.Sprintf("convert: %s", err),
+			})
+			return
+		}
+		apiSchemas = append(apiSchemas, apiSchema)
 	}
-
-	httpapi.Write(rw, http.StatusOK, schemas)
+	httpapi.Write(rw, http.StatusOK, apiSchemas)
 }
 
 func (api *api) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
@@ -317,9 +324,9 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeImportJob,
 				ScopeID:           jobID,
-				SourceScheme:      parameterValue.SourceScheme,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)
@@ -332,7 +339,7 @@ func (api *api) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			UpdatedAt:      database.Now(),
 			OrganizationID: organization.ID,
 			InitiatorID:    apiKey.UserID,
-			Provisioner:    req.Provisioner,
+			Provisioner:    database.ProvisionerType(req.Provisioner),
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			StorageSource:  file.Hash,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,

@@ -122,7 +122,7 @@ func TestPostLogout(t *testing.T) {
 		cookies := response.Cookies()
 		require.Len(t, cookies, 1, "Exactly one cookie should be returned")
 
-		require.Equal(t, cookies[0].Name, httpmw.AuthCookie, "Cookie should be the auth cookie")
+		require.Equal(t, cookies[0].Name, httpmw.SessionTokenKey, "Cookie should be the auth cookie")
 		require.Equal(t, cookies[0].MaxAge, -1, "Cookie should be set to delete")
 	})
 }
@@ -173,7 +173,7 @@ func TestPostUsers(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleAdmin(), rbac.RoleMember())
 		org, err := other.CreateOrganization(context.Background(), codersdk.Me, codersdk.CreateOrganizationRequest{
 			Name: "another",
 		})
@@ -607,9 +607,8 @@ func TestWorkspacesByUser(t *testing.T) {
 	})
 	t.Run("Access", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		newUser, err := client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          "test@coder.com",
 			Username:       "someone",
