@@ -45,27 +45,27 @@ func TestCreate(t *testing.T) {
 		<-doneChan
 	})
 
-	t.Run("CreateFromListWithSkip", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
-		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			require.NoError(t, err)
-		}()
-		// No pty interaction needed since we use the -y skip prompt flag
-		<-doneChan
-	})
+	//t.Run("CreateFromListWithSkip", func(t *testing.T) {
+	//	t.Parallel()
+	//	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
+	//	user := coderdtest.CreateFirstUser(t, client)
+	//	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	//	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	//	_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	//	cmd, root := clitest.New(t, "create", "my-workspace", "-y")
+	//	clitest.SetupConfig(t, client, root)
+	//	doneChan := make(chan struct{})
+	//	pty := ptytest.New(t)
+	//	cmd.SetIn(pty.Input())
+	//	cmd.SetOut(pty.Output())
+	//	go func() {
+	//		defer close(doneChan)
+	//		err := cmd.Execute()
+	//		require.NoError(t, err)
+	//	}()
+	//	// No pty interaction needed since we use the -y skip prompt flag
+	//	<-doneChan
+	//})
 
 	t.Run("FromNothing", func(t *testing.T) {
 		t.Parallel()
