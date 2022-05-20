@@ -37,41 +37,51 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
           <TableHead>
             <TableHeaderRow>
               <TableCell>{Language.resourceLabel}</TableCell>
-              <TableCell />
+              <TableCell className={styles.agentColumn}>{Language.agentLabel}</TableCell>
+              <TableCell>{Language.statusLabel}</TableCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
-            {resources?.map((resource) => (
-              <TableRow key={resource.id}>
-                <TableCell>{resource.name}</TableCell>
-                <TableCell className={styles.cellWithTable}>
-                  {resource.agents && (
-                    <Table>
-                      <TableHead>
-                        <TableHeaderRow>
-                          <TableCell width="50%">{Language.agentLabel}</TableCell>
-                          <TableCell width="50%">{Language.statusLabel}</TableCell>
-                        </TableHeaderRow>
-                      </TableHead>
-                      <TableBody>
-                        {resource.agents.map((agent) => (
-                          <TableRow key={`${resource.id}-${agent.id}`}>
-                            <TableCell>
-                              <span style={{ color: theme.palette.text.secondary }}>{agent.name}</span>
-                            </TableCell>
-                            <TableCell>
-                              <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
-                                {getDisplayAgentStatus(theme, agent).status}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {resources?.map((resource) => {
+              {
+                /* We need to initialize the agents to display the resource */
+              }
+              const agents = resource.agents ?? [null]
+              return agents.map((agent, agentIndex) => {
+                {
+                  /* If there is no agent, just display the resource name */
+                }
+                if (!agent) {
+                  return (
+                    <TableRow>
+                      <TableCell className={styles.resourceNameCell}>{resource.name}</TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                  )
+                }
+
+                return (
+                  <TableRow key={resource.id}>
+                    {/* We only want to display the name in the first row because we are using rowSpan */}
+                    {/* The rowspan should be the same than the number of agents */}
+                    {agentIndex === 0 && (
+                      <TableCell className={styles.resourceNameCell} rowSpan={agents.length}>
+                        {resource.name}
+                      </TableCell>
+                    )}
+
+                    <TableCell className={styles.agentColumn}>
+                      <span style={{ color: theme.palette.text.secondary }}>{agent.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span style={{ color: getDisplayAgentStatus(theme, agent).color }}>
+                        {getDisplayAgentStatus(theme, agent).status}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            })}
           </TableBody>
         </Table>
       )}
@@ -79,7 +89,7 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   sectionContents: {
     margin: 0,
   },
@@ -88,20 +98,12 @@ const useStyles = makeStyles(() => ({
     border: 0,
   },
 
-  cellWithTable: {
-    padding: 0,
+  resourceNameCell: {
+    borderRight: `1px solid ${theme.palette.divider}`,
+  },
 
-    "&:last-child": {
-      padding: 0,
-    },
-
-    "& table": {
-      borderTop: 0,
-      borderBottom: 0,
-
-      "& tr:last-child td": {
-        borderBottom: 0,
-      },
-    },
+  // Adds some left spacing
+  agentColumn: {
+    paddingLeft: `${theme.spacing(2)}px !important`,
   },
 }))
