@@ -54,17 +54,18 @@ Before proceeding, please ensure that you have Docker installed.
 1. Navigate into the new directory and create a new template:
 
     ```console
-    cd ./docker-local && coder templates create 
+    cd examples/docker
+    coder templates create
     ```
 
     Follow the prompts displayed to proceed. When done, you'll see the following
     message:
 
     ```console
-    The docker-local template has been created! Developers can
-    provision a workspace with this template using:           
+    The docker template has been created! Developers can
+    provision a workspace with this template using:
 
-    coder create --template="docker-local" [workspace name] 
+    coder create --template="docker" [workspace name]
     ```
 
 1. At this point, you're ready to provision your first workspace:
@@ -89,7 +90,7 @@ Before proceeding, please ensure that you have Docker installed.
     ```
 
 You can now access your workspace via your web browser by navigating to your
-access URL, or you can connect to it via ssh by running:
+access URL, or you can connect to it via SSH by running:
 
 ```console
 coder ssh main
