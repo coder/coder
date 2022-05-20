@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-var workspacePollInterval = 5 * time.Second
+var workspacePollInterval = time.Minute
 var autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 
 func ssh() *cobra.Command {
@@ -156,7 +156,7 @@ func ssh() *cobra.Command {
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
-	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll the workspace.")
+	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
 	_ = cmd.Flags().MarkHidden("shuffle")
 
 	return cmd
