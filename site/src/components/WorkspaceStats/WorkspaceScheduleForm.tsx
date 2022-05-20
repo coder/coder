@@ -2,6 +2,7 @@ import Checkbox from "@material-ui/core/Checkbox"
 import FormControl from "@material-ui/core/FormControl"
 import FormControlLabel from "@material-ui/core/FormControlLabel"
 import FormGroup from "@material-ui/core/FormGroup"
+import FormHelperText from "@material-ui/core/FormHelperText"
 import FormLabel from "@material-ui/core/FormLabel"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import TextField from "@material-ui/core/TextField"
@@ -88,8 +89,8 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ on
       friday: true,
       saturday: false,
 
-      startTime: "",
-      ttl: 0,
+      startTime: "09:30",
+      ttl: 120,
     },
     onSubmit,
     validationSchema,
@@ -110,7 +111,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ on
             variant="standard"
           />
 
-          <FormControl component="fieldset">
+          <FormControl component="fieldset" error={Boolean(form.errors.monday)}>
             <FormLabel className={styles.daysOfWeekLabel} component="legend">
               {Language.daysOfWeekLabel}
             </FormLabel>
@@ -194,6 +195,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ on
                 label={Language.daySaturdayLabel}
               />
             </FormGroup>
+            {form.errors.monday && <FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>}
           </FormControl>
 
           <TextField
