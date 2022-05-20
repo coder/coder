@@ -61,7 +61,7 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                 }
 
                 return (
-                  <TableRow key={resource.id}>
+                  <TableRow key={`${resource.id}-${agent.id}`}>
                     {/* We only want to display the name in the first row because we are using rowSpan */}
                     {/* The rowspan should be the same than the number of agents */}
                     {agentIndex === 0 && (

@@ -22,7 +22,7 @@ import {
   renderWithAuth,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
-import { DisplayStatusLanguage } from "../../util/workspace"
+import { DisplayAgentStatusLanguage, DisplayStatusLanguage } from "../../util/workspace"
 import { WorkspacePage } from "./WorkspacePage"
 
 // It renders the workspace page and waits for it be loaded
@@ -176,9 +176,9 @@ describe("Workspace Page", () => {
       expect(agent1Names.length).toEqual(2)
       const agent2Names = await screen.findAllByText(MockWorkspaceAgentDisconnected.name)
       expect(agent2Names.length).toEqual(2)
-      const agent1Status = await screen.findAllByText(MockWorkspaceAgent.status)
+      const agent1Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgent.status])
       expect(agent1Status.length).toEqual(2)
-      const agent2Status = await screen.findAllByText(MockWorkspaceAgentDisconnected.status)
+      const agent2Status = await screen.findAllByText(DisplayAgentStatusLanguage[MockWorkspaceAgentDisconnected.status])
       expect(agent2Status.length).toEqual(2)
     })
   })

@@ -149,6 +149,12 @@ export const displayWorkspaceBuildDuration = (build: WorkspaceBuild, inProgressL
   return duration ? `${duration} seconds` : inProgressLabel
 }
 
+export const DisplayAgentStatusLanguage = {
+  connected: "⦿ Connected",
+  connecting: "⦿ Connecting",
+  disconnected: "◍ Disconnected",
+}
+
 export const getDisplayAgentStatus = (
   theme: Theme,
   agent: WorkspaceAgent,
@@ -165,17 +171,17 @@ export const getDisplayAgentStatus = (
     case "connected":
       return {
         color: theme.palette.success.main,
-        status: `⦿ Connected`,
+        status: DisplayAgentStatusLanguage["connected"],
       }
     case "connecting":
       return {
         color: theme.palette.success.main,
-        status: `⦿ Connecting`,
+        status: DisplayAgentStatusLanguage["connecting"],
       }
     case "disconnected":
       return {
         color: theme.palette.text.secondary,
-        status: `◍ Disconnected`,
+        status: DisplayAgentStatusLanguage["disconnected"],
       }
   }
 }
