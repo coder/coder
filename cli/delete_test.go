@@ -10,9 +10,8 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-func TestList(t *testing.T) {
-	t.Parallel()
-	t.Run("Single", func(t *testing.T) {
+func TestDelete(t *testing.T) {
+	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -21,7 +20,7 @@ func TestList(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		cmd, root := clitest.New(t, "ls")
+		cmd, root := clitest.New(t, "delete", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -32,8 +31,7 @@ func TestList(t *testing.T) {
 			err := cmd.Execute()
 			require.NoError(t, err)
 		}()
-		pty.ExpectMatch(workspace.Name)
-		pty.ExpectMatch("Running")
+		pty.ExpectMatch("Cleaning Up")
 		<-doneChan
 	})
 }
