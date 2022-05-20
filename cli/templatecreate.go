@@ -187,6 +187,7 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 		}
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set.")+"\r\n")
 
+		// parameterMap can be nil if the file is not specified or invalid
 		var parameterMap map[string]string
 		if parameterFile != "" {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
@@ -208,6 +209,9 @@ func createValidTemplateVersion(cmd *cobra.Command, client *codersdk.Client, org
 			})
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
 		}
+
+		// This recursion is only 1 level deep in practice.
+		// The first pass populates the missing parameters, so it does not enter this `if` block again.
 		return createValidTemplateVersion(cmd, client, organization, provisioner, hash, parameterFile, parameters...)
 	}
 

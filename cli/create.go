@@ -118,6 +118,7 @@ func create() *cobra.Command {
 				return err
 			}
 
+			// parameterMap can be nil if the file is not specified or invalid
 			var parameterMap map[string]string
 			if parameterFile != "" {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
