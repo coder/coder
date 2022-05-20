@@ -119,11 +119,11 @@ func server() *cobra.Command {
 						defer cancel()
 						_ = tracerProvider.Shutdown(ctx)
 					}()
-				}
 
-				sqlDriver, err = tracing.PostgresDriver(tracerProvider, "coderd.database")
-				if err != nil {
-					logger.Warn(cmd.Context(), "failed to start postgres tracing driver", slog.Error(err))
+					sqlDriver, err = tracing.PostgresDriver(tracerProvider, "coderd.database")
+					if err != nil {
+						logger.Warn(cmd.Context(), "failed to start postgres tracing driver", slog.Error(err))
+					}
 				}
 			}
 
