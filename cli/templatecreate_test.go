@@ -181,6 +181,8 @@ func createTestParseResponse() []*proto.Parse_Response {
 	}}
 }
 
+// Need this for Windows because of a known issue with Go:
+// https://github.com/golang/go/issues/52986
 func removeTmpDirUntilSuccess(t *testing.T, tempDir string) {
 	t.Helper()
 	t.Cleanup(func() {
