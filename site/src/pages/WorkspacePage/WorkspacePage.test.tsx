@@ -178,7 +178,7 @@ describe("Workspace Page", () => {
   describe("Timeline", () => {
     it("shows the timeline build", async () => {
       await renderWorkspacePage()
-      const table = await screen.findByRole("table")
+      const table = await screen.findByTestId("builds-table")
       const rows = table.querySelectorAll("tbody > tr")
       expect(rows).toHaveLength(MockBuilds.length)
     })

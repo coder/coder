@@ -50,7 +50,7 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
   const theme: Theme = useTheme()
 
   return (
-    <Table className={className}>
+    <Table className={className} data-testid="builds-table">
       <TableHead>
         <TableRow>
           <TableCell width="20%">{Language.actionLabel}</TableCell>
