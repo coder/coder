@@ -56,18 +56,15 @@ func TestCreate(t *testing.T) {
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
-		//var output bytes.Buffer
-		//cmd.SetOut(&output)
+		cmdCtx, done := context.WithTimeout(context.Background(), time.Second*3)
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-			defer cancel()
-			defer close(doneChan)
-			err := cmd.ExecuteContext(ctx)
+			defer done()
+			err := cmd.ExecuteContext(cmdCtx)
 			require.NoError(t, err)
 		}()
 		// No pty interaction needed since we use the -y skip prompt flag
-		<-doneChan
+		<-cmdCtx.Done()
+		require.ErrorIs(t, cmdCtx.Err(), context.Canceled)
 	})
 
 	t.Run("FromNothing", func(t *testing.T) {
