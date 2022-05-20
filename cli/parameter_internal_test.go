@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,8 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 
 		assert.Equal(t, expectedMap, parameterMapFromFile)
 		assert.Nil(t, err)
+
+		removeTmpDirUntilSuccess(t)
 	})
 	t.Run("WithEmptyFilename", func(t *testing.T) {
 		t.Parallel()
@@ -38,7 +41,14 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 		parameterMapFromFile, err := createParameterMapFromFile("invalidFile.yaml")
 
 		assert.Nil(t, parameterMapFromFile)
-		assert.EqualError(t, err, "open invalidFile.yaml: no such file or directory")
+
+		// On Unix based systems, it is: `open invalidFile.yaml: no such file or directory`
+		// On Windows, it is `open invalidFile.yaml: The system cannot find the file specified.`
+		if runtime.GOOS == "windows" {
+			assert.EqualError(t, err, "open invalidFile.yaml: The system cannot find the file specified.")
+		} else {
+			assert.EqualError(t, err, "open invalidFile.yaml: no such file or directory")
+		}
 	})
 	t.Run("WithInvalidYAML", func(t *testing.T) {
 		t.Parallel()
@@ -49,5 +59,16 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 
 		assert.Nil(t, parameterMapFromFile)
 		assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `region ...` into map[string]string")
+
+		removeTmpDirUntilSuccess(t)
+	})
+}
+
+func removeTmpDirUntilSuccess(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll(t.TempDir())
+		for err != nil {
+			err = os.RemoveAll(t.TempDir())
+		}
 	})
 }
