@@ -93,5 +93,5 @@ You can now access your workspace via your web browser by navigating to your
 access URL, or you can connect to it via SSH by running:
 
 ```console
-coder ssh <workspace name>
+coder ssh [workspace name]
 ```
