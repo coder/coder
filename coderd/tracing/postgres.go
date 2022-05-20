@@ -37,6 +37,9 @@ func formatPostgresSpan(ctx context.Context, op string) string {
 		return strings.ToUpper(op)
 	}
 
-	s := strings.Split(strings.TrimPrefix(q, qPrefix), " ")[0]
+	// Remove the qPrefix and then grab the method name.
+	// We expect the first line of the query to be in
+	// the format "-- name: GetAPIKeyByID :one".
+	s := strings.SplitN(strings.TrimPrefix(q, qPrefix), " ", 2)[0]
 	return fmt.Sprintf("%s %s", strings.ToUpper(op), s)
 }
