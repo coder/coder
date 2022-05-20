@@ -367,9 +367,8 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: undefined,
         }),
-      assignResources: (_, event) =>
-        assign({
-          resources: event.data,
+      assignResources: assign({
+          resources: (_, event) => event.data,
         }),
       assignGetResourcesError: (_, event) =>
         assign({
@@ -469,7 +468,8 @@ export const workspaceMachine = createMachine(
       },
       getResources: async (context) => {
         if (context.workspace) {
-          return await API.getWorkspaceResources(context.workspace.latest_build.id)
+          const resources = await API.getWorkspaceResources(context.workspace.latest_build.id)
+          return resources
         } else {
           throw Error("Cannot fetch workspace resources without workspace")
         }
