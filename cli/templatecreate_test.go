@@ -55,20 +55,7 @@ func TestTemplateCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							AllowOverrideSource: true,
-							Name:                "region",
-							Description:         "description",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			}},
+			Parse:           createTestParseResponse(),
 			Provision:       echo.ProvisionComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
@@ -104,20 +91,7 @@ func TestTemplateCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							AllowOverrideSource: true,
-							Name:                "region",
-							Description:         "description",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			}},
+			Parse:           createTestParseResponse(),
 			Provision:       echo.ProvisionComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
@@ -154,20 +128,7 @@ func TestTemplateCreate(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse: []*proto.Parse_Response{{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							AllowOverrideSource: true,
-							Name:                "region",
-							Description:         "description",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			}},
+			Parse:           createTestParseResponse(),
 			Provision:       echo.ProvisionComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
 		})
@@ -197,4 +158,21 @@ func TestTemplateCreate(t *testing.T) {
 
 		require.EqualError(t, <-execDone, "Parameter value absent in parameter file for \"region\"!")
 	})
+}
+
+func createTestParseResponse() []*proto.Parse_Response {
+	return []*proto.Parse_Response{{
+		Type: &proto.Parse_Response_Complete{
+			Complete: &proto.Parse_Complete{
+				ParameterSchemas: []*proto.ParameterSchema{{
+					AllowOverrideSource: true,
+					Name:                "region",
+					Description:         "description",
+					DefaultDestination: &proto.ParameterDestination{
+						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+					},
+				}},
+			},
+		},
+	}}
 }
