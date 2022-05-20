@@ -92,7 +92,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
                     )}
                   </TableCell>
                   <TableCell>
-                    <span style={{ color: theme.palette.text.secondary }}>
+                    <span data-chromatic="ignore" style={{ color: theme.palette.text.secondary }}>
                       {dayjs().to(dayjs(workspace.latest_build.created_at))}
                     </span>
                   </TableCell>

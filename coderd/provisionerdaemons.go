@@ -13,12 +13,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
-	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -49,75 +47,58 @@ func (api *api) provisionerDaemonsByOrganization(rw http.ResponseWriter, r *http
 	httpapi.Write(rw, http.StatusOK, daemons)
 }
 
-// Serves the provisioner daemon protobuf API over a WebSocket.
-func (api *api) provisionerDaemonsListen(rw http.ResponseWriter, r *http.Request) {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
+// ListenProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
+// in the same process.
+func (c *coderD) ListenProvisionerDaemon(ctx context.Context) (client proto.DRPCProvisionerDaemonClient, err error) {
+	clientSession, serverSession := provisionersdk.TransportPipe()
+	defer func() {
+		if err != nil {
+			_ = clientSession.Close()
+			_ = serverSession.Close()
+		}
+	}()
 
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
-			Message: fmt.Sprintf("accept websocket: %s", err),
-		})
-		return
-	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
-
-	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
+	daemon, err := c.api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         namesgenerator.GetRandomName(1),
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
 	})
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("insert provisioner daemon: %s", err))
-		return
+		return nil, err
 	}
 
-	// Multiplexes the incoming connection using yamux.
-	// This allows multiple function calls to occur over
-	// the same connection.
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("multiplex server: %s", err))
-		return
-	}
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdServer{
-		AccessURL:    api.AccessURL,
+		AccessURL:    c.options.AccessURL,
 		ID:           daemon.ID,
-		Database:     api.Database,
-		Pubsub:       api.Pubsub,
+		Database:     c.options.Database,
+		Pubsub:       c.options.Pubsub,
 		Provisioners: daemon.Provisioners,
-		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		Logger:       c.options.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
-		return
+		return nil, err
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) {
 				return
 			}
-			api.Logger.Debug(r.Context(), "drpc server error", slog.Error(err))
+			c.options.Logger.Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
-	err = server.Serve(r.Context(), session)
-	if err != nil && !xerrors.Is(err, io.EOF) {
-		api.Logger.Debug(r.Context(), "provisioner daemon disconnected", slog.Error(err))
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
-		return
-	}
-	_ = conn.Close(websocket.StatusGoingAway, "")
+	go func() {
+		err = server.Serve(ctx, serverSession)
+		if err != nil && !xerrors.Is(err, io.EOF) {
+			c.options.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
+		}
+		// close the sessions so we don't leak goroutines serving them.
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+
+	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.Conn(clientSession)), nil
 }
 
 // The input for a "workspace_provision" job.

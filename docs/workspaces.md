@@ -12,7 +12,7 @@ templates](./templates.md):
 # create a workspace from the template; specify any variables
 coder create <workspace-name>
 
-# show the resources behind the workspace, and how to connect
+# show the resources behind the workspace and how to connect
 coder show <workspace-name>
 ```
 
@@ -23,8 +23,7 @@ IDE with remote development support:
 
 ```sh
 coder config-ssh
-
-ssh coder.<workspace-name>
+coder ssh <workspaceName>
 ```
 
 ## Editors and IDEs
@@ -61,7 +60,7 @@ resources](./templates.md#persistent-and-ephemeral-resources).
 > where to store files, install software, etc., so that they persist. Default
 > templates are documented in [../examples](../examples/).
 >
-> You can use `coder workspace show <workspace-name>` to see which resources are
+> You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.
 
 When a workspace is deleted, all of the workspace's resources are deleted.

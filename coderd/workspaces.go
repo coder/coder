@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -31,6 +32,40 @@ func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionRead,
 		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead,
+		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+		return
+	}
+
+	// The `deleted` query parameter (which defaults to `false`) MUST match the
+	// `Deleted` field on the workspace otherwise you will get a 410 Gone.
+	var (
+		deletedStr  = r.URL.Query().Get("deleted")
+		showDeleted = false
+	)
+	if deletedStr != "" {
+		var err error
+		showDeleted, err = strconv.ParseBool(deletedStr)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("invalid bool for 'deleted' query param: %s", err),
+			})
+			return
+		}
+	}
+	if workspace.Deleted && !showDeleted {
+		httpapi.Write(rw, http.StatusGone, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again", workspace.ID.String()),
+		})
+		return
+	}
+	if !workspace.Deleted && showDeleted {
+		httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+			Message: fmt.Sprintf("workspace %q is not deleted, please remove '?deleted=true' and try again", workspace.ID.String()),
+		})
 		return
 	}
 
@@ -116,7 +151,7 @@ func (api *api) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	// Empty strings mean no filter
 	orgFilter := r.URL.Query().Get("organization_id")
-	ownerFilter := r.URL.Query().Get("owner_id")
+	ownerFilter := r.URL.Query().Get("owner")
 
 	filter := database.GetWorkspacesWithFilterParams{Deleted: false}
 	if orgFilter != "" {
@@ -410,9 +445,9 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 				UpdatedAt:         database.Now(),
 				Scope:             database.ParameterScopeWorkspace,
 				ScopeID:           workspace.ID,
-				SourceScheme:      parameterValue.SourceScheme,
+				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
 				SourceValue:       parameterValue.SourceValue,
-				DestinationScheme: parameterValue.DestinationScheme,
+				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter value: %w", err)
@@ -512,38 +547,32 @@ func (api *api) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *api) putWorkspaceAutostop(rw http.ResponseWriter, r *http.Request) {
+func (api *api) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceWorkspace.
 		InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
 		return
 	}
 
-	var req codersdk.UpdateWorkspaceAutostopRequest
+	var req codersdk.UpdateWorkspaceTTLRequest
 	if !httpapi.Read(rw, r, &req) {
 		return
 	}
 
-	var dbSched sql.NullString
-	if req.Schedule != "" {
-		validSched, err := schedule.Weekly(req.Schedule)
-		if err != nil {
-			httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-				Message: fmt.Sprintf("invalid autostop schedule: %s", err),
-			})
-			return
-		}
-		dbSched.String = validSched.String()
-		dbSched.Valid = true
+	var dbTTL sql.NullInt64
+	if req.TTL != nil && *req.TTL > 0 {
+		truncated := req.TTL.Truncate(time.Minute)
+		dbTTL.Int64 = int64(truncated)
+		dbTTL.Valid = true
 	}
 
-	err := api.Database.UpdateWorkspaceAutostop(r.Context(), database.UpdateWorkspaceAutostopParams{
-		ID:               workspace.ID,
-		AutostopSchedule: dbSched,
+	err := api.Database.UpdateWorkspaceTTL(r.Context(), database.UpdateWorkspaceTTLParams{
+		ID:  workspace.ID,
+		Ttl: dbTTL,
 	})
 	if err != nil {
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
-			Message: fmt.Sprintf("update workspace autostop schedule: %s", err),
+			Message: fmt.Sprintf("update workspace ttl: %s", err),
 		})
 		return
 	}
@@ -742,6 +771,14 @@ func convertWorkspace(workspace database.Workspace, workspaceBuild codersdk.Work
 		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:              workspace.Name,
 		AutostartSchedule: workspace.AutostartSchedule.String,
-		AutostopSchedule:  workspace.AutostopSchedule.String,
+		TTL:               convertSQLNullInt64(workspace.Ttl),
 	}
+}
+
+func convertSQLNullInt64(i sql.NullInt64) *time.Duration {
+	if !i.Valid {
+		return nil
+	}
+
+	return (*time.Duration)(&i.Int64)
 }

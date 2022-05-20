@@ -42,9 +42,6 @@ provider "docker" {
 }
 
 provider "coder" {
-  # The below assumes your Coder deployment is running in docker-compose.
-  # If this is not the case, either comment or edit the below.
-  url = "http://host.docker.internal:7080"
 }
 
 data "coder_workspace" "me" {
@@ -56,7 +53,7 @@ resource "coder_agent" "dev" {
 }
 
 variable "docker_image" {
-  description = "What Docker imagewould you like to use for your workspace?"
+  description = "What Docker image would you like to use for your workspace?"
   default     = "base"
 
   # List of images available for the user to choose from.
@@ -97,8 +94,9 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = lower(data.coder_workspace.me.name)
   dns      = ["1.1.1.1"]
-  command  = ["sh", "-c", coder_agent.dev.init_script]
-  env      = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  # Use the docker gateway if the access URL is 127.0.0.1 
+  command = ["sh", "-c", replace(coder_agent.dev.init_script, "127.0.0.1", "host.docker.internal")]
+  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

@@ -33,7 +33,7 @@ WHERE
 -- name: GetWorkspacesByOrganizationIDs :many
 SELECT * FROM workspaces WHERE organization_id = ANY(@ids :: uuid [ ]) AND deleted = @deleted;
 
--- name: GetWorkspacesAutostartAutostop :many
+-- name: GetWorkspacesAutostart :many
 SELECT
 	*
 FROM
@@ -42,9 +42,9 @@ WHERE
 	deleted = false
 AND
 (
-	autostart_schedule <> ''
+	(autostart_schedule IS NOT NULL AND autostart_schedule <> '')
 	OR
-	autostop_schedule <> ''
+	(ttl IS NOT NULL AND ttl > 0)
 );
 
 -- name: GetWorkspacesByTemplateID :many
@@ -107,10 +107,10 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspaceAutostop :exec
+-- name: UpdateWorkspaceTTL :exec
 UPDATE
 	workspaces
 SET
-	autostop_schedule = $2
+	ttl = $2
 WHERE
 	id = $1;

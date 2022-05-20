@@ -37,7 +37,7 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 
 // Returns a parameter value from a given map, if the map exists, else takes input from the user.
 // Throws an error if the map exists but does not include a value for the parameter.
-func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, parameterSchema codersdk.TemplateVersionParameterSchema) (string, error) {
+func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
 	var parameterValue string
 	if parameterMap != nil {
 		var ok bool

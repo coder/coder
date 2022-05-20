@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/coder/coder/provisioner/echo"
+
 	"github.com/briandowns/spinner"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/google/go-github/v43/github"
@@ -31,7 +33,8 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -44,6 +47,7 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/turnconn"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -82,7 +86,7 @@ func server() *cobra.Command {
 		turnRelayAddress                 string
 		tunnel                           bool
 		stunServers                      []string
-		traceDatadog                     bool
+		trace                            bool
 		secureAuthCookie                 bool
 		sshKeygenAlgorithmRaw            string
 		spooky                           bool
@@ -98,11 +102,20 @@ func server() *cobra.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			if traceDatadog {
-				tracer.Start(tracer.WithLogStartup(false), tracer.WithLogger(&datadogLogger{
-					logger: logger.Named("datadog"),
-				}))
-				defer tracer.Stop()
+			var tracerProvider *sdktrace.TracerProvider
+			var err error
+			if trace {
+				tracerProvider, err = tracing.TracerProvider(cmd.Context(), "coderd")
+				if err != nil {
+					logger.Warn(cmd.Context(), "failed to start telemetry exporter", slog.Error(err))
+				} else {
+					defer func() {
+						// allow time for traces to flush even if command context is canceled
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						_ = tracerProvider.Shutdown(ctx)
+					}()
+				}
 			}
 
 			printLogo(cmd, spooky)
@@ -216,6 +229,7 @@ func server() *cobra.Command {
 				SecureAuthCookie:     secureAuthCookie,
 				SSHKeygenAlgorithm:   sshKeygenAlgorithm,
 				TURNServer:           turnServer,
+				TracerProvider:       tracerProvider,
 			}
 
 			if oauth2GithubClientSecret != "" {
@@ -249,7 +263,7 @@ func server() *cobra.Command {
 				}
 			}
 
-			handler, closeCoderd := coderd.New(options)
+			coderDaemon := coderd.New(options)
 			client := codersdk.New(localURL)
 			if tlsEnable {
 				// Secure transport isn't needed for locally communicating!
@@ -275,7 +289,7 @@ func server() *cobra.Command {
 			errCh := make(chan error, 1)
 			provisionerDaemons := make([]*provisionerd.Server, 0)
 			for i := 0; uint8(i) < provisionerDaemonCount; i++ {
-				daemonClose, err := newProvisionerDaemon(cmd.Context(), client, logger, cacheDir, errCh)
+				daemonClose, err := newProvisionerDaemon(cmd.Context(), coderDaemon, logger, cacheDir, errCh, dev)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -295,7 +309,7 @@ func server() *cobra.Command {
 					// These errors are typically noise like "TLS: EOF". Vault does similar:
 					// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
 					ErrorLog: log.New(io.Discard, "", 0),
-					Handler:  handler,
+					Handler:  coderDaemon.Handler(),
 					BaseContext: func(_ net.Listener) context.Context {
 						return shutdownConnsCtx
 					},
@@ -363,7 +377,7 @@ func server() *cobra.Command {
 			signal.Notify(stopChan, os.Interrupt)
 			select {
 			case <-cmd.Context().Done():
-				closeCoderd()
+				coderDaemon.CloseWait()
 				return cmd.Context().Err()
 			case err := <-tunnelErrChan:
 				if err != nil {
@@ -371,7 +385,7 @@ func server() *cobra.Command {
 				}
 			case err := <-errCh:
 				shutdownConns()
-				closeCoderd()
+				coderDaemon.CloseWait()
 				return err
 			case <-stopChan:
 			}
@@ -395,7 +409,7 @@ func server() *cobra.Command {
 				for _, workspace := range workspaces {
 					before := time.Now()
 					build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-						Transition: database.WorkspaceTransitionDelete,
+						Transition: codersdk.WorkspaceTransitionDelete,
 					})
 					if err != nil {
 						return xerrors.Errorf("delete workspace: %w", err)
@@ -435,7 +449,7 @@ func server() *cobra.Command {
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), cliui.Styles.Prompt.String()+"Waiting for WebSocket connections to close...\n")
 			shutdownConns()
-			closeCoderd()
+			coderDaemon.CloseWait()
 			return nil
 		},
 	}
@@ -480,7 +494,7 @@ func server() *cobra.Command {
 	cliflag.StringArrayVarP(root.Flags(), &stunServers, "stun-server", "", "CODER_STUN_SERVERS", []string{
 		"stun:stun.l.google.com:19302",
 	}, "Specify URLs for STUN servers to enable P2P connections.")
-	cliflag.BoolVarP(root.Flags(), &traceDatadog, "trace-datadog", "", "CODER_TRACE_DATADOG", false, "Send tracing data to a datadog agent")
+	cliflag.BoolVarP(root.Flags(), &trace, "trace", "", "CODER_TRACE", false, "Specifies if application tracing data is collected")
 	cliflag.StringVarP(root.Flags(), &turnRelayAddress, "turn-relay-address", "", "CODER_TURN_RELAY_ADDRESS", "127.0.0.1",
 		"Specifies the address to bind TURN connections.")
 	cliflag.BoolVarP(root.Flags(), &secureAuthCookie, "secure-auth-cookie", "", "CODER_SECURE_AUTH_COOKIE", false, "Specifies if the 'Secure' property is set on browser session cookies")
@@ -529,7 +543,9 @@ func createFirstUser(cmd *cobra.Command, client *codersdk.Client, cfg config.Roo
 	return nil
 }
 
-func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger slog.Logger, cacheDir string, errChan chan error) (*provisionerd.Server, error) {
+// nolint:revive
+func newProvisionerDaemon(ctx context.Context, coderDaemon coderd.CoderD,
+	logger slog.Logger, cacheDir string, errChan chan error, dev bool) (*provisionerd.Server, error) {
 	err := os.MkdirAll(cacheDir, 0700)
 	if err != nil {
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
@@ -554,14 +570,26 @@ func newProvisionerDaemon(ctx context.Context, client *codersdk.Client, logger s
 		return nil, err
 	}
 
-	return provisionerd.New(client.ListenProvisionerDaemon, &provisionerd.Options{
+	provisioners := provisionerd.Provisioners{
+		string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
+	}
+	// include echo provisioner when in dev mode
+	if dev {
+		echoClient, echoServer := provisionersdk.TransportPipe()
+		go func() {
+			err := echo.Serve(ctx, &provisionersdk.ServeOptions{Listener: echoServer})
+			if err != nil {
+				errChan <- err
+			}
+		}()
+		provisioners[string(database.ProvisionerTypeEcho)] = proto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
+	}
+	return provisionerd.New(coderDaemon.ListenProvisionerDaemon, &provisionerd.Options{
 		Logger:         logger,
 		PollInterval:   500 * time.Millisecond,
 		UpdateInterval: 500 * time.Millisecond,
-		Provisioners: provisionerd.Provisioners{
-			string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
-		},
-		WorkDirectory: tempDir,
+		Provisioners:   provisioners,
+		WorkDirectory:  tempDir,
 	}), nil
 }
 
@@ -718,12 +746,4 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}()
 
 	return func() { _ = srv.Close() }
-}
-
-type datadogLogger struct {
-	logger slog.Logger
-}
-
-func (d *datadogLogger) Log(msg string) {
-	d.logger.Debug(context.Background(), msg)
 }

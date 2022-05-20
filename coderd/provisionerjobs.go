@@ -244,8 +244,8 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 	return codersdk.ProvisionerJobLog{
 		ID:        provisionerJobLog.ID,
 		CreatedAt: provisionerJobLog.CreatedAt,
-		Source:    provisionerJobLog.Source,
-		Level:     provisionerJobLog.Level,
+		Source:    codersdk.LogSource(provisionerJobLog.Source),
+		Level:     codersdk.LogLevel(provisionerJobLog.Level),
 		Stage:     provisionerJobLog.Stage,
 		Output:    provisionerJobLog.Output,
 	}

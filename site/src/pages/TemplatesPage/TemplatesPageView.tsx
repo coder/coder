@@ -83,7 +83,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
                     <Avatar variant="square" className={styles.templateAvatar}>
                       {firstLetter(template.name)}
                     </Avatar>
-                    <Link component={RouterLink} to={`/templates/${template.id}`} className={styles.templateLink}>
+                    <Link component={RouterLink} to={`/templates/${template.name}/new`} className={styles.templateLink}>
                       <b>{template.name}</b>
                       <span>{template.description}</span>
                     </Link>
@@ -92,7 +92,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = (props) => {
 
                 <TableCell>{Language.developerCount(template.workspace_owner_count)}</TableCell>
 
-                <TableCell>{dayjs().to(dayjs(template.updated_at))}</TableCell>
+                <TableCell data-chromatic="ignore">{dayjs().to(dayjs(template.updated_at))}</TableCell>
               </TableRow>
             ))}
           </TableBody>

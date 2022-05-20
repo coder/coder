@@ -26,9 +26,8 @@ func TestSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("ImmediateExit", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		agentToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
@@ -81,9 +80,8 @@ func TestSSH(t *testing.T) {
 	})
 	t.Run("Stdio", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		coderdtest.NewProvisionerDaemon(t, client)
 		agentToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,

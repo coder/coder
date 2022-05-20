@@ -236,12 +236,11 @@ func TestServer(t *testing.T) {
 		}
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "0")
-		done := make(chan struct{})
+		root, cfg := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--provisioner-daemons", "1")
+		serverErr := make(chan error)
 		go func() {
-			defer close(done)
 			err := root.ExecuteContext(ctx)
-			require.NoError(t, err)
+			serverErr <- err
 		}()
 		var token string
 		require.Eventually(t, func() bool {
@@ -258,7 +257,6 @@ func TestServer(t *testing.T) {
 		client.SessionToken = token
 		orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
 		require.NoError(t, err)
-		coderdtest.NewProvisionerDaemon(t, client)
 
 		// Create a workspace so the cleanup occurs!
 		version := coderdtest.CreateTemplateVersion(t, client, orgs[0].ID, nil)
@@ -278,13 +276,14 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		err = currentProcess.Signal(os.Interrupt)
 		require.NoError(t, err)
-		<-done
+		err = <-serverErr
+		require.NoError(t, err)
 	})
-	t.Run("DatadogTracerNoLeak", func(t *testing.T) {
+	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace-datadog=true")
+		root, _ := clitest.New(t, "server", "--dev", "--tunnel=false", "--address", ":0", "--trace=true")
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
