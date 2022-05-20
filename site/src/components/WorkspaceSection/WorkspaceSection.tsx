@@ -34,7 +34,6 @@ const useStyles = makeStyles((theme) => ({
   root: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: CardRadius,
-    margin: theme.spacing(1),
   },
   headerContainer: {
     borderBottom: `1px solid ${theme.palette.divider}`,

@@ -10,5 +10,5 @@ export const navHeight = 42
 export const maxWidth = 1380
 export const sidePadding = "50px"
 export const TitleIconSize = 48
-export const CardRadius = 8
+export const CardRadius = 2
 export const CardPadding = 20
