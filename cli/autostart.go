@@ -11,6 +11,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const defaultAutostartSchedule = "0 9 * * MON-FRI"
+
 const autostartDescriptionLong = `To have your workspace build automatically at a regular time you can enable autostart.
 When enabling autostart, provide the minute, hour, and day(s) of week.
 The default schedule is at 09:00 in your local timezone (TZ env, UTC by default).

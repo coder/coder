@@ -6,9 +6,10 @@ import (
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 
+	"github.com/spf13/cobra"
+
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
-	"github.com/spf13/cobra"
 )
 
 // Reads a YAML file and populates a string -> string map.
