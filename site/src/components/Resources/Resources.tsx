@@ -83,11 +83,13 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                       </span>
                     </TableCell>
                     <TableCell>
-                      <TerminalLink
-                        workspaceName={workspace.name}
-                        agentName={agent.name}
-                        userName={workspace.owner_name}
-                      />
+                      {agent.status === "connected" && (
+                        <TerminalLink
+                          workspaceName={workspace.name}
+                          agentName={agent.name}
+                          userName={workspace.owner_name}
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 )
