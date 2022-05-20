@@ -21,7 +21,6 @@ import (
 
 func templateCreate() *cobra.Command {
 	var (
-		yes           bool
 		directory     string
 		provisioner   string
 		parameterFile string
