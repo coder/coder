@@ -1,9 +1,11 @@
 package cli_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -46,34 +48,24 @@ func TestCreate(t *testing.T) {
 		<-doneChan
 	})
 
-	t.Run("CreateFromList", func(t *testing.T) {
+	t.Run("CreateFromListWithSkip", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "my-workspace")
+		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmdCtx, done := context.WithTimeout(context.Background(), time.Second*3)
 		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
+			defer done()
+			err := cmd.ExecuteContext(cmdCtx)
 			require.NoError(t, err)
 		}()
-		matches := []string{
-			"Confirm create", "yes",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
-		}
-		<-doneChan
+		// No pty interaction needed since we use the -y skip prompt flag
+		<-cmdCtx.Done()
+		require.ErrorIs(t, cmdCtx.Err(), context.Canceled)
 	})
 
 	t.Run("FromNothing", func(t *testing.T) {

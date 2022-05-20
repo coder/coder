@@ -204,6 +204,7 @@ func create() *cobra.Command {
 		},
 	}
 
+	cliui.AllowSkipPrompt(cmd)
 	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
 	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
 	return cmd
