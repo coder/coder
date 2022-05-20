@@ -38,6 +38,6 @@ describe("RuntimeErrorState", () => {
   it("should have an email link", () => {
     // Then
     const emailLink = screen.getByText(RuntimeErrorStateLanguage.link)
-    expect(emailLink.closest("a")).toHaveAttribute("href", "mailto:support@coder.com")
+    expect(emailLink.closest("a")).toHaveAttribute("href", expect.stringContaining("mailto:support@coder.com"))
   })
 })

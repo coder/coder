@@ -49,6 +49,17 @@ export const reducer = (model: ReportState, msg: ReportMessage): ReportState => 
   }
 }
 
+export const createFormattedStackTrace = (error: Error, mappedStack: string[] | null): string[] => {
+  return [
+    "======================= STACK TRACE ========================",
+    "",
+    error.message,
+    ...(mappedStack ? mappedStack : []),
+    "",
+    "============================================================",
+  ]
+}
+
 /**
  * A code block component that contains the error stack resulting from an error boundary trigger
  */
@@ -59,16 +70,8 @@ export const RuntimeErrorReport = ({ error, mappedStack }: ReportState): React.R
     return <CodeBlock lines={[Language.reportLoading]} className={styles.codeBlock} />
   }
 
-  const codeBlock = [
-    "======================= STACK TRACE ========================",
-    "",
-    error.message,
-    ...mappedStack,
-    "",
-    "============================================================",
-  ]
-
-  return <CodeBlock lines={codeBlock} className={styles.codeBlock} ctas={createCtas(codeBlock)} />
+  const formattedStackTrace = createFormattedStackTrace(error, mappedStack)
+  return <CodeBlock lines={formattedStackTrace} className={styles.codeBlock} ctas={createCtas(formattedStackTrace)} />
 }
 
 const useStyles = makeStyles(() => ({

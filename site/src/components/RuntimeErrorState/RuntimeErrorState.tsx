@@ -7,7 +7,13 @@ import { mapStackTrace } from "sourcemapped-stacktrace"
 import { Margins } from "../Margins/Margins"
 import { Section } from "../Section/Section"
 import { Typography } from "../Typography/Typography"
-import { reducer, RuntimeErrorReport, stackTraceAvailable, stackTraceUnavailable } from "./RuntimeErrorReport"
+import {
+  createFormattedStackTrace,
+  reducer,
+  RuntimeErrorReport,
+  stackTraceAvailable,
+  stackTraceUnavailable,
+} from "./RuntimeErrorReport"
 
 export const Language = {
   title: "Coder encountered an error",
@@ -35,12 +41,17 @@ const ErrorStateTitle = () => {
 /**
  * A description for our error boundary UI
  */
-const ErrorStateDescription = () => {
+const ErrorStateDescription = ({ emailBody }: { emailBody?: string }) => {
   const styles = useStyles()
   return (
     <Typography variant="body2" color="textSecondary">
       {Language.body}&nbsp;
-      <Link href="mailto:support@coder.com" className={styles.link}>
+      <Link
+        href={`mailto:support@coder.com?subject=Error Report from Coder&body=${
+          emailBody && emailBody.replace(/\r\n|\r|\n/g, "%0D%0A") // preserving line breaks
+        }`}
+        className={styles.link}
+      >
         {Language.link}
       </Link>
     </Typography>
@@ -65,7 +76,15 @@ export const RuntimeErrorState: React.FC<RuntimeErrorStateProps> = ({ error }) =
   return (
     <Box display="flex" flexDirection="column">
       <Margins>
-        <Section className={styles.reportContainer} title={<ErrorStateTitle />} description={<ErrorStateDescription />}>
+        <Section
+          className={styles.reportContainer}
+          title={<ErrorStateTitle />}
+          description={
+            <ErrorStateDescription
+              emailBody={createFormattedStackTrace(reportState.error, reportState.mappedStack).join("\r\n")}
+            />
+          }
+        >
           <RuntimeErrorReport error={reportState.error} mappedStack={reportState.mappedStack} />
         </Section>
       </Margins>
