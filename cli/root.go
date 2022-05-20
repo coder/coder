@@ -35,6 +35,7 @@ const (
 	varGlobalConfig = "global-config"
 	varNoOpen       = "no-open"
 	varForceTty     = "force-tty"
+	varLogRequests  = "log-requests"
 )
 
 func init() {
@@ -91,11 +92,14 @@ func Root() *cobra.Command {
 
 	cmd.PersistentFlags().String(varURL, "", "Specify the URL to your deployment.")
 	cmd.PersistentFlags().String(varToken, "", "Specify an authentication token.")
+	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
+	cmd.PersistentFlags().Bool(varLogRequests, false, "Log requests made to remote API endpoints.")
+
+	// Hidden flags for internal use.
 	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "Specify an agent authentication token.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "Specify the URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
-	cliflag.String(cmd.PersistentFlags(), varGlobalConfig, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Specify the path to the global `coder` config directory.")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
@@ -126,7 +130,17 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 			return nil, err
 		}
 	}
-	client := codersdk.New(serverURL)
+	logRequests, err := cmd.Flags().GetBool(varLogRequests)
+	if err != nil {
+		return nil, err
+	}
+
+	var client *codersdk.Client
+	if logRequests {
+		client = codersdk.NewWithRoundTripper(serverURL, newLoggingRoundTripper(cmd.OutOrStderr()))
+	} else {
+		client = codersdk.New(serverURL)
+	}
 	client.SessionToken = token
 	return client, nil
 }

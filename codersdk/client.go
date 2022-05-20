@@ -26,6 +26,16 @@ func New(serverURL *url.URL) *Client {
 	}
 }
 
+// NewWithRoundTripper behaves like New, but allows specifying a custom implementation of http.RoundTripper.
+func NewWithRoundTripper(serverURL *url.URL, roundTripper http.RoundTripper) *Client {
+	return &Client{
+		URL: serverURL,
+		HTTPClient: &http.Client{
+			Transport: roundTripper,
+		},
+	}
+}
+
 // Client is an HTTP caller for methods to the Coder API.
 // @typescript-ignore Client
 type Client struct {
