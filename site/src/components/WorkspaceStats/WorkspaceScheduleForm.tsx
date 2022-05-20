@@ -25,6 +25,7 @@ export const Language = {
   dayFridayLabel: "Friday",
   daySaturdayLabel: "Saturday",
   startTimeLabel: "Start time",
+  startTimeHelperText: "Your workspace will automatically start at this time.",
   ttlLabel: "Runtime (minutes)",
   ttlHelperText: "Your workspace will automatically shutdown after the runtime.",
 }
@@ -102,7 +103,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ on
       <form className={styles.form} onSubmit={form.handleSubmit}>
         <Stack className={styles.stack}>
           <TextField
-            {...formHelpers("startTime")}
+            {...formHelpers("startTime", Language.startTimeHelperText)}
             InputLabelProps={{
               shrink: true,
             }}

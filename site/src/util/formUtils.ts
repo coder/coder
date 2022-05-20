@@ -28,7 +28,7 @@ export const getFormHelpers =
       ...form.getFieldProps(name),
       id: name,
       error: touched && Boolean(error),
-      helperText: touched ? error : helperText,
+      helperText: touched ? error || helperText : helperText,
     }
   }
 
