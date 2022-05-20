@@ -54,7 +54,7 @@ func TestCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
+		cmd, root := clitest.New(t, "create", "my-workspace")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -67,7 +67,15 @@ func TestCreate(t *testing.T) {
 			err := cmd.ExecuteContext(ctx)
 			require.NoError(t, err)
 		}()
-		// No pty interaction needed since we use the -y skip prompt flag
+		matches := []string{
+			"Confirm create", "yes",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
 		<-doneChan
 	})
 
