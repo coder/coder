@@ -190,6 +190,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   ...MockWorkspaceAgent,
+  id: "test-workspace-agent-2",
   name: "another-workspace-agent",
   status: "disconnected",
 }

@@ -48,7 +48,7 @@ export const Resources: React.FC<ResourcesProps> = ({ resources, getResourcesErr
                     </TableHead>
                     <TableBody>
                       {resource.agents?.map((agent) => (
-                        <TableRow key={agent.id}>
+                        <TableRow key={`${resource.id}-${agent.id}`}>
                           <TableCell size="small">{agent.name}</TableCell>
                           <TableCell size="small">{agent.status}</TableCell>
                         </TableRow>
