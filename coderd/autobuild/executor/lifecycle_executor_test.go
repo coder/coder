@@ -395,23 +395,14 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 			IncludeProvisionerD: true,
 		})
 		_ = coderdtest.New(t, &coderdtest.Options{
-			AutobuildTicker: tickCh2,
+			AutobuildTicker:     tickCh2,
+			IncludeProvisionerD: true,
 		})
-		// Given: we have a user with a workspace
+		// Given: we have a user with a workspace that has autostart enabled (default)
 		workspace = mustProvisionWorkspace(t, client)
 	)
 	// Given: workspace is stopped
 	workspace = mustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-
-	// Given: the workspace initially has autostart disabled
-	require.Empty(t, workspace.AutostartSchedule)
-
-	// When: we enable workspace autostart
-	sched, err := schedule.Weekly("* * * * *")
-	require.NoError(t, err)
-	require.NoError(t, client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-		Schedule: sched.String(),
-	}))
 
 	// When: the autobuild executor ticks
 	go func() {
