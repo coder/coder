@@ -357,6 +357,25 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	var dbAutostartSchedule sql.NullString
+	if createWorkspace.AutostartSchedule != nil {
+		_, err := schedule.Weekly(*createWorkspace.AutostartSchedule)
+		if err != nil {
+			httpapi.Write(rw, http.StatusBadRequest, httpapi.Response{
+				Message: fmt.Sprintf("parse autostart schedule: %s", err.Error()),
+			})
+			return
+		}
+		dbAutostartSchedule.Valid = true
+		dbAutostartSchedule.String = *createWorkspace.AutostartSchedule
+	}
+
+	var dbTTL sql.NullInt64
+	if createWorkspace.TTL != nil && *createWorkspace.TTL > 0 {
+		dbTTL.Valid = true
+		dbTTL.Int64 = int64(*createWorkspace.TTL)
+	}
+
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: apiKey.UserID,
 		Name:    createWorkspace.Name,
@@ -426,13 +445,15 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspaceBuildID := uuid.New()
 		// Workspaces are created without any versions.
 		workspace, err = db.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
-			ID:             uuid.New(),
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			OwnerID:        apiKey.UserID,
-			OrganizationID: template.OrganizationID,
-			TemplateID:     template.ID,
-			Name:           createWorkspace.Name,
+			ID:                uuid.New(),
+			CreatedAt:         database.Now(),
+			UpdatedAt:         database.Now(),
+			OwnerID:           apiKey.UserID,
+			OrganizationID:    template.OrganizationID,
+			TemplateID:        template.ID,
+			Name:              createWorkspace.Name,
+			AutostartSchedule: dbAutostartSchedule,
+			Ttl:               dbTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
