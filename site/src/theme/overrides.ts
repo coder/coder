@@ -83,9 +83,6 @@ export const getOverrides = (palette: PaletteOptions) => {
       root: {
         color: (palette.primary as SimplePaletteColorOptions).light,
       },
-      "&:has(button)": {
-        textDecoration: "none !important",
-      },
     },
     MuiPaper: {
       root: {
