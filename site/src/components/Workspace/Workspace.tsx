@@ -68,7 +68,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       <Stack direction="row" spacing={3} className={styles.layout}>
         <Stack spacing={3} className={styles.main}>
           <WorkspaceStats workspace={workspace} />
-          <Resources resources={resources} getResourcesError={getResourcesError} />
+          <Resources resources={resources} getResourcesError={getResourcesError} workspace={workspace} />
           <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
             <BuildsTable builds={builds} className={styles.timelineTable} />
           </WorkspaceSection>
