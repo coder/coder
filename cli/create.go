@@ -117,11 +117,11 @@ func create() *cobra.Command {
 				return err
 			}
 
-			// parameterMap can be nil if the file is not specified or invalid
-			var parameterMap map[string]string
+			// parameterMapFromFile can be nil if the file is not specified or invalid
+			var parameterMapFromFile map[string]string
 			if parameterFile != "" {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-				parameterMap, err = createParameterMapFromFile(parameterFile)
+				parameterMapFromFile, err = createParameterMapFromFile(parameterFile)
 				if err != nil {
 					return err
 				}
@@ -137,7 +137,7 @@ func create() *cobra.Command {
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 					disclaimerPrinted = true
 				}
-				parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMap, parameterSchema)
+				parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
 				if err != nil {
 					return err
 				}
