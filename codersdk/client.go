@@ -125,6 +125,13 @@ func (c *Client) dialWebsocket(ctx context.Context, path string) (*websocket.Con
 // wraps it in a codersdk.Error type for easy marshaling.
 func readBodyAsError(res *http.Response) error {
 	contentType := res.Header.Get("Content-Type")
+
+	var helper string
+	switch res.StatusCode {
+	case http.StatusUnauthorized:
+		helper = "Try running \"coder login [url]\"."
+	}
+
 	if strings.HasPrefix(contentType, "text/plain") {
 		resp, err := io.ReadAll(res.Body)
 		if err != nil {
@@ -135,6 +142,7 @@ func readBodyAsError(res *http.Response) error {
 			Response: httpapi.Response{
 				Message: string(resp),
 			},
+			Helper: helper,
 		}
 	}
 
@@ -153,6 +161,7 @@ func readBodyAsError(res *http.Response) error {
 	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,
+		Helper:     helper,
 	}
 }
 
@@ -162,6 +171,8 @@ type Error struct {
 	httpapi.Response
 
 	statusCode int
+
+	Helper string
 }
 
 func (e *Error) StatusCode() int {
@@ -173,6 +184,9 @@ func (e *Error) Error() string {
 	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
 	for _, err := range e.Errors {
 		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
+	}
+	if e.Helper != "" {
+		_, _ = fmt.Fprintf(&builder, ": %s", e.Helper)
 	}
 	return builder.String()
 }
