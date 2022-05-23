@@ -38,7 +38,7 @@ func TestUserList(t *testing.T) {
 
 		require.Contains(t, err.Error(), "Try running \"coder login [url]\"")
 	})
-	t.Run("NoSessionAuthErrorHasHelperText", func(t *testing.T) {
+	t.Run("SessionAuthErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
