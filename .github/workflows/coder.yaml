@@ -147,7 +147,9 @@ jobs:
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
 
-      - run: "make --output-sync -j -B fmt"
+      - run: |
+          export PATH=${PATH}:$(go env GOPATH)/bin
+          make --output-sync -j -B fmt
 
   test-go:
     name: "test/go"
