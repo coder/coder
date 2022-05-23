@@ -141,13 +141,16 @@ func TestPortForward(t *testing.T) {
 		},
 	}
 
-	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
+	//nolint:paralleltest
+	for _, c := range cases {
 		c := c
+		// Avoid parallel test here because setupLocal reserves
+		// a free open port which is not guaranteed to be free
+		// after the listener closes.
+		//nolint:paralleltest
 		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-
+			//nolint:paralleltest
 			t.Run("OnePort", func(t *testing.T) {
-				t.Parallel()
 				var (
 					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 					user         = coderdtest.CreateFirstUser(t, client)
@@ -170,10 +173,9 @@ func TestPortForward(t *testing.T) {
 				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+				errC := make(chan error)
 				go func() {
-					err := cmd.ExecuteContext(ctx)
-					require.Error(t, err)
-					require.ErrorIs(t, err, context.Canceled)
+					errC <- cmd.ExecuteContext(ctx)
 				}()
 				waitForPortForwardReady(t, buf)
 
@@ -188,10 +190,13 @@ func TestPortForward(t *testing.T) {
 				defer c2.Close()
 				testDial(t, c2)
 				testDial(t, c1)
+
+				err = <-errC
+				require.ErrorIs(t, err, context.Canceled)
 			})
 
+			//nolint:paralleltest
 			t.Run("TwoPorts", func(t *testing.T) {
-				t.Parallel()
 				var (
 					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 					user         = coderdtest.CreateFirstUser(t, client)
@@ -218,10 +223,9 @@ func TestPortForward(t *testing.T) {
 				cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+				errC := make(chan error)
 				go func() {
-					err := cmd.ExecuteContext(ctx)
-					require.Error(t, err)
-					require.ErrorIs(t, err, context.Canceled)
+					errC <- cmd.ExecuteContext(ctx)
 				}()
 				waitForPortForwardReady(t, buf)
 
@@ -236,13 +240,16 @@ func TestPortForward(t *testing.T) {
 				defer c2.Close()
 				testDial(t, c2)
 				testDial(t, c1)
+
+				err = <-errC
+				require.ErrorIs(t, err, context.Canceled)
 			})
 		})
 	}
 
 	// Test doing a TCP -> Unix forward.
+	//nolint:paralleltest
 	t.Run("TCP2Unix", func(t *testing.T) {
-		t.Parallel()
 		var (
 			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user         = coderdtest.CreateFirstUser(t, client)
@@ -273,10 +280,9 @@ func TestPortForward(t *testing.T) {
 		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		errC := make(chan error)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
-			require.Error(t, err)
-			require.ErrorIs(t, err, context.Canceled)
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		waitForPortForwardReady(t, buf)
 
@@ -291,11 +297,14 @@ func TestPortForward(t *testing.T) {
 		defer c2.Close()
 		testDial(t, c2)
 		testDial(t, c1)
+
+		err = <-errC
+		require.ErrorIs(t, err, context.Canceled)
 	})
 
 	// Test doing TCP, UDP and Unix at the same time.
+	//nolint:paralleltest
 	t.Run("All", func(t *testing.T) {
-		t.Parallel()
 		var (
 			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user         = coderdtest.CreateFirstUser(t, client)
@@ -334,10 +343,9 @@ func TestPortForward(t *testing.T) {
 		cmd.SetOut(io.MultiWriter(buf, os.Stderr))
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		errC := make(chan error)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
-			require.Error(t, err)
-			require.ErrorIs(t, err, context.Canceled)
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 		waitForPortForwardReady(t, buf)
 
@@ -359,6 +367,9 @@ func TestPortForward(t *testing.T) {
 		for i := len(conns) - 1; i >= 0; i-- {
 			testDial(t, conns[i])
 		}
+
+		err := <-errC
+		require.ErrorIs(t, err, context.Canceled)
 	})
 }
 
