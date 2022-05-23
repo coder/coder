@@ -41,7 +41,16 @@ fmt/terraform: $(wildcard *.tf)
 	terraform fmt -recursive
 .PHONY: fmt/terraform
 
-fmt: fmt/prettier fmt/terraform
+fmt/shfmt: $(shell shfmt -f .)
+	@echo "--- shfmt"
+# Only do diff check in CI, errors on diff.
+ifdef CI
+	shfmt -d $(shell shfmt -f .)
+else
+	shfmt -w $(shell shfmt -f .)
+endif
+
+fmt: fmt/prettier fmt/terraform fmt/shfmt
 .PHONY: fmt
 
 gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
@@ -53,9 +62,16 @@ install: build
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
 .PHONY: install
 
-lint:
+lint: lint/shellcheck lint/go
+
+lint/go:
 	golangci-lint run
-.PHONY: lint
+.PHONY: lint/go
+
+# Use shfmt to determine the shell files, takes editorconfig into consideration.
+lint/shellcheck: $(shell shfmt -f .)
+	@echo "--- shellcheck"
+	shellcheck $(shell shfmt -f .)
 
 peerbroker/proto/peerbroker.pb.go: peerbroker/proto/peerbroker.proto
 	protoc \
