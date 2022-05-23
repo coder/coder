@@ -16,15 +16,13 @@ func TestUserList(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 	cmd, root := clitest.New(t, "users", "list")
 	clitest.SetupConfig(t, client, root)
-	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
 	cmd.SetOut(pty.Output())
+	errC := make(chan error)
 	go func() {
-		defer close(doneChan)
-		err := cmd.Execute()
-		require.NoError(t, err)
+		errC <- cmd.Execute()
 	}()
+	require.NoError(t, <-errC)
 	pty.ExpectMatch("coder.com")
-	<-doneChan
 }
