@@ -5,6 +5,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { WorkspaceStatus } from "../../util/workspace"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
+import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
@@ -17,6 +18,8 @@ export interface WorkspaceProps {
   handleUpdate: () => void
   workspace: TypesGen.Workspace
   workspaceStatus: WorkspaceStatus
+  resources?: TypesGen.WorkspaceResource[]
+  getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
 }
 
@@ -30,6 +33,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleUpdate,
   workspace,
   workspaceStatus,
+  resources,
+  getResourcesError,
   builds,
 }) => {
   const styles = useStyles()
@@ -61,6 +66,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
       <Stack spacing={3}>
         <WorkspaceStats workspace={workspace} />
+        <Resources resources={resources} getResourcesError={getResourcesError} />
         <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
           <BuildsTable builds={builds} className={styles.timelineTable} />
         </WorkspaceSection>

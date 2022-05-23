@@ -48,6 +48,7 @@ export const WorkspaceBuildPage: React.FC = () => {
 
 const useStyles = makeStyles((theme) => ({
   title: {
-    marginTop: theme.spacing(5),
+    paddingTop: theme.spacing(5),
+    paddingBottom: theme.spacing(2),
   },
 }))

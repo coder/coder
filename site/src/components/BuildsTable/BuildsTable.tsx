@@ -34,7 +34,7 @@ export const BuildsTable: React.FC<BuildsTableProps> = ({ builds, className }) =
   const styles = useStyles()
 
   return (
-    <Table className={className}>
+    <Table className={className} data-testid="builds-table">
       <TableHead>
         <TableRow>
           <TableCell width="20%">{Language.actionLabel}</TableCell>

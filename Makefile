@@ -91,5 +91,33 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site && yarn run format:types
 
-test:
+.PHONY: test
+test: test-clean
 	gotestsum -- -v -short ./...
+
+.PHONY: test-postgres
+test-postgres: test-clean
+	DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." -- \
+          -covermode=atomic -coverprofile="gotests.coverage" -timeout=5m \
+          -coverpkg=./...,github.com/coder/coder/codersdk \
+          -count=1 -parallel=1 -race -failfast
+
+
+.PHONY: test-postgres-docker
+test-postgres-docker:
+	docker run \
+		--env POSTGRES_PASSWORD=postgres \
+		--env POSTGRES_USER=postgres \
+		--env POSTGRES_DB=postgres \
+		--env PGDATA=/tmp \
+		--publish 5432:5432 \
+		--name test-postgres-docker \
+		--restart unless-stopped \
+		--detach \
+		postgres:11 \
+		-c shared_buffers=1GB \
+		-c max_connections=1000
+
+.PHONY: test-clean
+test-clean:
+	go clean -testcache

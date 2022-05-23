@@ -1,4 +1,4 @@
-import { useActor, useSelector } from "@xstate/react"
+import { useActor } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
@@ -16,10 +16,8 @@ export const WorkspacePage: React.FC = () => {
 
   const xServices = useContext(XServiceContext)
   const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
-  const { workspace, getWorkspaceError, getTemplateError, getOrganizationError, builds } = workspaceState.context
-  const workspaceStatus = useSelector(xServices.workspaceXService, (state) => {
-    return getWorkspaceStatus(state.context.workspace?.latest_build)
-  })
+  const { workspace, resources, getWorkspaceError, getResourcesError, builds } = workspaceState.context
+  const workspaceStatus = getWorkspaceStatus(workspace?.latest_build)
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -30,7 +28,7 @@ export const WorkspacePage: React.FC = () => {
   }, [workspaceId, workspaceSend])
 
   if (workspaceState.matches("error")) {
-    return <ErrorSummary error={getWorkspaceError || getTemplateError || getOrganizationError} />
+    return <ErrorSummary error={getWorkspaceError} />
   } else if (!workspace) {
     return <FullScreenLoader />
   } else {
@@ -44,6 +42,8 @@ export const WorkspacePage: React.FC = () => {
             handleRetry={() => workspaceSend("RETRY")}
             handleUpdate={() => workspaceSend("UPDATE")}
             workspaceStatus={workspaceStatus}
+            resources={resources}
+            getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
             builds={builds}
           />
         </Stack>
