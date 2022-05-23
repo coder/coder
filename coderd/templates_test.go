@@ -62,8 +62,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		organizationID := uuid.New()
-		_, err := client.CreateTemplate(context.Background(), organizationID, codersdk.CreateTemplateRequest{
+		_, err := client.CreateTemplate(context.Background(), uuid.New(), codersdk.CreateTemplateRequest{
 			Name:      "test",
 			VersionID: uuid.New(),
 		})
