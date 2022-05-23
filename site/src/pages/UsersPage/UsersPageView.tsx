@@ -8,7 +8,7 @@ import { UsersTable } from "../../components/UsersTable/UsersTable"
 
 export const Language = {
   pageTitle: "Users",
-  newUserButton: "New User",
+  newUserButton: "New user",
 }
 
 export interface UsersPageViewProps {

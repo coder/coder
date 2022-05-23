@@ -6,7 +6,7 @@ import { MockGitSSHKey, renderWithAuth } from "../../../testHelpers/renderHelper
 import { Language as authXServiceLanguage } from "../../../xServices/auth/authXService"
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage"
 
-describe("SSH Keys Page", () => {
+describe("SSH keys Page", () => {
   it("shows the SSH key", async () => {
     renderWithAuth(<SSHKeysPage />)
     await screen.findByText(MockGitSSHKey.public_key)
