@@ -190,6 +190,7 @@ func TestPortForward(t *testing.T) {
 				testDial(t, c2)
 				testDial(t, c1)
 
+				cancel()
 				err = <-errC
 				require.ErrorIs(t, err, context.Canceled)
 			})
@@ -240,6 +241,7 @@ func TestPortForward(t *testing.T) {
 				testDial(t, c2)
 				testDial(t, c1)
 
+				cancel()
 				err = <-errC
 				require.ErrorIs(t, err, context.Canceled)
 			})
@@ -297,6 +299,7 @@ func TestPortForward(t *testing.T) {
 		testDial(t, c2)
 		testDial(t, c1)
 
+		cancel()
 		err = <-errC
 		require.ErrorIs(t, err, context.Canceled)
 	})
@@ -367,6 +370,7 @@ func TestPortForward(t *testing.T) {
 			testDial(t, conns[i])
 		}
 
+		cancel()
 		err := <-errC
 		require.ErrorIs(t, err, context.Canceled)
 	})
