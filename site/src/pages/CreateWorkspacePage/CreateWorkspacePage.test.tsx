@@ -20,7 +20,7 @@ const nameSchema = reach(validationSchema, "name") as StringSchema
 
 describe("CreateWorkspacePage", () => {
   beforeEach(() => {
-    history.replace("/templates/" + MockTemplate.name + "/new")
+    history.replace("/workspaces/new?template=" + MockTemplate.name)
   })
 
   it("renders", async () => {
