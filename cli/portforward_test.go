@@ -416,10 +416,15 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 	// Start workspace agent in a goroutine
 	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
 	clitest.SetupConfig(t, client, root)
+	errC := make(chan error)
 	agentCtx, agentCancel := context.WithCancel(ctx)
-	t.Cleanup(agentCancel)
+	t.Cleanup(func() {
+		agentCancel()
+		err := <-errC
+		require.NoError(t, err)
+	})
 	go func() {
-		err := cmd.ExecuteContext(agentCtx)
+		errC <- cmd.ExecuteContext(agentCtx)
 		require.NoError(t, err)
 	}()
 
