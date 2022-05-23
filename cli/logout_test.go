@@ -17,30 +17,64 @@ func TestLogout(t *testing.T) {
 	t.Run("Logout", func(t *testing.T) {
 		t.Parallel()
 
-		config := login(t)
+		pty := ptytest.New(t)
+		config := login(t, pty)
 
 		// ensure session files exist
 		assert.FileExists(t, string(config.URL()))
 		assert.FileExists(t, string(config.Session()))
 
+		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
-		err := logout.Execute()
-		assert.NoError(t, err)
-		assert.NoFileExists(t, string(config.URL()))
-		assert.NoFileExists(t, string(config.Session()))
+		logout.SetIn(pty.Input())
+		logout.SetOut(pty.Output())
+
+		go func() {
+			defer close(logoutChan)
+			err := logout.Execute()
+			assert.NoError(t, err)
+			assert.NoFileExists(t, string(config.URL()))
+			assert.NoFileExists(t, string(config.Session()))
+		}()
+
+		pty.ExpectMatch("Successfully logged out")
+		<-logoutChan
 	})
 	t.Run("NoURLFile", func(t *testing.T) {
 		t.Parallel()
 
-		logout, _ := clitest.New(t, "logout")
+		pty := ptytest.New(t)
+		config := login(t, pty)
 
-		err := logout.Execute()
-		assert.EqualError(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
+		// ensure session files exist
+		assert.FileExists(t, string(config.URL()))
+		assert.FileExists(t, string(config.Session()))
+
+		os.RemoveAll(string(config.URL()))
+
+		logoutChan := make(chan struct{})
+		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
+
+		logout.SetIn(pty.Input())
+		logout.SetOut(pty.Output())
+
+		go func() {
+			defer close(logoutChan)
+			err := logout.Execute()
+			assert.NoError(t, err)
+			assert.NoFileExists(t, string(config.URL()))
+			assert.NoFileExists(t, string(config.Session()))
+		}()
+
+		pty.ExpectMatch("You are not logged in. Try logging in using 'coder login <url>'.")
+		pty.ExpectMatch("Successfully logged out")
+		<-logoutChan
 	})
 	t.Run("NoSessionFile", func(t *testing.T) {
 		t.Parallel()
 
-		config := login(t)
+		pty := ptytest.New(t)
+		config := login(t, pty)
 
 		// ensure session files exist
 		assert.FileExists(t, string(config.URL()))
@@ -48,14 +82,27 @@ func TestLogout(t *testing.T) {
 
 		os.RemoveAll(string(config.Session()))
 
+		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
 
-		err := logout.Execute()
-		assert.EqualError(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
+		logout.SetIn(pty.Input())
+		logout.SetOut(pty.Output())
+
+		go func() {
+			defer close(logoutChan)
+			err := logout.Execute()
+			assert.NoError(t, err)
+			assert.NoFileExists(t, string(config.URL()))
+			assert.NoFileExists(t, string(config.Session()))
+		}()
+
+		pty.ExpectMatch("You are not logged in. Try logging in using 'coder login <url>'.")
+		pty.ExpectMatch("Successfully logged out")
+		<-logoutChan
 	})
 }
 
-func login(t *testing.T) config.Root {
+func login(t *testing.T, pty *ptytest.PTY) config.Root {
 	t.Helper()
 
 	client := coderdtest.New(t, nil)
@@ -63,7 +110,6 @@ func login(t *testing.T) config.Root {
 
 	doneChan := make(chan struct{})
 	root, cfg := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
-	pty := ptytest.New(t)
 	root.SetIn(pty.Input())
 	root.SetOut(pty.Output())
 	go func() {
