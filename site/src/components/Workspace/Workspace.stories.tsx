@@ -33,7 +33,7 @@ Started.args = {
   handleStop: action("stop"),
   handleRetry: action("retry"),
   resources: [MockWorkspaceResource, MockWorkspaceResource2],
-  builds: [MockWorkspaceBuild]
+  builds: [MockWorkspaceBuild],
 }
 
 export const Starting = Template.bind({})

@@ -44,7 +44,7 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
   handleUpdate,
 }) => {
   const styles = useStyles()
-  const workspaceStatus = getWorkspaceStatus(workspace?.latest_build)
+  const workspaceStatus = getWorkspaceStatus(workspace.latest_build)
 
   return (
     <Stack direction="row" spacing={1}>
