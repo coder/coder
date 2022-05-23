@@ -335,7 +335,7 @@ jobs:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
-      - uses: goreleaser/goreleaser-action@v2
+      - uses: goreleaser/goreleaser-action@v3
         with:
           install-only: true
 
@@ -354,7 +354,7 @@ jobs:
         run: make -B site/out/index.html
 
       - name: Build Release
-        uses: goreleaser/goreleaser-action@v2.9.1
+        uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
           args: release --snapshot --rm-dist --skip-sign
@@ -467,7 +467,7 @@ jobs:
         with:
           node-version: "14"
 
-      - uses: goreleaser/goreleaser-action@v2
+      - uses: goreleaser/goreleaser-action@v3
         with:
           install-only: true
 
