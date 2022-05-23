@@ -130,7 +130,7 @@ func readBodyAsError(res *http.Response) error {
 	if res.StatusCode == http.StatusUnauthorized {
 		// 401 means the user is not logged in
 		// 403 would mean that the user is not authorized
-		helper = "Try logging in using 'coder login [url]'."
+		helper = "Try logging in using 'coder login <url>'."
 	}
 
 	if strings.HasPrefix(contentType, "text/plain") {

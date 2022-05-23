@@ -70,7 +70,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-		require.Contains(t, err.Error(), "Try logging in using 'coder login [url]'.")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
 	})
 
 	t.Run("NoVersion", func(t *testing.T) {

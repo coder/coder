@@ -35,7 +35,7 @@ func TestUserList(t *testing.T) {
 
 		_, err := cmd.ExecuteC()
 
-		require.Contains(t, err.Error(), "Try logging in using 'coder login [url]'.")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
 	})
 	t.Run("SessionAuthErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
@@ -48,6 +48,6 @@ func TestUserList(t *testing.T) {
 
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Contains(t, err.Error(), "Try logging in using 'coder login [url]'.")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
 	})
 }
