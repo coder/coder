@@ -1,7 +1,9 @@
 package clitest_test
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -17,6 +19,8 @@ func TestMain(m *testing.M) {
 
 func TestCli(t *testing.T) {
 	t.Parallel()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFunc()
 	clitest.CreateTemplateVersionSource(t, nil)
 	client := coderdtest.New(t, nil)
 	cmd, config := clitest.New(t)
@@ -24,9 +28,11 @@ func TestCli(t *testing.T) {
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
 	cmd.SetOut(pty.Output())
+	errC := make(chan error)
 	go func() {
-		err := cmd.Execute()
-		require.NoError(t, err)
+		errC <- cmd.ExecuteContext(ctx)
 	}()
 	pty.ExpectMatch("coder")
+	cancelFunc()
+	require.NoError(t, <-errC)
 }
