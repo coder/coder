@@ -32,6 +32,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -188,7 +189,7 @@ func NewProvisionerDaemon(t *testing.T, coderDaemon coderd.CoderD) io.Closer {
 		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 			Listener: echoServer,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	closer := provisionerd.New(coderDaemon.ListenProvisionerDaemon, &provisionerd.Options{

@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/pion/udp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -172,8 +173,7 @@ func TestPortForward(t *testing.T) {
 				defer cancel()
 				go func() {
 					err := cmd.ExecuteContext(ctx)
-					require.Error(t, err)
-					require.ErrorIs(t, err, context.Canceled)
+					assert.ErrorIs(t, err, context.Canceled)
 				}()
 				waitForPortForwardReady(t, buf)
 
@@ -220,8 +220,7 @@ func TestPortForward(t *testing.T) {
 				defer cancel()
 				go func() {
 					err := cmd.ExecuteContext(ctx)
-					require.Error(t, err)
-					require.ErrorIs(t, err, context.Canceled)
+					assert.ErrorIs(t, err, context.Canceled)
 				}()
 				waitForPortForwardReady(t, buf)
 
@@ -275,8 +274,7 @@ func TestPortForward(t *testing.T) {
 		defer cancel()
 		go func() {
 			err := cmd.ExecuteContext(ctx)
-			require.Error(t, err)
-			require.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, context.Canceled)
 		}()
 		waitForPortForwardReady(t, buf)
 
@@ -336,8 +334,8 @@ func TestPortForward(t *testing.T) {
 		defer cancel()
 		go func() {
 			err := cmd.ExecuteContext(ctx)
-			require.Error(t, err)
-			require.ErrorIs(t, err, context.Canceled)
+			assert.Error(t, err)
+			assert.ErrorIs(t, err, context.Canceled)
 		}()
 		waitForPortForwardReady(t, buf)
 
@@ -406,7 +404,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 	t.Cleanup(agentCancel)
 	go func() {
 		err := cmd.ExecuteContext(agentCtx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
@@ -463,15 +461,15 @@ func testAccept(t *testing.T, c net.Conn) {
 func assertReadPayload(t *testing.T, r io.Reader, payload []byte) {
 	b := make([]byte, len(payload)+16)
 	n, err := r.Read(b)
-	require.NoError(t, err, "read payload")
-	require.Equal(t, len(payload), n, "read payload length does not match")
-	require.Equal(t, payload, b[:n])
+	assert.NoError(t, err, "read payload")
+	assert.Equal(t, len(payload), n, "read payload length does not match")
+	assert.Equal(t, payload, b[:n])
 }
 
 func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
-	require.NoError(t, err, "write payload")
-	require.Equal(t, len(payload), n, "payload length does not match")
+	assert.NoError(t, err, "write payload")
+	assert.Equal(t, len(payload), n, "payload length does not match")
 }
 
 func waitForPortForwardReady(t *testing.T, output *threadSafeBuffer) {

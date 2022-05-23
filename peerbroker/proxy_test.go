@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -55,7 +56,7 @@ func TestProxy(t *testing.T) {
 			Logger:    slogtest.Make(t, nil).Named("proxy-dial").Leveled(slog.LevelDebug),
 			Pubsub:    pubsub,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 
 	api := proto.NewDRPCPeerBrokerClient(provisionersdk.Conn(dialerClient))
