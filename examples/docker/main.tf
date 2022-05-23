@@ -44,14 +44,7 @@ variable "step2_arch" {
   sensitive = true
 }
 variable "step3_dotfiles" {
-  description = <<-EOF
-  Dotfiles repository URL (example 'git@github.com:coder/dotfiles.git')
-  EOF
-
-  validation {
-    condition     = var.step3_dotfiles != "" ? regex([".git$"], var.step3_dotfiles) : true
-    error_message = "Value must end in '.git' extension"
-  }
+  description = "Dotfiles repository URL (example 'git@github.com:coder/dotfiles.git')"
   sensitive = false
 }
 
