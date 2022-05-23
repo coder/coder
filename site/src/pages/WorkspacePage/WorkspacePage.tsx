@@ -1,5 +1,5 @@
-import { useActor } from "@xstate/react"
-import React, { useContext, useEffect } from "react"
+import { useMachine } from "@xstate/react"
+import React, { useEffect } from "react"
 import { useParams } from "react-router-dom"
 import { ErrorSummary } from "../../components/ErrorSummary/ErrorSummary"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
@@ -8,14 +8,13 @@ import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
 import { getWorkspaceStatus } from "../../util/workspace"
-import { XServiceContext } from "../../xServices/StateContext"
+import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 
 export const WorkspacePage: React.FC = () => {
   const { workspace: workspaceQueryParam } = useParams()
   const workspaceId = firstOrItem(workspaceQueryParam, null)
 
-  const xServices = useContext(XServiceContext)
-  const [workspaceState, workspaceSend] = useActor(xServices.workspaceXService)
+  const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const { workspace, resources, getWorkspaceError, getResourcesError, builds } = workspaceState.context
   const workspaceStatus = getWorkspaceStatus(workspace?.latest_build)
 
