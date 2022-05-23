@@ -185,6 +185,7 @@ func newRouter(options *Options, a *api) chi.Router {
 		r.Route("/templates/{template}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				authRolesMiddleware,
 				httpmw.ExtractTemplateParam(options.Database),
 			)
 

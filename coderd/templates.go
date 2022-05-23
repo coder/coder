@@ -31,6 +31,11 @@ func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
+		return
+	}
+
 	count := uint32(0)
 	if len(workspaceCounts) > 0 {
 		count = uint32(workspaceCounts[0].Count)
@@ -41,6 +46,9 @@ func (api *api) template(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	template := httpmw.TemplateParam(r)
+	if !api.Authorize(rw, r, rbac.ActionDelete, template) {
+		return
+	}
 
 	workspaces, err := api.Database.GetWorkspacesByTemplateID(r.Context(), database.GetWorkspacesByTemplateIDParams{
 		TemplateID: template.ID,
@@ -78,10 +86,14 @@ func (api *api) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 // Create a new template in an organization.
 func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var createTemplate codersdk.CreateTemplateRequest
+	organization := httpmw.OrganizationParam(r)
+	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		return
+	}
+
 	if !httpapi.Read(rw, r, &createTemplate) {
 		return
 	}
-	organization := httpmw.OrganizationParam(r)
 	_, err := api.Database.GetTemplateByOrganizationAndName(r.Context(), database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
@@ -236,6 +248,10 @@ func (api *api) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		httpapi.Write(rw, http.StatusInternalServerError, httpapi.Response{
 			Message: fmt.Sprintf("get template by organization and name: %s", err),
 		})
+		return
+	}
+
+	if !api.Authorize(rw, r, rbac.ActionRead, template) {
 		return
 	}
 

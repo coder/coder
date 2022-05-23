@@ -30,13 +30,7 @@ import (
 
 func (api *api) workspace(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
-		return
-	}
-
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
 
@@ -255,8 +249,7 @@ func (api *api) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !api.Authorize(rw, r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(workspace.OwnerID.String()).WithID(workspace.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionRead, workspace) {
 		return
 	}
 

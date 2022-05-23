@@ -96,7 +96,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/templates":               {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/workspaces":              {NoAuthorize: true},
@@ -105,8 +104,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"GET:/api/v2/parameters/{scope}/{id}":           {NoAuthorize: true},
 		"DELETE:/api/v2/parameters/{scope}/{id}/{name}": {NoAuthorize: true},
 
-		"DELETE:/api/v2/templates/{template}":                             {NoAuthorize: true},
-		"GET:/api/v2/templates/{template}":                                {NoAuthorize: true},
 		"GET:/api/v2/templates/{template}/versions":                       {NoAuthorize: true},
 		"PATCH:/api/v2/templates/{template}/versions":                     {NoAuthorize: true},
 		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {NoAuthorize: true},
@@ -187,6 +184,19 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
 		},
+		"POST:/api/v2/organizations/{organization}/templates": {
+			AssertAction: rbac.ActionCreate,
+			AssertObject: rbac.ResourceTemplate.InOrg(organization.ID),
+		},
+
+		"DELETE:/api/v2/templates/{template}": {
+			AssertAction: rbac.ActionDelete,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
+		"GET:/api/v2/templates/{template}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
+		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
@@ -224,6 +234,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
+			route = strings.ReplaceAll(route, "{template}", template.ID.String())
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")

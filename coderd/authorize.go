@@ -17,9 +17,9 @@ func AuthorizeFilter[O rbac.IsObject](api *api, r *http.Request, action rbac.Act
 	return rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, action, objects)
 }
 
-func (api *api) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.Action, object rbac.Object) bool {
+func (api *api) Authorize(rw http.ResponseWriter, r *http.Request, action rbac.Action, object rbac.IsObject) bool {
 	roles := httpmw.UserRoles(r)
-	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object)
+	err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, action, object.RBACObject())
 	if err != nil {
 		httpapi.Write(rw, http.StatusForbidden, httpapi.Response{
 			Message: err.Error(),
