@@ -18,7 +18,6 @@ export interface WorkspaceProps {
   handleRetry: () => void
   handleUpdate: () => void
   workspace: TypesGen.Workspace
-  workspaceStatus: WorkspaceStatus
   resources?: TypesGen.WorkspaceResource[]
   getResourcesError?: Error
   builds?: TypesGen.WorkspaceBuild[]
@@ -33,7 +32,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   handleRetry,
   handleUpdate,
   workspace,
-  workspaceStatus,
   resources,
   getResourcesError,
   builds,
@@ -60,7 +58,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             handleStop={handleStop}
             handleRetry={handleRetry}
             handleUpdate={handleUpdate}
-            workspaceStatus={workspaceStatus}
           />
         </div>
       </div>
