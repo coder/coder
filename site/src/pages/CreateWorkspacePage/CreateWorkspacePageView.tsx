@@ -142,10 +142,10 @@ export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (
                   ))}
                 </div>
               )}
+
+              <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
             </>
           )}
-
-          <FormFooter onCancel={props.onCancel} isLoading={props.creatingWorkspace} />
         </form>
       </FullPageForm>
     </Margins>
