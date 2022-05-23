@@ -59,6 +59,21 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		organizationID := uuid.New()
+		_, err := client.CreateTemplate(context.Background(), organizationID, codersdk.CreateTemplateRequest{
+			Name:      "test",
+			VersionID: uuid.New(),
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, err.Error(), "Try running \"coder login [url]\"")
+	})
+
 	t.Run("NoVersion", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
