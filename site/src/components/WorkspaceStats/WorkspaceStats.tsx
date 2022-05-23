@@ -43,15 +43,15 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
         <span className={styles.statsLabel}>Version</span>
         <span className={styles.statsValue}>
           {workspace.outdated ? (
-            <span style={{ color: theme.palette.error.main }}>outdated</span>
+            <span style={{ color: theme.palette.error.main }}>Outdated</span>
           ) : (
-            <span style={{ color: theme.palette.text.secondary }}>up to date</span>
+            <span style={{ color: theme.palette.text.secondary }}>Up to date</span>
           )}
         </span>
       </div>
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Last Built</span>
+        <span className={styles.statsLabel}>Last built</span>
         <span className={styles.statsValue}>{dayjs().to(dayjs(workspace.latest_build.created_at))}</span>
       </div>
     </div>

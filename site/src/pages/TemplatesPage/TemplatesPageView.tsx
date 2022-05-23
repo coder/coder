@@ -22,13 +22,13 @@ import { firstLetter } from "../../util/firstLetter"
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createButton: "Create Template",
+  createButton: "Create template",
   developerCount: (ownerCount: number): string => {
     return `${ownerCount} developer${ownerCount !== 1 ? "s" : ""}`
   },
   nameLabel: "Name",
-  usedByLabel: "Used By",
-  lastUpdatedLabel: "Last Updated",
+  usedByLabel: "Used by",
+  lastUpdatedLabel: "Last updated",
   emptyViewCreateCTA: "Create a template",
   emptyViewCreate: "to standardize development workspaces for your team.",
   emptyViewNoPerms: "No templates have been created! Contact your Coder administrator.",
