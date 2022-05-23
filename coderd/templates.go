@@ -183,7 +183,6 @@ func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
-	roles := httpmw.UserRoles(r)
 	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
 		OrganizationID: organization.ID,
 	})

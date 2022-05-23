@@ -90,6 +90,7 @@ func TestFilter(t *testing.T) {
 	for _, c := range testCases {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
 			authorizer := fakeAuthorizer{
 				AuthFunc: func(_ context.Context, _ string, _ []string, _ rbac.Action, object rbac.Object) error {
 					return c.Auth(object)
