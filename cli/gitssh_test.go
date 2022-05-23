@@ -22,7 +22,7 @@ import (
 func TestGitSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("Dial", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		// get user public key
@@ -31,9 +31,8 @@ func TestGitSSH(t *testing.T) {
 		publicKey, _, _, _, err := gossh.ParseAuthorizedKey([]byte(keypair.PublicKey))
 		require.NoError(t, err)
 
-		// setup provisioner
+		// setup template
 		agentToken := uuid.NewString()
-		coderdtest.NewProvisionerDaemon(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:           echo.ParseComplete,
 			ProvisionDryRun: echo.ProvisionComplete,
@@ -64,9 +63,9 @@ func TestGitSSH(t *testing.T) {
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+		agentErrC := make(chan error)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
-			require.NoError(t, err)
+			agentErrC <- cmd.ExecuteContext(ctx)
 		}()
 
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
@@ -86,13 +85,13 @@ func TestGitSSH(t *testing.T) {
 			return ssh.KeysEqual(publicKey, key)
 		})
 		var inc int64
+		sshErrC := make(chan error)
 		go func() {
 			// as long as we get a successful session we don't care if the server errors
 			_ = ssh.Serve(l, func(s ssh.Session) {
 				atomic.AddInt64(&inc, 1)
 				t.Log("got authenticated session")
-				err := s.Exit(0)
-				require.NoError(t, err)
+				sshErrC <- s.Exit(0)
 			}, publicKeyOption)
 		}()
 
@@ -100,9 +99,16 @@ func TestGitSSH(t *testing.T) {
 		addr, ok := l.Addr().(*net.TCPAddr)
 		require.True(t, ok)
 		// set to agent config dir
-		cmd, _ = clitest.New(t, "gitssh", "--agent-url", agentClient.URL.String(), "--agent-token", agentToken, "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
-		err = cmd.ExecuteContext(context.Background())
+		gitsshCmd, _ := clitest.New(t, "gitssh", "--agent-url", agentClient.URL.String(), "--agent-token", agentToken, "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "-o", "IdentitiesOnly=yes", "127.0.0.1")
+		err = gitsshCmd.ExecuteContext(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
+
+		err = <-sshErrC
+		require.NoError(t, err, "error in ssh session exit")
+
+		cancelFunc()
+		err = <-agentErrC
+		require.NoError(t, err, "error in agent execute")
 	})
 }

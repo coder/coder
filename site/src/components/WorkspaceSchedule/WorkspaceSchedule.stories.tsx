@@ -1,17 +1,17 @@
 import { Story } from "@storybook/react"
 import React from "react"
-import { MockWorkspaceAutostartEnabled } from "../../testHelpers/renderHelpers"
+import { MockWorkspace } from "../../testHelpers/renderHelpers"
 import { WorkspaceSchedule, WorkspaceScheduleProps } from "./WorkspaceSchedule"
 
 export default {
   title: "components/WorkspaceSchedule",
   component: WorkspaceSchedule,
+  argTypes: {},
 }
 
 const Template: Story<WorkspaceScheduleProps> = (args) => <WorkspaceSchedule {...args} />
 
 export const Example = Template.bind({})
 Example.args = {
-  autostart: MockWorkspaceAutostartEnabled.schedule,
-  autostop: "",
+  workspace: MockWorkspace,
 }

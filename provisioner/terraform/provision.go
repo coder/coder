@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -20,6 +21,11 @@ import (
 
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
+)
+
+var (
+	// noStateRegex is matched against the output from `terraform state show`
+	noStateRegex = regexp.MustCompile(`(?i)State read error.*no state`)
 )
 
 // Provision executes `terraform apply`.
@@ -189,6 +195,43 @@ func (t *terraform) Provision(stream proto.DRPCProvisioner_ProvisionStream) erro
 			})
 		}
 	}()
+
+	// If we're destroying, exit early if there's no state. This is necessary to
+	// avoid any cases where a workspace is "locked out" of terraform due to
+	// e.g. bad template param values and cannot be deleted. This is just for
+	// contingency, in the future we will try harder to prevent workspaces being
+	// broken this hard.
+	if start.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY {
+		_, err := getTerraformState(shutdown, terraform, statefilePath)
+		if xerrors.Is(err, os.ErrNotExist) {
+			_ = stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_INFO,
+						Output: "The terraform state does not exist, there is nothing to do",
+					},
+				},
+			})
+
+			return stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			})
+		}
+		if err != nil {
+			err = xerrors.Errorf("get terraform state: %w", err)
+			_ = stream.Send(&proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Error: err.Error(),
+					},
+				},
+			})
+
+			return err
+		}
+	}
 
 	planfilePath := filepath.Join(start.Directory, "terraform.tfplan")
 	var args []string
@@ -378,23 +421,11 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 	_, err := os.Stat(statefilePath)
 	statefileExisted := err == nil
 
-	statefile, err := os.OpenFile(statefilePath, os.O_CREATE|os.O_RDWR, 0600)
+	state, err := getTerraformState(ctx, terraform, statefilePath)
 	if err != nil {
-		return nil, xerrors.Errorf("open statefile %q: %w", statefilePath, err)
+		return nil, xerrors.Errorf("get terraform state: %w", err)
 	}
-	defer statefile.Close()
-	// #nosec
-	cmd := exec.CommandContext(ctx, terraform.ExecPath(), "state", "pull")
-	cmd.Dir = terraform.WorkingDir()
-	cmd.Stdout = statefile
-	err = cmd.Run()
-	if err != nil {
-		return nil, xerrors.Errorf("pull terraform state: %w", err)
-	}
-	state, err := terraform.ShowStateFile(ctx, statefilePath)
-	if err != nil {
-		return nil, xerrors.Errorf("show terraform state: %w", err)
-	}
+
 	resources := make([]*proto.Resource, 0)
 	if state.Values != nil {
 		rawGraph, err := terraform.Graph(ctx)
@@ -555,6 +586,37 @@ func parseTerraformApply(ctx context.Context, terraform *tfexec.Terraform, state
 			},
 		},
 	}, nil
+}
+
+// getTerraformState pulls and merges any remote terraform state into the given
+// path and reads the merged state. If there is no state, `os.ErrNotExist` will
+// be returned.
+func getTerraformState(ctx context.Context, terraform *tfexec.Terraform, statefilePath string) (*tfjson.State, error) {
+	statefile, err := os.OpenFile(statefilePath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, xerrors.Errorf("open statefile %q: %w", statefilePath, err)
+	}
+	defer statefile.Close()
+
+	// #nosec
+	cmd := exec.CommandContext(ctx, terraform.ExecPath(), "state", "pull")
+	cmd.Dir = terraform.WorkingDir()
+	cmd.Stdout = statefile
+	err = cmd.Run()
+	if err != nil {
+		return nil, xerrors.Errorf("pull terraform state: %w", err)
+	}
+
+	state, err := terraform.ShowStateFile(ctx, statefilePath)
+	if err != nil {
+		if noStateRegex.MatchString(err.Error()) {
+			return nil, os.ErrNotExist
+		}
+
+		return nil, xerrors.Errorf("show terraform state: %w", err)
+	}
+
+	return state, nil
 }
 
 type terraformProvisionLog struct {

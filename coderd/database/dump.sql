@@ -314,7 +314,7 @@ CREATE TABLE workspaces (
     deleted boolean DEFAULT false NOT NULL,
     name character varying(64) NOT NULL,
     autostart_schedule text,
-    autostop_schedule text
+    ttl bigint
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('public.licenses_id_seq'::regclass);

@@ -363,14 +363,14 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspacesAutostartAutostop(_ context.Context) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesAutostart(_ context.Context) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	workspaces := make([]database.Workspace, 0)
 	for _, ws := range q.workspaces {
 		if ws.AutostartSchedule.String != "" {
 			workspaces = append(workspaces, ws)
-		} else if ws.AutostopSchedule.String != "" {
+		} else if ws.Ttl.Valid {
 			workspaces = append(workspaces, ws)
 		}
 	}
@@ -1666,7 +1666,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.UpdateWorkspaceAutostopParams) error {
+func (q *fakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateWorkspaceTTLParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1674,7 +1674,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostop(_ context.Context, arg database.Up
 		if workspace.ID != arg.ID {
 			continue
 		}
-		workspace.AutostopSchedule = arg.AutostopSchedule
+		workspace.Ttl = arg.Ttl
 		q.workspaces[index] = workspace
 		return nil
 	}

@@ -105,7 +105,7 @@ jobs:
       - run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
       - run: go install golang.org/x/tools/cmd/goimports@latest
-      - run: "make --output-sync -j gen"
+      - run: "make --output-sync -j -B gen"
       - run: ./scripts/check_unstaged.sh
 
   style-fmt:
@@ -133,8 +133,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - name: "make fmt"
-        run: "make --output-sync -j fmt"
+      - run: "make --output-sync -j -B fmt"
 
   test-go:
     name: "test/go"
@@ -276,10 +275,7 @@ jobs:
           done
 
       - name: Test with PostgreSQL Database
-        run: DB=ci gotestsum --junitfile="gotests.xml" --packages="./..." --
-          -covermode=atomic -coverprofile="gotests.coverage" -timeout=3m
-          -coverpkg=./...,github.com/coder/coder/codersdk
-          -count=1 -parallel=2 -race -failfast
+        run: "make test-postgres"
 
       - name: Upload DataDog Trace
         if: always() && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
@@ -355,7 +351,7 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Build site
-        run: make site/out/index.html
+        run: make -B site/out/index.html
 
       - name: Build Release
         uses: goreleaser/goreleaser-action@v2.9.1
@@ -488,7 +484,7 @@ jobs:
 
       - name: Build
         run: |
-          make site/out/index.html
+          make -B site/out/index.html
 
       - run: yarn playwright:install
         working-directory: site

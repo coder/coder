@@ -6,19 +6,24 @@ import { CardPadding, CardRadius } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
 export interface WorkspaceSectionProps {
-  title?: string
+  /**
+   * action appears in the top right of the section card
+   */
+  action?: React.ReactNode
   contentsProps?: HTMLProps<HTMLDivElement>
+  title?: string
 }
 
-export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ title, children, contentsProps }) => {
+export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({ action, children, contentsProps, title }) => {
   const styles = useStyles()
 
   return (
-    <Paper elevation={0} className={styles.root}>
+    <Paper className={styles.root} elevation={0}>
       {title && (
         <div className={styles.headerContainer}>
           <div className={styles.header}>
             <Typography variant="h6">{title}</Typography>
+            {action && <div>{action}</div>}
           </div>
         </div>
       )}
@@ -34,7 +39,6 @@ const useStyles = makeStyles((theme) => ({
   root: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: CardRadius,
-    margin: theme.spacing(1),
   },
   headerContainer: {
     borderBottom: `1px solid ${theme.palette.divider}`,
@@ -45,7 +49,7 @@ const useStyles = makeStyles((theme) => ({
   header: {
     alignItems: "center",
     display: "flex",
-    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: theme.spacing(1),
     marginTop: theme.spacing(1),
     paddingLeft: CardPadding + theme.spacing(1),

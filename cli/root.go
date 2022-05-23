@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/kirsle/configdir"
@@ -62,13 +64,13 @@ func Root() *cobra.Command {
 
 	cmd.AddCommand(
 		autostart(),
-		autostop(),
 		configSSH(),
 		create(),
 		delete(),
 		gitssh(),
 		list(),
 		login(),
+		logout(),
 		publickey(),
 		resetPassword(),
 		server(),
@@ -78,6 +80,7 @@ func Root() *cobra.Command {
 		stop(),
 		ssh(),
 		templates(),
+		ttl(),
 		update(),
 		users(),
 		portForward(),
@@ -113,7 +116,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 			return nil, err
 		}
 	}
-	serverURL, err := url.Parse(rawURL)
+	serverURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +128,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		}
 	}
 	client := codersdk.New(serverURL)
-	client.SessionToken = token
+	client.SessionToken = strings.TrimSpace(token)
 	return client, nil
 }
 
@@ -258,4 +261,10 @@ func versionTemplate() string {
 	template += "\r\n" + buildinfo.ExternalURL()
 	template += "\r\n"
 	return template
+}
+
+// FormatCobraError colorizes and adds "--help" docs to cobra commands.
+func FormatCobraError(err error, cmd *cobra.Command) string {
+	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
+	return cliui.Styles.Error.Render(err.Error() + "\n" + helpErrMsg)
 }

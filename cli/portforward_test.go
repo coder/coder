@@ -149,7 +149,7 @@ func TestPortForward(t *testing.T) {
 			t.Run("OnePort", func(t *testing.T) {
 				t.Parallel()
 				var (
-					client       = coderdtest.New(t, nil)
+					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 					user         = coderdtest.CreateFirstUser(t, client)
 					_, workspace = runAgent(t, client, user.UserID)
 					l1, p1       = setupTestListener(t, c.setupRemote(t))
@@ -193,7 +193,7 @@ func TestPortForward(t *testing.T) {
 			t.Run("TwoPorts", func(t *testing.T) {
 				t.Parallel()
 				var (
-					client       = coderdtest.New(t, nil)
+					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 					user         = coderdtest.CreateFirstUser(t, client)
 					_, workspace = runAgent(t, client, user.UserID)
 					l1, p1       = setupTestListener(t, c.setupRemote(t))
@@ -244,7 +244,7 @@ func TestPortForward(t *testing.T) {
 	t.Run("TCP2Unix", func(t *testing.T) {
 		t.Parallel()
 		var (
-			client       = coderdtest.New(t, nil)
+			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user         = coderdtest.CreateFirstUser(t, client)
 			_, workspace = runAgent(t, client, user.UserID)
 
@@ -297,7 +297,7 @@ func TestPortForward(t *testing.T) {
 	t.Run("All", func(t *testing.T) {
 		t.Parallel()
 		var (
-			client       = coderdtest.New(t, nil)
+			client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 			user         = coderdtest.CreateFirstUser(t, client)
 			_, workspace = runAgent(t, client, user.UserID)
 			// These aren't fixed size because we exclude Unix on Windows.
@@ -371,9 +371,8 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 	require.Greater(t, len(user.OrganizationIDs), 0, "user has no organizations")
 	orgID := user.OrganizationIDs[0]
 
-	// Setup echo provisioner
+	// Setup template
 	agentToken := uuid.NewString()
-	coderdtest.NewProvisionerDaemon(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 		Parse:           echo.ParseComplete,
 		ProvisionDryRun: echo.ProvisionComplete,

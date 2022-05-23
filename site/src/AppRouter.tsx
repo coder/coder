@@ -15,11 +15,13 @@ import { SSHKeysPage } from "./pages/SettingsPages/SSHKeysPage/SSHKeysPage"
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage"
 import { CreateUserPage } from "./pages/UsersPage/CreateUserPage/CreateUserPage"
 import { UsersPage } from "./pages/UsersPage/UsersPage"
+import { WorkspaceBuildPage } from "./pages/WorkspaceBuildPage/WorkspaceBuildPage"
 import { WorkspacePage } from "./pages/WorkspacePage/WorkspacePage"
 import { WorkspaceSettingsPage } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"
 
 const TerminalPage = React.lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const WorkspacesPage = React.lazy(() => import("./pages/WorkspacesPage/WorkspacesPage"))
+const CreateWorkspacePage = React.lazy(() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"))
 
 export const AppRouter: React.FC = () => (
   <React.Suspense fallback={<></>}>
@@ -83,6 +85,17 @@ export const AppRouter: React.FC = () => (
               </AuthAndFrame>
             }
           />
+
+          <Route path=":template">
+            <Route
+              path="new"
+              element={
+                <RequireAuth>
+                  <CreateWorkspacePage />
+                </RequireAuth>
+              }
+            />
+          </Route>
         </Route>
 
         <Route path="users">
@@ -137,6 +150,15 @@ export const AppRouter: React.FC = () => (
             />
           </Route>
         </Route>
+
+        <Route
+          path="builds/:buildId"
+          element={
+            <AuthAndFrame>
+              <WorkspaceBuildPage />
+            </AuthAndFrame>
+          }
+        />
 
         {/* Using path="*"" means "match anything", so this route
         acts like a catch-all for URLs that we don't have explicit
