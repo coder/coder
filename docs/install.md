@@ -4,7 +4,8 @@ This article walks you through the various ways of installing and deploying Code
 
 ## docker-compose
 
-Before proceeding, please ensure that you have Docker installed.
+Before proceeding, please ensure that you have both Docker and the [latest version of
+Coder](https://github.com/coder/coder/releases) installed.
 
 1. Clone the `coder` repository:
 
