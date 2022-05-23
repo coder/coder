@@ -104,6 +104,7 @@ func TestGitSSH(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
 
+		cancelFunc()
 		err = <-errC
 		require.NoError(t, err)
 	})
