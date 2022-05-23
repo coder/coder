@@ -141,8 +141,7 @@ func TestPortForward(t *testing.T) {
 		},
 	}
 
-	//nolint:paralleltest
-	for _, c := range cases {
+	for _, c := range cases { //nolint:paralleltest // the `c := c` confuses the linter
 		c := c
 		// Avoid parallel test here because setupLocal reserves
 		// a free open port which is not guaranteed to be free
