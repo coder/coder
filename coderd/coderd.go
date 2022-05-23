@@ -240,8 +240,14 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
+<<<<<<< HEAD
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
+=======
+					r.Get("/", a.userByName)
+					r.Put("/profile", a.putUserProfile)
+					r.Put("/security", a.putUserSecurity)
+>>>>>>> fix: Add route for user to change own password
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putUserStatus(database.UserStatusSuspended))
 						r.Put("/active", api.putUserStatus(database.UserStatusActive))
