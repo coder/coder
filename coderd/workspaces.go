@@ -442,12 +442,13 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	var provisionerJob database.ProvisionerJob
 	var workspaceBuild database.WorkspaceBuild
 	err = api.Database.InTx(func(db database.Store) error {
+		now := database.Now()
 		workspaceBuildID := uuid.New()
 		// Workspaces are created without any versions.
 		workspace, err = db.InsertWorkspace(r.Context(), database.InsertWorkspaceParams{
 			ID:                uuid.New(),
-			CreatedAt:         database.Now(),
-			UpdatedAt:         database.Now(),
+			CreatedAt:         now,
+			UpdatedAt:         now,
 			OwnerID:           apiKey.UserID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
@@ -462,8 +463,8 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			_, err = db.InsertParameterValue(r.Context(), database.InsertParameterValueParams{
 				ID:                uuid.New(),
 				Name:              parameterValue.Name,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
+				CreatedAt:         now,
+				UpdatedAt:         now,
 				Scope:             database.ParameterScopeWorkspace,
 				ScopeID:           workspace.ID,
 				SourceScheme:      database.ParameterSourceScheme(parameterValue.SourceScheme),
@@ -483,8 +484,8 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		}
 		provisionerJob, err = db.InsertProvisionerJob(r.Context(), database.InsertProvisionerJobParams{
 			ID:             uuid.New(),
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      now,
+			UpdatedAt:      now,
 			InitiatorID:    apiKey.UserID,
 			OrganizationID: template.OrganizationID,
 			Provisioner:    template.Provisioner,
@@ -498,8 +499,8 @@ func (api *api) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		}
 		workspaceBuild, err = db.InsertWorkspaceBuild(r.Context(), database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
-			CreatedAt:         database.Now(),
-			UpdatedAt:         database.Now(),
+			CreatedAt:         now,
+			UpdatedAt:         now,
 			WorkspaceID:       workspace.ID,
 			TemplateVersionID: templateVersion.ID,
 			Name:              namesgenerator.GetRandomName(1),

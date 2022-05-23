@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -80,7 +81,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.EqualError(t, err, "Invalid workspace autostart timezone: unknown time zone invalid")
+			assert.EqualError(t, err, "Invalid workspace autostart timezone: unknown time zone invalid")
 		}()
 		<-doneChan
 	})
@@ -107,7 +108,7 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			require.EqualError(t, err, "TTL must be at least 1 minute")
+			assert.EqualError(t, err, "TTL must be at least 1 minute")
 		}()
 		<-doneChan
 	})

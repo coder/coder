@@ -67,8 +67,8 @@ type CreateTemplateRequest struct {
 type CreateWorkspaceRequest struct {
 	TemplateID        uuid.UUID      `json:"template_id" validate:"required"`
 	Name              string         `json:"name" validate:"username,required"`
-	AutostartSchedule *string        `json:"autostart_schedule" validate:""`
-	TTL               *time.Duration `json:"ttl" validate:""`
+	AutostartSchedule *string        `json:"autostart_schedule"`
+	TTL               *time.Duration `json:"ttl"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
