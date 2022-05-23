@@ -7,6 +7,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
 )
 
@@ -34,7 +35,7 @@ func TestUserList(t *testing.T) {
 
 		_, err := cmd.ExecuteC()
 
-		require.Contains(t, err.Error(), "Try running \"coder login [url]\"")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login [url]'.")
 	})
 	t.Run("SessionAuthErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
@@ -45,6 +46,8 @@ func TestUserList(t *testing.T) {
 
 		_, err := cmd.ExecuteC()
 
-		require.Contains(t, err.Error(), "Try running \"coder login [url]\"")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Contains(t, err.Error(), "Try logging in using 'coder login [url]'.")
 	})
 }

@@ -128,7 +128,9 @@ func readBodyAsError(res *http.Response) error {
 
 	var helper string
 	if res.StatusCode == http.StatusUnauthorized {
-		helper = "Try running \"coder login [url]\"."
+		// 401 means the user is not logged in
+		// 403 would mean that the user is not authorized
+		helper = "Try logging in using 'coder login [url]'."
 	}
 
 	if strings.HasPrefix(contentType, "text/plain") {
@@ -153,6 +155,7 @@ func readBodyAsError(res *http.Response) error {
 			// If no body is sent, we'll just provide the status code.
 			return &Error{
 				statusCode: res.StatusCode,
+				Helper:     helper,
 			}
 		}
 		return xerrors.Errorf("decode body: %w", err)
@@ -181,11 +184,11 @@ func (e *Error) StatusCode() int {
 func (e *Error) Error() string {
 	var builder strings.Builder
 	_, _ = fmt.Fprintf(&builder, "status code %d: %s", e.statusCode, e.Message)
-	for _, err := range e.Errors {
-		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
-	}
 	if e.Helper != "" {
 		_, _ = fmt.Fprintf(&builder, ": %s", e.Helper)
+	}
+	for _, err := range e.Errors {
+		_, _ = fmt.Fprintf(&builder, "\n\t%s: %s", err.Field, err.Detail)
 	}
 	return builder.String()
 }

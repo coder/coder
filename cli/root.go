@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -104,15 +106,6 @@ func Root() *cobra.Command {
 	return cmd
 }
 
-type Error struct {
-	Err    error
-	Helper string
-}
-
-func (w *Error) Error() string {
-	return fmt.Sprintf("%v: %s", w.Err, w.Helper)
-}
-
 // createClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
 func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
@@ -121,9 +114,9 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || rawURL == "" {
 		rawURL, err = root.URL().Read()
 		if err != nil {
-			err = &Error{
-				Err:    err,
-				Helper: "Try running \"coder login [url]\".",
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login [url]'.")
 			}
 			return nil, err
 		}
@@ -136,9 +129,9 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || token == "" {
 		token, err = root.Session().Read()
 		if err != nil {
-			err = &Error{
-				Err:    err,
-				Helper: "Try running \"coder login [url]\".",
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login [url]'.")
 			}
 			return nil, err
 		}
