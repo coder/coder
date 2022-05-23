@@ -62,7 +62,7 @@ func login(t *testing.T) config.Root {
 	coderdtest.CreateFirstUser(t, client)
 
 	doneChan := make(chan struct{})
-	root, config := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
+	root, cfg := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
 	pty := ptytest.New(t)
 	root.SetIn(pty.Input())
 	root.SetOut(pty.Output())
@@ -77,5 +77,5 @@ func login(t *testing.T) config.Root {
 	pty.ExpectMatch("Welcome to Coder")
 	<-doneChan
 
-	return config
+	return cfg
 }
