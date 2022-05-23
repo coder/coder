@@ -1,7 +1,12 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import React from "react"
-import { MockOutdatedWorkspace, MockWorkspace } from "../../testHelpers/renderHelpers"
+import {
+  MockOutdatedWorkspace,
+  MockWorkspace,
+  MockWorkspaceResource,
+  MockWorkspaceResource2,
+} from "../../testHelpers/renderHelpers"
 import { Workspace, WorkspaceProps } from "./Workspace"
 
 export default {
@@ -19,6 +24,7 @@ Started.args = {
   handleStop: action("stop"),
   handleRetry: action("retry"),
   workspaceStatus: "started",
+  resources: [MockWorkspaceResource, MockWorkspaceResource2],
 }
 
 export const Starting = Template.bind({})

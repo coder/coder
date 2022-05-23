@@ -1,7 +1,7 @@
 import { Theme } from "@material-ui/core/styles"
 import dayjs from "dayjs"
 import { WorkspaceBuildTransition } from "../api/types"
-import { WorkspaceBuild } from "../api/typesGenerated"
+import { WorkspaceAgent, WorkspaceBuild } from "../api/typesGenerated"
 
 export type WorkspaceStatus =
   | "queued"
@@ -50,6 +50,20 @@ export const getWorkspaceStatus = (workspaceBuild?: WorkspaceBuild): WorkspaceSt
   }
 }
 
+export const DisplayStatusLanguage = {
+  loading: "Loading...",
+  started: "Running",
+  starting: "Starting",
+  stopping: "Stopping",
+  stopped: "Stopped",
+  deleting: "Deleting",
+  deleted: "Deleted",
+  canceling: "Canceling",
+  canceled: "Canceled",
+  failed: "Failed",
+  queued: "Queued",
+}
+
 export const getDisplayStatus = (
   theme: Theme,
   build: WorkspaceBuild,
@@ -62,57 +76,57 @@ export const getDisplayStatus = (
     case undefined:
       return {
         color: theme.palette.text.secondary,
-        status: "Loading...",
+        status: DisplayStatusLanguage.loading,
       }
     case "started":
       return {
         color: theme.palette.success.main,
-        status: "⦿ Running",
+        status: `⦿ ${DisplayStatusLanguage.started}`,
       }
     case "starting":
       return {
         color: theme.palette.success.main,
-        status: "⦿ Starting",
+        status: `⦿ ${DisplayStatusLanguage.starting}`,
       }
     case "stopping":
       return {
         color: theme.palette.text.secondary,
-        status: "◍ Stopping",
+        status: `◍ ${DisplayStatusLanguage.stopping}`,
       }
     case "stopped":
       return {
         color: theme.palette.text.secondary,
-        status: "◍ Stopped",
+        status: `◍ ${DisplayStatusLanguage.stopped}`,
       }
     case "deleting":
       return {
         color: theme.palette.text.secondary,
-        status: "⦸ Deleting",
+        status: `⦸ ${DisplayStatusLanguage.deleting}`,
       }
     case "deleted":
       return {
         color: theme.palette.text.secondary,
-        status: "⦸ Deleted",
+        status: `⦸ ${DisplayStatusLanguage.deleted}`,
       }
     case "canceling":
       return {
         color: theme.palette.warning.light,
-        status: "◍ Canceling",
+        status: `◍ ${DisplayStatusLanguage.canceling}`,
       }
     case "canceled":
       return {
         color: theme.palette.text.secondary,
-        status: "◍ Canceled",
+        status: `◍ ${DisplayStatusLanguage.canceled}`,
       }
     case "error":
       return {
         color: theme.palette.error.main,
-        status: "ⓧ Failed",
+        status: `ⓧ ${DisplayStatusLanguage.failed}`,
       }
     case "queued":
       return {
         color: theme.palette.text.secondary,
-        status: "◍ Queued",
+        status: `◍ ${DisplayStatusLanguage.queued}`,
       }
   }
   throw new Error("unknown status " + status)
@@ -133,4 +147,41 @@ export const getWorkspaceBuildDurationInSeconds = (build: WorkspaceBuild): numbe
 export const displayWorkspaceBuildDuration = (build: WorkspaceBuild, inProgressLabel = "In progress"): string => {
   const duration = getWorkspaceBuildDurationInSeconds(build)
   return duration ? `${duration} seconds` : inProgressLabel
+}
+
+export const DisplayAgentStatusLanguage = {
+  connected: "⦿ Connected",
+  connecting: "⦿ Connecting",
+  disconnected: "◍ Disconnected",
+}
+
+export const getDisplayAgentStatus = (
+  theme: Theme,
+  agent: WorkspaceAgent,
+): {
+  color: string
+  status: string
+} => {
+  switch (agent.status) {
+    case undefined:
+      return {
+        color: theme.palette.text.secondary,
+        status: DisplayStatusLanguage.loading,
+      }
+    case "connected":
+      return {
+        color: theme.palette.success.main,
+        status: DisplayAgentStatusLanguage["connected"],
+      }
+    case "connecting":
+      return {
+        color: theme.palette.success.main,
+        status: DisplayAgentStatusLanguage["connecting"],
+      }
+    case "disconnected":
+      return {
+        color: theme.palette.text.secondary,
+        status: DisplayAgentStatusLanguage["disconnected"],
+      }
+  }
 }

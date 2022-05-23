@@ -125,7 +125,7 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockWorkspaceBuild))
   }),
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/resources", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockWorkspaceResource]))
+    return res(ctx.status(200), ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]))
   }),
   rest.get("/api/v2/workspacebuilds/:workspaceBuildId/logs", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs))

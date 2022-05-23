@@ -22,7 +22,7 @@ import { getDisplayStatus } from "../../util/workspace"
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createButton: "Create Workspace",
+  createButton: "Create workspace",
   emptyView: "so you can check out your repositories, edit your source code, and build and test your software.",
 }
 
@@ -71,7 +71,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = (props) => 
             {props.workspaces?.map((workspace) => {
               const status = getDisplayStatus(theme, workspace.latest_build)
               return (
-                <TableRow key={workspace.id} className={styles.workspaceRow}>
+                <TableRow key={workspace.id}>
                   <TableCell>
                     <div className={styles.workspaceName}>
                       <Avatar variant="square" className={styles.workspaceAvatar}>
@@ -132,12 +132,6 @@ const useStyles = makeStyles((theme) => ({
       textAlign: "center",
       fontSize: theme.spacing(2),
       lineHeight: `${theme.spacing(3)}px`,
-    },
-  },
-  workspaceRow: {
-    "& > td": {
-      paddingTop: theme.spacing(2),
-      paddingBottom: theme.spacing(2),
     },
   },
   workspaceAvatar: {

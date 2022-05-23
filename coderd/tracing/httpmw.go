@@ -6,24 +6,23 @@ import (
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 )
 
 // HTTPMW adds tracing to http routes.
 func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			// do not trace if exporter has not be initialized
 			if tracerProvider == nil {
 				next.ServeHTTP(rw, r)
 				return
 			}
 
 			// start span with default span name. Span name will be updated to "method route" format once request finishes.
-			_, span := tracerProvider.Tracer(name).Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.RequestURI))
+			ctx, span := tracerProvider.Tracer(name).Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.RequestURI))
 			defer span.End()
+			r = r.WithContext(ctx)
 
 			wrw := middleware.NewWrapResponseWriter(rw, r.ProtoMajor)
 
@@ -35,18 +34,11 @@ func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Hand
 			if route != "" {
 				span.SetName(fmt.Sprintf("%s %s", r.Method, route))
 			}
-			span.SetAttributes(attribute.KeyValue{
-				Key:   "http.method",
-				Value: attribute.StringValue(r.Method),
-			})
-			span.SetAttributes(attribute.KeyValue{
-				Key:   "http.route",
-				Value: attribute.StringValue(route),
-			})
-			span.SetAttributes(attribute.KeyValue{
-				Key:   "http.path",
-				Value: attribute.StringValue(r.URL.EscapedPath()),
-			})
+			span.SetName(fmt.Sprintf("%s %s", r.Method, route))
+			span.SetAttributes(semconv.NetAttributesFromHTTPRequest("tcp", r)...)
+			span.SetAttributes(semconv.EndUserAttributesFromHTTPRequest(r)...)
+			span.SetAttributes(semconv.HTTPServerAttributesFromHTTPRequest("", route, r)...)
+			span.SetAttributes(semconv.HTTPRouteKey.String(route))
 
 			// set the status code
 			status := wrw.Status()
@@ -54,15 +46,9 @@ func HTTPMW(tracerProvider *sdktrace.TracerProvider, name string) func(http.Hand
 			if status == 0 {
 				status = http.StatusOK
 			}
-			span.SetAttributes(attribute.KeyValue{
-				Key:   "http.status_code",
-				Value: attribute.IntValue(status),
-			})
-
-			// if 5XX we set the span to "error" status
-			if status >= 500 {
-				span.SetStatus(codes.Error, fmt.Sprintf("%d: %s", status, http.StatusText(status)))
-			}
+			span.SetAttributes(semconv.HTTPStatusCodeKey.Int(status))
+			spanStatus, spanMessage := semconv.SpanStatusFromHTTPStatusCode(status)
+			span.SetStatus(spanStatus, spanMessage)
 		})
 	}
 }
