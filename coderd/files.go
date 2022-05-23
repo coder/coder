@@ -20,6 +20,8 @@ import (
 
 func (api *api) postFile(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
+	// This requires the site wide action to create files.
+	// Once created, a user can read their own files uploaded
 	if !api.Authorize(rw, r, rbac.ActionCreate, rbac.ResourceFile) {
 		return
 	}
