@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -53,7 +54,7 @@ provider "coder" {
 			},
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
 
