@@ -71,7 +71,7 @@ Before proceeding, please ensure that you have Docker installed.
 1. At this point, you're ready to provision your first workspace:
 
     ```console
-    coder create --template="docker-local" [workspace name]
+    coder create --template="docker" [workspace name]
     ```
 
     Follow the on-screen prompts to set the parameters for your workspace. If
