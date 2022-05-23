@@ -41,6 +41,13 @@ func TestFilter(t *testing.T) {
 		objectList = append(objectList, file)
 	}
 
+	// copyList is to prevent tests from sharing the same slice
+	copyList := func(list []rbac.Object) []rbac.Object {
+		tmp := make([]rbac.Object, len(list))
+		copy(tmp, list)
+		return tmp
+	}
+
 	testCases := []struct {
 		Name     string
 		List     []rbac.Object
@@ -49,29 +56,29 @@ func TestFilter(t *testing.T) {
 	}{
 		{
 			Name:     "FilterWorkspaceType",
-			List:     objectList,
-			Expected: workspaceList,
+			List:     copyList(objectList),
+			Expected: copyList(workspaceList),
 			Auth: func(o rbac.Object) error {
 				if o.Type != rbac.ResourceWorkspace.Type {
-					return xerrors.New("wrong type")
+					return xerrors.New("only workspace")
 				}
 				return nil
 			},
 		},
 		{
 			Name:     "FilterFileType",
-			List:     objectList,
-			Expected: fileList,
+			List:     copyList(objectList),
+			Expected: copyList(fileList),
 			Auth: func(o rbac.Object) error {
 				if o.Type != rbac.ResourceFile.Type {
-					return xerrors.New("wrong type")
+					return xerrors.New("only file")
 				}
 				return nil
 			},
 		},
 		{
 			Name:     "FilterAll",
-			List:     objectList,
+			List:     copyList(objectList),
 			Expected: []rbac.Object{},
 			Auth: func(o rbac.Object) error {
 				return xerrors.New("always fail")
@@ -79,8 +86,8 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			Name:     "FilterNone",
-			List:     objectList,
-			Expected: objectList,
+			List:     copyList(objectList),
+			Expected: copyList(objectList),
 			Auth: func(o rbac.Object) error {
 				return nil
 			},
@@ -98,7 +105,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			filtered := rbac.Filter(context.Background(), authorizer, "me", []string{}, rbac.ActionRead, c.List)
-			require.ElementsMatch(t, filtered, c.Expected, "expect same list")
+			require.ElementsMatch(t, c.Expected, filtered, "expect same list")
 			require.Equal(t, len(c.Expected), len(filtered), "same length list")
 		})
 	}

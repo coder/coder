@@ -3,7 +3,6 @@ package rbac
 import (
 	"context"
 	_ "embed"
-
 	"golang.org/x/xerrors"
 
 	"github.com/open-policy-agent/opa/rego"
