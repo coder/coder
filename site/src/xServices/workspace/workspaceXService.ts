@@ -1,3 +1,4 @@
+import { ContextExclusionPlugin } from "webpack"
 import { assign, createMachine, send } from "xstate"
 import { pure } from "xstate/lib/actions"
 import * as API from "../../api/api"
@@ -66,6 +67,9 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild
         }
         stopWorkspace: {
+          data: TypesGen.WorkspaceBuild
+        }
+        cancelWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
         refreshWorkspace: {
@@ -207,6 +211,21 @@ export const workspaceMachine = createMachine(
                     actions: ["assignBuildError", "displayBuildError"],
                   },
                 },
+              },
+              requestingCancel: {
+                entry: "clearCancelError",
+                invoke: {
+                  id: "cancelWorkspace",
+                  src: "cancelWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild", "refreshTimeline"],
+                  },
+                  onError: {
+                    target: "idle",
+                    actions: ["assignBuildError", "displayBuildError"]
+                  }
+                }
               },
               refreshingTemplate: {
                 entry: "clearRefreshTemplateError",
@@ -457,6 +476,13 @@ export const workspaceMachine = createMachine(
           return await API.stopWorkspace(context.workspace.id)
         } else {
           throw Error("Cannot stop workspace without workspace id")
+        }
+      },
+      cancelWorkspace: async (context) => {
+        if (context.workspace) {
+          return await API.cancelWorkspaceBuild(context.workspace.latest_build.id)
+        } else {
+          throw Error("Cannot cancel workspace without build id")
         }
       },
       refreshWorkspace: async (context) => {
