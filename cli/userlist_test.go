@@ -11,7 +11,7 @@ import (
 )
 
 func TestUserList(t *testing.T) {
-	t.Run("FormatCobraError", func(t *testing.T) {
+	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
