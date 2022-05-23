@@ -363,13 +363,13 @@ jobs:
         with:
           name: coder_windows_amd64.zip
           path: ./dist/coder_*_windows_amd64.zip
-          retention-period: 7
+          retention-days: 7
 
       - uses: actions/upload-artifact@v3
         with:
           name: coder_linux_amd64.tar.gz
           path: ./dist/coder_*_linux_amd64.tar.gz
-          retention-period: 7
+          retention-days: 7
 
       - name: Install Release
         run: |
