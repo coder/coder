@@ -127,8 +127,7 @@ func readBodyAsError(res *http.Response) error {
 	contentType := res.Header.Get("Content-Type")
 
 	var helper string
-	switch res.StatusCode {
-	case http.StatusUnauthorized:
+	if res.StatusCode == http.StatusUnauthorized {
 		helper = "Try running \"coder login [url]\"."
 	}
 
