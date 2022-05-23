@@ -245,7 +245,7 @@ func (api *api) userByName(rw http.ResponseWriter, r *http.Request) {
 func (api *api) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithOwner(user.ID.String())) {
+	if !api.Authorize(rw, r, rbac.ActionUpdate, rbac.ResourceUser.WithID(user.ID.String())) {
 		return
 	}
 
@@ -389,7 +389,6 @@ func (api *api) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
 
 	if !api.Authorize(rw, r, rbac.ActionRead, rbac.ResourceUserData.
 		WithOwner(user.ID.String())) {
@@ -409,13 +408,10 @@ func (api *api) userRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, mem := range memberships {
-		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceOrganizationMember.
-				WithID(user.ID.String()).
-				InOrg(mem.OrganizationID),
-		)
+	// Only include ones we can read from RBAC
+	memberships = AuthorizeFilter(api, r, rbac.ActionRead, memberships)
 
+	for _, mem := range memberships {
 		// If we can read the org member, include the roles
 		if err == nil {
 			resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
@@ -508,7 +504,6 @@ func (api *api) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 // Returns organizations the parameterized user has access to.
 func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
-	roles := httpmw.UserRoles(r)
 
 	organizations, err := api.Database.GetOrganizationsByUserID(r.Context(), user.ID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -522,17 +517,12 @@ func (api *api) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only return orgs the user can read
+	organizations = AuthorizeFilter(api, r, rbac.ActionRead, organizations)
+
 	publicOrganizations := make([]codersdk.Organization, 0, len(organizations))
 	for _, organization := range organizations {
-		err := api.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, rbac.ActionRead,
-			rbac.ResourceOrganization.
-				WithID(organization.ID.String()).
-				InOrg(organization.ID),
-		)
-		if err == nil {
-			// Only return orgs the user can read
-			publicOrganizations = append(publicOrganizations, convertOrganization(organization))
-		}
+		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
 	}
 
 	httpapi.Write(rw, http.StatusOK, publicOrganizations)
