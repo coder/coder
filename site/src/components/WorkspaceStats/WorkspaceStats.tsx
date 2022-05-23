@@ -20,7 +20,7 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
   return (
     <div className={styles.stats}>
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>Workspace</span>
+        <span className={styles.statsLabel}>Template</span>
         <Link
           component={RouterLink}
           to={`/templates/${workspace.template_name}`}
