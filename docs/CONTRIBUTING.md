@@ -1,4 +1,3 @@
-
 # Contributing
 
 ## Requirements
@@ -16,7 +15,9 @@ Use the following `make` commands and scripts in development:
 
 ## Styling
 
-### Use Go style
+### Backend
+
+#### Use Go style
 
 Contributions must adhere to the guidelines outlined in [Effective
 Go](https://go.dev/doc/effective_go). We prefer linting rules over documenting
@@ -26,7 +27,7 @@ Read [Go's Code Review Comments
 Wiki](https://github.com/golang/go/wiki/CodeReviewComments) for information on
 common comments made during reviews of Go code.
 
-### Avoid unused packages
+#### Avoid unused packages
 
 Coder writes packages that are used during implementation. It isn't easy to
 validate whether an abstraction is valid until it's checked against an
