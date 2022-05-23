@@ -34,7 +34,7 @@ func TestUserList(t *testing.T) {
 
 		cmd, _ := clitest.New(t, "users", "list")
 
-		cmd, err := cmd.ExecuteC()
+		_, err := cmd.ExecuteC()
 
 		require.Contains(t, err.Error(), "Try running \"coder login [url]\"")
 	})
@@ -45,7 +45,7 @@ func TestUserList(t *testing.T) {
 		cmd, root := clitest.New(t, "users", "list")
 		clitest.SetupConfig(t, client, root)
 
-		cmd, err := cmd.ExecuteC()
+		_, err := cmd.ExecuteC()
 
 		require.Contains(t, err.Error(), "Try running \"coder login [url]\"")
 	})
