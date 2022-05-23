@@ -63,9 +63,9 @@ func TestGitSSH(t *testing.T) {
 		clitest.SetupConfig(t, agentClient, root)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+		errC := make(chan error)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
-			require.NoError(t, err)
+			errC <- cmd.ExecuteContext(ctx)
 		}()
 
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
@@ -103,5 +103,8 @@ func TestGitSSH(t *testing.T) {
 		err = cmd.ExecuteContext(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
+
+		err = <-errC
+		require.NoError(t, err)
 	})
 }
