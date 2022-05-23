@@ -43,6 +43,17 @@ variable "step2_arch" {
   }
   sensitive = true
 }
+variable "step3_dotfiles" {
+  description = <<-EOF
+  Dotfiles repository URL (example 'git@github.com:coder/dotfiles.git')
+  EOF
+
+  validation {
+    condition     = var.step3_dotfiles != "" ? regex([".git$"], var.step3_dotfiles) : true
+    error_message = "Value must end in '.git' extension"
+  }
+  sensitive = false
+}
 
 provider "docker" {
   host = "unix:///var/run/docker.sock"
@@ -56,6 +67,7 @@ data "coder_workspace" "me" {
 resource "coder_agent" "dev" {
   arch = var.step2_arch
   os   = "linux"
+  startup_script = var.step3_dotfiles != "" ? "coder dotfiles -y ${var.step3_dotfiles}": null
 }
 
 variable "docker_image" {
