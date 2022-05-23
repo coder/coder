@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -113,6 +115,10 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || rawURL == "" {
 		rawURL, err = root.URL().Read()
 		if err != nil {
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login <url>'.")
+			}
 			return nil, err
 		}
 	}
@@ -124,6 +130,10 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil || token == "" {
 		token, err = root.Session().Read()
 		if err != nil {
+			// If the configuration files are absent, the user is logged out
+			if os.IsNotExist(err) {
+				return nil, xerrors.New("You are not logged in. Try logging in using 'coder login <url>'.")
+			}
 			return nil, err
 		}
 	}
