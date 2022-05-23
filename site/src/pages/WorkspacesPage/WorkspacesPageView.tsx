@@ -22,7 +22,7 @@ import { getDisplayStatus } from "../../util/workspace"
 dayjs.extend(relativeTime)
 
 export const Language = {
-  createButton: "Create Workspace",
+  createButton: "Create workspace",
   emptyView: "so you can check out your repositories, edit your source code, and build and test your software.",
 }
 

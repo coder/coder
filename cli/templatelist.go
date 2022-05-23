@@ -35,7 +35,7 @@ func templateList() *cobra.Command {
 			}
 
 			tableWriter := cliui.Table()
-			tableWriter.AppendHeader(table.Row{"Name", "Last Updated", "Used By"})
+			tableWriter.AppendHeader(table.Row{"Name", "Last updated", "Used by"})
 
 			for _, template := range templates {
 				suffix := ""
