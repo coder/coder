@@ -8,6 +8,7 @@ import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
+import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
 import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 
@@ -64,12 +65,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         </div>
       </div>
 
-      <Stack spacing={3}>
-        <WorkspaceStats workspace={workspace} />
-        <Resources resources={resources} getResourcesError={getResourcesError} />
-        <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
-          <BuildsTable builds={builds} className={styles.timelineTable} />
-        </WorkspaceSection>
+      <Stack direction="row" spacing={3} className={styles.layout}>
+        <Stack spacing={3} className={styles.main}>
+          <WorkspaceStats workspace={workspace} />
+          <Resources resources={resources} getResourcesError={getResourcesError} />
+          <WorkspaceSection title="Timeline" contentsProps={{ className: styles.timelineContents }}>
+            <BuildsTable builds={builds} className={styles.timelineTable} />
+          </WorkspaceSection>
+        </Stack>
+
+        <Stack spacing={3} className={styles.sidebar}>
+          <WorkspaceSchedule workspace={workspace} />
+        </Stack>
       </Stack>
     </div>
   )
@@ -98,6 +105,16 @@ export const useStyles = makeStyles((theme) => {
     subtitle: {
       fontFamily: "inherit",
       marginTop: theme.spacing(0.5),
+    },
+    layout: {
+      alignItems: "flex-start",
+    },
+    main: {
+      width: "100%",
+    },
+    sidebar: {
+      width: theme.spacing(32),
+      flexShrink: 0,
     },
     timelineContents: {
       margin: 0,
