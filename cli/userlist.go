@@ -39,8 +39,8 @@ func userSingle() *cobra.Command {
 		columns []string
 	)
 	cmd := &cobra.Command{
-		Use:     "get <username|user_id|'me'>",
-		Short:   "Get a single user. Use 'me' to indicate the currently authenticated user.",
+		Use:     "show <username|user_id|'me'>",
+		Short:   "Show a single user. Use 'me' to indicate the currently authenticated user.",
 		Example: "coder users get me",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
