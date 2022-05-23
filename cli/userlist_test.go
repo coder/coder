@@ -39,7 +39,7 @@ func TestUserMe(t *testing.T) {
 	other := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 	otherUser, err := other.User(ctx, codersdk.Me)
 	require.NoError(t, err, "fetch other user")
-	cmd, root := clitest.New(t, "users", "get", otherUser.Username)
+	cmd, root := clitest.New(t, "users", "show", otherUser.Username)
 	clitest.SetupConfig(t, client, root)
 	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
