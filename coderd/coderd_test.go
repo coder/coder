@@ -97,7 +97,6 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":     {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/provisionerdaemons":       {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templates":               {NoAuthorize: true},
-		"GET:/api/v2/organizations/{organization}/templates":                {NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":        {NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/workspaces":              {NoAuthorize: true},
@@ -182,6 +181,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			StatusCode:   http.StatusOK,
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/organizations/{organization}/templates": {
+			StatusCode:   http.StatusOK,
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(template.OrganizationID).WithID(template.ID.String()),
 		},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required

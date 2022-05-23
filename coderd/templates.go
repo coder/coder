@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -182,6 +183,7 @@ func (api *api) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
+	roles := httpmw.UserRoles(r)
 	templates, err := api.Database.GetTemplatesByOrganization(r.Context(), database.GetTemplatesByOrganizationParams{
 		OrganizationID: organization.ID,
 	})
@@ -194,7 +196,12 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+
+	// Filter templates based on rbac permissions
+	templates = rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, rbac.ActionRead, templates)
+
 	templateIDs := make([]uuid.UUID, 0, len(templates))
+
 	for _, template := range templates {
 		templateIDs = append(templateIDs, template.ID)
 	}
