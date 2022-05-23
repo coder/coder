@@ -59,6 +59,8 @@ You can set up a temporary deployment, a production deployment, or a system serv
 > Use `coder --help` to get a complete list of flags and environment
 > variables.
 
+See the [installation guide](install.md) for additional ways to deploy Coder.
+
 ## Creating your first template and workspace
 
 In a new terminal window, run the following to copy a sample template:
