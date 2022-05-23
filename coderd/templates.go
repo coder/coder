@@ -198,7 +198,7 @@ func (api *api) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Filter templates based on rbac permissions
-	templates = rbac.Filter(r.Context(), api.Authorizer, roles.ID.String(), roles.Roles, rbac.ActionRead, templates)
+	templates = AuthorizeFilter(api, r, rbac.ActionRead, templates)
 
 	templateIDs := make([]uuid.UUID, 0, len(templates))
 
