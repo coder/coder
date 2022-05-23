@@ -50,8 +50,9 @@ export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> = useFormik<TypesGen.CreateWorkspaceRequest>({
     initialValues: {
       name: "",
-      template_id: "",
+      template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
     },
+    enableReinitialize: true,
     validationSchema,
     onSubmit: (request) => {
       if (!props.templateSchema) {
@@ -84,9 +85,13 @@ export const CreateWorkspacePageView: React.FC<CreateWorkspacePageViewProps> = (
       throw new Error("Templates are not loaded")
     }
 
-    // The TextField + MenuItem returns the index of the selected option
-    const templateIndex = Number(event.currentTarget.value)
-    const selectedTemplate = props.templates[templateIndex]
+    const templateId = event.target.value
+    const selectedTemplate = props.templates.find((template) => template.id === templateId)
+
+    if (!selectedTemplate) {
+      throw new Error(`Template ${templateId} not found`)
+    }
+
     form.setFieldValue("template_id", selectedTemplate.id)
     props.onSelectTemplate(selectedTemplate)
   }

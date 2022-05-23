@@ -1,6 +1,6 @@
 import { useActor, useMachine } from "@xstate/react"
 import React, { useContext } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { Template } from "../../api/typesGenerated"
 import { createWorkspaceMachine } from "../../xServices/createWorkspace/createWorkspaceXService"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -20,9 +20,11 @@ const useOrganizationId = () => {
 
 const CreateWorkspacePage: React.FC = () => {
   const organizationId = useOrganizationId()
+  const [searchParams] = useSearchParams()
+  const preSelectedTemplateName = searchParams.get("template")
   const navigate = useNavigate()
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
-    context: { organizationId },
+    context: { organizationId, preSelectedTemplateName },
     actions: {
       onCreateWorkspace: (_, event) => {
         navigate("/workspaces/" + event.data.id)

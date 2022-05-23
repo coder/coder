@@ -9,6 +9,10 @@ type CreateWorkspaceContext = {
   templateSchema?: ParameterSchema[]
   createWorkspaceRequest?: CreateWorkspaceRequest
   createdWorkspace?: Workspace
+  // This is useful when the user wants to create a workspace from the template
+  // page having it pre selected. It is string or null because of the
+  // useSearchQuery
+  preSelectedTemplateName: string | null
 }
 
 type CreateWorkspaceEvent =
@@ -45,10 +49,17 @@ export const createWorkspaceMachine = createMachine(
       gettingTemplates: {
         invoke: {
           src: "getTemplates",
-          onDone: {
-            actions: ["assignTemplates"],
-            target: "selectingTemplate",
-          },
+          onDone: [
+            {
+              actions: ["assignTemplates", "assignPreSelectedTemplate"],
+              target: "gettingTemplateSchema",
+              cond: "hasValidPreSelectedTemplate",
+            },
+            {
+              actions: ["assignTemplates"],
+              target: "selectingTemplate",
+            },
+          ],
           onError: {
             target: "error",
           },
@@ -67,14 +78,14 @@ export const createWorkspaceMachine = createMachine(
           src: "getTemplateSchema",
           onDone: {
             actions: ["assignTemplateSchema"],
-            target: "fillingForm",
+            target: "fillingParams",
           },
           onError: {
             target: "error",
           },
         },
       },
-      fillingForm: {
+      fillingParams: {
         on: {
           CREATE_WORKSPACE: {
             actions: ["assignCreateWorkspaceRequest"],
@@ -122,6 +133,15 @@ export const createWorkspaceMachine = createMachine(
         return createWorkspace(organizationId, createWorkspaceRequest)
       },
     },
+    guards: {
+      hasValidPreSelectedTemplate: (ctx, event) => {
+        if (!ctx.preSelectedTemplateName) {
+          return false
+        }
+        const template = event.data.find((template) => template.name === ctx.preSelectedTemplateName)
+        return !!template
+      },
+    },
     actions: {
       assignTemplates: assign({
         templates: (_, event) => event.data,
@@ -134,6 +154,17 @@ export const createWorkspaceMachine = createMachine(
       }),
       assignCreateWorkspaceRequest: assign({
         createWorkspaceRequest: (_, event) => event.request,
+      }),
+      assignPreSelectedTemplate: assign({
+        selectedTemplate: (ctx, event) => {
+          const selectedTemplate = event.data.find((template) => template.name === ctx.preSelectedTemplateName)
+          // The proper validation happens on hasValidPreSelectedTemplate
+          if (!selectedTemplate) {
+            throw new Error("Invalid template selected")
+          }
+
+          return selectedTemplate
+        },
       }),
     },
   },
