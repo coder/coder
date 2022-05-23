@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/kirsle/configdir"
@@ -115,7 +116,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 			return nil, err
 		}
 	}
-	serverURL, err := url.Parse(rawURL)
+	serverURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +128,7 @@ func createClient(cmd *cobra.Command) (*codersdk.Client, error) {
 		}
 	}
 	client := codersdk.New(serverURL)
-	client.SessionToken = token
+	client.SessionToken = strings.TrimSpace(token)
 	return client, nil
 }
 
