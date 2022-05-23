@@ -99,7 +99,7 @@ func TestGitSSH(t *testing.T) {
 		addr, ok := l.Addr().(*net.TCPAddr)
 		require.True(t, ok)
 		// set to agent config dir
-		gitsshCmd, _ := clitest.New(t, "gitssh", "--agent-url", agentClient.URL.String(), "--agent-token", agentToken, "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "127.0.0.1")
+		gitsshCmd, _ := clitest.New(t, "gitssh", "--agent-url", agentClient.URL.String(), "--agent-token", agentToken, "--", fmt.Sprintf("-p%d", addr.Port), "-o", "StrictHostKeyChecking=no", "-o", "IdentitiesOnly=yes", "127.0.0.1")
 		err = gitsshCmd.ExecuteContext(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
