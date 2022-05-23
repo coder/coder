@@ -47,6 +47,7 @@ fmt: fmt/prettier fmt/terraform
 gen: coderd/database/querier.go peerbroker/proto/peerbroker.pb.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts
 
 install: build
+	mkdir -p $(INSTALL_DIR)
 	@echo "--- Copying from bin to $(INSTALL_DIR)"
 	cp -r ./dist/coder-$(GOOS)_$(GOOS)_$(GOARCH)*/* $(INSTALL_DIR)
 	@echo "-- CLI available at $(shell ls $(INSTALL_DIR)/coder*)"
