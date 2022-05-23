@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/coder/codersdk"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +16,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestMain(m *testing.M) {
