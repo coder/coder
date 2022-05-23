@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coder/coder/codersdk"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +36,7 @@ func TestBuildInfo(t *testing.T) {
 // TestAuthorizeAllEndpoints will check `authorize` is called on every endpoint registered.
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	authorizer := &fakeAuthorizer{}
 	srv, client, _ := coderdtest.NewWithServer(t, &coderdtest.Options{
@@ -50,6 +53,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+	require.NoError(t, err, "upload file")
 
 	// Always fail auth from this point forward
 	authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
@@ -182,8 +187,9 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			AssertObject: workspaceRBACObj,
 		},
 
-		"POST:/api/v2/files":       {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
-		"GET:/api/v2/files/{hash}": {AssertAction: rbac.ActionRead, AssertObject: rbac.ResourceFile},
+		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
+		"GET:/api/v2/files/{fileHash}": {AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceFile.WithOwner(admin.UserID.String()).WithID(file.Hash)},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
 		"PUT:/api/v2/users/{user}/roles":             {StatusCode: http.StatusBadRequest, NoAuthorize: true},
@@ -198,7 +204,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		}
 		assertRoute[noTrailSlash] = v
 	}
-	
+
 	c, _ := srv.Config.Handler.(*chi.Mux)
 	err = chi.Walk(c, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		name := method + ":" + route
@@ -221,6 +227,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			route = strings.ReplaceAll(route, "{workspacebuild}", workspace.LatestBuild.ID.String())
 			route = strings.ReplaceAll(route, "{workspacename}", workspace.Name)
 			route = strings.ReplaceAll(route, "{workspacebuildname}", workspace.LatestBuild.Name)
+			route = strings.ReplaceAll(route, "{hash}", file.Hash)
 
 			resp, err := client.Request(context.Background(), method, route, nil)
 			require.NoError(t, err, "do req")
