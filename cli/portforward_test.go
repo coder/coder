@@ -154,11 +154,8 @@ func TestPortForward(t *testing.T) {
 					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 					user         = coderdtest.CreateFirstUser(t, client)
 					_, workspace = runAgent(t, client, user.UserID)
-					l1, p1       = setupTestListener(t, c.setupRemote(t))
+					p1           = setupTestListener(t, c.setupRemote(t))
 				)
-				t.Cleanup(func() {
-					_ = l1.Close()
-				})
 
 				// Create a flag that forwards from local to listener 1.
 				localAddress, localFlag := c.setupLocal(t)
@@ -201,13 +198,9 @@ func TestPortForward(t *testing.T) {
 					client       = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerD: true})
 					user         = coderdtest.CreateFirstUser(t, client)
 					_, workspace = runAgent(t, client, user.UserID)
-					l1, p1       = setupTestListener(t, c.setupRemote(t))
-					l2, p2       = setupTestListener(t, c.setupRemote(t))
+					p1           = setupTestListener(t, c.setupRemote(t))
+					p2           = setupTestListener(t, c.setupRemote(t))
 				)
-				t.Cleanup(func() {
-					_ = l1.Close()
-					_ = l2.Close()
-				})
 
 				// Create a flags for listener 1 and listener 2.
 				localAddress1, localFlag1 := c.setupLocal(t)
@@ -262,11 +255,8 @@ func TestPortForward(t *testing.T) {
 			unixCase = cases[2]
 
 			// Setup remote Unix listener.
-			l1, p1 = setupTestListener(t, unixCase.setupRemote(t))
+			p1 = setupTestListener(t, unixCase.setupRemote(t))
 		)
-		t.Cleanup(func() {
-			_ = l1.Close()
-		})
 
 		// Create a flag that forwards from local TCP to Unix listener 1.
 		// Notably this is a --unix flag.
@@ -324,10 +314,7 @@ func TestPortForward(t *testing.T) {
 				continue
 			}
 
-			l, p := setupTestListener(t, c.setupRemote(t))
-			t.Cleanup(func() {
-				_ = l.Close()
-			})
+			p := setupTestListener(t, c.setupRemote(t))
 
 			localAddress, localFlag := c.setupLocal(t)
 			dials = append(dials, addr{
@@ -425,7 +412,6 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 	})
 	go func() {
 		errC <- cmd.ExecuteContext(agentCtx)
-		require.NoError(t, err)
 	}()
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.LatestBuild.ID)
@@ -437,18 +423,30 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) ([]coders
 
 // setupTestListener starts accepting connections and echoing a single packet.
 // Returns the listener and the listen port or Unix path.
-func setupTestListener(t *testing.T, l net.Listener) (net.Listener, string) {
+func setupTestListener(t *testing.T, l net.Listener) string {
+	// Wait for listener to completely exit before releasing.
+	done := make(chan struct{})
 	t.Cleanup(func() {
 		_ = l.Close()
+		<-done
 	})
 	go func() {
+		defer close(done)
+		// Guard against testAccept running require after test completion.
+		var wg sync.WaitGroup
+		defer wg.Wait()
+
 		for {
 			c, err := l.Accept()
 			if err != nil {
 				return
 			}
 
-			go testAccept(t, c)
+			wg.Add(1)
+			go func() {
+				testAccept(t, c)
+				wg.Done()
+			}()
 		}
 	}()
 
@@ -459,7 +457,7 @@ func setupTestListener(t *testing.T, l net.Listener) (net.Listener, string) {
 		addr = port
 	}
 
-	return l, addr
+	return addr
 }
 
 var dialTestPayload = []byte("dean-was-here123")
