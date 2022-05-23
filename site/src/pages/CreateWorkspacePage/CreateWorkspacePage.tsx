@@ -38,7 +38,7 @@ const CreateWorkspacePage: React.FC = () => {
       templates={createWorkspaceState.context.templates}
       selectedTemplate={createWorkspaceState.context.selectedTemplate}
       templateSchema={createWorkspaceState.context.templateSchema}
-      onCancel={() => navigate("/templates")}
+      onCancel={() => navigate("/workspaces")}
       onSubmit={(request) => {
         send({
           type: "CREATE_WORKSPACE",

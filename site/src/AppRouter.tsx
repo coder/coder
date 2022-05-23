@@ -60,9 +60,9 @@ export const AppRouter: React.FC = () => (
           <Route
             path="new"
             element={
-              <AuthAndFrame>
+              <RequireAuth>
                 <CreateWorkspacePage />
-              </AuthAndFrame>
+              </RequireAuth>
             }
           />
 
