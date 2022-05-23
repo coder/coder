@@ -38,7 +38,7 @@ with a holistic perspective regarding the contribution.
 
 #### Follow component conventions
 
-Each component gets it's own folder. Make sure you add a test and Storybook
+Each component gets its own folder. Make sure you add a test and Storybook
 stories for the component as well. By keeping these tidy, the codebase will
 remain easy-to-navigate, healthy and maintainable for all contributors.
 
