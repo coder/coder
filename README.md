@@ -54,8 +54,9 @@ Coder gives you a private tunnel to any port on your workspace as well as
 SSH access. You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
 
 <p align="center">
-  <img src="./docs/images/ide-icons.svg" height=64>
+  <img src="./docs/images/ide-icons.svg" height=72>
 </p>
+
 ## Installing Coder
 
 We recommend installing [the latest
