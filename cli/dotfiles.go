@@ -20,13 +20,15 @@ func dotfiles() *cobra.Command {
 		Short: "Checkout and install a dotfiles repository.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var (
-				dotfilesRepoDir  = "dotfiles"
-				gitRepo          = args[0]
-				cfgDir           = string(createConfig(cmd))
-				dotfilesDir      = filepath.Join(cfgDir, dotfilesRepoDir)
-				subcommands      = []string{"clone", args[0], dotfilesRepoDir}
-				gitCmdDir        = cfgDir
-				promtText        = fmt.Sprintf("Cloning %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
+				dotfilesRepoDir = "dotfiles"
+				gitRepo         = args[0]
+				cfgDir          = string(createConfig(cmd))
+				dotfilesDir     = filepath.Join(cfgDir, dotfilesRepoDir)
+				subcommands     = []string{"clone", args[0], dotfilesRepoDir}
+				gitCmdDir       = cfgDir
+				promtText       = fmt.Sprintf("Cloning %s into directory %s.\n  Continue?", gitRepo, dotfilesDir)
+				// This follows the same pattern outlined by others in the market:
+				// https://github.com/coder/coder/pull/1696#issue-1245742312
 				installScriptSet = []string{
 					"install.sh",
 					"install",
@@ -101,7 +103,8 @@ func dotfiles() *cobra.Command {
 					}
 				}
 
-				if strings.HasPrefix(f.Name(), ".") {
+				// make sure we do not copy `.git*` files
+				if strings.HasPrefix(f.Name(), ".") && !strings.HasPrefix(f.Name(), ".git") {
 					dotfiles = append(dotfiles, f.Name())
 				}
 			}
