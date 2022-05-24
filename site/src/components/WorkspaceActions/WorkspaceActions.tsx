@@ -8,7 +8,7 @@ import StopIcon from "@material-ui/icons/Stop"
 import React from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
-import { WorkspaceStatus } from "../../util/workspace"
+import { getWorkspaceStatus, WorkspaceStatus } from "../../util/workspace"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
 
@@ -30,7 +30,6 @@ const canAcceptJobs = (workspaceStatus: WorkspaceStatus) =>
 
 export interface WorkspaceActionsProps {
   workspace: Workspace
-  workspaceStatus: WorkspaceStatus
   handleStart: () => void
   handleStop: () => void
   handleRetry: () => void
@@ -39,13 +38,13 @@ export interface WorkspaceActionsProps {
 
 export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
   workspace,
-  workspaceStatus,
   handleStart,
   handleStop,
   handleRetry,
   handleUpdate,
 }) => {
   const styles = useStyles()
+  const workspaceStatus = getWorkspaceStatus(workspace.latest_build)
 
   return (
     <Stack direction="row" spacing={1}>

@@ -7,7 +7,6 @@ import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 import { Workspace } from "../../components/Workspace/Workspace"
 import { firstOrItem } from "../../util/array"
-import { getWorkspaceStatus } from "../../util/workspace"
 import { workspaceMachine } from "../../xServices/workspace/workspaceXService"
 
 export const WorkspacePage: React.FC = () => {
@@ -16,7 +15,6 @@ export const WorkspacePage: React.FC = () => {
 
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const { workspace, resources, getWorkspaceError, getResourcesError, builds } = workspaceState.context
-  const workspaceStatus = getWorkspaceStatus(workspace?.latest_build)
 
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
@@ -40,7 +38,6 @@ export const WorkspacePage: React.FC = () => {
             handleStop={() => workspaceSend("STOP")}
             handleRetry={() => workspaceSend("RETRY")}
             handleUpdate={() => workspaceSend("UPDATE")}
-            workspaceStatus={workspaceStatus}
             resources={resources}
             getResourcesError={getResourcesError instanceof Error ? getResourcesError : undefined}
             builds={builds}

@@ -27,7 +27,7 @@ func TestPubsubMemory(t *testing.T) {
 		defer cancelFunc()
 		go func() {
 			err = pubsub.Publish(event, []byte(data))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		message := <-messageChannel
 		assert.Equal(t, string(message), data)

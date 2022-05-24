@@ -1,8 +1,31 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import React from "react"
-import { createParameterSchema } from "../../components/ParameterInput/ParameterInput.stories"
+import { ParameterSchema } from "../../api/typesGenerated"
 import { MockTemplate } from "../../testHelpers/entities"
 import { CreateWorkspacePageView, CreateWorkspacePageViewProps } from "./CreateWorkspacePageView"
+
+const createParameterSchema = (partial: Partial<ParameterSchema>): ParameterSchema => {
+  return {
+    id: "000000",
+    job_id: "000000",
+    allow_override_destination: false,
+    allow_override_source: true,
+    created_at: "",
+    default_destination_scheme: "none",
+    default_refresh: "",
+    default_source_scheme: "data",
+    default_source_value: "default-value",
+    name: "parameter name",
+    description: "Some description!",
+    redisplay_value: false,
+    validation_condition: "",
+    validation_contains: [],
+    validation_error: "",
+    validation_type_system: "",
+    validation_value_type: "",
+    ...partial,
+  }
+}
 
 export default {
   title: "pages/CreateWorkspacePageView",
@@ -13,13 +36,15 @@ const Template: Story<CreateWorkspacePageViewProps> = (args) => <CreateWorkspace
 
 export const NoParameters = Template.bind({})
 NoParameters.args = {
-  template: MockTemplate,
+  templates: [MockTemplate],
+  selectedTemplate: MockTemplate,
   templateSchema: [],
 }
 
 export const Parameters = Template.bind({})
 Parameters.args = {
-  template: MockTemplate,
+  templates: [MockTemplate],
+  selectedTemplate: MockTemplate,
   templateSchema: [
     createParameterSchema({
       name: "region",

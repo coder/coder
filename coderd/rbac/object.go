@@ -6,6 +6,11 @@ import (
 
 const WildcardSymbol = "*"
 
+// Objecter returns the RBAC object for itself.
+type Objecter interface {
+	RBACObject() Object
+}
+
 // Resources are just typed objects. Making resources this way allows directly
 // passing them into an Authorize function and use the chaining api.
 var (
@@ -97,6 +102,10 @@ type Object struct {
 	// Type is "workspace", "project", "devurl", etc
 	Type string `json:"type"`
 	// TODO: SharedUsers?
+}
+
+func (z Object) RBACObject() Object {
+	return z
 }
 
 // All returns an object matching all resources of the same type.

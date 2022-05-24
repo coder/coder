@@ -174,10 +174,10 @@ func TestConn(t *testing.T) {
 		defer srv.Close()
 		go func() {
 			sch, err := server.Accept(context.Background())
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			nc2 := sch.NetConn()
 			nc1, err := net.Dial("tcp", srv.Addr().String())
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			go func() {
 				_, _ = io.Copy(nc1, nc2)
 			}()
@@ -248,12 +248,12 @@ func TestConn(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_, err := client.Ping()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		go func() {
 			defer wg.Done()
 			_, err := server.Ping()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		wg.Wait()
 	})
@@ -276,9 +276,9 @@ func TestConn(t *testing.T) {
 		exchange(t, client, server)
 		go func() {
 			channel, err := client.CreateChannel(context.Background(), "test", nil)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			_, err = channel.Write([]byte{1, 2})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		channel, err := server.Accept(context.Background())
 		require.NoError(t, err)

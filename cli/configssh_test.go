@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -96,7 +97,7 @@ func TestConfigSSH(t *testing.T) {
 				return
 			}
 			ssh, err := agentConn.SSH()
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			go io.Copy(conn, ssh)
 			go io.Copy(ssh, conn)
 		}
@@ -120,7 +121,7 @@ func TestConfigSSH(t *testing.T) {
 	go func() {
 		defer close(doneChan)
 		err := cmd.Execute()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	<-doneChan
 
