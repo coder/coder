@@ -31,10 +31,9 @@ export const Language = {
 }
 
 export interface WorkspaceScheduleFormProps {
+  isLoading: boolean
   onCancel: () => void
-
-  // TODO(Grey): un-promisfy and adding isSubmitting prop
-  onSubmit: (values: WorkspaceScheduleFormValues) => Promise<void>
+  onSubmit: (values: WorkspaceScheduleFormValues) => void
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -80,7 +79,7 @@ export const validationSchema = Yup.object({
   ttl: Yup.number().min(0).integer(),
 })
 
-export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ onCancel, onSubmit }) => {
+export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ isLoading, onCancel, onSubmit }) => {
   const styles = useStyles()
 
   const form = useFormik<WorkspaceScheduleFormValues>({
@@ -210,7 +209,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({ on
             variant="standard"
           />
 
-          <FormFooter onCancel={onCancel} isLoading={form.isSubmitting} />
+          <FormFooter onCancel={onCancel} isLoading={form.isSubmitting || isLoading} />
         </Stack>
       </form>
     </FullPageForm>

@@ -68,6 +68,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   } else {
     return (
       <WorkspaceScheduleForm
+        isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/workspaces/${workspaceId}`)
         }}
@@ -77,10 +78,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
             autoStart: formValuesToAutoStartRequest(values),
             ttl: formValuesToTTLRequest(values),
           })
-
-          // TODO(Grey): Remove this after onSubmit is un-promisified
           // TODO(Grey): navigation logic
-          return Promise.resolve()
         }}
       />
     )
