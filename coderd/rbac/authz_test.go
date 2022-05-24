@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
-
-	"golang.org/x/xerrors"
-
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
 )
@@ -22,6 +21,94 @@ type subject struct {
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
 	Roles []rbac.Role `json:"roles"`
+}
+
+func TestFilter(t *testing.T) {
+	t.Parallel()
+
+	objectList := make([]rbac.Object, 0)
+	workspaceList := make([]rbac.Object, 0)
+	fileList := make([]rbac.Object, 0)
+	for i := 0; i < 10; i++ {
+		idxStr := strconv.Itoa(i)
+		workspace := rbac.ResourceWorkspace.WithID(idxStr).WithOwner("me")
+		file := rbac.ResourceFile.WithID(idxStr).WithOwner("me")
+
+		workspaceList = append(workspaceList, workspace)
+		fileList = append(fileList, file)
+
+		objectList = append(objectList, workspace)
+		objectList = append(objectList, file)
+	}
+
+	// copyList is to prevent tests from sharing the same slice
+	copyList := func(list []rbac.Object) []rbac.Object {
+		tmp := make([]rbac.Object, len(list))
+		copy(tmp, list)
+		return tmp
+	}
+
+	testCases := []struct {
+		Name     string
+		List     []rbac.Object
+		Expected []rbac.Object
+		Auth     func(o rbac.Object) error
+	}{
+		{
+			Name:     "FilterWorkspaceType",
+			List:     copyList(objectList),
+			Expected: copyList(workspaceList),
+			Auth: func(o rbac.Object) error {
+				if o.Type != rbac.ResourceWorkspace.Type {
+					return xerrors.New("only workspace")
+				}
+				return nil
+			},
+		},
+		{
+			Name:     "FilterFileType",
+			List:     copyList(objectList),
+			Expected: copyList(fileList),
+			Auth: func(o rbac.Object) error {
+				if o.Type != rbac.ResourceFile.Type {
+					return xerrors.New("only file")
+				}
+				return nil
+			},
+		},
+		{
+			Name:     "FilterAll",
+			List:     copyList(objectList),
+			Expected: []rbac.Object{},
+			Auth: func(o rbac.Object) error {
+				return xerrors.New("always fail")
+			},
+		},
+		{
+			Name:     "FilterNone",
+			List:     copyList(objectList),
+			Expected: copyList(objectList),
+			Auth: func(o rbac.Object) error {
+				return nil
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			authorizer := fakeAuthorizer{
+				AuthFunc: func(_ context.Context, _ string, _ []string, _ rbac.Action, object rbac.Object) error {
+					return c.Auth(object)
+				},
+			}
+
+			filtered := rbac.Filter(context.Background(), authorizer, "me", []string{}, rbac.ActionRead, c.List)
+			require.ElementsMatch(t, c.Expected, filtered, "expect same list")
+			require.Equal(t, len(c.Expected), len(filtered), "same length list")
+		})
+	}
 }
 
 // TestAuthorizeDomain test the very basic roles that are commonly used.
