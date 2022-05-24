@@ -35,7 +35,7 @@ export const FormFooter: React.FC<FormFooterProps> = ({
   const styles = useStyles()
   return (
     <div className={styles.footer}>
-      <Button className={styles.button} onClick={onCancel} variant="outlined">
+      <Button type="button" className={styles.button} onClick={onCancel} variant="outlined">
         {Language.cancelLabel}
       </Button>
       <LoadingButton loading={isLoading} className={styles.button} variant="contained" color="primary" type="submit">
