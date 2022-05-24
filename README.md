@@ -47,12 +47,7 @@ environments on _anything_, including:
 Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
 and whatever else Terraform lets you dream up.
 
-TODO: add logos.
-
-<img src="./docs/images/gcp.png" height=64>
-<img src="./docs/images/aws.svg" width=64>
-<img src="./docs/images/azure.svg" width=64>
-<img src="./docs/images/k8s.svg" width=64>
+<img src="./docs/images/providers-compute.png" width=1024>
 
 ## IDE Support
 
