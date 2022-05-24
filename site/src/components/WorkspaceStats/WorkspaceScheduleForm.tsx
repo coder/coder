@@ -32,6 +32,8 @@ export const Language = {
 
 export interface WorkspaceScheduleFormProps {
   onCancel: () => void
+
+  // TODO(Grey): un-promisfy and adding isSubmitting prop
   onSubmit: (values: WorkspaceScheduleFormValues) => Promise<void>
 }
 
@@ -73,6 +75,7 @@ export const validationSchema = Yup.object({
   friday: Yup.boolean(),
   saturday: Yup.boolean(),
 
+  // TODO(Grey): Add validation that the string is "" or "HH:mm" (24 hours)
   startTime: Yup.string(),
   ttl: Yup.number().min(0).integer(),
 })
