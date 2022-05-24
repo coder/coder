@@ -8,30 +8,28 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 Follow](https://img.shields.io/twitter/follow/CoderHQ?label=%40CoderHQ&style=social)](https://twitter.com/coderhq)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
 
-Provision remote development servers anywhere on anything.
+Coder turns your cloud into a fleet of development servers.
 
 ![Kubernetes workspace in Coder v2](./docs/screenshot.png)
 
-## Highlights
+**Code more**
 
-Workspaces:
+- Build and test faster, leveraging cloud CPUs, RAM, network speeds, etc.
+- Access your environment from anywhere on any client (even an iPad)
+- Onboard instantly then stay up to date
 
-- Code on powerful servers: leverage cloud GPU, GPU, and network speeds
-- Use the `coder` CLI: connect via SSH, VS Code, and JetBrains
-- Self-serve workspaces: start from team-wide templates (see below)
+**Manage less**
 
-Templates:
-
-- Manage the infrastructure behind workspaces with standard Terraform (`.hcl` files)
-- Use any OS and architecture: Mac, Windows, Linux, VM, Kubernetes, ARM, etc
-- Auto-shutdown or update workspaces when they're not in use!
-
-TODO: succintly list value props
+- Ensure consistent development workspaces across your team
+  - Rollout critical updates to your fleet of workspaces with one command
+- Automatically shut down expensive cloud resources
+- Keep your source code and data behind your firewall
 
 ## How it works
 
 Coder workspaces are represented with terraform. But, no terraform knowledge is
-required to get started. We have a database of pre-made templates [here](https://github.com/coder/coder/tree/main/examples). Terraform empowers you to create
+required to get started. We have a database of pre-made templates built into the
+product. Terraform empowers you to create
 environments on _anything_, including:
 
 - VMs across any cloud
@@ -44,7 +42,14 @@ and whatever else Terraform lets you dream up.
 
 <img src="./docs/images/providers-compute.png" width=1024>
 
+TODO: Describe administrator workflow. Perhaps in a linked document.
+
+[Learn more about managing infrastructure.](./docs/templates.md)
+
 ## IDE Support
+
+Coder gives you a private tunnel to any port on your workspace as well as
+SSH access. You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
 
 ## Installing Coder
 
