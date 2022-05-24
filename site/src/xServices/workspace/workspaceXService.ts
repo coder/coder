@@ -33,6 +33,7 @@ export interface WorkspaceContext {
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
   loadMoreBuildsError?: Error | unknown
+  cancellationMessage: string
 }
 
 export type WorkspaceEvent =
@@ -64,7 +65,7 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild
         }
         cancelWorkspace: {
-          data: TypesGen.WorkspaceBuild
+          data: string
         }
         refreshWorkspace: {
           data: TypesGen.Workspace | undefined
@@ -170,17 +171,17 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingCancel: {
-                entry: "clearCancelError",
+                entry: "clearCancellationMessage",
                 invoke: {
                   id: "cancelWorkspace",
                   src: "cancelWorkspace",
                   onDone: {
                     target: "idle",
-                    actions: ["assignBuild", "refreshTimeline"],
+                    actions: ["assignCancellationMessage", "refreshTimeline"],
                   },
                   onError: {
                     target: "idle",
-                    actions: ["assignBuildError", "displayBuildError"]
+                    actions: ["assignCancellationMessage", "displayCancellationError"]
                   }
                 }
               },
@@ -312,6 +313,15 @@ export const workspaceMachine = createMachine(
         assign({
           buildError: undefined,
         }),
+      assignCancellationMessage: (_, event) => assign({
+        cancellationMessage: event.data
+      }),
+      clearCancellationMessage: (_) => assign({
+        cancellationMessage: undefined
+      }),
+      displayCancellationError: (context) => {
+        displayError(context.cancellationMessage)
+      },
       assignRefreshWorkspaceError: (_, event) =>
         assign({
           refreshWorkspaceError: event.data,
@@ -331,6 +341,7 @@ export const workspaceMachine = createMachine(
         assign({
           refreshTemplateError: undefined,
         }),
+      // Resources
       assignResources: assign({
         resources: (_, event) => event.data,
       }),
