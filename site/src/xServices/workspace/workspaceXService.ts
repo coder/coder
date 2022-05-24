@@ -19,12 +19,9 @@ const Language = {
 export interface WorkspaceContext {
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
-  organization?: TypesGen.Organization
   build?: TypesGen.WorkspaceBuild
   resources?: TypesGen.WorkspaceResource[]
   getWorkspaceError?: Error | unknown
-  getTemplateError?: Error | unknown
-  getOrganizationError?: Error | unknown
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   // these are separate from getX errors because they don't make the page unusable
@@ -58,9 +55,6 @@ export const workspaceMachine = createMachine(
         }
         getTemplate: {
           data: TypesGen.Template
-        }
-        getOrganization: {
-          data: TypesGen.Organization
         }
         startWorkspace: {
           data: TypesGen.WorkspaceBuild
@@ -128,43 +122,6 @@ export const workspaceMachine = createMachine(
                   1000: "refreshingWorkspace",
                 },
               },
-            },
-          },
-          breadcrumb: {
-            initial: "gettingTemplate",
-            states: {
-              gettingTemplate: {
-                invoke: {
-                  src: "getTemplate",
-                  id: "getTemplate",
-                  onDone: {
-                    target: "gettingOrganization",
-                    actions: ["assignTemplate", "clearGetTemplateError"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: "assignGetTemplateError",
-                  },
-                },
-                tags: "loading",
-              },
-              gettingOrganization: {
-                invoke: {
-                  src: "getOrganization",
-                  id: "getOrganization",
-                  onDone: {
-                    target: "ready",
-                    actions: ["assignOrganization", "clearGetOrganizationError"],
-                  },
-                  onError: {
-                    target: "error",
-                    actions: "assignGetOrganizationError",
-                  },
-                },
-                tags: "loading",
-              },
-              error: {},
-              ready: {},
             },
           },
           build: {
@@ -309,7 +266,6 @@ export const workspaceMachine = createMachine(
         assign({
           workspace: undefined,
           template: undefined,
-          organization: undefined,
           build: undefined,
         }),
       assignWorkspace: assign({
@@ -322,17 +278,6 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
-      assignGetTemplateError: assign({
-        getTemplateError: (_, event) => event.data,
-      }),
-      clearGetTemplateError: (context) => assign({ ...context, getTemplateError: undefined }),
-      assignOrganization: assign({
-        organization: (_, event) => event.data,
-      }),
-      assignGetOrganizationError: assign({
-        getOrganizationError: (_, event) => event.data,
-      }),
-      clearGetOrganizationError: (context) => assign({ ...context, getOrganizationError: undefined }),
       assignBuild: (_, event) =>
         assign({
           build: event.data,
@@ -436,13 +381,6 @@ export const workspaceMachine = createMachine(
           return await API.getTemplate(context.workspace.template_id)
         } else {
           throw Error("Cannot get template without workspace")
-        }
-      },
-      getOrganization: async (context) => {
-        if (context.template) {
-          return await API.getOrganization(context.template.organization_id)
-        } else {
-          throw Error("Cannot get organization without template")
         }
       },
       startWorkspace: async (context) => {

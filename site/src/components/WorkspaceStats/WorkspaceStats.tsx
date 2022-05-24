@@ -61,7 +61,9 @@ export const WorkspaceStats: React.FC<WorkspaceStatsProps> = ({ workspace }) => 
       <div className={styles.statsDivider} />
       <div className={styles.statItem}>
         <span className={styles.statsLabel}>{Language.lastBuiltLabel}</span>
-        <span className={styles.statsValue}>{dayjs().to(dayjs(workspace.latest_build.created_at))}</span>
+        <span className={styles.statsValue} data-chromatic="ignore">
+          {dayjs().to(dayjs(workspace.latest_build.created_at))}
+        </span>
       </div>
     </div>
   )

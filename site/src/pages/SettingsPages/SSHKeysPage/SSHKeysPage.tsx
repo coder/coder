@@ -10,11 +10,11 @@ import { Stack } from "../../../components/Stack/Stack"
 import { XServiceContext } from "../../../xServices/StateContext"
 
 export const Language = {
-  title: "SSH Keys",
+  title: "SSH keys",
   description:
     "Coder automatically inserts a private key into every workspace; you can add the corresponding public key to any services (such as Git) that you need access to from your workspace.",
   regenerateLabel: "Regenerate",
-  regenerateDialogTitle: "Regenerate SSH Key?",
+  regenerateDialogTitle: "Regenerate SSH key?",
   regenerateDialogMessage:
     "You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
   confirmLabel: "Confirm",

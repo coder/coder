@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	_ "time/tzdata"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliui"

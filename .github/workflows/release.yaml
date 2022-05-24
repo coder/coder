@@ -80,7 +80,7 @@ jobs:
         run: make site/out/index.html
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2.9.1
+        uses: goreleaser/goreleaser-action@v3
         with:
           version: latest
           args: release --rm-dist
