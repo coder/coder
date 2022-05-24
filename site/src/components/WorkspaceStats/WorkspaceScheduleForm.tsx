@@ -16,6 +16,7 @@ import { Stack } from "../Stack/Stack"
 
 export const Language = {
   errorNoDayOfWeek: "Must set at least one day of week",
+  errorTime: "Invalid time",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sunday",
   dayMondayLabel: "Monday",
@@ -74,8 +75,20 @@ export const validationSchema = Yup.object({
   friday: Yup.boolean(),
   saturday: Yup.boolean(),
 
-  // TODO(Grey): Add validation that the string is "" or "HH:mm" (24 hours)
-  startTime: Yup.string(),
+  startTime: Yup.string()
+    .ensure()
+    .test("is-time-string", Language.errorTime, (value) => {
+      if (value === "") {
+        return true
+      } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+        return false
+      } else {
+        const parts = value.split(":")
+        const HH = Number(parts[0])
+        const mm = Number(parts[1])
+        return HH >= 0 && HH <= 12 && mm >= 0 && mm <= 59
+      }
+    }),
   ttl: Yup.number().min(0).integer(),
 })
 
